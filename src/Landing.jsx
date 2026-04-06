@@ -150,7 +150,14 @@ export default function Landing(){
             <span style={{color:'#94a3b8',fontSize:13,marginLeft:8}}>TaxStat360 — Platform Overview</span>
           </div>
           <div style={{position:'relative',paddingBottom:'56.25%',height:0}}>
+            <iframe
               src={'https://player.vimeo.com/video/' + VIMEO_VIDEO_ID + '?badge=0&autopause=0&title=0&byline=0&portrait=0&dnt=1'}
+              title="TaxStat360 Platform Overview"
+              frameBorder="0"
+              allow="autoplay; fullscreen; picture-in-picture; clipboard-write"
+              allowFullScreen
+              style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}}
+            />
           </div>
         </div>
         <p style={{textAlign:'center',color:SL,fontSize:13,marginTop:12}}>Watch how TaxStat360 calculates your K-1 income and generates AI-powered tax strategies in minutes.</p>
