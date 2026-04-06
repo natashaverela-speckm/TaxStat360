@@ -39,11 +39,11 @@ export default function Onboarding({screen}){
       window[mcCallback] = () => { delete window[mcCallback]; document.body.contains(mcScript) && document.body.removeChild(mcScript) }
       const mcParams = new URLSearchParams({
         u: 'f8bbe8c960a3c7bae19433b3e',
-        id: '244ef2b8b6',
-        f_id: '00cd07e9f0',
+        id: 'f546bd92ac',
+        f_id: '00cc07e9f0',
         EMAIL: form.email,
         FNAME: form.name,
-        'b_f8bbe8c960a3c7bae19433b3e_244ef2b8b6': '',
+        'b_f8bbe8c960a3c7bae19433b3e_f546bd92ac': '',
         c: mcCallback,
       })
       mcScript.src = 'https://themoneynista.us4.list-manage.com/subscribe/post?' + mcParams.toString()
