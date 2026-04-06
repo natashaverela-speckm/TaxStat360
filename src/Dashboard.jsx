@@ -5,7 +5,10 @@ export default function Dashboard(){
   const token=localStorage.getItem('access_token')
   return(<div style={{minHeight:'100vh',background:'#F0F4FF',fontFamily:'Inter,sans-serif'}}>
     <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 32px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <div style={{fontWeight:700,color:N,fontSize:16}}>TaxStat360</div>
+      <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}} onClick={()=>nav('/dashboard')}>
+          <div style={{width:32,height:32,background:B,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'#fff',fontSize:14}}>T</div>
+          <div style={{fontWeight:800,color:N,fontSize:17,letterSpacing:'-0.3px'}}>TaxStat<span style={{color:B}}>360</span></div>
+        </div>
       <div style={{display:'flex',gap:8}}>
         {[['Dashboard','/dashboard'],['Calculate Tax','/calculate-tax'],['AI Analysis','/ai-analysis']].map(([l,p])=>(
           <button key={p} onClick={()=>nav(p)} style={{padding:'6px 16px',borderRadius:6,border:'none',background:p==='/dashboard'?B:'transparent',color:p==='/dashboard'?'#fff':SL,fontWeight:600,fontSize:13,cursor:'pointer'}}>{l}</button>
