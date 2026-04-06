@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569'
-const YOUTUBE_VIDEO_ID='ataA4nELR_U'
+const VIMEO_VIDEO_ID='1180620888'
 const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:10}}><svg width="34" height="34" viewBox="0 0 34 34" style={{flexShrink:0}}><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,letterSpacing:'-0.3px',borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
 
 const TIERS = [
@@ -150,7 +150,7 @@ export default function Landing(){
             <span style={{color:'#94a3b8',fontSize:13,marginLeft:8}}>TaxStat360 — Platform Overview</span>
           </div>
           <div style={{position:'relative',paddingBottom:'56.25%',height:0}}>
-            <iframe src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?rel=0&modestbranding=1`} title="TaxStat360 Overview" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{position:'absolute',top:0,left:0,width:'100%',height:'100%'}}/>
+              src={['https://player.vimeo.com/video/', VIMEO_VIDEO_ID, '?badge=0&autopause=0&title=0&byline=0&portrait=0'].join('')}
           </div>
         </div>
         <p style={{textAlign:'center',color:SL,fontSize:13,marginTop:12}}>Watch how TaxStat360 calculates your K-1 income and generates AI-powered tax strategies in minutes.</p>
