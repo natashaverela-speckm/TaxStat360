@@ -206,45 +206,6 @@ export default function Landing(){
       <div style={{background:'#0a1628',padding:'64px 24px'}}>
         <div style={{maxWidth:1100,margin:'0 auto'}}>
           <div style={{textAlign:'center',marginBottom:40}}>
-            <div style={{display:'inline-block',background:'rgba(37,99,235,0.25)',color:'#93c5fd',fontSize:11,fontWeight:700,letterSpacing:1.5,padding:'6px 14px',borderRadius:20,marginBottom:14}}>ALL 32 AI-POWERED FEATURES</div>
-            <h2 style={{color:'#fff',fontSize:30,fontWeight:800,margin:'0 0 8px'}}>Advanced AI Feature Expansion</h2>
-            <p style={{color:'#94a3b8',fontSize:14,maxWidth:560,margin:'0 auto'}}>Designed for IRS, State, and Federal Requirements — proactive, intelligent, US-compliant financial partnership.</p>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
-            {[
-              {n:1,t:'Real-Time Risk Alert Engine',tier:'P'},{n:2,t:'What-If Scenario Simulator',tier:'P'},{n:3,t:'Explainable AI Layer',tier:'B'},{n:4,t:'AI Assumption Transparency Panel',tier:'P'},
-              {n:5,t:'Advisor & Accountant Collaboration',tier:'P'},{n:6,t:'One-Click CPA Export Pack',tier:'P'},{n:7,t:'Mid-Year Tax & Risk Pulse',tier:'P'},{n:8,t:'Year-Over-Year Intelligence',tier:'P'},
-              {n:9,t:'Financial Data Anomaly Detection',tier:'P'},{n:10,t:'Data Confidence Score',tier:'B'},{n:11,t:'Risk Tolerance Profiling',tier:'P'},{n:12,t:'Industry Benchmark Intelligence',tier:'P'},
-              {n:13,t:'AI Recommendation Change Tracking',tier:'A'},{n:14,t:'Support Replay & Audit Mode',tier:'A'},{n:15,t:'Tax-Saving Opportunity Discovery',tier:'B'},{n:16,t:'AI Financial Action Plan',tier:'B'},
-              {n:17,t:'Event-Triggered AI Re-Analysis',tier:'A'},{n:18,t:'Multi-Entity / Multi-Business View',tier:'A'},{n:19,t:'AI Feature Tiers',tier:'A'},{n:20,t:'IRS Audit Readiness Mode',tier:'P'},
-              {n:21,t:'IRS Schedule Mapping (C, E, K-1)',tier:'B'},{n:22,t:'Depreciation Compliance Engine',tier:'B'},{n:23,t:'State-Level Tax Awareness',tier:'P'},{n:24,t:'Safe Harbor Rule Detection',tier:'P'},
-              {n:25,t:'Estimated Tax Payment Planner',tier:'B'},{n:26,t:'IRS Rule Change Monitoring',tier:'P'},{n:27,t:'Compliance Confidence Indicator',tier:'B'},{n:28,t:'IRS-Friendly Language Mode',tier:'B'},
-              {n:29,t:'Compliance-Grade AI Guardrails',tier:'P'},{n:30,t:'AI Audit Defense Narrative',tier:'A'},{n:31,t:'IRS Deadline & Penalty Awareness',tier:'B'},{n:32,t:'IRS Data Retention & Audit Trail',tier:'P'},
-            ].map(f=>{
-              const tc=f.tier==='B'?'#475569':f.tier==='P'?B:'#7C3AED'
-              const tl=f.tier==='B'?'Basic':f.tier==='P'?'Pro':'Adv'
-              return(
-                <div key={f.n} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'14px 12px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:6}}>
-                    <div style={{width:20,height:20,borderRadius:4,background:tc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#fff',flexShrink:0}}>{f.n}</div>
-                    <span style={{fontSize:9,fontWeight:700,color:tc,background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:10}}>{tl}</span>
-                  </div>
-                  <div style={{color:'#e2e8f0',fontSize:11,lineHeight:1.4,fontWeight:600}}>{f.t}</div>
-                </div>
-              )
-            })}
-          </div>
-          <div style={{display:'flex',gap:20,justifyContent:'center',marginTop:24}}>
-            {[{color:'#475569',label:'Basic (10 features)'},{color:B,label:'Professional (20 features)'},{color:'#7C3AED',label:'Advanced (32 features)'}].map(l=>(
-              <div key={l.label} style={{display:'flex',alignItems:'center',gap:7}}>
-                <div style={{width:12,height:12,borderRadius:3,background:l.color}}/>
-                <span style={{color:'#94a3b8',fontSize:12}}>{l.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* FOOTER */}
       <div style={{background:'#060f1e',padding:'24px',textAlign:'center'}}>
         <p style={{color:'#475569',fontSize:13}}>© 2025 TaxStat360 · MoneyMasters Academy · Built by a former IRS Revenue Agent</p>
