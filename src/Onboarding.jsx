@@ -32,7 +32,23 @@ export default function Onboarding({screen}){
     try{
       const r=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.name,email:form.email,password:form.password})})
       const d=await r.json()
-      if(d.access_token){localStorage.setItem('access_token',d.access_token);nav('/onboarding/entity')}
+      if(d.access_token){localStorage.setItem('access_token',d.access_token);
+      // Auto-subscribe to Mailchimp on successful signup
+      const mcCallback = 'mc_signup_' + Date.now()
+      const mcScript = document.createElement('script')
+      window[mcCallback] = () => { delete window[mcCallback]; document.body.contains(mcScript) && document.body.removeChild(mcScript) }
+      const mcParams = new URLSearchParams({
+        u: 'f8bbe8c960a3c7bae19433b3e',
+        id: '244ef2b8b6',
+        f_id: '00cd07e9f0',
+        EMAIL: form.email,
+        FNAME: form.name,
+        'b_f8bbe8c960a3c7bae19433b3e_244ef2b8b6': '',
+        c: mcCallback,
+      })
+      mcScript.src = 'https://themoneynista.us4.list-manage.com/subscribe/post?' + mcParams.toString()
+      document.body.appendChild(mcScript)
+      nav('/onboarding/entity')}
       else setErr(d.detail||'Registration failed')
     }catch(e){setErr('Unable to connect. Please try again.')}
   }
