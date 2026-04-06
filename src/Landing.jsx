@@ -6,7 +6,7 @@ const N='#0D1B3E', B='#2563EB', SL='#475569'
 // Your Mailchimp form action URL — paste yours here
 const MAILCHIMP_URL = 'https://themoneynista.us4.list-manage.com/subscribe/post'
 // Your YouTube video ID — paste yours after the = sign
-const YOUTUBE_VIDEO_ID = 'dQw4w9WgXcQ'
+const YOUTUBE_VIDEO_ID = 'ataA4nELR_U'
 
 export default function Landing() {
   const nav = useNavigate()
