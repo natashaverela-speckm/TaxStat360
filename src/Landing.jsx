@@ -44,7 +44,7 @@ export default function Landing() {
 
       {/* NAV */}
       <nav style={{background:'#fff', borderBottom:'1px solid #E2E8F0', padding:'0 40px', height:64, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100}}>
-        <div style={{fontWeight:800, color:N, fontSize:20, letterSpacing:'-0.5px'}}>TaxStat<span style={{color:B}}>360</span></div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}><svg width="34" height="34" viewBox="0 0 34 34" style={{flexShrink:0}}><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,letterSpacing:'-0.3px',borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>
         <div style={{display:'flex', gap:12}}>
           <button onClick={()=>nav('/login')} style={{padding:'8px 20px', border:'1px solid #E2E8F0', borderRadius:8, background:'#fff', fontWeight:600, fontSize:14, cursor:'pointer', color:N}}>Sign In</button>
           <button onClick={()=>nav('/signup')} style={{padding:'8px 20px', background:B, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:14, cursor:'pointer'}}>Get Started Free</button>
