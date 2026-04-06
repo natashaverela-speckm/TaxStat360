@@ -5,7 +5,7 @@ const API='https://app.taxstat360.com'
 
 export default function Onboarding({screen}){
   const nav=useNavigate()
-  const [form,setForm]=useState({name:'',email:'',password:'',entityType:'',businessName:'',ein:'',address:'',selected:''})
+  const [form,setForm]=useState({name:'',email:'',password:'',entityType:'',businessName:'',ein:'',address:'',selected:'',cardNumber:'',cardExpiry:'',cvv:''})
   const [err,setErr]=useState('')
   const addressRef=useRef(null)
   const up=v=>setForm(f=>({...f,...v}))
@@ -77,7 +77,47 @@ export default function Onboarding({screen}){
         <input style={I} placeholder="Full name" value={form.name} onChange={e=>up({name:e.target.value})}/>
         <input style={I} placeholder="Email address" type="email" value={form.email} onChange={e=>up({email:e.target.value})}/>
         <input style={I} placeholder="Password (8+ characters)" type="password" value={form.password} onChange={e=>up({password:e.target.value})}/>
-        <Btn onClick={handleSignup} style={{marginTop:4}}>Create Account →</Btn>
+        <div style={{marginBottom:4}}>
+          <div style={{fontSize:12,fontWeight:600,color:SL,marginBottom:6}}>Credit Card Number</div>
+          <div style={{position:'relative'}}>
+            <input
+              style={{...I,marginBottom:0,paddingRight:80,letterSpacing:form.cardNumber?'0.1em':'normal'}}
+              placeholder="1234 5678 9012 3456"
+              maxLength={19}
+              value={form.cardNumber}
+              onChange={e=>{
+                const v=e.target.value.replace(/\D/g,'').slice(0,16)
+                const fmt=v.replace(/(\d{4})/g,'$1 ').trim()
+                up({cardNumber:fmt})
+              }}
+            />
+            <div style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',display:'flex',gap:4}}>
+              <span style={{fontSize:18}}>💳</span>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:12,marginTop:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:600,color:SL,marginBottom:6}}>Expiry Date</div>
+              <input style={{...I,marginBottom:0}} placeholder="MM / YY" maxLength={7} value={form.cardExpiry} onChange={e=>{
+                const v=e.target.value.replace(/\D/g,'')
+                const fmt=v.length>2?v.slice(0,2)+' / '+v.slice(2,4):v
+                up({cardExpiry:fmt})
+              }}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:600,color:SL,marginBottom:6}}>CVV</div>
+              <input style={{...I,marginBottom:0}} placeholder="123" maxLength={4} type="password" value={form.cvv} onChange={e=>up({cvv:e.target.value.replace(/\D/g,'').slice(0,4)})}/>
+            </div>
+          </div>
+          <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',marginTop:12,display:'flex',gap:10,alignItems:'flex-start'}}>
+            <span style={{fontSize:16,flexShrink:0}}>🔒</span>
+            <div>
+              <div style={{fontWeight:700,color:'#15803D',fontSize:12}}>No charge until your free trial ends</div>
+              <div style={{color:'#166534',fontSize:11,marginTop:2,lineHeight:1.5}}>Your card is required for security purposes only — to prevent fraud and verify your identity. You will <b>not</b> be billed until your 14-day free trial ends. Cancel anytime before then at no cost.</div>
+            </div>
+          </div>
+        </div>
+        <Btn onClick={handleSignup} style={{marginTop:4}}>Start Free Trial →</Btn>
         <p style={{textAlign:'center',marginTop:16,fontSize:13,color:SL}}>Already have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:700}}>Sign in</span></p>
         <p style={{textAlign:'center',marginTop:8,fontSize:11,color:'#94a3b8'}}>By creating an account you agree to our Terms of Service</p>
       </div>
