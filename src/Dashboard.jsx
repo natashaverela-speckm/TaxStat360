@@ -6,8 +6,14 @@ export default function Dashboard(){
   return(<div style={{minHeight:'100vh',background:'#F0F4FF',fontFamily:'Inter,sans-serif'}}>
     <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 32px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}} onClick={()=>nav('/dashboard')}>
-          <div style={{width:32,height:32,background:B,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'#fff',fontSize:14}}>T</div>
-          <div style={{fontWeight:800,color:N,fontSize:17,letterSpacing:'-0.3px'}}>TaxStat<span style={{color:B}}>360</span></div>
+          <svg width="34" height="34" viewBox="0 0 34 34" style={{flexShrink:0}}>
+            <rect width="34" height="34" rx="8" fill="#0D1B3E"/>
+            <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/>
+            <rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/>
+            <rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/>
+            <rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/>
+          </svg>
+          <div style={{fontWeight:800,color:'#0D1B3E',fontSize:18,letterSpacing:'-0.3px',borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:'#2563EB'}}>360</span></div>
         </div>
       <div style={{display:'flex',gap:8}}>
         {[['Dashboard','/dashboard'],['Calculate Tax','/calculate-tax'],['AI Analysis','/ai-analysis']].map(([l,p])=>(
