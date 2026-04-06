@@ -199,13 +199,6 @@ export default function Landing(){
             ))}
           </div>
           <p style={{textAlign:'center',color:'#64748b',fontSize:13,marginTop:24}}>All plans include a 14-day free trial. No credit card charged until trial ends. Cancel anytime.</p>
-        </div>
-      </div>
-
-      {/* 32 FEATURES FULL GRID */}
-      <div style={{background:'#0a1628',padding:'64px 24px'}}>
-        <div style={{maxWidth:1100,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:40}}>
       {/* FOOTER */}
       <div style={{background:'#060f1e',padding:'24px',textAlign:'center'}}>
         <p style={{color:'#475569',fontSize:13}}>© 2025 TaxStat360 · MoneyMasters Academy · Built by a former IRS Revenue Agent</p>
