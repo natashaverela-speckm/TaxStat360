@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 const N='#0D1B3E', B='#2563EB', SL='#475569'
 
 // Your Mailchimp form action URL — paste yours here
-const MAILCHIMP_URL = 'https://moneymastersacademy.us1.list-manage.com/subscribe/post'
+const MAILCHIMP_URL = 'https://themoneynista.us4.list-manage.com/subscribe/post'
 // Your YouTube video ID — paste yours after the = sign
 const YOUTUBE_VIDEO_ID = 'dQw4w9WgXcQ'
 
@@ -13,23 +13,30 @@ export default function Landing() {
   const [email, setEmail] = useState('')
   const [subStatus, setSubStatus] = useState('')
 
-  const handleSubscribe = async (e) => {
+  const handleSubscribe = (e) => {
     e.preventDefault()
     if (!email) return
-    try {
-      // Mailchimp JSONP subscribe
-      const url = MAILCHIMP_URL + '?u=YOUR_U&id=YOUR_ID&EMAIL=' + encodeURIComponent(email) + '&c=mailchimpCallback'
-      window.mailchimpCallback = (data) => {
-        if (data.result === 'success') setSubStatus('success')
-        else setSubStatus('error')
-      }
-      const script = document.createElement('script')
-      script.src = url
-      document.body.appendChild(script)
-      setSubStatus('success')
-    } catch {
-      setSubStatus('error')
+    setSubStatus('pending')
+    // Mailchimp JSONP - bypasses CORS
+    const callbackName = 'mc_callback_' + Date.now()
+    window[callbackName] = (data) => {
+      if (data.result === 'success') setSubStatus('success')
+      else setSubStatus('error')
+      delete window[callbackName]
+      document.body.removeChild(script)
     }
+    const params = new URLSearchParams({
+      u: 'f8bbe8c960a3c7bae19433b3e',
+      id: '244ef2b8b6',
+      f_id: '00cd07e9f0',
+      EMAIL: email,
+      'b_f8bbe8c960a3c7bae19433b3e_244ef2b8b6': '',
+      c: callbackName,
+    })
+    const script = document.createElement('script')
+    script.src = MAILCHIMP_URL + '?' + params.toString()
+    script.onerror = () => { setSubStatus('error') }
+    document.body.appendChild(script)
   }
 
   return (
@@ -112,7 +119,7 @@ export default function Landing() {
             style={{flex:1, minWidth:220, padding:'13px 18px', borderRadius:8, border:'none', fontSize:15, outline:'none'}}
           />
           <button type="submit" style={{padding:'13px 24px', background:B, color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:15, cursor:'pointer', whiteSpace:'nowrap'}}>
-            Get Free Tips →
+            {subStatus==='pending' ? 'Subscribing...' : 'Get Free Tips →'}
           </button>
         </form>
         {subStatus==='success' && <p style={{color:'#34d399', marginTop:16, fontWeight:600}}>✓ You're in! Check your inbox.</p>}
