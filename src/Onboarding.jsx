@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 const API='https://app.taxstat360.com'
 const PK='pk_test_51TJPXq5MkNEttBVv7cYT6PpzXUhFaTS8iqFXfGqscrRXDsACVAZbZ2SVNQ0Gr8pQ9I0Dbo6OCpsaIKMLc9O8PCHr00TtaIAHB8'
-const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:24}}><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
-const Wrap=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'center',justifyContent:'center',padding:24,fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:16,padding:'40px 36px',maxWidth:480,width:'100%',boxShadow:'0 4px 24px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}><LOGO/>{children}</div></div>)
+const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
+const Wrap=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'center',justifyContent:'center',padding:24,fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:16,padding:'28px 28px',maxWidth:480,width:'100%',boxShadow:'0 4px 24px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}><LOGO/>{children}</div></div>)
 
 function SignupScreen(){
   const nav=useNavigate()
@@ -105,7 +105,7 @@ function EntityScreen(){
     <div style={{marginBottom:8}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>What type of business entity?</h2>
     <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>This helps us map the right IRS schedules for you.</p>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:24}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
       {types.map(t=>(<div key={t} onClick={()=>setSelected(t)} style={{padding:'14px 12px',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',textAlign:'center',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff',transition:'all 0.15s'}}>{t}</div>))}
     </div>
     <button onClick={()=>{if(selected){localStorage.setItem('entityType',selected);nav('/onboarding/business')}}} disabled={!selected} style={{width:'100%',padding:14,background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}>Continue →</button>
@@ -144,7 +144,7 @@ function ImportScreen(){
     <div style={{marginBottom:8}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>Connect your accounting software</h2>
     <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>We'll import your financial data to power your AI analysis.</p>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
       {integrations.map(i=>(<div key={i.name} onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'18px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',textAlign:'center',transition:'all 0.15s'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:40,height:40,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></div>))}
     </div>
     <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:14,background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Go to Dashboard →</button>
