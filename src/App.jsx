@@ -13,6 +13,7 @@ export default function App() {
         <Route path="/signup" element={<Onboarding screen="signup" />} />
         <Route path="/register" element={<Onboarding screen="signup" />} />
         <Route path="/login" element={<Onboarding screen="login" />} />
+        <Route path="/verify-email" element={<Onboarding screen="verify" />} />
         <Route path="/onboarding/entity" element={<Onboarding screen="entity" />} />
         <Route path="/onboarding/business" element={<Onboarding screen="business" />} />
         <Route path="/onboarding/import" element={<Onboarding screen="import" />} />
