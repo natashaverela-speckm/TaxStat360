@@ -187,14 +187,6 @@ export default function Landing(){
                     Start Free Trial →
                   </button>
                 </div>
-                <div style={{borderTop:'1px solid #E2E8F0',paddingTop:20}}>
-                  {tier.features.map(f=>(
-                    <div key={f.n} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
-                      <div style={{width:20,height:20,borderRadius:5,background:tier.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#fff',flexShrink:0,marginTop:1}}>{f.n}</div>
-                      <div style={{color:N,fontSize:13,lineHeight:1.4,fontWeight:f.n==='All'?700:400}}>{f.t}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
             ))}
           </div>
