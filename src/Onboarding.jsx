@@ -3,8 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 const API='https://app.taxstat360.com'
 const PK='pk_test_51TJPXq5MkNEttBVv7cYT6PpzXUhFaTS8iqFXfGqscrRXDsACVAZbZ2SVNQ0Gr8pQ9I0Dbo6OCpsaIKMLc9O8PCHr00TtaIAHB8'
-const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
-const Wrap=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'center',justifyContent:'center',padding:24,fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:16,padding:'28px 28px',maxWidth:480,width:'100%',boxShadow:'0 4px 24px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}><LOGO/>{children}</div></div>)
+
+const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20}}><svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:17,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
+
+const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:460,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
+
+const Field=({label,val,set,type='text',ph,mb=12})=>(<div style={{marginBottom:mb}}><label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} required style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)
 
 function SignupScreen(){
   const nav=useNavigate()
@@ -15,55 +19,68 @@ function SignupScreen(){
   const [pass,setPass]=useState('')
   const [loading,setLoading]=useState(false)
   const [err,setErr]=useState('')
-  const [stripe,setStripe]=useState(null)
-  const [elements,setElements]=useState(null)
+  const [stripeReady,setStripeReady]=useState(false)
+  const stripeRef=useRef(null)
+  const elemRef=useRef(null)
   const cardRef=useRef(null)
-  const LABELS={basic:'Basic — $49/mo',professional:'Professional — $99/mo',advanced:'Advanced — $199/mo'}
+  const LABELS={basic:'Basic $49/mo',professional:'Professional $99/mo',advanced:'Advanced $199/mo'}
+
   useEffect(()=>{
     const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
     s.onload=()=>{
-      const sk=window.Stripe(PK);setStripe(sk)
-      const els=sk.elements()
-      const card=els.create('card',{style:{base:{fontSize:'15px',color:'#0D1B3E','::placeholder':{color:'#94a3b8'}}}})
-      setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setElements(els)}},200)
+      const sk=window.Stripe(PK);stripeRef.current=sk
+      const els=sk.elements();elemRef.current=els
+      const card=els.create('card',{style:{base:{fontSize:'14px',color:'#0D1B3E',fontFamily:'Inter,sans-serif','::placeholder':{color:'#94a3b8'}}}})
+      setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setStripeReady(true)}},200)
     }
     document.head.appendChild(s)
   },[])
+
   async function submit(e){
     e.preventDefault()
-    if(!stripe||!elements){setErr('Payment loading, please wait...');return}
+    if(!stripeReady){setErr('Card input still loading, please wait...');return}
     setLoading(true);setErr('')
     try{
       const si=await fetch(API+'/stripe/setup-intent',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
       if(!si.client_secret)throw new Error('Payment init failed')
-      const card=elements.getElement('card')
-      const {setupIntent,error}=await stripe.confirmCardSetup(si.client_secret,{payment_method:{card,billing_details:{name,email}}})
+      const card=elemRef.current.getElement('card')
+      const {setupIntent,error}=await stripeRef.current.confirmCardSetup(si.client_secret,{payment_method:{card,billing_details:{name,email}}})
       if(error)throw new Error(error.message)
       const reg=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password:pass,plan,payment_method_id:setupIntent.payment_method})})
       const data=await reg.json()
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
-      localStorage.setItem('token',data.access_token);localStorage.setItem('plan',plan);localStorage.setItem('userName',name)
+      localStorage.setItem('token',data.access_token)
+      localStorage.setItem('plan',plan)
+      localStorage.setItem('userName',name)
       try{const fd=new FormData();fd.append('EMAIL',email);fd.append('u','f8bbe8c960a3c7bae19433b3e');fd.append('id','f546bd92ac');fd.append('f_id','00cc07e9f0');fd.append('b_f8bbe8c960a3c7bae19433b3e_f546bd92ac','');await fetch('https://themoneynista.us4.list-manage.com/subscribe/post?u=f8bbe8c960a3c7bae19433b3e&id=f546bd92ac&f_id=00cc07e9f0',{method:'POST',mode:'no-cors',body:fd})}catch(e){}
       nav('/onboarding/entity')
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
   }
-  return(<Wrap>
-    <div style={{display:'inline-block',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,padding:'4px 12px',borderRadius:20,marginBottom:12}}>{LABELS[plan]||'Basic — $49/mo'}</div>
-    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>Start your free trial</h2>
-    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>7-day free trial — no charge until it ends</p>
+
+  return(<Page>
+    <LOGO/>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+      <div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
+      <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{LABELS[plan]}</span>
+    </div>
     <form onSubmit={submit}>
-      {[{label:'Full Name',val:name,set:setName,type:'text',ph:'Jane Smith'},{label:'Email Address',val:email,set:setEmail,type:'email',ph:'jane@company.com'},{label:'Password',val:pass,set:setPass,type:'password',ph:'Min. 8 characters'}].map(f=>(
-        <div key={f.label} style={{marginBottom:16}}><label style={{display:'block',fontSize:13,fontWeight:600,color:N,marginBottom:6}}>{f.label}</label><input type={f.type} value={f.val} onChange={ev=>f.set(ev.target.value)} placeholder={f.ph} required style={{width:'100%',padding:'11px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,boxSizing:'border-box'}}/></div>
-      ))}
-      <div style={{marginBottom:20}}><label style={{display:'block',fontSize:13,fontWeight:600,color:N,marginBottom:6}}>Card Details</label><div ref={cardRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:8,minHeight:44}}/></div>
-      {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'10px 14px',borderRadius:8,fontSize:13,marginBottom:16}}>{err}</div>}
-      <button type="submit" disabled={loading} style={{width:'100%',padding:14,background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:16}}>{loading?'Processing...':'Start Free Trial →'}</button>
-      <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',marginBottom:16}}><p style={{color:'#166534',fontSize:11,margin:0,lineHeight:1.5}}>🔒 Your card is required for security only. You will <b>not</b> be billed until your 7-day free trial ends. Cancel anytime.</p></div>
-      <p style={{textAlign:'center',fontSize:13,color:SL,margin:0}}>Already have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span></p>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+        <Field label="Full Name" val={name} set={setName} ph="Jane Smith" mb={0}/>
+        <Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0}/>
+      </div>
+      <Field label="Password" val={pass} set={setPass} type="password" ph="Min. 8 characters"/>
+      <div style={{marginBottom:12}}>
+        <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Card Details</label>
+        <div ref={cardRef} style={{padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',minHeight:38}}/>
+        {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
+      </div>
+      {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Processing...':'Start Free Trial →'}</button>
+      <p style={{fontSize:11,color:'#94a3b8',textAlign:'center',margin:'0 0 8px',lineHeight:1.4}}>🔒 Card for identity verification only. <b>Not charged</b> until after 7-day trial. Cancel anytime.</p>
+      <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <span onClick={()=>nav('/')} style={{color:SL,cursor:'pointer'}}>← Home</span></p>
     </form>
-    <p style={{textAlign:'center',fontSize:12,color:'#94a3b8',marginTop:16}}>← <span onClick={()=>nav('/')} style={{cursor:'pointer',color:B}}>Back to home</span></p>
-  </Wrap>)
+  </Page>)
 }
 
 function LoginScreen(){
@@ -83,33 +100,34 @@ function LoginScreen(){
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
   }
-  return(<Wrap>
-    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
-    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>Sign in to your TaxStat360 account</p>
+  return(<Page>
+    <LOGO/>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
+    <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>Sign in to your TaxStat360 account</p>
     <form onSubmit={submit}>
-      {[{label:'Email Address',val:email,set:setEmail,type:'email',ph:'you@company.com'},{label:'Password',val:pass,set:setPass,type:'password',ph:'Your password'}].map(f=>(
-        <div key={f.label} style={{marginBottom:16}}><label style={{display:'block',fontSize:13,fontWeight:600,color:N,marginBottom:6}}>{f.label}</label><input type={f.type} value={f.val} onChange={ev=>f.set(ev.target.value)} placeholder={f.ph} required style={{width:'100%',padding:'11px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,boxSizing:'border-box'}}/></div>
-      ))}
-      {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'10px 14px',borderRadius:8,fontSize:13,marginBottom:16}}>{err}</div>}
-      <button type="submit" disabled={loading} style={{width:'100%',padding:14,background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:16}}>{loading?'Signing in...':'Sign In →'}</button>
-      <p style={{textAlign:'center',fontSize:13,color:SL,margin:0}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
+      <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com"/>
+      <Field label="Password" val={pass} set={setPass} type="password" ph="Your password"/>
+      {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Signing in...':'Sign In →'}</button>
+      <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
     </form>
-  </Wrap>)
+  </Page>)
 }
 
 function EntityScreen(){
   const nav=useNavigate()
   const [selected,setSelected]=useState('')
   const types=['S-Corporation','Multi-Member LLC','Partnership','Sole Proprietor','C-Corporation','Other']
-  return(<Wrap>
-    <div style={{marginBottom:8}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
-    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>What type of business entity?</h2>
-    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>This helps us map the right IRS schedules for you.</p>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
-      {types.map(t=>(<div key={t} onClick={()=>setSelected(t)} style={{padding:'14px 12px',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',textAlign:'center',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff',transition:'all 0.15s'}}>{t}</div>))}
+  return(<Page>
+    <LOGO/>
+    <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
+    <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+      {types.map(t=>(<button key={t} type="button" onClick={()=>setSelected(t)} style={{padding:'14px 10px',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff'}}>{t}</button>))}
     </div>
-    <button onClick={()=>{if(selected){localStorage.setItem('entityType',selected);nav('/onboarding/business')}}} disabled={!selected} style={{width:'100%',padding:14,background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}>Continue →</button>
-  </Wrap>)
+    <button onClick={()=>{if(selected){localStorage.setItem('entityType',selected);nav('/onboarding/business')}}} disabled={!selected} style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}>Continue →</button>
+  </Page>)
 }
 
 function BusinessScreen(){
@@ -119,37 +137,38 @@ function BusinessScreen(){
   const [addr,setAddr]=useState('')
   async function submit(e){
     e.preventDefault()
-    const token=localStorage.getItem('token')
     try{await fetch(API+'/user/business-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_name:biz,ein,address:addr})})}catch(e){}
     nav('/onboarding/import')
   }
-  return(<Wrap>
-    <div style={{marginBottom:8}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 2 of 3</span></div>
-    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>Tell us about your business</h2>
-    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>Used to personalize your IRS compliance analysis.</p>
+  return(<Page>
+    <LOGO/>
+    <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 2 of 3</span></div>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Tell us about your business</h2>
+    <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>Personalizes your IRS compliance and tax analysis.</p>
     <form onSubmit={submit}>
-      {[{label:'Business Name',val:biz,set:setBiz,ph:'Acme Corp LLC'},{label:'EIN (optional)',val:ein,set:setEin,ph:'XX-XXXXXXX'},{label:'Business Address (optional)',val:addr,set:setAddr,ph:'123 Main St, City, ST'}].map(f=>(
-        <div key={f.label} style={{marginBottom:16}}><label style={{display:'block',fontSize:13,fontWeight:600,color:N,marginBottom:6}}>{f.label}</label><input type="text" value={f.val} onChange={ev=>f.set(ev.target.value)} placeholder={f.ph} required={f.label==='Business Name'} style={{width:'100%',padding:'11px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,boxSizing:'border-box'}}/></div>
-      ))}
-      <button type="submit" style={{width:'100%',padding:14,background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
+      <Field label="Business Name" val={biz} set={setBiz} ph="Acme Corp LLC"/>
+      <Field label="EIN (optional)" val={ein} set={setEin} ph="XX-XXXXXXX"/>
+      <Field label="Business Address (optional)" val={addr} set={setAddr} ph="123 Main St, City, ST"/>
+      <button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue →</button>
+      <p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={()=>nav('/onboarding/import')}>Skip for now →</p>
     </form>
-    <p style={{textAlign:'center',marginTop:12,fontSize:13}}><span onClick={()=>nav('/onboarding/import')} style={{color:SL,cursor:'pointer'}}>Skip for now →</span></p>
-  </Wrap>)
+  </Page>)
 }
 
 function ImportScreen(){
   const nav=useNavigate()
   const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
-  return(<Wrap>
-    <div style={{marginBottom:8}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
-    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 4px'}}>Connect your accounting software</h2>
-    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>We'll import your financial data to power your AI analysis.</p>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-      {integrations.map(i=>(<div key={i.name} onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'18px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',textAlign:'center',transition:'all 0.15s'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:40,height:40,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></div>))}
+  return(<Page>
+    <LOGO/>
+    <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Connect your accounting software</h2>
+    <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>Import your financials to power your AI tax analysis.</p>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+      {integrations.map(i=>(<button key={i.name} type="button" onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff',transition:'border-color 0.15s'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></button>))}
     </div>
-    <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:14,background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Go to Dashboard →</button>
-    <p style={{textAlign:'center',fontSize:13,color:SL,margin:0}}><span onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}>Skip — I'll connect later</span></p>
-  </Wrap>)
+    <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard →</button>
+    <p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={()=>nav('/dashboard')}>Skip — connect later</p>
+  </Page>)
 }
 
 export default function Onboarding({screen}){
