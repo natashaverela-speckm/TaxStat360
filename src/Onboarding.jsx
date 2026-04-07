@@ -87,7 +87,7 @@ export default function Onboarding({screen}){
       <div style={{...S}}>
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:4}}><svg width="28" height="28" viewBox="0 0 34 34" style={{flexShrink:0,marginRight:8}}><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:22,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>
-          <div style={{color:SL,fontSize:13,marginTop:2}}>14-day free trial — no charge until it ends</div>
+          <div style={{color:SL,fontSize:13,marginTop:2}}>7-day free trial — no charge until it ends</div>
           <div style={{color:B,fontSize:12,cursor:'pointer',marginTop:6}} onClick={()=>nav('/')}>&larr; Back to home</div>
         </div>
         {err&&<div style={{background:'#FEE2E2',color:'#DC2626',padding:'10px 14px',borderRadius:8,marginBottom:16,fontSize:13}}>{err}</div>}
@@ -130,7 +130,7 @@ export default function Onboarding({screen}){
             <span style={{fontSize:16,flexShrink:0}}>🔒</span>
             <div>
               <div style={{fontWeight:700,color:'#15803D',fontSize:12}}>No charge until your free trial ends</div>
-              <div style={{color:'#166534',fontSize:11,marginTop:2,lineHeight:1.5}}>Your card is required for security purposes only — to prevent fraud and verify your identity. You will <b>not</b> be billed until your 14-day free trial ends. Cancel anytime before then at no cost.</div>
+              <div style={{color:'#166534',fontSize:11,marginTop:2,lineHeight:1.5}}>Your card is required for security purposes only — to prevent fraud and verify your identity. You will <b>not</b> be billed until your 7-day free trial ends. Cancel anytime before then at no cost.</div>
             </div>
           </div>
         </div>
