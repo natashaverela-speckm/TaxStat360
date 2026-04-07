@@ -30,7 +30,7 @@ function SignupScreen(){
     s.onload=()=>{
       const sk=window.Stripe(PK);stripeRef.current=sk
       const els=sk.elements();elemRef.current=els
-      const card=els.create('card',{style:{base:{fontSize:'14px',color:'#0D1B3E',fontFamily:'Inter,sans-serif','::placeholder':{color:'#94a3b8'}}}})
+      const card=els.create('card',{style:{base:{fontSize:'16px',color:'#0D1B3E',fontFamily:'Inter,sans-serif',lineHeight:'24px','::placeholder':{color:'#94a3b8'}}}})
       setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setStripeReady(true)}},200)
     }
     document.head.appendChild(s)
@@ -72,7 +72,7 @@ function SignupScreen(){
       <Field label="Password" val={pass} set={setPass} type="password" ph="Min. 8 characters"/>
       <div style={{marginBottom:12}}>
         <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Card Details</label>
-        <div ref={cardRef} style={{padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',minHeight:38}}/>
+        <div ref={cardRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',minHeight:48,cursor:'text'}}/>
         {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
       </div>
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
