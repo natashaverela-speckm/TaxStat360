@@ -97,7 +97,7 @@ function buildRecs(biz, calc) {
   if(quarterly>500)
     recs.push({type:'warning',title:'Quarterly Estimated Payments Required',msg:'Pay approximately '+fmt(quarterly)+' per quarter to avoid underpayment penalties. Due: Apr 15, Jun 15, Sep 15, Jan 15.'})
   if(qbi>0)
-    recs.push({type:'success',title:'QBI Deduction Applied — '+fmt(qbi)+' Saved',msg:'You qualify for the 20% Section 199A pass-through deduction, reducing your taxable income by '+fmt(qbi)+'.'})
+    recs.push({type:'success',title:'QBI Deduction Applied â '+fmt(qbi)+' Saved',msg:'You qualify for the 20% Section 199A pass-through deduction, reducing your taxable income by '+fmt(qbi)+'.'})
   if((dep||0)===0&&grossRev>50000)
     recs.push({type:'info',title:'Review Depreciation Deductions',msg:'You have no depreciation recorded. Equipment, vehicles, and home office used for business may be deductible under Section 179 or bonus depreciation.'})
   if((adv||0)/grossRev<0.02&&grossRev>100000)
@@ -189,7 +189,7 @@ export default function Dashboard() {
   }
 
   const handleConnect = (integ) => {
-    window.open(API+'/integrations/'+integ.id+'/connect','_blank')
+    window.location.href = API+'/integrations/'+integ.id+'/connect?redirect_uri='+encodeURIComponent(window.location.origin+'/dashboard')
     localStorage.setItem('ts360_connected_app',integ.name)
     setConnectedApp(integ.name)
   }
@@ -218,7 +218,7 @@ export default function Dashboard() {
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
 
-      {/* Header — logo + name + sign out only */}
+      {/* Header â logo + name + sign out only */}
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
         <LOGO/>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
@@ -229,8 +229,8 @@ export default function Dashboard() {
 
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
-        {/* ═══ SECTION 1: CONNECT ══════════════════════════════════════════════ */}
-        <SectionHeader title="Step 1 — Connect Your Accounting Software" subtitle="Connect to automatically import your financials, or enter your numbers manually below."/>
+        {/* âââ SECTION 1: CONNECT ââââââââââââââââââââââââââââââââââââââââââââââ */}
+        <SectionHeader title="Step 1 â Connect Your Accounting Software" subtitle="Connect to automatically import your financials, or enter your numbers manually below."/>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {INTEGRATIONS.map(i=>(
             <button key={i.id} onClick={()=>handleConnect(i)}
@@ -239,38 +239,38 @@ export default function Dashboard() {
               onMouseOut={e=>e.currentTarget.style.borderColor=connectedApp===i.name?i.color:i.color+'44'}
             >
               <div style={{width:36,height:36,borderRadius:8,background:connectedApp===i.name?'rgba(255,255,255,0.25)':i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{i.abbr}</div>
-              <div style={{fontWeight:700,fontSize:13,color:connectedApp===i.name?'#fff':N}}>{i.name}{connectedApp===i.name?' ✓':''}</div>
+              <div style={{fontWeight:700,fontSize:13,color:connectedApp===i.name?'#fff':N}}>{i.name}{connectedApp===i.name?' â':''}</div>
             </button>
           ))}
         </div>
         <div style={{textAlign:'center',marginBottom:8}}>
-          <span style={{color:SL,fontSize:13}}>— or —</span>
+          <span style={{color:SL,fontSize:13}}>â or â</span>
         </div>
         <div style={{textAlign:'center',marginBottom:8}}>
           <button onClick={()=>setShowFinancials(true)} style={{background:'none',border:'none',color:B,fontWeight:700,fontSize:14,cursor:'pointer',textDecoration:'underline'}}>
-            Enter numbers manually ↓
+            Enter numbers manually â
           </button>
         </div>
 
         <Divider/>
 
-        {/* ═══ SECTION 2: BUSINESS FINANCIALS ═════════════════════════════════ */}
+        {/* âââ SECTION 2: BUSINESS FINANCIALS âââââââââââââââââââââââââââââââââ */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <SectionHeader title="Step 2 — Business Income & Expenses" subtitle={connectedApp?'Imported from '+connectedApp+' — review and confirm below.':'Enter your business financials for the tax year.'}/>
+          <SectionHeader title="Step 2 â Business Income & Expenses" subtitle={connectedApp?'Imported from '+connectedApp+' â review and confirm below.':'Enter your business financials for the tax year.'}/>
           <div style={{display:'flex',gap:10,alignItems:'center'}}>
-            {connectedApp && <button onClick={()=>{}} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>↻ Refresh</button>}
+            {connectedApp && <button onClick={()=>{}} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>â» Refresh</button>}
             <button onClick={()=>setShowFinancials(v=>!v)} style={{padding:'7px 14px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>
-              {showFinancials?'▲ Collapse':'▼ Expand'} Details
+              {showFinancials?'â² Collapse':'â¼ Expand'} Details
             </button>
           </div>
         </div>
 
-        {/* Entity + Year — always visible */}
+        {/* Entity + Year â always visible */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
           <div>
             <label style={labelStyle}>Tax Year</label>
             <select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inputStyle}>
-              {[2025,2024,2023,2022].map(y=><option key={y}>{y}</option>)}
+              {[2026,2025,2024].map(y=><option key={y}>{y}</option>)}
             </select>
           </div>
           <div>
@@ -359,25 +359,25 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ═══ K-1 + SIDE-BY-SIDE ANALYSIS ══════════════════════════════════ */}
+        {/* âââ K-1 + SIDE-BY-SIDE ANALYSIS ââââââââââââââââââââââââââââââââââ */}
         {hasNumbers && calc && (
           <>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
 
               {/* K-1 Card */}
               <div style={{background:'linear-gradient(135deg,#1E3A5F,#1D4ED8)',borderRadius:14,padding:24,color:'#fff'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'#93C5FD',marginBottom:8,letterSpacing:'0.08em'}}>YOUR K-1 INCOME — {biz.ownershipPct}% OWNERSHIP SHARE</div>
+                <div style={{fontSize:11,fontWeight:700,color:'#93C5FD',marginBottom:8,letterSpacing:'0.08em'}}>YOUR K-1 INCOME â {biz.ownershipPct}% OWNERSHIP SHARE</div>
                 <div style={{fontSize:40,fontWeight:800,marginBottom:8}}>{fmt(calc.k1)}</div>
                 <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>
-                  This is your share of business profit. It flows to Schedule E on your Form 1040. <strong>This is not your tax bill</strong> — your actual liability depends on your complete personal tax picture below.
+                  This is your share of business profit. It flows to Schedule E on your Form 1040. <strong>This is not your tax bill</strong> â your actual liability depends on your complete personal tax picture below.
                 </div>
                 <div style={{display:'flex',gap:10}}>
                   <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>
-                    {saved?'✓ Record Saved':'Save Record'}
+                    {saved?'â Record Saved':'Save Record'}
                   </button>
                   {connectedApp && (
                     <button onClick={()=>{}} style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>
-                      ↻ Refresh
+                      â» Refresh
                     </button>
                   )}
                 </div>
@@ -417,24 +417,24 @@ export default function Dashboard() {
 
         <Divider/>
 
-        {/* ═══ SECTION 3: CALCULATE TAX LIABILITY (FORM 1040) ════════════════ */}
+        {/* âââ SECTION 3: CALCULATE TAX LIABILITY (FORM 1040) ââââââââââââââââ */}
         <div style={{background:isPassthru?'#FFFBEB':'#F8FAFC',border:'1px solid '+(isPassthru?'#FDE68A':'#E2E8F0'),borderRadius:12,padding:'16px 20px',marginBottom:20}}>
           <div style={{fontSize:13,fontWeight:700,color:isPassthru?'#92400E':N,marginBottom:4}}>
             {isPassthru
-              ? '⚡ Passthrough entities do not pay tax at the business level.'
-              : 'ℹ️ Tax Liability Calculator'}
+              ? 'â¡ Passthrough entities do not pay tax at the business level.'
+              : 'â¹ï¸ Tax Liability Calculator'}
           </div>
           <div style={{fontSize:13,color:isPassthru?'#92400E':SL,lineHeight:1.6}}>
             {isPassthru
-              ? 'Your business profit passes through to your personal Form 1040 — that is where you actually pay taxes. Update your personal tax information below to see your actual tax liability based on your K-1 income.'
+              ? 'Your business profit passes through to your personal Form 1040 â that is where you actually pay taxes. Update your personal tax information below to see your actual tax liability based on your K-1 income.'
               : 'Enter your personal tax information to calculate your total Form 1040 liability.'}
           </div>
         </div>
 
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <SectionHeader title="Step 3 — Personal Tax Information (Form 1040)" subtitle="Add your personal situation. The K-1 above is already included."/>
+          <SectionHeader title="Step 3 â Personal Tax Information (Form 1040)" subtitle="Add your personal situation. The K-1 above is already included."/>
           <button onClick={()=>setShow1040(v=>!v)} style={{padding:'8px 16px',background:show1040?B:'#F1F5F9',color:show1040?'#fff':SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
-            {show1040?'▲ Collapse 1040':'▼ Enter 1040 Info →'}
+            {show1040?'â² Collapse 1040':'â¼ Enter 1040 Info â'}
           </button>
         </div>
 
@@ -484,7 +484,7 @@ export default function Dashboard() {
             {/* 1040 Results */}
             <div>
               <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:16}}>
-                <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Form 1040 — Tax Calculation</div>
+                <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Form 1040 â Tax Calculation</div>
                 {[
                   {l:'K-1 Income (Schedule E, Line 17)',v:calc.k1,c:'#1D4ED8'},
                   {l:'+ W-2 & Other Income',v:calc.w2+calc.otherInc,c:N},
@@ -533,7 +533,7 @@ export default function Dashboard() {
                     {calc.refund>0?fmt(calc.refund):fmt(calc.taxOwed)}
                   </div>
                   <div style={{fontSize:12,color:calc.refund>0?'#166534':'#991B1B',marginTop:4}}>
-                    Effective rate: {pct(calc.effRate)} · Quarterly payment: {fmt(calc.quarterly)}
+                    Effective rate: {pct(calc.effRate)} Â· Quarterly payment: {fmt(calc.quarterly)}
                   </div>
                 </div>
               </div>
@@ -554,14 +554,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ═══ RECOMMENDATIONS — only shown after 1040 section ═══════════════ */}
+        {/* âââ RECOMMENDATIONS â only shown after 1040 section âââââââââââââââ */}
         {show1040 && hasNumbers && recs.length>0 && (
           <>
             <Divider/>
-            <SectionHeader title="Tax Strategy Recommendations" subtitle="Based on your financials and personal tax picture — specific actions you can take now."/>
+            <SectionHeader title="Tax Strategy Recommendations" subtitle="Based on your financials and personal tax picture â specific actions you can take now."/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               {recs.map((r,i)=>{
-                const s={danger:{bg:'#FEF2F2',border:'#FCA5A5',tc:'#991B1B',ic:'🚨'},warning:{bg:'#FFFBEB',border:'#FDE68A',tc:'#92400E',ic:'⚠️'},success:{bg:'#F0FDF4',border:'#86EFAC',tc:'#166534',ic:'✅'},info:{bg:'#EFF6FF',border:'#BFDBFE',tc:'#1E40AF',ic:'ℹ️'}}[r.type]||{}
+                const s={danger:{bg:'#FEF2F2',border:'#FCA5A5',tc:'#991B1B',ic:'ð¨'},warning:{bg:'#FFFBEB',border:'#FDE68A',tc:'#92400E',ic:'â ï¸'},success:{bg:'#F0FDF4',border:'#86EFAC',tc:'#166534',ic:'â'},info:{bg:'#EFF6FF',border:'#BFDBFE',tc:'#1E40AF',ic:'â¹ï¸'}}[r.type]||{}
                 return (
                   <div key={i} style={{background:s.bg,border:'1px solid '+s.border,borderRadius:12,padding:'14px 16px',display:'flex',gap:10}}>
                     <span style={{fontSize:18,flexShrink:0}}>{s.ic}</span>
