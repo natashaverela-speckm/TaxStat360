@@ -86,14 +86,14 @@ export default function CalculateTax() {
         {/* Top banner */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 36, height: 36, background: '#EFF6FF', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>ð°</div>
+            <div style={{ width: 36, height: 36, background: '#EFF6FF', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>Ã°ÂÂÂ°</div>
             <div>
               <div style={{ fontWeight: 700, color: N, fontSize: 15 }}>Get your best possible tax outcome</div>
               <div style={{ color: SL, fontSize: 13, marginTop: 2 }}>Enter your financial data below. K-1 is auto-calculated based on entity type and ownership %.</div>
             </div>
           </div>
           <button onClick={() => setShowForm(true)} style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            ï¼ Start New Calculation
+            Ã¯Â¼Â Start New Calculation
           </button>
         </div>
 
@@ -142,7 +142,7 @@ export default function CalculateTax() {
         {/* Records */}
         {records.length === 0 && !showForm && (
           <div style={{ textAlign: 'center', padding: '60px 0', color: SL }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>ð</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>Ã°ÂÂÂ</div>
             <div style={{ fontWeight: 600, fontSize: 16, color: N, marginBottom: 8 }}>No tax calculations yet</div>
             <div style={{ fontSize: 14 }}>Click "Start New Calculation" to enter your financial data.</div>
           </div>
@@ -152,24 +152,24 @@ export default function CalculateTax() {
           <div key={r.id} style={{ background: '#fff', borderRadius: 12, padding: 24, marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
-                <div style={{ fontWeight: 700, color: N, fontSize: 16 }}>Tax Record {r.year} â {r.entityType}</div>
+                <div style={{ fontWeight: 700, color: N, fontSize: 16 }}>Tax Record {r.year} Ã¢ÂÂ {r.entityType}</div>
                 <div style={{ color: SL, fontSize: 13, marginTop: 2 }}>Last updated {r.createdAt}</div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => nav('/ai-analysis', { state: { record: r } })} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  â¦ Analyze Data
+                  Ã¢ÂÂ¦ Analyze Data
                 </button>
                 <button onClick={() => handleDelete(r.id)} style={{ padding: '8px 18px', background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                  ð Delete
+                  Ã°ÂÂÂ Delete
                 </button>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
               {[
-                ['ð°', 'Gross Revenue', r.grossRevenue],
-                ['ð', 'Total Expenses', r.totalDeductions],
-                ['ð¢', 'Depreciation', r.depreciation],
-                ['ð', 'K-1 Income (Sch. E)', r.k1Income],
+                ['Ã°ÂÂÂ°', 'Gross Revenue', r.grossRevenue],
+                ['Ã°ÂÂÂ', 'Total Expenses', r.totalDeductions],
+                ['Ã°ÂÂÂ¢', 'Depreciation', r.depreciation],
+                ['Ã°ÂÂÂ', 'K-1 Income (Sch. E)', r.k1Income],
               ].map(([icon, label, val]) => (
                 <div key={label} style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px' }}>
                   <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
@@ -195,41 +195,41 @@ export default function CalculateTax() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                     <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: 14 }}>
                       <div style={{ fontSize: 10, color: '#166534', fontWeight: 700 }}>K-1 TO OWNER</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: '#15803D' }}>{Math.round(Math.max(0, net)).toLocaleString(){'}'}</div>
-                      <div style={{ fontSize: 10, color: '#166534' }}>{'{'}r.ownershipPct{'}'}% ownership</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: '#15803D' }}>{fmt(net)}</div>
+                      <div style={{ fontSize: 10, color: '#166534' }}>{r.ownershipPct}% ownership</div>
                     </div>
                     <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: 14 }}>
                       <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700 }}>EST SE TAX</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: '#1D4ED8' }}>{se.toLocaleString(){'}'}</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: '#1D4ED8' }}>{fmt(se)}</div>
                       <div style={{ fontSize: 10, color: '#1E40AF' }}>Self-employment tax</div>
                     </div>
                   </div>
-                  {'{'}rec > 0 && (
+                  {rec > 0 && (
                     <div style={{ background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: 10, padding: 14, marginBottom: 10 }}>
                       <div style={{ fontSize: 10, color: '#5B21B6', fontWeight: 700 }}>RECOMMENDED OFFICER SALARY</div>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: '#6D28D9' }}>{rec.toLocaleString(){'}'}/yr</div>
-                      <div style={{ fontSize: 10, color: '#5B21B6' }}>~35% of net — IRS-defensible compensation</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#6D28D9' }}>{fmt(rec)}/yr</div>
+                      <div style={{ fontSize: 10, color: '#5B21B6' }}>~35% of net â IRS-defensible compensation</div>
                     </div>
-                  ){'}'}
-                  {'{'}noOfficerComp && (
+                  )}
+                  {noOfficerComp && (
                     <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: '#991B1B', display: 'flex', gap: 8 }}>
-                      <span style={{ fontWeight: 800 }}>⚠ ALERT</span>
-                      <span>No officer comp recorded. S-Corp owners must pay reasonable salary — IRS audit trigger.</span>
+                      <span style={{ fontWeight: 800 }}>â  ALERT</span>
+                      <span>No officer comp recorded. S-Corp owners must pay reasonable salary â IRS audit trigger.</span>
                     </div>
-                  ){'}'}
+                  )}
                   <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A5F', marginBottom: 8 }}>FORM 1040 TAX ESTIMATE</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid #F1F5F9' }}>
                       <span style={{ color: '#475569' }}>K-1 income to owner</span>
-                      <span style={{ fontWeight: 700 }}>{Math.round(Math.max(0, net)).toLocaleString(){'}'}</span>
+                      <span style={{ fontWeight: 700 }}>{fmt(net)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', color: '#64748B' }}>
                       <span>+ SE Tax (15.3%)</span>
-                      <span>{se.toLocaleString(){'}'}</span>
+                      <span>{fmt(se)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, marginTop: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1E3A5F' }}>Est. 1040 Tax Liability</span>
-                      <span style={{ fontSize: 20, fontWeight: 800, color: '#DC2626' }}>{est.toLocaleString(){'}'}</span>
+                      <span style={{ fontSize: 20, fontWeight: 800, color: '#DC2626' }}>{fmt(est)}</span>
                     </div>
                     <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 6 }}>22% bracket + SE tax estimate</div>
                   </div>
