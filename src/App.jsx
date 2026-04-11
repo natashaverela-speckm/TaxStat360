@@ -1,16 +1,16 @@
-import { BrowserRouter, Routes, Route, Navigate, useEffect } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
 import CalculateTax from './CalculateTax'
 import AIAnalysis from './AIAnalysis'
 
-// Handles OAuth callbacks from all integrations — marks as connected and returns to dashboard
+// Handles OAuth callbacks from all integrations â marks as connected and returns to dashboard
 function OAuthCallback() {
   useEffect(() => {
     // Extract provider from URL path e.g. /integrations/xero/callback
-    const parts = window.location.pathname.split('/')
-    const provider = parts[2] || 'unknown'
+    const { provider = 'unknown' } = useParams()
     localStorage.setItem('ts360_connected_app', provider.charAt(0).toUpperCase() + provider.slice(1))
     localStorage.setItem('ts360_'+provider+'_connected', 'true')
     window.location.href = '/dashboard'
@@ -18,7 +18,7 @@ function OAuthCallback() {
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center'}}>
-        <div style={{fontSize:32,marginBottom:12}}>✅</div>
+        <div style={{fontSize:32,marginBottom:12}}>â</div>
         <div style={{fontWeight:700,fontSize:16,color:'#0D1B3E'}}>Connected! Returning to your dashboard...</div>
       </div>
     </div>
