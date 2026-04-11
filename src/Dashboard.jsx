@@ -94,7 +94,7 @@ export default function Dashboard(){
       localStorage.setItem('ts360_connected_app','Xero')
       setConnectedApp('Xero')
       setXeroLoading(true)
-      fetch('https://app.taxstat360.com/integrations/xero/data?token='+xeroToken)
+      fetch('https://app.taxstat360.com/xero/data?token='+xeroToken)
         .then(r=>r.json())
         .then(data=>{
           if(data.grossRevenue){
@@ -156,6 +156,12 @@ export default function Dashboard(){
             </button>
           ))}
         </div>
+        {connectedApp&&(
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'10px 16px',marginBottom:10}}>
+            <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>{connectedApp} connected</span>
+            <button onClick={()=>{setConnectedApp(null);localStorage.removeItem('ts360_connected_app');setBiz({entityType:biz.entityType,year:biz.year,ownershipPct:biz.ownershipPct,grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:''});setSaved(false)}} style={{padding:'5px 14px',background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>Disconnect</button>
+          </div>
+        )}
         <div style={{textAlign:'center',marginBottom:8,color:SL,fontSize:13}}>- or -</div>
         <div style={{textAlign:'center',marginBottom:8}}><button onClick={()=>setShowFin(true)} style={{background:'none',border:'none',color:B,fontWeight:700,fontSize:14,cursor:'pointer',textDecoration:'underline'}}>Enter numbers manually</button></div>
 
