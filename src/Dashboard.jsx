@@ -81,12 +81,34 @@ export default function Dashboard(){
   const bSet=(k,v)=>{setBiz(p=>({...p,[k]:v}));setSaved(false)}
   const fSet=(k,v)=>setF1040(p=>({...p,[k]:v}))
 
+  const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
     const app=localStorage.getItem('ts360_connected_app')
     const recs=JSON.parse(localStorage.getItem('ts360_records')||'[]')
     if(app)setConnectedApp(app)
     setRecords(recs)
     if(recs.length>0&&recs[0].biz){setBiz(recs[0].biz);setF1040(recs[0].f1040||f1040);setSaved(true)}
+    const params=new URLSearchParams(window.location.search)
+    const xeroToken=params.get('xero_token')
+    if(xeroToken){
+      localStorage.setItem('ts360_connected_app','Xero')
+      setConnectedApp('Xero')
+      setXeroLoading(true)
+      fetch('https://app.taxstat360.com/integrations/xero/data?token='+xeroToken)
+        .then(r=>r.json())
+        .then(data=>{
+          if(data.grossRevenue){
+            setBiz(p=>({...p,
+              grossRevenue:String(Math.round(parseFloat(data.grossRevenue)||0)),
+              otherDeductions:String(Math.round(parseFloat(data.otherDeductions)||0)),
+            }))
+            setShowFin(true)
+          }
+          setXeroLoading(false)
+          window.history.replaceState({},'','/dashboard')
+        })
+        .catch(()=>{setXeroLoading(false);window.history.replaceState({},'','/dashboard')})
+    }
   },[])
 
   const hasNumbers=parseFloat(biz.grossRevenue)>0
@@ -121,6 +143,7 @@ export default function Dashboard(){
         </div>
       </nav>
 
+      {xeroLoading&&<div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',fontSize:13,fontWeight:600,color:'#1D4ED8',textAlign:'center'}}>Importing your Xero financials... please wait</div>}
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
         {/* CONNECT */}
