@@ -1,9 +1,29 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useEffect } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
 import CalculateTax from './CalculateTax'
 import AIAnalysis from './AIAnalysis'
+
+// Handles OAuth callbacks from all integrations — marks as connected and returns to dashboard
+function OAuthCallback() {
+  useEffect(() => {
+    // Extract provider from URL path e.g. /integrations/xero/callback
+    const parts = window.location.pathname.split('/')
+    const provider = parts[2] || 'unknown'
+    localStorage.setItem('ts360_connected_app', provider.charAt(0).toUpperCase() + provider.slice(1))
+    localStorage.setItem('ts360_'+provider+'_connected', 'true')
+    window.location.href = '/dashboard'
+  }, [])
+  return (
+    <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:32,marginBottom:12}}>✅</div>
+        <div style={{fontWeight:700,fontSize:16,color:'#0D1B3E'}}>Connected! Returning to your dashboard...</div>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   return (
@@ -20,6 +40,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/calculate-tax" element={<CalculateTax />} />
         <Route path="/ai-analysis" element={<AIAnalysis />} />
+        <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
