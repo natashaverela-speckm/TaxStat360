@@ -1,14 +1,6 @@
 version: 1
 frontend:
   phases:
-    preBuild:
-      commands:
-        - node --version
-        - npm --version
-        - nvm install 18
-        - nvm use 18
-        - node --version
-        - npm ci
     build:
       commands:
         - npm run build
@@ -16,6 +8,3 @@ frontend:
     baseDirectory: dist
     files:
       - '**/*'
-  cache:
-    paths:
-      - node_modules/**/*
