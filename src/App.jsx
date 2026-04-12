@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
-import Dashboard from './calculatetax'
+import Dashboard from './CalculateTax'
 import CalculateTax from './CalculateTax'
 import AIAnalysis from './AIAnalysis'
 
