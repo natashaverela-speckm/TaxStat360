@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react' // build
 import { useNavigate } from 'react-router-dom'
 
-const API = const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
 const BRACKETS = {
