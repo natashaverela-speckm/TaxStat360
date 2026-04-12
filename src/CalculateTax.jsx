@@ -236,7 +236,7 @@ export default function CalculateTax() {
     localStorage.setItem('ts360_pending_app', integration.id)
     localStorage.setItem('ts360_pending_name', integration.name)
     // Navigate directly — Lambda handles OAuth and redirects back with token in URL
-    window.location.href = `${API}/integrations/${integration.id}/connect`
+    window.location.href = `${LAMBDA}/${integration.id}/connect`
   }
 
   const handleSave = () => {
