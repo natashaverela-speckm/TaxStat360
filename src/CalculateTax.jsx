@@ -181,6 +181,45 @@ export default function CalculateTax() {
     if (saved.length > 0) { setSelectedId(saved[0].id); setStep(4) }
   },[])
 
+  // ── Handle return from OAuth redirect ─────────────────────────────────
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const pendingApp = localStorage.getItem('ts360_pending_app')
+    const pendingName = localStorage.getItem('ts360_pending_name')
+
+    // Map app id to token param name
+    const tokenMap = { quickbooks: 'qb_token', xero: 'xero_token', wave: 'wave_token', freshbooks: 'fb_token' }
+    const tokenParam = pendingApp ? tokenMap[pendingApp] : null
+    const token = tokenParam ? urlParams.get(tokenParam) : null
+    const errorParam = urlParams.get('error')
+
+    if (pendingApp && (token || errorParam)) {
+      localStorage.removeItem('ts360_pending_app')
+      localStorage.removeItem('ts360_pending_name')
+      // Clean URL
+      window.history.replaceState({}, '', '/calculate-tax')
+
+      if (token) {
+        // Fetch financial data from Lambda
+        fetch(`${LAMBDA}/${pendingApp}/data?token=${token}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.grossRevenue && parseFloat(data.grossRevenue) > 0) {
+              setBiz(p => ({ ...p, grossRevenue: data.grossRevenue }))
+            }
+            if (data.otherDeductions && parseFloat(data.otherDeductions) > 0) {
+              setBiz(p => ({ ...p, otherDeductions: data.otherDeductions }))
+            }
+          })
+          .catch(e => console.error('Data fetch error:', e))
+
+        localStorage.setItem('ts360_connected_app', pendingName)
+        setConnectedApp(pendingName)
+      }
+      setStep(2)
+    }
+  }, [])
+
   const bSet = (k,v) => setBiz(p=>({...p,[k]:v}))
   const fSet = (k,v) => setF1040(p=>({...p,[k]:v}))
 
@@ -191,64 +230,13 @@ export default function CalculateTax() {
     return Math.round((rev-exp-sal-dep-oth)*own)
   }
 
-  // ── CONNECT HANDLER with postMessage + data fetch ──────────────────────
+  // ── CONNECT HANDLER — direct navigation ─────────────────────────────────
   const handleConnect = (integration) => {
-    setConnecting(integration.id)
-
-    // Map integration id to API path (wave uses 'wave' not 'waveapps')
-    const apiId = integration.id
-
-    // Open OAuth popup
-    const popup = window.open(
-      `${API}/integrations/${integration.id}/connect`,
-      'oauth_popup',
-      'width=600,height=700,scrollbars=yes,resizable=yes'
-    )
-
-    // Listen for postMessage from the callback page
-    const handleMessage = async (event) => {
-      if (event.data?.type !== 'OAUTH_SUCCESS' || event.data?.app !== integration.id) return
-      window.removeEventListener('message', handleMessage)
-      clearInterval(pollTimer)
-      if (popup && !popup.closed) popup.close()
-
-      // Fetch financial data from Lambda using the token
-      const token = event.data.token
-      if (token) {
-        try {
-          const res = await fetch(`${LAMBDA}/${apiId}/data?token=${token}`)
-          if (res.ok) {
-            const data = await res.json()
-            if (data.grossRevenue && parseFloat(data.grossRevenue) > 0) {
-              bSet('grossRevenue', data.grossRevenue)
-            }
-            if (data.otherDeductions && parseFloat(data.otherDeductions) > 0) {
-              bSet('otherDeductions', data.otherDeductions)
-            }
-          }
-        } catch(e) { console.error('Data fetch failed:', e) }
-      }
-
-      localStorage.setItem('ts360_connected_app', integration.name)
-      setConnectedApp(integration.name)
-      setConnecting(null)
-      setStep(2)
-    }
-
-    window.addEventListener('message', handleMessage)
-
-    // Fallback: poll for popup close (user closed without completing)
-    const pollTimer = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(pollTimer)
-        window.removeEventListener('message', handleMessage)
-        setConnecting(null)
-        // Still proceed to step 2 even if no data
-        localStorage.setItem('ts360_connected_app', integration.name)
-        setConnectedApp(integration.name)
-        setStep(2)
-      }
-    }, 500)
+    // Store which app is connecting so we can fetch data on return
+    localStorage.setItem('ts360_pending_app', integration.id)
+    localStorage.setItem('ts360_pending_name', integration.name)
+    // Navigate directly — Lambda handles OAuth and redirects back with token in URL
+    window.location.href = `${API}/integrations/${integration.id}/connect`
   }
 
   const handleSave = () => {
