@@ -89,9 +89,9 @@ function NavBar() {
   const nav = useNavigate()
   return (
     <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
-      <div onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}><LOGO/></div>
+      <div onClick={()=>nav('/calculate-tax')} style={{cursor:'pointer'}}><LOGO/></div>
       <div style={{display:'flex',gap:4}}>
-        {[['Dashboard','/dashboard'],['Tax Calculator','/calculate-tax'],['AI Analysis','/ai-analysis']].map(([l,p])=>(
+        {[['Home','/'Home'],['Tax Calculator','/calculate-tax'],['AI Analysis','/ai-analysis']].map(([l,p])=>(
           <button key={p} onClick={()=>nav(p)} style={{padding:'7px 14px',background:window.location.pathname.startsWith(p.replace('/calculate-tax','/calculat'))?B:'transparent',color:window.location.pathname.startsWith(p.replace('/calculate-tax','/calculat'))?'#fff':SL,border:'none',borderRadius:7,fontWeight:600,fontSize:13,cursor:'pointer'}}>
             {l}
           </button>
