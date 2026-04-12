@@ -125,7 +125,7 @@ export default function Dashboard(){
   const handleConnect=(integ)=>{
     localStorage.setItem('ts360_connected_app',integ.name)
     setConnectedApp(integ.name)
-    window.location.href=API+'/integrations/'+integ.id+'/connect'
+    window.location.href=API+'/auth/'+integ.id+'/connect'
   }
 
   const inp={width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}
