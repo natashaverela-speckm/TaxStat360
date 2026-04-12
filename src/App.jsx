@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
-import Dashboard from './Dashboard'
+import Dashboard from './calculate-tax'
 import CalculateTax from './CalculateTax'
 import AIAnalysis from './AIAnalysis'
 
@@ -13,7 +13,7 @@ function OAuthCallback() {
     const { provider = 'unknown' } = useParams()
     localStorage.setItem('ts360_connected_app', provider.charAt(0).toUpperCase() + provider.slice(1))
     localStorage.setItem('ts360_'+provider+'_connected', 'true')
-    window.location.href = '/dashboard'
+    window.location.href = '/calculate-tax'
   }, [])
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -37,7 +37,7 @@ export default function App() {
         <Route path="/onboarding/entity" element={<Onboarding screen="entity" />} />
         <Route path="/onboarding/business" element={<Onboarding screen="business" />} />
         <Route path="/onboarding/import" element={<Onboarding screen="import" />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/calculate-tax" element={<Dashboard />} />
         <Route path="/calculate-tax" element={<CalculateTax />} />
         <Route path="/ai-analysis" element={<AIAnalysis />} />
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
