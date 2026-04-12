@@ -57,9 +57,9 @@ export default function AIAnalysis(){
   return(
     <div style={{minHeight:'100vh',background:'#F0F4FF',fontFamily:'Inter,sans-serif'}}>
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 32px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
-        <div onClick={()=>nav('/dashboard')}><LOGO/></div>
+        <div onClick={()=>nav('/calculate-tax ')}><LOGO/></div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>nav('/dashboard')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontWeight:600,fontSize:13,cursor:'pointer',color:SL}}>Dashboard</button>
+          <button onClick={()=>nav('/calculate-tax ')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontWeight:600,fontSize:13,cursor:'pointer',color:SL}}>Dashboard</button>
           <button onClick={()=>nav('/calculate-tax')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontWeight:600,fontSize:13,cursor:'pointer',color:SL}}>Calculate Tax</button>
           <button style={{padding:'7px 16px',background:B,color:'#fff',border:'none',borderRadius:7,fontWeight:600,fontSize:13,cursor:'pointer'}}>AI Analysis</button>
         </div>
