@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API = 'https://app.taxstat360.com'
+const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const LAMBDA = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth'
 const N = '#0D1B3E'
 const B = '#2563EB'
