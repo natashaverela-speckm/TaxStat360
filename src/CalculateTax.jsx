@@ -248,7 +248,7 @@ export default function CalculateTax() {
                 border: isConn ? `2px solid ${int.color}40` : '2px solid #E2E8F0',
                 opacity: isSyncing ? 0.7 : 1,
               }}
-             onClick={() => { window.location.href = API + '/integrations/' + int.id + '/connect' }}
+             onClick={() => { window.location.href = API + '/integrations/' + int.id + '/connect'  }}
               disabled={isSyncing}
             >
               <div style={{ ...styles.intAbbr, background: int.color }}>
