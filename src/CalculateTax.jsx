@@ -7,7 +7,6 @@ const LAMBDA = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth
 const N  = '#0D1B3E'
 const B  = '#2563EB'
 const SL = '#475569'
-
 const ENTITY_TYPES = ['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor','C-Corporation']
 
 const FILING_LABELS = {
