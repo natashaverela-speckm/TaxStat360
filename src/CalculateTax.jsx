@@ -244,8 +244,7 @@ export default function CalculateTax() {
           return (
             <button
               key={int.id}
-              style={
-            
+              style={{
                 background: isConn ? int.bg : '#F8FAFC',
                 border: isConn ? `2px solid ${int.color}40` : '2px solid #E2E8F0',
                 opacity: isSyncing ? 0.7 : 1,
