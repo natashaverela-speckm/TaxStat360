@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+// v2import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const API    = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
