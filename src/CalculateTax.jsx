@@ -244,13 +244,13 @@ export default function CalculateTax() {
           return (
             <button
               key={int.id}
-              style={{
+              style={
                 ...styles.intCard,
                 background: isConn ? int.bg : '#F8FAFC',
                 border: isConn ? `2px solid ${int.color}40` : '2px solid #E2E8F0',
                 opacity: isSyncing ? 0.7 : 1,
               }}
-              onClick={() => handleSync(int.id)}
+              onClick={() => { window.location.href = LAMBDA + '/' + int.id }}
               disabled={isSyncing}
             >
               <div style={{ ...styles.intAbbr, background: int.color }}>
