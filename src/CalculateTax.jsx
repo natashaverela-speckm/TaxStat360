@@ -90,7 +90,7 @@ const styles = {
   subtitle:  { textAlign:'center', color:SL, fontSize:15, marginBottom:36 },
   syncBox:   { background:'#fff', border:'1px solid #E2E8F0', borderRadius:16, padding:'32px 28px', marginBottom:24 },
   syncTitle: { fontSize:11, fontWeight:700, letterSpacing:'0.1em', color:SL, textAlign:'center', marginBottom:20 },
-  grid2:     { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 },
+  grid2:     { display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:12 },
   intCard:   { display:'flex', alignItems:'center', gap:14, padding:'16px 20px', borderRadius:10, border:'2px solid transparent', transition:'all 0.15s', background:'#F8FAFC', width:'100%', textAlign:'left' },
   intAbbr:   { width:40, height:40, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff', flexShrink:0 },
   intName:   { fontSize:15, fontWeight:600, color:N },
