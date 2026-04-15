@@ -1,188 +1,261 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React,{useState,useEffect} from 'react'
+const e=React.createElement
+const API=import.meta.env.VITE_API_URL||'https://api.taxstat360.com'
+const B='#2563EB',G='#16A34A',R='#DC2626',N='#0F172A',SL='#64748B'
+const OWN=[['100','100% (Sole Owner)'],['90','90%'],['80','80%'],['75','75%'],['70','70%'],['60','60%'],['50','50%'],['49','49%'],['40','40%'],['33','33%'],['25','25%'],['20','20%'],['10','10%']]
+const INTS=[{id:'quickbooks',name:'QuickBooks',abbr:'QB',color:'#2CA01C'},{id:'xero',name:'Xero',abbr:'XE',color:'#13B5EA'},{id:'wave',name:'Wave',abbr:'WV',color:'#1C4ED8'},{id:'freshbooks',name:'FreshBooks',abbr:'FB',color:'#0E9E6E'}]
+const fmt=n=>'$'+Math.abs(Math.round(n)).toLocaleString()
+const nv=v=>parseFloat(v)||0
 
-const API = 'https://app.taxstat360.com'
-const N = '#0D1B3E'
-const B = '#2563EB'
-const SL = '#475569'
+const BLANK_ENTITY={name:'',own:'100',rev:'',exp:'',pnl:null,manual:false,manRev:'',manExp:'',conn:{},syn:null,cId:null}
 
-export default function CalculateTax() {
-  const nav = useNavigate()
-  const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
-    year: new Date().getFullYear(),
-    entityType: 'S-Corporation',
-    grossRevenue: '',
-    businessExpenses: '',
-    officerSalary: '',
-    depreciation: '',
-    k1Income: '',
-    ownershipPct: 100,
-  })
-  const token = localStorage.getItem('access_token')
+export default function CalculateTax(){
+  const[entities,setEntities]=useState([{...BLANK_ENTITY}])
 
-  useEffect(() => {
-    // Load saved records from localStorage
-    const saved = JSON.parse(localStorage.getItem('tax_records') || '[]')
-    setRecords(saved)
-  }, [])
-
-  const calcK1 = () => {
-    const rev = parseFloat(form.grossRevenue) || 0
-    const exp = parseFloat(form.businessExpenses) || 0
-    const sal = parseFloat(form.officerSalary) || 0
-    const dep = parseFloat(form.depreciation) || 0
-    const netIncome = rev - exp - sal - dep
-    return (netIncome * (parseFloat(form.ownershipPct) / 100)).toFixed(2)
+  function updEntity(idx,key,val){
+    setEntities(prev=>{const a=[...prev];a[idx]={...a[idx],[key]:val};return a})
+  }
+  function addEntity(){
+    if(entities.length<5)setEntities(prev=>[...prev,{...BLANK_ENTITY}])
+  }
+  function removeEntity(idx){
+    setEntities(prev=>prev.filter((_,i)=>i!==idx))
   }
 
-  const handleSave = () => {
-    const k1 = parseFloat(calcK1())
-    const record = {
-      id: Date.now(),
-      year: form.year,
-      entityType: form.entityType,
-      grossRevenue: parseFloat(form.grossRevenue) || 0,
-      businessExpenses: parseFloat(form.businessExpenses) || 0,
-      officerSalary: parseFloat(form.officerSalary) || 0,
-      depreciation: parseFloat(form.depreciation) || 0,
-      k1Income: k1,
-      ownershipPct: form.ownershipPct,
-      totalDeductions: (parseFloat(form.businessExpenses) || 0) + (parseFloat(form.officerSalary) || 0) + (parseFloat(form.depreciation) || 0),
-      createdAt: new Date().toLocaleString(),
-    }
-    const updated = [record, ...records]
-    setRecords(updated)
-    localStorage.setItem('tax_records', JSON.stringify(updated))
-    setShowForm(false)
-    setForm({ year: new Date().getFullYear(), entityType: 'S-Corporation', grossRevenue: '', businessExpenses: '', officerSalary: '', depreciation: '', k1Income: '', ownershipPct: 100 })
+  // k1 total across all entities
+  const k1Total=Math.round(entities.reduce((sum,ent)=>{
+    const profit=ent.pnl?ent.pnl.netProfit:(nv(ent.manRev)-nv(ent.manExp))
+    return sum+(profit*nv(ent.own)/100)
+  },0))
+
+  const hasPnl=entities.some(ent=>ent.pnl)
+
+  function proceed(){
+    localStorage.setItem('ts360_k1',k1Total)
+    window.location.href='/tax-return'
   }
 
-  const handleDelete = (id) => {
-    const updated = records.filter(r => r.id !== id)
-    setRecords(updated)
-    localStorage.setItem('tax_records', JSON.stringify(updated))
+  return e('div',{style:{maxWidth:900,margin:'0 auto',padding:'32px 20px',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'}},
+    e('div',{style:{marginBottom:28}},
+      e('div',{style:{fontSize:13,color:SL,marginBottom:4}},'Step 1 of 3'),
+      e('h1',{style:{fontSize:26,fontWeight:800,color:N,margin:0}},'Business Income & K-1 Shares')
+    ),
+
+    // ---- ENTITY BLOCKS ----
+    e('div',{style:{display:'flex',flexDirection:'column',gap:24}},
+      ...entities.map((ent,idx)=>
+        e(EntityBlock,{
+          key:idx,
+          idx,
+          ent,
+          total:entities.length,
+          onUpdate:(k,v)=>updEntity(idx,k,v),
+          onRemove:()=>removeEntity(idx)
+        })
+      )
+    ),
+
+    // ---- ADD ENTITY BUTTON ----
+    entities.length<5&&e('div',{style:{marginTop:16}},
+      e('button',{
+        onClick:addEntity,
+        style:{padding:'10px 22px',background:'none',border:'2px dashed '+B,borderRadius:10,fontSize:14,fontWeight:700,color:B,cursor:'pointer',width:'100%'}
+      },'+ Add Another Business / Entity')
+    ),
+
+    // ---- K-1 TOTAL CARD (only when at least one pnl) ----
+    hasPnl&&e('div',{style:{marginTop:28}},
+      e('div',{style:{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:12,padding:24,color:'#fff',textAlign:'center'}},
+        e('div',{style:{fontSize:12,color:'rgba(255,255,255,0.5)',marginBottom:6,letterSpacing:'0.5px'}},
+          entities.length===1?'YOUR K-1 DISTRIBUTIVE SHARE':'TOTAL K-1 DISTRIBUTIVE SHARE (ALL ENTITIES)'
+        ),
+        e('div',{style:{fontSize:46,fontWeight:800,color:k1Total>=0?'#4ADE80':'#F87171',lineHeight:1}},fmt(k1Total)),
+        entities.length>1&&e('div',{style:{marginTop:10,display:'flex',flexDirection:'column',gap:4}},
+          ...entities.filter(ent=>ent.pnl).map((ent,i)=>{
+            const profit=ent.pnl.netProfit
+            const share=Math.round(profit*nv(ent.own)/100)
+            return e('div',{key:i,style:{fontSize:12,color:'rgba(255,255,255,0.45)'}},
+              (ent.name||'Entity '+(i+1))+': '+fmt(profit)+' \u00d7 '+ent.own+'% = '+fmt(share)
+            )
+          })
+        ),
+        e('div',{style:{fontSize:12,color:'rgba(255,255,255,0.45)',marginTop:12,padding:'8px 0',borderTop:'1px solid rgba(255,255,255,0.1)'}},
+          k1Total>=0?'Flows to your personal Schedule E on Form 1040':'Loss may offset other income on your personal return'
+        )
+      )
+    ),
+
+    // ---- CONTINUE BUTTON ----
+    hasPnl&&e('div',{style:{textAlign:'center',paddingBottom:40,marginTop:24}},
+      e('button',{onClick:proceed,style:{padding:'16px 52px',background:B,border:'none',borderRadius:12,fontSize:17,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 24px rgba(37,99,235,0.35)'}},
+        'Continue to Personal Tax Return (Form 1040) \u2192'
+      ),
+      e('div',{style:{fontSize:12,color:SL,marginTop:10}},'Your K-1 of '+fmt(k1Total)+' will be pre-filled on the next page')
+    ),
+
+    !hasPnl&&e('div',{style:{textAlign:'center',padding:'48px 20px',color:SL}},
+      e('div',{style:{fontSize:52,marginBottom:12}},'\ud83d\udcca'),
+      e('div',{style:{fontSize:17,fontWeight:700,color:N,marginBottom:8}},'Connect your accounting software above'),
+      e('div',{style:{fontSize:14}},'Or click \u201cEnter Manually\u201d to type in your revenue and expenses')
+    )
+  )
+}
+
+function EntityBlock({idx,ent,total,onUpdate,onRemove}){
+  const[manual,setManual]=useState(ent.manual)
+  const[conn,setConn]=useState(ent.conn||{})
+  const[syn,setSyn]=useState(ent.syn||null)
+  const[cId,setCId]=useState(ent.cId||null)
+  const[pnl,setPnl]=useState(ent.pnl||null)
+  const[manRev,setManRev]=useState(ent.manRev||'')
+  const[manExp,setManExp]=useState(ent.manExp||'')
+
+  // sync up to parent whenever pnl changes
+  useEffect(()=>{onUpdate('pnl',pnl)},[pnl])
+  useEffect(()=>{onUpdate('manRev',manRev);onUpdate('manExp',manExp)},[manRev,manExp])
+
+  const token=localStorage.getItem('token')
+
+  async function refresh(id){
+    setSyn(id)
+    try{
+      const r=await fetch(API+'/integrations/'+id+'/pnl',{headers:{Authorization:'Bearer '+token}})
+      if(r.ok){const d=await r.json();setPnl(d);setCId(id);setConn(p=>({...p,[id]:true}))}
+    }finally{setSyn(null)}
   }
 
-  const fmt = (n) => '$' + (parseFloat(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  function disc(id){
+    setConn(p=>({...p,[id]:false}))
+    if(cId===id){setPnl(null);setCId(null)}
+    localStorage.removeItem('ts360_'+id+'_connected')
+  }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', display: 'flex', alignItems: 'center', height: 60, gap: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => nav('/dashboard')}>
-          <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}} onClick={()=>nav('/dashboard')}><svg width="34" height="34" viewBox="0 0 34 34" style={{flexShrink:0}}><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:18,letterSpacing:'-0.3px',borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>
-        </div>
-        <nav style={{ display: 'flex', gap: 8, flex: 1 }}>
-          {[['Dashboard', '/dashboard'], ['Calculate Tax', '/calculate-tax'], ['AI Analysis', '/ai-analysis']].map(([label, path]) => (
-            <button key={path} onClick={() => nav(path)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: path === '/calculate-tax' ? B : 'transparent', color: path === '/calculate-tax' ? '#fff' : SL, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{label}</button>
-          ))}
-        </nav>
-      </div>
+  function applyManual(){
+    const rev=nv(manRev),exp=nv(manExp)
+    if(!rev&&!exp)return
+    setPnl({grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}})
+    setManual(false)
+  }
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
-        {/* Top banner */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: '20px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 36, height: 36, background: '#EFF6FF', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💰</div>
-            <div>
-              <div style={{ fontWeight: 700, color: N, fontSize: 15 }}>Get your best possible tax outcome</div>
-              <div style={{ color: SL, fontSize: 13, marginTop: 2 }}>Enter your financial data below. K-1 is auto-calculated based on entity type and ownership %.</div>
-            </div>
-          </div>
-          <button onClick={() => setShowForm(true)} style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            ＋ Start New Calculation
-          </button>
-        </div>
+  return e('div',{style:{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:24,position:'relative'}},
 
-        {/* New Calculation Form */}
-        {showForm && (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 28, marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: `2px solid ${B}` }}>
-            <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 20 }}>New Tax Calculation</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-              {[
-                ['Tax Year', 'year', 'number'],
-                ['Gross Revenue', 'grossRevenue', 'number'],
-                ['Business Expenses', 'businessExpenses', 'number'],
-                ['Officer/Owner Salary (W-2)', 'officerSalary', 'number'],
-                ['Depreciation', 'depreciation', 'number'],
-                ['Ownership %', 'ownershipPct', 'number'],
-              ].map(([label, key, type]) => (
-                <div key={key}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: SL, marginBottom: 6 }}>{label}</div>
-                  <input type={type} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
-                </div>
-              ))}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: SL, marginBottom: 6 }}>Entity Type</div>
-                <select value={form.entityType} onChange={e => setForm({ ...form, entityType: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}>
-                  <option>S-Corporation</option>
-                  <option>Multi-Member LLC</option>
-                  <option>Partnership</option>
-                </select>
-              </div>
-            </div>
-            {/* K-1 Preview */}
-            <div style={{ background: '#F0F4FF', borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 32 }}>
-              <div><span style={{ fontSize: 12, color: SL }}>Calculated K-1 Income (Schedule E)</span><div style={{ fontWeight: 700, color: N, fontSize: 18 }}>{fmt(calcK1())}</div></div>
-              <div><span style={{ fontSize: 12, color: SL }}>Net Business Income</span><div style={{ fontWeight: 700, color: N, fontSize: 18 }}>{fmt((parseFloat(form.grossRevenue)||0) - (parseFloat(form.businessExpenses)||0) - (parseFloat(form.officerSalary)||0) - (parseFloat(form.depreciation)||0))}</div></div>
-              <div><span style={{ fontSize: 12, color: SL }}>Entity Type</span><div style={{ fontWeight: 700, color: N, fontSize: 18 }}>{form.entityType}</div></div>
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={handleSave} style={{ padding: '10px 24px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Save & Calculate</button>
-              <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-            </div>
-          </div>
-        )}
+    // ---- ENTITY HEADER ----
+    e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}},
+      e('div',{style:{display:'flex',alignItems:'center',gap:12}},
+        e('div',{style:{background:B,color:'#fff',borderRadius:8,width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13}},idx+1),
+        e('input',{
+          value:ent.name,
+          onChange:v=>onUpdate('name',v.target.value),
+          placeholder:'Business / Entity Name (optional)',
+          style:{fontSize:14,fontWeight:600,color:N,border:'none',outline:'none',background:'transparent',fontFamily:'inherit',width:260}
+        })
+      ),
+      e('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+        e('button',{
+          onClick:()=>{setManual(!manual);if(manual)setPnl(null)},
+          style:{padding:'5px 14px',background:'none',border:'1px solid '+B,borderRadius:6,fontSize:12,fontWeight:600,color:B,cursor:'pointer'}
+        },manual?'\u2190 Use Software':'\u270f\ufe0f Enter Manually'),
+        total>1&&e('button',{
+          onClick:onRemove,
+          style:{padding:'5px 10px',background:'none',border:'1px solid #FECACA',borderRadius:6,fontSize:12,fontWeight:600,color:R,cursor:'pointer'}
+        },'\u2715 Remove')
+      )
+    ),
 
-        {/* Records */}
-        {records.length === 0 && !showForm && (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: SL }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: N, marginBottom: 8 }}>No tax calculations yet</div>
-            <div style={{ fontSize: 14 }}>Click "Start New Calculation" to enter your financial data.</div>
-          </div>
-        )}
+    // ---- SOFTWARE CONNECT GRID ----
+    !manual&&!pnl&&e('div',null,
+      e('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'1px',color:SL,marginBottom:12}},'CONNECT YOUR ACCOUNTING SOFTWARE'),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}},
+        ...INTS.map(i=>{
+          const isC=!!conn[i.id],isS=syn===i.id
+          return e('div',{key:i.id,style:{border:'2px solid '+(isC?i.color:'#E2E8F0'),borderRadius:12,padding:16,textAlign:'center',background:isC?i.color+'0D':'#fff'}},
+            e('div',{style:{width:38,height:38,borderRadius:9,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px',fontSize:12,fontWeight:700,color:'#fff'}},i.abbr),
+            e('div',{style:{fontSize:13,fontWeight:700,color:N,marginBottom:8}},i.name),
+            isC
+              ?e('div',null,
+                  e('div',{style:{fontSize:12,color:G,fontWeight:700,marginBottom:8}},isS?'\u27f3 Syncing...':'\u2713 Connected'),
+                  e('div',{style:{display:'flex',gap:6,justifyContent:'center'}},
+                    e('button',{onClick:()=>refresh(i.id),style:{padding:'4px 10px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}},'\u27f3 Refresh'),
+                    e('button',{onClick:()=>disc(i.id),style:{padding:'4px 10px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:5,fontSize:11,fontWeight:600,color:R,cursor:'pointer'}},'Disconnect')
+                  )
+                )
+              :e('button',{onClick:()=>{window.location.href=API+'/auth/'+i.id+'/connect'},style:{width:'100%',padding:'8px',background:B,border:'none',borderRadius:7,fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}},isS?'Connecting...':'Connect')
+          )
+        })
+      )
+    ),
 
-        {records.map(r => (
-          <div key={r.id} style={{ background: '#fff', borderRadius: 12, padding: 24, marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div>
-                <div style={{ fontWeight: 700, color: N, fontSize: 16 }}>Tax Record {r.year} — {r.entityType}</div>
-                <div style={{ color: SL, fontSize: 13, marginTop: 2 }}>Last updated {r.createdAt}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => nav('/ai-analysis', { state: { record: r } })} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  ✦ Analyze Data
-                </button>
-                <button onClick={() => handleDelete(r.id)} style={{ padding: '8px 18px', background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                  🗑 Delete
-                </button>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-              {[
-                ['💰', 'Gross Revenue', r.grossRevenue],
-                ['📋', 'Total Expenses', r.totalDeductions],
-                ['🏢', 'Depreciation', r.depreciation],
-                ['📄', 'K-1 Income (Sch. E)', r.k1Income],
-              ].map(([icon, label, val]) => (
-                <div key={label} style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px' }}>
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
-                  <div style={{ color: SL, fontSize: 12, fontWeight: 600 }}>{label}</div>
-                  <div style={{ color: parseFloat(val) < 0 ? '#DC2626' : N, fontWeight: 700, fontSize: 20, marginTop: 4 }}>
-                    {parseFloat(val) < 0 ? '-$' + Math.abs(parseFloat(val)).toLocaleString() : fmt(val)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    // ---- MANUAL ENTRY ----
+    manual&&!pnl&&e('div',{style:{background:'#F8FAFC',borderRadius:10,padding:20,border:'1px solid #E2E8F0'}},
+      e('div',{style:{fontSize:13,fontWeight:700,color:N,marginBottom:14}},'\u270f\ufe0f Manual P&L Entry \u2014 '+new Date().getFullYear()+' Year-to-Date'),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:14}},
+        e('div',null,
+          e('label',{style:{fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:4}},'Total Revenue / Gross Income'),
+          e('input',{value:manRev,onChange:v=>setManRev(v.target.value),placeholder:'0',type:'number',style:{width:'100%',padding:'10px 14px',border:'2px solid #E2E8F0',borderRadius:8,fontSize:15,boxSizing:'border-box',fontFamily:'inherit'}})
+        ),
+        e('div',null,
+          e('label',{style:{fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:4}},'Total Business Expenses'),
+          e('input',{value:manExp,onChange:v=>setManExp(v.target.value),placeholder:'0',type:'number',style:{width:'100%',padding:'10px 14px',border:'2px solid #E2E8F0',borderRadius:8,fontSize:15,boxSizing:'border-box',fontFamily:'inherit'}})
+        )
+      ),
+      e('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        e('div',{style:{fontSize:14,color:SL}},manRev||manExp?e('span',null,'Net: ',e('strong',{style:{color:nv(manRev)-nv(manExp)>=0?G:R}},fmt(nv(manRev)-nv(manExp)))):'Enter your figures above'),
+        e('button',{onClick:applyManual,style:{padding:'9px 20px',background:G,border:'none',borderRadius:7,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer'}},'Apply \u2192')
+      )
+    ),
+
+    // ---- P&L RESULTS ----
+    pnl&&e('div',null,
+      e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
+        e('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'1px',color:SL}},manual?'MANUAL P&L ENTRY':'P&L FROM '+(cId||'').toUpperCase()+' \u2014 '+new Date().getFullYear()+' YTD'),
+        e('div',{style:{display:'flex',gap:8}},
+          !manual&&cId&&e('button',{onClick:()=>refresh(cId),style:{padding:'4px 10px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}},'\u27f3 Refresh'),
+          e('button',{onClick:()=>setPnl(null),style:{padding:'4px 10px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:5,fontSize:11,fontWeight:600,color:R,cursor:'pointer'}},'\u2715 Clear')
+        )
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:pnl.categories&&Object.keys(pnl.categories).length>0?20:0}},
+        ...[['Total Revenue',fmt(pnl.grossRevenue),G,'\ud83d\udcc8'],['Total Expenses',fmt(pnl.totalExpenses),R,'\ud83d\udcc9'],['Net Profit / Loss',fmt(pnl.netProfit),pnl.netProfit>=0?G:R,'\ud83d\udcb0']].map(([l,v,c,ic])=>
+          e('div',{key:l,style:{background:'#F8FAFC',borderRadius:10,padding:16,textAlign:'center',border:'1px solid #F1F5F9'}},
+            e('div',{style:{fontSize:18,marginBottom:4}},ic),
+            e('div',{style:{fontSize:11,color:SL,marginBottom:3}},l),
+            e('div',{style:{fontSize:22,fontWeight:800,color:c}},v)
+          )
+        )
+      ),
+      pnl.categories&&Object.keys(pnl.categories).length>0&&e('div',null,
+        e('div',{style:{fontSize:11,fontWeight:700,color:SL,marginBottom:10}},'EXPENSE BREAKDOWN'),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}},
+          ...Object.entries(pnl.categories).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>
+            e('div',{key:cat,style:{background:'#F8FAFC',borderRadius:8,padding:'9px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',border:'1px solid #F1F5F9'}},
+              e('div',null,
+                e('div',{style:{fontSize:12,fontWeight:600,color:N}},cat),
+                e('div',{style:{fontSize:10,color:SL}},pnl.totalExpenses>0?Math.round((amt/pnl.totalExpenses)*100)+'% of expenses':'')
+              ),
+              e('div',{style:{fontSize:12,fontWeight:700,color:R}},fmt(amt))
+            )
+          )
+        )
+      )
+    ),
+
+    // ---- OWNERSHIP % (only shown when pnl loaded) ----
+    pnl&&e('div',{style:{marginTop:20,padding:'16px 0 0',borderTop:'1px solid #F1F5F9'}},
+      e('div',{style:{display:'grid',gridTemplateColumns:'280px 1fr',gap:24,alignItems:'center'}},
+        e('div',null,
+          e('label',{style:{fontSize:13,fontWeight:700,color:N,display:'block',marginBottom:10}},'Your Ownership %'),
+          e('select',{value:ent.own,onChange:v=>onUpdate('own',v.target.value),style:{width:'100%',padding:'12px 16px',border:'2px solid '+B,borderRadius:10,fontSize:16,fontWeight:700,color:N,background:'#fff',fontFamily:'inherit',cursor:'pointer'}},
+            ...OWN.map(([v,l])=>e('option',{key:v,value:v},l))
+          ),
+          e('div',{style:{fontSize:11,color:SL,marginTop:8,lineHeight:1.5}},'For S-Corps, LLCs, and partnerships with multiple owners. Single-owner businesses are always 100%.')
+        ),
+        e('div',{style:{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:12,padding:20,color:'#fff',textAlign:'center'}},
+          e('div',{style:{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:4,letterSpacing:'0.5px'}},'K-1 SHARE — '+(ent.name||'ENTITY '+(idx+1))),
+          e('div',{style:{fontSize:36,fontWeight:800,color:(pnl.netProfit*nv(ent.own)/100)>=0?'#4ADE80':'#F87171',lineHeight:1}},
+            fmt(Math.round(pnl.netProfit*nv(ent.own)/100))
+          ),
+          e('div',{style:{fontSize:11,color:'rgba(255,255,255,0.45)',marginTop:6}},fmt(pnl.netProfit)+' net profit \u00d7 '+ent.own+'% ownership')
+        )
+      )
+    )
   )
 }
