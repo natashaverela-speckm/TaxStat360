@@ -6,7 +6,6 @@ frontend:
         - nvm install 18
         - nvm use 18
         - node --version
-        - rm -rf node_modules dist
         - npm install
     build:
       commands:
