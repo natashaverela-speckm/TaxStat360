@@ -1,0 +1,36 @@
+                {['Enter Manually', 'QuickBooks', 'Xero', 'Wave', 'FreshBooks'].map(software => {
+                  // Define branded colors for each platform
+                  const getButtonStyle = (software, isSelected) => {
+                    const brandColors = {
+                      'Enter Manually': { bg: '#6b7280', border: '#6b7280' },
+                      'QuickBooks': { bg: '#0077C5', border: '#0077C5' },
+                      'Xero': { bg: '#13B5EA', border: '#13B5EA' },
+                      'Wave': { bg: '#4267B2', border: '#4267B2' },
+                      'FreshBooks': { bg: '#0E4F8C', border: '#0E4F8C' }
+                    };
+                    
+                    const colors = brandColors[software] || { bg: '#6b7280', border: '#6b7280' };
+                    
+                    return {
+                      padding: '0.5rem 0.75rem',
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: '6px',
+                      background: isSelected ? '#10b981' : colors.bg,
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      transition: 'all 0.2s'
+                    };
+                  };
+                  
+                  return (
+                    <button
+                      key={software}
+                      onClick={() => updateSimpleEntity(entity.id, 'connected', software)}
+                      style={getButtonStyle(software, entity.connected === software)}
+                    >
+                      {software}{entity.connected === software ? ' ✓' : ''}
+                    </button>
+                  );
+                })}
