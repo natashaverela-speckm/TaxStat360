@@ -389,7 +389,7 @@ const EnhancedCalculateTax = () => {
                   </div>div>
                 );
     };
-  
+  List All Entities
     const totalK1 = entities.reduce((sum, entity) => 
           sum + Math.round((entity.pnl?.netProfit || 0) * (entity.ownershipPercentage / 100)), 0
                                       );
