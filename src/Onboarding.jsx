@@ -85,6 +85,7 @@ function SignupScreen(){
   const verified=new URLSearchParams(window.location.search).get("verified")
     <button onClick={verifyOtp} disabled={otpLoading||otp.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',margin:'16px 0 0',opacity:otpLoading?0.7:1}}>{otpLoading?'Verifying...':'Verify Code →'}</button>
     <p style={{textAlign:'center',fontSize:12,color:SL,margin:'12px 0 0',cursor:'pointer'}} onClick={()=>{setMfaStep(false);setOtp('');setOtpErr('')}}>← Back to login</p>
+  const verified = new URLSearchParams(window.location.search).get("verified");
   </Page>)
   return(<Page>
     <LOGO/>
@@ -154,7 +155,6 @@ function LoginScreen(){
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
   const [loading,setLoading]=useState(false)
-  const [err,setErr]=useState('')
   // const verified=new URLSearchParams(window.location.search).get("verified") // moved to component level
   async function submit(e){
     e.preventDefault();setLoading(true);setErr('')
