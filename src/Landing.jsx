@@ -20,17 +20,9 @@ const LOGO = () => (
 
 const Landing = () => {
   const [isVisible, setIsVisible] = useState(false);
-  const [currentTestimonial, setCurrentTestimonial] = useState(0);
 
   useEffect(() => {
     setIsVisible(true);
-    
-    // Auto-rotate testimonials
-    const interval = setInterval(() => {
-      setCurrentTestimonial((prev) => (prev + 1) % 3);
-    }, 5000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   const testimonials = [
