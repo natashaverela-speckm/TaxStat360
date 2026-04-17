@@ -4,7 +4,7 @@ import './Landing.css';
 
 // LOGO component - exact copy from Onboarding.jsx line 8
 const LOGO = () => (
-  <div style={{display:'flex',alignItems:'center',gap:8}}>
+ <div style={{display:'flex',alignItems:'center',gap:8}}>
     <svg width="30" height="30" viewBox="0 0 34 34">
       <rect width="34" height="34" rx="8" fill="#0D1B3E"/>
       <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/>
