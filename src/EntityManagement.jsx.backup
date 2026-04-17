@@ -1,0 +1,611 @@
+import React, { useState, useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import EntityDetailsForm from './EntityDetailsForm';
+import './EntityManagement.css';
+
+const SortableEntityCard = ({ entity, onEdit, onDelete, onDuplicate }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: entity.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const getEntityTypeLabel = (type) => {
+    const types = {
+      'sole-prop': 'Sole Proprietorship',
+      'single-llc': 'Single-Member LLC',
+      'multi-llc': 'Multi-Member LLC',
+      's-corp': 'S-Corporation',
+      'c-corp': 'C-Corporation',
+      'partnership': 'Partnership'
+    };
+    return types[type] || type;
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'complete': '#10b981',
+      'needs-attention': '#f59e0b',
+      'incomplete': '#ef4444'
+    };
+    return colors[status] || '#6b7280';
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`entity-card ${isDragging ? 'dragging' : ''}`}
+    >
+      <div className="entity-content">
+        <div 
+          {...attributes}
+          {...listeners}
+          className="drag-handle"
+          title="Drag to reorder"
+        >
+          ⋮⋮
+        </div>
+
+        <div className="entity-main">
+          <div className="entity-info">
+            <div className="entity-name">
+              {entity.entityName}
+              {!entity.isActive && <span className="inactive-badge">Inactive</span>}
+            </div>
+            <div className="entity-meta">
+              <span className="entity-type">{getEntityTypeLabel(entity.entityType)}</span>
+              {entity.ein && <span className="entity-ein">EIN: {entity.ein}</span>}
+              <span className="entity-state">{entity.stateOfFormation}</span>
+            </div>
+          </div>
+
+          <div className="entity-stats-mini">
+            <div className="ownership">
+              <span className="percentage">{entity.ownershipPercentage}%</span>
+              <span className="label">Ownership</span>
+            </div>
+            <div 
+              className="status-indicator"
+              style={{ backgroundColor: getStatusColor(entity.status) }}
+              title={entity.status.replace('-', ' ')}
+            />
+          </div>
+        </div>
+
+        <div className="entity-actions">
+          <button
+            onClick={() => onEdit(entity)}
+            className="btn-action edit"
+            title="Edit entity"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={() => onDuplicate(entity)}
+            className="btn-action duplicate"
+            title="Duplicate entity"
+          >
+            📋
+          </button>
+          <button
+            onClick={() => onDelete(entity.id)}
+            className="btn-action delete"
+            title="Delete entity"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+
+      <div className="entity-footer">
+        <span className="last-updated">
+          Last updated: {new Date(entity.lastUpdated).toLocaleDateString()}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const EntityManagement = () => {
+  const [entities, setEntities] = useState([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEntity, setEditingEntity] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Mock data - replace with actual API calls
+  useEffect(() => {
+    const mockEntities = [
+      {
+        id: '1',
+        entityName: 'Tech Consulting LLC',
+        entityType: 'multi-llc',
+        ein: '12-3456789',
+        stateOfFormation: 'DE',
+        isActive: true,
+        formationDate: '2022-01-15',
+        ownershipPercentage: 100,
+        lastUpdated: '2024-03-15',
+        status: 'complete'
+      },
+      {
+        id: '2',
+        entityName: 'Marketing Solutions Corp',
+        entityType: 's-corp',
+        ein: '98-7654321',
+        stateOfFormation: 'CA',
+        isActive: true,
+        formationDate: '2021-06-10',
+        ownershipPercentage: 75,
+        lastUpdated: '2024-03-10',
+        status: 'needs-attention'
+      },
+      {
+        id: '3',
+        entityName: 'Real Estate Holdings',
+        entityType: 'partnership',
+        ein: '45-6789123',
+        stateOfFormation: 'TX',
+        isActive: false,
+        formationDate: '2020-09-20',
+        ownershipPercentage: 50,
+        lastUpdated: '2024-02-28',
+        status: 'incomplete'
+      }
+    ];
+    setEntities(mockEntities);
+  }, []);
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setEntities((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
+
+  const handleSave
+cat > EntityManagement.jsx << 'EOF'
+import React, { useState, useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import EntityDetailsForm from './EntityDetailsForm';
+import './EntityManagement.css';
+
+const SortableEntityCard = ({ entity, onEdit, onDelete, onDuplicate }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: entity.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const getEntityTypeLabel = (type) => {
+    const types = {
+      'sole-prop': 'Sole Proprietorship',
+      'single-llc': 'Single-Member LLC',
+      'multi-llc': 'Multi-Member LLC',
+      's-corp': 'S-Corporation',
+      'c-corp': 'C-Corporation',
+      'partnership': 'Partnership'
+    };
+    return types[type] || type;
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'complete': '#10b981',
+      'needs-attention': '#f59e0b',
+      'incomplete': '#ef4444'
+    };
+    return colors[status] || '#6b7280';
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`entity-card ${isDragging ? 'dragging' : ''}`}
+    >
+      <div className="entity-content">
+        <div 
+          {...attributes}
+          {...listeners}
+          className="drag-handle"
+          title="Drag to reorder"
+        >
+          ⋮⋮
+        </div>
+
+        <div className="entity-main">
+          <div className="entity-info">
+            <div className="entity-name">
+              {entity.entityName}
+              {!entity.isActive && <span className="inactive-badge">Inactive</span>}
+            </div>
+            <div className="entity-meta">
+              <span className="entity-type">{getEntityTypeLabel(entity.entityType)}</span>
+              {entity.ein && <span className="entity-ein">EIN: {entity.ein}</span>}
+              <span className="entity-state">{entity.stateOfFormation}</span>
+            </div>
+          </div>
+
+          <div className="entity-stats-mini">
+            <div className="ownership">
+              <span className="percentage">{entity.ownershipPercentage}%</span>
+              <span className="label">Ownership</span>
+            </div>
+            <div 
+              className="status-indicator"
+              style={{ backgroundColor: getStatusColor(entity.status) }}
+              title={entity.status.replace('-', ' ')}
+            />
+          </div>
+        </div>
+
+        <div className="entity-actions">
+          <button
+            onClick={() => onEdit(entity)}
+            className="btn-action edit"
+            title="Edit entity"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={() => onDuplicate(entity)}
+            className="btn-action duplicate"
+            title="Duplicate entity"
+          >
+            📋
+          </button>
+          <button
+            onClick={() => onDelete(entity.id)}
+            className="btn-action delete"
+            title="Delete entity"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+
+      <div className="entity-footer">
+        <span className="last-updated">
+          Last updated: {new Date(entity.lastUpdated).toLocaleDateString()}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const EntityManagement = () => {
+  const [entities, setEntities] = useState([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEntity, setEditingEntity] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Mock data - replace with actual API calls
+  useEffect(() => {
+    const mockEntities = [
+      {
+        id: '1',
+        entityName: 'Tech Consulting LLC',
+        entityType: 'multi-llc',
+        ein: '12-3456789',
+        stateOfFormation: 'DE',
+        isActive: true,
+        formationDate: '2022-01-15',
+        ownershipPercentage: 100,
+        lastUpdated: '2024-03-15',
+        status: 'complete'
+      },
+      {
+        id: '2',
+        entityName: 'Marketing Solutions Corp',
+        entityType: 's-corp',
+        ein: '98-7654321',
+        stateOfFormation: 'CA',
+        isActive: true,
+        formationDate: '2021-06-10',
+        ownershipPercentage: 75,
+        lastUpdated: '2024-03-10',
+        status: 'needs-attention'
+      },
+      {
+        id: '3',
+        entityName: 'Real Estate Holdings',
+        entityType: 'partnership',
+        ein: '45-6789123',
+        stateOfFormation: 'TX',
+        isActive: false,
+        formationDate: '2020-09-20',
+        ownershipPercentage: 50,
+        lastUpdated: '2024-02-28',
+        status: 'incomplete'
+      }
+    ];
+    setEntities(mockEntities);
+  }, []);
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setEntities((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
+
+  const handleSaveEntity = (entityData) => {
+    if (editingEntity) {
+      // Update existing entity
+      setEntities(prev => 
+        prev.map(entity => 
+          entity.id === editingEntity.id 
+            ? { ...entity, ...entityData, lastUpdated: new Date().toISOString().split('T')[0] }
+            : entity
+        )
+      );
+      setEditingEntity(null);
+    } else {
+      // Add new entity
+      const newEntity = {
+        ...entityData,
+        id: Date.now().toString(),
+        lastUpdated: new Date().toISOString().split('T')[0],
+        status: 'complete'
+      };
+      setEntities(prev => [...prev, newEntity]);
+      setShowAddForm(false);
+    }
+  };
+
+  const handleEditEntity = (entity) => {
+    setEditingEntity(entity);
+    setShowAddForm(false);
+  };
+
+  const handleDeleteEntity = (entityId) => {
+    if (window.confirm('Are you sure you want to delete this entity?')) {
+      setEntities(prev => prev.filter(entity => entity.id !== entityId));
+    }
+  };
+
+  const handleDuplicateEntity = (entity) => {
+    const duplicatedEntity = {
+      ...entity,
+      id: Date.now().toString(),
+      entityName: `${entity.entityName} (Copy)`,
+      ein: '', // Clear EIN for duplicate
+      lastUpdated: new Date().toISOString().split('T')[0],
+      status: 'incomplete'
+    };
+    setEntities(prev => [...prev, duplicatedEntity]);
+  };
+
+  const filteredAndSortedEntities = entities
+    .filter(entity => {
+      const matchesSearch = entity.entityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           entity.ein.includes(searchTerm);
+      const matchesFilter = filterType === 'all' || entity.entityType === filterType;
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.entityName.localeCompare(b.entityName);
+        case 'type':
+          return a.entityType.localeCompare(b.entityType);
+        case 'updated':
+          return new Date(b.lastUpdated) - new Date(a.lastUpdated);
+        default:
+          return 0;
+      }
+    });
+
+  if (showAddForm || editingEntity) {
+    return (
+      <div className="entity-management">
+        <EntityDetailsForm
+          entityData={editingEntity}
+          onSave={handleSaveEntity}
+          onCancel={() => {
+            setShowAddForm(false);
+            setEditingEntity(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="entity-management">
+      <div className="entity-header">
+        <div className="header-content">
+          <h1>Entity Management</h1>
+          <p>Manage your business entities for accurate tax calculation</p>
+        </div>
+        <button 
+          onClick={() => setShowAddForm(true)}
+          className="btn-primary add-entity-btn"
+        >
+          <span className="plus-icon">+</span>
+          Add New Entity
+        </button>
+      </div>
+
+      <div className="entity-controls">
+        <div className="search-filter-row">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Search entities..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+            <span className="search-icon">🔍</span>
+          </div>
+
+          <div className="filter-group">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">All Types</option>
+              <option value="sole-prop">Sole Proprietorship</option>
+              <option value="single-llc">Single-Member LLC</option>
+              <option value="multi-llc">Multi-Member LLC</option>
+              <option value="s-corp">S-Corporation</option>
+              <option value="c-corp">C-Corporation</option>
+              <option value="partnership">Partnership</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="sort-select"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="type">Sort by Type</option>
+              <option value="updated">Sort by Last Updated</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="entity-stats">
+        <div className="stat-card">
+          <span className="stat-number">{entities.length}</span>
+          <span className="stat-label">Total Entities</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-number">{entities.filter(e => e.isActive).length}</span>
+          <span className="stat-label">Active</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-number">{entities.filter(e => e.status === 'complete').length}</span>
+          <span className="stat-label">Complete</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-number">{entities.filter(e => e.status === 'needs-attention').length}</span>
+          <span className="stat-label">Need Attention</span>
+        </div>
+      </div>
+
+      {filteredAndSortedEntities.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📊</div>
+          <h3>No entities found</h3>
+          <p>Add your first entity to get started with tax calculations</p>
+          <button 
+            onClick={() => setShowAddForm(true)}
+            className="btn-primary"
+          >
+            Add Your First Entity
+          </button>
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={filteredAndSortedEntities.map(e => e.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="entity-list">
+              {filteredAndSortedEntities.map((entity) => (
+                <SortableEntityCard
+                  key={entity.id}
+                  entity={entity}
+                  onEdit={handleEditEntity}
+                  onDelete={handleDeleteEntity}
+                  onDuplicate={handleDuplicateEntity}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  );
+};
+
+export default EntityManagement;

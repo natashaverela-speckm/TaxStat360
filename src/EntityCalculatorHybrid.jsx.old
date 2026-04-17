@@ -1,0 +1,463 @@
+import React, { useState } from 'react';
+
+const EntityCalculatorHybrid = () => {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  if (showAdvanced) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+        <button 
+          onClick={() => setShowAdvanced(false)}
+          style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem 1rem', 
+            background: 'white', 
+            border: '1px solid #ccc', 
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Back to Simple Entity Setup
+        </button>
+        <div style={{ 
+          background: 'white', 
+          padding: '2rem', 
+          borderRadius: '12px', 
+          textAlign: 'center',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ color: '#1e3a8a', marginBottom: '1rem' }}>
+            🚀 Advanced Entity Manager
+          </h2>
+          <p style={{ color: '#64748b', marginBottom: '2rem' }}>
+            Advanced entity management features coming soon
+          </p>
+          <div style={{ 
+            background: '#f0f9ff', 
+            padding: '1.5rem', 
+            borderRadius: '8px', 
+            border: '2px solid #93c5fd'
+          }}>
+            <strong>Features include:</strong>
+            <ul style={{ textAlign: 'left', margin: '1rem 0', listStyle: 'none' }}>
+              <li>📝 Detailed entity forms (EIN, formation date, address)</li>
+              <li>🔄 Drag-and-drop entity organization</li>
+              <li>📊 Bulk import/export from CSV</li>
+              <li>🔍 Search and filter entities</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ 
+      maxWidth: '1000px', 
+      margin: '0 auto', 
+      padding: '2rem', 
+      background: '#f8fafc', 
+      minHeight: '100vh' 
+    }}>
+      {/* Navigation */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '1rem 1.5rem', 
+        background: 'white', 
+        borderRadius: '12px', 
+        marginBottom: '2rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{ fontWeight: 800, color: '#1e3a8a', fontSize: '1.125rem' }}>
+          TaxStat<span style={{ color: '#2563eb' }}>360</span>
+        </div>
+        <div style={{ 
+          background: '#f1f5f9', 
+          color: '#475569', 
+          padding: '0.5rem 1rem', 
+          borderRadius: '20px', 
+          fontSize: '0.875rem' 
+        }}>
+          Step 1 of 2 — Business
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button style={{ 
+            padding: '0.5rem 1rem', 
+            borderRadius: '8px', 
+            background: '#f8fafc', 
+            border: '1px solid #d1d5db', 
+            color: '#374151',
+            cursor: 'pointer'
+          }}>
+            AI Analysis
+          </button>
+          <button style={{ 
+            padding: '0.5rem 1rem', 
+            borderRadius: '8px', 
+            background: '#f8fafc', 
+            border: '1px solid #d1d5db', 
+            color: '#374151',
+            cursor: 'pointer'
+          }}>
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Page Header */}
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '2rem', 
+        background: 'white', 
+        padding: '2rem', 
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <h1 style={{ 
+          color: '#1e3a8a', 
+          fontSize: '2rem', 
+          marginBottom: '0.5rem', 
+          fontWeight: 700 
+        }}>
+          Entity Calculator
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '1rem' }}>
+          Add all your business entities. Connect each to its accounting software or enter P&L
+cd ~/build/src
+cat > EntityCalculatorHybrid.jsx << 'EOF'
+import React, { useState } from 'react';
+
+const EntityCalculatorHybrid = () => {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  if (showAdvanced) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+        <button 
+          onClick={() => setShowAdvanced(false)}
+          style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem 1rem', 
+            background: 'white', 
+            border: '1px solid #ccc', 
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Back to Simple Entity Setup
+        </button>
+        <div style={{ 
+          background: 'white', 
+          padding: '2rem', 
+          borderRadius: '12px', 
+          textAlign: 'center',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ color: '#1e3a8a', marginBottom: '1rem' }}>
+            🚀 Advanced Entity Manager
+          </h2>
+          <p style={{ color: '#64748b', marginBottom: '2rem' }}>
+            Advanced entity management features coming soon
+          </p>
+          <div style={{ 
+            background: '#f0f9ff', 
+            padding: '1.5rem', 
+            borderRadius: '8px', 
+            border: '2px solid #93c5fd'
+          }}>
+            <strong>Features include:</strong>
+            <ul style={{ textAlign: 'left', margin: '1rem 0', listStyle: 'none' }}>
+              <li>📝 Detailed entity forms (EIN, formation date, address)</li>
+              <li>🔄 Drag-and-drop entity organization</li>
+              <li>📊 Bulk import/export from CSV</li>
+              <li>🔍 Search and filter entities</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ 
+      maxWidth: '1000px', 
+      margin: '0 auto', 
+      padding: '2rem', 
+      background: '#f8fafc', 
+      minHeight: '100vh' 
+    }}>
+      {/* Navigation */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '1rem 1.5rem', 
+        background: 'white', 
+        borderRadius: '12px', 
+        marginBottom: '2rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{ fontWeight: 800, color: '#1e3a8a', fontSize: '1.125rem' }}>
+          TaxStat<span style={{ color: '#2563eb' }}>360</span>
+        </div>
+        <div style={{ 
+          background: '#f1f5f9', 
+          color: '#475569', 
+          padding: '0.5rem 1rem', 
+          borderRadius: '20px', 
+          fontSize: '0.875rem' 
+        }}>
+          Step 1 of 2 — Business
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button style={{ 
+            padding: '0.5rem 1rem', 
+            borderRadius: '8px', 
+            background: '#f8fafc', 
+            border: '1px solid #d1d5db', 
+            color: '#374151',
+            cursor: 'pointer'
+          }}>
+            AI Analysis
+          </button>
+          <button style={{ 
+            padding: '0.5rem 1rem', 
+            borderRadius: '8px', 
+            background: '#f8fafc', 
+            border: '1px solid #d1d5db', 
+            color: '#374151',
+            cursor: 'pointer'
+          }}>
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Page Header */}
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '2rem', 
+        background: 'white', 
+        padding: '2rem', 
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <h1 style={{ 
+          color: '#1e3a8a', 
+          fontSize: '2rem', 
+          marginBottom: '0.5rem', 
+          fontWeight: 700 
+        }}>
+          Entity Calculator
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '1rem' }}>
+          Add all your business entities. Connect each to its accounting software or enter P&L manually.
+        </p>
+      </div>
+
+      {/* Simple Entity Section */}
+      <div style={{ 
+        background: 'white', 
+        padding: '2rem', 
+        borderRadius: '12px', 
+        marginBottom: '1.5rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          padding: '1rem',
+          background: '#f8fafc',
+          borderRadius: '8px',
+          border: '1px dashed #cbd5e1',
+          marginBottom: '1rem'
+        }}>
+          <span style={{ fontWeight: 600, color: '#1e293b', minWidth: '100px' }}>
+            Business 1
+          </span>
+          <select style={{
+            flex: 1,
+            maxWidth: '200px',
+            padding: '0.625rem 0.75rem',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            background: 'white'
+          }}>
+            <option>S-Corp</option>
+            <option>LLC (Partnership)</option>
+            <option>LLC (Single-Member)</option>
+            <option>Sole Proprietorship</option>
+            <option>C-Corp</option>
+            <option>Partnership</option>
+          </select>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.5rem' }}>
+              CONNECT ACCOUNTING SOFTWARE
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8125rem'
+              }}>Enter Manually</button>
+              <button style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8125rem'
+              }}>QuickBooks</button>
+              <button style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8125rem'
+              }}>Xero</button>
+              <button style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8125rem'
+              }}>Wave</button>
+              <button style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8125rem'
+              }}>FreshBooks</button>
+            </div>
+          </div>
+        </div>
+
+        <button style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          padding: '1rem',
+          border: '1px dashed #2563eb',
+          borderRadius: '8px',
+          background: '#eff6ff',
+          color: '#2563eb',
+          cursor: 'pointer',
+          fontWeight: 500,
+          width: '100%'
+        }}>
+          <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>+</span>
+          Add Another Business Entity
+        </button>
+      </div>
+
+      {/* Separator */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem',
+        margin: '2rem 0',
+        color: '#64748b',
+        fontSize: '0.875rem'
+      }}>
+        <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+        Need more advanced entity management?
+        <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+      </div>
+
+      {/* Advanced Section */}
+      <div style={{
+        background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+        padding: '2rem',
+        borderRadius: '12px',
+        border: '2px solid #93c5fd',
+        textAlign: 'center',
+        marginBottom: '2rem'
+      }}>
+        <h3 style={{ color: '#1e40af', fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+          🚀 Advanced Entity Management
+        </h3>
+        <p style={{ color: '#3730a3', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+          Comprehensive tools for complex business structures
+        </p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '0.75rem',
+          margin: '1.5rem 0',
+          textAlign: 'left'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.8125rem' }}>
+            <span>📝</span> Detailed entity forms (EIN, formation date, address)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.8125rem' }}>
+            <span>🔄</span> Drag-and-drop entity organization
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.8125rem' }}>
+            <span>📊</span> Bulk import/export from CSV
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.8125rem' }}>
+            <span>🔍</span> Search and filter entities
+          </div>
+        </div>
+
+        <button 
+          onClick={() => setShowAdvanced(true)}
+          style={{
+            background: '#2563eb',
+            color: 'white',
+            border: 'none',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            fontWeight: 500,
+            marginTop: '1rem'
+          }}
+        >
+          🚀 Open Advanced Entity Manager
+        </button>
+      </div>
+
+      {/* Continue Section */}
+      <div style={{
+        textAlign: 'center',
+        background: 'white',
+        padding: '1.5rem',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+          Add your business entities above
+        </div>
+        <div style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>
+          Connect accounting software or enter P&L manually for each entity
+        </div>
+        <button style={{
+          background: '#9ca3af',
+          color: 'white',
+          border: 'none',
+          padding: '0.875rem 2rem',
+          borderRadius: '8px',
+          fontSize: '1rem',
+          cursor: 'not-allowed'
+        }}>
+          Continue to Personal Information →
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default EntityCalculatorHybrid;

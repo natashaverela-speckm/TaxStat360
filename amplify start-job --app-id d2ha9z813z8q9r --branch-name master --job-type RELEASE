@@ -1,0 +1,41 @@
+{
+    "app": {
+        "appId": "d2ha9z813z8q9r",
+        "appArn": "arn:aws:amplify:us-east-1:286918585905:apps/d2ha9z813z8q9r",
+        "name": "TaxStat360",
+        "tags": {},
+        "repository": "https://github.com/natashaverela-speckm/taxstat360",
+        "platform": "WEB",
+        "createTime": "2026-04-12T21:02:04.390000+00:00",
+        "updateTime": "2026-04-15T23:34:51.721000+00:00",
+        "environmentVariables": {
+            "_LIVE_UPDATES": "[{\"pkg\":\"node\",\"type\":\"nvm\",\"version\":\"18\"}]"
+        },
+        "defaultDomain": "d2ha9z813z8q9r.amplifyapp.com",
+        "enableBranchAutoBuild": false,
+        "enableBranchAutoDeletion": false,
+        "enableBasicAuth": false,
+        "customRules": [
+            {
+                "source": "/<*>",
+                "target": "/index.html",
+                "status": "404-200"
+            }
+        ],
+        "productionBranch": {
+            "status": "RUNNING",
+            "branchName": "master"
+        },
+        "buildSpec": "version: 1\nfrontend:\n  phases:\n    preBuild:\n      commands:\n        - nvm use 18\n        - npm install\n    build:\n      commands:\n        - npm run build\n  artifacts:\n    baseDirectory: dist\n    files:\n      - '**/*'\n",
+        "customHeaders": "",
+        "enableAutoBranchCreation": false,
+        "repositoryCloneMethod": "TOKEN",
+        "cacheConfig": {
+            "type": "AMPLIFY_MANAGED_NO_COOKIES"
+        },
+        "webhookCreateTime": "2026-04-12T21:02:04.129000+00:00",
+        "jobConfig": {
+            "buildComputeType": "STANDARD_8GB"
+        }
+    }
+}

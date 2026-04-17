@@ -1,27 +1,22 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Landing from './Landing'
-import Onboarding from './Onboarding'
-import Dashboard from './Dashboard'
-import CalculateTax from './CalculateTax'
-import AIAnalysis from './AIAnalysis'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Landing from './Landing';
+import Onboarding from './Onboarding';
+import EntityCalculatorHybrid from './EntityCalculatorHybrid';
 
-export default function App() {
+function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/signup" element={<Onboarding screen="signup" />} />
-        <Route path="/register" element={<Onboarding screen="signup" />} />
-        <Route path="/login" element={<Onboarding screen="login" />} />
-        <Route path="/verify-email" element={<Onboarding screen="verify" />} />
-        <Route path="/onboarding/entity" element={<Onboarding screen="entity" />} />
-        <Route path="/onboarding/business" element={<Onboarding screen="business" />} />
-        <Route path="/onboarding/import" element={<Onboarding screen="import" />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/calculate-tax" element={<CalculateTax />} />
-        <Route path="/ai-analysis" element={<AIAnalysis />} />
+        <Route path="/signup" element={<Onboarding />} />
+        <Route path="/signin" element={<Onboarding />} />
+        <Route path="/login" element={<Onboarding />} />
+        <Route path="/calculate-tax" element={<EntityCalculatorHybrid />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
-  )
+    </Router>
+  );
 }
+
+export default App;

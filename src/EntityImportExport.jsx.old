@@ -1,0 +1,393 @@
+import React, { useState, useRef } from 'react';
+import './EntityImportExport.css';
+
+const EntityImportExport = ({ entities = [], onImport, onClose }) => {
+  const [importData, setImportData] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importStep, setImportStep] = useState('upload'); // 'upload', 'review', 'complete'
+  const [isProcessing, setIsProcessing] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // CSV template for download
+  const csvTemplate = `Entity Name,Entity Type,EIN,State of Formation,Formation Date,Street Address,City,Address State,ZIP Code,Tax Year,Fiscal Year End,Industry Type,NAICS Code,Primary Business Activity,Ownership Percentage,Number of Owners,Is Active,Notes
+"Tech Consulting LLC","multi-llc","12-3456789","DE","2022-01-15","123 Main St","Wilmington","DE","19801","2024","12-31","Professional Services","541511","Technology consulting services","100","1","true","Sample entity for template"
+"Marketing Corp","s-corp","98-7654321","CA","2021-06-10","456 Oak Ave","San Francisco","CA","94102","2024","12-31","Marketing","541613","Digital marketing agency","75","2","true","Another sample entity"`;
+
+  const entityTypes = [
+    { value: 'sole-prop', label: 'Sole Proprietorship' },
+    { value: 'single-llc', label: 'Single-Member LLC' },
+    { value: 'multi-llc', label: 'Multi-Member LLC' },
+    { value: 's-corp', label: 'S-Corporation' },
+    { value: 'c-corp', label: 'C-Corporation' },
+    { value: 'partnership', label: 'Partnership' }
+  ];
+
+  const states = [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  ];
+
+  const downloadTemplate = () => {
+    const blob = new Blob([csvTemplate], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'entity_import_template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const downloadCurrentEntities = () => {
+    if (!entities || entities.length === 0) {
+      alert('No entities to export');
+      return;
+    }
+
+    const headers = [
+      'Entity Name', 'Entity Type', 'EIN', 'State of Formation', 'Formation Date',
+      'Street Address', 'City', 'Address State', 'ZIP Code', 'Tax Year',
+      'Fiscal Year End', 'Industry Type', 'NAICS Code', 'Primary Business Activity',
+      'Ownership Percentage', 'Number of Owners', 'Is Active', 'Notes'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...entities.map(entity => [
+        `"${entity.entityName || ''}"`,
+        `"${entity.entityType || ''}"`,
+        `"${entity.ein || ''}"`,
+        `"${entity.stateOfFormation || ''}"`,
+        `"${entity.formationDate || ''}"`,
+        `"${entity.businessAddress?.street || ''}"`,
+        `"${entity.businessAddress?.city || ''}"`,
+        `"${entity.businessAddress?.state || ''}"`,
+        `"${entity.businessAddress?.zipCode || ''}"`,
+        `"${entity.taxYear || ''}"`,
+        `"${entity.fiscalYearEnd || ''}"`,
+        `"${entity.industryType || ''}"`,
+        `"${entity.naicsCode || ''}"`,
+        `"${entity.primaryBusinessActivity || ''}"`,
+        `"${entity.ownershipPercentage || ''}"`,
+        `"${entity.numberOfOwners || ''}"`,
+        `"${entity.isActive || false}"`,
+        `"${entity.notes || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `entities_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const parseCSV = (csvText) => {
+    const lines = csvText.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    
+    const data = [];
+    const errors = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+
+      try {
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let j = 0; j < line.length; j++) {
+          const char = line[j];
+          if (char === '"' && (j === 0 || line[j-1] === ',')) {
+            inQuotes = true;
+          } else if (char === '"' && (j === line.length - 1 || line[j+1] === ',')) {
+            inQuotes = false;
+          } else if (char === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current.trim());
+
+        const rowData = {};
+        headers.forEach((header, index) => {
+          rowData[header] = values[index] ? values[index].replace(/"/g, '') : '';
+        });
+
+        // Validate required fields
+        const rowErrors = [];
+        if (!rowData['Entity Name']) rowErrors.push('Entity Name is required');
+        if (!rowData['Entity Type']) rowErrors.push('Entity Type is required');
+        if (!rowData['State of Formation']) rowErrors.push('State of Formation is required');
+        
+        if (rowData['EIN'] && !/^\d{2}-\d{7}$/.test(rowData['EIN'])) {
+          rowErrors.push('EIN must be in format XX-XXXXXXX');
+        }
+
+        if (rowErrors.length > 0) {
+          errors.push({ row: i + 1, errors: rowErrors, data: rowData });
+        } else {
+          // Convert to internal format
+          const entityData = {
+            id: `import_${Date.now()}_${i}`,
+            entityName: rowData['Entity Name'],
+            entityType: rowData['Entity Type'].toLowerCase().replace(/\s+/g, '-'),
+            ein: rowData['EIN'],
+            stateOfFormation: rowData['State of Formation'],
+            formationDate: rowData['Formation Date'],
+            businessAddress: {
+              street: rowData['Street Address'],
+              city: rowData['City'],
+              state: rowData['Address State'],
+              zipCode: rowData['ZIP Code']
+            },
+            taxYear: parseInt(rowData['Tax Year']) || new Date().getFullYear(),
+            fiscalYearEnd: rowData['Fiscal Year End'] || '12-31',
+            industryType: rowData['Industry Type'],
+            naicsCode: rowData['NAICS Code'],
+            primaryBusinessActivity: rowData['Primary Business Activity'],
+            ownershipPercentage: parseFloat(rowData['Ownership Percentage']) || 100,
+            numberOfOwners: parseInt(rowData['Number of Owners']) || 1,
+            isActive: rowData['Is Active'].toLowerCase() === 'true',
+            notes: rowData['Notes'],
+            lastUpdated: new Date().toISOString().split('T')[0],
+            status: 'imported'
+          };
+
+          data.push(entityData);
+        }
+      } catch (error) {
+        errors.push({ row: i + 1, errors: [`Parse error: ${error.message}`], data: null });
+      }
+    }
+
+    return { data, errors };
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('Please upload a CSV file');
+      return;
+    }
+
+    setIsProcessing(true);
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const csvText = e.target.result;
+      const { data, errors } = parseCSV(csvText);
+      
+      setImportData(data);
+      setImportErrors(errors);
+      setImportStep('review');
+      setIsProcessing(false);
+    };
+
+    reader.onerror = () => {
+      alert('Error reading file');
+      setIsProcessing(false);
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    setIsProcessing(true);
+    
+    // Simulate processing time
+    setTimeout(() => {
+      onImport(importData);
+      setImportStep('complete');
+      setIsProcessing(false);
+    }, 1500);
+  };
+
+  const resetImport = () => {
+    setImportData([]);
+    setImportErrors([]);
+    setImportStep('upload');
+    setIsProcessing(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const getEntityTypeLabel = (type) => {
+    const found = entityTypes.find(t => t.value === type);
+    return found ? found.label : type;
+  };
+
+  if (importStep === 'complete') {
+    return (
+      <div className="import-export-modal">
+        <div className="modal-content">
+          <div className="import-complete">
+            <div className="success-icon">✅</div>
+            <h2>Import Successful!</h2>
+            <p>Successfully imported {importData.length} entities</p>
+            <div className="import-actions">
+              <button onClick={resetImport} className="btn-secondary">
+                Import More
+              </button>
+              <button onClick={onClose} className="btn-primary">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="import-export-modal">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>Import/Export Entities</h2>
+          <button onClick={onClose} className="close-button">×</button>
+        </div>
+
+        {importStep === 'upload' && (
+          <div className="upload-section">
+            <div className="section-header">
+              <h3>📥 Import Entities</h3>
+              <p>Upload a CSV file to import multiple entities at once</p>
+            </div>
+
+            <div className="upload-area">
+              <div className="template-download">
+                <h4>Step 1: Download Template</h4>
+                <p>Download our CSV template to ensure proper formatting</p>
+                <button onClick={downloadTemplate} className="btn-outline">
+                  📄 Download CSV Template
+                </button>
+              </div>
+
+              <div className="file-upload">
+                <h4>Step 2: Upload Your File</h4>
+                <p>Select your completed CSV file with entity data</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="file-input"
+                  disabled={isProcessing}
+                />
+                {isProcessing && (
+                  <div className="processing">
+                    <span className="spinner">⏳</span>
+                    Processing file...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="export-section">
+              <div className="section-header">
+                <h3>📤 Export Entities</h3>
+                <p>Download your current entities as a CSV file</p>
+              </div>
+              
+              <button 
+                onClick={downloadCurrentEntities} 
+                className="btn-outline"
+                disabled={!entities || entities.length === 0}
+              >
+                📊 Export Current Entities ({entities?.length || 0})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {importStep === 'review' && (
+          <div className="review-section">
+            <div className="section-header">
+              <h3>Review Import Data</h3>
+              <p>Review the entities before importing</p>
+            </div>
+
+            {importErrors.length > 0 && (
+              <div className="error-summary">
+                <h4>⚠️ {importErrors.length} Error(s) Found</h4>
+                <div className="error-list">
+                  {importErrors.map((error, index) => (
+                    <div key={index} className="error-item">
+                      <strong>Row {error.row}:</strong> {error.errors.join(', ')}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="import-summary">
+              <div className="summary-stats">
+                <div className="stat">
+                  <span className="number">{importData.length}</span>
+                  <span className="label">Valid Entities</span>
+                </div>
+                <div className="stat error">
+                  <span className="number">{importErrors.length}</span>
+                  <span className="label">Errors</span>
+                </div>
+              </div>
+            </div>
+
+            {importData.length > 0 && (
+              <div className="preview-entities">
+                <h4>Entities to Import:</h4>
+                <div className="entity-preview-list">
+                  {importData.slice(0, 5).map((entity, index) => (
+                    <div key={index} className="entity-preview">
+                      <div className="entity-preview-main">
+                        <span className="entity-name">{entity.entityName}</span>
+                        <span className="entity-type">{getEntityTypeLabel(entity.entityType)}</span>
+                        <span className="entity-state">{entity.stateOfFormation}</span>
+                      </div>
+                      {entity.ein && <span className="entity-ein">EIN: {entity.ein}</span>}
+                    </div>
+                  ))}
+                  {importData.length > 5 && (
+                    <div className="more-entities">
+                      ... and {importData.length - 5} more entities
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="review-actions">
+              <button onClick={resetImport} className="btn-secondary">
+                Back to Upload
+              </button>
+              <button 
+                onClick={handleConfirmImport} 
+                className="btn-primary"
+                disabled={importData.length === 0 || isProcessing}
+              >
+                {isProcessing ? 'Importing...' : `Import ${importData.length} Entities`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default EntityImportExport;

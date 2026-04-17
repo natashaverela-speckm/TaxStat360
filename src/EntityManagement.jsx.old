@@ -1,0 +1,189 @@
+import React, { useState, useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import EntityDetailsForm from './EntityDetailsForm';
+import EntityImportExport from './EntityImportExport';
+import './EntityManagement.css';
+
+const SortableEntityCard = ({ entity, onEdit, onDelete, onDuplicate }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: entity.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const getEntityTypeLabel = (type) => {
+    const types = {
+      'sole-prop': 'Sole Proprietorship',
+      'single-llc': 'Single-Member LLC',
+      'multi-llc': 'Multi-Member LLC',
+      's-corp': 'S-Corporation',
+      'c-corp': 'C-Corporation',
+      'partnership': 'Partnership'
+    };
+    return types[type] || type;
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'complete': '#10b981',
+      'needs-attention': '#f59e0b',
+      'incomplete': '#ef4444',
+      'imported': '#8b5cf6'
+    };
+    return colors[status] || '#6b7280';
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`entity-card ${isDragging ? 'dragging' : ''}`}
+    >
+      <div className="entity-content">
+        <div 
+          {...attributes}
+          {...listeners}
+          className="drag-handle"
+          title="Drag to reorder"
+        >
+          ⋮⋮
+        </div>
+
+        <div className="entity-main">
+          <div className="entity-info">
+            <div className="entity-name">
+              {entity.entityName}
+              {!entity.isActive && <span className="inactive-badge">Inactive</span>}
+              {entity.status === 'imported' && <span className="imported-badge">Recently Imported</span>}
+            </div>
+            <div className="entity-meta">
+              <span className="entity-type">{getEntityTypeLabel(entity.entityType)}</span>
+              {entity.ein && <span className="entity-ein">EIN: {entity.ein}</span>}
+              <span className="entity-state">{entity.stateOfFormation}</span>
+            </div>
+          </div>
+
+          <div className="entity-stats-mini">
+            <div className="ownership">
+              <span className="percentage">{entity.ownershipPercentage}%</span>
+              <span className="label">Ownership</span>
+            </div>
+            <div 
+              className="status-indicator"
+              style={{ backgroundColor: getStatusColor(entity.status) }}
+              title={entity.status.replace('-', ' ')}
+            />
+          </div>
+        </div>
+
+        <div className="entity-actions">
+          <button
+            onClick={() => onEdit(entity)}
+            className="btn-action edit"
+            title="Edit entity"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={() => onDuplicate(entity)}
+            className="btn-action duplicate"
+            title="Duplicate entity"
+          >
+            📋
+          </button>
+          <button
+            onClick={() => onDelete(entity.id)}
+            className="btn-action delete"
+            title="Delete entity"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+
+      <div className="entity-footer">
+        <span className="last-u
+cat >> EntityManagement.css << 'EOF'
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.import-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.import-btn:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.imported-badge {
+  background: #e0e7ff;
+  color: #5b21b6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .entity-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .empty-actions {
+    flex-direction: column;
+  }
+}

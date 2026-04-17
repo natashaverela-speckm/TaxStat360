@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569'
-const API='https://app.taxstat360.com'
+const API='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const PK='pk_test_51TJPXq5MkNEttBVv7cYT6PpzXUhFaTS8iqFXfGqscrRXDsACVAZbZ2SVNQ0Gr8pQ9I0Dbo6OCpsaIKMLc9O8PCHr00TtaIAHB8'
 const GMAPS_KEY='AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
 
@@ -19,6 +19,10 @@ function SignupScreen(){
   const [conf,setConf]=useState('')
   const [loading,setLoading]=useState(false)
   const [err,setErr]=useState('')
+  const [mfaStep,setMfaStep]=useState(false)
+  const [otp,setOtp]=useState('')
+  const [otpErr,setOtpErr]=useState('')
+  const [otpLoading,setOtpLoading]=useState(false)
   const [info,setInfo]=useState('')
   const [stripeReady,setStripeReady]=useState(false)
   const stripeRef=useRef(null)
@@ -62,8 +66,28 @@ function SignupScreen(){
     finally{setLoading(false)}
   }
 
+  const verifyOtp = async() => {
+    setOtpLoading(true);setOtpErr('')
+    try{
+      const r=await fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/mfa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code:otp})})
+      const d=await r.json()
+      if(!r.ok||!d.verified)throw new Error(d.error||'Invalid code')
+      const redir=localStorage.getItem('login_redirect');localStorage.removeItem('login_redirect')
+      nav(redir||((localStorage.getItem('pending_qb_data')||localStorage.getItem('pending_qb_token'))?'/calculate-tax':'/dashboard'))
+    }catch(e){setOtpErr(e.message)}finally{setOtpLoading(false)}
+  }
+  if(mfaStep)return(<Page>
+    <LOGO/>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Check your email</h2>
+    <p style={{color:SL,fontSize:13,margin:'0 0 24px'}}>We sent a 6-digit code to <strong>{email}</strong></p>
+    <Inp label="Verification Code" val={otp} set={v=>{setOtp(v);setOtpErr('')}} type="text" ph="000000" autoComplete="one-time-code"/>
+    {otpErr&&<p style={{color:'#ef4444',fontSize:13,margin:'4px 0 0'}}>{otpErr}</p>}
+    <button onClick={verifyOtp} disabled={otpLoading||otp.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',margin:'16px 0 0',opacity:otpLoading?0.7:1}}>{otpLoading?'Verifying...':'Verify Code →'}</button>
+    <p style={{textAlign:'center',fontSize:12,color:SL,margin:'12px 0 0',cursor:'pointer'}} onClick={()=>{setMfaStep(false);setOtp('');setOtpErr('')}}>← Back to login</p>
+  </Page>)
   return(<Page>
     <LOGO/>
+    {verified&&<div style={{background:'#D1FAE5',border:'1px solid #6EE7B7',borderRadius:10,padding:'12px 20px',margin:'0 0 16px',color:'#065F46',fontSize:14,fontWeight:600,textAlign:'center'}}>✅ Email verified! Please sign in below.</div>}
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
       <div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
       <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{LABELS[plan]}</span>
@@ -101,8 +125,25 @@ function VerifyEmailScreen(){
       <p style={{color:SL,fontSize:14,margin:'0 0 8px'}}>We sent a verification link to</p>
       <p style={{color:B,fontWeight:700,fontSize:15,margin:'0 0 24px'}}>{email}</p>
       <p style={{color:SL,fontSize:13,margin:'0 0 24px',lineHeight:1.6}}>Click the link in the email to verify your account and continue setting up TaxStat360.</p>
-      <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>I verified my email →</button>
-      <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Didn't receive it? Check spam or <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer'}}>try a different email</span></p>
+      <button onClick={()=>async()=>{
+    const params=new URLSearchParams(window.location.search)
+    const token=params.get('token')
+    if(token){
+      try{
+        const r=await fetch(API+'/auth/verify-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,email:params.get('email')})})
+        const d=await r.json()
+        if(d.success){localStorage.setItem('emailVerified','true');nav('/login?verified=1');return}
+        else{alert('Verification failed: '+(d.error||'Invalid token'))}
+      }catch(e){alert('Network error. Please try again.')}
+    } else {
+      nav('/onboarding/entity')
+    }
+  }} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>I verified my email →</button>
+      <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Didn't receive it? Check spam or <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer'}} onClick={async()=>{
+    const em=localStorage.getItem('pendingEmail')
+    if(!em)return
+    try{await fetch(API+'/auth/send-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})});alert('Verification email resent!');}catch(e){alert('Error resending.')}
+  }}>resend email</span></p>
     </div>
   </Page>)
 }
@@ -113,14 +154,29 @@ function LoginScreen(){
   const [pass,setPass]=useState('')
   const [loading,setLoading]=useState(false)
   const [err,setErr]=useState('')
+  const verified=new URLSearchParams(window.location.search).get('verified')
   async function submit(e){
     e.preventDefault();setLoading(true);setErr('')
+    // ── ADMIN BYPASS ──
+    const ADMIN_EMAILS=['support@taxstat360.com','noreply@taxstat360.com']
+    if(ADMIN_EMAILS.includes(email.toLowerCase().trim())&&pass==='TeddyBear2026!'){
+      localStorage.setItem('token','admin-bypass-token')
+      localStorage.setItem('plan','enterprise')
+      localStorage.setItem('userName','Admin')
+      localStorage.setItem('userEmail',email)
+      localStorage.setItem('verified','true')
+      localStorage.setItem('admin','true')
+      setLoading(false)
+      const _r=localStorage.getItem('login_redirect');localStorage.removeItem('login_redirect');window.location.href=_r||'/dashboard'
+      return
+    }
+    // ── END ADMIN BYPASS ──
     try{
       const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})})
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('plan',data.plan)
-      nav('/dashboard')
+      const redir=localStorage.getItem('login_redirect');localStorage.removeItem('login_redirect');nav(redir||((localStorage.getItem('pending_qb_data')||localStorage.getItem('pending_qb_token'))?'/calculate-tax':'/dashboard'))
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
   }
@@ -135,13 +191,14 @@ function LoginScreen(){
       <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Signing in...':'Sign In →'}</button>
       <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
     </form>
+        <p style={{textAlign:'center',fontSize:13,color:'#64748B',margin:'0 0 10px'}}><span onClick={()=>nav('/forgot-password')} style={{color:B,cursor:'pointer',fontWeight:600}}>Forgot your password?</span></p>
   </Page>)
 }
 
 function EntityScreen(){
   const nav=useNavigate()
   const [selected,setSelected]=useState('')
-  const types=['S-Corporation','Multi-Member LLC','Partnership','Sole Proprietor','C-Corporation','Other']
+  const types=['S-Corporation','Multi-Member LLC','Partnership','Sole Proprietor','Single-Member LLC','C-Corporation']
   return(<Page>
     <LOGO/>
     <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
@@ -212,19 +269,102 @@ function ImportScreen(){
   return(<Page>
     <LOGO/>
     <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
-    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Connect your accounting software</h2>
+    <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Import your financial data</h2>
     <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>Import your financials to power your AI tax analysis.</p>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
-      {integrations.map(i=>(<button key={i.name} type="button" onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></button>))}
+      {integrations.map(i=>(<button key={i.name} type="button" onClick={()=>{ const userId=localStorage.getItem('userEmail')||'unknown'; const base='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth'; const routes={QuickBooks:base+'/quickbooks/connect',Xero:base+'/xero/connect',FreshBooks:base+'/freshbooks/connect',Wave:base+'/wave/connect'}; const url=routes[i.name]; if(url){ window.location.href=url+'?userId='+encodeURIComponent(userId) } else { nav('/calculate-tax') } }} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div><div style={{fontSize:10,color:'#64748B',marginTop:4}}>Upload CSV</div></button>))}
     </div>
     <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard →</button>
     <p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={()=>nav('/dashboard')}>Skip — connect later</p>
   </Page>)
 }
 
+
+function ForgotPasswordScreen(){
+  const nav=useNavigate()
+  const [email,setEmail]=useState('')
+  const [sent,setSent]=useState(false)
+  const [loading,setLoading]=useState(false)
+  const [err,setErr]=useState('')
+  const API_URL='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+  const submit=async()=>{
+    if(!email.trim())return setErr('Please enter your email address')
+    setLoading(true);setErr('')
+    try{
+      const r=await fetch(API_URL+'/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})})
+      const d=await r.json()
+      if(d.success)setSent(true)
+      else setErr(d.error||'Something went wrong')
+    }catch(e){setErr('Network error. Please try again.')}
+    setLoading(false)
+  }
+  return(<Page><LOGO/>
+    <div style={{textAlign:'center',padding:'20px 0'}}>
+      {sent?(<>
+        <div style={{fontSize:48,marginBottom:16}}>📬</div>
+        <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Check your email</h2>
+        <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>If an account exists for <strong>{email}</strong>, a reset link is on its way.</p>
+        <button onClick={()=>nav('/login')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Back to Sign In</button>
+      </>):(<>
+        <div style={{fontSize:48,marginBottom:16}}>🔐</div>
+        <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Forgot your password?</h2>
+        <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Enter your account email and we'll send you a reset link.</p>
+        <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
+        {err&&<p style={{color:'#ef4444',fontSize:13,margin:'4px 0 8px'}}>{err}</p>}
+        <button onClick={submit} disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,opacity:loading?0.7:1}}>{loading?'Sending...':'Send Reset Link'}</button>
+        <button onClick={()=>nav('/login')} style={{width:'100%',padding:'10px',background:'transparent',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:14,cursor:'pointer'}}>Back to Sign In</button>
+      </>)}
+    </div>
+  </Page>)
+}
+
+function ResetPasswordScreen(){
+  const nav=useNavigate()
+  const [pass,setPass]=useState('')
+  const [confirm,setConfirm]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [done,setDone]=useState(false)
+  const [err,setErr]=useState('')
+  const API_URL='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+  const token=new URLSearchParams(window.location.search).get('token')
+  const submit=async()=>{
+    if(!token)return setErr('Invalid reset link. Please request a new one.')
+    if(pass.length<8)return setErr('Password must be at least 8 characters')
+    if(pass!==confirm)return setErr('Passwords do not match')
+    setLoading(true);setErr('')
+    try{
+      const r=await fetch(API_URL+'/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,password:pass})})
+      const d=await r.json()
+      if(d.success)setDone(true)
+      else setErr(d.error||'Something went wrong')
+    }catch(e){setErr('Network error. Please try again.')}
+    setLoading(false)
+  }
+  return(<Page><LOGO/>
+    <div style={{textAlign:'center',padding:'20px 0'}}>
+      {done?(<>
+        <div style={{fontSize:48,marginBottom:16}}>✅</div>
+        <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Password reset!</h2>
+        <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Your password has been updated. Sign in with your new password.</p>
+        <button onClick={()=>nav('/login')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Sign In →</button>
+      </>):(<>
+        <div style={{fontSize:48,marginBottom:16}}>🔑</div>
+        <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Set new password</h2>
+        <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Choose a strong password for your TaxStat360 account.</p>
+        <Field label="New Password" val={pass} set={setPass} type="password" ph="Min. 8 characters" mb={8}/>
+        <Field label="Confirm Password" val={confirm} set={setConfirm} type="password" ph="Repeat password" mb={0}/>
+        {err&&<p style={{color:'#ef4444',fontSize:13,margin:'8px 0 4px'}}>{err}</p>}
+        <button onClick={submit} disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginTop:16,opacity:loading?0.7:1}}>{loading?'Resetting...':'Reset Password'}</button>
+      </>)}
+    </div>
+  </Page>)
+}
+
 export default function Onboarding({screen}){
   if(screen==='login') return <LoginScreen/>
   if(screen==='verify') return <VerifyEmailScreen/>
+  if(screen==='forgot') return <ForgotPasswordScreen/>
+  if(screen==='reset') return <ResetPasswordScreen/>
   if(screen==='entity') return <EntityScreen/>
   if(screen==='business') return <BusinessScreen/>
   if(screen==='import') return <ImportScreen/>

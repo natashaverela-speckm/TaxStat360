@@ -1,0 +1,386 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+const N='#0D1B3E',B='#2563EB',SL='#475569'
+const ENTITIES=['S-Corporation','C-Corporation','Multi-Member LLC','Partnership','Sole Proprietor','Single-Member LLC']
+const isCorp=e=>['S-Corporation','C-Corporation'].includes(e)
+const isPass=e=>e!=='C-Corporation'
+const isSole=e=>['Sole Proprietor','Single-Member LLC'].includes(e)
+
+const COMMON=[
+  {k:'grossRevenue',l:'Gross Revenue / Receipts',h:'Total income before any deductions'},
+  {k:'returnsAllowances',l:'Returns & Allowances',h:'Refunds or credits issued to customers'},
+  {k:'costOfGoodsSold',l:'Cost of Goods Sold (COGS)',h:'Direct costs of producing goods sold'},
+  {k:'wages',l:'Wages & Salaries (Employees)',h:'Total W-2 wages paid to employees'},
+  {k:'repairsMaintenance',l:'Repairs & Maintenance',h:'Ordinary repairs to business property'},
+  {k:'badDebts',l:'Bad Debts',h:'Uncollectible accounts previously reported as income'},
+  {k:'rents',l:'Rents',h:'Rent paid for business property or equipment'},
+  {k:'taxesLicenses',l:'Taxes & Licenses',h:'Business taxes, state/local taxes, licenses, fees'},
+  {k:'interest',l:'Interest Expense',h:'Interest on business loans and credit lines'},
+  {k:'depreciation',l:'Depreciation & Section 179',h:'Depreciation on business assets and equipment'},
+  {k:'depletion',l:'Depletion',h:'For natural resource businesses (oil, gas, timber, minerals)'},
+  {k:'advertising',l:'Advertising & Marketing',h:'All advertising, marketing, and promotional costs'},
+  {k:'pensionProfit',l:'Pension & Profit-Sharing Plans',h:'Employer contributions to employee retirement plans'},
+  {k:'employeeBenefits',l:'Employee Benefit Programs',h:'Health insurance, life insurance for employees'},
+  {k:'otherDeductions',l:'Other Deductions',h:'Professional fees, travel, meals, utilities, supplies, etc.'},
+]
+const CORP_F=[{k:'officerSalary',l:'Officer / Owner Salary (W-2)',h:'Reasonable compensation paid to corporate officers — required for S-Corps'}]
+const SOLE_F=[
+  {k:'homeOffice',l:'Home Office Deduction',h:'Portion of home expenses used exclusively for business'},
+  {k:'vehicleExpenses',l:'Vehicle / Mileage Expenses',h:'Business use of vehicle — actual costs or standard mileage'},
+  {k:'healthInsurance',l:'Self-Employed Health Insurance',h:'Health insurance premiums paid for self and family'},
+  {k:'seIraContribution',l:'SEP-IRA / Solo 401k Contribution',h:'Retirement contributions as a self-employed individual'},
+]
+
+function getFields(et){
+  const f=[...COMMON]
+  if(isCorp(et)) f.splice(3,0,...CORP_F)
+  if(isSole(et)) f.push(...SOLE_F)
+  return f
+}
+
+function calcResults(form){
+  const n=k=>parseFloat(form[k])||0
+  const rev=n('grossRevenue')-n('returnsAllowances')-n('costOfGoodsSold')
+  const ded=n('wages')+n('officerSalary')+n('repairsMaintenance')+n('badDebts')+
+    n('rents')+n('taxesLicenses')+n('interest')+n('depreciation')+n('depletion')+
+    n('advertising')+n('pensionProfit')+n('employeeBenefits')+n('homeOffice')+
+    n('vehicleExpenses')+n('otherDeductions')
+  const net=rev-ded
+  const share=isPass(form.entityType)?net*(n('ownershipPct')/100):net
+  const seTax=isSole(form.entityType)?Math.max(0,share*0.9235*0.153):0
+  return{rev,ded,net,share,seTax,seDeduction:seTax/2}
+}
+
+const fmt=v=>'$'+Math.abs(isNaN(v)?0:v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+const emptyForm=()=>({year:2026,entityType:'S-Corporation',
+  grossRevenue:'',returnsAllowances:'',costOfGoodsSold:'',officerSalary:'',wages:'',
+  repairsMaintenance:'',badDebts:'',rents:'',taxesLicenses:'',interest:'',depreciation:'',
+  depletion:'',advertising:'',pensionProfit:'',employeeBenefits:'',otherDeductions:'',
+  homeOffice:'',vehicleExpenses:'',healthInsurance:'',seIraContribution:'',ownershipPct:100})
+
+export default function CalculateTax(){
+  const nav=useNavigate()
+  const [records,setRecords]=useState(()=>{try{return JSON.parse(localStorage.getItem('tax_records')||'[]')}catch{return[]}})
+  const [showForm,setShowForm]=useState(false)
+  const [form,setForm]=useState(emptyForm())
+  const [importing,setImporting]=useState(false)
+  const [importMsg,setImportMsg]=useState('')
+  useEffect(()=>{
+    const p=new URLSearchParams(window.location.search)
+    const qbToken=p.get("qb_token")
+    const qd=p.get("qb_data")
+    if(qd) localStorage.setItem("pending_qb_data", qd)
+    if(qbToken) localStorage.setItem("pending_qb_token", qbToken)
+    const tok=localStorage.getItem("token")
+    if(!tok){localStorage.setItem("login_redirect","/calculate-tax");nav("/login");return}
+    const pendingToken=localStorage.getItem("pending_qb_token")
+    if(pendingToken){
+      localStorage.removeItem("pending_qb_token")
+      window.history.replaceState({}, "", "/calculate-tax")
+      fetch("https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/quickbooks/data?token="+pendingToken)
+        .then(r=>r.json())
+        .then(fields=>{
+          if(fields&&!fields.error&&Object.keys(fields).length>0){
+            setForm(f=>({...f,...Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,String(v)]))}))
+            setShowForm(true)
+            setImportMsg("✅ QuickBooks data imported! Review and save below.")
+          }
+        }).catch(e=>console.log("QB fetch error:",e))
+    }
+    const pending=localStorage.getItem("pending_qb_data")
+    if(pending){try{
+      const fields=JSON.parse(decodeURIComponent(pending))
+      setForm(f=>({...f,...Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,String(v)]))}))
+      setShowForm(true)
+      setImportMsg("✅ QuickBooks data imported! Review and save below.")
+      localStorage.removeItem("pending_qb_data")
+      window.history.replaceState({}, "", "/calculate-tax")
+    }catch(e){}}
+  },[])
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}))
+
+  const handleImport=(e)=>{
+    const file=e.target.files[0]; if(!file)return
+    setImporting(true); setImportMsg('')
+    const reader=new FileReader()
+    reader.onload=(ev)=>{
+      try{
+        const text=ev.target.result
+        const lines=text.split('\n').map(l=>l.trim()).filter(l=>l)
+        const pd=(v)=>{
+          if(!v)return 0
+          const s=String(v).replace(/[^0-9.()-]/g,'')
+          const n=parseFloat(s.replace(/[()]/g,''))
+          return isNaN(n)?0:Math.abs(n)
+        }
+        let revenue=0,cogs=0,wages=0,officerSalary=0,repairs=0,badDebts=0,
+            rents=0,taxLic=0,interest=0,dep=0,depletion=0,adv=0,pension=0,ben=0,other=0
+        const hdrs=lines[0].toLowerCase().split(',').map(h=>h.replace(/"/g,'').trim())
+        const isCol=hdrs.some(h=>['revenue','income','amount','total','debit','credit'].some(k=>h.includes(k)))
+        if(isCol){
+          for(let i=1;i<lines.length;i++){
+            const cols=lines[i].split(',').map(c=>c.replace(/"/g,'').trim())
+            const row={}; hdrs.forEach((h,idx)=>{row[h]=cols[idx]||''})
+            const get=(keys)=>{const k=hdrs.find(h=>keys.some(kk=>h.includes(kk)));return k?pd(row[k]):0}
+            revenue+=get(['total income','gross revenue','total revenue','income','sales','revenue','receipts'])
+            cogs+=get(['cost of goods','cogs','cost of sales'])
+            officerSalary+=get(['officer compensation','officers compensation','officer salary','owner salary','owner comp','owner compensation','shareholder salary'])
+            wages+=get(['wages','payroll','salaries'])
+            repairs+=get(['repairs','maintenance'])
+            badDebts+=get(['bad debt'])
+            rents+=get(['rent','lease'])
+            taxLic+=get(['taxes','licenses','permits'])
+            interest+=get(['interest'])
+            dep+=get(['depreciation','section 179','amortization'])
+            depletion+=get(['depletion'])
+            adv+=get(['advertising','marketing'])
+            pension+=get(['pension','401k','retirement'])
+            ben+=get(['benefit','health ins'])
+            other+=get(['other deduction','office expense','utilities','professional','legal','vehicle','travel'])
+          }
+        }else{
+          // QuickBooks P&L row-based format
+          // Strategy: prefer "Total for X" lines which have the correct rolled-up amount
+          // Pass 1: collect all Total lines
+          const totals={}
+          for(const line of lines){
+            const cols=line.split(',').map(c=>c.replace(/"/g,'').trim())
+            const label=cols[0].toLowerCase().trim()
+            const amt=pd(cols[cols.length-1])
+            if(amt===0)continue
+            if(label.startsWith('total')){
+              const cat=label.replace(/^total\s*(for\s*)?/,'').trim()
+              totals[cat]=amt
+            }
+          }
+          // Pass 2: map totals to fields - QB uses "Total for Income", "Total for Expenses" etc
+          // Revenue: use "total for income" or "gross profit" or "total income"
+          const t=totals
+          revenue=t['income']||t['for income']||t['total income']||t['gross revenue']||0
+          // If no total income line, fall back to gross profit
+          if(!revenue&&t['gross profit'])revenue=t['gross profit']
+          cogs=t['cost of goods sold']||t['cost of sales']||t['cogs']||0
+          // Expenses: look for total lines for each category
+          officerSalary=t['officers compensation']||t['officer compensation']||t['officer salary']||t['owner compensation']||t['shareholder salary']||0
+          wages=t['wages']||t['salaries']||t['payroll']||t['wages & salaries']||t['salaries and wages']||0
+          repairs=t['repairs']||t['repairs & maintenance']||t['repairs and maintenance']||0
+          badDebts=t['bad debts']||t['bad debt']||0
+          rents=t['rent']||t['rents']||t['rent expense']||0
+          taxLic=t['taxes & licenses']||t['taxes and licenses']||t['taxes']||0
+          interest=t['interest']||t['interest expense']||0
+          dep=t['depreciation']||t['depreciation & amortization']||t['depreciation and amortization']||t['section 179']||0
+          depletion=t['depletion']||0
+          adv=t['advertising']||t['advertising & marketing']||t['advertising and marketing']||t['marketing']||0
+          pension=t['pension']||t['retirement']||t['401k']||0
+          ben=t['employee benefits']||t['benefits']||t['health insurance']||0
+          other=t['other expenses']||t['other deductions']||t['miscellaneous']||0
+          // Pass 3: if no totals matched for a field, fall back to individual line items (non-indented, non-total)
+          // Only do this for revenue if still zero
+          if(!revenue){
+            for(const line of lines){
+              const cols=line.split(',').map(c=>c.replace(/"/g,'').trim())
+              const label=cols[0].toLowerCase().trim()
+              const amt=pd(cols[cols.length-1])
+              if(amt===0||label.startsWith('total')||label.startsWith('gross'))continue
+              if(/^(income|revenue|sales|receipts|services|fees)/.test(label))revenue+=amt
+              else if(/^(sales of product|product sales|service revenue|consulting)/.test(label))revenue+=amt
+            }
+          }
+          // Pass 4: for expense fields still at zero, scan individual non-total lines
+          for(const line of lines){
+            const cols=line.split(',').map(c=>c.replace(/"/g,'').trim())
+            const raw=cols[0].trim()
+            const label=raw.toLowerCase()
+            const amt=pd(cols[cols.length-1])
+            if(amt===0||label.startsWith('total')||label.startsWith('gross')||label.startsWith('net'))continue
+            if(!officerSalary&&/officer|compensation of officer|shareholder.*salary|owner.*(salary|comp)/.test(label))officerSalary=amt
+            if(!wages&&/^wages|^salaries|^payroll/.test(label))wages=amt
+            if(!repairs&&/^repair/.test(label))repairs=amt
+            if(!rents&&/^rent/.test(label))rents=amt
+            if(!taxLic&&/^taxes|^licenses/.test(label))taxLic=amt
+            if(!interest&&/^interest/.test(label))interest=amt
+            if(!dep&&/^depreciation|^section 179/.test(label))dep=amt
+            if(!adv&&/^advertis|^marketing/.test(label))adv=amt
+          }
+        }
+        const any=revenue+cogs+wages+officerSalary+rents+interest+dep+adv>0
+        if(!any){setImportMsg('\u26a0\ufe0f Could not read this file. In QuickBooks: Reports \u2192 Profit and Loss \u2192 Export to CSV')}
+        else{
+          setForm(f=>({...f,
+            grossRevenue:revenue>0?revenue.toFixed(2):f.grossRevenue,
+            costOfGoodsSold:cogs>0?cogs.toFixed(2):f.costOfGoodsSold,
+            officerSalary:officerSalary>0?officerSalary.toFixed(2):f.officerSalary,
+            wages:wages>0?wages.toFixed(2):f.wages,
+            repairsMaintenance:repairs>0?repairs.toFixed(2):f.repairsMaintenance,
+            badDebts:badDebts>0?badDebts.toFixed(2):f.badDebts,
+            rents:rents>0?rents.toFixed(2):f.rents,
+            taxesLicenses:taxLic>0?taxLic.toFixed(2):f.taxesLicenses,
+            interest:interest>0?interest.toFixed(2):f.interest,
+            depreciation:dep>0?dep.toFixed(2):f.depreciation,
+            depletion:depletion>0?depletion.toFixed(2):f.depletion,
+            advertising:adv>0?adv.toFixed(2):f.advertising,
+            pensionProfit:pension>0?pension.toFixed(2):f.pensionProfit,
+            employeeBenefits:ben>0?ben.toFixed(2):f.employeeBenefits,
+            otherDeductions:other>0?other.toFixed(2):f.otherDeductions,
+          }))
+          setShowForm(true)
+          const filled=[revenue,cogs,wages,officerSalary,repairs,rents,interest,dep,adv,taxLic].filter(v=>v>0).length
+          setImportMsg('\u2705 Imported '+filled+' fields from your QuickBooks export. Review and save below.')
+        }
+      }catch(err){setImportMsg('\u274c Error: '+err.message)}
+      setImporting(false)
+    }
+    reader.readAsText(file); e.target.value=''
+  }
+
+  const handleSave=()=>{
+    const r=calcResults(form)
+    const rec={id:Date.now(),year:form.year,entityType:form.entityType,
+      grossRevenue:parseFloat(form.grossRevenue)||0,totalDeductions:r.ded,
+      netIncome:r.net,ownerShare:r.share,seTax:r.seTax,
+      createdAt:new Date().toLocaleString(),formData:{...form}}
+    const upd=[rec,...records]
+    setRecords(upd); localStorage.setItem('tax_records',JSON.stringify(upd))
+    setShowForm(false); setForm(emptyForm()); setImportMsg('')
+  }
+
+  const fields=getFields(form.entityType)
+  const res=calcResults(form)
+
+  return(
+    <div style={{minHeight:'100vh',background:'#F8FAFC'}}>
+      <div style={{background:N,padding:'16px 32px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div onClick={()=>nav('/')} style={{cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:32,height:32,background:B,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="14" width="4" height="8" rx="1" fill="white" opacity="0.5"/><rect x="8" y="9" width="4" height="13" rx="1" fill="white" opacity="0.75"/><rect x="14" y="4" width="4" height="18" rx="1" fill="white"/></svg>
+          </div>
+          <span style={{fontWeight:800,fontSize:17,color:'white'}}>TaxStat<span style={{color:'#60A5FA'}}>360</span></span>
+        </div>
+        <div style={{display:'flex',gap:12}}>
+          <button onClick={()=>nav('/dashboard')} style={{background:'transparent',color:'white',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,padding:'7px 16px',fontWeight:600,fontSize:13,cursor:'pointer'}}>{'<- Dashboard'}</button>
+          <button onClick={()=>nav('/ai-analysis')} style={{background:B,color:'white',border:'none',borderRadius:8,padding:'7px 16px',fontWeight:600,fontSize:13,cursor:'pointer'}}>AI Analysis</button>
+        </div>
+      </div>
+
+      <div style={{maxWidth:900,margin:'0 auto',padding:'32px 24px'}}>
+        <h1 style={{color:N,fontSize:24,fontWeight:900,margin:'0 0 4px'}}>Tax Calculator</h1>
+        <p style={{color:SL,fontSize:14,margin:'0 0 24px'}}>IRS-standard fields for accurate tax return calculations. All deduction categories included.</p>
+
+        <div style={{background:'#F0F7FF',border:'1px solid #BFDBFE',borderRadius:12,padding:'20px 24px',marginBottom:20}}>
+          <div style={{fontWeight:700,color:'#1E40AF',fontSize:14,marginBottom:4}}>Import from Accounting Software</div>
+          <div style={{color:SL,fontSize:13,marginBottom:14}}>Export a CSV from QuickBooks, Xero, FreshBooks, or Wave and upload it here. We will auto-fill your numbers.</div>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+            <label style={{background:'white',border:'1.5px solid #2563EB',color:B,borderRadius:8,padding:'8px 18px',fontWeight:600,fontSize:13,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
+              Upload CSV / Export File
+              <input type="file" accept=".csv,.txt,.tsv" onChange={handleImport} style={{display:'none'}}/>
+            </label>
+            <span style={{color:'#94A3B8',fontSize:12}}>Supports: QuickBooks P&L Export, Xero, FreshBooks, Wave, Any CSV</span>
+          </div>
+          {importing&&<div style={{marginTop:10,color:B,fontSize:13}}>Reading file...</div>}
+          {importMsg&&<div style={{marginTop:10,fontSize:13,fontWeight:600,color:importMsg.startsWith('\u2705')?'#065F46':importMsg.startsWith('\u26a0')?'#92400E':'#991B1B'}}>{importMsg}</div>}
+        </div>
+
+        {!showForm&&(
+          <button onClick={()=>setShowForm(true)} style={{background:B,color:'white',border:'none',borderRadius:10,padding:'12px 24px',fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:24}}>
+            + Add Manual Entry
+          </button>
+        )}
+
+        {showForm&&(
+          <div style={{background:'white',borderRadius:16,padding:28,boxShadow:'0 2px 8px rgba(0,0,0,0.08)',marginBottom:24}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+              <h2 style={{color:N,fontSize:18,fontWeight:800,margin:0}}>Tax Return Data Entry</h2>
+              <button onClick={()=>{setShowForm(false);setForm(emptyForm())}} style={{background:'transparent',color:SL,border:'none',fontSize:18,cursor:'pointer'}}>x</button>
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:16,marginBottom:24,paddingBottom:20,borderBottom:'1px solid #F1F5F9'}}>
+              <div>
+                <label style={{display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>Entity Type</label>
+                <select value={form.entityType} onChange={e=>set('entityType',e.target.value)} style={{width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,fontWeight:600}}>
+                  {ENTITIES.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>Tax Year</label>
+                <select value={form.year} onChange={e=>set('year',parseInt(e.target.value))} style={{width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N}}>
+                  {[2026,2025,2024].map(y=><option key={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {isPass(form.entityType)&&!isSole(form.entityType)&&(
+              <div style={{background:'#F8FAFC',borderRadius:10,padding:'14px 16px',marginBottom:20}}>
+                <label style={{display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>Your Ownership %</label>
+                <input type="number" min="1" max="100" value={form.ownershipPct} onChange={e=>set('ownershipPct',e.target.value)} style={{width:120,padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14}} placeholder="100"/>
+              </div>
+            )}
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+              {fields.map(({k,l,h})=>(
+                <div key={k}>
+                  <label style={{display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:4}}>{l}</label>
+                  {h&&<div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>{h}</div>}
+                  <div style={{position:'relative'}}>
+                    <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#94A3B8',fontSize:13}}>$</span>
+                    <input type="number" min="0" step="0.01" value={form[k]||''} onChange={e=>set(k,e.target.value)}
+                      style={{width:'100%',padding:'9px 10px 9px 22px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,boxSizing:'border-box'}} placeholder="0.00"/>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{background:'#F0F9FF',border:'1px solid #BAE6FD',borderRadius:12,padding:'16px 20px',marginTop:24}}>
+              <div style={{fontWeight:700,color:N,fontSize:14,marginBottom:12}}>Live Summary</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
+                {[['Gross Profit',res.rev],['Total Deductions',res.ded],['Net Income',res.net],
+                  ...(isPass(form.entityType)&&!isSole(form.entityType)?[['Your K-1 Share',res.share]]:[]),
+                  ...(isSole(form.entityType)?[['SE Tax Est.',res.seTax],['SE Deduction',res.seDeduction]]:[])
+                ].map(([lbl,val])=>(
+                  <div key={lbl} style={{background:'white',borderRadius:8,padding:'10px 14px'}}>
+                    <div style={{fontSize:11,color:SL,marginBottom:4}}>{lbl}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:val<0?'#DC2626':N}}>{val<0?'-':''}{fmt(val)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:12,marginTop:20}}>
+              <button onClick={handleSave} style={{background:B,color:'white',border:'none',borderRadius:10,padding:'12px 28px',fontWeight:700,fontSize:14,cursor:'pointer'}}>Save Record</button>
+              <button onClick={()=>{setShowForm(false);setForm(emptyForm())}} style={{background:'transparent',color:SL,border:'1px solid #E2E8F0',borderRadius:10,padding:'12px 20px',fontWeight:600,fontSize:14,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {records.length>0&&(
+          <div>
+            <h2 style={{color:N,fontSize:16,fontWeight:800,margin:'0 0 16px'}}>Saved Records</h2>
+            {records.map(r=>(
+              <div key={r.id} style={{background:'white',borderRadius:12,padding:'16px 20px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+                <div>
+                  <div style={{fontWeight:700,color:N,fontSize:14}}>{r.entityType} {r.year}</div>
+                  <div style={{color:SL,fontSize:12,marginTop:2}}>{r.createdAt}</div>
+                </div>
+                <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
+                  <div><div style={{fontSize:11,color:SL}}>Revenue</div><div style={{fontWeight:700,color:N,fontSize:14}}>{fmt(r.grossRevenue)}</div></div>
+                  <div><div style={{fontSize:11,color:SL}}>Deductions</div><div style={{fontWeight:700,color:'#DC2626',fontSize:14}}>{fmt(r.totalDeductions)}</div></div>
+                  <div><div style={{fontSize:11,color:SL}}>Net Income</div><div style={{fontWeight:700,color:r.netIncome<0?'#DC2626':'#065F46',fontSize:14}}>{fmt(r.netIncome)}</div></div>
+                  {r.seTax>0&&<div><div style={{fontSize:11,color:SL}}>SE Tax</div><div style={{fontWeight:700,color:'#92400E',fontSize:14}}>{fmt(r.seTax)}</div></div>}
+                </div>
+                <button onClick={()=>{const u=records.filter(x=>x.id!==r.id);setRecords(u);localStorage.setItem('tax_records',JSON.stringify(u))}} style={{background:'transparent',color:'#DC2626',border:'1px solid #FECACA',borderRadius:8,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:600}}>Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {records.length===0&&!showForm&&(
+          <div style={{textAlign:'center',padding:'60px 20px',color:'#94A3B8'}}>
+            <div style={{fontSize:40,marginBottom:12}}>&#x1F9FE;</div>
+            <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>No tax records yet</div>
+            <div style={{fontSize:13}}>Click Add Manual Entry or import a CSV to get started</div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

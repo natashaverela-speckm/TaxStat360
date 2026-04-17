@@ -1,0 +1,32 @@
+[
+    {
+        "Name": "taxstat360.com.",
+        "Type": "TXT",
+        "TTL": 300,
+        "ResourceRecords": [
+            {
+                "Value": "\"google-site-verification=nYjn9ZG2auzJs5ycRHUktClYdFlWj0tTC6shevsKr5k\""
+            }
+        ]
+    },
+    {
+        "Name": "_amazonses.taxstat360.com.",
+        "Type": "TXT",
+        "TTL": 300,
+        "ResourceRecords": [
+            {
+                "Value": "\"mltHs3xii6EXkeSalTuTzbhh1AonhANzy17VMGqhmA0=\""
+            }
+        ]
+    },
+    {
+        "Name": "_cf-custom-hostname.taxstat360.com.",
+        "Type": "TXT",
+        "TTL": 60,
+        "ResourceRecords": [
+            {
+                "Value": "\"EJQTM04C80LWI\""
+            }
+        ]
+    }
+]

@@ -1,0 +1,408 @@
+import React, { useState } from 'react';
+import './EntityDetailsForm.css';
+
+const EntityDetailsForm = ({ entityData = {}, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    // Basic Information
+    entityName: entityData.entityName || '',
+    entityType: entityData.entityType || '',
+    ein: entityData.ein || '',
+    
+    // Formation Details
+    stateOfFormation: entityData.stateOfFormation || '',
+    formationDate: entityData.formationDate || '',
+    businessAddress: {
+      street: entityData.businessAddress?.street || '',
+      city: entityData.businessAddress?.city || '',
+      state: entityData.businessAddress?.state || '',
+      zipCode: entityData.businessAddress?.zipCode || ''
+    },
+    
+    // Tax Information
+    taxYear: entityData.taxYear || new Date().getFullYear(),
+    fiscalYearEnd: entityData.fiscalYearEnd || '12-31',
+    
+    // Business Details
+    industryType: entityData.industryType || '',
+    naicsCode: entityData.naicsCode || '',
+    primaryBusinessActivity: entityData.primaryBusinessActivity || '',
+    
+    // Ownership Information
+    ownershipPercentage: entityData.ownershipPercentage || 100,
+    numberOfOwners: entityData.numberOfOwners || 1,
+    
+    // Status
+    isActive: entityData.isActive !== undefined ? entityData.isActive : true,
+    notes: entityData.notes || ''
+  });
+
+  const [errors, setErrors] = useState({});
+
+  const entityTypes = [
+    { value: 'sole-prop', label: 'Sole Proprietorship' },
+    { value: 'single-llc', label: 'Single-Member LLC' },
+    { value: 'multi-llc', label: 'Multi-Member LLC' },
+    { value: 's-corp', label: 'S-Corporation' },
+    { value: 'c-corp', label: 'C-Corporation' },
+    { value: 'partnership', label: 'Partnership' }
+  ];
+
+  const states = [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  ];
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.entityName.trim()) {
+      newErrors.entityName = 'Entity name is required';
+    }
+    
+    if (!formData.entityType) {
+      newErrors.entityType = 'Entity type is required';
+    }
+    
+    if (formData.ein && !/^\d{2}-\d{7}$/.test(formData.ein)) {
+      newErrors.ein = 'EIN must be in format XX-XXXXXXX';
+    }
+    
+    if (!formData.stateOfFormation) {
+      newErrors.stateOfFormation = 'State of formation is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      onSave(formData);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+  };
+
+  const handleAddressChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      businessAddress: {
+        ...prev.businessAddress,
+        [field]: value
+      }
+    }));
+  };
+
+  return (
+    <div className="entity-details-form">
+      <div className="form-header">
+        <h2>Entity Details</h2>
+        <p>Complete business information for accurate tax calculation</p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="entity-form">
+        {/* Basic Information */}
+        <section className="form-section">
+          <h3>Basic Information</h3>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="entityName">Entity Name *</label>
+              <input
+                id="entityName"
+                type="text"
+                value={formData.entityName}
+                onChange={(e) => handleInputChange('entityName', e.target.value)}
+                className={errors.entityName ? 'error' : ''}
+                placeholder="Enter business name"
+              />
+              {errors.entityName && <span className="error-text">{errors.entityName}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="entityType">Entity Type *</label>
+              <select
+                id="entityType"
+                value={formData.entityType}
+                onChange={(e) => handleInputChange('entityType', e.target.value)}
+                className={errors.entityType ? 'error' : ''}
+              >
+                <option value="">Select entity type</option>
+                {entityTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              {errors.entityType && <span className="error-text">{errors.entityType}</span>}
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="ein">EIN (Employer Identification Number)</label>
+              <input
+                id="ein"
+                type="text"
+                value={formData.ein}
+                onChange={(e) => handleInputChange('ein', e.target.value)}
+                className={errors.ein ? 'error' : ''}
+                placeholder="XX-XXXXXXX"
+                maxLength="10"
+              />
+              {errors.ein && <span className="error-text">{errors.ein}</span>}
+            </div>
+          </div>
+        </section>
+
+        {/* Formation Details */}
+        <section className="form-section">
+          <h3>Formation Details</h3>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="stateOfFormation">State of Formation *</label>
+              <select
+                id="stateOfFormation"
+                value={formData.stateOfFormation}
+                onChange={(e) => handleInputChange('stateOfFormation', e.target.value)}
+                className={errors.stateOfFormation ? 'error' : ''}
+              >
+                <option value="">Select state</option>
+                {states.map(state => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+              {errors.stateOfFormation && <span className="error-text">{errors.stateOfFormation}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="formationDate">Formation Date</label>
+              <input
+                id="formationDate"
+                type="date"
+                value={formData.formationDate}
+                onChange={(e) => handleInputChange('formationDate', e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Business Address */}
+        <section className="form-section">
+          <h3>Business Address</h3>
+          
+          <div className="form-group">
+            <label htmlFor="street">Street Address</label>
+            <input
+              id="street"
+              type="text"
+              value={formData.businessAddress.street}
+              onChange={(e) => handleAddressChange('street', e.target.value)}
+              placeholder="Enter street address"
+            />
+          </div>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="city">City</label>
+              <input
+                id="city"
+                type="text"
+                value={formData.businessAddress.city}
+                onChange={(e) => handleAddressChange('city', e.target.value)}
+                placeholder="Enter city"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="addressState">State</label>
+              <select
+                id="addressState"
+                value={formData.businessAddress.state}
+                onChange={(e) => handleAddressChange('state', e.target.value)}
+              >
+                <option value="">Select state</option>
+                {states.map(state => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="zipCode">ZIP Code</label>
+              <input
+                id="zipCode"
+                type="text"
+                value={formData.businessAddress.zipCode}
+                onChange={(e) => handleAddressChange('zipCode', e.target.value)}
+                placeholder="Enter ZIP code"
+                maxLength="10"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Tax Information */}
+        <section className="form-section">
+          <h3>Tax Information</h3>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="taxYear">Tax Year</label>
+              <input
+                id="taxYear"
+                type="number"
+                value={formData.taxYear}
+                onChange={(e) => handleInputChange('taxYear', parseInt(e.target.value))}
+                min="2020"
+                max="2030"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="fiscalYearEnd">Fiscal Year End</label>
+              <input
+                id="fiscalYearEnd"
+                type="text"
+                value={formData.fiscalYearEnd}
+                onChange={(e) => handleInputChange('fiscalYearEnd', e.target.value)}
+                placeholder="MM-DD (e.g., 12-31)"
+                maxLength="5"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Business Details */}
+        <section className="form-section">
+          <h3>Business Details</h3>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="industryType">Industry Type</label>
+              <input
+                id="industryType"
+                type="text"
+                value={formData.industryType}
+                onChange={(e) => handleInputChange('industryType', e.target.value)}
+                placeholder="e.g., Professional Services, Retail, etc."
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="naicsCode">NAICS Code</label>
+              <input
+                id="naicsCode"
+                type="text"
+                value={formData.naicsCode}
+                onChange={(e) => handleInputChange('naicsCode', e.target.value)}
+                placeholder="6-digit NAICS code"
+                maxLength="6"
+              />
+            </div>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="primaryBusinessActivity">Primary Business Activity</label>
+            <textarea
+              id="primaryBusinessActivity"
+              value={formData.primaryBusinessActivity}
+              onChange={(e) => handleInputChange('primaryBusinessActivity', e.target.value)}
+              placeholder="Describe the main business activity"
+              rows="3"
+            />
+          </div>
+        </section>
+
+        {/* Ownership Information */}
+        <section className="form-section">
+          <h3>Ownership Information</h3>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="ownershipPercentage">Your Ownership Percentage</label>
+              <input
+                id="ownershipPercentage"
+                type="number"
+                value={formData.ownershipPercentage}
+                onChange={(e) => handleInputChange('ownershipPercentage', parseFloat(e.target.value))}
+                min="0"
+                max="100"
+                step="0.01"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="numberOfOwners">Total Number of Owners</label>
+              <input
+                id="numberOfOwners"
+                type="number"
+                value={formData.numberOfOwners}
+                onChange={(e) => handleInputChange('numberOfOwners', parseInt(e.target.value))}
+                min="1"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Additional Information */}
+        <section className="form-section">
+          <h3>Additional Information</h3>
+          
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => handleInputChange('isActive', e.target.checked)}
+              />
+              <span className="checkmark"></span>
+              Entity is currently active
+            </label>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="notes">Notes</label>
+            <textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => handleInputChange('notes', e.target.value)}
+              placeholder="Additional notes or special considerations"
+              rows="4"
+            />
+          </div>
+        </section>
+
+        {/* Form Actions */}
+        <div className="form-actions">
+          <button type="button" onClick={onCancel} className="btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary">
+            Save Entity Details
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default EntityDetailsForm;
