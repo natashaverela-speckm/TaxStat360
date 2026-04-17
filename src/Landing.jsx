@@ -4,7 +4,7 @@ import './Landing.css';
 
 // LOGO component - exact copy from Onboarding.jsx line 8
 const LOGO = () => (
-  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20}}>
+  <div style={{display:'flex',alignItems:'center',gap:8}}>
     <svg width="30" height="30" viewBox="0 0 34 34">
       <rect width="34" height="34" rx="8" fill="#0D1B3E"/>
       <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/>
@@ -53,37 +53,37 @@ const Landing = () => {
 
   const entityTypes = [
     {
-      icon: "🏢",
+      icon: "üè¢",
       title: "S-Corporations",
       badge: "K-1",
       description: "Officer W-2 salary, K-1 generation, and distributions all flow correctly to your personal 1040.",
     },
     {
-      icon: "🤝",
+      icon: "ü§ù",
       title: "Partnerships and Multi-Member LLCs",
       badge: "K-1",
       description: "Each partners distributive share calculated separately. K-1 flows directly into your personal tax return.",
     },
     {
-      icon: "📋",
+      icon: "üìã",
       title: "Sole Proprietors and Freelancers",
       badge: "Sch C",
       description: "Net profit hits Schedule C. SE tax, QBI deduction, and your real bottom line calculated instantly.",
     },
     {
-      icon: "🏗️",
+      icon: "üèóÔ∏è",
       title: "C-Corporations",
       badge: "Corp",
       description: "21% flat rate entity-level calculation. Understand after-tax profit and quarterly payment schedule.",
     },
     {
-      icon: "💼",
+      icon: "üíº",
       title: "W-2 Plus Business Owner",
       badge: "Combined",
       description: "Have a day job and a business? We combine all income sources for your complete tax picture.",
     },
     {
-      icon: "📊",
+      icon: "üìä",
       title: "Multiple Entities",
       badge: "Multi",
       description: "Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.",
@@ -91,21 +91,21 @@ const Landing = () => {
   ];
 
   const features = [
-    { icon: "🚨", title: "Real-Time Risk Alerts" },
-    { icon: "🎯", title: "What-If Simulator" },
-    { icon: "💡", title: "Tax-Saving Discovery" },
-    { icon: "📄", title: "K-1 Auto-Generation" },
-    { icon: "🛡️", title: "Audit Defense AI" },
-    { icon: "📈", title: "Compliance Score" },
-    { icon: "📅", title: "Year-Over-Year Intel" },
-    { icon: "🏢", title: "Multi-Entity View" }
+    { icon: "üö®", title: "Real-Time Risk Alerts" },
+    { icon: "üéØ", title: "What-If Simulator" },
+    { icon: "üí°", title: "Tax-Saving Discovery" },
+    { icon: "üìÑ", title: "K-1 Auto-Generation" },
+    { icon: "üõ°Ô∏è", title: "Audit Defense AI" },
+    { icon: "üìà", title: "Compliance Score" },
+    { icon: "üìÖ", title: "Year-Over-Year Intel" },
+    { icon: "üè¢", title: "Multi-Entity View" }
   ];
 
   const steps = [
     {
       number: "01",
       title: "Connect your software",
-      description: "Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals — no sub-accounts, just the numbers that matter."
+      description: "Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals ‚Äî no sub-accounts, just the numbers that matter."
     },
     {
       number: "02", 
@@ -115,7 +115,7 @@ const Landing = () => {
     {
       number: "03",
       title: "See your real tax bill",
-      description: "Complete tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown — updated in real time as you adjust numbers."
+      description: "Complete tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown ‚Äî updated in real time as you adjust numbers."
     }
   ];
 
@@ -141,7 +141,7 @@ const Landing = () => {
         <div className="container">
           <div className="hero-content">
             <div className="hero-badge">
-              ✨ GET IN FRONT OF YOUR LARGEST EXPENSE
+              ‚ú® GET IN FRONT OF YOUR LARGEST EXPENSE
             </div>
             <h1 className="hero-title">
               Build Wealth by Managing Tax<br />
@@ -162,7 +162,7 @@ const Landing = () => {
               </Link>
             </div>
             <div className="hero-disclaimer">
-              No charge until after 7-day trial • Cancel anytime • No CPA required
+              No charge until after 7-day trial ‚Ä¢ Cancel anytime ‚Ä¢ No CPA required
             </div>
             <div className="integrations">
               <span className="integrations-label">Connects with</span>
@@ -201,7 +201,7 @@ const Landing = () => {
             </p>
             <div className="video-container">
               <div className="video-placeholder">
-                <div className="play-button">▶</div>
+                <div className="play-button">‚ñ∂</div>
                 <div className="video-overlay">
                   <span>Play Video</span>
                 </div>
@@ -215,7 +215,7 @@ const Landing = () => {
                   </div>
                   <div className="preview-content">
                     <div className="preview-title">Build Wealth by Managing Tax Liability in Real Time</div>
-                    <div className="preview-chart">📊</div>
+                    <div className="preview-chart">üìä</div>
                   </div>
                 </div>
               </div>
@@ -228,13 +228,13 @@ const Landing = () => {
       <section className="credibility-section">
         <div className="container">
           <div className="credibility-content">
-            <div className="credibility-icon">👤</div>
+            <div className="credibility-icon">üë§</div>
             <h2 className="section-title">Built by a Former IRS Revenue Agent</h2>
             <p className="credibility-text">
-              TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This isn't just tax software—it's insider knowledge transformed into AI-powered protection for your business.
+              TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This isn't just tax software‚Äîit's insider knowledge transformed into AI-powered protection for your business.
             </p>
             <div className="credibility-cta">
-              <span className="btn btn-primary">✓ IRS-Approved Methodology</span>
+              <span className="btn btn-primary">‚úì IRS-Approved Methodology</span>
             </div>
           </div>
         </div>
@@ -244,10 +244,10 @@ const Landing = () => {
       <section className="entity-section">
         <div className="container">
           <h2 className="section-title">
-            Built to Build Wealth — No Matter Your Entity Structure
+            Built to Build Wealth ‚Äî No Matter Your Entity Structure
           </h2>
           <p className="section-subtitle">
-            S-Corp, LLC, Partnership, Sole Prop — every structure has legal strategies to reduce what you owe. TaxStat360 knows them all.
+            S-Corp, LLC, Partnership, Sole Prop ‚Äî every structure has legal strategies to reduce what you owe. TaxStat360 knows them all.
           </p>
           <div className="entity-grid">
             {entityTypes.map((entity, index) => (
@@ -276,7 +276,7 @@ const Landing = () => {
           <div className="testimonials-grid">
             {testimonials.map((testimonial, index) => (
               <div key={index} className="testimonial-card">
-                <div className="stars">⭐⭐⭐⭐⭐</div>
+                <div className="stars">‚≠ê‚≠ê‚≠ê‚≠ê‚≠ê</div>
                 <blockquote className="testimonial-text">
                   "{testimonial.text}"
                 </blockquote>
@@ -312,7 +312,7 @@ const Landing = () => {
         <div className="container">
           <h2 className="section-title">Simple, transparent pricing</h2>
           <p className="section-subtitle">
-            7-day free trial on all plans • No charge until trial ends • Cancel anytime
+            7-day free trial on all plans ‚Ä¢ No charge until trial ends ‚Ä¢ Cancel anytime
           </p>
           <div className="pricing-grid">
             <div className="pricing-card">
@@ -324,16 +324,16 @@ const Landing = () => {
               </div>
               <button className="btn btn-outline">Start Free Trial</button>
               <ul className="pricing-features">
-                <li>✓ Real-time tax liability calculator</li>
-                <li>✓ K-1 generation (S-Corps, partnerships, LLCs)</li>
-                <li>✓ Schedule C (sole props and SMLLCs)</li>
-                <li>✓ Entity-level tax calculation</li>
-                <li>✓ Quarterly estimated payment planner</li>
+                <li>‚úì Real-time tax liability calculator</li>
+                <li>‚úì K-1 generation (S-Corps, partnerships, LLCs)</li>
+                <li>‚úì Schedule C (sole props and SMLLCs)</li>
+                <li>‚úì Entity-level tax calculation</li>
+                <li>‚úì Quarterly estimated payment planner</li>
               </ul>
             </div>
 
             <div className="pricing-card featured">
-              <div className="pricing-badge">✨ MOST POPULAR</div>
+              <div className="pricing-badge">‚ú® MOST POPULAR</div>
               <div className="pricing-header">
                 <span className="pricing-label">MOST POPULAR</span>
                 <h3 className="pricing-name">Professional</h3>
@@ -342,13 +342,13 @@ const Landing = () => {
               </div>
               <button className="btn btn-primary">Start Free Trial</button>
               <div className="pricing-includes">
-                <span>↑ Everything in Starter plus:</span>
+                <span>‚Üë Everything in Starter plus:</span>
               </div>
               <ul className="pricing-features">
-                <li>✓ Real-Time Risk Alert Engine</li>
-                <li>✓ Explainable AI: Why This Number?</li>
-                <li>✓ AI Assumption Transparency Panel</li>
-                <li>✓ Financial Data Anomaly Detection</li>
+                <li>‚úì Real-Time Risk Alert Engine</li>
+                <li>‚úì Explainable AI: Why This Number?</li>
+                <li>‚úì AI Assumption Transparency Panel</li>
+                <li>‚úì Financial Data Anomaly Detection</li>
               </ul>
             </div>
 
@@ -361,13 +361,13 @@ const Landing = () => {
               </div>
               <button className="btn btn-outline">Start Free Trial</button>
               <div className="pricing-includes">
-                <span>↑ Everything in Professional plus:</span>
+                <span>‚Üë Everything in Professional plus:</span>
               </div>
               <ul className="pricing-features">
-                <li>✓ What-If Scenario Simulator</li>
-                <li>✓ Risk Tolerance Profiling</li>
-                <li>✓ Industry Benchmark Intelligence</li>
-                <li>✓ AI Recommendation Change Tracking</li>
+                <li>‚úì What-If Scenario Simulator</li>
+                <li>‚úì Risk Tolerance Profiling</li>
+                <li>‚úì Industry Benchmark Intelligence</li>
+                <li>‚úì AI Recommendation Change Tracking</li>
               </ul>
             </div>
           </div>
@@ -385,7 +385,7 @@ const Landing = () => {
                 proactive tax intelligence engine.
               </h2>
               <p className="section-subtitle white">
-                TaxStat360 watches your financials year-round — flagging audit risks, 
+                TaxStat360 watches your financials year-round ‚Äî flagging audit risks, 
                 finding deductions you are missing, and keeping you ahead of IRS 
                 deadlines. Built for US-specific IRS, state, and federal requirements.
               </p>
@@ -493,7 +493,7 @@ const Landing = () => {
         <div className="container">
           <div className="cta-content">
             <Link to="/trial" className="btn btn-primary btn-large">
-              ✓ 7-Day Free Trial
+              ‚úì 7-Day Free Trial
             </Link>
           </div>
         </div>
@@ -503,3 +503,4 @@ const Landing = () => {
 };
 
 export default Landing;
+
