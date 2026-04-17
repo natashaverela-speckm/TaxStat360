@@ -76,6 +76,7 @@ export default function App() {
 
         {/* Protected app routes */}
         <Route path="/calculate-tax" element={<CalculateTax />} />
+        <Route path="/tax-return"    element={<CalculateTax />} />
         <Route path="/ai-analysis"   element={<AIAnalysis />} />
 
         {/* Fallback */}
