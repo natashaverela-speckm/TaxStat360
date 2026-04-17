@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Enhanced TaxStat360 with Multi-Entity Management
 // CRITICAL: Preserves ALL existing QuickBooks, FreshBooks, Wave, Xero integration
 // UPDATED: Navy blue color scheme (no green headers)
+// Force rebuild: Deploy "List All Entities" title change
 
 const EnhancedCalculateTax = () => {
     const [entities, setEntities] = useState([
