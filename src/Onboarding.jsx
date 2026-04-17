@@ -85,7 +85,6 @@ function SignupScreen(){
   const verified=new URLSearchParams(window.location.search).get("verified")
     <button onClick={verifyOtp} disabled={otpLoading||otp.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',margin:'16px 0 0',opacity:otpLoading?0.7:1}}>{otpLoading?'Verifying...':'Verify Code →'}</button>
     <p style={{textAlign:'center',fontSize:12,color:SL,margin:'12px 0 0',cursor:'pointer'}} onClick={()=>{setMfaStep(false);setOtp('');setOtpErr('')}}>← Back to login</p>
-  return(<Page>
     <LOGO/>
     {verified&&<div style={{background:'#D1FAE5',border:'1px solid #6EE7B7',borderRadius:10,padding:'12px 20px',margin:'0 0 16px',color:'#065F46',fontSize:14,fontWeight:600,textAlign:'center'}}>✅ Email verified! Please sign in below.</div>}
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
