@@ -121,7 +121,7 @@ const Landing = () => {
               <LOGO />
             </div>
             <nav className="header-nav">
-              <Link to="/signin" className="nav-link">Sign In</Link>
+              <Link to="/login" className="nav-link">Sign In</Link>
               <Link to="/trial" className="btn btn-primary">Start Free Trial</Link>
             </nav>
           </div>
@@ -149,7 +149,7 @@ const Landing = () => {
               <Link to="/trial" className="btn btn-primary btn-large">
                 Start Free 7-Day Trial
               </Link>
-              <Link to="/signin" className="btn btn-secondary">
+              <Link to="/login" className="btn btn-secondary">
                 Already have an account
               </Link>
             </div>
