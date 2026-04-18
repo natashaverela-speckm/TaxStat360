@@ -6,7 +6,7 @@ const B = '#2563EB'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability in real time, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
 
-export default function Aria() {
+export default function Aria() 
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
@@ -56,9 +56,10 @@ export default function Aria() {
           border: '1px solid #E2E8F0', fontFamily: 'Inter, system-ui, sans-serif',
         }}>
           <div style={{ background: N, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="20" height="20" viewBox="0 0 56 56" fill="none">
-              <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="#F5C842"/>
-              <circle cx="28" cy="28" r="4" fill={N}/>
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+              <path d="M20 7 L21.3 13.7 L28 15 L21.3 16.3 L20 23 L18.7 16.3 L12 15 L18.7 13.7 Z" fill="#F5C842"/>
+              <path d="M10 16 L11 20 L15 21 L11 22 L10 26 L9 22 L5 21 L9 20 Z" fill="#F5C842"/>
+              <path d="M9 6 L9.8 9.2 L13 10 L9.8 10.8 L9 14 L8.2 10.8 L5 10 L8.2 9.2 Z" fill="#F5C842"/>
             </svg>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Aria</div>
             <div style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>TaxStat360 AI</div>
@@ -106,9 +107,10 @@ export default function Aria() {
           boxShadow: '0 4px 20px rgba(13,27,62,0.35)', zIndex: 9999,
         }}
       >
-        <svg width="26" height="26" viewBox="0 0 56 56" fill="none">
-          <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="#F5C842"/>
-          <circle cx="28" cy="28" r="4" fill={N}/>
+        <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+          <path d="M20 7 L21.3 13.7 L28 15 L21.3 16.3 L20 23 L18.7 16.3 L12 15 L18.7 13.7 Z" fill="#F5C842"/>
+          <path d="M10 16 L11 20 L15 21 L11 22 L10 26 L9 22 L5 21 L9 20 Z" fill="#F5C842"/>
+          <path d="M9 6 L9.8 9.2 L13 10 L9.8 10.8 L9 14 L8.2 10.8 L5 10 L8.2 9.2 Z" fill="#F5C842"/>
         </svg>
       </button>
     </>
