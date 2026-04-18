@@ -1,498 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import './Landing.css';
+import { useNavigate } from 'react-router-dom'
+import Aria from './Aria'
+import './Landing.css'
 
-// LOGO component - exact copy from Onboarding.jsx line 8
-const LOGO = () => (
- <div style={{display:'flex',alignItems:'center',gap:8}}>
-    <svg width="30" height="30" viewBox="0 0 34 34">
-      <rect width="34" height="34" rx="8" fill="#0D1B3E"/>
-      <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/>
-      <rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/>
-      <rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/>
-      <rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/>
-    </svg>
-    <div style={{fontWeight:800,color:'#0D1B3E',fontSize:17,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>
-      TaxStat<span style={{color:'#2563EB'}}>360</span>
-    </div>
-  </div>
-);
+const N = '#0D1B3E'
+const B = '#2563EB'
 
-const Landing = () => {
-  const [isVisible, setIsVisible] = useState(false);
+function Nav({ nav }) {
+  return (
+    <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => nav('/')}>
+        <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
+        </div>
+        <span style={{ fontWeight: 800, fontSize: 18, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+      </div>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <button onClick={() => nav('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
+        <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Start Free Trial</button>
+      </div>
+    </nav>
+  )
+}
 
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
-
-  const testimonials = [
-    {
-      text: "TaxStat360 helped me keep an extra $47,000 in working capital this year by showing me exactly when to make strategic moves. My cash flow has never been stronger.",
-      author: "Sarah Chen",
-      title: "S-Corp Owner, Marketing Agency"
-    },
-    {
-      text: "Real-time tax visibility changed everything. Instead of scrambling at year-end, I make informed decisions monthly that compound my wealth over time.",
-      author: "Marcus Rodriguez",
-      title: "Multi-Entity Real Estate Investor"
-    },
-    {
-      text: "The strategic insights are incredible. I can see exactly how each business decision impacts my tax liability before I make it. That's true wealth preservation.",
-      author: "Jennifer Walsh",
-      title: "Partnership Owner, Consulting Firm"
-    }
-  ];
-
-  const entityTypes = [
-    {
-      icon: "üè¢",
-      title: "S-Corporations",
-      badge: "K-1",
-      description: "Officer W-2 salary, K-1 generation, and distributions all flow correctly to your personal 1040.",
-    },
-    {
-      icon: "ü§ù",
-      title: "Partnerships and Multi-Member LLCs",
-      badge: "K-1",
-      description: "Each partners distributive share calculated separately. K-1 flows directly into your personal tax return.",
-    },
-    {
-      icon: "üìã",
-      title: "Sole Proprietors and Freelancers",
-      badge: "Sch C",
-      description: "Net profit hits Schedule C. SE tax, QBI deduction, and your real bottom line calculated instantly.",
-    },
-    {
-      icon: "üèóÔ∏è",
-      title: "C-Corporations",
-      badge: "Corp",
-      description: "21% flat rate entity-level calculation. Understand after-tax profit and quarterly payment schedule.",
-    },
-    {
-      icon: "üíº",
-      title: "W-2 Plus Business Owner",
-      badge: "Combined",
-      description: "Have a day job and a business? We combine all income sources for your complete tax picture.",
-    },
-    {
-      icon: "üìä",
-      title: "Multiple Entities",
-      badge: "Multi",
-      description: "Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.",
-    }
-  ];
-
-  const features = [
-    { icon: "üö®", title: "Real-Time Risk Alerts" },
-    { icon: "üéØ", title: "What-If Simulator" },
-    { icon: "üí°", title: "Tax-Saving Discovery" },
-    { icon: "üìÑ", title: "K-1 Auto-Generation" },
-    { icon: "üõ°Ô∏è", title: "Audit Defense AI" },
-    { icon: "üìà", title: "Compliance Score" },
-    { icon: "üìÖ", title: "Year-Over-Year Intel" },
-    { icon: "üè¢", title: "Multi-Entity View" }
-  ];
-
-  const steps = [
-    {
-      number: "01",
-      title: "Connect your software",
-      description: "Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals ‚Äî no sub-accounts, just the numbers that matter."
-    },
-    {
-      number: "02", 
-      title: "Enter your personal info",
-      description: "Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040."
-    },
-    {
-      number: "03",
-      title: "See your real tax bill",
-      description: "Complete tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown ‚Äî updated in real time as you adjust numbers."
-    }
-  ];
+export default function Landing() {
+  const nav = useNavigate()
 
   return (
-    <div className="landing-page">
-      {/* Header */}
-      <header className="landing-header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo-section">
-              <LOGO />
-            </div>
-            <nav className="header-nav">
-              <Link to="/login" className="nav-link">Sign In</Link>
-              <Link to="/trial" className="btn btn-primary">Start Free Trial</Link>
-            </nav>
-          </div>
-        </div>
-      </header>
+    <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
+      <Nav nav={nav} />
 
-      {/* Hero Section */}
-      <section className={`hero-section ${isVisible ? 'fade-in' : ''}`}>
-        <div className="container">
-          <div className="hero-content">
-            <div className="hero-badge">
-              ✓ GET IN FRONT OF YOUR LARGEST EXPENSE
+      <section style={{ background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)', padding: '80px 24px 60px', textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #dde6f0', borderRadius: 100, padding: '8px 18px', fontSize: 12, fontWeight: 700, letterSpacing: 1, color: N, marginBottom: 32, textTransform: 'uppercase' }}>
+          <span style={{ color: B }}>&#10003;</span> Get in Front of Your Largest Expense
+        </div>
+        <h1 style={{ fontSize: 48, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
+          Build Wealth by Managing Tax<br />Liability in Real Time.
+        </h1>
+        <p style={{ fontSize: 18, color: '#475569', maxWidth: 620, margin: '0 auto 40px', lineHeight: 1.7 }}>
+          Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe every month, so you can make strategic moves that preserve capital and accelerate wealth building.
+        </p>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
+          <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 16, cursor: 'pointer', textDecoration: 'underline' }}>Start Free 7-Day Trial</button>
+          <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 16, cursor: 'pointer', textDecoration: 'underline' }}>Already have an account</button>
+        </div>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 40 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
+        <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Connects with</span>
+          {[['QB','QuickBooks','#2CA01C'],['XE','Xero','#00B9FF'],['WV','Wave','#4BC7AD'],['FB','FreshBooks','#0075DE']].map(([abbr,name,color],i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{abbr}</div>
+              <span style={{ fontSize: 14, fontWeight: 600, color: N }}>{name}</span>
             </div>
-            <h1 className="hero-title">
-              Build Wealth by Managing Tax<br />
-              Liability in Real Time.
-            </h1>
-            <p className="hero-subtitle">
-              Most business owners discover their tax liability at year-end when it's 
-              too late to optimize. TaxStat360 shows you exactly what you owe every 
-              month, so you can make strategic moves that preserve capital and 
-              accelerate wealth building.
-            </p>
-            <div className="hero-cta">
-              <Link to="/trial" className="btn btn-primary btn-large">
-                Start Free 7-Day Trial
-              </Link>
-              <Link to="/login" className="btn btn-secondary">
-                Already have an account
-              </Link>
-            </div>
-            <div className="hero-disclaimer">
-              No charge until after 7-day trial • Cancel anytime • No CPA required
-            </div>
-            <div className="integrations">
-              <span className="integrations-label">Connects with</span>
-              <div className="integration-logos">
-                <div className="integration-item">
-                  <span className="integration-icon qb">QB</span>
-                  <span>QuickBooks</span>
-                </div>
-                <div className="integration-item">
-                  <span className="integration-icon xero">X</span>
-                  <span>Xero</span>
-                </div>
-                <div className="integration-item">
-                  <span className="integration-icon wave">W</span>
-                  <span>Wave</span>
-                </div>
-                <div className="integration-item">
-                  <span className="integration-icon fresh">FB</span>
-                  <span>FreshBooks</span>
-                </div>
-              </div>
-            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ background: N, padding: '60px 24px', textAlign: 'center' }}>
+        <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
+        <h2 style={{ color: '#fff', fontSize: 36, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
+        <p style={{ color: '#93b4d4', fontSize: 16, marginBottom: 40 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
+        <div style={{ maxWidth: 780, margin: '0 auto', background: '#1a2f5e', borderRadius: 16, padding: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, cursor: 'pointer' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 28 }}>&#9654;</div>
+            <span style={{ color: '#93b4d4', fontSize: 14 }}>Play Video</span>
           </div>
         </div>
       </section>
 
-      {/* Video Testimonial Section */}
-      <section className="video-section">
-        <div className="container">
-          <div className="video-content">
-            <h2 className="section-title white">
-              See Strategic Tax Management in Action
-            </h2>
-            <p className="section-subtitle white">
-              Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month
-            </p>
-            <div className="video-container">
-              <div className="video-placeholder">
-                <div className="play-button">‚ñ∂</div>
-                <div className="video-overlay">
-                  <span>Play Video</span>
-                </div>
+      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
+        </div>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 16 }}>Built by a Former IRS Revenue Agent</h2>
+        <p style={{ fontSize: 16, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
+          TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into AI-powered protection for your business.
+        </p>
+        <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+          &#10003; IRS-Approved Methodology
+        </button>
+      </section>
+
+      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
+        <p style={{ fontSize: 16, color: '#475569', marginBottom: 48 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 1000, margin: '0 auto' }}>
+          {[
+            { icon: '🏢', label: 'K-1', title: 'S-Corporations', desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your real bottom line calculated instantly.' },
+            { icon: '🤝', label: 'K-1', title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
+            { icon: '📋', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs', desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+            { icon: '💼', label: 'Combined', title: 'W-2 Plus Business Owner', desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
+            { icon: '🏗️', label: 'Multi', title: 'Multiple Entities', desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
+          ].map((e,i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 16, padding: 28, textAlign: 'left', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <span style={{ fontSize: 32 }}>{e.icon}</span>
+                <span style={{ background: N, color: '#fff', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>{e.label}</span>
               </div>
-              <div className="app-preview">
-                <div className="preview-window">
-                  <div className="preview-header">
-                    <div className="preview-dots">
-                      <span></span><span></span><span></span>
-                    </div>
-                  </div>
-                  <div className="preview-content">
-                    <div className="preview-title">Build Wealth by Managing Tax Liability in Real Time</div>
-                    <div className="preview-chart">üìä</div>
-                  </div>
-                </div>
-              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{e.title}</h3>
+              <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6 }}>{e.desc}</p>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Credibility Section */}
-      <section className="credibility-section">
-        <div className="container">
-          <div className="credibility-content">
-            <div className="credibility-icon">üë§</div>
-            <h2 className="section-title">Built by a Former IRS Revenue Agent</h2>
-            <p className="credibility-text">
-              TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This isn't just tax software‚Äîit's insider knowledge transformed into AI-powered protection for your business.
-            </p>
-            <div className="credibility-cta">
-              <span className="btn btn-primary">‚úì IRS-Approved Methodology</span>
+      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>Your tax bill in 3 steps</h2>
+        <p style={{ fontSize: 16, color: '#475569', marginBottom: 56 }}>From connected to calculated in under 5 minutes</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40, maxWidth: 900, margin: '0 auto' }}>
+          {[
+            { n: '01', title: 'Connect your software', desc: 'Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals with no sub-accounts, just the numbers that matter.' },
+            { n: '02', title: 'Enter your personal info', desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
+            { n: '03', title: 'See your real tax bill', desc: 'Complete tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown updated in real time as you adjust numbers.' },
+          ].map((s,i) => (
+            <div key={i} style={{ textAlign: 'center' }}>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 18, fontWeight: 700, color: N }}>{s.n}</div>
+              <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10 }}>{s.title}</h3>
+              <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6 }}>{s.desc}</p>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Entity Types Section */}
-      <section className="entity-section">
-        <div className="container">
-          <h2 className="section-title">
-            Built to Build Wealth ‚Äî No Matter Your Entity Structure
-          </h2>
-          <p className="section-subtitle">
-            S-Corp, LLC, Partnership, Sole Prop ‚Äî every structure has legal strategies to reduce what you owe. TaxStat360 knows them all.
-          </p>
-          <div className="entity-grid">
-            {entityTypes.map((entity, index) => (
-              <div key={index} className="entity-card">
-                <div className="entity-header">
-                  <span className="entity-icon">{entity.icon}</span>
-                  <span className="entity-badge">{entity.badge}</span>
-                </div>
-                <h3 className="entity-title">{entity.title}</h3>
-                <p className="entity-description">{entity.description}</p>
-              </div>
-            ))}
-          </div>
+      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>Real Wealth Building Results from Strategic Tax Planning</h2>
+        <p style={{ fontSize: 16, color: '#475569', marginBottom: 48 }}>Business owners who stopped reacting to taxes and started managing them</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 1000, margin: '0 auto' }}>
+          {[
+            { quote: 'TaxStat360 helped me keep an extra $47,000 in working capital this year by showing me exactly when to make strategic moves. My cash flow has never been stronger.', name: 'Sarah Chen', role: 'S-Corp Owner, Marketing Agency' },
+            { quote: 'Real-time tax visibility changed everything. Instead of scrambling at year-end, I make informed decisions monthly that compound my wealth over time.', name: 'Marcus Rodriguez', role: 'Multi-Entity Real Estate Investor' },
+            { quote: 'The strategic insights are incredible. I saved over $31,000 in taxes last year by timing deductions properly. This is the tool every business owner needs.', name: 'Jennifer Park', role: 'LLC Owner, Consulting Firm' },
+          ].map((t,i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 16, padding: 32, textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ color: '#F59E0B', fontSize: 20, marginBottom: 16 }}>&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+              <p style={{ fontSize: 15, color: '#334155', lineHeight: 1.7, fontStyle: 'italic', marginBottom: 20 }}>&ldquo;{t.quote}&rdquo;</p>
+              <p style={{ fontWeight: 700, color: N, marginBottom: 4 }}>{t.name}</p>
+              <p style={{ fontSize: 13, color: '#94a3b8' }}>{t.role}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Results Section */}
-      <section className="results-section">
-        <div className="container">
-          <h2 className="section-title">
-            Real Wealth-Building Results from Strategic Tax Management
-          </h2>
-          <p className="section-subtitle">
-            See how business owners use real-time tax intelligence to preserve capital and accelerate growth
-          </p>
-          <div className="testimonials-grid">
-            {testimonials.map((testimonial, index) => (
-              <div key={index} className="testimonial-card">
-                <div className="stars">‚≠ê‚≠ê‚≠ê‚≠ê‚≠ê</div>
-                <blockquote className="testimonial-text">
-                  "{testimonial.text}"
-                </blockquote>
-                <div className="testimonial-author">
-                  <strong>{testimonial.author}</strong>
-                  <span>{testimonial.title}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Process Section */}
-      <section className="process-section">
-        <div className="container">
-          <h2 className="section-title">Your tax bill in 3 steps</h2>
-          <p className="section-subtitle">From connected to calculated in under 5 minutes</p>
-          <div className="steps-container">
-            {steps.map((step, index) => (
-              <div key={index} className="step-card">
-                <div className="step-number">{step.number}</div>
-                <h3 className="step-title">{step.title}</h3>
-                <p className="step-description">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section className="pricing-section">
-        <div className="container">
-          <h2 className="section-title">Simple, transparent pricing</h2>
-          <p className="section-subtitle">
-            7-day free trial on all plans • No charge until trial ends • Cancel anytime
-          </p>
-          <div className="pricing-grid">
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <span className="pricing-label">GET STARTED</span>
-                <h3 className="pricing-name">Starter</h3>
-                <div className="pricing-price">$79<span>/mo</span></div>
-                <p className="pricing-description">Everything you need to know what you owe right now.</p>
-              </div>
-              <button className="btn btn-outline">Start Free Trial</button>
-              <ul className="pricing-features">
-                <li>‚úì Real-time tax liability calculator</li>
-                <li>‚úì K-1 generation (S-Corps, partnerships, LLCs)</li>
-                <li>‚úì Schedule C (sole props and SMLLCs)</li>
-                <li>‚úì Entity-level tax calculation</li>
-                <li>‚úì Quarterly estimated payment planner</li>
+      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
+        <p style={{ fontSize: 16, color: '#475569', marginBottom: 48 }}>Start free. No credit card required. Cancel anytime.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, maxWidth: 960, margin: '0 auto' }}>
+          {[
+            { name:'Starter', price:'$79', highlight:false, desc:'Everything you need to know what you owe right now.', features:['Real-time tax liability calculator','K-1 generation (S-Corps, partnerships, LLCs)','Schedule C (sole props and SMLLCs)','Entity-level tax calculation','Quarterly estimated payments','1 accounting software integration'] },
+            { name:'Professional', price:'$149', highlight:true, desc:'AI that watches your numbers and flags problems before they cost you.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','Explainable AI: Why This Number?','AI Assumption Transparency Panel','Audit Red Flag Detector','Unlimited integrations','Priority support'] },
+            { name:'Enterprise', price:'$299', highlight:false, desc:'Multi-entity management, CPA collaboration, and full audit defense.', features:['Everything in Professional plus:','What-If Scenario Simulator','Risk Tolerance Profiling','Industry Benchmark Intelligence','CPA Collaboration Portal','White-label reporting','Dedicated account manager'] },
+          ].map((p,i) => (
+            <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
+              <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
+              <div style={{ fontSize: 52, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{p.price}<span style={{ fontSize: 18, fontWeight: 500 }}>/mo</span></div>
+              <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
+              <button onClick={() => nav('/signup')} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
+                {p.features.map((f,j) => (
+                  <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: p.highlight ? '#d1e0f5' : '#475569', borderTop: j === 0 ? 'none' : '1px solid ' + (p.highlight ? 'rgba(255,255,255,0.08)' : '#f1f5f9') }}>
+                    <span style={{ color: p.highlight ? '#93b4d4' : B, flexShrink: 0 }}>&#10003;</span>{f}
+                  </li>
+                ))}
               </ul>
             </div>
-
-            <div className="pricing-card featured">
-              <div className="pricing-badge">✓ MOST POPULAR</div>
-              <div className="pricing-header">
-                <span className="pricing-label">MOST POPULAR</span>
-                <h3 className="pricing-name">Professional</h3>
-                <div className="pricing-price">$149<span>/mo</span></div>
-                <p className="pricing-description">AI that watches your numbers and flags problems before they cost you.</p>
-              </div>
-              <button className="btn btn-primary">Start Free Trial</button>
-              <div className="pricing-includes">
-                <span>‚Üë Everything in Starter plus:</span>
-              </div>
-              <ul className="pricing-features">
-                <li>‚úì Real-Time Risk Alert Engine</li>
-                <li>‚úì Explainable AI: Why This Number?</li>
-                <li>‚úì AI Assumption Transparency Panel</li>
-                <li>‚úì Financial Data Anomaly Detection</li>
-              </ul>
-            </div>
-
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <span className="pricing-label">FULL IRS ARMOR</span>
-                <h3 className="pricing-name">Advanced</h3>
-                <div className="pricing-price">$299<span>/mo</span></div>
-                <p className="pricing-description">Multi-entity management, CPA collaboration, and full audit defense.</p>
-              </div>
-              <button className="btn btn-outline">Start Free Trial</button>
-              <div className="pricing-includes">
-                <span>‚Üë Everything in Professional plus:</span>
-              </div>
-              <ul className="pricing-features">
-                <li>‚úì What-If Scenario Simulator</li>
-                <li>‚úì Risk Tolerance Profiling</li>
-                <li>‚úì Industry Benchmark Intelligence</li>
-                <li>‚úì AI Recommendation Change Tracking</li>
-              </ul>
-            </div>
-          </div>
+          ))}
         </div>
+        <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
       </section>
 
-      {/* Features Section */}
-      <section className="features-section">
-        <div className="container">
-          <div className="features-content">
-            <div className="features-text">
-              <span className="features-label">32 AI-POWERED FEATURES</span>
-              <h2 className="section-title white">
-                More than a calculator. A<br />
-                proactive tax intelligence engine.
-              </h2>
-              <p className="section-subtitle white">
-                TaxStat360 watches your financials year-round ‚Äî flagging audit risks, 
-                finding deductions you are missing, and keeping you ahead of IRS 
-                deadlines. Built for US-specific IRS, state, and federal requirements.
-              </p>
-              <Link to="/features" className="btn btn-primary">
-                Explore All Features
-              </Link>
-            </div>
-            <div className="features-grid">
-              {features.map((feature, index) => (
-                <div key={index} className="feature-card">
-                  <span className="feature-icon">{feature.icon}</span>
-                  <span className="feature-title">{feature.title}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      <section style={{ padding: '80px 24px', background: N, textAlign: 'center' }}>
+        <h2 style={{ fontSize: 40, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
+        <p style={{ fontSize: 18, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join thousands of business owners who manage tax liability proactively every month and keep more of what they earn.</p>
+        <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 18, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
+        <p style={{ color: '#64748b', fontSize: 13 }}>No credit card required &middot; Full access &middot; Cancel anytime</p>
       </section>
 
-      {/* FAQ Section */}
-      <section className="faq-section">
-        <div className="container">
-          <h2 className="section-title">Frequently Asked Questions</h2>
-          <p className="section-subtitle">
-            Everything you need to know about TaxStat360 and real-time tax management
-          </p>
-          <div className="faq-grid">
-            <div className="faq-item">
-              <h3 className="faq-question">How accurate are the tax calculations?</h3>
-              <p className="faq-answer">
-                TaxStat360 uses IRS-approved methodologies developed by a former IRS Revenue Agent. 
-                Our calculations include all current tax rates, deductions, and credits. We update 
-                our engine immediately when tax laws change to ensure 99.9% accuracy.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">Which accounting software do you integrate with?</h3>
-              <p className="faq-answer">
-                We currently integrate with QuickBooks, Xero, Wave, and FreshBooks. We pull your 
-                income and expense totals automatically - no manual data entry required. More 
-                integrations are coming soon.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">Do I still need my CPA or tax preparer?</h3>
-              <p className="faq-answer">
-                TaxStat360 complements your tax professional, it doesn't replace them. We handle 
-                real-time monitoring and strategic planning throughout the year, while your CPA 
-                can focus on complex strategies and final tax preparation.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">How quickly can I see my tax liability?</h3>
-              <p className="faq-answer">
-                Once you connect your accounting software and enter your personal info, you'll see 
-                your complete tax picture in under 5 minutes. Updates happen in real-time as your 
-                financial data changes.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">Is my financial data secure?</h3>
-              <p className="faq-answer">
-                Yes. We use bank-level encryption and never store your login credentials. We only 
-                read your income and expense totals through secure, read-only API connections. 
-                Your data is encrypted both in transit and at rest.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">What if I have multiple business entities?</h3>
-              <p className="faq-answer">
-                Our Advanced plan supports multiple entities with consolidated reporting. You can 
-                connect different accounting systems for each business and see your combined tax 
-                exposure across all entities.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">Can I cancel anytime?</h3>
-              <p className="faq-answer">
-                Absolutely. All plans include a 7-day free trial with no commitment. After that, 
-                you can cancel anytime with just one click. No contracts, no hidden fees, no 
-                questions asked.
-              </p>
-            </div>
-            
-            <div className="faq-item">
-              <h3 className="faq-question">What makes this different from TurboTax or H&R Block?</h3>
-              <p className="faq-answer">
-                Those are tax preparation tools for year-end filing. TaxStat360 is a real-time 
-                tax intelligence platform that shows you exactly what you owe every month, so you 
-                can make strategic decisions throughout the year to minimize your liability.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer CTA */}
-      <section className="footer-cta">
-        <div className="container">
-          <div className="cta-content">
-            <Link to="/trial" className="btn btn-primary btn-large">
-              ‚úì 7-Day Free Trial
-            </Link>
-          </div>
-        </div>
-      </section>
+      <Aria />
     </div>
-  );
-};
-
-export default Landing;
-
+  )
+}
