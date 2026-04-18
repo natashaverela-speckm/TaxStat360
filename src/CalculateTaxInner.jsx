@@ -283,7 +283,7 @@ export default function CalculateTax(){
       <div style={{minHeight:'100vh',background:'#F8FAFC',fontFamily:'system-ui,sans-serif',color:N}}>
         <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 40px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <span style={{fontSize:19,fontWeight:800,color:N}}>TaxStat<span style={{color:B}}>360</span></span>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:32,height:32,background:N,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg></div><span style={{fontSize:19,fontWeight:800,color:N}}>TaxStat<span style={{color:B}}>360</span></span></div>
             <span style={{fontSize:12,background:'#0D1B3E',color:'#fff',padding:'3px 10px',borderRadius:20,fontWeight:600}}>Step 1 of 2 — Business</span>
           </div>
           <div style={{display:'flex',gap:8}}>
