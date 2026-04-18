@@ -22,7 +22,7 @@ export default function Aria() {
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': '' },
+        headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': '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' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1024,
