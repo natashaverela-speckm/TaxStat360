@@ -127,9 +127,10 @@ export default function Aria() {
       )}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 56, background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, boxShadow: '0 -2px 20px rgba(13,27,62,0.25)' }}>
         <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: open ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 28, padding: '8px 22px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-          <svg width="16" height="16" viewBox="0 0 56 56" fill="none">
-            <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="white"/>
-            <circle cx="28" cy="28" r="4" fill={N}/>
+          <svg width="22" height="22" viewBox="0 0 56 56" fill="none">
+            <path d="M38 8L40.5 18L50 20L40.5 22L38 32L35.5 22L26 20L35.5 18Z" fill="#FFD700"/>
+            <path d="M20 20L22 28L30 30L22 32L20 40L18 32L10 30L18 28Z" fill="#FFD700" opacity="0.85"/>
+            <path d="M34 34L35.5 39L40 40L35.5 41L34 46L32.5 41L28 40L32.5 39Z" fill="#FFD700" opacity="0.7"/>
           </svg>
           <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: '0.01em' }}>{open ? 'Close Aria' : 'Ask Aria'}</span>
           <span style={{ background: B, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10 }}>AI</span>
