@@ -59,9 +59,9 @@ export default function Landing() {
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
-        <div style={{ maxWidth: 780, margin: '0 auto', background: '#1a2f5e', borderRadius: 16, padding: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, cursor: 'pointer' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 28 }}>&#9654;</div>
+        <div style={{ maxWidth: 860, margin: '0 auto', borderRadius: 16, overflow: 'hidden', position: 'relative', paddingTop: '56.25%', background: '#1a2f5e', cursor: 'pointer' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>&#9654;</div>
             <span style={{ color: '#93b4d4', fontSize: 14 }}>Play Video</span>
           </div>
         </div>
