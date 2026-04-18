@@ -229,9 +229,24 @@ export default function CalculateTax(){
     const p=new URLSearchParams(window.location.search)
     const mp={qb_token:'quickbooks',xero_token:'xero',wave_token:'wave',fb_token:'freshbooks'}
     const entityIdx=parseInt(sessionStorage.getItem('ts360_connecting_entity')||'0')
+    // Check for OAuth callback tokens in URL first
+    let foundInUrl=false
     for(const[k,pid] of Object.entries(mp)){
       const tok=p.get(k)
-      if(tok){localStorage.setItem('ts360_'+pid+'_connected','true');localStorage.setItem('ts360_'+pid+'_token',tok);const ex={quickbooks:p.get('realm'),xero:p.get('tenant'),freshbooks:p.get('account')};if(ex[pid])localStorage.setItem('ts360_'+pid+'_extra',ex[pid]);window.history.replaceState({},'','/calculate-tax');fetchEntityPnL(entityIdx,pid,tok,ex[pid]);break}
+      if(tok){foundInUrl=true;localStorage.setItem('ts360_'+pid+'_connected','true');localStorage.setItem('ts360_'+pid+'_token',tok);const ex={quickbooks:p.get('realm'),xero:p.get('tenant'),freshbooks:p.get('account')};if(ex[pid])localStorage.setItem('ts360_'+pid+'_extra',ex[pid]);window.history.replaceState({},'','/calculate-tax');fetchEntityPnL(entityIdx,pid,tok,ex[pid]);break}
+    }
+    // If no URL token, auto-load any already-connected integrations into entity 0
+    if(!foundInUrl){
+      const pids=['quickbooks','xero','wave','freshbooks']
+      for(const pid of pids){
+        const tok=localStorage.getItem('ts360_'+pid+'_token')
+        const connected=localStorage.getItem('ts360_'+pid+'_connected')
+        if(tok&&connected==='true'){
+          const extra=localStorage.getItem('ts360_'+pid+'_extra')
+          fetchEntityPnL(0,pid,tok,extra)
+          break
+        }
+      }
     }
   },[])
 
