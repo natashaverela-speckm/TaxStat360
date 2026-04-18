@@ -77,7 +77,12 @@ export default function Aria() {
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, fontFamily: 'Inter,sans-serif' }}>
+      <button onClick={()=>setOpen(o=>!o)} style={{position:'fixed',bottom:28,right:28,width:56,height:56,borderRadius:'50%',background:'#0D1B3E',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(13,27,62,0.35)',zIndex:9999}}>
+        <svg width="26" height="26" viewBox="0 0 56 56" fill="none">
+          <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="#F5C842"/>
+          <circle cx="28" cy="28" r="4" fill="#0D1B3E"/>
+        </svg>
+      </button>
       {open && (
         <div style={{ position: 'absolute', bottom: 80, right: 0, width: 350, height: 500, background: '#fff', borderRadius: 18, boxShadow: '0 12px 50px rgba(13,27,62,0.25)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: `1.5px solid ${N}` }}>
           <div style={{ background: N, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -111,9 +116,12 @@ export default function Aria() {
           </div>
         </div>
       )}
-      <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <GlowStar open={open} />
+      <button onClick={()=>setOpen(o=>!o)} style={{position:'fixed',bottom:28,right:28,width:56,height:56,borderRadius:'50%',background:'#0D1B3E',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(13,27,62,0.35)',zIndex:9999}}>
+        <svg width='26' height='26' viewBox='0 0 56 56' fill='none'>
+          <path d='M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z' fill='#F5C842'/>
+          <circle cx='28' cy='28' r='4' fill='#0D1B3E'/>
+        </svg>
       </button>
-    </div>
+    </>
   )
 }
