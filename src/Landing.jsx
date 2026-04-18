@@ -133,7 +133,7 @@ const Landing = () => {
         <div className="container">
           <div className="hero-content">
             <div className="hero-badge">
-              ‚ú® GET IN FRONT OF YOUR LARGEST EXPENSE
+              ✓ GET IN FRONT OF YOUR LARGEST EXPENSE
             </div>
             <h1 className="hero-title">
               Build Wealth by Managing Tax<br />
@@ -154,7 +154,7 @@ const Landing = () => {
               </Link>
             </div>
             <div className="hero-disclaimer">
-              No charge until after 7-day trial ‚Ä¢ Cancel anytime ‚Ä¢ No CPA required
+              No charge until after 7-day trial • Cancel anytime • No CPA required
             </div>
             <div className="integrations">
               <span className="integrations-label">Connects with</span>
@@ -304,7 +304,7 @@ const Landing = () => {
         <div className="container">
           <h2 className="section-title">Simple, transparent pricing</h2>
           <p className="section-subtitle">
-            7-day free trial on all plans ‚Ä¢ No charge until trial ends ‚Ä¢ Cancel anytime
+            7-day free trial on all plans • No charge until trial ends • Cancel anytime
           </p>
           <div className="pricing-grid">
             <div className="pricing-card">
@@ -325,7 +325,7 @@ const Landing = () => {
             </div>
 
             <div className="pricing-card featured">
-              <div className="pricing-badge">‚ú® MOST POPULAR</div>
+              <div className="pricing-badge">✓ MOST POPULAR</div>
               <div className="pricing-header">
                 <span className="pricing-label">MOST POPULAR</span>
                 <h3 className="pricing-name">Professional</h3>
