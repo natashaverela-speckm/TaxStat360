@@ -72,7 +72,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
   const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
   const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.5px'}
 
-  async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}setSyn(null)}
+  async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
   function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);window.location.href=API+'/auth/'+pid+'/connect'}
   function applyManual(){const r=nv(manRev),ex=nv(manExp);if(r>0||ex>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:ex,netProfit:r-ex,categories:{}},connectedId:null,isManual:true})}
   const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):0
