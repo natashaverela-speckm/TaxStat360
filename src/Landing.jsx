@@ -43,7 +43,7 @@ export default function Landing() {
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Start Free 7-Day Trial</button>
           <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Already have an account</button>
         </div>
-        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 40 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
         <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Connects with</span>
           {[['QB','QuickBooks','#2CA01C'],['XE','Xero','#00B9FF'],['WV','Wave','#4BC7AD'],['FB','FreshBooks','#0075DE']].map(([abbr,name,color],i) => (
@@ -55,11 +55,11 @@ export default function Landing() {
         </div>
       </section>
 
-      <section style={{ background: N, padding: '60px 24px', textAlign: 'center' }}>
+      <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
-        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 40 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
-        <div style={{ maxWidth: 780, margin: '0 auto', background: '#1a2f5e', borderRadius: 16, padding: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, cursor: 'pointer' }}>
+        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
+        <div style={{ maxWidth: 780, margin: '0 auto', background: '#1a2f5e', borderRadius: 16, padding: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, cursor: 'pointer' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 28 }}>&#9654;</div>
             <span style={{ color: '#93b4d4', fontSize: 14 }}>Play Video</span>
@@ -67,7 +67,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+      <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
         </div>
@@ -80,10 +80,10 @@ export default function Landing() {
         </button>
       </section>
 
-      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+      <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 48 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 1000, margin: '0 auto' }}>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
             { icon: '🏢', label: 'K-1', title: 'S-Corporations', desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your real bottom line calculated instantly.' },
             { icon: '🤝', label: 'K-1', title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
@@ -103,10 +103,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+      <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Your tax bill in 3 steps</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 56 }}>From connected to calculated in under 5 minutes</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40, maxWidth: 900, margin: '0 auto' }}>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
             { n: '01', title: 'Connect your software', desc: 'Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals with no sub-accounts, just the numbers that matter.' },
             { n: '02', title: 'Enter your personal info', desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
@@ -121,10 +121,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+      <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Real Wealth Building Results from Strategic Tax Planning</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 48 }}>Business owners who stopped reacting to taxes and started managing them</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 1000, margin: '0 auto' }}>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Business owners who stopped reacting to taxes and started managing them</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
             { quote: 'TaxStat360 helped me keep an extra $47,000 in working capital this year by showing me exactly when to make strategic moves. My cash flow has never been stronger.', name: 'Sarah Chen', role: 'S-Corp Owner, Marketing Agency' },
             { quote: 'Real-time tax visibility changed everything. Instead of scrambling at year-end, I make informed decisions monthly that compound my wealth over time.', name: 'Marcus Rodriguez', role: 'Multi-Entity Real Estate Investor' },
@@ -141,9 +141,9 @@ export default function Landing() {
       </section>
 
 
-      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+      <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Frequently Asked Questions</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 48 }}>Everything you need to know before getting started</p>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
             { q: 'Do I need a CPA or accountant to use TaxStat360?', a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
@@ -166,10 +166,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
+      <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 48 }}>Start free. No credit card required. Cancel anytime.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, maxWidth: 960, margin: '0 auto' }}>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
             { name:'Starter', price:'$79', highlight:false, desc:'Everything you need to know what you owe right now.', features:['Real-time tax liability calculator','K-1 generation (S-Corps, partnerships, LLCs)','Schedule C (sole props and SMLLCs)','Entity-level tax calculation','Quarterly estimated payments','1 accounting software integration'] },
             { name:'Professional', price:'$149', highlight:true, desc:'AI that watches your numbers and flags problems before they cost you.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','Explainable AI: Why This Number?','AI Assumption Transparency Panel','Audit Red Flag Detector','Unlimited integrations','Priority support'] },
@@ -193,7 +193,7 @@ export default function Landing() {
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
       </section>
 
-      <section style={{ padding: '80px 24px', background: N, textAlign: 'center' }}>
+      <section style={{ padding: '36px 24px', background: N, textAlign: 'center' }}>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
         <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join thousands of business owners who manage tax liability proactively every month and keep more of what they earn.</p>
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
