@@ -64,7 +64,8 @@ export default function App() {
         <Route path="/"              element={<Landing />} />
         <Route path="/signup"        element={<Onboarding screen="signup" />} />
         <Route path="/register"      element={<Onboarding screen="signup" />} />
-        <Route path="/login"         element={<Onboarding screen="login"  />} />
+        <Route path="/signin" element={<Onboarding screen="login" />} />
+          <Route path="/login"         element={<Onboarding screen="login"  />} />
         <Route path="/verify-email"  element={<Onboarding screen="verify" />} />
 
         {/* Onboarding flow */}
