@@ -119,7 +119,7 @@ function LoginScreen(){
       const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})})
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
-      localStorage.setItem('token',data.access_token);localStorage.setItem('plan',data.plan)
+      localStorage.setItem('token',data.access_token);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
       nav('/calculate-tax')
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
