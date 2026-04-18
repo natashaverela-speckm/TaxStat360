@@ -140,6 +140,32 @@ export default function Landing() {
         </div>
       </section>
 
+
+      <section style={{ padding: '70px 24px', background: '#F8FAFC', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>Frequently Asked Questions</h2>
+        <p style={{ fontSize: 16, color: '#475569', marginBottom: 48 }}>Everything you need to know before getting started</p>
+        <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
+          {[
+            { q: 'Do I need a CPA or accountant to use TaxStat360?', a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
+            { q: 'How accurate are the tax calculations?', a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are highly accurate for planning purposes. For your actual filed return, we recommend reviewing with a tax professional.' },
+            { q: 'What accounting software does TaxStat360 connect to?', a: 'We currently integrate with QuickBooks Online, Xero, Wave, and FreshBooks. We pull your profit and loss data directly so you never have to manually enter numbers. More integrations are coming soon.' },
+            { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
+            { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
+            { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days at no charge. No credit card is required to start. At the end of the trial, you can choose to subscribe or your account simply becomes inactive. No surprise charges.' },
+            { q: 'What does real-time mean exactly?', a: 'Every time you log in, TaxStat360 syncs with your accounting software and recalculates your estimated tax liability using your most current income and expense data. If you land a big client in October or make a large purchase in November, your tax picture updates immediately so you can act on it.' },
+            { q: 'Does TaxStat360 replace my CPA?', a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same real-time visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
+          ].map((item, i) => (
+            <details key={i} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
+              <summary style={{ fontSize: 16, fontWeight: 700, color: '#0D1B3E', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {item.q}
+                <span style={{ fontSize: 20, color: '#2563EB', flexShrink: 0, marginLeft: 16 }}>+</span>
+              </summary>
+              <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.7, marginTop: 12, paddingRight: 24 }}>{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       <section style={{ padding: '70px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 16, color: '#475569', marginBottom: 48 }}>Start free. No credit card required. Cancel anytime.</p>
