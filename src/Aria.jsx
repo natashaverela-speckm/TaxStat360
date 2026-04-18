@@ -2,26 +2,38 @@ import { useState, useRef, useEffect } from 'react'
 
 const ARIA_URL = 'https://lwotbjnqomcuf2rejtaeituze40zvtgy.lambda-url.us-east-1.on.aws/'
 const N = '#0D1B3E'
-const B = '#2563EB'
 
-const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.
-
-I'm here to help you manage your tax liability in real time, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.
-
-Here are a few things you can ask me:
-• "What's my estimated quarterly payment?"
-• "Am I paying myself a reasonable S-Corp salary?"
-• "What deductions am I missing?"
-• "How does my K-1 income affect my 1040?"
-
-What can I help you with today?`
-
-const GoldStars = () => (
-  <svg width="32" height="32" viewBox="0 0 56 56" fill="none">
-    <path d="M38 8L40.5 18L50 20L40.5 22L38 32L35.5 22L26 20L35.5 18Z" fill="#FFD700"/>
-    <path d="M20 20L22 28L30 30L22 32L20 40L18 32L10 30L18 28Z" fill="#FFD700" opacity="0.85"/>
-    <path d="M34 34L35.5 39L40 40L35.5 41L34 46L32.5 41L28 40L32.5 39Z" fill="#FFD700" opacity="0.7"/>
-  </svg>
+const GlowStar = ({ open }) => (
+  <div style={{ position: 'relative', width: 64, height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <style>{`
+      @keyframes pulse { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+      @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      .aria-glow { animation: pulse 2s ease-in-out infinite; }
+      .aria-ring { animation: pulse 2.5s ease-in-out infinite; animation-delay: 0.5s; }
+    `}</style>
+    <div className="aria-ring" style={{ position:'absolute', width:72, height:72, borderRadius:'50%', background:'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)', pointerEvents:'none' }} />
+    <div className="aria-glow" style={{ position:'absolute', width:56, height:56, borderRadius:'50%', background:'radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)', pointerEvents:'none' }} />
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style={{ filter: `drop-shadow(0 0 10px rgba(59,130,246,0.9)) drop-shadow(0 0 20px rgba(13,27,62,0.7))`, transform: open ? 'scale(1.12)' : 'scale(1)', transition: 'transform 0.2s' }}>
+      <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill={N} />
+      <path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="url(#sg)" opacity="0.6"/>
+      <circle cx="28" cy="28" r="5" fill="white" opacity="0.9"/>
+      <circle cx="28" cy="28" r="2.5" fill="white"/>
+      <line x1="28" y1="4" x2="28" y2="10" stroke="white" strokeWidth="1.5" opacity="0.7"/>
+      <line x1="28" y1="46" x2="28" y2="52" stroke="white" strokeWidth="1.5" opacity="0.7"/>
+      <line x1="4" y1="28" x2="10" y2="28" stroke="white" strokeWidth="1.5" opacity="0.7"/>
+      <line x1="46" y1="28" x2="52" y2="28" stroke="white" strokeWidth="1.5" opacity="0.7"/>
+      <circle cx="13" cy="13" r="1.5" fill="white" opacity="0.6"/>
+      <circle cx="43" cy="13" r="1.5" fill="white" opacity="0.6"/>
+      <circle cx="13" cy="43" r="1.5" fill="white" opacity="0.6"/>
+      <circle cx="43" cy="43" r="1.5" fill="white" opacity="0.6"/>
+      <defs>
+        <radialGradient id="sg" cx="50%" cy="30%" r="50%">
+          <stop offset="0%" stopColor="white" stopOpacity="0.8"/>
+          <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+        </radialGradient>
+      </defs>
+    </svg>
+  </div>
 )
 
 export default function Aria() {
@@ -31,16 +43,14 @@ export default function Aria() {
   const [loading, setLoading] = useState(false)
   const [welcomed, setWelcomed] = useState(false)
   const bottomRef = useRef(null)
-  const inputRef = useRef(null)
 
   useEffect(() => {
     if (open && !welcomed) {
       setTimeout(() => {
-        setMsgs([{ role: 'assistant', text: WELCOME }])
+        setMsgs([{ role: 'assistant', text: "✦ Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability in real time, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• What's my estimated quarterly payment?\n• Am I paying myself a reasonable S-Corp salary?\n• What deductions am I missing?\n• How does my K-1 income affect my 1040?\n\nWhat can I help you with today?" }])
         setWelcomed(true)
-      }, 300)
+      }, 400)
     }
-    if (open) setTimeout(() => inputRef.current?.focus(), 350)
   }, [open])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
@@ -67,9 +77,9 @@ export default function Aria() {
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, fontFamily: 'Inter,sans-serif' }}>
+    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, fontFamily: 'Inter,sans-serif' }}>
       {open && (
-        <div style={{ position: 'absolute', bottom: 80, right: 0, width: 360, height: 500, background: '#fff', borderRadius: 18, boxShadow: '0 12px 50px rgba(13,27,62,0.25)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid ' + N }}>
+        <div style={{ position: 'absolute', bottom: 80, right: 0, width: 350, height: 500, background: '#fff', borderRadius: 18, boxShadow: '0 12px 50px rgba(13,27,62,0.25)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: `1.5px solid ${N}` }}>
           <div style={{ background: N, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <svg width="22" height="22" viewBox="0 0 56 56" fill="none"><path d="M28 4L32 22L50 28L32 34L28 52L24 34L6 28L24 22Z" fill="white"/><circle cx="28" cy="28" r="4" fill={N}/></svg>
@@ -96,13 +106,13 @@ export default function Aria() {
             <div ref={bottomRef} />
           </div>
           <div style={{ padding: '10px 12px', borderTop: '1px solid #e8edf5', display: 'flex', gap: 8, background: '#fff' }}>
-            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask Aria about your taxes..." style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: '#f8fafc', fontFamily: 'Inter,sans-serif' }} />
-            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask Aria anything about your taxes..." style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: '#f8fafc' }} />
+            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>→</button>
           </div>
         </div>
       )}
-      <button onClick={() => setOpen(o => !o)} style={{ width: 64, height: 64, borderRadius: '50%', background: N, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(13,27,62,0.4)', transition: 'transform 0.2s', transform: open ? 'scale(1.1)' : 'scale(1)' }}>
-        <GoldStars />
+      <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <GlowStar open={open} />
       </button>
     </div>
   )
