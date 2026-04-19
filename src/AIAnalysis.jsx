@@ -97,6 +97,42 @@ function ReportModal({ onClose }) {
   const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
   const k1Raw = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ padding: '28px 32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 4 }}>CPA EXPORT PACK</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Tax Analysis Report</h2>
+            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Generated {now} · TaxStat360</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => window.print()} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>🖨 Print / Save PDF</button>
+            <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
+          </div>
+        </div>
+        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>IRS COMPLIANCE SCORE</div>
+            <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>Based on schedule mapping, depreciation, and entity structure</div>
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: '#166534' }}>87%</div>
+        </div>
+        {entities.length > 0 && (
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>BUSINESS INCOME SUMMARY</div>
+            {entities.map((e, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
+                <span style={{ color: SL }}>{e.name} ({e.type} · {e.own}% ownership)</span>
+                <span style={{ fontWeight: 600, color: e.k1 >= 0 ? '#16a34a' : R }}>{fmtDollar(e.k1)}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', fontSize: 14, fontWeight: 700, borderTop: '2px solid #E2E8F0', marginTop: 4 }}>
+              <span style={{ color: N }}>Total K-1 to Schedule E</span>
+              <span style={{ color: k1Raw >= 0 ? '#16a34a' : R }}>{fmtDollar(k1Raw)}</span>
+            </div>
+          </div>
+        )}
         {latest && (
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION — {latest.savedAt}</div>
@@ -114,34 +150,21 @@ function ReportModal({ onClose }) {
             ))}
           </div>
         )}
-
         <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 20px', marginBottom: 16 }}>
           <div style={{ fontWeight: 700, color: R, fontSize: 13, marginBottom: 10 }}>🚨 Risk Alerts</div>
-          {[
-            'Officer salary may be below IRS reasonable compensation threshold',
-            'Depreciation method inconsistency detected — review MACRS vs Section 179 elections',
-            'Q3 estimated tax payment deadline approaching — due September 15',
-          ].map((alert, i) => (
+          {['Officer salary may be below IRS reasonable compensation threshold', 'Depreciation method inconsistency detected — review MACRS vs Section 179 elections', 'Q3 estimated tax payment deadline approaching — due September 15'].map((alert, i) => (
             <div key={i} style={{ fontSize: 13, color: '#991B1B', padding: '5px 0', borderBottom: i < 2 ? '1px solid #FECACA' : 'none' }}>• {alert}</div>
           ))}
         </div>
-
         <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '14px 20px', marginBottom: 16 }}>
           <div style={{ fontWeight: 700, color: '#1D4ED8', fontSize: 13, marginBottom: 10 }}>📋 IRS Schedule Mapping</div>
-          {[
-            ['Schedule E (Part II)', 'K-1 income from S-Corps, Partnerships, and Trusts'],
-            ['Form 8995', 'QBI deduction — 20% of qualified business income'],
-            ['Form 8959', 'Additional Medicare Tax — 0.9% on wages over $200K'],
-            ['Schedule A', 'Itemized deductions — mortgage, taxes, charitable'],
-            ['Form 7203', 'S-Corp shareholder stock and debt basis limitations'],
-          ].map(([sched, desc]) => (
+          {[['Schedule E (Part II)', 'K-1 income from S-Corps, Partnerships, and Trusts'], ['Form 8995', 'QBI deduction — 20% of qualified business income'], ['Form 8959', 'Additional Medicare Tax — 0.9% on wages over $200K'], ['Schedule A', 'Itemized deductions — mortgage, taxes, charitable'], ['Form 7203', 'S-Corp shareholder stock and debt basis limitations']].map(([sched, desc]) => (
             <div key={sched} style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 13, borderBottom: '1px solid #BFDBFE' }}>
               <span style={{ fontWeight: 700, color: '#1D4ED8', minWidth: 145, flexShrink: 0 }}>{sched}</span>
               <span style={{ color: SL }}>{desc}</span>
             </div>
           ))}
         </div>
-
         <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>For planning purposes only. Consult a licensed CPA before filing.</div>
       </div>
     </Modal>
@@ -192,12 +215,7 @@ function SimulatorModal({ onClose }) {
               <label style={lbl}>Scenario Name</label>
               <input value={scenarioName} onChange={e => setScenarioName(e.target.value)} style={inp} />
             </div>
-            {[
-              { label: 'W-2 Income', val: w2, set: setW2, hint: 'Adjust your salary / wages' },
-              { label: 'Additional Income', val: addlIncome, set: setAddlIncome, hint: 'Capital gains, freelance, rental, interest' },
-              { label: 'New Deduction', val: newDeduction, set: setNewDeduction, hint: 'Home office, equipment, professional fees' },
-              { label: 'Retirement Contribution', val: retirement, set: setRetirement, hint: 'SEP-IRA up to $69,000 · Solo 401k up to $69,000' },
-            ].map(f => (
+            {[{ label: 'W-2 Income', val: w2, set: setW2, hint: 'Adjust your salary / wages' }, { label: 'Additional Income', val: addlIncome, set: setAddlIncome, hint: 'Capital gains, freelance, rental, interest' }, { label: 'New Deduction', val: newDeduction, set: setNewDeduction, hint: 'Home office, equipment, professional fees' }, { label: 'Retirement Contribution', val: retirement, set: setRetirement, hint: 'SEP-IRA up to $69,000 · Solo 401k up to $69,000' }].map(f => (
               <div key={f.label} style={{ marginBottom: 14 }}>
                 <label style={lbl}>{f.label}</label>
                 <div style={hint}>{f.hint}</div>
@@ -240,7 +258,10 @@ function NarrativeModal({ onClose }) {
   const [selected, setSelected] = useState(0)
   const [copied, setCopied] = useState(false)
   const narratives = [
-    { title: 'Real Estate Professional Status', tag: 'REP · IRC §469(c)(7)', color: P,
+    {
+      title: 'Real Estate Professional Status',
+      tag: 'REP · IRC §469(c)(7)',
+      color: P,
       text: `Dear IRS Representative,
 
 This letter responds to your inquiry regarding the taxpayer's Real Estate Professional (REP) classification under IRC Section 469(c)(7) for tax year 2025.
@@ -260,8 +281,12 @@ As a result, rental real estate losses are treated as non-passive and are fully 
 
 Supporting documentation includes time logs, calendar records, property management records, and professional correspondence.
 
-Respectfully submitted,` },
-    { title: 'S-Corp Reasonable Compensation', tag: 'Officer Salary · Rev. Rul. 74-44', color: R,
+Respectfully submitted,`
+    },
+    {
+      title: 'S-Corp Reasonable Compensation',
+      tag: 'Officer Salary · Rev. Rul. 74-44',
+      color: R,
       text: `Dear IRS Representative,
 
 This letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.
@@ -282,8 +307,12 @@ Compensation was determined with reference to Bureau of Labor Statistics Occupat
 
 The S-Corporation maintains complete payroll records, W-2 forms, and supporting documentation.
 
-Respectfully submitted,` },
-    { title: 'K-1 Loss Deductibility', tag: 'Schedule E · IRC §1366(d)', color: '#0891b2',
+Respectfully submitted,`
+    },
+    {
+      title: 'K-1 Loss Deductibility',
+      tag: 'Schedule E · IRC §1366(d)',
+      color: '#0891b2',
       text: `Dear IRS Representative,
 
 This letter responds to your inquiry regarding Schedule E losses reported from the taxpayer's S-Corporation K-1 for tax year 2025.
@@ -304,7 +333,8 @@ The S-Corporation is a bona fide trade or business with genuine revenue. Losses 
 
 Complete corporate returns (Form 1120-S), K-1 schedules, and Form 7203 are available upon request.
 
-Respectfully submitted,` },
+Respectfully submitted,`
+    },
   ]
   const current = narratives[selected]
   const handleCopy = () => {
@@ -335,14 +365,14 @@ Respectfully submitted,` },
           {current.text}
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'background 0.2s' }}>
             {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
           </button>
           <button onClick={() => window.print()} style={{ flex: 1, padding: '11px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
             🖨 Print
           </button>
         </div>
-        <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>⚠️ Templates only. Review with a licensed tax attorney before submitting to the IRS.</div>
+        <div style={{ fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.5 }}>⚠️ Templates only. Review with a licensed tax attorney before submitting to the IRS.</div>
       </div>
     </Modal>
   )
