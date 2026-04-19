@@ -378,17 +378,57 @@ Respectfully submitted,`
   )
 }
 
+
+// ─── Upgrade Modal ────────────────────────────────────────────────────────────
+function UpgradeModal({ requiredPlan, onClose }) {
+  const nav = useNavigate()
+  const isPro = requiredPlan === 'professional'
+  const price = isPro ? '$149' : '$299'
+  const planName = isPro ? 'Professional' : 'Enterprise'
+  const color = isPro ? '#2563EB' : '#7C3AED'
+  const features = isPro
+    ? ['Real-Time Risk Alert Engine', 'What-If Tax Scenario Simulator', 'One-Click CPA Export Pack', 'Audit Red Flag Detector', 'Unlimited integrations']
+    : ['Everything in Professional', 'Multi-entity consolidated tax view', 'AI-Generated Audit Defense Narrative', 'Risk Tolerance Profiling', 'CPA Collaboration Portal']
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 460, width: '100%', padding: '36px 32px', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1px', marginBottom: 8 }}>UPGRADE REQUIRED</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 8px' }}>Unlock {planName}</h2>
+        <p style={{ fontSize: 14, color: '#475569', margin: '0 0 20px', lineHeight: 1.6 }}>This feature is available on the {planName} plan ({price}/mo).</p>
+        <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
+          {features.map(f => (
+            <div key={f} style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 13, color: '#0D1B3E', borderBottom: '1px solid #F1F5F9' }}>
+              <span style={{ color }}>✓</span> {f}
+            </div>
+          ))}
+        </div>
+        <button onClick={() => nav('/signup?plan=' + planName.toLowerCase())} style={{ width: '100%', padding: '13px', background: color, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}>
+          Upgrade to {planName} — {price}/mo
+        </button>
+        <button onClick={onClose} style={{ width: '100%', padding: '11px', background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          Maybe later
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AIAnalysis() {
   const nav = useNavigate()
   const [activeTab, setActiveTab] = useState(0)
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
+  const [showUpgrade, setShowUpgrade] = useState(null) // 'professional' | 'enterprise'
+  const plan = (localStorage.getItem('plan') || 'starter').toLowerCase()
+  const isPro = plan === 'professional' || plan === 'enterprise'
+  const isEnterprise = plan === 'enterprise'
   const totalActive = CATEGORIES.flatMap(c => c.features).filter(f => f.status === 'active').length
   const complianceScore = 87
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} />
       {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -471,9 +511,9 @@ export default function AIAnalysis() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           {[
-            { icon: '📋', title: 'Generate CPA Export Pack', desc: 'One-click IRS-friendly report for your accountant.', btn: 'Generate Report', color: B, action: () => setShowReport(true) },
-            { icon: '🎯', title: 'Run What-If Simulator', desc: 'Model a financial decision without affecting real data.', btn: 'Open Simulator', color: G, action: () => setShowSimulator(true) },
-            { icon: '🛡️', title: 'View Audit Defense Narrative', desc: 'Plain-English IRS correspondence ready to send.', btn: 'View Narrative', color: P, action: () => setShowNarrative(true) },
+            { icon: '📋', title: 'Generate CPA Export Pack', desc: 'One-click IRS-friendly report for your accountant.', btn: 'Generate Report', color: B, action: () => isPro ? setShowReport(true) : setShowUpgrade('professional') },
+            { icon: '🎯', title: 'Run What-If Simulator', desc: 'Model a financial decision without affecting real data.', btn: 'Open Simulator', color: G, action: () => isPro ? setShowSimulator(true) : setShowUpgrade('professional') },
+            { icon: '🛡️', title: 'View Audit Defense Narrative', desc: 'Plain-English IRS correspondence ready to send.', btn: 'View Narrative', color: P, action: () => isEnterprise ? setShowNarrative(true) : setShowUpgrade('enterprise') },
           ].map(a => (
             <div key={a.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>{a.icon}</div>
