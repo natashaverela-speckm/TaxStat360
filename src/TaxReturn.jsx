@@ -1,0 +1,506 @@
+import React from 'react'
+import { useNavigate } from 'react-router-dom'
+
+const N = '#0D1B3E'
+const B = '#2563EB'
+const G = '#16a34a'
+const R = '#dc2626'
+const SL = '#475569'
+
+// 2025 Federal Tax Brackets (Single)
+const BRACKETS_SINGLE = [
+  { max: 11925,   rate: 0.10 },
+  { max: 48475,   rate: 0.12 },
+  { max: 103350,  rate: 0.22 },
+  { max: 197300,  rate: 0.24 },
+  { max: 250525,  rate: 0.32 },
+  { max: 626350,  rate: 0.35 },
+  { max: Infinity, rate: 0.37 },
+]
+// 2025 Federal Tax Brackets (MFJ / QSS)
+const BRACKETS_MFJ = [
+  { max: 23850,   rate: 0.10 },
+  { max: 96950,   rate: 0.12 },
+  { max: 206700,  rate: 0.22 },
+  { max: 394600,  rate: 0.24 },
+  { max: 501050,  rate: 0.32 },
+  { max: 751600,  rate: 0.35 },
+  { max: Infinity, rate: 0.37 },
+]
+// MFS / HOH use same as Single for simplicity (HOH has its own — close enough for planning)
+const BRACKETS_HOH = [
+  { max: 17000,   rate: 0.10 },
+  { max: 64850,   rate: 0.12 },
+  { max: 103350,  rate: 0.22 },
+  { max: 197300,  rate: 0.24 },
+  { max: 250500,  rate: 0.32 },
+  { max: 626350,  rate: 0.35 },
+  { max: Infinity, rate: 0.37 },
+]
+
+// Standard deductions 2025
+const STD_DEDUCTION = {
+  single: 15750,
+  mfj: 31500,
+  mfs: 15750,
+  hoh: 23625,
+  qss: 31500,
+}
+
+// Additional Medicare Tax thresholds
+const AMT_THRESHOLD = {
+  single: 200000,
+  mfj: 250000,
+  mfs: 125000,
+  hoh: 200000,
+  qss: 250000,
+}
+
+function getBrackets(status) {
+  if (status === 'mfj' || status === 'qss') return BRACKETS_MFJ
+  if (status === 'hoh') return BRACKETS_HOH
+  return BRACKETS_SINGLE
+}
+
+function calcFederalTax(taxableIncome, status) {
+  if (taxableIncome <= 0) return 0
+  const brackets = getBrackets(status)
+  let tax = 0
+  let prev = 0
+  for (const b of brackets) {
+    if (taxableIncome <= prev) break
+    const chunk = Math.min(taxableIncome, b.max) - prev
+    tax += chunk * b.rate
+    prev = b.max
+  }
+  return Math.round(tax)
+}
+
+function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
+  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
+  const qbiComponent = qbiIncome * 0.20
+  const netCapGain = Math.max(0, capitalGains)
+  const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20
+  return Math.round(Math.min(qbiComponent, incomeLimitation))
+}
+
+function fmt(n) {
+  if (n === null || n === undefined) return '$0'
+  const abs = Math.abs(Math.round(n))
+  const str = '$' + abs.toLocaleString('en-US')
+  return n < 0 ? '(' + str + ')' : str
+}
+
+function nv(v) {
+  return parseFloat((v || '').toString().replace(/[^0-9.-]/g, '')) || 0
+}
+
+// Tax bracket indicator
+function BracketBadge({ rate }) {
+  const colors = {
+    0: { bg: '#f0fdf4', color: '#15803d', label: '0%' },
+    10: { bg: '#f0fdf4', color: '#15803d', label: '10%' },
+    12: { bg: '#eff6ff', color: '#1d4ed8', label: '12%' },
+    22: { bg: '#fefce8', color: '#854d0e', label: '22%' },
+    24: { bg: '#fff7ed', color: '#9a3412', label: '24%' },
+    32: { bg: '#fef2f2', color: '#b91c1c', label: '32%' },
+    35: { bg: '#fef2f2', color: '#991b1b', label: '35%' },
+    37: { bg: '#450a0a', color: '#fca5a5', label: '37%' },
+  }
+  const c = colors[Math.round(rate * 100)] || { bg: '#f1f5f9', color: N, label: Math.round(rate * 100) + '%' }
+  return (
+    <span style={{ background: c.bg, color: c.color, borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
+      {c.label} bracket
+    </span>
+  )
+}
+
+export default function TaxReturn() {
+  const nav = useNavigate()
+
+  // Load K-1 data passed from Step 1
+  const k1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
+  const entitiesRaw = sessionStorage.getItem('ts360_entities')
+  const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
+
+  // Personal inputs
+  const [status, setStatus] = React.useState('single')
+  const [w2Income, setW2Income] = React.useState('')
+  const [dependents, setDependents] = React.useState('0')
+  const [isREP, setIsREP] = React.useState(false)
+  const [rentalIncome, setRentalIncome] = React.useState('')
+  const [rentalExpenses, setRentalExpenses] = React.useState('')
+  const [capitalGains, setCapitalGains] = React.useState('')
+  const [interest, setInterest] = React.useState('')
+  const [dividends, setDividends] = React.useState('')
+  const [useItemized, setUseItemized] = React.useState(false)
+  const [itemizedAmt, setItemizedAmt] = React.useState('')
+  const [estPaid, setEstPaid] = React.useState('')
+  const [w2Withheld, setW2Withheld] = React.useState('')
+  const [showDetail, setShowDetail] = React.useState(false)
+
+  // Core calculations
+  const w2 = nv(w2Income)
+  const rentalNet = isREP ? (nv(rentalIncome) - nv(rentalExpenses)) : Math.max(0, nv(rentalIncome) - nv(rentalExpenses))
+  const capGain = nv(capitalGains)
+  const intInc = nv(interest)
+  const divInc = nv(dividends)
+
+  // Total gross income
+  const grossIncome = w2 + k1Total + rentalNet + capGain + intInc + divInc
+
+  // Adjustments — none for now (can add SE tax deduction if sole prop)
+  const adjustments = 0
+  const agi = grossIncome - adjustments
+
+  // Deductions
+  const stdDed = STD_DEDUCTION[status] || 15750
+  const itemized = nv(itemizedAmt)
+  const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
+
+  // QBI — only on positive qualified business income
+  const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
+  const taxableBeforeQBI = Math.max(0, agi - deduction)
+  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, capGain)
+
+  // Taxable income
+  const taxableIncome = Math.max(0, taxableBeforeQBI - qbi)
+
+  // Federal income tax
+  const fedTax = calcFederalTax(taxableIncome, status)
+
+  // Marginal rate
+  const brackets = getBrackets(status)
+  let marginalRate = 0
+  if (taxableIncome > 0) {
+    let prev = 0
+    for (const b of brackets) {
+      if (taxableIncome > prev) { marginalRate = b.rate }
+      prev = b.max
+    }
+  }
+
+  // Additional Medicare Tax (0.9% on wages/SE over threshold)
+  const amtThreshold = AMT_THRESHOLD[status] || 200000
+  const additionalMedicare = Math.round(Math.max(0, w2 - amtThreshold) * 0.009)
+
+  // Child tax credit
+  const numDependents = parseInt(dependents) || 0
+  const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare)
+
+  // Total tax
+  const totalTax = Math.max(0, fedTax + additionalMedicare - childCredit)
+
+  // Effective rate
+  const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
+
+  // Payments
+  const withheld = nv(w2Withheld)
+  const estimated = nv(estPaid)
+  const totalPayments = withheld + estimated
+  const balance = totalTax - totalPayments
+
+  // Quarterly estimate recommendation (remaining quarters)
+  const quarterlyRecommended = balance > 0 ? Math.round(balance / 4) : 0
+
+  const inp = { width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', outline: 'none' }
+  const lbl = { fontSize: 11, fontWeight: 700, color: SL, display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', color: N }}>
+      <style>{`input:focus, select:focus { outline: 2px solid ${B} !important; box-shadow: none !important; }`}</style>
+
+      {/* Nav */}
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => nav('/calculate-tax')}>
+            <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
+            </div>
+            <span style={{ fontSize: 19, fontWeight: 800, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+          </div>
+          <span style={{ fontSize: 12, background: B, color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Step 2 of 2 — Personal Return</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>← Back to Business</button>
+          <button onClick={() => nav('/ai-analysis')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>AI Analysis</button>
+          <button onClick={() => { localStorage.clear(); nav('/') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
+
+        {/* LEFT — Inputs */}
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 4 }}>Personal Tax Return</h1>
+          <p style={{ color: SL, fontSize: 14, marginBottom: 24 }}>Enter your personal info to calculate your total federal tax liability.</p>
+
+          {/* K-1 Summary from Step 1 */}
+          {entities.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 INCOME FROM STEP 1</div>
+              {entities.map((e, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: N }}>{e.name}</div>
+                    <div style={{ fontSize: 11, color: SL }}>{e.type} · {e.own}% ownership</div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: e.k1 >= 0 ? G : R }}>{fmt(e.k1)}</div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid #E2E8F0' }}>
+                <span style={{ fontWeight: 700, color: N }}>Total K-1 to Schedule E</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Filing Status */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>FILING STATUS & DEPENDENTS</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Filing Status</label>
+                <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
+                  <option value="single">Single</option>
+                  <option value="mfj">Married Filing Jointly</option>
+                  <option value="mfs">Married Filing Separately</option>
+                  <option value="hoh">Head of Household</option>
+                  <option value="qss">Qualifying Surviving Spouse</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Qualifying Dependents</label>
+                <select value={dependents} onChange={e => setDependents(e.target.value)} style={inp}>
+                  {[0,1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} dependent{n !== 1 ? 's' : ''}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* W-2 & Withholding */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>W-2 INCOME & WITHHOLDING</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>W-2 Wages (all jobs)</label>
+                <input value={w2Income} onChange={e => setW2Income(e.target.value)} placeholder="0" style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Federal Tax Withheld (W-2)</label>
+                <input value={w2Withheld} onChange={e => setW2Withheld(e.target.value)} placeholder="0" style={inp} />
+              </div>
+            </div>
+          </div>
+
+          {/* Rental Real Estate */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>RENTAL REAL ESTATE (SCHEDULE E)</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
+                <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+                Real Estate Professional
+              </label>
+            </div>
+            {isREP && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
+                ✓ REP status: rental losses fully deductible against all income (unlimited)
+              </div>
+            )}
+            {!isREP && (
+              <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
+                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Total Rental Income</label>
+                <input value={rentalIncome} onChange={e => setRentalIncome(e.target.value)} placeholder="0" style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Total Rental Expenses (incl. depreciation)</label>
+                <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
+              </div>
+            </div>
+          </div>
+
+          {/* Other Income */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>OTHER INCOME</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Capital Gains / (Losses)</label>
+                <input value={capitalGains} onChange={e => setCapitalGains(e.target.value)} placeholder="0" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Enter negative for losses</div>
+              </div>
+              <div>
+                <label style={lbl}>Taxable Interest</label>
+                <input value={interest} onChange={e => setInterest(e.target.value)} placeholder="0" style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Ordinary Dividends</label>
+                <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" style={inp} />
+              </div>
+            </div>
+          </div>
+
+          {/* Deductions */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>DEDUCTIONS</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
+                <input type="checkbox" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+                Use itemized deductions
+              </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: useItemized ? '1fr 1fr' : '1fr', gap: 12 }}>
+              <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : 'Single'})</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{fmt(stdDed)}</span>
+              </div>
+              {useItemized && (
+                <div>
+                  <label style={lbl}>Your Itemized Deductions (Schedule A)</label>
+                  <input value={itemizedAmt} onChange={e => setItemizedAmt(e.target.value)} placeholder="0" style={inp} />
+                </div>
+              )}
+            </div>
+            {useItemized && itemized > stdDed && (
+              <div style={{ marginTop: 8, fontSize: 12, color: G, fontWeight: 600 }}>
+                ✓ Itemizing saves you {fmt(itemized - stdDed)} over standard deduction
+              </div>
+            )}
+            {useItemized && itemized <= stdDed && itemized > 0 && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#92400e', fontWeight: 600 }}>
+                ⚠ Standard deduction ({fmt(stdDed)}) is higher — standard deduction will be used
+              </div>
+            )}
+          </div>
+
+          {/* Estimated Tax Payments */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>ESTIMATED TAX PAYMENTS MADE</div>
+            <div>
+              <label style={lbl}>Total Estimated Payments Paid This Year</label>
+              <input value={estPaid} onChange={e => setEstPaid(e.target.value)} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
+              <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — Live Results */}
+        <div style={{ position: 'sticky', top: 72 }}>
+
+          {/* Total Tax Card */}
+          <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16, boxShadow: '0 12px 40px rgba(13,27,62,0.25)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
+            <div style={{ fontSize: 48, fontWeight: 900, color: totalTax === 0 ? '#4ADE80' : '#F87171', lineHeight: 1, marginBottom: 4 }}>
+              {fmt(totalTax)}
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
+              {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on earned income' : 'No federal income tax owed'}
+            </div>
+
+            {/* Balance due / refund */}
+            <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'BALANCE DUE' : 'ESTIMATED REFUND'}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
+              {balance > 0 && quarterlyRecommended > 0 && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                  Recommend {fmt(quarterlyRecommended)}/quarter going forward
+                </div>
+              )}
+            </div>
+
+            {/* Marginal bracket */}
+            {taxableIncome > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Marginal bracket</span>
+                <BracketBadge rate={marginalRate} />
+              </div>
+            )}
+
+            {/* QBI */}
+            {qbi > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>QBI deduction</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#4ADE80' }}>{fmt(qbi)} saved</span>
+              </div>
+            )}
+
+            {/* AMT */}
+            {additionalMedicare > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Add'l Medicare Tax (0.9%)</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(additionalMedicare)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Income Waterfall */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <button onClick={() => setShowDetail(!showDetail)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
+              INCOME WATERFALL {showDetail ? '▲' : '▼'}
+            </button>
+            {showDetail && (
+              <div style={{ marginTop: 12 }}>
+                {[
+                  ['W-2 Wages', w2, true],
+                  ['K-1 Business Income', k1Total, k1Total >= 0],
+                  ['Rental Net', rentalNet, rentalNet >= 0],
+                  ['Capital Gains', capGain, capGain >= 0],
+                  ['Interest & Dividends', intInc + divInc, true],
+                  ['─────────────────', null, true],
+                  ['Gross Income', grossIncome, grossIncome >= 0],
+                  ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
+                  ['QBI Deduction', qbi > 0 ? -qbi : 0, false],
+                  ['─────────────────', null, true],
+                  ['Taxable Income', taxableIncome, taxableIncome >= 0],
+                  ['Federal Income Tax', -fedTax, false],
+                  ['Add\'l Medicare Tax', -additionalMedicare, false],
+                  ['Child Tax Credit', childCredit > 0 ? childCredit : 0, true],
+                  ['─────────────────', null, true],
+                  ['Total Tax', -totalTax, false],
+                ].map(([label, val, pos], i) => {
+                  if (val === null) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
+                  if (val === 0 && !['Gross Income','Taxable Income','Total Tax'].includes(label)) return null
+                  const isBold = ['Gross Income','Taxable Income','Total Tax'].includes(label)
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #F8FAFC' }}>
+                      <span style={{ fontSize: 12, color: isBold ? N : SL, fontWeight: isBold ? 700 : 400 }}>{label}</span>
+                      <span style={{ fontSize: 12, fontWeight: isBold ? 700 : 600, color: isBold ? N : (val < 0 ? R : (val > 0 ? G : SL)) }}>
+                        {val < 0 ? '(' + '$' + Math.abs(Math.round(val)).toLocaleString() + ')' : val > 0 ? '$' + Math.round(val).toLocaleString() : '$0'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quarterly Schedule */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
+            {[
+              ['Q1', 'Apr 15', totalTax / 4],
+              ['Q2', 'Jun 16', totalTax / 4],
+              ['Q3', 'Sep 15', totalTax / 4],
+              ['Q4', 'Jan 15 \'26', totalTax / 4],
+            ].map(([q, due, amt]) => (
+              <div key={q} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F8FAFC' }}>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: N }}>{q}</span>
+                  <span style={{ fontSize: 11, color: SL, marginLeft: 8 }}>Due {due}</span>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: amt > 0 ? R : G }}>{fmt(Math.round(amt))}</span>
+              </div>
+            ))}
+            <div style={{ marginTop: 12, padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: SL, lineHeight: 1.5 }}>
+              Based on annual liability ÷ 4. Adjust for income earned to date.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

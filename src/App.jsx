@@ -4,6 +4,7 @@ import Landing from './Landing'
 import Onboarding from './Onboarding'
 import CalculateTax from './CalculateTax'
 import CalculateTaxInner from './CalculateTaxInner'
+import TaxReturn from './TaxReturn'
 import AIAnalysis from './AIAnalysis'
 import Dashboard from './Dashboard'
 
@@ -57,7 +58,7 @@ export default function App() {
 
         {/* Protected app routes */}
         <Route path="/calculate-tax" element={<CalculateTax />} />
-        <Route path="/tax-return" element={<CalculateTaxInner />} />
+        <Route path="/tax-return" element={<TaxReturn />} />
         <Route path="/ai-analysis" element={<AIAnalysis />} />
 
         {/* Fallback */}
