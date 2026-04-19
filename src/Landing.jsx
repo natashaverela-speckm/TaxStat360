@@ -15,6 +15,7 @@ function Nav({ nav }) {
         <span style={{ fontWeight: 800, fontSize: 15, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
       </div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <a href="#pricing" style={{ color: N, fontWeight: 600, fontSize: 15, textDecoration: 'none', cursor: 'pointer' }}>Pricing</a>
         <button onClick={() => nav('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Start Free Trial</button>
       </div>
@@ -24,11 +25,9 @@ function Nav({ nav }) {
 
 export default function Landing() {
   const nav = useNavigate()
-
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
       <Nav nav={nav} />
-
       <section style={{ background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)', padding: '80px 24px 60px', textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #dde6f0', borderRadius: 100, padding: '8px 18px', fontSize: 15, fontWeight: 700, letterSpacing: 1.5, color: N, marginBottom: 32, textTransform: 'uppercase' }}>
           <span style={{ color: B }}>&#10003;</span> Get in Front of Your Largest Expense
@@ -54,7 +53,6 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
@@ -63,7 +61,6 @@ export default function Landing() {
           <iframe src="https://player.vimeo.com/video/1180620888?autoplay=0&title=0&byline=0&portrait=0" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen></iframe>
         </div>
       </section>
-
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
@@ -76,7 +73,6 @@ export default function Landing() {
           &#10003; IRS-Approved Methodology
         </button>
       </section>
-
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
@@ -99,7 +95,6 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Your tax bill in 3 steps</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
@@ -117,27 +112,6 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
-      <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Real Wealth Building Results from Strategic Tax Planning</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Business owners who stopped reacting to taxes and started managing them</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
-          {[
-            { quote: 'TaxStat360 helped me keep an extra $47,000 in working capital this year by showing me exactly when to make strategic moves. My cash flow has never been stronger.', name: 'Sarah Chen', role: 'S-Corp Owner, Marketing Agency' },
-            { quote: 'Real-time tax visibility changed everything. Instead of scrambling at year-end, I make informed decisions monthly that compound my wealth over time.', name: 'Marcus Rodriguez', role: 'Multi-Entity Real Estate Investor' },
-            { quote: 'The strategic insights are incredible. I saved over $31,000 in taxes last year by timing deductions properly. This is the tool every business owner needs.', name: 'Jennifer Park', role: 'LLC Owner, Consulting Firm' },
-          ].map((t,i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 16, padding: 32, textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <div style={{ color: '#F59E0B', fontSize: 13, marginBottom: 16 }}>&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-              <p style={{ fontSize: 15, color: '#334155', lineHeight: 1.7, fontStyle: 'italic', marginBottom: 20 }}>&ldquo;{t.quote}&rdquo;</p>
-              <p style={{ fontWeight: 700, color: N, marginBottom: 4 }}>{t.name}</p>
-              <p style={{ fontSize: 13, color: '#94a3b8' }}>{t.role}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Frequently Asked Questions</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
@@ -162,8 +136,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
-      <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
+      <section id="pricing" style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
@@ -189,14 +162,28 @@ export default function Landing() {
         </div>
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
       </section>
-
       <section style={{ padding: '36px 24px', background: N, textAlign: 'center' }}>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
-        <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join thousands of business owners who manage tax liability proactively every month and keep more of what they earn.</p>
+        <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join business owners who manage tax liability proactively every month and keep more of what they earn.</p>
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
         <p style={{ color: '#64748b', fontSize: 13 }}>No credit card required &middot; Full access &middot; Cancel anytime</p>
       </section>
-
+      <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ width: 28, height: 28, background: B, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>TaxStat<span style={{ color: B }}>360</span></span>
+          </div>
+          <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+            <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
+            <a href="/terms" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
+            <a href="mailto:support@taxstat360.com" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
+          </div>
+          <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
+        </div>
+      </footer>
       <Aria />
     </div>
   )
