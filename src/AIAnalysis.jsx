@@ -380,8 +380,7 @@ Respectfully submitted,`
 
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
-function UpgradeModal({ requiredPlan, onClose }) {
-  const nav = useNavigate()
+function UpgradeModal({ requiredPlan, onClose, nav }) {
   const isPro = requiredPlan === 'professional'
   const price = isPro ? '$149' : '$299'
   const planName = isPro ? 'Professional' : 'Enterprise'
@@ -428,7 +427,7 @@ export default function AIAnalysis() {
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {showReport && <ReportModal onClose={() => setShowReport(false)} />}
-      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} />
+      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} nav={nav} />
       {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
