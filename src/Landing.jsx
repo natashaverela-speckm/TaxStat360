@@ -149,7 +149,7 @@ export default function Landing() {
               <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
               <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span></div>
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
-              <button onClick={() => nav('/signup')} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
+              <button onClick={() => nav('/signup?plan='+p.name.toLowerCase())} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
                 {p.features.map((f,j) => (
                   <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: p.highlight ? '#d1e0f5' : '#475569', borderTop: j === 0 ? 'none' : '1px solid ' + (p.highlight ? 'rgba(255,255,255,0.08)' : '#f1f5f9') }}>
