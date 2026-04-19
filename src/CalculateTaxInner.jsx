@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569',G='#16a34a',R='#dc2626'
 const API='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const INTS=[{id:'quickbooks',name:'QuickBooks',color:'#2CA01C',abbr:'QB'},{id:'xero',name:'Xero',color:'#13B5EA',abbr:'XE'},{id:'wave',name:'Wave',color:'#2C6ECB',abbr:'WV'},{id:'freshbooks',name:'FreshBooks',color:'#1a9c3e',abbr:'FB'}]
-const fmt=n=>'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
+const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 const nv=v=>parseFloat((v||'').toString().replace(/[^0-9.-]/g,''))||0
 const OWN=[['100','100%'],['75','75%'],['67','67%'],['60','60%'],['50','50%'],['40','40%'],['33','33%'],['25','25%'],['20','20%'],['10','10%'],['5','5%'],['1','1%']]
 const ENTITY_TYPES=['S-Corp','LLC (Partnership)','LLC (Single-Member)','Sole Proprietorship','C-Corp','Partnership']
@@ -20,7 +20,7 @@ const TEMPLATES=[
 ]
 
 function exportEntitiesToCSV(entities){
-  const rows=[['Name','Entity Type','EIN','State','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit','K-1 Share']]
+  const rows=[['Name','Entity Type','EIN','State','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
   entities.forEach(ent=>{
     const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):''
     rows.push([ent.name,ent.type,ent.ein||'',ent.state||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
@@ -130,7 +130,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
-              {[['Revenue',fmt(ent.pnl.grossRevenue),G],['Expenses',fmt(ent.pnl.totalExpenses),R],['Net Profit',fmt(ent.pnl.netProfit),ent.pnl.netProfit>=0?G:R]].map(([l,v,c])=>(
+              {[['Revenue',fmt(ent.pnl.grossRevenue),G],['Expenses',fmt(ent.pnl.totalExpenses),R],['Net Profit (Loss)',fmt(ent.pnl.netProfit),ent.pnl.netProfit>=0?G:R]].map(([l,v,c])=>(
                 <div key={l} style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',textAlign:'center',border:'1px solid #F1F5F9'}}>
                   <div style={{fontSize:10,color:SL,marginBottom:2}}>{l}</div>
                   <div style={{fontSize:17,fontWeight:800,color:c}}>{v}</div>
