@@ -224,7 +224,7 @@ export default function TaxReturn() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>← Back to Business</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>AI Analysis</button>
-          <button onClick={() => { localStorage.clear(); nav('/') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
+          <button onClick={() => { localStorage.clear(); nav('/dashboard') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
         </div>
       </nav>
 
@@ -498,6 +498,20 @@ export default function TaxReturn() {
             <div style={{ marginTop: 12, padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: SL, lineHeight: 1.5 }}>
               Based on annual liability ÷ 4. Adjust for income earned to date.
             </div>
+          </div>
+
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button onClick={() => {
+              const record = { id: Date.now(), savedAt: new Date().toLocaleString(), type: 'personal-return', filingStatus, w2Income, rentalIncome, rentalExpenses, capitalGains, interest, dividends, isREP, totalTax: Math.round(totalTax), balanceDue: Math.round(balanceDue), refund: Math.round(refund), quarterly: Math.round(q1) }
+              const existing = JSON.parse(localStorage.getItem('ts360_records') || '[]')
+              localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0,9)]))
+              alert('✅ Record saved! View it in your Dashboard.')
+            }} style={{ width: '100%', padding: '13px', background: '#0D1B3E', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              💾 Save This Record
+            </button>
+            <button onClick={() => nav('/ai-analysis')} style={{ width: '100%', padding: '13px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              🧠 View AI Analysis & Risk Report →
+            </button>
           </div>
         </div>
       </div>
