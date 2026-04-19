@@ -70,7 +70,7 @@ export default function Landing() {
           TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into AI-powered protection for your business.
         </p>
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          &#10003; IRS-Approved Methodology
+          &#10003; Built on IRS Tax Code Standards
         </button>
       </section>
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
