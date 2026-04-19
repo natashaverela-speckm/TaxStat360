@@ -5,13 +5,13 @@ const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
 const BRACKETS = {
-  single:[[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
-  mfj:   [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+  single:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+  mfj:   [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
   mfs:   [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
   hoh:   [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-  qss:   [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+  qss:   [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
 }
-const STD={single:14600,mfj:29200,mfs:14600,hoh:21900,qss:29200}
+const STD={single:15750,mfj:31500,mfs:15750,hoh:23625,qss:31500}
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
 const ENTITY_TYPES=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor','C-Corporation']
 const PASSTHROUGH=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor']
@@ -94,7 +94,7 @@ export default function Dashboard(){
       localStorage.setItem('ts360_connected_app','Xero')
       setConnectedApp('Xero')
       setXeroLoading(true)
-      fetch('https://app.taxstat360.com/xero/data?token='+xeroToken)
+      fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/data?token='+xeroToken)
         .then(r=>r.json())
         .then(data=>{
           if(data.grossRevenue){
