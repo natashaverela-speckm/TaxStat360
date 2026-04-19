@@ -12,7 +12,8 @@ const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>(<div style={{m
 function SignupScreen(){
   const nav=useNavigate()
   const loc=useLocation()
-  const plan=(new URLSearchParams(loc.search).get('plan')||'basic').toLowerCase()
+  const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
+  const plan=['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter'
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
@@ -24,7 +25,7 @@ function SignupScreen(){
   const stripeRef=useRef(null)
   const elemRef=useRef(null)
   const cardRef=useRef(null)
-  const LABELS={basic:'Basic $49/mo',professional:'Professional $99/mo',advanced:'Advanced $199/mo'}
+  const LABELS={Starter:'Starter $79/mo',professional:'Professional $149/mo',advanced:'Advanced $199/mo'}
 
   useEffect(()=>{
     const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
