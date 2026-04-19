@@ -143,6 +143,7 @@ function ReportModal({ onClose }) {
               ['Filing Status', (latest.f1040?.filingStatus || '').toUpperCase()],
               ['W-2 Income', latest.f1040?.w2Income ? '$' + parseFloat(latest.f1040.w2Income).toLocaleString() : ''],
             ].filter(([, v]) => v).map(([label, value]) => (
+
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
                 <span style={{ color: SL }}>{label}</span>
                 <span style={{ fontWeight: 600, color: N }}>{value}</span>
@@ -258,88 +259,57 @@ function NarrativeModal({ onClose }) {
   const [selected, setSelected] = useState(0)
   const [copied, setCopied] = useState(false)
   const narratives = [
-    {
-      title: 'Real Estate Professional Status',
-      tag: 'REP · IRC §469(c)(7)',
-      color: P,
-      text: `Dear IRS Representative,
+    { title: 'Real Estate Professional Status', tag: 'REP · IRC §469(c)(7)', color: P, text: `Dear IRS Representative,
 
 This letter responds to your inquiry regarding the taxpayer's Real Estate Professional (REP) classification under IRC Section 469(c)(7) for tax year 2025.
 
 The taxpayer qualifies as a Real Estate Professional based on the following:
 
 1. MORE THAN 50% OF PERSONAL SERVICES
-The taxpayer performed more than 50% of all personal services in real property trades or businesses in which they materially participated. Total hours in real estate activities exceeded 1,200 hours, representing the majority of all professional services rendered during the year.
+The taxpayer performed more than 50% of all personal services in real property trades or businesses in which they materially participated.
 
 2. MORE THAN 750 HOURS
-The taxpayer performed more than 750 hours of services during the year in real property trades or businesses in which they materially participated, satisfying the statutory threshold under IRC §469(c)(7)(B).
+The taxpayer performed more than 750 hours of services during the year satisfying the statutory threshold under IRC §469(c)(7)(B).
 
 3. MATERIAL PARTICIPATION
-The taxpayer materially participated in each rental activity, meeting the 500-hour test under Treas. Reg. §1.469-5T(a)(1). Comprehensive time logs are available upon request.
+The taxpayer materially participated in each rental activity meeting the 500-hour test under Treas. Reg. §1.469-5T(a)(1).
 
-As a result, rental real estate losses are treated as non-passive and are fully deductible against all income sources without limitation pursuant to IRC §469(c)(7)(A).
+As a result, rental real estate losses are treated as non-passive and are fully deductible pursuant to IRC §469(c)(7)(A).
 
-Supporting documentation includes time logs, calendar records, property management records, and professional correspondence.
-
-Respectfully submitted,`
-    },
-    {
-      title: 'S-Corp Reasonable Compensation',
-      tag: 'Officer Salary · Rev. Rul. 74-44',
-      color: R,
-      text: `Dear IRS Representative,
+Respectfully submitted,` },
+    { title: 'S-Corp Reasonable Compensation', tag: 'Officer Salary · Rev. Rul. 74-44', color: R, text: `Dear IRS Representative,
 
 This letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.
 
-The officer salary represents reasonable compensation based on the following:
+The officer salary represents reasonable compensation based on:
 
-1. INDUSTRY BENCHMARKS
-Compensation was determined by reference to comparable salaries for similar positions in the industry, consistent with Rev. Rul. 74-44.
+1. INDUSTRY BENCHMARKS - Compensation was determined by reference to comparable salaries consistent with Rev. Rul. 74-44.
 
-2. DUTIES AND RESPONSIBILITIES
-The officer-shareholder performs substantial services including business development, client management, financial oversight, and operational management.
+2. DUTIES AND RESPONSIBILITIES - The officer-shareholder performs substantial services including business development, client management, and financial oversight.
 
-3. CORPORATE PROFITABILITY
-The compensation represents a reasonable percentage of gross revenues and distributions, consistent with industry norms.
+3. CORPORATE PROFITABILITY - The compensation represents a reasonable percentage of gross revenues consistent with industry norms.
 
-4. INDEPENDENT VERIFICATION
-Compensation was determined with reference to Bureau of Labor Statistics Occupational Employment Statistics.
+The S-Corporation maintains complete payroll records and W-2 forms.
 
-The S-Corporation maintains complete payroll records, W-2 forms, and supporting documentation.
-
-Respectfully submitted,`
-    },
-    {
-      title: 'K-1 Loss Deductibility',
-      tag: 'Schedule E · IRC §1366(d)',
-      color: '#0891b2',
-      text: `Dear IRS Representative,
+Respectfully submitted,` },
+    { title: 'K-1 Loss Deductibility', tag: 'Schedule E · IRC §1366(d)', color: '#0891b2', text: `Dear IRS Representative,
 
 This letter responds to your inquiry regarding Schedule E losses reported from the taxpayer's S-Corporation K-1 for tax year 2025.
 
-The K-1 losses are fully deductible on the taxpayer's Form 1040 for the following reasons:
+The K-1 losses are fully deductible for the following reasons:
 
-1. SHAREHOLDER BASIS
-The taxpayer maintains sufficient stock basis under IRC §1366(d). Form 7203 is attached demonstrating adequate basis exceeding the claimed loss.
+1. SHAREHOLDER BASIS - The taxpayer maintains sufficient stock basis under IRC §1366(d). Form 7203 is attached.
 
-2. AT-RISK RULES
-The taxpayer is at risk for the full amount of the loss under IRC §465.
+2. AT-RISK RULES - The taxpayer is at risk for the full amount of the loss under IRC §465.
 
-3. MATERIAL PARTICIPATION
-The taxpayer satisfies material participation standards under Treas. Reg. §1.469-5T. Losses are non-passive and fully deductible.
+3. MATERIAL PARTICIPATION - The taxpayer satisfies material participation standards under Treas. Reg. §1.469-5T.
 
-4. LEGITIMATE BUSINESS PURPOSE
-The S-Corporation is a bona fide trade or business with genuine revenue. Losses reflect legitimate operating expenses.
+Complete corporate returns (Form 1120-S) and K-1 schedules are available upon request.
 
-Complete corporate returns (Form 1120-S), K-1 schedules, and Form 7203 are available upon request.
-
-Respectfully submitted,`
-    },
+Respectfully submitted,` },
   ]
   const current = narratives[selected]
-  const handleCopy = () => {
-    navigator.clipboard.writeText(current.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-  }
+  const handleCopy = () => { navigator.clipboard.writeText(current.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
@@ -365,28 +335,26 @@ Respectfully submitted,`
           {current.text}
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'background 0.2s' }}>
+          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
             {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
           </button>
           <button onClick={() => window.print()} style={{ flex: 1, padding: '11px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
             🖨 Print
           </button>
         </div>
-        <div style={{ fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.5 }}>⚠️ Templates only. Review with a licensed tax attorney before submitting to the IRS.</div>
+        <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>⚠️ Templates only. Review with a licensed tax attorney before submitting to the IRS.</div>
       </div>
     </Modal>
   )
 }
 
-
-// ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ requiredPlan, onClose, nav }) {
   const isPro = requiredPlan === 'professional'
   const price = isPro ? '$149' : '$299'
   const planName = isPro ? 'Professional' : 'Enterprise'
   const color = isPro ? '#2563EB' : '#7C3AED'
   const features = isPro
-    ? ['Real-Time Risk Alert Engine', 'What-If Tax Scenario Simulator', 'One-Click CPA Export Pack', 'Audit Red Flag Detector', 'Unlimited integrations']
+    ? ['Real-Time Risk Alert Engine', 'What-If Tax Scenario Simulator', 'One-Click CPA Export Pack', 'Audit Red Flag Detector', 'Unlimited accounting integrations']
     : ['Everything in Professional', 'Multi-entity consolidated tax view', 'AI-Generated Audit Defense Narrative', 'Risk Tolerance Profiling', 'CPA Collaboration Portal']
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -418,16 +386,18 @@ export default function AIAnalysis() {
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
-  const [showUpgrade, setShowUpgrade] = useState(null) // 'professional' | 'enterprise'
+  const [showUpgrade, setShowUpgrade] = useState(null)
   const plan = (localStorage.getItem('plan') || 'starter').toLowerCase()
   const isPro = plan === 'professional' || plan === 'enterprise'
   const isEnterprise = plan === 'enterprise'
+
   const totalActive = CATEGORIES.flatMap(c => c.features).filter(f => f.status === 'active').length
   const complianceScore = 87
+
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} nav={nav} />}
       {showReport && <ReportModal onClose={() => setShowReport(false)} />}
-      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} nav={nav} />
       {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
