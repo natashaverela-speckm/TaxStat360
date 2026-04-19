@@ -134,6 +134,7 @@ export default function TaxReturn() {
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
   const [useItemized, setUseItemized] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
   const [itemizedAmt, setItemizedAmt] = React.useState('')
   const [estPaid, setEstPaid] = React.useState('')
   const [w2Withheld, setW2Withheld] = React.useState('')
@@ -502,12 +503,33 @@ export default function TaxReturn() {
 
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button onClick={() => {
-              const record = { id: Date.now(), savedAt: new Date().toLocaleString(), type: 'personal-return', filingStatus, w2Income, rentalIncome, rentalExpenses, capitalGains, interest, dividends, isREP, totalTax: Math.round(totalTax), balanceDue: Math.round(balanceDue), refund: Math.round(refund), quarterly: Math.round(q1) }
-              const existing = JSON.parse(localStorage.getItem('ts360_records') || '[]')
-              localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0,9)]))
-              alert('✅ Record saved! View it in your Dashboard.')
-            }} style={{ width: '100%', padding: '13px', background: '#0D1B3E', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              💾 Save This Record
+              try {
+                const record = {
+                  id: Date.now(),
+                  savedAt: new Date().toLocaleString(),
+                  type: 'personal-return',
+                  filingStatus: status,
+                  w2Income,
+                  rentalIncome,
+                  rentalExpenses,
+                  capitalGains,
+                  interest,
+                  dividends,
+                  isREP,
+                  k1Total: Math.round(k1Total),
+                  totalTax: Math.round(totalTax),
+                  balance: Math.round(balance),
+                  refund: balance < 0 ? Math.round(Math.abs(balance)) : 0,
+                  quarterly: quarterlyRecommended,
+                }
+                const existing = JSON.parse(localStorage.getItem('ts360_records') || '[]')
+                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 9)]))
+                window._savedConfirm = true
+                setSaved(true)
+                setTimeout(() => setSaved(false), 3000)
+              } catch(e) { console.error('Save failed:', e) }
+            }} style={{ width: '100%', padding: '13px', background: saved ? '#059669' : '#0D1B3E', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'background 0.3s' }}>
+              {saved ? '✅ Record Saved!' : '💾 Save This Record'}
             </button>
             <button onClick={() => nav('/ai-analysis')} style={{ width: '100%', padding: '13px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
               🧠 View AI Analysis & Risk Report →
