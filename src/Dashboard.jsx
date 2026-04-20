@@ -84,7 +84,9 @@ export default function Dashboard(){
   const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
     const app=localStorage.getItem('ts360_connected_app')
-    const recs=JSON.parse(localStorage.getItem('ts360_records')||'[]')
+    const email = localStorage.getItem('ts360_email') || 'default'
+    const key = 'ts360_records_' + email
+    const recs=JSON.parse(localStorage.getItem(key)||localStorage.getItem('ts360_records')||'[]')
     if(app)setConnectedApp(app)
     setRecords(recs)
     if(recs.length>0&&recs[0].biz){setBiz(recs[0].biz);setF1040(recs[0].f1040||f1040);setSaved(true)}
@@ -139,7 +141,7 @@ export default function Dashboard(){
         <LOGO/>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          <button onClick={()=>{localStorage.clear();nav('/')}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
+          <button onClick={()=>{localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing');nav('/')}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
         </div>
       </nav>
 
