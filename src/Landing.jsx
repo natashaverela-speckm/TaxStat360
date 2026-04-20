@@ -43,7 +43,7 @@ export default function Landing() {
     try {
       const res = await fetch('https://api.web3forms.com/submit', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ access_key:'6f3b2a1e-4d5c-4e6f-8a9b-0c1d2e3f4a5b', subject:'TaxStat360 Contact — '+contactName, from_name:contactName, email:contactEmail, message:contactMsg })
+        body: JSON.stringify({ access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed', subject:'TaxStat360 Contact — '+contactName, from_name:contactName, email:contactEmail, message:contactMsg })
       })
       if (res.ok) { setContactSent(true); setContactName(''); setContactEmail(''); setContactMsg('') }
       else throw new Error()
