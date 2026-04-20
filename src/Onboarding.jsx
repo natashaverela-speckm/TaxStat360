@@ -144,7 +144,7 @@ function LoginScreen(){
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
-      nav('/calculate-tax')
+      nav('/dashboard')
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
   }
