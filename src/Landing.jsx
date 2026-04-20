@@ -148,6 +148,7 @@ export default function Landing() {
           <span style={{ fontSize:14, fontWeight: billing==='annual'?700:500, color: billing==='annual'?'#0D1B3E':'#64748b' }}>Annual</span>
           <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20 }}>Save 2 months</span>
         </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
             { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
