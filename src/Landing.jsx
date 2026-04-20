@@ -15,8 +15,7 @@ function Nav({ nav }) {
         </div>
         <span style={{ fontWeight: 800, fontSize: 15, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
       </div>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        <a href="#pricing" style={{ color: N, fontWeight: 600, fontSize: 15, textDecoration: 'none', cursor: 'pointer' }}>Pricing</a>
+      <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
         <a href="#how-it-works" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>How It Works</a>
         <a href="#features" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Features</a>
         <a href="#pricing" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Pricing</a>
