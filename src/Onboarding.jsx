@@ -59,7 +59,7 @@ function SignupScreen(){
       localStorage.setItem('billing',billing)
       // Create Stripe subscription for recurring billing
       try{
-        await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,billing,payment_method_id:setupIntent.payment_method})})}
+        await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,billing,payment_method_id:setupIntent.payment_method})})
       }catch(e){ console.warn('Subscribe call failed:',e) }
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
