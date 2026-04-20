@@ -140,11 +140,8 @@ export default function Dashboard(){
     })
     // Show the 1040 section automatically
     setShow1040(true)
-    // Scroll to the 1040 section
-    setTimeout(() => {
-      const el = document.getElementById('dash-1040')
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 100)
+    // Go to f1040 view with restored data
+    setActiveView('f1040')
   }
 
 
@@ -170,7 +167,7 @@ export default function Dashboard(){
       </nav>
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['calculator','🧮 Tax Calculator']].map(([v,label])=>(
+        {[['records','📂 My Records'],['business','Step 1 — Business'],['f1040','Step 2 — Personal 1040']].map(([v,label])=>(
           <button key={v} onClick={()=>setActiveView(v)} style={{
             padding:'12px 20px',background:'none',border:'none',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
             fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
@@ -188,14 +185,14 @@ export default function Dashboard(){
               <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>My Saved Records</h2>
               <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Click any record to load it into the Tax Calculator.</p>
             </div>
-            <button onClick={()=>setActiveView('calculator')} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
+            <button onClick={()=>setActiveView('business')} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
           {records.length===0?(
             <div style={{textAlign:'center',padding:'60px 20px',background:'#fff',borderRadius:16,border:'1px solid #E2E8F0'}}>
               <div style={{fontSize:48,marginBottom:16}}>📂</div>
               <h3 style={{color:N,fontWeight:700,fontSize:18,marginBottom:8}}>No saved records yet</h3>
               <p style={{color:SL,fontSize:14,marginBottom:20}}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
-              <button onClick={()=>{nav('/calculate-tax')}} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start a Calculation →</button>
+              <button onClick={()=>setActiveView('business')} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -214,7 +211,7 @@ export default function Dashboard(){
                     </div>
                   </div>
                   <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20}}>
-                    <button onClick={()=>{loadRecord(rec);setActiveView('calculator')}} style={{
+                    <button onClick={()=>{loadRecord(rec);setActiveView('business')}} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
                     }}>Load Record →</button>
@@ -241,11 +238,20 @@ export default function Dashboard(){
       )}
 
       {/* ════ CALCULATOR VIEW ════ */}
-      {activeView==='calculator'&&(
+      {activeView==='business'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
-        {/* CONNECT */}
-        <div style={{marginBottom:16}}><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Step 1 - Connect Your Accounting Software</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Connect to automatically import your financials, or enter numbers manually below.</p></div>
+        {/* Business view header */}
+        <div style={{marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>Step 1 — Business Income</h2>
+            <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Connect your accounting software or enter numbers manually.</p>
+          </div>
+          <button onClick={()=>setActiveView('records')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← My Records</button>
+        </div>
+
+      {/* CONNECT */}
+        <div style={{marginBottom:16}}><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Connect Your Accounting Software</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Connect to automatically import your financials, or enter numbers manually below.</p></div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {INTEGRATIONS.map(i=>(
             <button key={i.id} onClick={()=>handleConnect(i)} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:connectedApp===i.name?i.color:i.bg,border:'1.5px solid '+(connectedApp===i.name?i.color:i.color+'44'),borderRadius:12,cursor:'pointer'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor=connectedApp===i.name?i.color:i.color+'44'}>
@@ -313,6 +319,7 @@ export default function Dashboard(){
               <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>This is your share of business profit flowing to Schedule E on your Form 1040. This is NOT your tax bill - your actual liability depends on your complete personal tax picture below.</div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
+                <button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
             </div>
@@ -335,7 +342,18 @@ export default function Dashboard(){
         </div>
 
 
-        <div id='dash-1040'/>{show1040&&(
+      </div>
+      )}
+
+      {/* ════ 1040 / PERSONAL VIEW ════ */}
+      {activeView==='f1040'&&(
+      <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
+        {/* Back to Business button */}
+        <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>setActiveView('business')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
+          <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
+        </div>
+        {(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22}}>
               <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:16,textTransform:'uppercase',letterSpacing:'0.06em'}}>Your Personal Tax Info</div>

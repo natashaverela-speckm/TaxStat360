@@ -165,7 +165,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
-      <section id="pricing" style={{ scrollMarginTop: 72 }} style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
+      <section id="pricing" style={{ scrollMarginTop: 72, padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Card required — no charge until after your 7-day trial. Cancel anytime.</p>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:28 }}>
