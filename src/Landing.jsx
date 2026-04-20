@@ -48,9 +48,7 @@ export default function Landing() {
       if (res.ok) { setContactSent(true); setContactName(''); setContactEmail(''); setContactMsg('') }
       else throw new Error()
     } catch {
-      window.location.href='mailto:support@taxstat360.com?subject='+encodeURIComponent('Contact from '+contactName)+'&body='+encodeURIComponent(contactMsg+'
-
-From: '+contactEmail)
+      window.location.href='mailto:support@taxstat360.com?subject='+encodeURIComponent('Contact from '+contactName)+'&body='+encodeURIComponent(contactMsg+'\n\nFrom: '+contactEmail)
       setContactSent(true)
     }
     setContactSending(false)
