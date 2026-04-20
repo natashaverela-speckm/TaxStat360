@@ -225,7 +225,7 @@ export default function TaxReturn() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>← Back to Business</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>AI Analysis</button>
-          <button onClick={() => { localStorage.clear(); nav('/dashboard') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
+          <button onClick={() => { localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing'); nav('/dashboard') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
         </div>
       </nav>
 
@@ -522,8 +522,12 @@ export default function TaxReturn() {
                   refund: balance < 0 ? Math.round(Math.abs(balance)) : 0,
                   quarterly: quarterlyRecommended,
                 }
-                const existing = JSON.parse(localStorage.getItem('ts360_records') || '[]')
-                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 9)]))
+                const email = localStorage.getItem('ts360_email') || 'default'
+                const key = 'ts360_records_' + email
+                const existing = JSON.parse(localStorage.getItem(key) || '[]')
+                localStorage.setItem(key, JSON.stringify([record, ...existing.slice(0, 19)]))
+                // Also keep legacy key for dashboard compatibility
+                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 19)]))
                 window._savedConfirm = true
                 setSaved(true)
                 setTimeout(() => setSaved(false), 3000)
