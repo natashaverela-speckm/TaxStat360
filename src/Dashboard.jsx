@@ -77,6 +77,7 @@ export default function Dashboard(){
   const [saved,setSaved]=useState(false)
   const [showFin,setShowFin]=useState(true)
   const [show1040,setShow1040]=useState(false)
+  const [loadedRecord,setLoadedRecord]=useState(null)
   const [records,setRecords]=useState([])
   const bSet=(k,v)=>{setBiz(p=>({...p,[k]:v}));setSaved(false)}
   const fSet=(k,v)=>setF1040(p=>({...p,[k]:v}))
@@ -123,6 +124,28 @@ export default function Dashboard(){
     const updated=[record,...records.filter((_,i)=>i<9)]
     setRecords(updated);localStorage.setItem('ts360_records',JSON.stringify(updated));setSaved(true)
   }
+
+  const loadRecord = (rec) => {
+    setLoadedRecord(rec)
+    // Restore all 1040 fields from the record
+    setF1040({
+      filingStatus: rec.filingStatus || 'single',
+      w2Income: rec.w2Income || '',
+      otherIncome: rec.interest || '',
+      estimatedPayments: rec.estPaid || '',
+      dependents: rec.dependents || '',
+      useStandardDed: !rec.useItemized,
+      itemizedDed: rec.itemizedAmt || ''
+    })
+    // Show the 1040 section automatically
+    setShow1040(true)
+    // Scroll to the 1040 section
+    setTimeout(() => {
+      const el = document.getElementById('dash-1040')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
+
 
   const handleConnect=(integ)=>{
     localStorage.setItem('ts360_connected_app',integ.name)
@@ -238,12 +261,49 @@ export default function Dashboard(){
           <div style={{fontSize:13,color:isPassthru?'#92400E':SL,lineHeight:1.6}}>{isPassthru?'Your business profit passes through to your personal Form 1040 - that is where you actually pay taxes. Complete your personal tax information below to see your actual tax liability based on your K-1 income.':'Enter your personal tax information to calculate your total Form 1040 liability.'}</div>
         </div>
 
+        {/* ── Saved Records — Load Button ── */}
+        {records.length > 0 && (
+          <div style={{marginBottom:20}}>
+            <p style={{fontSize:13,fontWeight:700,color:N,marginBottom:10,textTransform:'uppercase',letterSpacing:0.5}}>📂 Saved Records</p>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {records.slice(0,5).map((rec,i) => (
+                <button key={rec.id||i} onClick={()=>loadRecord(rec)} style={{
+                  display:'flex',justifyContent:'space-between',alignItems:'center',
+                  padding:'12px 16px',background:loadedRecord?.id===rec.id?'#EFF6FF':'#F8FAFC',
+                  border:'1.5px solid '+(loadedRecord?.id===rec.id?B:'#E2E8F0'),
+                  borderRadius:10,cursor:'pointer',textAlign:'left',width:'100%'
+                }}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:N}}>
+                      {rec.savedAt || 'Saved Record'}
+                    </div>
+                    <div style={{fontSize:12,color:SL,marginTop:2}}>
+                      {rec.filingStatus ? rec.filingStatus.charAt(0).toUpperCase()+rec.filingStatus.slice(1) : 'Single'} • 
+                      K-1: ${rec.k1Total?.toLocaleString() || '0'} • 
+                      Tax: ${rec.totalTax?.toLocaleString() || '0'}
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:loadedRecord?.id===rec.id?B:SL,flexShrink:0,marginLeft:12}}>
+                    {loadedRecord?.id===rec.id ? '✅ Loaded' : 'Load →'}
+                  </div>
+                </button>
+              ))}
+            </div>
+            {loadedRecord && (
+              <div style={{marginTop:10,padding:'10px 14px',background:'#EFF6FF',borderRadius:8,fontSize:13,color:'#1E40AF',fontWeight:600}}>
+                ✅ Record loaded — 1040 inputs restored below. Review and save changes.
+              </div>
+            )}
+          </div>
+        )}
+
+
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Step 3 - Personal Tax Information (Form 1040)</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Add your personal situation. The K-1 above is already included.</p></div>
           <button onClick={()=>setShow1040(v=>!v)} style={{padding:'9px 18px',background:show1040?B:'#F1F5F9',color:show1040?'#fff':SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0}}>{show1040?'Collapse 1040':'Enter 1040 Info'}</button>
         </div>
 
-        {show1040&&(
+        <div id='dash-1040'/>{show1040&&(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22}}>
               <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:16,textTransform:'uppercase',letterSpacing:'0.06em'}}>Your Personal Tax Info</div>
