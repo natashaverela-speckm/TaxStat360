@@ -1,32 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-const N='#0D1B3E',B='#2563EB',SL='#475569'
-const API='https://app.taxstat360.com'
-const PK='pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e'
-const GMAPS_KEY='AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
-
-const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20}}><svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E"/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg><div style={{fontWeight:800,color:N,fontSize:17,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
-const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
-const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>(<div style={{marginBottom:mb}}><label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)
-
-function SignupScreen(){
-  const nav=useNavigate()
-  const loc=useLocation()
-  const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
-  const plan=['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter'
-  const billing=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()==='annual'?'annual':'monthly'
-  const [name,setName]=useState('')
-  const [email,setEmail]=useState('')
-  const [pass,setPass]=useState('')
-  const [conf,setConf]=useState('')
-  const [loading,setLoading]=useState(false)
-  const [err,setErr]=useState('')
-  const [info,setInfo]=useState('')
-  const [stripeReady,setStripeReady]=useState(false)
-  const stripeRef=useRef(null)
-  const elemRef=useRef(null)
-  const cardRef=useRef(null)
-  const LABELS={Starter:'Starter $79/mo',professional:'Professional $149/mo',advanced:'Advanced $199/mo'}
+{plan.charAt(0).toUpperCase()+plan.slice(1)} {isAnnual ? ANNUAL_PRICES[plan] : PRICES[plan]}/mo {isAnnual ? '· Annual' : ''}',professional:'Professional $149/mo',advanced:'Advanced $199/mo'}
 
   useEffect(()=>{
     const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
