@@ -128,7 +128,7 @@ export default function Landing() {
             { q: 'What accounting software does TaxStat360 connect to?', a: 'We currently integrate with QuickBooks Online, Xero, Wave, and FreshBooks. We pull your profit and loss data directly so you never have to manually enter numbers. More integrations are coming soon.' },
             { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
             { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
-            { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days at no charge. No credit card is required to start. At the end of the trial, you can choose to subscribe or your account simply becomes inactive. No surprise charges.' },
+            { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
             { q: 'What does real-time mean exactly?', a: 'Every time you log in, TaxStat360 syncs with your accounting software and recalculates your estimated tax liability using your most current income and expense data. If you land a big client in October or make a large purchase in November, your tax picture updates immediately so you can act on it.' },
             { q: 'Does TaxStat360 replace my CPA?', a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same real-time visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
@@ -144,7 +144,7 @@ export default function Landing() {
       </section>
       <section id="pricing" style={{ scrollMarginTop: 72 }} style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Card required — no charge until after your 7-day trial. Cancel anytime.</p>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:28 }}>
           <span style={{ fontSize:14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
           <div onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')} style={{ width:50, height:26, background: isAnnual ? '#2563EB' : '#CBD5E1', borderRadius:13, cursor:'pointer', position:'relative', transition:'background 0.2s' }}><div style={{ position:'absolute', top:3, left: isAnnual ? 27 : 3, width:20, height:20, background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} /></div>
@@ -179,7 +179,7 @@ export default function Landing() {
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
         <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join business owners who manage tax liability proactively every month and keep more of what they earn.</p>
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
-        <p style={{ color: '#64748b', fontSize: 13 }}>No credit card required &middot; Full access &middot; Cancel anytime</p>
+        <p style={{ color: '#64748b', fontSize: 13 }}>Credit card required &middot; No charge for 7 days &middot; Cancel anytime</p>
       </section>
       <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
