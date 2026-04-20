@@ -25,6 +25,7 @@ function Nav({ nav }) {
 
 export default function Landing() {
   const nav = useNavigate()
+  const [billing, setBilling] = React.useState('monthly')
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
       <Nav nav={nav} />
@@ -139,17 +140,27 @@ export default function Landing() {
       <section id="pricing" style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:32 }}>
+          <span style={{ fontSize:14, fontWeight: billing==='monthly'?700:500, color: billing==='monthly'?'#0D1B3E':'#64748b' }}>Monthly</span>
+          <div onClick={() => setBilling(billing==='monthly'?'annual':'monthly')} style={{ width:50, height:26, background: billing==='annual'?'#2563EB':'#CBD5E1', borderRadius:13, cursor:'pointer', position:'relative', transition:'background 0.2s' }}>
+            <div style={{ position:'absolute', top:3, left: billing==='annual'?27:3, width:20, height:20, background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+          </div>
+          <span style={{ fontSize:14, fontWeight: billing==='annual'?700:500, color: billing==='annual'?'#0D1B3E':'#64748b' }}>Annual</span>
+          <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20 }}>Save 2 months</span>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
-            { name:'Starter', price:'$79', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
-            { name:'Professional', price:'$149', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
-            { name:'Enterprise', price:'$299', highlight:false, desc:'Built for owners running multiple businesses or entities.', features:['Everything in Professional plus:','Multi-entity consolidated tax view','AI-Generated Audit Defense Narrative','Risk Tolerance Profiling','CPA Collaboration Portal','Dedicated onboarding & setup call'] },
+            { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
+            { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
+            { name:'Enterprise', price:'$299', annualPrice:'$249', annualTotal:'$2,990', highlight:false, desc:'Built for owners running multiple businesses or entities.', features:['Everything in Professional plus:','Multi-entity consolidated tax view','AI-Generated Audit Defense Narrative','Risk Tolerance Profiling','CPA Collaboration Portal','Dedicated onboarding & setup call'] },
           ].map((p,i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
               <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
-              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span></div>
+              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{billing==='annual' ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
+              {billing==='annual' && <div style={{ fontSize:11, color: p.highlight?'rgba(255,255,255,0.65)':'#64748b', marginTop:2 }}>billed {p.annualTotal}/yr</div>}
+              </div>
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
-              <button onClick={() => nav('/signup?plan='+p.name.toLowerCase())} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
+              <button onClick={() => nav('/signup?plan='+p.name.toLowerCase()+'&billing='+billing)} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
                 {p.features.map((f,j) => (
                   <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: p.highlight ? '#d1e0f5' : '#475569', borderTop: j === 0 ? 'none' : '1px solid ' + (p.highlight ? 'rgba(255,255,255,0.08)' : '#f1f5f9') }}>
