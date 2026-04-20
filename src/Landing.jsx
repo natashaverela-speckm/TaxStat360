@@ -17,6 +17,10 @@ function Nav({ nav }) {
       </div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
         <a href="#pricing" style={{ color: N, fontWeight: 600, fontSize: 15, textDecoration: 'none', cursor: 'pointer' }}>Pricing</a>
+        <a href="#how-it-works" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>How It Works</a>
+        <a href="#features" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Features</a>
+        <a href="#pricing" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Pricing</a>
+        <a href="#faq" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>FAQ</a>
         <button onClick={() => nav('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Start Free Trial</button>
       </div>
