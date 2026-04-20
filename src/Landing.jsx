@@ -30,6 +30,31 @@ function Nav({ nav }) {
 export default function Landing() {
   const nav = useNavigate()
   const [billing, setBilling] = useState('monthly')
+  const [contactName, setContactName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactMsg, setContactMsg] = useState('')
+  const [contactSent, setContactSent] = useState(false)
+  const [contactSending, setContactSending] = useState(false)
+  const [contactErr, setContactErr] = useState('')
+  const handleContact = async (e) => {
+    e.preventDefault()
+    if (!contactName || !contactEmail || !contactMsg) { setContactErr('Please fill in all fields.'); return }
+    setContactSending(true); setContactErr('')
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ access_key:'6f3b2a1e-4d5c-4e6f-8a9b-0c1d2e3f4a5b', subject:'TaxStat360 Contact — '+contactName, from_name:contactName, email:contactEmail, message:contactMsg })
+      })
+      if (res.ok) { setContactSent(true); setContactName(''); setContactEmail(''); setContactMsg('') }
+      else throw new Error()
+    } catch {
+      window.location.href='mailto:support@taxstat360.com?subject='+encodeURIComponent('Contact from '+contactName)+'&body='+encodeURIComponent(contactMsg+'
+
+From: '+contactEmail)
+      setContactSent(true)
+    }
+    setContactSending(false)
+  }
   const isAnnual = billing === 'annual'
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
@@ -181,6 +206,46 @@ export default function Landing() {
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
         <p style={{ color: '#64748b', fontSize: 13 }}>Credit card required &middot; No charge for 7 days &middot; Cancel anytime</p>
       </section>
+      <section id="contact" style={{background:'#F8FAFC',padding:'80px 24px'}}>
+        <div style={{maxWidth:600,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:40}}>
+            <p style={{fontSize:13,fontWeight:700,color:'#2563EB',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>Get In Touch</p>
+            <h2 style={{fontSize:32,fontWeight:800,color:'#0D1B3E',marginBottom:12}}>Contact Us</h2>
+            <p style={{color:'#475569',fontSize:15}}>Have a question or need help? We typically respond within one business day.</p>
+          </div>
+          {contactSent ? (
+            <div style={{background:'#ECFDF5',border:'1px solid #6EE7B7',borderRadius:12,padding:'32px 24px',textAlign:'center'}}>
+              <div style={{fontSize:40,marginBottom:12}}>✅</div>
+              <h3 style={{color:'#065F46',fontWeight:700,fontSize:20,marginBottom:8}}>Message Sent!</h3>
+              <p style={{color:'#047857',fontSize:14}}>Thank you for reaching out. Our team will get back to you at support@taxstat360.com within one business day.</p>
+              <button onClick={()=>setContactSent(false)} style={{marginTop:16,padding:'8px 20px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600}}>Send Another Message</button>
+            </div>
+          ) : (
+            <div style={{background:'#fff',borderRadius:16,padding:'40px 36px',boxShadow:'0 4px 24px rgba(0,0,0,0.07)',border:'1px solid #E2E8F0'}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Full Name</label>
+                  <input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Jane Smith" style={{width:'100%',padding:'11px 14px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}} />
+                </div>
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Email Address</label>
+                  <input value={contactEmail} onChange={e=>setContactEmail(e.target.value)} placeholder="jane@company.com" type="email" style={{width:'100%',padding:'11px 14px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}} />
+                </div>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Message</label>
+                <textarea value={contactMsg} onChange={e=>setContactMsg(e.target.value)} placeholder="Tell us how we can help..." rows={5} style={{width:'100%',padding:'11px 14px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}} />
+              </div>
+              {contactErr && <p style={{color:'#DC2626',fontSize:13,marginBottom:12}}>{contactErr}</p>}
+              <button onClick={handleContact} disabled={contactSending} style={{width:'100%',padding:'13px',background:contactSending?'#94a3b8':'#0D1B3E',color:'#fff',border:'none',borderRadius:10,fontSize:15,fontWeight:700,cursor:contactSending?'not-allowed':'pointer',transition:'background 0.2s'}}>
+                {contactSending ? 'Sending...' : 'Send Message →'}
+              </button>
+              <p style={{textAlign:'center',color:'#94a3b8',fontSize:12,marginTop:12}}>Or email us directly at <a href="mailto:support@taxstat360.com" style={{color:'#2563EB'}}>support@taxstat360.com</a></p>
+            </div>
+          )}
+        </div>
+      </section>
+
       <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
@@ -192,7 +257,7 @@ export default function Landing() {
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
             <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
             <a href="/terms" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            <a href="mailto:support@taxstat360.com" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
+            <a href="#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
           <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
         </div>
