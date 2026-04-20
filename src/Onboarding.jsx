@@ -14,6 +14,7 @@ function SignupScreen(){
   const loc=useLocation()
   const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
   const plan=['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter'
+  const billing=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()==='annual'?'annual':'monthly'
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
@@ -55,9 +56,10 @@ function SignupScreen(){
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
       localStorage.setItem('token',data.access_token)
       localStorage.setItem('plan',plan)
+      localStorage.setItem('billing',billing)
       // Create Stripe subscription for recurring billing
       try{
-        await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,payment_method_id:setupIntent.payment_method})})
+        await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,billing,payment_method_id:setupIntent.payment_method})})}
       }catch(e){ console.warn('Subscribe call failed:',e) }
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
