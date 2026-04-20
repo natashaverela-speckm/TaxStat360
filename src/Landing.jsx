@@ -81,7 +81,7 @@ export default function Landing() {
         </button>
       </section>
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
+        <h2 id="features" style={{ scrollMarginTop: 72, fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
@@ -103,7 +103,7 @@ export default function Landing() {
         </div>
       </section>
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Your tax bill in 3 steps</h2>
+        <h2 id="how-it-works" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Your tax bill in 3 steps</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
@@ -120,7 +120,7 @@ export default function Landing() {
         </div>
       </section>
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Frequently Asked Questions</h2>
+        <h2 id="faq" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Frequently Asked Questions</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
@@ -143,7 +143,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
-      <section id="pricing" style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
+      <section id="pricing" style={{ scrollMarginTop: 72 }} style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:28 }}>
