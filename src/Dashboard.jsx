@@ -1,6 +1,44 @@
 import { useState, useEffect } from 'react' // build
 import { useNavigate } from 'react-router-dom'
 
+
+// ── Info Tooltip Component ──
+function InfoTip({ text }) {
+  const [show, setShow] = React.useState(false)
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
+      <span
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 16, height: 16, borderRadius: '50%', background: '#DBEAFE',
+          color: '#2563EB', fontSize: 10, fontWeight: 800, cursor: 'pointer',
+          lineHeight: 1, flexShrink: 0, border: '1px solid #93C5FD'
+        }}
+      >i</span>
+      {show && (
+        <span style={{
+          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+          background: '#1E293B', color: '#fff', fontSize: 12, fontWeight: 400,
+          padding: '8px 12px', borderRadius: 8, width: 240, lineHeight: 1.5,
+          zIndex: 999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          pointerEvents: 'none', whiteSpace: 'normal'
+        }}>
+          {text}
+          <span style={{
+            position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+            borderWidth: 5, borderStyle: 'solid',
+            borderColor: '#1E293B transparent transparent transparent'
+          }}/>
+        </span>
+      )}
+    </span>
+  )
+}
+
+
 const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
@@ -283,7 +321,7 @@ export default function Dashboard(){
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
           <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y}>{y}</option>)}</select></div>
           <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>bSet('entityType',e.target.value)} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-          <div><label style={lbl}>Your Ownership %</label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
+          <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
 
         {showFin&&(
@@ -291,19 +329,19 @@ export default function Dashboard(){
             <div style={{marginBottom:18}}>
               <div style={{fontSize:12,fontWeight:700,color:B,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.06em'}}>Revenue</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                <div><label style={lbl}>Gross Revenue / Sales</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Total revenue before any deductions</div><NumInput k="grossRevenue"/></div>
-                <div><label style={lbl}>Cost of Goods Sold (COGS)</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Direct costs of producing goods or services</div><NumInput k="cogs"/></div>
+                <div><label style={lbl}>Gross Revenue / Sales <InfoTip text="Find this on your Profit and Loss (PandL) statement, top line. In QuickBooks it's under Reports -> PandL. For cash-basis businesses, use total cash received from customers this year."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Total revenue before any deductions</div><NumInput k="grossRevenue"/></div>
+                <div><label style={lbl}>Cost of Goods Sold (COGS) <InfoTip text="Find this on your PandL statement directly below revenue. Includes materials, inventory, and direct production costs. Not all businesses have COGS."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Direct costs of producing goods or services</div><NumInput k="cogs"/></div>
               </div>
               {hasNumbers&&<div style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',marginTop:10,display:'flex',justifyContent:'space-between'}}><span style={{fontSize:13,color:SL}}>Gross Profit</span><span style={{fontWeight:800,color:N,fontSize:15}}>{fmt(calc.gross)}</span></div>}
             </div>
             <div>
               <div style={{fontSize:12,fontWeight:700,color:'#DC2626',marginBottom:10,textTransform:'uppercase',letterSpacing:'0.06em'}}>Expenses & Deductions</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                <div><label style={lbl}>Operating Expenses</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Rent, utilities, contractors, payroll</div><NumInput k="operatingExpenses"/></div>
-                <div><label style={lbl}>Advertising & Marketing</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Fully deductible business promotion</div><NumInput k="advertising"/></div>
-                <div><label style={lbl}>Depreciation</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Section 179, bonus depreciation, MACRS</div><NumInput k="depreciation"/></div>
-                {biz.entityType==='S-Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp)</label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
-                <div><label style={lbl}>Other Deductions</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Professional fees, insurance, home office</div><NumInput k="otherDeductions"/></div>
+                <div><label style={lbl}>Operating Expenses <InfoTip text="All normal business expenses: rent, utilities, payroll, software, insurance. Find on your PandL under 'Total Expenses.' Exclude COGS, depreciation, and officer salary if listed separately."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Rent, utilities, contractors, payroll</div><NumInput k="operatingExpenses"/></div>
+                <div><label style={lbl}>Advertising & Marketing <InfoTip text="Total spent on ads, social media, marketing tools, and promotions this year. Find in your bookkeeping under the Advertising or Marketing expense category."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Fully deductible business promotion</div><NumInput k="advertising"/></div>
+                <div><label style={lbl}>Depreciation <InfoTip text="Find on your Depreciation Schedule (Form 4562) or ask your bookkeeper. This is the annual write-down on equipment, vehicles, and property — not a cash expense."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Section 179, bonus depreciation, MACRS</div><NumInput k="depreciation"/></div>
+                {biz.entityType==='S-Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp) <InfoTip text="Your W-2 salary paid to yourself as S-Corp officer. Find on your W-2 Box 1, or payroll records. The IRS requires a 'reasonable compensation' before taking distributions."/></label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
+                <div><label style={lbl}>Other Deductions <InfoTip text="Any deductible business expenses not captured above: professional fees, education, business travel, subscriptions, home office, etc. Find in your PandL under miscellaneous or other expenses."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Professional fees, insurance, home office</div><NumInput k="otherDeductions"/></div>
               </div>
               {hasNumbers&&<div style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',marginTop:14}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:13,color:SL}}>Total Deductions</span><span style={{fontWeight:700,color:'#DC2626',fontSize:14}}>({fmt(calc.totalExp)})</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:13,color:SL,fontWeight:700}}>Net Business Income</span><span style={{fontWeight:800,color:N,fontSize:16}}>{fmt(calc.netBiz)}</span></div></div>}
             </div>
@@ -357,9 +395,14 @@ export default function Dashboard(){
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22}}>
               <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:16,textTransform:'uppercase',letterSpacing:'0.06em'}}>Your Personal Tax Info</div>
-              <div style={{marginBottom:14}}><label style={lbl}>Filing Status</label><select value={f1040.filingStatus} onChange={e=>fSet('filingStatus',e.target.value)} style={inp}>{Object.entries(FILING).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
-              {[['W-2 Wages / Salary','w2Income','Salary from employment separate from your business'],['Other Income','otherIncome','Interest, dividends, rental income, capital gains'],['Estimated Tax Payments Made','estimatedPayments','Quarterly payments already submitted to IRS this year'],['Number of Qualifying Children','dependents','Children under 17 qualifying for Child Tax Credit ($2,000/child)']].map(([label,key,hint])=>(
-                <div key={key} style={{marginBottom:14}}><label style={lbl}>{label}</label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>{hint}</div><input type="number" value={f1040[key]||''} placeholder="0" onChange={e=>fSet(key,e.target.value)} style={inp}/></div>
+              <div style={{marginBottom:14}}><label style={lbl}>Filing Status <InfoTip text="Your IRS filing status. Single = unmarried. MFJ = Married Filing Jointly (combined with spouse). MFS = Married Filing Separately. HOH = Head of Household (single with dependents)."/></label><select value={f1040.filingStatus} onChange={e=>fSet('filingStatus',e.target.value)} style={inp}>{Object.entries(FILING).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+              {[
+                ['W-2 Wages / Salary','w2Income','Find on your W-2 Box 1 (Wages, tips, other compensation) or your last paystub Gross Earnings YTD.'],
+                ['Other Income','otherIncome','Any additional income: freelance, 1099, alimony, gambling, etc. Find on your 1099 forms or bank statements.'],
+                ['Estimated Tax Payments Made','estimatedPayments','Total quarterly payments sent to the IRS this year. Find on IRS.gov My Account, or your bank records for payments to the IRS.'],
+                ['Number of Qualifying Children','dependents','Children under 17 who qualify for the Child Tax Credit ($2,000/child). Count only dependents you are claiming this year.']
+              ].map(([label,key,hint])=>(
+                <div key={key} style={{marginBottom:14}}><label style={lbl}>{label} <InfoTip text={hint}/></label><input type="number" value={f1040[key]||''} placeholder="0" onChange={e=>fSet(key,e.target.value)} style={inp}/></div>
               ))}
               <div style={{marginBottom:14}}>
                 <label style={lbl}>Deduction Method</label>

@@ -115,6 +115,26 @@ function BracketBadge({ rate }) {
   )
 }
 
+// ── Info Tooltip ──
+function InfoTip({ text }) {
+  const [show, setShow] = React.useState(false)
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
+      <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} onClick={()=>setShow(v=>!v)}
+        style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:'50%',
+          background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',border:'1px solid #93C5FD' }}>i</span>
+      {show&&<span style={{ position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',
+        background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,
+        lineHeight:1.5,zIndex:999,boxShadow:'0 4px 16px rgba(0,0,0,0.2)',pointerEvents:'none',whiteSpace:'normal' }}>
+        {text}
+        <span style={{position:'absolute',top:'100%',left:'50%',transform:'translateX(-50%)',
+          borderWidth:5,borderStyle:'solid',borderColor:'#1E293B transparent transparent transparent'}}/>
+      </span>}
+    </span>
+  )
+}
+
+
 export default function TaxReturn() {
   const nav = useNavigate()
 
@@ -262,7 +282,7 @@ export default function TaxReturn() {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>FILING STATUS & DEPENDENTS</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Filing Status</label>
+                <label style={lbl}>Filing Status <InfoTip text="Your IRS filing status. Single = unmarried. MFJ = Married Filing Jointly. MFS = Married Filing Separately. HOH = Head of Household (single with dependents)."/></label>
                 <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
                   <option value="single">Single</option>
                   <option value="mfj">Married Filing Jointly</option>
@@ -272,7 +292,7 @@ export default function TaxReturn() {
                 </select>
               </div>
               <div>
-                <label style={lbl}>Qualifying Dependents</label>
+                <label style={lbl}>Qualifying Dependents <InfoTip text="Number of children under 17 who qualify for the Child Tax Credit ($2,000 per child). Only count dependents you are claiming this year."/></label>
                 <select value={dependents} onChange={e => setDependents(e.target.value)} style={inp}>
                   {[0,1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} dependent{n !== 1 ? 's' : ''}</option>)}
                 </select>
@@ -285,11 +305,11 @@ export default function TaxReturn() {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>W-2 INCOME & WITHHOLDING</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>W-2 Wages (all jobs)</label>
+                <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
                 <input value={w2Income} onChange={e => setW2Income(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Federal Tax Withheld (W-2)</label>
+                <label style={lbl}>Federal Tax Withheld (W-2) <InfoTip text="Total federal tax withheld by your employer(s). Find on W-2 Box 2, or your last paystub under Federal Tax YTD."/></label>
                 <input value={w2Withheld} onChange={e => setW2Withheld(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
@@ -316,11 +336,11 @@ export default function TaxReturn() {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Total Rental Income</label>
+                <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
                 <input value={rentalIncome} onChange={e => setRentalIncome(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Total Rental Expenses (incl. depreciation)</label>
+                <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
                 <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
@@ -331,22 +351,22 @@ export default function TaxReturn() {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>OTHER INCOME</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Capital Gains / (Losses)</label>
+                <label style={lbl}>Capital Gains / (Losses) <InfoTip text="Gains or losses from selling stocks, crypto, or real estate. Find on your 1099-B from your broker. Enter negative numbers for losses."/></label>
                 <input value={capitalGains} onChange={e => setCapitalGains(e.target.value)} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Enter negative for losses</div>
               </div>
               <div>
-                <label style={lbl}>Taxable Interest</label>
+                <label style={lbl}>Taxable Interest <InfoTip text="Interest earned from bank accounts, CDs, or bonds. Find on your 1099-INT from your bank or financial institution."/></label>
                 <input value={interest} onChange={e => setInterest(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Ordinary Dividends</label>
+                <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends received from stocks or mutual funds. Find on your 1099-DIV Box 1a from your brokerage account."/></label>
                 <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
             {/* Prior Year Loss Carryforward */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-              <label style={lbl}>Prior Year Loss Carryforward</label>
+              <label style={lbl}>Prior Year Loss Carryforward <InfoTip text="Losses from prior years that carry forward. Find on last year's Form 8995 Line 16 (QBI losses) or Schedule D (capital loss carryovers)."/></label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <input value={priorYearLosses} onChange={e => setPriorYearLosses(e.target.value)} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
                 <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>
@@ -372,7 +392,7 @@ export default function TaxReturn() {
               </div>
               {useItemized && (
                 <div>
-                  <label style={lbl}>Your Itemized Deductions (Schedule A)</label>
+                  <label style={lbl}>Your Itemized Deductions (Schedule A) <InfoTip text="Total itemized deductions instead of the standard deduction. Find on Schedule A: mortgage interest (Form 1098), state taxes, charitable gifts, and medical expenses."/></label>
                   <input value={itemizedAmt} onChange={e => setItemizedAmt(e.target.value)} placeholder="0" style={inp} />
                 </div>
               )}
@@ -393,7 +413,7 @@ export default function TaxReturn() {
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>ESTIMATED TAX PAYMENTS MADE</div>
             <div>
-              <label style={lbl}>Total Estimated Payments Paid This Year</label>
+              <label style={lbl}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly payments sent to the IRS this year (Form 1040-ES). Find in your IRS Online Account or bank records for payments on April 15, June 15, Sept 15, and Jan 15."/></label>
               <input value={estPaid} onChange={e => setEstPaid(e.target.value)} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
