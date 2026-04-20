@@ -1,0 +1,69 @@
+import { useNavigate } from 'react-router-dom'
+
+const N = '#0D1B3E'
+const B = '#2563EB'
+const SL = '#475569'
+
+export default function Terms() {
+  const nav = useNavigate()
+  const Section = ({ title, children }) => (
+    <div style={{ marginBottom: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: N, marginBottom: 12, borderBottom: '2px solid #E2E8F0', paddingBottom: 8 }}>{title}</h2>
+      <div style={{ color: SL, fontSize: 14, lineHeight: 1.8 }}>{children}</div>
+    </div>
+  )
+  return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div onClick={() => nav('/')} style={{ fontWeight: 800, fontSize: 18, color: N, cursor: 'pointer' }}>TaxStat<span style={{ color: B }}>360</span></div>
+        <button onClick={() => nav('/')} style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 16px', cursor: 'pointer', fontSize: 13, color: SL }}>← Back to Home</button>
+      </nav>
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
+        <div style={{ marginBottom: 40 }}>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: April 19, 2026</p>
+          <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Terms of Service</h1>
+          <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>These Terms of Service govern your use of TaxStat360. By creating an account or using our platform, you agree to these terms. Please read them carefully.</p>
+        </div>
+        <Section title="1. Description of Service">
+          <p>TaxStat360 is a real-time tax liability management platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts.</p>
+        </Section>
+        <Section title="2. Not Professional Tax Advice">
+          <p style={{ marginBottom: 10 }}><strong>Important:</strong> TaxStat360 is a financial planning tool, not a licensed tax advisor, CPA, or law firm. Nothing on our platform constitutes professional tax, legal, or financial advice.</p>
+          <p>You are solely responsible for your tax filings and any payments made to the IRS or state tax authorities. We strongly recommend consulting a licensed CPA or tax professional before making filing decisions based on our platform's output.</p>
+        </Section>
+        <Section title="3. Subscriptions and Billing">
+          <p style={{ marginBottom: 10 }}>TaxStat360 offers monthly and annual subscription plans. All subscriptions include a 7-day free trial with no charge until the trial ends.</p>
+          <p style={{ marginBottom: 10 }}>• <strong>Monthly plans</strong> are billed on the same date each month and may be cancelled at any time.</p>
+          <p style={{ marginBottom: 10 }}>• <strong>Annual plans</strong> are billed once per year. Cancellations take effect at the end of the billing period — we do not offer pro-rated refunds for annual plans.</p>
+          <p>Prices are in USD. We reserve the right to change pricing with 30 days' notice to active subscribers.</p>
+        </Section>
+        <Section title="4. Acceptable Use">
+          <p style={{ marginBottom: 10 }}>You agree not to:</p>
+          <p style={{ marginBottom: 8 }}>• Use TaxStat360 for any unlawful purpose or to facilitate tax fraud</p>
+          <p style={{ marginBottom: 8 }}>• Attempt to reverse engineer, copy, or resell our platform</p>
+          <p style={{ marginBottom: 8 }}>• Share your account credentials with others outside your organization</p>
+          <p>• Upload false or fabricated financial data</p>
+        </Section>
+        <Section title="5. Data and Integrations">
+          <p style={{ marginBottom: 10 }}>When you connect accounting software (QuickBooks, Xero, Wave, FreshBooks), you grant TaxStat360 read-only access to your financial data for the purpose of calculating tax estimates. You may revoke this access at any time from your integrations settings.</p>
+          <p>You retain ownership of all financial data you provide to TaxStat360. We do not claim any rights to your data.</p>
+        </Section>
+        <Section title="6. Limitation of Liability">
+          <p>To the maximum extent permitted by law, TaxStat360 shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the platform, including but not limited to tax underpayments, penalties, or interest assessed by tax authorities. Our total liability shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
+        </Section>
+        <Section title="7. Termination">
+          <p>You may cancel your account at any time. We reserve the right to suspend or terminate accounts that violate these terms. Upon termination, your data will be retained for 30 days before permanent deletion.</p>
+        </Section>
+        <Section title="8. Governing Law">
+          <p>These Terms are governed by the laws of the United States. Any disputes shall be resolved through binding arbitration in accordance with the AAA Commercial Arbitration Rules.</p>
+        </Section>
+        <Section title="9. Contact">
+          <p>Questions about these Terms? Contact us at <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a>.</p>
+        </Section>
+      </div>
+      <footer style={{ borderTop: '1px solid #E2E8F0', padding: '24px 32px', textAlign: 'center', color: SL, fontSize: 13 }}>
+        © 2026 TaxStat360. All rights reserved. · <span onClick={() => nav('/privacy')} style={{ cursor: 'pointer', color: B }}>Privacy Policy</span>
+      </footer>
+    </div>
+  )
+}
