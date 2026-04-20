@@ -146,12 +146,13 @@ export default function TaxReturn() {
   const capGain = nv(capitalGains)
   const intInc = nv(interest)
   const divInc = nv(dividends)
+  const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
 
   // Total gross income
   const grossIncome = w2 + k1Total + rentalNet + capGain + intInc + divInc
 
-  // Adjustments — none for now (can add SE tax deduction if sole prop)
-  const adjustments = 0
+  // Adjustments — prior year loss carryforward reduces AGI
+  const adjustments = priorLosses
   const agi = grossIncome - adjustments
 
   // Deductions
@@ -343,6 +344,16 @@ export default function TaxReturn() {
                 <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
+            {/* Prior Year Loss Carryforward */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
+              <label style={lbl}>Prior Year Loss Carryforward</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <input value={priorYearLosses} onChange={e => setPriorYearLosses(e.target.value)} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
+                <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>
+                  Enter losses carried forward from prior year (positive number). Reduces your AGI.
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Deductions */}
@@ -522,6 +533,7 @@ export default function TaxReturn() {
                   itemizedAmt,
                   estPaid,
                   dependents,
+                  priorYearLosses,
                   k1Total: Math.round(k1Total),
                   totalTax: Math.round(totalTax),
                   balance: Math.round(balance),

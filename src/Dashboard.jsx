@@ -78,6 +78,7 @@ export default function Dashboard(){
   const [showFin,setShowFin]=useState(true)
   const [show1040,setShow1040]=useState(false)
   const [loadedRecord,setLoadedRecord]=useState(null)
+  const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
   const bSet=(k,v)=>{setBiz(p=>({...p,[k]:v}));setSaved(false)}
   const fSet=(k,v)=>setF1040(p=>({...p,[k]:v}))
@@ -167,8 +168,64 @@ export default function Dashboard(){
           <button onClick={()=>{localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing');nav('/')}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
         </div>
       </nav>
+      {/* ── View Toggle Tabs ── */}
+      <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
+        {[['records','📂 My Records'],['calculator','🧮 Tax Calculator']].map(([v,label])=>(
+          <button key={v} onClick={()=>setActiveView(v)} style={{
+            padding:'12px 20px',background:'none',border:'none',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
+            fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
+          }}>{label}</button>
+        ))}
+      </div>
 
       {xeroLoading&&<div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',fontSize:13,fontWeight:600,color:'#1D4ED8',textAlign:'center'}}>Importing your Xero financials... please wait</div>}
+
+      {/* ════ RECORDS VIEW ════ */}
+      {activeView==='records'&&(
+        <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
+          <div style={{marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>My Saved Records</h2>
+              <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Click any record to load it into the Tax Calculator.</p>
+            </div>
+            <button onClick={()=>setActiveView('calculator')} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
+          </div>
+          {records.length===0?(
+            <div style={{textAlign:'center',padding:'60px 20px',background:'#fff',borderRadius:16,border:'1px solid #E2E8F0'}}>
+              <div style={{fontSize:48,marginBottom:16}}>📂</div>
+              <h3 style={{color:N,fontWeight:700,fontSize:18,marginBottom:8}}>No saved records yet</h3>
+              <p style={{color:SL,fontSize:14,marginBottom:20}}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
+              <button onClick={()=>{nav('/calculate-tax')}} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start a Calculation →</button>
+            </div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              {records.map((rec,i)=>(
+                <div key={rec.id||i} style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
+                      📄 {rec.savedAt||'Saved Record'}
+                    </div>
+                    <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                      <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{rec.filingStatus?rec.filingStatus.charAt(0).toUpperCase()+rec.filingStatus.slice(1):'—'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>K-1 Income: <strong style={{color:N}}>${(rec.k1Total||0).toLocaleString()}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>${(parseFloat(rec.w2Income)||0).toLocaleString()}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Total Tax: <strong style={{color:'#DC2626'}}>${(rec.totalTax||0).toLocaleString()}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||0).toLocaleString()}</strong></span>
+                    </div>
+                  </div>
+                  <button onClick={()=>{loadRecord(rec);setActiveView('calculator')}} style={{
+                    padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
+                    borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',flexShrink:0,marginLeft:20
+                  }}>Load Record →</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════ CALCULATOR VIEW ════ */}
+      {activeView==='calculator'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
         {/* CONNECT */}
@@ -261,47 +318,6 @@ export default function Dashboard(){
           <div style={{fontSize:13,color:isPassthru?'#92400E':SL,lineHeight:1.6}}>{isPassthru?'Your business profit passes through to your personal Form 1040 - that is where you actually pay taxes. Complete your personal tax information below to see your actual tax liability based on your K-1 income.':'Enter your personal tax information to calculate your total Form 1040 liability.'}</div>
         </div>
 
-        {/* ── Saved Records — Load Button ── */}
-        {records.length > 0 && (
-          <div style={{marginBottom:20}}>
-            <p style={{fontSize:13,fontWeight:700,color:N,marginBottom:10,textTransform:'uppercase',letterSpacing:0.5}}>📂 Saved Records</p>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {records.slice(0,5).map((rec,i) => (
-                <button key={rec.id||i} onClick={()=>loadRecord(rec)} style={{
-                  display:'flex',justifyContent:'space-between',alignItems:'center',
-                  padding:'12px 16px',background:loadedRecord?.id===rec.id?'#EFF6FF':'#F8FAFC',
-                  border:'1.5px solid '+(loadedRecord?.id===rec.id?B:'#E2E8F0'),
-                  borderRadius:10,cursor:'pointer',textAlign:'left',width:'100%'
-                }}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13,color:N}}>
-                      {rec.savedAt || 'Saved Record'}
-                    </div>
-                    <div style={{fontSize:12,color:SL,marginTop:2}}>
-                      {rec.filingStatus ? rec.filingStatus.charAt(0).toUpperCase()+rec.filingStatus.slice(1) : 'Single'} • 
-                      K-1: ${rec.k1Total?.toLocaleString() || '0'} • 
-                      Tax: ${rec.totalTax?.toLocaleString() || '0'}
-                    </div>
-                  </div>
-                  <div style={{fontSize:12,fontWeight:600,color:loadedRecord?.id===rec.id?B:SL,flexShrink:0,marginLeft:12}}>
-                    {loadedRecord?.id===rec.id ? '✅ Loaded' : 'Load →'}
-                  </div>
-                </button>
-              ))}
-            </div>
-            {loadedRecord && (
-              <div style={{marginTop:10,padding:'10px 14px',background:'#EFF6FF',borderRadius:8,fontSize:13,color:'#1E40AF',fontWeight:600}}>
-                ✅ Record loaded — 1040 inputs restored below. Review and save changes.
-              </div>
-            )}
-          </div>
-        )}
-
-
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <div><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Step 3 - Personal Tax Information (Form 1040)</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Add your personal situation. The K-1 above is already included.</p></div>
-          <button onClick={()=>setShow1040(v=>!v)} style={{padding:'9px 18px',background:show1040?B:'#F1F5F9',color:show1040?'#fff':SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0}}>{show1040?'Collapse 1040':'Enter 1040 Info'}</button>
-        </div>
 
         <div id='dash-1040'/>{show1040&&(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
@@ -366,6 +382,7 @@ export default function Dashboard(){
 
         <div style={{height:48}}/>
       </div>
+      )}
     </div>
   )
 }
