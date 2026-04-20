@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import Privacy from './Privacy'
+import Terms from './Terms'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
