@@ -26,6 +26,7 @@ function Nav({ nav }) {
 export default function Landing() {
   const nav = useNavigate()
   const [billing, setBilling] = React.useState('monthly')
+  const isAnnual = billing === 'annual'
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
       <Nav nav={nav} />
@@ -140,12 +141,15 @@ export default function Landing() {
       <section id="pricing" style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Start free. No credit card required. Cancel anytime.</p>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:32 }}>
-          <span style={{ fontSize:14, fontWeight: billing==='monthly'?700:500, color: billing==='monthly'?'#0D1B3E':'#64748b' }}>Monthly</span>
-          <div onClick={() => setBilling(billing==='monthly'?'annual':'monthly')} style={{ width:50, height:26, background: billing==='annual'?'#2563EB':'#CBD5E1', borderRadius:13, cursor:'pointer', position:'relative', transition:'background 0.2s' }}>
-            <div style={{ position:'absolute', top:3, left: billing==='annual'?27:3, width:20, height:20, background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:28 }}>
+          <span style={{ fontSize:14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
+          <div
+            onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')}
+            style={{ width:50, height:26, background: isAnnual ? '#2563EB' : '#CBD5E1', borderRadius:13, cursor:'pointer', position:'relative', transition:'background 0.2s' }}
+          >
+            <div style={{ position:'absolute', top:3, left: isAnnual ? 27 : 3, width:20, height:20, background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
           </div>
-          <span style={{ fontSize:14, fontWeight: billing==='annual'?700:500, color: billing==='annual'?'#0D1B3E':'#64748b' }}>Annual</span>
+          <span style={{ fontSize:14, fontWeight: isAnnual ? 700 : 500, color: isAnnual ? '#0D1B3E' : '#64748b' }}>Annual</span>
           <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20 }}>Save 2 months</span>
         </div>
         </div>
@@ -157,9 +161,13 @@ export default function Landing() {
           ].map((p,i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
               <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
-              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{billing==='annual' ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
-              {billing==='annual' && <div style={{ fontSize:11, color: p.highlight?'rgba(255,255,255,0.65)':'#64748b', marginTop:2 }}>billed {p.annualTotal}/yr</div>}
-              </div>
+              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 2 }}>
+                  {isAnnual ? p.annualPrice : p.price}
+                  <span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
+                </div>
+                {isAnnual && (
+                  <div style={{ fontSize: 11, color: p.highlight ? 'rgba(255,255,255,0.65)' : '#64748b', marginBottom: 4 }}>billed {p.annualTotal}/yr</div>
+                )}
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
               <button onClick={() => nav('/signup?plan='+p.name.toLowerCase()+'&billing='+billing)} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
