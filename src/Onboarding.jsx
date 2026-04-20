@@ -57,7 +57,7 @@ function SignupScreen(){
       const reg=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password:pass,plan,payment_method_id:setupIntent.payment_method})})
       const data=await reg.json()
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
-      localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',r.email||email)
+      localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email)
       localStorage.setItem('plan',plan)
       localStorage.setItem('billing',billing)
       // Create Stripe subscription for recurring billing

@@ -126,7 +126,17 @@ export default function Dashboard(){
     const app=localStorage.getItem('ts360_connected_app')
     const email = localStorage.getItem('ts360_email') || 'default'
     const key = 'ts360_records_' + email
-    const recs=JSON.parse(localStorage.getItem(key)||localStorage.getItem('ts360_records')||'[]')
+    // Load from user key, fallback to default key, fallback to legacy key
+    const recs=JSON.parse(
+      localStorage.getItem(key) ||
+      localStorage.getItem('ts360_records_default') ||
+      localStorage.getItem('ts360_records') ||
+      '[]'
+    )
+    // Migrate to correct key if email now known
+    if(email !== 'default' && !localStorage.getItem(key) && recs.length > 0) {
+      localStorage.setItem(key, JSON.stringify(recs))
+    }
     if(app)setConnectedApp(app)
     setRecords(recs)
     if(recs.length>0&&recs[0].biz){setBiz(recs[0].biz);setF1040(recs[0].f1040||f1040);setSaved(true)}
@@ -170,11 +180,11 @@ export default function Dashboard(){
     setF1040({
       filingStatus: rec.filingStatus || 'single',
       w2Income: rec.w2Income || '',
-      otherIncome: rec.interest || '',
-      estimatedPayments: rec.estPaid || '',
+      otherIncome: rec.interest || rec.otherIncome || '',
+      estimatedPayments: rec.estPaid || rec.estimatedPayments || '',
       dependents: rec.dependents || '',
-      useStandardDed: !rec.useItemized,
-      itemizedDed: rec.itemizedAmt || ''
+      useStandardDed: rec.useItemized !== undefined ? !rec.useItemized : true,
+      itemizedDed: rec.itemizedAmt || rec.itemizedDed || ''
     })
     // Show the 1040 section automatically
     setShow1040(true)
@@ -249,7 +259,7 @@ export default function Dashboard(){
                     </div>
                   </div>
                   <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20}}>
-                    <button onClick={()=>{loadRecord(rec);setActiveView('business')}} style={{
+                    <button onClick={()=>loadRecord(rec)} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
                     }}>Load Record →</button>
