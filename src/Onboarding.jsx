@@ -26,7 +26,10 @@ function SignupScreen(){
   const stripeRef=useRef(null)
   const elemRef=useRef(null)
   const cardRef=useRef(null)
-  const LABELS={Starter:'Starter $79/mo',professional:'Professional $149/mo',advanced:'Advanced $199/mo'}
+  const MONTHLY_PRICES={starter:'$79',professional:'$149',enterprise:'$299'}
+  const ANNUAL_PRICES={starter:'$66',professional:'$124',enterprise:'$249'}
+  const planPrice=billing==='annual' ? ANNUAL_PRICES[plan] : MONTHLY_PRICES[plan]
+  const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' · Annual' : '')
 
   useEffect(()=>{
     const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
@@ -73,7 +76,7 @@ function SignupScreen(){
     <LOGO/>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
       <div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
-      <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{LABELS[plan]}</span>
+      <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
     </div>
     <form onSubmit={submit}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
