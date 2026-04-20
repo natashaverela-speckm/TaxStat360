@@ -55,6 +55,10 @@ function SignupScreen(){
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
       localStorage.setItem('token',data.access_token)
       localStorage.setItem('plan',plan)
+      // Create Stripe subscription for recurring billing
+      try{
+        await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,payment_method_id:setupIntent.payment_method})})
+      }catch(e){ console.warn('Subscribe call failed:',e) }
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
       try{const fd=new FormData();fd.append('EMAIL',email);fd.append('u','f8bbe8c960a3c7bae19433b3e');fd.append('id','f546bd92ac');fd.append('f_id','00cc07e9f0');fd.append('b_f8bbe8c960a3c7bae19433b3e_f546bd92ac','');await fetch('https://themoneynista.us4.list-manage.com/subscribe/post?u=f8bbe8c960a3c7bae19433b3e&id=f546bd92ac&f_id=00cc07e9f0',{method:'POST',mode:'no-cors',body:fd})}catch(e){}
