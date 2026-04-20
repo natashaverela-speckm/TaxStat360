@@ -213,10 +213,26 @@ export default function Dashboard(){
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||0).toLocaleString()}</strong></span>
                     </div>
                   </div>
-                  <button onClick={()=>{loadRecord(rec);setActiveView('calculator')}} style={{
-                    padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
-                    borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',flexShrink:0,marginLeft:20
-                  }}>Load Record →</button>
+                  <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20}}>
+                    <button onClick={()=>{loadRecord(rec);setActiveView('calculator')}} style={{
+                      padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
+                      borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
+                    }}>Load Record →</button>
+                    <button onClick={()=>{
+                      if(!window.confirm('Delete this record?')) return
+                      const email=localStorage.getItem('ts360_email')||'default'
+                      const key='ts360_records_'+email
+                      const updated=records.filter((_,j)=>j!==i)
+                      setRecords(updated)
+                      localStorage.setItem(key,JSON.stringify(updated))
+                      localStorage.setItem('ts360_records',JSON.stringify(updated))
+                      if(loadedRecord?.id===rec.id) setLoadedRecord(null)
+                    }} style={{
+                      padding:'10px 14px',background:'#fff',color:'#DC2626',
+                      border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:700,
+                      fontSize:13,cursor:'pointer'
+                    }}>🗑</button>
+                  </div>
                 </div>
               ))}
             </div>
