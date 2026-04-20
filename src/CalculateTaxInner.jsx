@@ -317,7 +317,7 @@ export default function CalculateTax(){
           ))}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
             <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
-            <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Blank Entity</button>
+            <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
           </div>
           {anyPnl&&(
             <div style={{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:16,padding:28,color:'#fff',marginBottom:24}}>
