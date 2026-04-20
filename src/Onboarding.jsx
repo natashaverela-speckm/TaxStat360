@@ -67,6 +67,20 @@ function SignupScreen(){
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
       try{const fd=new FormData();fd.append('EMAIL',email);fd.append('u','f8bbe8c960a3c7bae19433b3e');fd.append('id','f546bd92ac');fd.append('f_id','00cc07e9f0');fd.append('b_f8bbe8c960a3c7bae19433b3e_f546bd92ac','');await fetch('https://themoneynista.us4.list-manage.com/subscribe/post?u=f8bbe8c960a3c7bae19433b3e&id=f546bd92ac&f_id=00cc07e9f0',{method:'POST',mode:'no-cors',body:fd})}catch(e){}
+      
+      // Subscribe to Mailchimp audience
+      try {
+        const mcData = new URLSearchParams()
+        mcData.append('EMAIL', r.email)
+        mcData.append('FNAME', r.name ? r.name.split(' ')[0] : '')
+        mcData.append('LNAME', r.name ? r.name.split(' ').slice(1).join(' ') : '')
+        mcData.append('tags', 'TaxStat360 Signup')
+        await fetch('https://taxstat360.us4.list-manage.com/subscribe/post?u=c09d008a62d6587f7f0b7e6888c354e8&id=f546bd92ac&f_id=00e0e0e1f0', {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: mcData.toString()
+        })
+      } catch(e) {}
       nav('/verify-email')
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
