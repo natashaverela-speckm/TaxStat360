@@ -63,6 +63,8 @@ export default function App() {
         <Route path="/ai-analysis" element={<AIAnalysis />} />
 
         {/* Fallback */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
