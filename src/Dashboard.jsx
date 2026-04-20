@@ -241,7 +241,7 @@ export default function Dashboard(){
           <button onClick={()=>setShow1040(v=>!v)} style={{padding:'9px 18px',background:show1040?B:'#F1F5F9',color:show1040?'#fff':SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0}}>{show1040?'Collapse 1040':'Enter 1040 Info'}</button>
         </div>
 
-        {show1040&&hasNumbers&&calc&&(
+        {show1040&&(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22}}>
               <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:16,textTransform:'uppercase',letterSpacing:'0.06em'}}>Your Personal Tax Info</div>
