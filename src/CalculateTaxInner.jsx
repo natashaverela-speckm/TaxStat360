@@ -276,6 +276,18 @@ export default function CalculateTax(){
     sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
   }
 
+  const saveRecord = () => {
+    const recs = JSON.parse(localStorage.getItem('ts360_records') || '[]')
+    const snap = {
+      date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
+      taxTotal: sessionStorage.getItem('ts360_k1') || '0',
+      biz: entities && entities[0] ? {...entities[0]} : null,
+      f1040: {filingStatus:'single',w2Income:'',otherIncome:'',extraDeductions:'',retirement:''}
+    }
+    recs.unshift(snap)
+    localStorage.setItem('ts360_records', JSON.stringify(recs.slice(0,20)))
+  }
+
   return(
     <>
       <style>{'input:focus,select:focus{outline:2px solid #0D1B3E !important;box-shadow:none !important;}'}</style>
@@ -337,6 +349,9 @@ export default function CalculateTax(){
             </div>
           )}
         </div>
+      </div>
+      <div style={{textAlign:'center',padding:'16px 0 8px'}}>
+        <button onClick={()=>{saveRecord();alert('✅ Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}>💾 Save Record</button>
       </div>
     </>
   )
