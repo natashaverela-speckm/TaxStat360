@@ -30,7 +30,7 @@ function NavBtn({label, onClick, active}) {
 }
 
 function signOut(nav) {
-  ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k => localStorage.removeItem(k))
+  ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k))
   nav('/')
 }
 

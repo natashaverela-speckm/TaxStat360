@@ -209,12 +209,13 @@ export default function Dashboard(){
   const [f1040,setF1040]=useState({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
   const [connectedApp,setConnectedApp]=useState(null)
   const [saved,setSaved]=useState(false)
+  const [savedRecordId,setSavedRecordId]=useState(null)
   const [showFin,setShowFin]=useState(true)
   const [show1040,setShow1040]=useState(false)
   const [loadedRecord,setLoadedRecord]=useState(null)
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
-  const bSet=(k,v)=>{setBiz(p=>({...p,[k]:v}));setSaved(false)}
+  const bSet=(k,v)=>{setSavedRecordId(null);setSaved(false);setBiz(p=>({...p,[k]:v}));setSaved(false)}
   const fSet=(k,v)=>setF1040(p=>({...p,[k]:v}))
 
   const [xeroLoading,setXeroLoading]=useState(false)
@@ -233,7 +234,9 @@ export default function Dashboard(){
     if(email !== 'default' && !localStorage.getItem(key) && recs.length > 0) {
       localStorage.setItem(key, JSON.stringify(recs))
     }
-    if(app)setConnectedApp(app)
+    // Clear connected badge — re-verified below via live fetch
+    localStorage.removeItem('ts360_connected_app')
+    setConnectedApp(null)
     setRecords(recs)
     if(recs.length>0&&recs[0].biz){setBiz(recs[0].biz);setF1040(recs[0].f1040||f1040);setSaved(true)}
     const params=new URLSearchParams(window.location.search)
@@ -353,9 +356,23 @@ export default function Dashboard(){
   const isPassthru=PASSTHROUGH.includes(biz.entityType)
 
   const handleSave=()=>{
-    const record={id:Date.now(),savedAt:new Date().toLocaleString(),biz:{...biz},f1040:{...f1040},connectedApp,k1Income:calc?.k1||0}
-    const updated=[record,...records.filter((_,i)=>i<9)]
-    setRecords(updated);localStorage.setItem('ts360_records',JSON.stringify(updated));setSaved(true)
+    const email=localStorage.getItem('ts360_email')||'default'
+    const key='ts360_records_'+email
+    // If already saved this session, update the existing record (same ID)
+    const existingId=savedRecordId
+    const record={
+      id:existingId||Date.now(),
+      savedAt:new Date().toLocaleString(),
+      biz:{...biz},f1040:{...f1040},connectedApp,k1Income:calc?.k1||0
+    }
+    const updated=existingId
+      ? records.map(r=>r.id===existingId?record:r)  // UPDATE existing
+      : [record,...records.filter((_,i)=>i<9)]        // INSERT new
+    setSavedRecordId(record.id)
+    setRecords(updated)
+    localStorage.setItem(key,JSON.stringify(updated))
+    localStorage.setItem('ts360_records',JSON.stringify(updated))
+    setSaved(true)
   }
 
   const loadRecord = (rec) => {
@@ -394,7 +411,7 @@ export default function Dashboard(){
         <LOGO/>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
+          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
       </nav>

@@ -277,8 +277,9 @@ export default function TaxReturn() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>← Back to Business</button>
+          <button onClick={() => nav('/dashboard')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>📂 Dashboard</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>AI Analysis</button>
-          <button onClick={() => { ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k => localStorage.removeItem(k)); nav('/') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
+          <button onClick={() => { ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k)); nav('/') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
           <button onClick={() => nav('/settings')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>⚙ Settings</button>
         </div>
       </nav>
@@ -364,6 +365,26 @@ export default function TaxReturn() {
                 <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
                 Real Estate Professional
               </label>
+            {isREP && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
+                ✓ REP status: rental losses fully deductible against all income (unlimited)
+              </div>
+            )}
+            {!isREP && (
+              <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
+                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
+                <input value={rentalIncome} onChange={e => setRentalIncome(e.target.value)} placeholder="0" style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
+                <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
+              </div>
+            </div>
           </CollapsibleSection>
 
           {/* Other Income */}
