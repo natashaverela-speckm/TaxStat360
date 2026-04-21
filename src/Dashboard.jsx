@@ -145,38 +145,35 @@ function calcAll(biz,f1040){
   const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S-Corporation'
   const isCCorp=biz.entityType==='C-Corporation'
 
-  // ── C-Corp: entity-level 21% flat tax (IRC §11) ──────────────────────────
-  // Net profit stays at corporate level — does NOT pass to owner's personal return
-  // Owner is taxed only on: (1) W-2 salary already in f1040 and (2) dividends received
-  const corpTax=isCCorp?Math.round(Math.max(0,netBiz)*0.21):0
-  const dividends=isCCorp?parseFloat(biz.ccorpDividends||0):0
-  // Qualified dividend tax rate: 0% ≤$47,025 (single 2025), 15% most, 20% high income
-  const qualDivRate=0.15 // simplified: 15% planning rate
-  const divTax=isCCorp?Math.round(Math.max(0,dividends)*qualDivRate):0
+  // ── C-Corp: entity-level only — no personal 1040 involvement ─────────────
+  if(isCCorp){
+    const corpTax=Math.round(Math.max(0,netBiz)*0.21)
+    const dividends=parseFloat(biz.ccorpDividends||0)
+    const divTax=Math.round(Math.max(0,dividends)*0.15)
+    const quarterly=Math.round(corpTax/4)
+    const recSal=Math.round(Math.max(0,k1)*0.35)
+    return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,own,
+      corpTax,divTax,dividends,combinedTax:corpTax,
+      agi:0,ded:0,qbi:0,seTax:0,seDed:0,taxableInc:0,incomeTax:0,ctc:0,
+      totalTax:0,taxOwed:0,refund:0,effRate:'0.0',quarterly,recSal,stdDed:0,
+      w2,otherInc:0,estPay:0,isPassthru:false,isSC:false,isCCorp:true}
+  }
 
-  // ── Passthrough entities: K-1 flows to personal return ───────────────────
-  // For C-Corp, k1PersonalIncome = 0 (profit stays at entity level)
-  const k1PersonalIncome=isCCorp?0:k1
-
-  const seTaxBase=isPassthru&&!isSC?Math.max(0,k1PersonalIncome)*0.9235:0
+  // ── Passthrough entities: K-1 flows to personal 1040 ─────────────────────
+  const seTaxBase=isPassthru&&!isSC?Math.max(0,k1)*0.9235:0
   const seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
-  const qbi=isPassthru?Math.round(Math.max(0,k1PersonalIncome)*0.20):0
-
-  // AGI: C-Corp owner only includes W-2 + other personal income (no K-1)
-  const agi=Math.max(0,k1PersonalIncome+w2+otherInc+dividends-seDed)
+  const qbi=isPassthru?Math.round(Math.max(0,k1)*0.20):0
+  const agi=Math.max(0,k1+w2+otherInc-seDed)
   const stdDed=getStdDed(parseInt(biz.year)||2025,fs),ded=useStd?stdDed:Math.max(stdDed,itemized)
   const taxableInc=Math.max(0,agi-ded-qbi),incomeTax=calcBracketTax(taxableInc,parseInt(biz.year)||2025,fs)
   const phaseout=fs==='mfj'?400000:200000,ctcReduce=Math.max(0,Math.floor((agi-phaseout)/1000)*50)
   const ctc=Math.max(0,deps*2000-ctcReduce)
-  // Personal total tax (for C-Corp: personal income tax only; corp tax shown separately)
   const totalTax=Math.max(0,incomeTax+seTax-ctc)
-  // Combined total for C-Corp: personal + corporate + dividend tax
-  const combinedTax=isCCorp?totalTax+corpTax:totalTax
   const taxOwed=Math.max(0,totalTax-estPay),refund=Math.max(0,estPay-totalTax)
   const effRate=agi>0?(totalTax/agi*100).toFixed(1):'0.0'
   const quarterly=Math.round(Math.max(0,totalTax-estPay)/4)
   const recSal=isSC?Math.round(Math.max(0,k1)*0.35):0
-  return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,k1PersonalIncome,own,agi,ded,qbi,seTax,seDed,taxableInc,incomeTax,ctc,totalTax,corpTax,divTax,combinedTax,dividends,taxOwed,refund,effRate,quarterly,recSal,stdDed,w2,otherInc,estPay,isPassthru,isSC,isCCorp}
+  return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,own,agi,ded,qbi,seTax,seDed,taxableInc,incomeTax,ctc,totalTax,corpTax:0,divTax:0,combinedTax:totalTax,dividends:0,taxOwed,refund,effRate,quarterly,recSal,stdDed,w2,otherInc,estPay,isPassthru,isSC,isCCorp:false}
 }
 
 function buildRecs(biz,calc){
@@ -323,9 +320,9 @@ export default function Dashboard(){
       )}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Step 1 — Business'],['f1040','Step 2 — Personal 1040']].map(([v,label])=>(
-          <button key={v} onClick={()=>{ if(v==='f1040'&&calc?.isCCorp) return; setActiveView(v) }} style={{
-            padding:'12px 20px',background:'none',border:'none',opacity:v==='f1040'&&calc?.isCCorp?0.35:1,cursor:v==='f1040'&&calc?.isCCorp?'not-allowed':'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
+        {[['records','📂 My Records'],['business','Step 1 — Business'],...(calc?.isCCorp?[]:[['f1040','Step 2 — Personal 1040']])].map(([v,label])=>(
+          <button key={v} onClick={()=>setActiveView(v)} style={{
+            padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
             fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
           }}>{label}</button>
         ))}
@@ -486,7 +483,7 @@ export default function Dashboard(){
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
                 {!calc.isCCorp&&<button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>}
-                {calc.isCCorp&&<div style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#93C5FD',fontWeight:600,fontSize:12,textAlign:'center',lineHeight:1.4}}>C-Corps file Form 1120 separately.<br/>No personal 1040 passthrough.</div>}
+
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
             </div>
@@ -513,7 +510,7 @@ export default function Dashboard(){
       )}
 
       {/* ════ 1040 / PERSONAL VIEW ════ */}
-      {activeView==='f1040'&&(
+      {activeView==='f1040'&&!calc?.isCCorp&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
