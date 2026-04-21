@@ -304,6 +304,7 @@ export default function CalculateTax(){
             {anyPnl&&<button onClick={()=>exportEntitiesToCSV(entities)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⬇ Export CSV</button>}
             <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>AI Analysis</button>
             <button onClick={()=>{localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing');nav('/')}} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>Sign Out</button>
+          <button onClick={()=>nav('/settings')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⚙ Settings</button>
           </div>
         </nav>
         <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 20px'}}>
