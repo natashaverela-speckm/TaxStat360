@@ -6,8 +6,8 @@ const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 
 const PLANS = {
   starter:      { label:'Starter',      price:{ monthly:79,  annual:66  }, color:'#64748B' },
-  professional: { label:'Professional', price:{ monthly:149, annual:124 }, color:B,        popular:true },
-  enterprise:   { label:'Enterprise',   price:{ monthly:299, annual:249 }, color:N         },
+  professional: { label:'Pro',          price:{ monthly:149, annual:124 }, color:B,        popular:true },
+  enterprise:   { label:'Essential',    price:{ monthly:299, annual:249 }, color:N         },
 }
 
 const FEATURES = [
@@ -62,9 +62,12 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const plan = localStorage.getItem('plan') || 'starter'
+    const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
+    // Normalize legacy plan names to current names
+    const planMap = { 'basic': 'starter', 'pro': 'professional', 'expert': 'enterprise', 'elite': 'enterprise', 'essential': 'enterprise' }
+    const plan = planMap[raw] || (PLANS[raw] ? raw : 'starter')
     const em = localStorage.getItem('ts360_email') || ''
-    setCurrentPlan(plan.toLowerCase())
+    setCurrentPlan(plan)
     setEmail(em)
     // Load Stripe.js
     if (!window.Stripe) {
