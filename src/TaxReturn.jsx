@@ -7,56 +7,62 @@ const G = '#16a34a'
 const R = '#dc2626'
 const SL = '#475569'
 
-// 2025 Federal Tax Brackets (Single)
-// Tax Brackets by year (IRC §1)
-const BRACKETS_BY_YEAR = {
+// ── IRS Tax Tables 2024-2026 ────────────────────────────────────────────────
+const TAX_TABLES = {
   2024: {
-    single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
-    mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
-    mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
-    hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-    qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+    std:      { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
+    brackets: {
+      single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
+      mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+      mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
+      hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
+      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+    },
   },
   2025: {
-    single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
-    mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-    mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
-    hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
-    qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+    std:      { single:15000, mfj:30000, mfs:15000, hoh:22500, qss:30000 },
+    brackets: {
+      single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+      mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+      mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
+      hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
+      qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+    },
   },
   2026: {
-    single: [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
-    mfj:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
-    mfs:    [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[322500,.35],[Infinity,.37]],
-    hoh:    [[17500,.10],[66800,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
-    qss:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+    std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
+    brackets: {
+      single: [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+      mfj:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+      mfs:    [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[322500,.35],[Infinity,.37]],
+      hoh:    [[17500,.10],[66800,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+      qss:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+    },
   },
 }
+function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
+function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
+function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
 
+// Standard deductions handled by TAX_TABLES above
 
-// Standard Deductions by year (IRC §63)
-const STD_BY_YEAR = {
-  2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
-  2025: { single:15000, mfj:30000, mfs:15000, hoh:22500, qss:30000 },
-  2026: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
+// Additional Medicare Tax thresholds
+const AMT_THRESHOLD = {
+  single: 200000,
+  mfj: 250000,
+  mfs: 125000,
+  hoh: 200000,
+  qss: 250000,
 }
 
-function getStdDed(year, fs) {
-  const tbl = STD_BY_YEAR[year] || STD_BY_YEAR[2025]
-  return tbl[fs] || tbl.single
-}
-function getBrackets(year, fs) {
-  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
-  return tbl[fs] || tbl.single
-}
+// getBrackets defined above
 
 function calcFederalTax(taxableIncome, year, fs) {
   if (taxableIncome <= 0) return 0
   let tax = 0, prev = 0
   for (const [cap, rate] of getBrackets(year, fs)) {
     if (taxableIncome <= prev) break
-    const chunk = Math.min(taxableIncome, cap) - prev
-    tax += chunk * rate
+    tax += (Math.min(taxableIncome, cap) - prev) * rate
     prev = cap
   }
   return Math.round(tax)
@@ -164,7 +170,7 @@ export default function TaxReturn() {
   const agi = grossIncome - adjustments
 
   // Deductions
-  const stdDed = getStdDed(parseInt(taxYear)||2025, status)
+  const stdDed = getStdDed(taxYear, status)
   const itemized = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
@@ -177,7 +183,7 @@ export default function TaxReturn() {
   const taxableIncome = Math.max(0, taxableBeforeQBI - qbi)
 
   // Federal income tax
-  const fedTax = calcFederalTax(taxableIncome, parseInt(taxYear)||2025, status)
+  const fedTax = calcFederalTax(taxableIncome, taxYear, status)
 
   // Marginal rate
   const brackets = getBrackets(status)
@@ -273,9 +279,7 @@ export default function TaxReturn() {
               <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, background: '#fff' }}>
                 {[2026,2025,2024].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-              <div style={{ fontSize: 12, color: SL }}>
-                Std. Deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong>
-              </div>
+              <div style={{ fontSize: 13, color: SL }}>Std. deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong></div>
             </div>
           </div>
 
