@@ -103,7 +103,7 @@ export default function Settings() {
   }
 
   const handleManageBilling = () => {
-    window.open('https://billing.stripe.com/p/login/test_00g', '_blank')
+    window.open('https://billing.stripe.com', '_blank')
   }
 
   const card = {

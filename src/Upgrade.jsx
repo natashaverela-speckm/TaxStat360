@@ -81,7 +81,7 @@ export default function Upgrade() {
     if (mountedRef.current) return
     setTimeout(() => {
       if (!window.Stripe || !document.getElementById('card-element')) return
-      const stripe = window.Stripe('pk_live_51OHhIAHVzLMm42bBl1JJ3e1tnHQBsC4HOPuenBl8yUjnH3p8cJilqnN9eMBqcMPuAMxvq2fBjk5oC3w2wbFWJFe00QMGE30d0N')
+      const stripe = window.Stripe('pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e')
       stripeRef.current = stripe
       const elements = stripe.elements()
       const card = elements.create('card', {
