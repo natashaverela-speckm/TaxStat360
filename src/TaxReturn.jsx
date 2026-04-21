@@ -129,6 +129,27 @@ function InfoTip({ text }) {
   )
 }
 
+// ── Collapsible Section ──
+function CollapsibleSection({ title, children, defaultOpen = true, badge = null }) {
+  const [open, setOpen] = React.useState(defaultOpen)
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ width: '100%', background: 'none', border: 'none', padding: '16px 20px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '1px' }}>{title}</div>
+          {badge && <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{badge}</span>}
+        </div>
+        <span style={{ fontSize: 14, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+      </button>
+      {open && <div style={{ padding: '0 20px 20px 20px' }}>{children}</div>}
+    </div>
+  )
+}
+
 
 export default function TaxReturn() {
   const nav = useNavigate()
@@ -323,8 +344,7 @@ export default function TaxReturn() {
           </div>
 
           {/* W-2 & Withholding */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>W-2 INCOME & WITHHOLDING</div>
+          <CollapsibleSection title="W-2 INCOME & WITHHOLDING">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
@@ -335,42 +355,15 @@ export default function TaxReturn() {
                 <input value={w2Withheld} onChange={e => setW2Withheld(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Rental Real Estate */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>RENTAL REAL ESTATE (SCHEDULE E)</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
-                <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
-                Real Estate Professional
-              </label>
-            </div>
-            {isREP && (
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
-                ✓ REP status: rental losses fully deductible against all income (unlimited)
-              </div>
-            )}
-            {!isREP && (
-              <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
-                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
-                <input value={rentalIncome} onChange={e => setRentalIncome(e.target.value)} placeholder="0" style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
-                <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
-              </div>
-            </div>
-          </div>
+          <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E)">
+            
+          </CollapsibleSection>
 
           {/* Other Income */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>OTHER INCOME</div>
+          <CollapsibleSection title="OTHER INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Capital Gains / (Losses) <InfoTip text="Gains or losses from selling stocks, crypto, or real estate. Find on your 1099-B from your broker. Enter negative numbers for losses."/></label>
@@ -396,11 +389,10 @@ export default function TaxReturn() {
                 </div>
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Additional Income */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>RETIREMENT & SOCIAL SECURITY INCOME <InfoTip text="Report income from Social Security (SSA-1099), IRA/401(k) withdrawals, and pension distributions. Traditional IRA/401(k) distributions are generally fully taxable. Roth distributions are tax-free — do not include those here."/></div>
+          <CollapsibleSection title="RETIREMENT & SOCIAL SECURITY INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label style={lbl}>Social Security Benefits <InfoTip text="Total SS/SSA-1099 Box 5 gross benefits received. We apply the 85% maximum inclusion rate for planning purposes. Find on SSA-1099 form mailed each January."/></label>
@@ -415,11 +407,10 @@ export default function TaxReturn() {
                 <input style={inp} type="text" placeholder="0" value={qualifiedDividends} onChange={e => setQualifiedDividends(e.target.value)} />
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Above-the-Line Deductions */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1) <InfoTip text="These deductions reduce your Adjusted Gross Income (AGI) before applying the standard or itemized deduction. They are available whether or not you itemize. Enter only what applies to your situation."/></div>
+          <CollapsibleSection title="ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)">
             <div style={{ fontSize: 12, color: SL, marginBottom: 14 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
@@ -435,50 +426,21 @@ export default function TaxReturn() {
                 <input style={inp} type="text" placeholder="0" value={studentLoanInt} onChange={e => setStudentLoanInt(e.target.value)} />
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Deductions */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>DEDUCTIONS</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
-                <input type="checkbox" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
-                Use itemized deductions
-              </label>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: useItemized ? '1fr 1fr' : '1fr', gap: 12 }}>
-              <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : 'Single'})</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{fmt(stdDed)}</span>
-              </div>
-              {useItemized && (
-                <div>
-                  <label style={lbl}>Your Itemized Deductions (Schedule A) <InfoTip text="Total itemized deductions instead of the standard deduction. Find on Schedule A: mortgage interest (Form 1098), state taxes, charitable gifts, and medical expenses."/></label>
-                  <input value={itemizedAmt} onChange={e => setItemizedAmt(e.target.value)} placeholder="0" style={inp} />
-                </div>
-              )}
-            </div>
-            {useItemized && itemized > stdDed && (
-              <div style={{ marginTop: 8, fontSize: 12, color: G, fontWeight: 600 }}>
-                ✓ Itemizing saves you {fmt(itemized - stdDed)} over standard deduction
-              </div>
-            )}
-            {useItemized && itemized <= stdDed && itemized > 0 && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#92400e', fontWeight: 600 }}>
-                ⚠ Standard deduction ({fmt(stdDed)}) is higher — standard deduction will be used
-              </div>
-            )}
-          </div>
+          <CollapsibleSection title="DEDUCTIONS">
+            
+          </CollapsibleSection>
 
           {/* Estimated Tax Payments */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>ESTIMATED TAX PAYMENTS MADE</div>
+          <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div>
               <label style={lbl}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly payments sent to the IRS this year (Form 1040-ES). Find in your IRS Online Account or bank records for payments on April 15, June 15, Sept 15, and Jan 15."/></label>
               <input value={estPaid} onChange={e => setEstPaid(e.target.value)} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
-          </div>
+          </CollapsibleSection>
         </div>
 
         {/* RIGHT — Live Results */}
