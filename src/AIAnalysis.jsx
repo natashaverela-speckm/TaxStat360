@@ -7,6 +7,7 @@ const SL = '#475569'
 const G = '#059669'
 const R = '#DC2626'
 const P = '#7C3AED'
+const O = '#D97706'
 
 function Logo() {
   return (
@@ -25,116 +26,349 @@ function Logo() {
   )
 }
 
-// Features visible to users — purposeful, real, no internal items
-const CATEGORIES = [
-  {
-    label: 'Core AI Intelligence', color: B, features: [
-      { n: 1, t: 'Real-Time Risk Alert Engine', d: 'AI scans your data for audit risks, unusual deductions, and IRS compliance issues.', status: 'active' },
-      { n: 2, t: 'What-If Scenario Simulator', d: 'Test financial decisions — salary changes, deductions, retirement contributions — without affecting real records.', status: 'active' },
-      { n: 3, t: 'Explainable AI Layer', d: '"Why This Number?" — every recommendation comes with a plain-English explanation of the underlying tax rule.', status: 'active' },
-      { n: 4, t: 'AI Assumption Transparency', d: 'See every assumption the AI is making: tax rules applied, depreciation methods used, IRS benchmarks referenced.', status: 'active' },
-      { n: 5, t: 'Data Confidence Score', d: 'A reliability score for your tax calculation based on how complete your inputs are. Fill more fields to improve accuracy.', status: 'active' },
-      { n: 6, t: 'Personalized Risk Tolerance Profiling', d: 'Conservative, balanced, or aggressive — the AI adjusts its recommendations to match how much risk you want to take.', status: 'active' },
-      { n: 7, t: 'AI Recommendation Change Tracking', d: 'As your financial data changes through the year, track how the AI\'s advice evolves.', status: 'coming' },
-      { n: 8, t: 'Financial Data Anomaly Detection', d: 'Detects duplicate entries, abnormal revenue spikes, and inconsistent depreciation patterns in your data.', status: 'coming' },
-    ]
-  },
-  {
-    label: 'Tax Planning & Optimization', color: G, features: [
-      { n: 9,  t: 'Tax-Saving Opportunity Discovery', d: 'AI scans for overlooked deductions, missed credits, and optimization strategies specific to your entity type.', status: 'active' },
-      { n: 10, t: 'Estimated Tax Payment Planner', d: 'Quarterly payment breakdowns with IRS due dates — avoid underpayment penalties.', status: 'active' },
-      { n: 11, t: 'Safe Harbor Rule Detection', d: 'Identifies IRS Safe Harbor thresholds so you pay the minimum required without triggering penalties.', status: 'active' },
-      { n: 12, t: 'Mid-Year Tax Health Report', d: 'A mid-year snapshot of projected taxes, key risks, and recommended actions before year-end.', status: 'active' },
-      { n: 13, t: 'Year-Over-Year Intelligence', d: 'Compares your financials across tax years to highlight trends, improvements, and new risks.', status: 'active' },
-      { n: 14, t: 'AI-Generated Financial Action Plan', d: 'A prioritized checklist of next steps — specific actions with timelines to reduce your tax liability.', status: 'active' },
-      { n: 15, t: 'Retirement Contribution Optimizer', d: 'Models SEP-IRA, Solo 401k, and SIMPLE IRA contributions to find the maximum tax-deductible amount.', status: 'coming' },
-      { n: 16, t: 'Industry Benchmark Intelligence', d: 'Compares your revenue, expenses, and deductions to similar US businesses in your industry.', status: 'coming' },
-    ]
-  },
-  {
-    label: 'IRS & Compliance', color: R, features: [
-      { n: 17, t: 'IRS Audit Readiness Mode', d: 'Organizes your data into IRS-friendly format with explanations — so you\'re prepared if the IRS calls.', status: 'active' },
-      { n: 18, t: 'IRS Schedule Mapping', d: 'Maps your income and expenses to the correct IRS schedules: C, E, K-1, and Form 8995.', status: 'active' },
-      { n: 19, t: 'Depreciation Compliance Engine', d: 'MACRS, Section 179, and Bonus depreciation — all handled per IRS-approved methods.', status: 'active' },
-      { n: 20, t: 'State-Level Tax Awareness', d: 'Flags state-specific rules: deduction disallowances, income sourcing, and nexus issues.', status: 'active' },
-      { n: 21, t: 'Compliance Confidence Indicator', d: 'A score showing how well your return aligns with IRS expectations based on your inputs.', status: 'active' },
-      { n: 22, t: 'IRS-Friendly Language Mode', d: 'All IRS terminology is translated into plain, human-readable language throughout the platform.', status: 'active' },
-      { n: 23, t: 'Compliance-Grade AI Guardrails', d: 'The AI avoids aggressive tax positions and clearly labels any high-risk strategies it identifies.', status: 'active' },
-      { n: 24, t: 'IRS Rule Change Monitoring', d: 'Monitors IRS updates and flags changes that affect your specific entity type and filing situation.', status: 'coming' },
-    ]
-  },
-  {
-    label: 'Reports & Collaboration', color: P, features: [
-      { n: 25, t: 'One-Click CPA Export Pack', d: 'A print-ready PDF with your financials, AI insights, risk alerts, and IRS schedule mapping — ready to hand to your accountant.', status: 'active' },
-      { n: 26, t: 'AI-Generated Audit Defense Narrative', d: 'Plain-English IRS response templates for common audit triggers — review with your CPA before sending.', status: 'active' },
-      { n: 27, t: 'Advisor & Accountant Collaboration', d: 'Secure read-only access for your CPA or financial advisor — they see your data without being able to modify it.', status: 'active' },
-      { n: 28, t: 'IRS Deadline & Penalty Awareness', d: 'Tracks all IRS deadlines relevant to your entity type and explains the penalty for missing each one.', status: 'active' },
-      { n: 29, t: 'IRS-Aligned Audit Trail', d: 'Every calculation and AI recommendation is logged with timestamps — audit-ready record keeping.', status: 'active' },
-      { n: 30, t: 'Multi-Entity Consolidated View', d: 'Own multiple businesses? See your combined tax exposure across all entities in one dashboard.', status: 'coming' },
-      { n: 31, t: 'CPA Collaboration Portal', d: 'A dedicated portal where your CPA can review, annotate, and sign off on AI recommendations.', status: 'coming' },
-    ]
-  },
-]
+const fmt = n => n < 0 ? '($' + Math.abs(Math.round(n)).toLocaleString() + ')' : '$' + Math.abs(Math.round(n)).toLocaleString()
+const pct = n => (parseFloat(n) || 0).toFixed(1) + '%'
 
-const fmtDollar = n => {
-  const abs = Math.abs(Math.round(n))
-  return n < 0 ? '($' + abs.toLocaleString() + ')' : '$' + abs.toLocaleString()
+// ── Data helpers ─────────────────────────────────────────────────────────────
+function getRecord() {
+  const email = localStorage.getItem('ts360_email') || 'default'
+  const recs = JSON.parse(
+    localStorage.getItem('ts360_records_' + email) ||
+    localStorage.getItem('ts360_records') || '[]'
+  )
+  return recs[0] || null
 }
 
-// Calculate real compliance score from saved record
-function calcComplianceScore(record) {
-  if (!record) return null
-  let score = 40 // base
-  const biz = record.biz || {}
-  const f1040 = record.f1040 || {}
-  if (biz.grossRevenue && parseFloat(biz.grossRevenue) > 0) score += 15
-  if (biz.entityType) score += 10
-  if (f1040.filingStatus) score += 10
-  if (f1040.w2Income) score += 5
-  if (biz.officerSalary && parseFloat(biz.officerSalary) > 0) score += 5
-  if (biz.operatingExpenses && parseFloat(biz.operatingExpenses) > 0) score += 5
-  if (biz.depreciation && parseFloat(biz.depreciation) > 0) score += 5
-  if (f1040.estimatedPayments && parseFloat(f1040.estimatedPayments) > 0) score += 5
-  return Math.min(score, 98)
+function completeness(rec) {
+  if (!rec) return 0
+  let s = 30
+  const b = rec.biz || {}, f = rec.f1040 || {}
+  if (parseFloat(b.grossRevenue) > 0) s += 15
+  if (b.entityType) s += 10
+  if (f.filingStatus) s += 10
+  if (parseFloat(f.w2Income) > 0) s += 10
+  if (parseFloat(b.officerSalary) > 0) s += 5
+  if (parseFloat(b.operatingExpenses) > 0) s += 5
+  if (parseFloat(b.depreciation) > 0) s += 5
+  if (parseFloat(f.estimatedPayments) > 0) s += 10
+  return Math.min(s, 98)
 }
 
-// Generate real risk alerts from saved record
-function calcRiskAlerts(record) {
-  if (!record) return []
-  const alerts = []
-  const biz = record.biz || {}
-  const k1 = parseFloat(record.k1Income || 0)
-  const revenue = parseFloat(biz.grossRevenue || 0)
-  const officerSal = parseFloat(biz.officerSalary || 0)
-  const estPay = parseFloat(record.f1040?.estimatedPayments || 0)
+// ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
+function RiskScan({ rec }) {
+  if (!rec) return <NoData />
+  const b = rec.biz || {}, f = rec.f1040 || {}
+  const revenue = parseFloat(b.grossRevenue) || 0
+  const officerSal = parseFloat(b.officerSalary) || 0
+  const k1 = parseFloat(rec.k1Income) || 0
+  const estPay = parseFloat(f.estimatedPayments) || 0
+  const dep = parseFloat(b.depreciation) || 0
+  const opExp = parseFloat(b.operatingExpenses) || 0
   const today = new Date()
-  const month = today.getMonth() + 1 // 1-12
+  const month = today.getMonth() + 1
+  const deadlines = { 1:'April 15',2:'April 15',3:'April 15',4:'April 15',5:'June 16',6:'June 16',7:'September 15',8:'September 15',9:'September 15',10:'January 15',11:'January 15',12:'January 15' }
 
-  // S-Corp officer salary
-  if (biz.entityType === 'S-Corporation' && k1 > 20000 && officerSal === 0)
-    alerts.push({ level: 'high', text: 'No officer salary recorded. S-Corp owners must pay themselves a reasonable W-2 salary — this is an IRS audit trigger.' })
-  else if (biz.entityType === 'S-Corporation' && officerSal > 0 && officerSal < k1 * 0.3 && k1 > 30000)
-    alerts.push({ level: 'medium', text: `Officer salary (${fmtDollar(officerSal)}) may be below IRS reasonable compensation threshold relative to K-1 income of ${fmtDollar(k1)}.` })
+  const findings = []
 
-  // No estimated payments
-  if (k1 > 0 && estPay === 0 && k1 > 5000)
-    alerts.push({ level: 'high', text: `Estimated tax payments not recorded. With ${fmtDollar(k1)} K-1 income, quarterly payments are likely required to avoid IRS underpayment penalties.` })
+  // S-Corp salary check
+  if (b.entityType === 'S-Corporation') {
+    if (officerSal === 0 && k1 > 20000) {
+      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk', detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`, action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
+    } else if (officerSal > 0 && k1 > 30000 && officerSal < k1 * 0.3) {
+      findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low', detail: `Your officer salary is ${fmt(officerSal)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`, action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
+    } else if (officerSal > 0) {
+      findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded', detail: `Officer salary of ${fmt(officerSal)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`, action: null })
+    }
+  }
 
-  // Upcoming quarterly deadline
-  const upcomingDeadlines = { 1:'April 15', 2:'April 15', 3:'April 15', 4:'April 15', 5:'June 16', 6:'June 16', 7:'September 15', 8:'September 15', 9:'September 15', 10:'January 15', 11:'January 15', 12:'January 15' }
-  alerts.push({ level: 'info', text: `Next quarterly estimated tax payment due: ${upcomingDeadlines[month]}. Make sure your payment reflects year-to-date income.` })
+  // Estimated payments
+  if (k1 > 5000 && estPay === 0) {
+    findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk', detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`, action: `Estimated quarterly payment: approx. ${fmt(Math.round(k1 * 0.25 / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
+  } else if (estPay > 0) {
+    findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded', detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`, action: null })
+  }
 
-  // No depreciation
-  if (revenue > 50000 && (!biz.depreciation || parseFloat(biz.depreciation) === 0))
-    alerts.push({ level: 'medium', text: 'No depreciation recorded. If you own equipment, vehicles, or property used in the business, Section 179 or MACRS depreciation may significantly reduce your taxable income.' })
+  // Depreciation
+  if (revenue > 50000 && dep === 0) {
+    findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded', detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.', action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
+  }
+
+  // QBI opportunity
+  if (['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType) && k1 > 10000) {
+    const qbi = Math.round(k1 * 0.20)
+    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`, detail: `The 20% Qualified Business Income deduction (IRC §199A) is automatically applied to your K-1 income. This reduced your taxable income by ${fmt(qbi)}.`, action: 'QBI phases out above $197,300 (single) or $394,600 (MFJ) in 2025. For W-2 wage businesses above these thresholds, the deduction may be limited.' })
+  }
 
   // C-Corp double tax
-  if (biz.entityType === 'C-Corporation' && revenue > 0)
-    alerts.push({ level: 'info', text: 'C-Corporation: profits are taxed at 21% at the entity level. Consider whether an S-Corp election would reduce your overall tax burden through pass-through treatment.' })
+  if (b.entityType === 'C-Corporation' && revenue > 0) {
+    findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation', detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.', action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
+  }
 
-  return alerts.slice(0, 4)
+  // Upcoming deadline
+  findings.push({ level: 'info', icon: '📅', title: `Next Quarterly Deadline: ${deadlines[month]}`, detail: 'IRS Form 1040-ES quarterly estimated tax payment due date.', action: estPay > 0 ? `Your recorded payments total ${fmt(estPay)}. Verify this covers 90% of current year tax or 100% of prior year tax to avoid penalties.` : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
+
+  const levelOrder = { high: 0, medium: 1, info: 2, good: 3 }
+  findings.sort((a, b) => levelOrder[a.level] - levelOrder[b.level])
+
+  const colors = { high: { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' }, medium: { bg: '#FFFBEB', border: '#FDE68A', text: '#78350F', badge: '#D97706' }, info: { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' }, good: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', badge: '#059669' } }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Based on your saved record from {rec.savedAt}. These findings are specific to your situation.</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {findings.map((f, i) => {
+          const c = colors[f.level]
+          return (
+            <div key={i} style={{ background: c.bg, border: '1px solid ' + c.border, borderRadius: 12, padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: 6 }}>{f.title}</div>
+                  <div style={{ fontSize: 13, color: c.text, lineHeight: 1.6, marginBottom: f.action ? 8 : 0 }}>{f.detail}</div>
+                  {f.action && (
+                    <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge }}>
+                      <strong>What to do:</strong> {f.action}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
+// ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
+function TaxOptimization({ rec }) {
+  if (!rec) return <NoData />
+  const b = rec.biz || {}, f = rec.f1040 || {}
+  const revenue = parseFloat(b.grossRevenue) || 0
+  const opExp = parseFloat(b.operatingExpenses) || 0
+  const dep = parseFloat(b.depreciation) || 0
+  const officerSal = parseFloat(b.officerSalary) || 0
+  const k1 = parseFloat(rec.k1Income) || 0
+  const w2 = parseFloat(f.w2Income) || 0
+  const estPay = parseFloat(f.estimatedPayments) || 0
+  const year = parseInt(b.year) || 2025
+  const isPassthrough = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType)
+
+  // 2025 brackets (single, simplified)
+  const brackets = [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]]
+  const agi = Math.max(0, k1 + w2)
+  const stdDed = 15750
+  const taxable = Math.max(0, agi - stdDed)
+  let marginalRate = 0.10, prev = 0
+  for (const [cap, rate] of brackets) { if (taxable > prev) marginalRate = rate; prev = cap }
+
+  const opportunities = []
+
+  // SEP-IRA
+  const maxSEP = Math.min(69000, Math.round((k1 + w2) * 0.25))
+  if (maxSEP > 0 && isPassthrough) {
+    const taxSaved = Math.round(maxSEP * marginalRate)
+    opportunities.push({
+      icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
+      saving: taxSaved,
+      detail: `You can contribute up to ${fmt(maxSEP)} (25% of net self-employment income, max $69,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`,
+      howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max SEP-IRA contribution saves approx. ${fmt(taxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions.`
+    })
+  }
+
+  // Section 179 / Depreciation
+  if (revenue > 30000 && dep === 0) {
+    const est179 = Math.round(revenue * 0.05) // rough estimate of potential assets
+    const taxSaved = Math.round(est179 * marginalRate)
+    opportunities.push({
+      icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
+      saving: null,
+      detail: 'Section 179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $1.16M in 2025).',
+      howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
+    })
+  }
+
+  // Home office
+  opportunities.push({
+    icon: '🏠', title: 'Home Office Deduction', priority: 'medium',
+    saving: null,
+    detail: 'If you use a portion of your home exclusively and regularly for business, you can deduct either $5 per sq ft (simplified, up to 300 sq ft = $1,500 max) or actual expenses proportional to office size.',
+    howTo: 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C or as an S-Corp expense.'
+  })
+
+  // Reasonable salary optimization for S-Corps
+  if (b.entityType === 'S-Corporation' && officerSal > 0 && k1 > 50000) {
+    const seTaxSaved = Math.round((k1 - officerSal) * 0.0765 * 2) // employer+employee FICA avoided on distributions
+    if (seTaxSaved > 1000) {
+      opportunities.push({
+        icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
+        saving: seTaxSaved,
+        detail: `Your S-Corp structure already saves FICA taxes on the ${fmt(k1)} distributed as K-1 (vs. a sole prop where all income is subject to SE tax). Distributions above your officer salary avoid 15.3% self-employment tax.`,
+        howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)}. Maintain documentation showing salary is reasonable for your role. Avoid setting salary too low — IRS minimum guidance is typically 35–40% of net profit.`
+      })
+    }
+  }
+
+  // HSA
+  opportunities.push({
+    icon: '🏥', title: 'Health Savings Account (HSA)', priority: 'medium',
+    saving: Math.round(4300 * marginalRate),
+    detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to $4,300 (self-only) or $8,550 (family) to an HSA in 2025. Contributions are tax-deductible and grow tax-free.`,
+    howTo: `At your rate of ${pct(marginalRate * 100)}, a max HSA contribution saves approx. ${fmt(Math.round(4300 * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for medical expenses are always tax-free.`
+  })
+
+  // Augusta Rule (if S-Corp)
+  if (b.entityType === 'S-Corporation' && revenue > 0) {
+    opportunities.push({
+      icon: '🏡', title: 'Augusta Rule — IRC §280A(g)', priority: 'low',
+      saving: null,
+      detail: 'You can rent your personal home to your S-Corp for up to 14 days per year. The rental income is tax-free to you personally, and the rental payment is a deductible business expense for the S-Corp.',
+      howTo: 'Document business meetings, shareholder meetings, or strategy sessions held at your home. Pay fair market rent (research comparable event venue rates in your area). Keep written agreements. Maximum benefit: fair market rate × 14 days, deductible to the S-Corp.'
+    })
+  }
+
+  const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: G }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Tax-Saving Opportunities</h3>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {b.entityType || 'business'} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate.</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {opportunities.map((o, i) => {
+          const c = priorityColors[o.priority]
+          return (
+            <div key={i} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <span style={{ fontSize: 24 }}>{o.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontWeight: 700, color: N, fontSize: 14 }}>{o.title}</span>
+                      {o.saving && <span style={{ fontSize: 11, background: '#F0FDF4', color: G, border: '1px solid #86EFAC', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Save ~{fmt(o.saving)}</span>}
+                      <span style={{ fontSize: 10, background: c.bg, color: c.badge, border: '1px solid ' + c.border, borderRadius: 10, padding: '2px 8px', fontWeight: 700, textTransform: 'uppercase' }}>{o.priority} impact</span>
+                    </div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>{o.detail}</p>
+              </div>
+              <div style={{ padding: '12px 20px', background: '#F8FAFC' }}>
+                <div style={{ fontSize: 12, color: N, lineHeight: 1.6 }}>
+                  <strong style={{ color: B }}>How to apply:</strong> {o.howTo}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ marginTop: 16, fontSize: 11, color: SL, textAlign: 'center' }}>
+        Estimates based on inputs entered. Consult a CPA before implementing any strategy.
+      </div>
+    </div>
+  )
+}
+
+// ── TAB 3: IRS Schedule Map ──────────────────────────────────────────────────
+function IRSCompliance({ rec }) {
+  const b = rec?.biz || {}, f = rec?.f1040 || {}
+  const k1 = parseFloat(rec?.k1Income) || 0
+  const w2 = parseFloat(f.w2Income) || 0
+  const rental = false // future
+  const entity = b.entityType || 'S-Corporation'
+  const year = parseInt(b.year) || 2025
+  const today = new Date()
+
+  const schedules = []
+
+  // Form 1040 always
+  schedules.push({ form: 'Form 1040', title: 'U.S. Individual Income Tax Return', status: 'required', detail: 'Your main personal tax return. All income sources flow here — W-2, K-1, Schedule E, Schedule C.', deadline: `April 15, ${year + 1}` })
+
+  // S-Corp / Partnership
+  if (['S-Corporation'].includes(entity)) {
+    schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
+    schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(k1)} share of S-Corp income flows to your personal return via this form. Attach to Schedule E, Part II.`, deadline: `Issued with Form 1120-S` })
+    schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
+  }
+  if (['Partnership','Multi-Member LLC'].includes(entity)) {
+    schedules.push({ form: 'Form 1065', title: 'Partnership Return', status: 'required', detail: 'Partnership or multi-member LLC files this informational return. Issues K-1s to each partner/member.', deadline: `March 15, ${year + 1}` })
+    schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: 'Your distributive share of partnership income, deductions, and credits.', deadline: 'Issued with Form 1065' })
+  }
+  if (['Sole Proprietor','Single-Member LLC'].includes(entity)) {
+    schedules.push({ form: 'Schedule C', title: 'Profit or Loss from Business', status: 'required', detail: 'Reports all business revenue and expenses. Net profit flows directly to Form 1040 Line 8.', deadline: 'Filed with Form 1040' })
+    schedules.push({ form: 'Schedule SE', title: 'Self-Employment Tax', status: 'required', detail: 'Calculates 15.3% SE tax on net self-employment income. Half is deductible on Schedule 1.', deadline: 'Filed with Form 1040' })
+  }
+
+  // QBI deduction
+  if (['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(entity) && k1 > 0) {
+    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC §199A)', status: 'required', detail: `Your 20% Qualified Business Income deduction of ~${fmt(Math.round(k1 * 0.20))} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+  }
+
+  // W-2 / withholding
+  if (w2 > 0) {
+    schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', detail: `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040. Federal withholding reduces your tax liability.`, deadline: 'Issued by employer Jan 31' })
+  }
+
+  // Estimated payments
+  if (parseFloat(f.estimatedPayments) > 0) {
+    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estimatedPayments))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 16 | Q3: Sep 15 | Q4: Jan 15' })
+  }
+
+  // Additional Medicare
+  const totalIncome = k1 + w2
+  if (totalIncome > 200000) {
+    schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', detail: `With total income of ${fmt(totalIncome)}, the 0.9% Additional Medicare Tax applies to wages/SE income over $200,000 (single).`, deadline: 'Filed with Form 1040' })
+  }
+
+  // Deadline calendar
+  const upcomingDeadlines = [
+    { date: `Jan 31, ${year + 1}`, event: 'W-2s issued by employers' },
+    { date: `Mar 15, ${year + 1}`, event: `Form 1120-S / 1065 due (S-Corps & Partnerships)` },
+    { date: `Apr 15, ${year + 1}`, event: 'Form 1040 personal return due / Q1 estimated payment' },
+    { date: `Jun 16, ${year + 1}`, event: 'Q2 estimated tax payment due' },
+    { date: `Sep 15, ${year + 1}`, event: 'Q3 estimated tax payment due' },
+    { date: `Jan 15, ${year + 2}`, event: 'Q4 estimated tax payment due' },
+  ]
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Your IRS Filing Map</h3>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Forms and schedules required for a {entity} filing {year} taxes. Based on your saved record.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+        {schedules.map((s, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, background: s.status === 'required' ? '#EFF6FF' : '#F0FDF4', color: s.status === 'required' ? B : G, border: '1px solid ' + (s.status === 'required' ? '#BFDBFE' : '#86EFAC'), borderRadius: 4, padding: '1px 7px' }}>{s.form}</span>
+            </div>
+            <div style={{ fontWeight: 700, color: N, fontSize: 13, marginBottom: 4 }}>{s.title}</div>
+            <div style={{ fontSize: 12, color: SL, lineHeight: 1.5, marginBottom: 6 }}>{s.detail}</div>
+            <div style={{ fontSize: 11, color: '#94A3B8' }}>📅 {s.deadline}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: N, borderRadius: 12, padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#93C5FD', letterSpacing: '1px', marginBottom: 14 }}>KEY DEADLINES — TAX YEAR {year}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {upcomingDeadlines.map((d, i) => (
+            <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', minWidth: 110, flexShrink: 0 }}>{d.date}</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>{d.event}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── TAB 4: Reports & Tools ───────────────────────────────────────────────────
 function Modal({ onClose, children }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -145,18 +379,14 @@ function Modal({ onClose, children }) {
   )
 }
 
-function ReportModal({ onClose, record }) {
-  const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
-  const k1Raw = parseFloat(sessionStorage.getItem('ts360_k1') || record?.k1Income || '0')
+function ReportModal({ onClose, rec }) {
+  const b = rec?.biz || {}, f = rec?.f1040 || {}
+  const k1 = parseFloat(rec?.k1Income) || 0
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  const biz = record?.biz || {}
-  const f1040 = record?.f1040 || {}
-  const score = calcComplianceScore(record)
-  const alerts = calcRiskAlerts(record)
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 4 }}>CPA EXPORT PACK</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Tax Analysis Report</h2>
@@ -167,55 +397,22 @@ function ReportModal({ onClose, record }) {
             <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
           </div>
         </div>
-        {score && (
-          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>INPUT COMPLETENESS SCORE</div>
-              <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>Based on fields entered — fill more inputs to improve accuracy</div>
-            </div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: '#166534' }}>{score}%</div>
-          </div>
-        )}
-        {record && (
+        {rec && (
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION — {record.savedAt}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION — {rec.savedAt}</div>
             {[
-              ['Entity Type', biz.entityType],
-              ['Tax Year', String(biz.year || '')],
-              ['Gross Revenue', biz.grossRevenue ? '$' + parseFloat(biz.grossRevenue).toLocaleString() : ''],
-              ['Operating Expenses', biz.operatingExpenses ? '$' + parseFloat(biz.operatingExpenses).toLocaleString() : ''],
-              ['Officer Salary', biz.officerSalary ? '$' + parseFloat(biz.officerSalary).toLocaleString() : ''],
-              ['Filing Status', (f1040.filingStatus || '').toUpperCase()],
-              ['W-2 Income', f1040.w2Income ? '$' + parseFloat(f1040.w2Income).toLocaleString() : ''],
-              ['Estimated Payments Made', f1040.estimatedPayments ? '$' + parseFloat(f1040.estimatedPayments).toLocaleString() : ''],
-            ].filter(([, v]) => v).map(([label, value]) => (
+              ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
+              ['Gross Revenue', b.grossRevenue ? '$' + parseFloat(b.grossRevenue).toLocaleString() : ''],
+              ['Operating Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
+              ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
+              ['K-1 Income to Personal Return', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
+              ['Filing Status', (f.filingStatus || '').toUpperCase()],
+              ['W-2 Income', f.w2Income ? '$' + parseFloat(f.w2Income).toLocaleString() : ''],
+              ['Estimated Payments Made', f.estimatedPayments ? '$' + parseFloat(f.estimatedPayments).toLocaleString() : ''],
+            ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <span style={{ color: SL }}>{label}</span>
-                <span style={{ fontWeight: 600, color: N }}>{value}</span>
+                <span style={{ color: SL }}>{label}</span><span style={{ fontWeight: 600, color: N }}>{value}</span>
               </div>
-            ))}
-          </div>
-        )}
-        {entities.length > 0 && (
-          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>BUSINESS INCOME SUMMARY</div>
-            {entities.map((e, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <span style={{ color: SL }}>{e.name} ({e.type} · {e.own}% ownership)</span>
-                <span style={{ fontWeight: 600, color: e.k1 >= 0 ? '#16a34a' : R }}>{fmtDollar(e.k1)}</span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', fontSize: 14, fontWeight: 700, borderTop: '2px solid #E2E8F0', marginTop: 4 }}>
-              <span style={{ color: N }}>Total K-1 to Schedule E</span>
-              <span style={{ color: k1Raw >= 0 ? '#16a34a' : R }}>{fmtDollar(k1Raw)}</span>
-            </div>
-          </div>
-        )}
-        {alerts.length > 0 && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 20px', marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, color: R, fontSize: 13, marginBottom: 10 }}>🚨 Risk Alerts</div>
-            {alerts.map((a, i) => (
-              <div key={i} style={{ fontSize: 13, color: '#991B1B', padding: '5px 0', borderBottom: i < alerts.length - 1 ? '1px solid #FECACA' : 'none' }}>• {a.text}</div>
             ))}
           </div>
         )}
@@ -227,10 +424,10 @@ function ReportModal({ onClose, record }) {
             ['Form 8959', 'Additional Medicare Tax — 0.9% on wages over $200K'],
             ['Schedule A', 'Itemized deductions — mortgage, taxes, charitable'],
             ['Form 7203', 'S-Corp shareholder stock and debt basis limitations'],
-          ].map(([sched, desc]) => (
-            <div key={sched} style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 13, borderBottom: '1px solid #BFDBFE' }}>
-              <span style={{ fontWeight: 700, color: '#1D4ED8', minWidth: 145, flexShrink: 0 }}>{sched}</span>
-              <span style={{ color: SL }}>{desc}</span>
+          ].map(([s, d]) => (
+            <div key={s} style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 13, borderBottom: '1px solid #BFDBFE' }}>
+              <span style={{ fontWeight: 700, color: '#1D4ED8', minWidth: 145, flexShrink: 0 }}>{s}</span>
+              <span style={{ color: SL }}>{d}</span>
             </div>
           ))}
         </div>
@@ -240,33 +437,24 @@ function ReportModal({ onClose, record }) {
   )
 }
 
-function SimulatorModal({ onClose, record }) {
-  // Pre-fill from saved record if available
-  const savedW2 = record?.f1040?.w2Income || record?.biz?.officerSalary || '0'
-  const savedK1 = record?.k1Income || parseFloat(sessionStorage.getItem('ts360_k1') || '0')
-
+function SimulatorModal({ onClose, rec }) {
+  const b = rec?.biz || {}, f = rec?.f1040 || {}
+  const savedW2 = f.w2Income || b.officerSalary || '0'
+  const savedK1 = parseFloat(rec?.k1Income) || 0
   const [w2, setW2] = useState(String(parseFloat(savedW2) || 0))
   const [addlIncome, setAddlIncome] = useState('0')
   const [newDeduction, setNewDeduction] = useState('0')
   const [retirement, setRetirement] = useState('0')
   const [scenarioName, setScenarioName] = useState('My Scenario')
-
-  const k1 = parseFloat(savedK1) || 0
-
-  const calcTax = (w2Val, extraInc, dedExtra, retExtra) => {
-    const gross = w2Val + k1 + parseFloat(extraInc || 0)
-    const totalDed = 15750 + parseFloat(dedExtra || 0) + parseFloat(retExtra || 0)
+  const calcTax = (w2Val, extra, ded, ret) => {
+    const gross = w2Val + savedK1 + parseFloat(extra || 0)
+    const totalDed = 15750 + parseFloat(ded || 0) + parseFloat(ret || 0)
     const taxable = Math.max(0, gross - totalDed)
-    const brackets = [[11925, 0.10], [48475, 0.12], [103350, 0.22], [197300, 0.24], [250525, 0.32], [626350, 0.35], [Infinity, 0.37]]
+    const brackets = [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]]
     let tax = 0, prev = 0
-    for (const [cap, rate] of brackets) {
-      if (taxable <= prev) break
-      tax += (Math.min(taxable, cap) - prev) * rate
-      prev = cap
-    }
-    return Math.round(tax + Math.max(0, w2Val - 200000) * 0.009)
+    for (const [cap, rate] of brackets) { if (taxable <= prev) break; tax += (Math.min(taxable, cap) - prev) * rate; prev = cap }
+    return Math.round(tax)
   }
-
   const baseTax = calcTax(parseFloat(w2) || 0, 0, 0, 0)
   const scenarioTax = calcTax(parseFloat(w2) || 0, addlIncome, newDeduction, retirement)
   const impact = scenarioTax - baseTax
@@ -276,63 +464,47 @@ function SimulatorModal({ onClose, record }) {
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: G, letterSpacing: '1px', marginBottom: 4 }}>WHAT-IF SIMULATOR</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Test Financial Decisions</h2>
-            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Changes here don't affect your real data</div>
+            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Changes here don't affect your real data{savedK1 ? ` · Using your K-1 of ${fmt(savedK1)}` : ''}</div>
           </div>
           <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>SCENARIO INPUTS</div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={lbl}>Scenario Name</label>
-              <input value={scenarioName} onChange={e => setScenarioName(e.target.value)} style={inp} />
-            </div>
+            <div style={{ marginBottom: 14 }}><label style={lbl}>Scenario Name</label><input value={scenarioName} onChange={e => setScenarioName(e.target.value)} style={inp} /></div>
             {[
-              { label: 'W-2 / Officer Salary', val: w2, set: setW2, hint: 'Your W-2 wages — adjust to see tax impact of salary changes' },
-              { label: 'Additional Income', val: addlIncome, set: setAddlIncome, hint: 'Capital gains, freelance, rental, interest income' },
-              { label: 'New Deduction', val: newDeduction, set: setNewDeduction, hint: 'Home office, equipment, professional fees, advertising' },
-              { label: 'Retirement Contribution', val: retirement, set: setRetirement, hint: 'SEP-IRA (up to $69,000) · Solo 401k (up to $69,000) · SIMPLE IRA' },
-            ].map(f => (
-              <div key={f.label} style={{ marginBottom: 14 }}>
-                <label style={lbl}>{f.label}</label>
-                <div style={hint}>{f.hint}</div>
-                <input type="number" value={f.val} onChange={e => f.set(e.target.value)} placeholder="0" style={inp} />
+              { label: 'W-2 / Officer Salary', val: w2, set: setW2, hint: 'Adjust your salary to model different splits' },
+              { label: 'Additional Income', val: addlIncome, set: setAddlIncome, hint: 'Capital gains, rental, interest, freelance' },
+              { label: 'New Deduction', val: newDeduction, set: setNewDeduction, hint: 'Home office, equipment, professional fees' },
+              { label: 'Retirement Contribution', val: retirement, set: setRetirement, hint: 'SEP-IRA up to $69,000 · Solo 401k up to $69,000' },
+            ].map(fi => (
+              <div key={fi.label} style={{ marginBottom: 14 }}>
+                <label style={lbl}>{fi.label}</label>
+                <div style={hint}>{fi.hint}</div>
+                <input type="number" value={fi.val} onChange={e => fi.set(e.target.value)} placeholder="0" style={inp} />
               </div>
             ))}
-            {k1 !== 0 && (
-              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8' }}>
-                📊 Using your K-1 income of {fmtDollar(k1)} from saved record
-              </div>
-            )}
-            {parseFloat(retirement) > 0 && (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#166534', marginTop: 8 }}>
-                💡 A {fmtDollar(parseFloat(retirement))} retirement contribution reduces taxable income by the same amount — significant savings at higher brackets.
-              </div>
-            )}
           </div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>SCENARIO RESULTS</div>
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: SL, marginBottom: 6 }}>CURRENT ESTIMATED TAX</div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: N }}>{fmtDollar(baseTax)}</div>
-              <div style={{ fontSize: 11, color: SL, marginTop: 4 }}>Based on your inputs above</div>
+              <div style={{ fontSize: 32, fontWeight: 800, color: N }}>{fmt(baseTax)}</div>
             </div>
-            <div style={{ background: impact < 0 ? '#F0FDF4' : impact > 0 ? '#FEF2F2' : '#F8FAFC', border: '1px solid ' + (impact < 0 ? '#BBF7D0' : impact > 0 ? '#FECACA' : '#E2E8F0'), borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
+            <div style={{ background: impact < 0 ? '#F0FDF4' : '#FEF2F2', border: '1px solid ' + (impact < 0 ? '#BBF7D0' : '#FECACA'), borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: SL, marginBottom: 6 }}>SCENARIO TAX</div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: impact < 0 ? '#16a34a' : impact > 0 ? R : N }}>{fmtDollar(scenarioTax)}</div>
+              <div style={{ fontSize: 32, fontWeight: 800, color: impact < 0 ? '#16a34a' : R }}>{fmt(scenarioTax)}</div>
             </div>
-            <div style={{ background: impact < 0 ? '#EFF6FF' : impact > 0 ? '#FFF7ED' : '#F8FAFC', border: '2px solid ' + (impact < 0 ? B : impact > 0 ? '#FB923C' : '#E2E8F0'), borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ background: impact < 0 ? '#EFF6FF' : '#FFF7ED', border: '2px solid ' + (impact < 0 ? B : '#FB923C'), borderRadius: 12, padding: '16px 20px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, marginBottom: 8 }}>NET TAX IMPACT</div>
-              <div style={{ fontSize: 34, fontWeight: 800, color: impact < 0 ? B : impact > 0 ? '#EA580C' : SL }}>
-                {impact === 0 ? 'No change' : (impact < 0 ? '↓ Save ' : '↑ Pay more ') + fmtDollar(Math.abs(impact))}
+              <div style={{ fontSize: 34, fontWeight: 800, color: impact < 0 ? B : '#EA580C' }}>
+                {impact === 0 ? 'No change' : (impact < 0 ? '↓ Save ' : '↑ Pay more ') + fmt(Math.abs(impact))}
               </div>
-              <div style={{ fontSize: 12, color: SL, marginTop: 6, lineHeight: 1.5 }}>
-                {impact < 0 ? 'This scenario reduces your estimated federal tax liability.' : impact > 0 ? 'This scenario increases your estimated federal tax liability.' : 'No tax impact from these changes.'}
-              </div>
+              <div style={{ fontSize: 12, color: SL, marginTop: 6 }}>{impact < 0 ? 'This scenario reduces your estimated federal tax.' : impact > 0 ? 'This scenario increases your estimated federal tax.' : 'No tax impact.'}</div>
             </div>
           </div>
         </div>
@@ -354,34 +526,24 @@ function NarrativeModal({ onClose }) {
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: P, letterSpacing: '1px', marginBottom: 4 }}>AUDIT DEFENSE NARRATIVE</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>IRS Response Templates</h2>
-            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Plain-English IRS correspondence — review and edit before sending</div>
+            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Review and edit before sending — not a substitute for legal advice</div>
           </div>
           <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {narratives.map((n, i) => (
-            <button key={i} onClick={() => { setSelected(i); setCopied(false) }} style={{ padding: '7px 14px', background: selected === i ? n.color : '#fff', color: selected === i ? '#fff' : SL, border: '1px solid ' + (selected === i ? n.color : '#E2E8F0'), borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-              {n.title}
-            </button>
+            <button key={i} onClick={() => { setSelected(i); setCopied(false) }} style={{ padding: '7px 14px', background: selected === i ? n.color : '#fff', color: selected === i ? '#fff' : SL, border: '1px solid ' + (selected === i ? n.color : '#E2E8F0'), borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>{n.title}</button>
           ))}
         </div>
-        <div style={{ display: 'inline-block', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700, color: P, marginBottom: 14 }}>
-          📋 {current.tag}
-        </div>
-        <div style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '20px 24px', marginBottom: 16, fontFamily: 'Georgia, serif', fontSize: 13, lineHeight: 1.85, color: N, whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto' }}>
-          {current.text}
-        </div>
+        <div style={{ display: 'inline-block', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700, color: P, marginBottom: 14 }}>📋 {current.tag}</div>
+        <div style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '20px 24px', marginBottom: 16, fontFamily: 'Georgia, serif', fontSize: 13, lineHeight: 1.85, color: N, whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto' }}>{current.text}</div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
-          </button>
-          <button onClick={() => window.print()} style={{ flex: 1, padding: '11px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            🖨 Print
-          </button>
+          <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{copied ? '✓ Copied!' : '📋 Copy to Clipboard'}</button>
+          <button onClick={() => window.print()} style={{ flex: 1, padding: '11px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>🖨 Print</button>
         </div>
         <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>⚠️ Templates only — review with a licensed tax attorney before submitting to the IRS.</div>
       </div>
@@ -389,34 +551,42 @@ function NarrativeModal({ onClose }) {
   )
 }
 
-function UpgradeModal({ requiredPlan, onClose, nav }) {
-  const isPro = requiredPlan === 'professional'
-  const price = isPro ? '$149' : '$299'
-  const planName = isPro ? 'Professional' : 'Enterprise'
-  const color = isPro ? '#2563EB' : '#7C3AED'
-  const features = isPro
-    ? ['Real-Time Risk Alert Engine', 'What-If Tax Scenario Simulator', 'One-Click CPA Export Pack', 'Audit Red Flag Detector', 'Unlimited accounting integrations']
-    : ['Everything in Professional', 'Multi-entity consolidated tax view', 'AI-Generated Audit Defense Narrative', 'Risk Tolerance Profiling', 'CPA Collaboration Portal']
+function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
+  const tools = [
+    { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: B, action: onReport, available: true },
+    { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the exact dollar impact on your estimated tax.', btn: 'Open Simulator', color: G, action: onSimulator, available: true },
+    { icon: '🛡️', title: 'Audit Defense Narrative', desc: 'Plain-English IRS response templates for the three most common S-Corp and real estate audit triggers. Review with your CPA or tax attorney before sending.', btn: 'View Templates', color: P, action: onNarrative, available: true },
+  ]
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 460, width: '100%', padding: '36px 32px', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '1px', marginBottom: 8 }}>UPGRADE REQUIRED</div>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 8px' }}>Unlock {planName}</h2>
-        <p style={{ fontSize: 14, color: '#475569', margin: '0 0 20px', lineHeight: 1.6 }}>This feature is available on the {planName} plan ({price}/mo).</p>
-        <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
-          {features.map(f => (
-            <div key={f} style={{ display: 'flex', gap: 10, padding: '5px 0', fontSize: 13, color: '#0D1B3E', borderBottom: '1px solid #F1F5F9' }}>
-              <span style={{ color }}>✓</span> {f}
-            </div>
-          ))}
-        </div>
-        <button onClick={() => nav('/signup?plan=' + planName.toLowerCase())} style={{ width: '100%', padding: '13px', background: color, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}>
-          Upgrade to {planName} — {price}/mo
-        </button>
-        <button onClick={onClose} style={{ width: '100%', padding: '11px', background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-          Maybe later
-        </button>
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Reports & Tools</h3>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Three tools built for your CPA relationship and IRS preparedness.</p>
       </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {tools.map(t => (
+          <div key={t.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px', display: 'flex', gap: 20, alignItems: 'center' }}>
+            <div style={{ fontSize: 48, flexShrink: 0 }}>{t.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 6 }}>{t.title}</div>
+              <div style={{ fontSize: 13, color: SL, lineHeight: 1.6 }}>{t.desc}</div>
+            </div>
+            <button onClick={t.action} style={{ padding: '12px 24px', background: t.color, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>{t.btn}</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function NoData() {
+  const nav = useNavigate()
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+      <div style={{ fontWeight: 700, color: N, fontSize: 18, marginBottom: 8 }}>No saved record found</div>
+      <div style={{ color: SL, fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Complete your business calculation on the Dashboard and save a record. The AI Analysis will then show findings specific to your situation.</div>
+      <button onClick={() => nav('/dashboard')} style={{ padding: '12px 28px', background: B, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Go to Dashboard →</button>
     </div>
   )
 }
@@ -427,33 +597,23 @@ export default function AIAnalysis() {
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
-  const [showUpgrade, setShowUpgrade] = useState(null)
-  const [showAlerts, setShowAlerts] = useState(false)
 
-  const plan = (localStorage.getItem('plan') || 'starter').toLowerCase()
-  const isPro = plan === 'professional' || plan === 'enterprise' || plan === 'pro' || plan === 'basic'
-  const isEnterprise = plan === 'enterprise'
+  const rec = getRecord()
+  const score = completeness(rec)
 
-  // Load saved record for real calculations
-  const email = localStorage.getItem('ts360_email') || 'default'
-  const records = JSON.parse(localStorage.getItem('ts360_records_' + email) || localStorage.getItem('ts360_records') || '[]')
-  const latestRecord = records[0] || null
-
-  // Calculate real stats from user data
-  const complianceScore = calcComplianceScore(latestRecord)
-  const alerts = calcRiskAlerts(latestRecord)
-  const highAlerts = alerts.filter(a => a.level === 'high')
-  const hasData = !!latestRecord
-
-  const totalActive = CATEGORIES.flatMap(c => c.features).filter(f => f.status === 'active').length
-  const totalFeatures = CATEGORIES.flatMap(c => c.features).length
+  const TABS = [
+    { label: '🔍 Risk Scan', desc: 'AI findings from your data' },
+    { label: '💡 Tax Optimization', desc: 'Strategies to reduce your tax' },
+    { label: '📋 IRS Filing Map', desc: 'Your required forms & deadlines' },
+    { label: '🛠 Reports & Tools', desc: 'CPA export, simulator, audit defense' },
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {showUpgrade && <UpgradeModal requiredPlan={showUpgrade} onClose={() => setShowUpgrade(null)} nav={nav} />}
-      {showReport && <ReportModal onClose={() => setShowReport(false)} record={latestRecord} />}
-      {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} record={latestRecord} />}
+      {showReport && <ReportModal onClose={() => setShowReport(false)} rec={rec} />}
+      {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} rec={rec} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
+
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div onClick={() => nav('/dashboard')}><Logo /></div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -464,143 +624,54 @@ export default function AIAnalysis() {
           <button onClick={() => { ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k)); nav('/') }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Sign Out</button>
         </div>
       </nav>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
+
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
+        {/* Header */}
         <div style={{ marginBottom: 28 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            {['AI-BASED AUDIT & RISK PLANNER', 'US-SPECIFIC IRS COMPLIANCE', 'ADVANCED AI FEATURES'].map(t => (
-              <span key={t} style={{ background: '#EFF6FF', color: B, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, padding: '4px 12px', borderRadius: 20 }}>{t}</span>
-            ))}
-          </div>
-          <h1 style={{ color: N, fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>AI Risk & Compliance Planner</h1>
-          <p style={{ color: SL, fontSize: 14, margin: 0 }}>{totalFeatures} AI-powered features for IRS, state, and federal compliance — designed for S-Corps, LLCs, Partnerships, and C-Corps.</p>
+          <h1 style={{ color: N, fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>AI Risk & Tax Analysis</h1>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>
+            {rec ? `Analyzing your ${rec.biz?.entityType || 'business'} — saved ${rec.savedAt}` : 'Save a record on the Dashboard to unlock personalized analysis'}
+          </p>
         </div>
 
-        {/* No data warning */}
-        {!hasData && (
-          <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 20 }}>⚠️</div>
-            <div>
-              <div style={{ fontWeight: 700, color: '#92400E', fontSize: 14 }}>No saved records found</div>
-              <div style={{ color: '#92400E', fontSize: 13 }}>Complete your business calculation and save a record to unlock personalized AI analysis and real risk alerts.</div>
-            </div>
-            <button onClick={() => nav('/dashboard')} style={{ marginLeft: 'auto', padding: '8px 16px', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>Go to Dashboard →</button>
-          </div>
-        )}
-
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 28 }}>
-          {[
-            {
-              label: 'Input Completeness',
-              value: hasData ? (complianceScore + '%') : '—',
-              sub: hasData ? 'Based on fields entered' : 'Save a record to calculate',
-              color: G, bg: '#F0FDF4', border: '#BBF7D0'
-            },
-            {
-              label: 'Active Features',
-              value: totalActive + '/' + totalFeatures,
-              sub: 'Available on your plan',
-              color: B, bg: '#EFF6FF', border: '#BFDBFE'
-            },
-            {
-              label: 'Risk Alerts',
-              value: hasData ? String(alerts.length) : '—',
-              sub: hasData ? (highAlerts.length > 0 ? highAlerts.length + ' high priority' : 'Review below') : 'Save a record to see alerts',
-              color: alerts.length > 0 ? R : G, bg: alerts.length > 0 ? '#FEF2F2' : '#F0FDF4', border: alerts.length > 0 ? '#FECACA' : '#BBF7D0'
-            },
-          ].map(s => (
-            <div key={s.label} style={{ background: s.bg, border: '1px solid ' + s.border, borderRadius: 12, padding: '20px 18px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: SL, letterSpacing: 0.8, marginBottom: 8 }}>{s.label.toUpperCase()}</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: SL }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Risk alerts — real data */}
-        {hasData && alerts.length > 0 && (
-          <div style={{ background: highAlerts.length > 0 ? '#FEF2F2' : '#FFFBEB', border: '1px solid ' + (highAlerts.length > 0 ? '#FECACA' : '#FCD34D'), borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
-            <div style={{ fontWeight: 700, color: highAlerts.length > 0 ? R : '#92400E', fontSize: 14, marginBottom: 10 }}>
-              {highAlerts.length > 0 ? '🚨' : '⚠️'} {alerts.length} Alert{alerts.length !== 1 ? 's' : ''} Found — Based on Your Saved Record
-            </div>
-            {alerts.map((a, i) => (
-              <div key={i} style={{ fontSize: 13, color: highAlerts.length > 0 ? '#991B1B' : '#78350F', padding: '5px 0', borderBottom: i < alerts.length - 1 ? '1px solid ' + (highAlerts.length > 0 ? '#FECACA' : '#FCD34D') : 'none', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ color: a.level === 'high' ? R : a.level === 'medium' ? '#D97706' : B, fontWeight: 700, flexShrink: 0 }}>
-                  {a.level === 'high' ? '●' : a.level === 'medium' ? '◐' : '○'}
-                </span>
-                {a.text}
+        {/* Score bar */}
+        {rec && (
+          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: N }}>Input Completeness</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: G }}>{score}%</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Input completeness indicator */}
-        {hasData && complianceScore && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontWeight: 700, color: N, fontSize: 15 }}>Input Completeness Score</div>
-                <div style={{ fontSize: 12, color: SL, marginTop: 2 }}>Fill in more fields on the Dashboard and Tax Return for a more accurate calculation</div>
+              <div style={{ height: 8, background: '#E2E8F0', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: score + '%', height: '100%', background: 'linear-gradient(90deg,#059669,#34d399)', borderRadius: 4, transition: 'width 0.5s' }} />
               </div>
-              <div style={{ fontWeight: 800, color: G, fontSize: 20 }}>{complianceScore}%</div>
             </div>
-            <div style={{ height: 10, background: '#E2E8F0', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
-              <div style={{ width: complianceScore + '%', height: '100%', background: 'linear-gradient(90deg,#059669,#34d399)', borderRadius: 5, transition: 'width 0.5s' }} />
+            <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
+              Fill more fields for better accuracy
             </div>
-            <div style={{ display: 'flex', gap: 20, fontSize: 12, color: SL, flexWrap: 'wrap' }}>
-              <span>{latestRecord?.biz?.grossRevenue ? '🟢' : '🔴'} Revenue entered</span>
-              <span>{latestRecord?.biz?.entityType ? '🟢' : '🔴'} Entity type set</span>
-              <span>{latestRecord?.f1040?.filingStatus ? '🟢' : '🔴'} Filing status set</span>
-              <span>{latestRecord?.f1040?.w2Income ? '🟢' : '🟡'} W-2 income entered</span>
-              <span>{latestRecord?.f1040?.estimatedPayments ? '🟢' : '🟡'} Estimated payments entered</span>
-            </div>
+            <button onClick={() => nav('/dashboard')} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
           </div>
         )}
 
-        {/* Feature tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {CATEGORIES.map((c, i) => (
-            <button key={c.label} onClick={() => setActiveTab(i)} style={{ padding: '8px 18px', background: activeTab === i ? c.color : '#fff', color: activeTab === i ? '#fff' : SL, border: '1px solid ' + (activeTab === i ? c.color : '#E2E8F0'), borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}>
-              {c.label}
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', borderRadius: 12, padding: 6, border: '1px solid #E2E8F0' }}>
+          {TABS.map((t, i) => (
+            <button key={i} onClick={() => setActiveTab(i)} style={{ flex: 1, padding: '10px 12px', background: activeTab === i ? N : 'transparent', color: activeTab === i ? '#fff' : SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center' }}>
+              {t.label}
             </button>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14, marginBottom: 32 }}>
-          {CATEGORIES[activeTab].features.map(f => (
-            <div key={f.n} style={{ background: '#fff', border: '1px solid ' + (f.status === 'coming' ? '#F1F5F9' : '#E2E8F0'), borderRadius: 12, padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start', opacity: f.status === 'coming' ? 0.7 : 1 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: f.status === 'coming' ? '#94A3B8' : CATEGORIES[activeTab].color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{f.n}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                  <div style={{ fontWeight: 700, color: N, fontSize: 14 }}>{f.t}</div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: f.status === 'active' ? '#F0FDF4' : '#F8FAFC', color: f.status === 'active' ? '#15803D' : '#64748b', border: '1px solid ' + (f.status === 'active' ? '#BBF7D0' : '#E2E8F0') }}>
-                    {f.status === 'active' ? 'ACTIVE' : 'ROADMAP'}
-                  </span>
-                </div>
-                <div style={{ color: SL, fontSize: 13, lineHeight: 1.5 }}>{f.d}</div>
-              </div>
-            </div>
-          ))}
+
+        {/* Tab content */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '28px' }}>
+          {activeTab === 0 && <RiskScan rec={rec} />}
+          {activeTab === 1 && <TaxOptimization rec={rec} />}
+          {activeTab === 2 && <IRSCompliance rec={rec} />}
+          {activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
         </div>
 
-        {/* Action buttons */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-          {[
-            { icon: '📋', title: 'Generate CPA Export Pack', desc: 'A print-ready report with your financials, AI insights, and risk alerts — ready for your accountant.', btn: 'Generate Report', color: B, action: () => setShowReport(true) },
-            { icon: '🎯', title: 'Run What-If Simulator', desc: 'Model salary changes, new deductions, or retirement contributions to see the tax impact before making decisions.', btn: 'Open Simulator', color: G, action: () => setShowSimulator(true) },
-            { icon: '🛡️', title: 'View Audit Defense Narrative', desc: 'Plain-English IRS response templates for REP status, S-Corp salary, and K-1 losses. Review with your CPA before sending.', btn: 'View Narrative', color: P, action: () => isEnterprise ? setShowNarrative(true) : setShowUpgrade('enterprise') },
-          ].map(a => (
-            <div key={a.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>{a.icon}</div>
-              <div style={{ fontWeight: 700, color: N, fontSize: 15, marginBottom: 6 }}>{a.title}</div>
-              <div style={{ color: SL, fontSize: 13, marginBottom: 18, lineHeight: 1.5 }}>{a.desc}</div>
-              <button onClick={a.action} style={{ padding: '11px 20px', background: a.color, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer', width: '100%' }}>
-                {a.btn}
-              </button>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 32, padding: '16px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
-          ⚠️ TaxStat360 AI Analysis is for planning and estimation purposes only. Results are based on the data you enter and may not reflect your complete tax picture. Consult a licensed CPA or tax professional before making filing or financial decisions.
+        <div style={{ marginTop: 24, padding: '14px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
+          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making filing or financial decisions.
         </div>
       </div>
     </div>
