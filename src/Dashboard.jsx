@@ -306,7 +306,7 @@ export default function Dashboard(){
         <LOGO/>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          <button onClick={()=>{localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing');nav('/')}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
+          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
       </nav>
