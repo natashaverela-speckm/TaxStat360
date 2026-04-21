@@ -166,6 +166,7 @@ export default function Dashboard(){
   const hasNumbers=parseFloat(biz.grossRevenue)>0
   const calc=hasNumbers?calcAll(biz,f1040):null
   const recs=calc?buildRecs(biz,calc):[]
+  const safeCalc=calc||{k1:0,w2:0,otherInc:0,seDed:0,agi:0,ded:0,qbi:0,taxableInc:0,incomeTax:0,selfEmpTax:0,childCredit:0,totalTax:0,effectiveRate:0,quarterly:0,balance:0,refund:0,isSC:false,isPassthru:false,recSal:0,k1Net:0}
   const isPassthru=PASSTHROUGH.includes(biz.entityType)
 
   const handleSave=()=>{
@@ -426,28 +427,28 @@ export default function Dashboard(){
             <div>
               <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:16}}>
                 <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Form 1040 - Tax Calculation</div>
-                {[{l:'K-1 Income (Schedule E, Line 17)',v:calc.k1,c:'#1D4ED8'},{l:'+ W-2 & Other Income',v:calc.w2+calc.otherInc,c:N},...(calc.seDed>0?[{l:'- SE Tax Deduction',v:-calc.seDed,c:'#DC2626'}]:[])].map(({l,v,c})=>(
+                {[{l:'K-1 Income (Schedule E, Line 17)',v:safeCalc.k1,c:'#1D4ED8'},{l:'+ W-2 & Other Income',v:safeCalc.w2+safeCalc.otherInc,c:N},...(safeCalc.seDed>0?[{l:'- SE Tax Deduction',v:-safeCalc.seDed,c:'#DC2626'}]:[])].map(({l,v,c})=>(
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
-                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700}}><span style={{color:N}}>Adjusted Gross Income (AGI)</span><span style={{color:N,fontSize:15}}>{fmt(calc.agi)}</span></div>
-                {[{l:'- '+(f1040.useStandardDed?'Standard':'Itemized')+' Deduction',v:-calc.ded,c:'#DC2626'},...(calc.qbi>0?[{l:'- QBI Deduction (Sec. 199A, 20%)',v:-calc.qbi,c:G}]:[])].map(({l,v,c})=>(
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700}}><span style={{color:N}}>Adjusted Gross Income (AGI)</span><span style={{color:N,fontSize:15}}>{fmt(safeCalc.agi)}</span></div>
+                {[{l:'- '+(f1040.useStandardDed?'Standard':'Itemized')+' Deduction',v:-safeCalc.ded,c:'#DC2626'},...(safeCalc.qbi>0?[{l:'- QBI Deduction (Sec. 199A, 20%)',v:-safeCalc.qbi,c:G}]:[])].map(({l,v,c})=>(
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
-                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700,borderBottom:'2px solid #E2E8F0',marginBottom:8}}><span style={{color:N}}>Taxable Income</span><span style={{color:N,fontSize:15}}>{fmt(calc.taxableInc)}</span></div>
-                {[{l:'Income Tax (IRS brackets)',v:calc.incomeTax,c:N},...(calc.seTax>0?[{l:'+ Self-Employment Tax (15.3%)',v:calc.seTax,c:N}]:[]),...(calc.ctc>0?[{l:'- Child Tax Credit',v:-calc.ctc,c:G}]:[]),...(calc.estPay>0?[{l:'- Estimated Payments Made',v:-calc.estPay,c:G}]:[])].map(({l,v,c})=>(
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700,borderBottom:'2px solid #E2E8F0',marginBottom:8}}><span style={{color:N}}>Taxable Income</span><span style={{color:N,fontSize:15}}>{fmt(safeCalc.taxableInc)}</span></div>
+                {[{l:'Income Tax (IRS brackets)',v:safeCalc.incomeTax,c:N},...(safeCalc.seTax>0?[{l:'+ Self-Employment Tax (15.3%)',v:safeCalc.seTax,c:N}]:[]),...(safeCalc.ctc>0?[{l:'- Child Tax Credit',v:-safeCalc.ctc,c:G}]:[]),...(safeCalc.estPay>0?[{l:'- Estimated Payments Made',v:-safeCalc.estPay,c:G}]:[])].map(({l,v,c})=>(
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:v<0?G:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
-                <div style={{background:calc.refund>0?'#F0FDF4':'#FEF2F2',border:'2px solid '+(calc.refund>0?'#86EFAC':'#FCA5A5'),borderRadius:12,padding:16,marginTop:14}}>
-                  <div style={{fontSize:11,fontWeight:700,color:calc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{calc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
-                  <div style={{fontSize:36,fontWeight:800,color:calc.refund>0?G:'#DC2626'}}>{calc.refund>0?fmt(calc.refund):fmt(calc.taxOwed)}</div>
-                  <div style={{fontSize:12,color:calc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(calc.effRate)} | Quarterly payment: {fmt(calc.quarterly)}</div>
+                <div style={{background:safeCalc.refund>0?'#F0FDF4':'#FEF2F2',border:'2px solid '+(safeCalc.refund>0?'#86EFAC':'#FCA5A5'),borderRadius:12,padding:16,marginTop:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
+                  <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
+                  <div style={{fontSize:12,color:safeCalc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(safeCalc.effRate)} | Quarterly payment: {fmt(safeCalc.quarterly)}</div>
                 </div>
               </div>
-              {calc.quarterly>0&&(
+              {safeCalc.quarterly>0&&(
                 <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:20}}>
                   <div style={{fontSize:11,fontWeight:700,color:SL,marginBottom:12,letterSpacing:'0.06em'}}>QUARTERLY PAYMENT SCHEDULE</div>
                   {[['Q1','April 15'],['Q2','June 15'],['Q3','September 15'],['Q4','January 15']].map(([q,due])=>(
-                    <div key={q} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #F8FAFC',fontSize:13}}><div><span style={{fontWeight:700,color:N}}>{q}</span><span style={{color:SL,marginLeft:8}}>Due: {due}</span></div><span style={{fontWeight:800,color:B}}>{fmt(calc.quarterly)}</span></div>
+                    <div key={q} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid #F8FAFC',fontSize:13}}><div><span style={{fontWeight:700,color:N}}>{q}</span><span style={{color:SL,marginLeft:8}}>Due: {due}</span></div><span style={{fontWeight:800,color:B}}>{fmt(safeCalc.quarterly)}</span></div>
                   ))}
                 </div>
               )}
