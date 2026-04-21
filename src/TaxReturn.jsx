@@ -400,7 +400,7 @@ export default function TaxReturn() {
 
           {/* Additional Income */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>RETIREMENT & SOCIAL SECURITY INCOME</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>RETIREMENT & SOCIAL SECURITY INCOME <InfoTip text="Report income from Social Security (SSA-1099), IRA/401(k) withdrawals, and pension distributions. Traditional IRA/401(k) distributions are generally fully taxable. Roth distributions are tax-free — do not include those here."/></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label style={lbl}>Social Security Benefits <InfoTip text="Total SS/SSA-1099 Box 5 gross benefits received. We apply the 85% maximum inclusion rate for planning purposes. Find on SSA-1099 form mailed each January."/></label>
@@ -419,7 +419,7 @@ export default function TaxReturn() {
 
           {/* Above-the-Line Deductions */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1) <InfoTip text="These deductions reduce your Adjusted Gross Income (AGI) before applying the standard or itemized deduction. They are available whether or not you itemize. Enter only what applies to your situation."/></div>
             <div style={{ fontSize: 12, color: SL, marginBottom: 14 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>

@@ -27,9 +27,12 @@ export default function Terms() {
         <Section title="1. Description of Service">
           <p>TaxStat360 is a real-time tax liability management platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts.</p>
         </Section>
-        <Section title="2. Not Professional Tax Advice">
-          <p style={{ marginBottom: 10 }}><strong>Important:</strong> TaxStat360 is a financial planning tool, not a licensed tax advisor, CPA, or law firm. Nothing on our platform constitutes professional tax, legal, or financial advice.</p>
-          <p>You are solely responsible for your tax filings and any payments made to the IRS or state tax authorities. We strongly recommend consulting a licensed CPA or tax professional before making filing decisions based on our platform's output.</p>
+        <Section title="2. Not Professional Tax Advice — Estimation Tool Only">
+          <p style={{ marginBottom: 10, padding: '12px 16px', background: '#FEF2F2', borderLeft: '4px solid #DC2626', borderRadius: 6 }}><strong>⚠ Important Disclaimer:</strong> TaxStat360 is a tax estimation and planning tool only. It is NOT a licensed tax advisor, CPA, enrolled agent, or law firm. Nothing on this platform constitutes professional tax advice, legal advice, or financial advice of any kind.</p>
+          <p style={{ marginBottom: 10 }}>All calculations provided by TaxStat360 are <strong>estimates for planning purposes only</strong> and may not reflect your actual tax liability. Results are based on the information you enter and IRS-published rates, which are subject to change. TaxStat360 makes no warranty, express or implied, regarding the accuracy, completeness, or fitness of any calculation for any particular purpose.</p>
+          <p style={{ marginBottom: 10 }}>You are <strong>solely responsible</strong> for: (a) the accuracy of all information you enter into the platform; (b) your actual tax filings with the IRS and any state tax authority; (c) any underpayment penalties, interest, or other amounts owed to any taxing authority; and (d) any decisions made based on information provided by TaxStat360.</p>
+          <p style={{ marginBottom: 10 }}>TaxStat360, its owners, employees, and affiliates shall not be liable for any errors, omissions, or inaccuracies in the calculated results, or for any actions taken or not taken in reliance on those results. <strong>We strongly recommend consulting a licensed CPA, enrolled agent, or qualified tax professional before making any tax filing decisions.</strong></p>
+          <p>TaxStat360 is not a tax preparation service and does not prepare, file, or submit tax returns on your behalf.</p>
         </Section>
         <Section title="3. Subscriptions and Billing">
           <p style={{ marginBottom: 10 }}>TaxStat360 offers monthly and annual subscription plans. All subscriptions include a 7-day free trial with no charge until the trial ends.</p>
