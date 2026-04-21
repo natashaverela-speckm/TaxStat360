@@ -42,14 +42,84 @@ function InfoTip({ text }) {
 const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
-const BRACKETS = {
-  single:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
-  mfj:   [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-  mfs:   [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
-  hoh:   [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-  qss:   [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+// ─── IRS Tax Tables by Year ─────────────────────────────────────────────────
+// Standard Deductions (IRC §63)
+const STD_BY_YEAR = {
+  2023: { single:13850, mfj:27700, mfs:13850, hoh:20800, qss:27700 },
+  2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
+  2025: { single:15000, mfj:30000, mfs:15000, hoh:22500, qss:30000 },
+  2026: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
 }
-const STD={single:15750,mfj:31500,mfs:15750,hoh:23625,qss:31500}
+
+// Tax Brackets (IRC §1) — [upperBound, rate]
+const BRACKETS_BY_YEAR = {
+  2023: {
+    single: [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[578125,.35],[Infinity,.37]],
+    mfj:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
+    mfs:    [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[346875,.35],[Infinity,.37]],
+    hoh:    [[15700,.10],[59850,.12],[95350,.22],[182050,.24],[231250,.32],[578100,.35],[Infinity,.37]],
+    qss:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
+  },
+  2024: {
+    single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
+    mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+    mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
+    hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
+    qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+  },
+  2025: {
+    single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+    mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+    mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
+    hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
+    qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+  },
+  2026: {
+    single: [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+    mfj:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+    mfs:    [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[322500,.35],[Infinity,.37]],
+    hoh:    [[17500,.10],[66800,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+    qss:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+  },
+}
+
+// Helper: get std deduction for a given year + filing status
+function getStdDed(year, fs) {
+  const tbl = STD_BY_YEAR[year] || STD_BY_YEAR[2025]
+  return tbl[fs] || tbl.single
+}
+
+// Helper: get brackets for a given year + filing status
+function getBrackets(year, fs) {
+  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
+  return tbl[fs] || tbl.single
+}
+
+// Helper: calculate bracket tax
+function calcBracketTax(income, year, fs) {
+  let tax = 0, prev = 0
+  for (const [cap, rate] of getBrackets(year, fs)) {
+    if (income <= prev) break
+    tax += (Math.min(income, cap) - prev) * rate
+    prev = cap
+  }
+  return Math.round(tax)
+}
+
+// Child Tax Credit (IRC §24) by year
+const CHILD_TAX_CREDIT_BY_YEAR = {
+  2023: { credit: 2000, refundable: 1600, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
+  2024: { credit: 2000, refundable: 1700, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
+  2025: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
+  2026: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
+}
+
+// SE Tax rates (IRC §1401) — consistent across years
+const SE_RATE = 0.153
+const SE_DEDUCTION_RATE = 0.5 // IRC §164(f)
+
+// QBI Deduction (IRC §199A) — 20% of qualified business income (sunset 2026)
+const QBI_RATE = 0.20
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
 const ENTITY_TYPES=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor','C-Corporation']
 const PASSTHROUGH=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor']
@@ -63,7 +133,7 @@ const INTEGRATIONS=[
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
 
-function calcBracketTax(inc,fs){let tax=0,prev=0;for(const [c,r] of BRACKETS[fs]||BRACKETS.single){if(inc<=prev)break;tax+=(Math.min(inc,c)-prev)*r;prev=c}return Math.round(tax)}
+
 
 function calcAll(biz,f1040){
   const rev=parseFloat(biz.grossRevenue)||0,cogs=parseFloat(biz.cogs)||0,gross=rev-cogs
@@ -77,8 +147,8 @@ function calcAll(biz,f1040){
   const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S-Corporation'
   const seTaxBase=isPassthru&&!isSC?Math.max(0,k1)*0.9235:0,seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
   const qbi=isPassthru?Math.round(Math.max(0,k1)*0.20):0
-  const agi=Math.max(0,k1+w2+otherInc-seDed),stdDed=STD[fs]||14600,ded=useStd?stdDed:Math.max(stdDed,itemized)
-  const taxableInc=Math.max(0,agi-ded-qbi),incomeTax=calcBracketTax(taxableInc,fs)
+  const agi=Math.max(0,k1+w2+otherInc-seDed),stdDed=getStdDed(parseInt(biz.year)||2025,fs),ded=useStd?stdDed:Math.max(stdDed,itemized)
+  const taxableInc=Math.max(0,agi-ded-qbi),incomeTax=calcBracketTax(taxableInc,parseInt(biz.year)||2025,fs)
   const phaseout=fs==='mfj'?400000:200000,ctcReduce=Math.max(0,Math.floor((agi-phaseout)/1000)*50)
   const ctc=Math.max(0,deps*2000-ctcReduce),totalTax=Math.max(0,incomeTax+seTax-ctc)
   const taxOwed=Math.max(0,totalTax-estPay),refund=Math.max(0,estPay-totalTax)
@@ -331,7 +401,7 @@ export default function Dashboard(){
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
-          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y}>{y}</option>)}</select></div>
+          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024,2023].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
           <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>bSet('entityType',e.target.value)} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
@@ -419,7 +489,7 @@ export default function Dashboard(){
               <div style={{marginBottom:14}}>
                 <label style={lbl}>Deduction Method</label>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>fSet('useStandardDed',true)} style={{flex:1,padding:'9px',background:f1040.useStandardDed?B:'#fff',color:f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Standard ({fmt(STD[f1040.filingStatus]||14600)})</button>
+                  <button onClick={()=>fSet('useStandardDed',true)} style={{flex:1,padding:'9px',background:f1040.useStandardDed?B:'#fff',color:f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Standard ({fmt(getStdDed(parseInt(biz.year)||2025,f1040.filingStatus))})</button>
                   <button onClick={()=>fSet('useStandardDed',false)} style={{flex:1,padding:'9px',background:!f1040.useStandardDed?B:'#fff',color:!f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(!f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Itemized</button>
                 </div>
                 {!f1040.useStandardDed&&<input type="number" placeholder="Total itemized deductions" value={f1040.itemizedDed||''} onChange={e=>fSet('itemizedDed',e.target.value)} style={{...inp,marginTop:8}}/>}
