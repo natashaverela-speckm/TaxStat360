@@ -499,202 +499,247 @@ function ReportModal({ onClose, rec }) {
 
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const savedK1 = parseFloat(rec?.k1Income) || 0
-  const savedW2 = parseFloat(f.w2Income || b.officerSalary || 0) || 0
-  const savedEstPay = parseFloat(f.estimatedPayments) || 0
   const taxYear = parseInt(b.year) || 2025
-  const filing = f.filingStatus || 'single'
+  const filing  = f.filingStatus || 'single'
+  const ownerPct = parseFloat(b.ownershipPct || 100) / 100
+  const entity  = b.entityType || 'S-Corporation'
 
-  // Tax tables by year
+  // ── Saved baseline numbers ────────────────────────────────────────────────
+  const base = {
+    grossRevenue:      parseFloat(b.grossRevenue)      || 0,
+    cogs:              parseFloat(b.cogs)               || 0,
+    operatingExpenses: parseFloat(b.operatingExpenses)  || 0,
+    officerSalary:     parseFloat(b.officerSalary)      || 0,
+    depreciation:      parseFloat(b.depreciation)       || 0,
+    advertising:       parseFloat(b.advertising)        || 0,
+    otherDeductions:   parseFloat(b.otherDeductions)    || 0,
+    w2Income:          parseFloat(f.w2Income)            || 0,
+    estimatedPayments: parseFloat(f.estimatedPayments)  || 0,
+  }
+
+  // ── Scenario adjustments (deltas on top of base) ──────────────────────────
+  const [delta, setDelta] = useState({
+    grossRevenue: 0, operatingExpenses: 0, officerSalary: 0,
+    depreciation: 0, advertising: 0, otherDeductions: 0, w2Income: 0,
+  })
+  const [activeScenario, setActiveScenario] = useState(null)
+
+  const applyPreset = (id) => {
+    setActiveScenario(id)
+    const presets = {
+      adv15:   { advertising: 15000 },
+      adv30:   { advertising: 30000 },
+      equip20: { depreciation: 20000 },
+      equip50: { depreciation: 50000 },
+      sep:     { otherDeductions: Math.min(69000, Math.round((base.grossRevenue - base.cogs - base.operatingExpenses - base.officerSalary) * ownerPct * 0.25)) },
+      revenue: { grossRevenue: 50000 },
+      salary:  { officerSalary: 20000 },
+      custom:  {},
+    }
+    setDelta({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0, ...(presets[id]||{}) })
+  }
+
+  // ── Tax engine ────────────────────────────────────────────────────────────
   const TAX_TABLES = {
-    2024: { brackets: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], stdDed: {single:14600,mfj:29200,mfs:14600,hoh:21900} },
-    2025: { brackets: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], stdDed: {single:15750,mfj:31500,mfs:15750,hoh:23625} },
-    2026: { brackets: [[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], stdDed: {single:16100,mfj:32200,mfs:16100,hoh:24150} },
+    2024: { brackets:[[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], std:{single:14600,mfj:29200,mfs:14600,hoh:21900} },
+    2025: { brackets:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], std:{single:15750,mfj:31500,mfs:15750,hoh:23625} },
+    2026: { brackets:[[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], std:{single:16100,mfj:32200,mfs:16100,hoh:24150} },
   }
   const table = TAX_TABLES[taxYear] || TAX_TABLES[2025]
-  const stdDed = table.stdDed[filing] || table.stdDed.single
+  const stdDed = table.std[filing] || table.std.single
 
-  // Tax calc engine using correct year's brackets
-  const calcFedTax = (taxableInc) => {
-    let tax = 0, prev = 0
+  const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
+
+  const calcScenario = (d) => {
+    const rev   = base.grossRevenue      + (d.grossRevenue      || 0)
+    const cogs  = base.cogs
+    const opex  = base.operatingExpenses + (d.operatingExpenses || 0)
+    const sal   = base.officerSalary     + (d.officerSalary     || 0)
+    const dep   = base.depreciation      + (d.depreciation      || 0)
+    const adv   = base.advertising       + (d.advertising       || 0)
+    const other = base.otherDeductions   + (d.otherDeductions   || 0)
+    const w2    = base.w2Income          + (d.w2Income          || 0)
+
+    // Entity level
+    const grossProfit = rev - cogs
+    const totalBizExp = opex + sal + dep + adv + other
+    const netBizIncome = grossProfit - totalBizExp
+
+    // K-1 passthrough
+    let k1 = 0
+    if (PASSTHROUGH.includes(entity)) {
+      k1 = Math.max(0, netBizIncome) * ownerPct
+    }
+
+    // Personal 1040
+    const qbi = PASSTHROUGH.includes(entity) ? Math.round(k1 * 0.20) : 0
+    const totalPersonalIncome = k1 + w2
+    const agi = Math.max(0, totalPersonalIncome - qbi)
+    const taxableInc = Math.max(0, agi - stdDed)
+
+    let fedTax = 0, prev = 0
     for (const [cap, rate] of table.brackets) {
       if (taxableInc <= prev) break
-      tax += (Math.min(taxableInc, cap) - prev) * rate
+      fedTax += (Math.min(taxableInc, cap) - prev) * rate
       prev = cap
     }
-    return Math.round(tax)
+
+    return { rev, opex, sal, dep, adv, other, netBizIncome, k1, qbi, w2, agi, taxableInc, fedTax: Math.round(fedTax) }
   }
 
-  const baseTaxable = Math.max(0, savedK1 + savedW2 - savedK1 * 0.20 - stdDed)
-  const baseTax = calcFedTax(baseTaxable)
+  const baseline = calcScenario({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0 })
+  const scenario = calcScenario(delta)
+  const taxSaving = baseline.fedTax - scenario.fedTax
 
-  // Preset scenarios — real strategies based on their data
+  const fmt = n => '$' + Math.abs(Math.round(n)).toLocaleString()
+  const chg = (base, scen) => {
+    const diff = scen - base
+    if (diff === 0) return null
+    return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':'#059669',marginLeft:6}}>{diff>0?'↑+'+fmt(diff):'↓'+fmt(Math.abs(diff))}</span>
+  }
+
   const presets = [
-    {
-      id: 'sep',
-      icon: '🏦',
-      label: 'Max SEP-IRA',
-      description: 'Contribute the maximum allowed to a SEP-IRA',
-      color: '#059669',
-      compute: () => {
-        const maxSEP = Math.min(69000, Math.round(savedK1 * 0.25))
-        const newTaxable = Math.max(0, baseTaxable - maxSEP)
-        return { saving: baseTax - calcFedTax(newTaxable), note: `Max SEP-IRA: $${maxSEP.toLocaleString()} contribution`, detail: 'Deducted from AGI before standard deduction' }
-      }
-    },
-    {
-      id: 'equip20',
-      icon: '🔧',
-      label: '$20K Equipment',
-      description: 'Purchase $20,000 in business equipment (Section 179)',
-      color: '#2563EB',
-      compute: () => {
-        const newTaxable = Math.max(0, baseTaxable - 20000)
-        return { saving: baseTax - calcFedTax(newTaxable), note: 'Section 179: $20,000 full deduction in year of purchase', detail: 'Must be placed in service before Dec 31' }
-      }
-    },
-    {
-      id: 'equip50',
-      icon: '🏗️',
-      label: '$50K Equipment',
-      description: 'Purchase $50,000 in business equipment (Section 179)',
-      color: '#7C3AED',
-      compute: () => {
-        const newTaxable = Math.max(0, baseTaxable - 50000)
-        return { saving: baseTax - calcFedTax(newTaxable), note: 'Section 179: $50,000 full deduction in year of purchase', detail: 'Computers, vehicles, machinery, office furniture' }
-      }
-    },
-    {
-      id: 'advertising',
-      icon: '📢',
-      label: '$15K Advertising',
-      description: 'Invest $15,000 in business advertising & marketing',
-      color: '#D97706',
-      compute: () => {
-        const newTaxable = Math.max(0, baseTaxable - 15000)
-        return { saving: baseTax - calcFedTax(newTaxable), note: 'IRC §162: $15,000 fully deductible business expense', detail: 'Digital ads, print, sponsorships, website, marketing' }
-      }
-    },
-    {
-      id: 'hsa',
-      icon: '🏥',
-      label: 'Max HSA',
-      description: 'Contribute maximum to Health Savings Account',
-      color: '#0891B2',
-      compute: () => {
-        const maxHSA = 4300
-        const newTaxable = Math.max(0, baseTaxable - maxHSA)
-        return { saving: baseTax - calcFedTax(newTaxable), note: `HSA max: $${maxHSA.toLocaleString()} (self-only, 2025)`, detail: 'Requires high-deductible health plan (HDHP)' }
-      }
-    },
-    {
-      id: 'custom',
-      icon: '✏️',
-      label: 'Custom Amount',
-      description: 'Enter any deduction amount to see the tax impact',
-      color: '#475569',
-      compute: (customAmt) => {
-        const amt = parseFloat(customAmt) || 0
-        const newTaxable = Math.max(0, baseTaxable - amt)
-        return { saving: baseTax - calcFedTax(newTaxable), note: `Custom deduction: $${amt.toLocaleString()}`, detail: 'Enter any business expense or deduction amount' }
-      }
-    },
+    { id:'adv15',   icon:'📢', label:'$15K Advertising',    color:'#D97706' },
+    { id:'adv30',   icon:'📣', label:'$30K Advertising',    color:'#D97706' },
+    { id:'equip20', icon:'🔧', label:'$20K Equipment',       color:'#2563EB' },
+    { id:'equip50', icon:'🏗️', label:'$50K Equipment',       color:'#7C3AED' },
+    { id:'sep',     icon:'🏦', label:'Max SEP-IRA',          color:'#059669' },
+    { id:'revenue', icon:'📈', label:'+$50K Revenue',        color:'#0891B2' },
+    { id:'salary',  icon:'💼', label:'+$20K Salary',         color:'#475569' },
+    { id:'custom',  icon:'✏️', label:'Custom',               color:'#94A3B8' },
   ]
 
-  const [selected, setSelected] = useState('sep')
-  const [customAmt, setCustomAmt] = useState('10000')
-
-  const activePreset = presets.find(p => p.id === selected)
-  const result = activePreset?.compute(customAmt)
-  const saving = result?.saving || 0
+  const row = (label, baseVal, scenVal, indent=false) => (
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #F1F5F9'}}>
+      <span style={{fontSize:13,color:indent?'#64748B':'#334155',paddingLeft:indent?12:0}}>{label}</span>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <span style={{fontSize:13,fontWeight:600,color:'#0F172A'}}>{fmt(scenVal)}</span>
+        {chg(baseVal, scenVal)}
+      </div>
+    </div>
+  )
 
   return (
     <Modal onClose={onClose}>
-      <div style={{ padding: '28px 32px', maxWidth: 680 }}>
+      <div style={{padding:'24px 28px',fontFamily:'Inter,sans-serif'}}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', letterSpacing: '1px', marginBottom: 4 }}>WHAT-IF TAX SIMULATOR</div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 4px' }}>How Much Could You Save?</h2>
-            <div style={{ fontSize: 13, color: SL }}>Based on your {b.entityType || 'business'} · K-1: ${savedK1.toLocaleString()} · W-2: ${savedW2.toLocaleString()} · Changes don't affect your saved data</div>
+            <div style={{fontSize:11,fontWeight:700,color:'#059669',letterSpacing:'1px',marginBottom:3}}>WHAT-IF TAX SIMULATOR</div>
+            <h2 style={{fontSize:20,fontWeight:800,color:'#0D1B3E',margin:'0 0 3px'}}>How would this affect my taxes?</h2>
+            <div style={{fontSize:12,color:'#64748B'}}>{entity} · Tax Year {taxYear} · {filing.toUpperCase()} · Changes don't affect your saved record</div>
           </div>
-          <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>✕ Close</button>
+          <button onClick={onClose} style={{padding:'7px 13px',background:'#F1F5F9',color:'#64748B',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>✕</button>
         </div>
 
-        {/* Current tax banner */}
-        <div style={{ background: N, borderRadius: 12, padding: '16px 24px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Your current estimated federal tax</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#fff' }}>${baseTax.toLocaleString()}</div>
-        </div>
-
-        {/* Strategy picker */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 10 }}>SELECT A STRATEGY TO MODEL</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {/* Preset buttons */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:8}}>PICK A SCENARIO TO MODEL</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
             {presets.map(p => (
-              <button key={p.id} onClick={() => setSelected(p.id)} style={{
-                padding: '12px 10px', borderRadius: 10, border: '2px solid ' + (selected === p.id ? p.color : '#E2E8F0'),
-                background: selected === p.id ? p.color + '12' : '#fff',
-                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 20, marginBottom: 4 }}>{p.icon}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: selected === p.id ? p.color : N }}>{p.label}</div>
-                <div style={{ fontSize: 11, color: SL, lineHeight: 1.4, marginTop: 2 }}>{p.description}</div>
-              </button>
+              <button key={p.id} onClick={()=>applyPreset(p.id)} style={{
+                padding:'8px 14px',borderRadius:20,fontSize:12,fontWeight:700,cursor:'pointer',
+                background: activeScenario===p.id ? p.color : '#F8FAFC',
+                color: activeScenario===p.id ? '#fff' : '#334155',
+                border: '1.5px solid ' + (activeScenario===p.id ? p.color : '#E2E8F0'),
+                transition:'all 0.15s'
+              }}>{p.icon} {p.label}</button>
             ))}
           </div>
         </div>
 
-        {/* Custom input if selected */}
-        {selected === 'custom' && (
-          <div style={{ marginBottom: 16, background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', border: '1px solid #E2E8F0' }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: SL, display: 'block', marginBottom: 6 }}>DEDUCTION / EXPENSE AMOUNT</label>
-            <input
-              type="number"
-              value={customAmt}
-              onChange={e => setCustomAmt(e.target.value)}
-              placeholder="Enter dollar amount"
-              style={{ width: '100%', padding: '10px 14px', border: '2px solid #2563EB', borderRadius: 8, fontSize: 18, fontWeight: 700, color: N, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
-            />
-            <div style={{ fontSize: 11, color: SL, marginTop: 6 }}>Enter any business expense — equipment, advertising, professional fees, etc.</div>
+        {/* Custom inputs — only show if custom selected */}
+        {activeScenario === 'custom' && (
+          <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'14px 18px',marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:10}}>ENTER CHANGES (+ to add, - to reduce)</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {[
+                ['Advertising ($)', 'advertising'],
+                ['Depreciation / Equip ($)', 'depreciation'],
+                ['Operating Expenses ($)', 'operatingExpenses'],
+                ['Other Deductions ($)', 'otherDeductions'],
+                ['Gross Revenue Change ($)', 'grossRevenue'],
+                ['Officer Salary Change ($)', 'officerSalary'],
+              ].map(([label, key]) => (
+                <div key={key}>
+                  <label style={{fontSize:11,fontWeight:700,color:'#64748B',display:'block',marginBottom:3}}>{label}</label>
+                  <input type="number" value={delta[key]||0} onChange={e=>setDelta(d=>({...d,[key]:parseFloat(e.target.value)||0}))}
+                    style={{width:'100%',padding:'8px 10px',border:'1.5px solid #E2E8F0',borderRadius:7,fontSize:14,fontWeight:600,color:'#0D1B3E',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Result */}
-        <div style={{
-          background: saving > 0 ? '#F0FDF4' : '#F8FAFC',
-          border: '2px solid ' + (saving > 0 ? '#86EFAC' : '#E2E8F0'),
-          borderRadius: 14, padding: '20px 24px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: SL, marginBottom: 4 }}>ESTIMATED TAX SAVINGS</div>
-              <div style={{ fontSize: 42, fontWeight: 800, color: saving > 0 ? '#059669' : SL, lineHeight: 1 }}>
-                {saving > 0 ? `$${saving.toLocaleString()}` : '$0'}
-              </div>
-              <div style={{ fontSize: 13, color: SL, marginTop: 6 }}>
-                Tax drops from <strong>${baseTax.toLocaleString()}</strong> to <strong>${Math.max(0, baseTax - saving).toLocaleString()}</strong>
-              </div>
-            </div>
-            {saving > 0 && (
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: SL, marginBottom: 4 }}>ROI ON THIS STRATEGY</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#059669' }}>
-                  {selected === 'sep' ? '100%' : `${Math.round(saving / (parseFloat(customAmt) || (selected==='equip20'?20000:selected==='equip50'?50000:selected==='advertising'?15000:4300)) * 100)}¢ saved per $1`}
+        {/* Side-by-side comparison — only show if a scenario is active */}
+        {activeScenario && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            {/* Business entity side */}
+            <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>{entity.toUpperCase()} — ENTITY LEVEL</div>
+              {row('Gross Revenue',     baseline.rev,        scenario.rev)}
+              {row('Operating Expenses',baseline.opex,       scenario.opex,     true)}
+              {row('Officer Salary',    baseline.sal,        scenario.sal,      true)}
+              {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
+              {row('Advertising',       baseline.adv,        scenario.adv,      true)}
+              {row('Other Deductions',  baseline.other,      scenario.other,    true)}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
+                <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>Net Business Income</span>
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                  <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(scenario.netBizIncome)}</span>
+                  {chg(baseline.netBizIncome, scenario.netBizIncome)}
                 </div>
               </div>
-            )}
-          </div>
-          {result && (
-            <div style={{ borderTop: '1px solid ' + (saving > 0 ? '#BBF7D0' : '#E2E8F0'), paddingTop: 12, marginTop: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: N, marginBottom: 2 }}>📋 {result.note}</div>
-              <div style={{ fontSize: 12, color: SL }}>{result.detail}</div>
+              <div style={{background:'#EFF6FF',borderRadius:8,padding:'8px 12px',marginTop:6}}>
+                <div style={{fontSize:11,color:'#1D4ED8',fontWeight:700,marginBottom:2}}>K-1 TO YOUR 1040</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:13,color:'#1D4ED8'}}>Your share ({b.ownershipPct||100}%)</span>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{fontSize:16,fontWeight:800,color:'#1D4ED8'}}>{fmt(scenario.k1)}</span>
+                    {chg(baseline.k1, scenario.k1)}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
 
-        <div style={{ marginTop: 12, fontSize: 11, color: SL, textAlign: 'center' }}>
-          Estimates use {taxYear} federal brackets · {filing.toUpperCase()} filing status · ${stdDed.toLocaleString()} standard deduction. Does not include state tax, FICA, or AMT. Consult a CPA.
+            {/* Personal 1040 side */}
+            <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>YOUR PERSONAL 1040</div>
+              {row('K-1 Income',        baseline.k1,         scenario.k1)}
+              {row('W-2 Wages',         baseline.w2,         scenario.w2)}
+              {row('QBI Deduction (20%)', baseline.qbi,      scenario.qbi,      true)}
+              {row('Standard Deduction', stdDed,             stdDed)}
+              {row('Taxable Income',    baseline.taxableInc, scenario.taxableInc)}
+              <div style={{background: taxSaving>0?'#F0FDF4':'#FEF2F2',borderRadius:10,padding:'12px 14px',marginTop:10,border:'2px solid '+(taxSaving>0?'#86EFAC':'#FECACA')}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL TAX</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{fontSize:11,color:'#94A3B8',textDecoration:'line-through'}}>{fmt(baseline.fedTax)} before</div>
+                    <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(scenario.fedTax)}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>{taxSaving>0?'YOU SAVE':'ADDITIONAL TAX'}</div>
+                    <div style={{fontSize:26,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>
+                      {taxSaving>=0?'':'+'}{ taxSaving>0 ? fmt(taxSaving) : fmt(Math.abs(taxSaving)) }
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!activeScenario && (
+          <div style={{textAlign:'center',padding:'32px 20px',background:'#F8FAFC',borderRadius:12,border:'1px dashed #CBD5E1'}}>
+            <div style={{fontSize:32,marginBottom:10}}>☝️</div>
+            <div style={{fontWeight:700,color:'#0D1B3E',fontSize:15,marginBottom:6}}>Pick a scenario above</div>
+            <div style={{fontSize:13,color:'#64748B'}}>Select any strategy to instantly see how it flows from your {entity} through to your personal 1040.</div>
+          </div>
+        )}
+
+        <div style={{fontSize:11,color:'#94A3B8',textAlign:'center',marginTop:8}}>
+          Uses {taxYear} federal brackets · {filing.toUpperCase()} · ${stdDed.toLocaleString()} std deduction · Does not include state tax, FICA, or AMT · Consult a CPA before implementing.
         </div>
       </div>
     </Modal>
