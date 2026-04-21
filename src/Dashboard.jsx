@@ -258,14 +258,17 @@ export default function Dashboard(){
         .catch(()=>{setXeroLoading(false);window.history.replaceState({},'','/dashboard')})
     }
 
-    // ── Auto-refresh QB/Wave/FreshBooks on login ─────────────────────────────
-    // If no URL token and not xero, check for stored tokens and re-fetch P&L
+    // ── Auto-verify integration on login ─────────────────────────────────────
+    // Always fetch data on mount — only show badge if fetch succeeds with real data
+    // If fetch fails or returns no data → clear badge and tokens automatically
     if(!xeroToken){
-      const integMap={quickbooks:'qb',wave:'wave',freshbooks:'fb'}
-      for(const [pid,abbr] of Object.entries(integMap)){
+      const integMap={quickbooks:'QuickBooks',wave:'Wave',freshbooks:'FreshBooks'}
+      let foundInteg=false
+      for(const [pid,label] of Object.entries(integMap)){
         const tok=localStorage.getItem('ts360_'+pid+'_token')
         const connected=localStorage.getItem('ts360_'+pid+'_connected')
         if(tok&&connected==='true'){
+          foundInteg=true
           const extra=localStorage.getItem('ts360_'+pid+'_extra')
           let url='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/'+pid+'/data?token='+encodeURIComponent(tok)
           if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
@@ -274,21 +277,32 @@ export default function Dashboard(){
             .then(r=>r.json())
             .then(data=>{
               if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
+                // ✅ Success — populate fields and show badge
                 const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
                 const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
-                setBiz(p=>({...p, grossRevenue:rev, operatingExpenses:exp}))
+                setBiz(p=>({...p,grossRevenue:rev,operatingExpenses:exp}))
                 setShowFin(true)
-              } else if(data&&data.error==='token_expired'){
-                // Token expired — clear so user knows to reconnect
-                localStorage.removeItem('ts360_'+pid+'_token')
-                localStorage.removeItem('ts360_'+pid+'_connected')
-                setConnectedApp(null)
+                setConnectedApp(label)
+                localStorage.setItem('ts360_connected_app',label)
+              } else {
+                // ❌ No data or error — wipe everything, force reconnect
+                ;['token','connected','extra'].forEach(k=>localStorage.removeItem('ts360_'+pid+'_'+k))
                 localStorage.removeItem('ts360_connected_app')
+                setConnectedApp(null)
               }
             })
-            .catch(()=>{}) // Silent fail — user can reconnect manually
+            .catch(()=>{
+              // ❌ Network/server error — clear badge
+              localStorage.removeItem('ts360_connected_app')
+              setConnectedApp(null)
+            })
           break
         }
+      }
+      // No integration tokens found at all — ensure badge is cleared
+      if(!foundInteg){
+        localStorage.removeItem('ts360_connected_app')
+        setConnectedApp(null)
       }
     }
   },[])
