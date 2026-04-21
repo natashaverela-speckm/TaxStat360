@@ -61,136 +61,114 @@ function RiskScan({ rec }) {
   const revenue = parseFloat(b.grossRevenue) || 0
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
+  const w2 = parseFloat(f.w2Income) || 0
   const estPay = parseFloat(f.estimatedPayments) || 0
   const dep = parseFloat(b.depreciation) || 0
-  const opExp = parseFloat(b.operatingExpenses) || 0
+  const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
+  const isREP = !!(b.isREP || f.isREP || rec.isREP)
+  const totalIncome = k1 + w2
   const today = new Date()
   const month = today.getMonth() + 1
   const deadlines = { 1:'April 15',2:'April 15',3:'April 15',4:'April 15',5:'June 16',6:'June 16',7:'September 15',8:'September 15',9:'September 15',10:'January 15',11:'January 15',12:'January 15' }
 
   const findings = []
 
-  // S-Corp salary check
+  // ── S-Corp salary check ──────────────────────────────────────────────────────
   if (b.entityType === 'S-Corporation') {
     if (officerSal === 0 && k1 > 20000) {
-      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk', detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`, action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
+      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
+        detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
+        action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (officerSal > 0 && k1 > 30000 && officerSal < k1 * 0.3) {
-      findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low', detail: `Your officer salary is ${fmt(officerSal)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`, action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
+      findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
+        detail: `Your officer salary is ${fmt(officerSal)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
+        action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
     } else if (officerSal > 0) {
-      findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded', detail: `Officer salary of ${fmt(officerSal)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`, action: null })
+      findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded',
+        detail: `Officer salary of ${fmt(officerSal)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
+        action: null })
     }
   }
 
-  // Estimated payments
+  // ── Estimated payments ───────────────────────────────────────────────────────
   if (k1 > 5000 && estPay === 0) {
-    findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk', detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`, action: `Estimated quarterly payment: approx. ${fmt(Math.round(k1 * 0.25 / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
+    findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
+      detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
+      action: `Estimated quarterly payment: approx. ${fmt(Math.round(k1 * 0.25 / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
   } else if (estPay > 0) {
-    findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded', detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`, action: null })
+    findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
+      detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`,
+      action: null })
   }
 
-  // Depreciation
+  // ── Depreciation opportunity ─────────────────────────────────────────────────
   if (revenue > 50000 && dep === 0) {
-    findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded', detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.', action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
+    findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
+      detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
+      action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
   }
 
-  // REP Status — if rental income exists
-  const rentalIncome = parseFloat(b.rentalIncome || rec.rentalIncome || 0)
-  const isREP = b.isREP || rec.isREP || false
-  if (rentalIncome > 0 || isREP) {
-    if (isREP) {
-      findings.push({ level: 'good', icon: '🏠', title: 'Real Estate Professional (REP) Status Claimed',
-        detail: 'REP status allows rental losses to be treated as non-passive — fully deductible against all income without limitation.',
-        action: `Ensure you meet ALL three IRS requirements or the deduction will be disallowed:
-
-✓ MORE THAN 750 HOURS in real estate activities during the year (track with a log)
-✓ MORE THAN 500 of those hours must be in properties where you materially participate
-✓ MORE THAN 50% of all your personal services during the year must be in real estate
-
-⚠️ IMPORTANT: This status is extremely difficult to qualify for if you have a full-time W-2 job. A full-time employee working 2,000 hours/year would need to spend MORE than 2,000 hours in real estate — nearly impossible. The IRS scrutinizes REP claims heavily. Maintain detailed time logs. Consult a CPA who specializes in real estate before claiming.` })
-    } else {
-      findings.push({ level: 'info', icon: '🏠', title: 'Rental Income Detected — REP Status May Apply',
-        detail: 'Without Real Estate Professional status, rental losses are "passive" and can only offset other passive income. You cannot deduct rental losses against W-2 wages or business income (limited to $25,000/year phasing out above $100K AGI).',
-        action: `To qualify as a Real Estate Professional and unlock unlimited loss deductibility:
-
-● MORE THAN 750 HOURS in real estate activities during the year
-● MORE THAN 500 of those hours in properties where you materially participate  
-● MORE THAN 50% of ALL personal service time must be in real estate
-
-⚠️ This status is very difficult to meet if you have a full-time W-2 job. A full-time W-2 employee would need to spend more hours in real estate than at their job. Keep detailed time logs if claiming this status. Consult a real estate CPA.` })
-    }
-  }
-
-  // QBI opportunity
+  // ── QBI deduction ────────────────────────────────────────────────────────────
   if (['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType) && k1 > 10000) {
     const qbi = Math.round(k1 * 0.20)
-    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`, detail: `The 20% Qualified Business Income deduction (IRC §199A) is automatically applied to your K-1 income. This reduced your taxable income by ${fmt(qbi)}.`, action: 'QBI phases out above $197,300 (single) or $394,600 (MFJ) in 2025. For W-2 wage businesses above these thresholds, the deduction may be limited.' })
+    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
+      detail: `The 20% Qualified Business Income deduction (IRC §199A) is automatically applied to your K-1 income. This reduced your taxable income by ${fmt(qbi)}.`,
+      action: 'QBI phases out above $197,300 (single) or $394,600 (MFJ) in 2025. For W-2 wage businesses above these thresholds, the deduction may be limited.' })
   }
 
-  // C-Corp double tax
+  // ── C-Corp double tax ────────────────────────────────────────────────────────
   if (b.entityType === 'C-Corporation' && revenue > 0) {
-    findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation', detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.', action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
+    findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
+      detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
+      action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
   }
 
-  // ── Large tax liability recommendations ──────────────────────────────────────
-  const roughTax = Math.round(Math.max(0, totalIncome - 15750) * 0.22) // rough estimate
+  // ── Large tax liability — advertising & Section 179 ──────────────────────────
+  const roughTax = Math.round(Math.max(0, totalIncome - 15750) * 0.22)
   if (roughTax > 10000) {
-    findings.push({
-      level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible',
-      detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible under IRC §162 as an ordinary and necessary business expense.`,
-      action: 'Consider increasing advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose. Every $1 spent in the 22% bracket saves $0.22 in federal tax.'
-    })
-    findings.push({
-      level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
+    findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
+      detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
+      action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
+    findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
       detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $1.16M in 2025. Bonus depreciation (currently 60% in 2025) applies to new and used property.',
-      action: `At your income level, purchasing ${fmt(Math.round(roughTax / 0.22))} in equipment could eliminate your entire estimated tax liability. Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. Consult a CPA to confirm eligibility.`
-    })
+      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, ${fmt(Math.round(roughTax / 0.22))} in equipment purchases could offset your estimated tax liability. Consult a CPA to confirm eligibility.` })
   }
 
-  // ── Real Estate Professional (REP) alerts ────────────────────────────────────
-  const hasRentalIncome = rentalIncome > 0
-  if (hasRentalIncome || isREP) {
+  // ── Real Estate Professional (REP) ──────────────────────────────────────────
+  if (rentalIncome > 0 || isREP) {
     if (isREP) {
-      // REP criteria reminders
-      findings.push({
-        level: 'info', icon: '🏠', title: 'Real Estate Professional — Criteria Checklist',
+      findings.push({ level: 'info', icon: '🏠', title: 'Real Estate Professional — Criteria Checklist',
         detail: 'You have REP status selected. Under IRC §469(c)(7), you must meet ALL three tests each tax year to deduct rental losses without limitation:',
-        action: '① MORE THAN 750 HOURS in real property trades or businesses — of which MORE THAN 500 hours must be in activities where you materially participate.\n\n② MORE THAN 50% of your total personal service time across all work must be in real estate activities.\n\n③ ⚠️ IMPORTANT: If you have a full-time W-2 job, qualifying as a REP is extremely difficult. The IRS scrutinizes this heavily. Document your time with contemporaneous daily logs. Without proper documentation, REP status will likely be disallowed on audit.'
-      })
+        action: '① MORE THAN 750 HOURS in real property trades or businesses — of which MORE THAN 500 hours must be in activities where you materially participate.\n\n② MORE THAN 50% of your total personal service time across all work must be in real estate activities.\n\n③ ⚠️ IMPORTANT: If you have a full-time W-2 job, qualifying as a REP is extremely difficult. The IRS scrutinizes this heavily. Document your time with contemporaneous daily logs. Without proper documentation, REP status will likely be disallowed on audit.' })
     } else {
-      findings.push({
-        level: 'info', icon: '🏠', title: 'Rental Income Detected — REP Status Could Unlock Full Deductions',
-        detail: 'Rental losses are normally "passive" and can only offset other passive income. If you qualify as a Real Estate Professional under IRC §469(c)(7), your rental losses become fully deductible against all income — including W-2 wages and business income.',
-        action: 'To qualify as a REP you must meet ALL of these each year:\n\n① More than 750 hours in real property trades or businesses — of which 500+ must be in activities where you materially participate.\n\n② More than 50% of your total working hours across ALL jobs must be in real estate.\n\n⚠️ If you have a full-time W-2 job, qualifying is very difficult. Most full-time W-2 earners cannot meet the 50% test. If you believe you qualify, check the REP box on the Tax Return page and maintain detailed daily time logs.'
-      })
+      findings.push({ level: 'info', icon: '🏠', title: 'Rental Income Detected — REP Status Could Unlock Full Deductions',
+        detail: 'Rental losses are normally "passive" and can only offset other passive income. Qualifying as a Real Estate Professional makes your rental losses fully deductible against all income — including W-2 wages and business income.',
+        action: 'To qualify as a REP you must meet ALL of these each year:\n\n① More than 750 hours in real property trades or businesses — of which 500+ must be in activities where you materially participate.\n\n② More than 50% of your total working hours across ALL jobs must be in real estate.\n\n⚠️ If you have a full-time W-2 job, qualifying is very difficult. Most full-time W-2 earners cannot meet the 50% test. If you believe you qualify, check the REP box on the Tax Return page and maintain detailed daily time logs.' })
     }
   }
 
-  // Large tax liability — strategic spending recommendations
-  const grossIncome = k1 + w2
-  const estTax = Math.round(Math.max(0, grossIncome - 15750) * 0.22) // rough estimate
-  if (grossIncome > 80000 && estTax > 15000) {
-    findings.push({ level: 'medium', icon: '📢', title: 'Large Tax Liability Detected — Consider These Strategies',
-      detail: `With estimated gross income of ${fmt(grossIncome)}, your federal tax liability may be significant. Strategic business spending before year-end can directly reduce your taxable income.`,
-      action: `1. ADVERTISING & MARKETING: Prepay or accelerate business advertising spend. Every $1,000 invested in legitimate business advertising reduces taxable income by $1,000 — saving you ~${fmt(Math.round(1000 * 0.22))} in tax at your bracket.
-
-2. EQUIPMENT & TOOLS: Purchase or upgrade tools, machinery, computers, or equipment needed for the business. Under Section 179, you can deduct the full cost in the year of purchase (up to $1.16M). Bonus depreciation may also apply to used equipment. A $10,000 equipment purchase could reduce your tax bill by ~${fmt(Math.round(10000 * 0.22))}.
-
-3. TIMING: These purchases must be made AND placed in service before December 31 to count for this tax year.` })
-  }
-
-  // Upcoming deadline
-  findings.push({ level: 'info', icon: '📅', title: `Next Quarterly Deadline: ${deadlines[month]}`, detail: 'IRS Form 1040-ES quarterly estimated tax payment due date.', action: estPay > 0 ? `Your recorded payments total ${fmt(estPay)}. Verify this covers 90% of current year tax or 100% of prior year tax to avoid penalties.` : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
+  // ── Next quarterly deadline ──────────────────────────────────────────────────
+  findings.push({ level: 'info', icon: '📅', title: `Next Quarterly Deadline: ${deadlines[month]}`,
+    detail: 'IRS Form 1040-ES quarterly estimated tax payment due date.',
+    action: estPay > 0
+      ? `Your recorded payments total ${fmt(estPay)}. Verify this covers 90% of current year tax or 100% of prior year tax to avoid penalties.`
+      : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
 
   const levelOrder = { high: 0, medium: 1, info: 2, good: 3 }
   findings.sort((a, b) => levelOrder[a.level] - levelOrder[b.level])
 
-  const colors = { high: { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' }, medium: { bg: '#FFFBEB', border: '#FDE68A', text: '#78350F', badge: '#D97706' }, info: { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' }, good: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', badge: '#059669' } }
+  const colors = {
+    high:   { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' },
+    medium: { bg: '#FFFBEB', border: '#FDE68A', text: '#78350F', badge: '#D97706' },
+    info:   { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' },
+    good:   { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', badge: '#059669' },
+  }
 
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Based on your saved record from {rec.savedAt}. These findings are specific to your situation.</p>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Based on your saved record. These findings are specific to your situation.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {findings.map((f, i) => {
@@ -203,7 +181,7 @@ function RiskScan({ rec }) {
                   <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: 6 }}>{f.title}</div>
                   <div style={{ fontSize: 13, color: c.text, lineHeight: 1.6, marginBottom: f.action ? 8 : 0 }}>{f.detail}</div>
                   {f.action && (
-                    <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge }}>
+                    <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge, whiteSpace: 'pre-line' }}>
                       <strong>What to do:</strong> {f.action}
                     </div>
                   )}
@@ -216,6 +194,7 @@ function RiskScan({ rec }) {
     </div>
   )
 }
+
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
 function TaxOptimization({ rec }) {
