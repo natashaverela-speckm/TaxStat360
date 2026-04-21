@@ -883,7 +883,23 @@ export default function AIAnalysis() {
             <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
               Fill more fields for better accuracy
             </div>
-            <button onClick={() => { sessionStorage.setItem('ts360_goto_form', '1'); nav('/dashboard') }} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
+            <button onClick={() => {
+              if (rec) {
+                // Pre-populate TaxReturn with saved record data — same keys Dashboard uses
+                const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
+                sessionStorage.setItem('ts360_k1', String(rec.k1Income || 0))
+                sessionStorage.setItem('ts360_taxyear', String(rec.biz?.year || 2025))
+                sessionStorage.setItem('ts360_f1040', JSON.stringify(rec.f1040 || {}))
+                sessionStorage.setItem('ts360_entities', JSON.stringify(
+                  PASSTHROUGH.includes(rec.biz?.entityType)
+                    ? [{ type: rec.biz?.entityType, k1: rec.k1Income || 0 }]
+                    : []
+                ))
+                nav('/tax-return')
+              } else {
+                nav('/dashboard')
+              }
+            }} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
           </div>
         )}
 
