@@ -45,7 +45,6 @@ const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 // ─── IRS Tax Tables by Year ─────────────────────────────────────────────────
 // Standard Deductions (IRC §63)
 const STD_BY_YEAR = {
-  2023: { single:13850, mfj:27700, mfs:13850, hoh:20800, qss:27700 },
   2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
   2025: { single:15000, mfj:30000, mfs:15000, hoh:22500, qss:30000 },
   2026: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
@@ -53,13 +52,6 @@ const STD_BY_YEAR = {
 
 // Tax Brackets (IRC §1) — [upperBound, rate]
 const BRACKETS_BY_YEAR = {
-  2023: {
-    single: [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[578125,.35],[Infinity,.37]],
-    mfj:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
-    mfs:    [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[346875,.35],[Infinity,.37]],
-    hoh:    [[15700,.10],[59850,.12],[95350,.22],[182050,.24],[231250,.32],[578100,.35],[Infinity,.37]],
-    qss:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
-  },
   2024: {
     single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
     mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
@@ -85,13 +77,20 @@ const BRACKETS_BY_YEAR = {
 
 // Helper: get std deduction for a given year + filing status
 function getStdDed(year, fs) {
-  const tbl = STD_BY_YEAR[year] || STD_BY_YEAR[2025]
+  const y = clampYear(year)
+  const tbl = STD_BY_YEAR[y] || STD_BY_YEAR[2025]
   return tbl[fs] || tbl.single
 }
 
 // Helper: get brackets for a given year + filing status
+
+function clampYear(year) {
+  const cy = new Date().getFullYear()
+  return Math.min(cy, Math.max(cy - 3, parseInt(year) || cy))
+}
 function getBrackets(year, fs) {
-  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
+  const y = clampYear(year)
+  const tbl = BRACKETS_BY_YEAR[y] || BRACKETS_BY_YEAR[2025]
   return tbl[fs] || tbl.single
 }
 
@@ -108,7 +107,6 @@ function calcBracketTax(income, year, fs) {
 
 // Child Tax Credit (IRC §24) by year
 const CHILD_TAX_CREDIT_BY_YEAR = {
-  2023: { credit: 2000, refundable: 1600, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
   2024: { credit: 2000, refundable: 1700, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
   2025: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
   2026: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
@@ -401,7 +399,7 @@ export default function Dashboard(){
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
-          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024,2023].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
+          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}}</select></div>
           <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>bSet('entityType',e.target.value)} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
