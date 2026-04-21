@@ -156,7 +156,7 @@ export default function Upgrade() {
         <div onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}><LOGO/></div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>← Back to Settings</button>
-          <button onClick={()=>{localStorage.removeItem('token');localStorage.removeItem('plan');localStorage.removeItem('billing');nav('/')}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Sign Out</button>
+          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Sign Out</button>
         </div>
       </nav>
 

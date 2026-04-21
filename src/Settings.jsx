@@ -30,9 +30,7 @@ function NavBtn({label, onClick, active}) {
 }
 
 function signOut(nav) {
-  localStorage.removeItem('token')
-  localStorage.removeItem('plan')
-  localStorage.removeItem('billing')
+  ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app'].forEach(k => localStorage.removeItem(k))
   nav('/')
 }
 
