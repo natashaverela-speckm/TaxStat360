@@ -492,79 +492,199 @@ function ReportModal({ onClose, rec }) {
 
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const savedW2 = f.w2Income || b.officerSalary || '0'
   const savedK1 = parseFloat(rec?.k1Income) || 0
-  const [w2, setW2] = useState(String(parseFloat(savedW2) || 0))
-  const [addlIncome, setAddlIncome] = useState('0')
-  const [newDeduction, setNewDeduction] = useState('0')
-  const [retirement, setRetirement] = useState('0')
-  const [scenarioName, setScenarioName] = useState('My Scenario')
-  const calcTax = (w2Val, extra, ded, ret) => {
-    const gross = w2Val + savedK1 + parseFloat(extra || 0)
-    const totalDed = 15750 + parseFloat(ded || 0) + parseFloat(ret || 0)
-    const taxable = Math.max(0, gross - totalDed)
+  const savedW2 = parseFloat(f.w2Income || b.officerSalary || 0) || 0
+  const savedEstPay = parseFloat(f.estimatedPayments) || 0
+
+  // Tax calc engine
+  const calcFedTax = (taxableInc) => {
     const brackets = [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]]
     let tax = 0, prev = 0
-    for (const [cap, rate] of brackets) { if (taxable <= prev) break; tax += (Math.min(taxable, cap) - prev) * rate; prev = cap }
+    for (const [cap, rate] of brackets) {
+      if (taxableInc <= prev) break
+      tax += (Math.min(taxableInc, cap) - prev) * rate
+      prev = cap
+    }
     return Math.round(tax)
   }
-  const baseTax = calcTax(parseFloat(w2) || 0, 0, 0, 0)
-  const scenarioTax = calcTax(parseFloat(w2) || 0, addlIncome, newDeduction, retirement)
-  const impact = scenarioTax - baseTax
-  const inp = { width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }
-  const lbl = { fontSize: 11, fontWeight: 700, color: SL, display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }
-  const hint = { fontSize: 10, color: '#94A3B8', marginBottom: 5 }
+
+  const stdDed = 15750
+  const baseTaxable = Math.max(0, savedK1 + savedW2 - savedK1 * 0.20 - stdDed)
+  const baseTax = calcFedTax(baseTaxable)
+
+  // Preset scenarios — real strategies based on their data
+  const presets = [
+    {
+      id: 'sep',
+      icon: '🏦',
+      label: 'Max SEP-IRA',
+      description: 'Contribute the maximum allowed to a SEP-IRA',
+      color: '#059669',
+      compute: () => {
+        const maxSEP = Math.min(69000, Math.round(savedK1 * 0.25))
+        const newTaxable = Math.max(0, baseTaxable - maxSEP)
+        return { saving: baseTax - calcFedTax(newTaxable), note: `Max SEP-IRA: $${maxSEP.toLocaleString()} contribution`, detail: 'Deducted from AGI before standard deduction' }
+      }
+    },
+    {
+      id: 'equip20',
+      icon: '🔧',
+      label: '$20K Equipment',
+      description: 'Purchase $20,000 in business equipment (Section 179)',
+      color: '#2563EB',
+      compute: () => {
+        const newTaxable = Math.max(0, baseTaxable - 20000)
+        return { saving: baseTax - calcFedTax(newTaxable), note: 'Section 179: $20,000 full deduction in year of purchase', detail: 'Must be placed in service before Dec 31' }
+      }
+    },
+    {
+      id: 'equip50',
+      icon: '🏗️',
+      label: '$50K Equipment',
+      description: 'Purchase $50,000 in business equipment (Section 179)',
+      color: '#7C3AED',
+      compute: () => {
+        const newTaxable = Math.max(0, baseTaxable - 50000)
+        return { saving: baseTax - calcFedTax(newTaxable), note: 'Section 179: $50,000 full deduction in year of purchase', detail: 'Computers, vehicles, machinery, office furniture' }
+      }
+    },
+    {
+      id: 'advertising',
+      icon: '📢',
+      label: '$15K Advertising',
+      description: 'Invest $15,000 in business advertising & marketing',
+      color: '#D97706',
+      compute: () => {
+        const newTaxable = Math.max(0, baseTaxable - 15000)
+        return { saving: baseTax - calcFedTax(newTaxable), note: 'IRC §162: $15,000 fully deductible business expense', detail: 'Digital ads, print, sponsorships, website, marketing' }
+      }
+    },
+    {
+      id: 'hsa',
+      icon: '🏥',
+      label: 'Max HSA',
+      description: 'Contribute maximum to Health Savings Account',
+      color: '#0891B2',
+      compute: () => {
+        const maxHSA = 4300
+        const newTaxable = Math.max(0, baseTaxable - maxHSA)
+        return { saving: baseTax - calcFedTax(newTaxable), note: `HSA max: $${maxHSA.toLocaleString()} (self-only, 2025)`, detail: 'Requires high-deductible health plan (HDHP)' }
+      }
+    },
+    {
+      id: 'custom',
+      icon: '✏️',
+      label: 'Custom Amount',
+      description: 'Enter any deduction amount to see the tax impact',
+      color: '#475569',
+      compute: (customAmt) => {
+        const amt = parseFloat(customAmt) || 0
+        const newTaxable = Math.max(0, baseTaxable - amt)
+        return { saving: baseTax - calcFedTax(newTaxable), note: `Custom deduction: $${amt.toLocaleString()}`, detail: 'Enter any business expense or deduction amount' }
+      }
+    },
+  ]
+
+  const [selected, setSelected] = useState('sep')
+  const [customAmt, setCustomAmt] = useState('10000')
+
+  const activePreset = presets.find(p => p.id === selected)
+  const result = activePreset?.compute(customAmt)
+  const saving = result?.saving || 0
+
   return (
     <Modal onClose={onClose}>
-      <div style={{ padding: '28px 32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ padding: '28px 32px', maxWidth: 680 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: G, letterSpacing: '1px', marginBottom: 4 }}>WHAT-IF SIMULATOR</div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Test Financial Decisions</h2>
-            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Changes here don't affect your real data{savedK1 ? ` · Using your K-1 of ${fmt(savedK1)}` : ''}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', letterSpacing: '1px', marginBottom: 4 }}>WHAT-IF TAX SIMULATOR</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 4px' }}>How Much Could You Save?</h2>
+            <div style={{ fontSize: 13, color: SL }}>Based on your {b.entityType || 'business'} · K-1: ${savedK1.toLocaleString()} · W-2: ${savedW2.toLocaleString()} · Changes don't affect your saved data</div>
           </div>
-          <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
+          <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>✕ Close</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>SCENARIO INPUTS</div>
-            <div style={{ marginBottom: 14 }}><label style={lbl}>Scenario Name</label><input value={scenarioName} onChange={e => setScenarioName(e.target.value)} style={inp} /></div>
-            {[
-              { label: 'W-2 / Officer Salary', val: w2, set: setW2, hint: 'Adjust your salary to model different splits' },
-              { label: 'Additional Income', val: addlIncome, set: setAddlIncome, hint: 'Capital gains, rental, interest, freelance' },
-              { label: 'New Deduction', val: newDeduction, set: setNewDeduction, hint: 'Home office, equipment, professional fees' },
-              { label: 'Retirement Contribution', val: retirement, set: setRetirement, hint: 'SEP-IRA up to $69,000 · Solo 401k up to $69,000' },
-            ].map(fi => (
-              <div key={fi.label} style={{ marginBottom: 14 }}>
-                <label style={lbl}>{fi.label}</label>
-                <div style={hint}>{fi.hint}</div>
-                <input type="number" value={fi.val} onChange={e => fi.set(e.target.value)} placeholder="0" style={inp} />
-              </div>
+
+        {/* Current tax banner */}
+        <div style={{ background: N, borderRadius: 12, padding: '16px 24px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Your current estimated federal tax</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#fff' }}>${baseTax.toLocaleString()}</div>
+        </div>
+
+        {/* Strategy picker */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 10 }}>SELECT A STRATEGY TO MODEL</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {presets.map(p => (
+              <button key={p.id} onClick={() => setSelected(p.id)} style={{
+                padding: '12px 10px', borderRadius: 10, border: '2px solid ' + (selected === p.id ? p.color : '#E2E8F0'),
+                background: selected === p.id ? p.color + '12' : '#fff',
+                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 20, marginBottom: 4 }}>{p.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: selected === p.id ? p.color : N }}>{p.label}</div>
+                <div style={{ fontSize: 11, color: SL, lineHeight: 1.4, marginTop: 2 }}>{p.description}</div>
+              </button>
             ))}
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>SCENARIO RESULTS</div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: SL, marginBottom: 6 }}>CURRENT ESTIMATED TAX</div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: N }}>{fmt(baseTax)}</div>
-            </div>
-            <div style={{ background: impact < 0 ? '#F0FDF4' : '#FEF2F2', border: '1px solid ' + (impact < 0 ? '#BBF7D0' : '#FECACA'), borderRadius: 12, padding: '16px 20px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: SL, marginBottom: 6 }}>SCENARIO TAX</div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: impact < 0 ? '#16a34a' : R }}>{fmt(scenarioTax)}</div>
-            </div>
-            <div style={{ background: impact < 0 ? '#EFF6FF' : '#FFF7ED', border: '2px solid ' + (impact < 0 ? B : '#FB923C'), borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, marginBottom: 8 }}>NET TAX IMPACT</div>
-              <div style={{ fontSize: 34, fontWeight: 800, color: impact < 0 ? B : '#EA580C' }}>
-                {impact === 0 ? 'No change' : (impact < 0 ? '↓ Save ' : '↑ Pay more ') + fmt(Math.abs(impact))}
-              </div>
-              <div style={{ fontSize: 12, color: SL, marginTop: 6 }}>{impact < 0 ? 'This scenario reduces your estimated federal tax.' : impact > 0 ? 'This scenario increases your estimated federal tax.' : 'No tax impact.'}</div>
-            </div>
+        </div>
+
+        {/* Custom input if selected */}
+        {selected === 'custom' && (
+          <div style={{ marginBottom: 16, background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', border: '1px solid #E2E8F0' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: SL, display: 'block', marginBottom: 6 }}>DEDUCTION / EXPENSE AMOUNT</label>
+            <input
+              type="number"
+              value={customAmt}
+              onChange={e => setCustomAmt(e.target.value)}
+              placeholder="Enter dollar amount"
+              style={{ width: '100%', padding: '10px 14px', border: '2px solid #2563EB', borderRadius: 8, fontSize: 18, fontWeight: 700, color: N, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
+            />
+            <div style={{ fontSize: 11, color: SL, marginTop: 6 }}>Enter any business expense — equipment, advertising, professional fees, etc.</div>
           </div>
+        )}
+
+        {/* Result */}
+        <div style={{
+          background: saving > 0 ? '#F0FDF4' : '#F8FAFC',
+          border: '2px solid ' + (saving > 0 ? '#86EFAC' : '#E2E8F0'),
+          borderRadius: 14, padding: '20px 24px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: SL, marginBottom: 4 }}>ESTIMATED TAX SAVINGS</div>
+              <div style={{ fontSize: 42, fontWeight: 800, color: saving > 0 ? '#059669' : SL, lineHeight: 1 }}>
+                {saving > 0 ? `$${saving.toLocaleString()}` : '$0'}
+              </div>
+              <div style={{ fontSize: 13, color: SL, marginTop: 6 }}>
+                Tax drops from <strong>${baseTax.toLocaleString()}</strong> to <strong>${Math.max(0, baseTax - saving).toLocaleString()}</strong>
+              </div>
+            </div>
+            {saving > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: SL, marginBottom: 4 }}>ROI ON THIS STRATEGY</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#059669' }}>
+                  {selected === 'sep' ? '100%' : `${Math.round(saving / (parseFloat(customAmt) || (selected==='equip20'?20000:selected==='equip50'?50000:selected==='advertising'?15000:4300)) * 100)}¢ saved per $1`}
+                </div>
+              </div>
+            )}
+          </div>
+          {result && (
+            <div style={{ borderTop: '1px solid ' + (saving > 0 ? '#BBF7D0' : '#E2E8F0'), paddingTop: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: N, marginBottom: 2 }}>📋 {result.note}</div>
+              <div style={{ fontSize: 12, color: SL }}>{result.detail}</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 11, color: SL, textAlign: 'center' }}>
+          Estimates use 2025 federal brackets. Does not include state tax, FICA, or AMT. Consult a CPA before implementing.
         </div>
       </div>
     </Modal>
   )
 }
+
 
 function NarrativeModal({ onClose }) {
   const [selected, setSelected] = useState(0)
