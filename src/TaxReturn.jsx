@@ -8,70 +8,51 @@ const R = '#dc2626'
 const SL = '#475569'
 
 // 2025 Federal Tax Brackets (Single)
-const BRACKETS_SINGLE = [
-  { max: 11925,   rate: 0.10 },
-  { max: 48475,   rate: 0.12 },
-  { max: 103350,  rate: 0.22 },
-  { max: 197300,  rate: 0.24 },
-  { max: 250525,  rate: 0.32 },
-  { max: 626350,  rate: 0.35 },
-  { max: Infinity, rate: 0.37 },
-]
-// 2025 Federal Tax Brackets (MFJ / QSS)
-const BRACKETS_MFJ = [
-  { max: 23850,   rate: 0.10 },
-  { max: 96950,   rate: 0.12 },
-  { max: 206700,  rate: 0.22 },
-  { max: 394600,  rate: 0.24 },
-  { max: 501050,  rate: 0.32 },
-  { max: 751600,  rate: 0.35 },
-  { max: Infinity, rate: 0.37 },
-]
-// MFS / HOH use same as Single for simplicity (HOH has its own — close enough for planning)
-const BRACKETS_HOH = [
-  { max: 17000,   rate: 0.10 },
-  { max: 64850,   rate: 0.12 },
-  { max: 103350,  rate: 0.22 },
-  { max: 197300,  rate: 0.24 },
-  { max: 250500,  rate: 0.32 },
-  { max: 626350,  rate: 0.35 },
-  { max: Infinity, rate: 0.37 },
-]
-
-// Standard deductions 2025
-const STD_DEDUCTION = {
-  single: 15750,
-  mfj: 31500,
-  mfs: 15750,
-  hoh: 23625,
-  qss: 31500,
+// Tax Brackets by year (IRC §1)
+const BRACKETS_BY_YEAR = {
+  2023: {
+    single: [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[578125,.35],[Infinity,.37]],
+    mfj:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
+    mfs:    [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[346875,.35],[Infinity,.37]],
+    hoh:    [[15700,.10],[59850,.12],[95350,.22],[182050,.24],[231250,.32],[578100,.35],[Infinity,.37]],
+    qss:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
+  },
+  2024: {
+    single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
+    mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+    mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
+    hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
+    qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+  },
+  2025: {
+    single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+    mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+    mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
+    hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
+    qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+  },
+  2026: {
+    single: [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+    mfj:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+    mfs:    [[12300,.10],[49900,.12],[106450,.22],[203150,.24],[258000,.32],[322500,.35],[Infinity,.37]],
+    hoh:    [[17500,.10],[66800,.12],[106450,.22],[203150,.24],[258000,.32],[645000,.35],[Infinity,.37]],
+    qss:    [[24600,.10],[99800,.12],[212900,.22],[406300,.24],[516000,.32],[774000,.35],[Infinity,.37]],
+  },
 }
 
-// Additional Medicare Tax thresholds
-const AMT_THRESHOLD = {
-  single: 200000,
-  mfj: 250000,
-  mfs: 125000,
-  hoh: 200000,
-  qss: 250000,
+function getBrackets(year, fs) {
+  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
+  return tbl[fs] || tbl.single
 }
 
-function getBrackets(status) {
-  if (status === 'mfj' || status === 'qss') return BRACKETS_MFJ
-  if (status === 'hoh') return BRACKETS_HOH
-  return BRACKETS_SINGLE
-}
-
-function calcFederalTax(taxableIncome, status) {
+function calcFederalTax(taxableIncome, year, fs) {
   if (taxableIncome <= 0) return 0
-  const brackets = getBrackets(status)
-  let tax = 0
-  let prev = 0
-  for (const b of brackets) {
+  let tax = 0, prev = 0
+  for (const [cap, rate] of getBrackets(year, fs)) {
     if (taxableIncome <= prev) break
-    const chunk = Math.min(taxableIncome, b.max) - prev
-    tax += chunk * b.rate
-    prev = b.max
+    const chunk = Math.min(taxableIncome, cap) - prev
+    tax += chunk * rate
+    prev = cap
   }
   return Math.round(tax)
 }
@@ -144,6 +125,7 @@ export default function TaxReturn() {
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
   // Personal inputs
+  const [taxYear, setTaxYear] = React.useState(2025)
   const [status, setStatus] = React.useState('single')
   const [w2Income, setW2Income] = React.useState('')
   const [dependents, setDependents] = React.useState('0')
@@ -177,7 +159,7 @@ export default function TaxReturn() {
   const agi = grossIncome - adjustments
 
   // Deductions
-  const stdDed = STD_DEDUCTION[status] || 15750
+  const stdDed = getStdDed(parseInt(taxYear)||2025, status)
   const itemized = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
@@ -190,7 +172,7 @@ export default function TaxReturn() {
   const taxableIncome = Math.max(0, taxableBeforeQBI - qbi)
 
   // Federal income tax
-  const fedTax = calcFederalTax(taxableIncome, status)
+  const fedTax = calcFederalTax(taxableIncome, parseInt(taxYear)||2025, status)
 
   // Marginal rate
   const brackets = getBrackets(status)
@@ -278,6 +260,19 @@ export default function TaxReturn() {
               </div>
             </div>
           )}
+
+          {/* Tax Year */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>TAX YEAR</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, background: '#fff' }}>
+                {[2026,2025,2024,2023].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <div style={{ fontSize: 12, color: SL }}>
+                Std. Deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong>
+              </div>
+            </div>
+          </div>
 
           {/* Filing Status */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
