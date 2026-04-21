@@ -21,7 +21,7 @@ function InfoTip({ text }) {
       {show && (
         <span style={{
           position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
-          background: '#1E293B', color: '#fff', fontSize: 12, fontWeight: 400,
+          background: '#1E293B', color: '#fff', fontSize: 12, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal',
           padding: '8px 12px', borderRadius: 8, width: 240, lineHeight: 1.5,
           zIndex: 999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
           pointerEvents: 'none', whiteSpace: 'normal'
@@ -466,6 +466,16 @@ export default function Dashboard(){
             })}
           </div>
         </>)}
+
+        {/* Save Record CTA */}
+        <div style={{marginTop:24,padding:'20px 24px',background:'#0D1B3E',borderRadius:14,textAlign:'center'}}>
+          <div style={{color:'#fff',fontWeight:700,fontSize:16,marginBottom:6}}>Ready to save your tax snapshot?</div>
+          <div style={{color:'#93b4d4',fontSize:13,marginBottom:16}}>Your record will include all business and personal inputs.</div>
+          <button onClick={handleSave} style={{padding:'12px 40px',background:saved?'#059669':'#2563EB',color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer',transition:'background 0.3s'}}>
+            {saved ? '✅ Record Saved!' : '💾 Save This Record'}
+          </button>
+          {saved && <div style={{color:'#6EE7B7',fontSize:13,marginTop:10}}>Saved! View it in 📂 My Records.</div>}
+        </div>
 
         <div style={{height:48}}/>
       </div>
