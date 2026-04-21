@@ -220,7 +220,7 @@ export default function Dashboard(){
 
   const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
-    const app=localStorage.getItem('ts360_connected_app')
+    // ts360_connected_app is not trusted — always verify via live token fetch below
     const email = localStorage.getItem('ts360_email') || 'default'
     const key = 'ts360_records_' + email
     // Load from user key, fallback to default key, fallback to legacy key
@@ -242,7 +242,7 @@ export default function Dashboard(){
     const params=new URLSearchParams(window.location.search)
     const xeroToken=params.get('xero_token')
     if(xeroToken){
-      localStorage.setItem('ts360_connected_app','Xero')
+      // verified below
       setConnectedApp('Xero')
       setXeroLoading(true)
       fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/data?token='+xeroToken)
@@ -395,7 +395,7 @@ export default function Dashboard(){
 
 
   const handleConnect=(integ)=>{
-    localStorage.setItem('ts360_connected_app',integ.name)
+    // ts360_connected_app not stored — verified on next load
     setConnectedApp(integ.name)
     window.location.href=API+'/auth/'+integ.id+'/connect'
   }
