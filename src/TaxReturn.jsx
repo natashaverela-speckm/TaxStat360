@@ -46,8 +46,7 @@ function getStdDed(year, fs) {
   return tbl[fs] || tbl.single
 }
 function getBrackets(year, fs) {
-  const y = clampYear(year)
-  const tbl = BRACKETS_BY_YEAR[y] || BRACKETS_BY_YEAR[2025]
+  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
   return tbl[fs] || tbl.single
 }
 
