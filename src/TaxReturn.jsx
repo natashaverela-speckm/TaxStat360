@@ -151,6 +151,7 @@ export default function TaxReturn() {
   const [rentalIncome, setRentalIncome] = React.useState('')
   const [rentalExpenses, setRentalExpenses] = React.useState('')
   const [capitalGains, setCapitalGains] = React.useState('')
+  const [priorYearLosses, setPriorYearLosses] = React.useState('')
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
   const [useItemized, setUseItemized] = React.useState(false)
