@@ -320,7 +320,7 @@ export default function Dashboard(){
       )}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Step 1 — Business'],...(calc?.isCCorp?[]:[['f1040','Step 2 — Personal 1040']])].map(([v,label])=>(
+        {[['records','📂 My Records'],['business','Step 1 — Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Step 2 — Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>setActiveView(v)} style={{
             padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
             fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
@@ -482,7 +482,7 @@ export default function Dashboard(){
               <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>This is your share of business profit flowing to Schedule E on your Form 1040. This is NOT your tax bill - your actual liability depends on your complete personal tax picture below.</div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
-                {!calc.isCCorp&&<button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>}
+                {biz.entityType!=='C-Corporation'&&<button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>}
 
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
@@ -510,7 +510,7 @@ export default function Dashboard(){
       )}
 
       {/* ════ 1040 / PERSONAL VIEW ════ */}
-      {activeView==='f1040'&&!calc?.isCCorp&&(
+      {activeView==='f1040'&&biz.entityType!=='C-Corporation'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
