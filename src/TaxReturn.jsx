@@ -476,6 +476,13 @@ export default function TaxReturn() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(additionalMedicare)}</span>
               </div>
             )}
+
+            {/* Accuracy note */}
+            <div style={{ marginTop: 16, padding: '10px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8, borderLeft: '3px solid rgba(255,255,255,0.2)' }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+                ⚠ Accuracy depends on your inputs. Please review all fields to ensure the most accurate result. This is an estimate — consult a tax professional for filing.
+              </div>
+            </div>
           </div>
 
           {/* Income Waterfall */}
