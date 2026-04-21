@@ -10,13 +10,6 @@ const SL = '#475569'
 // 2025 Federal Tax Brackets (Single)
 // Tax Brackets by year (IRC §1)
 const BRACKETS_BY_YEAR = {
-  2023: {
-    single: [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[578125,.35],[Infinity,.37]],
-    mfj:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
-    mfs:    [[11000,.10],[44725,.12],[95375,.22],[182050,.24],[231250,.32],[346875,.35],[Infinity,.37]],
-    hoh:    [[15700,.10],[59850,.12],[95350,.22],[182050,.24],[231250,.32],[578100,.35],[Infinity,.37]],
-    qss:    [[22000,.10],[89450,.12],[190750,.22],[364200,.24],[462500,.32],[693750,.35],[Infinity,.37]],
-  },
   2024: {
     single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
     mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
@@ -40,8 +33,20 @@ const BRACKETS_BY_YEAR = {
   },
 }
 
+
+function clampYear(year) {
+  const cy = new Date().getFullYear()
+  return Math.min(cy, Math.max(cy - 3, parseInt(year) || cy))
+}
+
+function getStdDed(year, fs) {
+  const y = clampYear(year)
+  const tbl = STD_BY_YEAR[y] || STD_BY_YEAR[2025]
+  return tbl[fs] || tbl.single
+}
 function getBrackets(year, fs) {
-  const tbl = BRACKETS_BY_YEAR[year] || BRACKETS_BY_YEAR[2025]
+  const y = clampYear(year)
+  const tbl = BRACKETS_BY_YEAR[y] || BRACKETS_BY_YEAR[2025]
   return tbl[fs] || tbl.single
 }
 
@@ -266,7 +271,7 @@ export default function TaxReturn() {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>TAX YEAR</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, background: '#fff' }}>
-                {[2026,2025,2024,2023].map(y => <option key={y} value={y}>{y}</option>)}
+                {[2026,2025,2024].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
               <div style={{ fontSize: 12, color: SL }}>
                 Std. Deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong>
