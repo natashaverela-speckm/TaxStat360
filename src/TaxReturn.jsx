@@ -34,14 +34,15 @@ const BRACKETS_BY_YEAR = {
 }
 
 
-function clampYear(year) {
-  const cy = new Date().getFullYear()
-  return Math.min(cy, Math.max(cy - 3, parseInt(year) || cy))
+// Standard Deductions by year (IRC §63)
+const STD_BY_YEAR = {
+  2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
+  2025: { single:15000, mfj:30000, mfs:15000, hoh:22500, qss:30000 },
+  2026: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
 }
 
 function getStdDed(year, fs) {
-  const y = clampYear(year)
-  const tbl = STD_BY_YEAR[y] || STD_BY_YEAR[2025]
+  const tbl = STD_BY_YEAR[year] || STD_BY_YEAR[2025]
   return tbl[fs] || tbl.single
 }
 function getBrackets(year, fs) {
