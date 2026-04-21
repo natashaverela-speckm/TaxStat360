@@ -454,8 +454,25 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions */}
-          <CollapsibleSection title="DEDUCTIONS">
-            
+          <CollapsibleSection title="DEDUCTION METHOD">
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: N }}>
+                <input type="checkbox" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+                Use itemized deductions
+              </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: useItemized ? '1fr 1fr' : '1fr', gap: 12 }}>
+              <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : 'Single'})</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{fmt(stdDed)}</span>
+              </div>
+              {useItemized && (
+                <div>
+                  <label style={lbl}>Your Itemized Deductions (Schedule A) <InfoTip text="Total itemized deductions instead of the standard deduction. Find on Schedule A: mortgage interest (Form 1098), state taxes, charitable gifts, and medical expenses."/></label>
+                  <input value={itemizedAmt} onChange={e => setItemizedAmt(e.target.value)} placeholder="0" style={inp} />
+                </div>
+              )}
+            </div>
           </CollapsibleSection>
 
           {/* Estimated Tax Payments */}
