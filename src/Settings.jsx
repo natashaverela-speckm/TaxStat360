@@ -190,9 +190,14 @@ export default function Settings() {
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
           </div>
-          <button onClick={handleManageBilling} style={{width:'100%',padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
-            Manage Billing & Invoices →
-          </button>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>nav('/upgrade')} style={{flex:1,padding:'10px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+              ↑ Upgrade Plan
+            </button>
+            <button onClick={handleManageBilling} style={{flex:1,padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
+              Manage Billing →
+            </button>
+          </div>
         </div>
 
         {/* Danger Zone */}
