@@ -372,6 +372,11 @@ export default function Dashboard(){
   const isPassthru=PASSTHROUGH.includes(biz.entityType)
 
   const handleSave=()=>{
+    // Require at least revenue to save a meaningful record
+    if(!parseFloat(biz.grossRevenue) && !parseFloat(biz.operatingExpenses) && !parseFloat(f1040.w2Income)){
+      alert('Please enter at least your gross revenue or W-2 income before saving a record.')
+      return
+    }
     const email=localStorage.getItem('ts360_email')||'default'
     const key='ts360_records_'+email
     // If already saved this session, update the existing record (same ID)
@@ -494,10 +499,11 @@ export default function Dashboard(){
                       📄 {rec.savedAt||'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-                      <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{rec.filingStatus?rec.filingStatus.charAt(0).toUpperCase()+rec.filingStatus.slice(1):'—'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>K-1 Income: <strong style={{color:N}}>${(rec.k1Total||0).toLocaleString()}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>${(parseFloat(rec.w2Income)||0).toLocaleString()}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>Total Tax: <strong style={{color:'#DC2626'}}>${(rec.totalTax||0).toLocaleString()}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||'—'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||'—'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?N:'#94A3B8'}}>{rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?'$'+parseFloat(rec.biz.grossRevenue).toLocaleString():'No data'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'—'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{(rec.f1040?.filingStatus||'—').toUpperCase()}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||0).toLocaleString()}</strong></span>
                     </div>
                   </div>
