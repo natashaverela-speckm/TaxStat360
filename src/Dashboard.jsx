@@ -143,16 +143,40 @@ function calcAll(biz,f1040){
   const deps=parseFloat(f1040.dependents)||0,estPay=parseFloat(f1040.estimatedPayments)||0
   const useStd=f1040.useStandardDed!==false,itemized=parseFloat(f1040.itemizedDed)||0
   const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S-Corporation'
-  const seTaxBase=isPassthru&&!isSC?Math.max(0,k1)*0.9235:0,seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
-  const qbi=isPassthru?Math.round(Math.max(0,k1)*0.20):0
-  const agi=Math.max(0,k1+w2+otherInc-seDed),stdDed=getStdDed(parseInt(biz.year)||2025,fs),ded=useStd?stdDed:Math.max(stdDed,itemized)
+  const isCCorp=biz.entityType==='C-Corporation'
+
+  // ── C-Corp: entity-level 21% flat tax (IRC §11) ──────────────────────────
+  // Net profit stays at corporate level — does NOT pass to owner's personal return
+  // Owner is taxed only on: (1) W-2 salary already in f1040 and (2) dividends received
+  const corpTax=isCCorp?Math.round(Math.max(0,netBiz)*0.21):0
+  const dividends=isCCorp?parseFloat(biz.ccorpDividends||0):0
+  // Qualified dividend tax rate: 0% ≤$47,025 (single 2025), 15% most, 20% high income
+  const qualDivRate=0.15 // simplified: 15% planning rate
+  const divTax=isCCorp?Math.round(Math.max(0,dividends)*qualDivRate):0
+
+  // ── Passthrough entities: K-1 flows to personal return ───────────────────
+  // For C-Corp, k1PersonalIncome = 0 (profit stays at entity level)
+  const k1PersonalIncome=isCCorp?0:k1
+
+  const seTaxBase=isPassthru&&!isSC?Math.max(0,k1PersonalIncome)*0.9235:0
+  const seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
+  const qbi=isPassthru?Math.round(Math.max(0,k1PersonalIncome)*0.20):0
+
+  // AGI: C-Corp owner only includes W-2 + other personal income (no K-1)
+  const agi=Math.max(0,k1PersonalIncome+w2+otherInc+dividends-seDed)
+  const stdDed=getStdDed(parseInt(biz.year)||2025,fs),ded=useStd?stdDed:Math.max(stdDed,itemized)
   const taxableInc=Math.max(0,agi-ded-qbi),incomeTax=calcBracketTax(taxableInc,parseInt(biz.year)||2025,fs)
   const phaseout=fs==='mfj'?400000:200000,ctcReduce=Math.max(0,Math.floor((agi-phaseout)/1000)*50)
-  const ctc=Math.max(0,deps*2000-ctcReduce),totalTax=Math.max(0,incomeTax+seTax-ctc)
+  const ctc=Math.max(0,deps*2000-ctcReduce)
+  // Personal total tax (for C-Corp: personal income tax only; corp tax shown separately)
+  const totalTax=Math.max(0,incomeTax+seTax-ctc)
+  // Combined total for C-Corp: personal + corporate + dividend tax
+  const combinedTax=isCCorp?totalTax+corpTax:totalTax
   const taxOwed=Math.max(0,totalTax-estPay),refund=Math.max(0,estPay-totalTax)
-  const effRate=agi>0?(totalTax/agi*100).toFixed(1):'0.0',quarterly=Math.round(Math.max(0,totalTax-estPay)/4)
-  const recSal=Math.round(Math.max(0,k1)*0.35)
-  return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,own,agi,ded,qbi,seTax,seDed,taxableInc,incomeTax,ctc,totalTax,taxOwed,refund,effRate,quarterly,recSal,stdDed,w2,otherInc,estPay,isPassthru,isSC}
+  const effRate=agi>0?(totalTax/agi*100).toFixed(1):'0.0'
+  const quarterly=Math.round(Math.max(0,totalTax-estPay)/4)
+  const recSal=isSC?Math.round(Math.max(0,k1)*0.35):0
+  return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,k1PersonalIncome,own,agi,ded,qbi,seTax,seDed,taxableInc,incomeTax,ctc,totalTax,corpTax,divTax,combinedTax,dividends,taxOwed,refund,effRate,quarterly,recSal,stdDed,w2,otherInc,estPay,isPassthru,isSC,isCCorp}
 }
 
 function buildRecs(biz,calc){
@@ -179,7 +203,7 @@ export default function Dashboard(){
   const [showDisclaimer,setShowDisclaimer]=useState(()=>!localStorage.getItem('ts360_disclaimer_seen'))
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
-  const [biz,setBiz]=useState({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:''})
+  const [biz,setBiz]=useState({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
   const [f1040,setF1040]=useState({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
   const [connectedApp,setConnectedApp]=useState(null)
   const [saved,setSaved]=useState(false)
@@ -433,6 +457,16 @@ export default function Dashboard(){
                 {biz.entityType==='S-Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp) <InfoTip text="Your W-2 salary paid to yourself as S-Corp officer. Find on your W-2 Box 1, or payroll records. The IRS requires a 'reasonable compensation' before taking distributions."/></label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
                 <div><label style={lbl}>Other Deductions <InfoTip text="Any deductible business expenses not captured above: professional fees, education, business travel, subscriptions, home office, etc. Find in your PandL under miscellaneous or other expenses."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Professional fees, insurance, home office</div><NumInput k="otherDeductions"/></div>
               </div>
+              {biz.entityType==='C-Corporation'&&(
+                <div style={{marginTop:16,padding:'14px 16px',background:'#EFF6FF',borderRadius:10,border:'1px solid #BFDBFE'}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'#1D4ED8',marginBottom:8,letterSpacing:'0.06em'}}>C-CORPORATION — ENTITY LEVEL TAX</div>
+                  <div style={{fontSize:12,color:'#1E40AF',marginBottom:14,lineHeight:1.6}}>
+                    C-Corps pay a flat <strong>21% federal corporate tax</strong> on net profit (IRC §11). Your personal return only includes your W-2 salary and any dividends distributed to you. If you receive dividends from the corporation, enter them below.
+                  </div>
+                  <div><label style={lbl}>Dividends Distributed to You <InfoTip text="If the corporation pays you dividends from retained earnings, enter the total here. Qualified dividends are taxed at 0%, 15%, or 20% on your personal return (not at ordinary income rates). This is separate from your W-2 salary. Enter $0 if no dividends were paid out to you this year."/></label>
+                  <NumInput k="ccorpDividends"/></div>
+                </div>
+              )}
               {hasNumbers&&<div style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',marginTop:14}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:13,color:SL}}>Total Deductions</span><span style={{fontWeight:700,color:'#DC2626',fontSize:14}}>({fmt(calc.totalExp)})</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:13,color:SL,fontWeight:700}}>Net Business Income</span><span style={{fontWeight:800,color:N,fontSize:16}}>{fmt(calc.netBiz)}</span></div></div>}
             </div>
           </div>
@@ -521,6 +555,15 @@ export default function Dashboard(){
                   <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
                   <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
                   <div style={{fontSize:12,color:safeCalc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(safeCalc.effRate)} | Quarterly payment: {fmt(safeCalc.quarterly)}</div>
+                  {safeCalc.isCCorp&&(
+                    <div style={{marginTop:12,padding:'10px 12px',background:'rgba(0,0,0,0.06)',borderRadius:8,borderLeft:'3px solid #3B82F6'}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#1E40AF',marginBottom:6,letterSpacing:'0.05em'}}>C-CORP BREAKDOWN</div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Corporate Tax (21% IRC §11)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.corpTax)}</span></div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Personal Income Tax</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.incomeTax)}</span></div>
+                      {safeCalc.dividends>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Dividend Tax (~15%)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.divTax)}</span></div>}
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,paddingTop:6,borderTop:'1px solid rgba(30,64,175,0.2)',marginTop:4}}><span style={{color:'#1E40AF',fontWeight:700}}>Total Tax Burden</span><span style={{fontWeight:800,color:'#DC2626'}}>{fmt(safeCalc.combinedTax)}</span></div>
+                    </div>
+                  )}
                   <div style={{marginTop:10,padding:'8px 10px',background:'rgba(0,0,0,0.06)',borderRadius:6,borderLeft:'3px solid rgba(0,0,0,0.15)'}}>
                     <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.5}}>⚠ Accuracy depends on your inputs. Please review all fields for the most accurate result. This is an estimate — consult a tax professional for filing.</div>
                   </div>
