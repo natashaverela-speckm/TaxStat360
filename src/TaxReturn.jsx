@@ -120,7 +120,7 @@ function InfoTip({ text }) {
           background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',border:'1px solid #93C5FD' }}>i</span>
       {show&&<span style={{ position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',
         background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,
-        lineHeight:1.5,zIndex:999,boxShadow:'0 4px 16px rgba(0,0,0,0.2)',pointerEvents:'none',whiteSpace:'normal' }}>
+        lineHeight:1.5,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.2)',pointerEvents:'none',whiteSpace:'normal' }}>
         {text}
         <span style={{position:'absolute',top:'100%',left:'50%',transform:'translateX(-50%)',
           borderWidth:5,borderStyle:'solid',borderColor:'#1E293B transparent transparent transparent'}}/>
@@ -133,19 +133,20 @@ function InfoTip({ text }) {
 function CollapsibleSection({ title, children, defaultOpen = true, badge = null }) {
   const [open, setOpen] = React.useState(defaultOpen)
   return (
-    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
-        style={{ width: '100%', background: 'none', border: 'none', padding: '16px 20px', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        style={{ width: '100%', background: 'none', border: 'none', padding: '14px 20px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: open ? '1px solid #F1F5F9' : 'none', borderRadius: 14 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '1px' }}>{title}</div>
           {badge && <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{badge}</span>}
         </div>
-        <span style={{ fontSize: 14, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        <span style={{ fontSize: 11, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
       </button>
-      {open && <div style={{ padding: '0 20px 20px 20px' }}>{children}</div>}
+      {open && <div style={{ padding: '4px 20px 20px 20px' }}>{children}</div>}
     </div>
   )
 }
@@ -359,7 +360,10 @@ export default function TaxReturn() {
 
           {/* Rental Real Estate */}
           <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E)">
-            
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
+                <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+                Real Estate Professional
+              </label>
           </CollapsibleSection>
 
           {/* Other Income */}
