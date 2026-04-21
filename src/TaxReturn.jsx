@@ -141,6 +141,12 @@ export default function TaxReturn() {
   // Personal inputs
   const [taxYear, setTaxYear] = React.useState(2025)
   const [status, setStatus] = React.useState('single')
+  const [qualifiedDividends, setQualifiedDividends] = React.useState('')
+  const [socialSecurity, setSocialSecurity] = React.useState('')
+  const [iraDistributions, setIraDistributions] = React.useState('')
+  const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState('')
+  const [hsaDeduction, setHsaDeduction] = React.useState('')
+  const [studentLoanInt, setStudentLoanInt] = React.useState('')
   const [w2Income, setW2Income] = React.useState('')
   const [dependents, setDependents] = React.useState('0')
   const [isREP, setIsREP] = React.useState(false)
@@ -166,10 +172,17 @@ export default function TaxReturn() {
   const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
 
   // Total gross income
-  const grossIncome = w2 + k1Total + rentalNet + capGain + intInc + divInc
+  // Social Security: up to 85% taxable (simplified for planning)
+  const ssBenefits = nv(socialSecurity)
+  const taxableSS = Math.round(ssBenefits * 0.85)
+  const iraIncome = nv(iraDistributions)
+  const grossIncome = w2 + k1Total + rentalNet + capGain + intInc + divInc + taxableSS + iraIncome
 
-  // Adjustments — prior year loss carryforward reduces AGI
-  const adjustments = priorLosses
+  // Above-the-line deductions (Schedule 1, Part II)
+  const selfEmpHealthDed = nv(selfEmpHealthIns)
+  const hsaDed = nv(hsaDeduction)
+  const studentLoanDed = Math.min(nv(studentLoanInt), 2500) // capped at $2,500
+  const adjustments = priorLosses + selfEmpHealthDed + hsaDed + studentLoanDed
   const agi = grossIncome - adjustments
 
   // Deductions
@@ -189,7 +202,7 @@ export default function TaxReturn() {
   const fedTax = calcFederalTax(taxableIncome, taxYear, status)
 
   // Marginal rate
-  const brackets = getBrackets(status)
+  const brackets = getBrackets(taxYear, status)
   let marginalRate = 0
   if (taxableIncome > 0) {
     let prev = 0
@@ -381,6 +394,45 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>
                   Enter losses carried forward from prior year (positive number). Reduces your AGI.
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Income */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>RETIREMENT & SOCIAL SECURITY INCOME</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={lbl}>Social Security Benefits <InfoTip text="Total SS/SSA-1099 Box 5 gross benefits received. We apply the 85% maximum inclusion rate for planning purposes. Find on SSA-1099 form mailed each January."/></label>
+                <input style={inp} type="text" placeholder="0" value={socialSecurity} onChange={e => setSocialSecurity(e.target.value)} />
+              </div>
+              <div>
+                <label style={lbl}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a. Includes traditional IRA withdrawals, 401(k) distributions, pension payments. Roth distributions are generally tax-free — do not include."/></label>
+                <input style={inp} type="text" placeholder="0" value={iraDistributions} onChange={e => setIraDistributions(e.target.value)} />
+              </div>
+              <div>
+                <label style={lbl}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of your ordinary dividends taxed at the lower capital gains rate (0%, 15%, or 20%). Must be ≤ Ordinary Dividends entered above."/></label>
+                <input style={inp} type="text" placeholder="0" value={qualifiedDividends} onChange={e => setQualifiedDividends(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          {/* Above-the-Line Deductions */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 16 }}>ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)</div>
+            <div style={{ fontSize: 12, color: SL, marginBottom: 14 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Premiums you paid for health/dental/vision insurance for yourself and family if self-employed. Found in your records or Schedule K-1 attachments. Cannot exceed your net self-employment income."/></label>
+                <input style={inp} type="text" placeholder="0" value={selfEmpHealthIns} onChange={e => setSelfEmpHealthIns(e.target.value)} />
+              </div>
+              <div>
+                <label style={lbl}>HSA Deduction <InfoTip text="Contributions you made directly to your Health Savings Account (not through payroll). From Form 8889. 2025 limit: $4,300 self-only, $8,550 family."/></label>
+                <input style={inp} type="text" placeholder="0" value={hsaDeduction} onChange={e => setHsaDeduction(e.target.value)} />
+              </div>
+              <div>
+                <label style={lbl}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans. Capped at $2,500. Phases out between $75,000–$90,000 AGI (single). From Form 1098-E."/></label>
+                <input style={inp} type="text" placeholder="0" value={studentLoanInt} onChange={e => setStudentLoanInt(e.target.value)} />
               </div>
             </div>
           </div>
