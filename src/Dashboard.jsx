@@ -251,7 +251,9 @@ export default function Dashboard(){
         itemizedDed:saved1040.itemizedDed||''
       })
       setSaved(true)
-      setSavedRecordId(recs[0].id)
+      // Bind to the first record with actual data (not a blank duplicate)
+      const firstReal=recs.find(r=>parseFloat(r.biz?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
+      setSavedRecordId(firstReal?.id||recs[0].id)
       setShowFin(true)
       // Stay on My Records — let user choose what to do
     }
@@ -372,23 +374,28 @@ export default function Dashboard(){
   const isPassthru=PASSTHROUGH.includes(biz.entityType)
 
   const handleSave=()=>{
-    // Require at least revenue to save a meaningful record
     if(!parseFloat(biz.grossRevenue) && !parseFloat(biz.operatingExpenses) && !parseFloat(f1040.w2Income)){
       alert('Please enter at least your gross revenue or W-2 income before saving a record.')
       return
     }
     const email=localStorage.getItem('ts360_email')||'default'
     const key='ts360_records_'+email
-    // If already saved this session, update the existing record (same ID)
-    const existingId=savedRecordId
+    // Always read fresh from localStorage to avoid stale state
+    const freshRecs=JSON.parse(localStorage.getItem(key)||localStorage.getItem('ts360_records')||'[]')
+    // Use savedRecordId if set; otherwise find the most recent record with real data
+    let existingId=savedRecordId
+    if(!existingId){
+      const firstReal=freshRecs.find(r=>parseFloat(r.biz?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
+      if(firstReal) existingId=firstReal.id
+    }
     const record={
       id:existingId||Date.now(),
       savedAt:new Date().toLocaleString(),
       biz:{...biz},f1040:{...f1040},connectedApp,k1Income:calc?.k1||0
     }
     const updated=existingId
-      ? records.map(r=>r.id===existingId?record:r)  // UPDATE existing
-      : [record,...records.filter((_,i)=>i<9)]        // INSERT new
+      ? freshRecs.map(r=>r.id===existingId?record:r)
+      : [record,...freshRecs.filter((_,i)=>i<9)]
     setSavedRecordId(record.id)
     setRecords(updated)
     localStorage.setItem(key,JSON.stringify(updated))
