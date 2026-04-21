@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 // ── Info Tooltip Component ──
 function InfoTip({ text }) {
-  const [show, setShow] = React.useState(false)
+  const [show, setShow] = useState(false)
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
       <span
