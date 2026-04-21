@@ -883,7 +883,7 @@ export default function AIAnalysis() {
             <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
               Fill more fields for better accuracy
             </div>
-            <button onClick={() => nav('/dashboard')} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
+            <button onClick={() => { sessionStorage.setItem('ts360_goto_form', '1'); nav('/dashboard') }} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
           </div>
         )}
 

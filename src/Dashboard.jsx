@@ -261,7 +261,14 @@ export default function Dashboard(){
       // Bind to the first record with actual data (not a blank duplicate)
       setSavedRecordId(cleanRecs[0].id)
       setShowFin(true)
-      // Stay on My Records — let user choose what to do
+      // Auto-navigate to form: either coming from "Update Data" OR only one record exists
+      if(sessionStorage.getItem('ts360_goto_form')==='1'){
+        sessionStorage.removeItem('ts360_goto_form')
+        setActiveView('business')
+      } else if(cleanRecs.length === 1){
+        // Only one record — skip the picker and go straight into the form
+        setActiveView('business')
+      }
     }
     const params=new URLSearchParams(window.location.search)
     const xeroToken=params.get('xero_token')
