@@ -237,10 +237,17 @@ export default function Dashboard(){
     // Clear connected badge — re-verified below via live fetch
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
-    setRecords(recs)
-    if(recs.length>0&&recs[0].biz){
-      setBiz(recs[0].biz)
-      const saved1040=recs[0].f1040||{}
+    // Remove any blank records (no revenue AND no W-2) that may have been saved previously
+    const cleanRecs = recs.filter(r => parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0)
+    if (cleanRecs.length !== recs.length) {
+      // Persist the cleaned list immediately
+      localStorage.setItem(key, JSON.stringify(cleanRecs))
+      localStorage.setItem('ts360_records', JSON.stringify(cleanRecs))
+    }
+    setRecords(cleanRecs)
+    if(cleanRecs.length>0&&cleanRecs[0].biz){
+      setBiz(cleanRecs[0].biz)
+      const saved1040=cleanRecs[0].f1040||{}
       setF1040({
         filingStatus:saved1040.filingStatus||'single',
         w2Income:saved1040.w2Income||'',
@@ -252,8 +259,7 @@ export default function Dashboard(){
       })
       setSaved(true)
       // Bind to the first record with actual data (not a blank duplicate)
-      const firstReal=recs.find(r=>parseFloat(r.biz?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
-      setSavedRecordId(firstReal?.id||recs[0].id)
+      setSavedRecordId(cleanRecs[0].id)
       setShowFin(true)
       // Stay on My Records — let user choose what to do
     }
