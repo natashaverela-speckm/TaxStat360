@@ -238,7 +238,23 @@ export default function Dashboard(){
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
     setRecords(recs)
-    if(recs.length>0&&recs[0].biz){setBiz(recs[0].biz);setF1040(recs[0].f1040||f1040);setSaved(true)}
+    if(recs.length>0&&recs[0].biz){
+      setBiz(recs[0].biz)
+      const saved1040=recs[0].f1040||{}
+      setF1040({
+        filingStatus:saved1040.filingStatus||'single',
+        w2Income:saved1040.w2Income||'',
+        otherIncome:saved1040.otherIncome||'',
+        estimatedPayments:saved1040.estimatedPayments||'',
+        dependents:saved1040.dependents||'',
+        useStandardDed:saved1040.useStandardDed!==undefined?saved1040.useStandardDed:true,
+        itemizedDed:saved1040.itemizedDed||''
+      })
+      setSaved(true)
+      setSavedRecordId(recs[0].id)
+      setShowFin(true)
+      // Stay on My Records — let user choose what to do
+    }
     const params=new URLSearchParams(window.location.search)
     const xeroToken=params.get('xero_token')
     if(xeroToken){
@@ -377,20 +393,24 @@ export default function Dashboard(){
 
   const loadRecord = (rec) => {
     setLoadedRecord(rec)
-    // Restore all 1040 fields from the record
+    setSavedRecordId(rec.id)
+    // Restore business data
+    if(rec.biz) setBiz({...rec.biz})
+    // Restore f1040 from rec.f1040 (the saved sub-object)
+    const saved1040 = rec.f1040 || {}
     setF1040({
-      filingStatus: rec.filingStatus || 'single',
-      w2Income: rec.w2Income || '',
-      otherIncome: rec.interest || rec.otherIncome || '',
-      estimatedPayments: rec.estPaid || rec.estimatedPayments || '',
-      dependents: rec.dependents || '',
-      useStandardDed: rec.useItemized !== undefined ? !rec.useItemized : true,
-      itemizedDed: rec.itemizedAmt || rec.itemizedDed || ''
+      filingStatus: saved1040.filingStatus || rec.filingStatus || 'single',
+      w2Income: saved1040.w2Income || rec.w2Income || '',
+      otherIncome: saved1040.otherIncome || rec.otherIncome || '',
+      estimatedPayments: saved1040.estimatedPayments || rec.estPaid || '',
+      dependents: saved1040.dependents || rec.dependents || '',
+      useStandardDed: saved1040.useStandardDed !== undefined ? saved1040.useStandardDed : true,
+      itemizedDed: saved1040.itemizedDed || rec.itemizedDed || ''
     })
-    // Show the 1040 section automatically
-    setShow1040(true)
-    // Go to f1040 view with restored data
-    setActiveView('f1040')
+    setSaved(true)
+    // Go to Step 1 first so user sees their business data
+    setActiveView('business')
+    setShowFin(true)
   }
 
 
@@ -426,7 +446,20 @@ export default function Dashboard(){
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
         {[['records','📂 My Records'],['business','Step 1 — Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Step 2 — Personal 1040']])].map(([v,label])=>(
-          <button key={v} onClick={()=>setActiveView(v)} style={{
+          <button key={v} onClick={()=>{
+            if(v==='f1040'){
+              // Navigate to full Tax Return page with k1 data
+              sessionStorage.setItem('ts360_k1', String(calc?.k1||0))
+              sessionStorage.setItem('ts360_entities', JSON.stringify(
+                [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}]
+              ))
+              sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040))
+              sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
+              nav('/tax-return')
+            } else {
+              setActiveView(v)
+            }
+          }} style={{
             padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
             fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
           }}>{label}</button>
@@ -587,7 +620,16 @@ export default function Dashboard(){
               <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>This is your share of business profit flowing to Schedule E on your Form 1040. This is NOT your tax bill - your actual liability depends on your complete personal tax picture below.</div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
-                {biz.entityType!=='C-Corporation'&&<button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>}
+                {biz.entityType!=='C-Corporation'&&<button onClick={()=>{
+                  // Pass K-1 and entity data to Tax Return page via sessionStorage
+                  sessionStorage.setItem('ts360_k1', String(safeCalc.k1||0))
+                  sessionStorage.setItem('ts360_entities', JSON.stringify(
+                    [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:safeCalc.netBiz||0,k1:safeCalc.k1||0}]
+                  ))
+                  sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040))
+                  sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
+                  nav('/tax-return')
+                }} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to Personal Tax Return →</button>}
 
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
