@@ -9,6 +9,7 @@ import CalculateTaxInner from './CalculateTaxInner'
 import TaxReturn from './TaxReturn'
 import AIAnalysis from './AIAnalysis'
 import Dashboard from './Dashboard'
+import Settings from './Settings'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 function OAuthCallback() {
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/ai-analysis" element={<AIAnalysis />} />
 
         {/* Fallback */}
+        <Route path="/settings" element={<Settings />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="*" element={<Navigate to="/" replace />} />
