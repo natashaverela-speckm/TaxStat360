@@ -324,8 +324,8 @@ export default function Dashboard(){
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
         {[['records','📂 My Records'],['business','Step 1 — Business'],['f1040','Step 2 — Personal 1040']].map(([v,label])=>(
-          <button key={v} onClick={()=>setActiveView(v)} style={{
-            padding:'12px 20px',background:'none',border:'none',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
+          <button key={v} onClick={()=>{ if(v==='f1040'&&calc?.isCCorp) return; setActiveView(v) }} style={{
+            padding:'12px 20px',background:'none',border:'none',opacity:v==='f1040'&&calc?.isCCorp?0.35:1,cursor:v==='f1040'&&calc?.isCCorp?'not-allowed':'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
             fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
           }}>{label}</button>
         ))}
@@ -438,7 +438,7 @@ export default function Dashboard(){
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
           <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
-          <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>bSet('entityType',e.target.value)} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+          <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>{bSet('entityType',e.target.value);if(e.target.value==='C-Corporation'&&activeView==='f1040')setActiveView('business')}} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
 
@@ -485,7 +485,8 @@ export default function Dashboard(){
               <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>This is your share of business profit flowing to Schedule E on your Form 1040. This is NOT your tax bill - your actual liability depends on your complete personal tax picture below.</div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
-                <button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>
+                {!calc.isCCorp&&<button onClick={()=>setActiveView('f1040')} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to 1040 →</button>}
+                {calc.isCCorp&&<div style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#93C5FD',fontWeight:600,fontSize:12,textAlign:'center',lineHeight:1.4}}>C-Corps file Form 1120 separately.<br/>No personal 1040 passthrough.</div>}
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
             </div>
