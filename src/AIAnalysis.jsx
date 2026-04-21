@@ -210,10 +210,17 @@ function TaxOptimization({ rec }) {
   const year = parseInt(b.year) || 2025
   const isPassthrough = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType)
 
-  // 2025 brackets (single, simplified)
-  const brackets = [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]]
+  // Tax tables by year
+  const TAX_TABLES_OPT = {
+    2024: { brackets: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], stdDed: {single:14600,mfj:29200,mfs:14600,hoh:21900} },
+    2025: { brackets: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], stdDed: {single:15750,mfj:31500,mfs:15750,hoh:23625} },
+    2026: { brackets: [[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], stdDed: {single:16100,mfj:32200,mfs:16100,hoh:24150} },
+  }
+  const table = TAX_TABLES_OPT[year] || TAX_TABLES_OPT[2025]
+  const brackets = table.brackets
   const agi = Math.max(0, k1 + w2)
-  const stdDed = 15750
+  const filing = f.filingStatus || 'single'
+  const stdDed = table.stdDed[filing] || table.stdDed.single
   const taxable = Math.max(0, agi - stdDed)
   let marginalRate = 0.10, prev = 0
   for (const [cap, rate] of brackets) { if (taxable > prev) marginalRate = rate; prev = cap }
@@ -495,12 +502,22 @@ function SimulatorModal({ onClose, rec }) {
   const savedK1 = parseFloat(rec?.k1Income) || 0
   const savedW2 = parseFloat(f.w2Income || b.officerSalary || 0) || 0
   const savedEstPay = parseFloat(f.estimatedPayments) || 0
+  const taxYear = parseInt(b.year) || 2025
+  const filing = f.filingStatus || 'single'
 
-  // Tax calc engine
+  // Tax tables by year
+  const TAX_TABLES = {
+    2024: { brackets: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], stdDed: {single:14600,mfj:29200,mfs:14600,hoh:21900} },
+    2025: { brackets: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], stdDed: {single:15750,mfj:31500,mfs:15750,hoh:23625} },
+    2026: { brackets: [[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], stdDed: {single:16100,mfj:32200,mfs:16100,hoh:24150} },
+  }
+  const table = TAX_TABLES[taxYear] || TAX_TABLES[2025]
+  const stdDed = table.stdDed[filing] || table.stdDed.single
+
+  // Tax calc engine using correct year's brackets
   const calcFedTax = (taxableInc) => {
-    const brackets = [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]]
     let tax = 0, prev = 0
-    for (const [cap, rate] of brackets) {
+    for (const [cap, rate] of table.brackets) {
       if (taxableInc <= prev) break
       tax += (Math.min(taxableInc, cap) - prev) * rate
       prev = cap
@@ -508,7 +525,6 @@ function SimulatorModal({ onClose, rec }) {
     return Math.round(tax)
   }
 
-  const stdDed = 15750
   const baseTaxable = Math.max(0, savedK1 + savedW2 - savedK1 * 0.20 - stdDed)
   const baseTax = calcFedTax(baseTaxable)
 
@@ -678,7 +694,7 @@ function SimulatorModal({ onClose, rec }) {
         </div>
 
         <div style={{ marginTop: 12, fontSize: 11, color: SL, textAlign: 'center' }}>
-          Estimates use 2025 federal brackets. Does not include state tax, FICA, or AMT. Consult a CPA before implementing.
+          Estimates use {taxYear} federal brackets · {filing.toUpperCase()} filing status · ${stdDed.toLocaleString()} standard deduction. Does not include state tax, FICA, or AMT. Consult a CPA.
         </div>
       </div>
     </Modal>
