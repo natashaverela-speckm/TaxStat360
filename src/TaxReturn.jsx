@@ -228,9 +228,9 @@ export default function TaxReturn() {
   let marginalRate = 0
   if (taxableIncome > 0) {
     let prev = 0
-    for (const b of brackets) {
-      if (taxableIncome > prev) { marginalRate = b.rate }
-      prev = b.max
+    for (const [cap, rate] of brackets) {
+      if (taxableIncome > prev) { marginalRate = rate }
+      prev = cap
     }
   }
 
