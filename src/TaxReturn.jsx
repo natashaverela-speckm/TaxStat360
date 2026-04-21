@@ -160,17 +160,21 @@ export default function TaxReturn() {
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
-  // Personal inputs
-  const [taxYear, setTaxYear] = React.useState(2025)
-  const [status, setStatus] = React.useState('single')
+  // Pre-load saved f1040 data if passed from Dashboard
+  const savedF1040 = (() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}') } catch(e) { return {} } })()
+  const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
+
+  // Personal inputs — pre-populated from saved record if available
+  const [taxYear, setTaxYear] = React.useState(savedTaxYear)
+  const [status, setStatus] = React.useState(savedF1040.filingStatus || 'single')
   const [qualifiedDividends, setQualifiedDividends] = React.useState('')
   const [socialSecurity, setSocialSecurity] = React.useState('')
   const [iraDistributions, setIraDistributions] = React.useState('')
   const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState('')
   const [hsaDeduction, setHsaDeduction] = React.useState('')
   const [studentLoanInt, setStudentLoanInt] = React.useState('')
-  const [w2Income, setW2Income] = React.useState('')
-  const [dependents, setDependents] = React.useState('0')
+  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
+  const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState('')
   const [rentalExpenses, setRentalExpenses] = React.useState('')
@@ -178,11 +182,11 @@ export default function TaxReturn() {
   const [priorYearLosses, setPriorYearLosses] = React.useState('')
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
-  const [useItemized, setUseItemized] = React.useState(false)
+  const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
   const [saved, setSaved] = React.useState(false)
-  const [itemizedAmt, setItemizedAmt] = React.useState('')
-  const [estPaid, setEstPaid] = React.useState('')
-  const [w2Withheld, setW2Withheld] = React.useState('')
+  const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || '')
+  const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || '')
+  const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
   const [showDetail, setShowDetail] = React.useState(false)
 
   // Core calculations
