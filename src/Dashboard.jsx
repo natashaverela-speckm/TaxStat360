@@ -215,8 +215,8 @@ export default function Dashboard(){
   const [loadedRecord,setLoadedRecord]=useState(null)
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
-  const bSet=(k,v)=>{setSavedRecordId(null);setSaved(false);setBiz(p=>({...p,[k]:v}));setSaved(false)}
-  const fSet=(k,v)=>setF1040(p=>({...p,[k]:v}))
+  const bSet=(k,v)=>{setSaved(false);setBiz(p=>({...p,[k]:v}))}
+  const fSet=(k,v)=>{setSaved(false);setF1040(p=>({...p,[k]:v}))}
 
   const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
@@ -412,7 +412,7 @@ export default function Dashboard(){
       useStandardDed: saved1040.useStandardDed !== undefined ? saved1040.useStandardDed : true,
       itemizedDed: saved1040.itemizedDed || rec.itemizedDed || ''
     })
-    setSaved(true)
+    setSaved(false)  // Show 'Save Record' so user can re-save after reviewing
     // Go to Step 1 first so user sees their business data
     setActiveView('business')
     setShowFin(true)
@@ -481,14 +481,28 @@ export default function Dashboard(){
               <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>My Saved Records</h2>
               <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Click any record to load it into the Tax Calculator.</p>
             </div>
-            <button onClick={()=>setActiveView('business')} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
+            <button onClick={()=>{
+              setBiz({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+              setF1040({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
+              setSavedRecordId(null)
+              setSaved(false)
+              setLoadedRecord(null)
+              setActiveView('business')
+            }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
           {records.length===0?(
             <div style={{textAlign:'center',padding:'60px 20px',background:'#fff',borderRadius:16,border:'1px solid #E2E8F0'}}>
               <div style={{fontSize:48,marginBottom:16}}>📂</div>
               <h3 style={{color:N,fontWeight:700,fontSize:18,marginBottom:8}}>No saved records yet</h3>
               <p style={{color:SL,fontSize:14,marginBottom:20}}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
-              <button onClick={()=>setActiveView('business')} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
+              <button onClick={()=>{
+              setBiz({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+              setF1040({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
+              setSavedRecordId(null)
+              setSaved(false)
+              setLoadedRecord(null)
+              setActiveView('business')
+            }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
