@@ -425,7 +425,7 @@ export default function AIAnalysis() {
             { label: 'Compliance Score', value: complianceScore + '%', sub: 'IRS-Aligned', color: G, bg: '#F0FDF4', border: '#BBF7D0' },
             { label: 'Active Features', value: totalActive + '/32', sub: 'Fully operational', color: B, bg: '#EFF6FF', border: '#BFDBFE' },
             { label: 'Risk Alerts', value: '3', sub: 'Flagged for review', color: R, bg: '#FEF2F2', border: '#FECACA' },
-            { label: 'Tax Savings Found', value: '$8,420', sub: 'Estimated opportunity', color: P, bg: '#F5F3FF', border: '#DDD6FE' },
+
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, border: '1px solid ' + s.border, borderRadius: 12, padding: '20px 18px' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: SL, letterSpacing: 0.8, marginBottom: 8 }}>{s.label.toUpperCase()}</div>
