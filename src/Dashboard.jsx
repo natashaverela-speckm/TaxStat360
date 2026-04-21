@@ -202,6 +202,7 @@ const RiskBadge=({level})=>{const s={low:{bg:'#F0FDF4',color:'#166534',label:'Lo
 export default function Dashboard(){
   const nav=useNavigate()
   const [showDisclaimer,setShowDisclaimer]=useState(()=>!localStorage.getItem('ts360_disclaimer_seen'))
+  const [refreshing,setRefreshing]=useState(false)
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
   const [biz,setBiz]=useState({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
@@ -256,8 +257,81 @@ export default function Dashboard(){
         })
         .catch(()=>{setXeroLoading(false);window.history.replaceState({},'','/dashboard')})
     }
+
+    // ── Auto-refresh QB/Wave/FreshBooks on login ─────────────────────────────
+    // If no URL token and not xero, check for stored tokens and re-fetch P&L
+    if(!xeroToken){
+      const integMap={quickbooks:'qb',wave:'wave',freshbooks:'fb'}
+      for(const [pid,abbr] of Object.entries(integMap)){
+        const tok=localStorage.getItem('ts360_'+pid+'_token')
+        const connected=localStorage.getItem('ts360_'+pid+'_connected')
+        if(tok&&connected==='true'){
+          const extra=localStorage.getItem('ts360_'+pid+'_extra')
+          let url='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/'+pid+'/data?token='+encodeURIComponent(tok)
+          if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
+          if(pid==='freshbooks'&&extra) url+='&account='+encodeURIComponent(extra)
+          fetch(url)
+            .then(r=>r.json())
+            .then(data=>{
+              if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
+                const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
+                const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
+                setBiz(p=>({...p, grossRevenue:rev, operatingExpenses:exp}))
+                setShowFin(true)
+              } else if(data&&data.error==='token_expired'){
+                // Token expired — clear so user knows to reconnect
+                localStorage.removeItem('ts360_'+pid+'_token')
+                localStorage.removeItem('ts360_'+pid+'_connected')
+                setConnectedApp(null)
+                localStorage.removeItem('ts360_connected_app')
+              }
+            })
+            .catch(()=>{}) // Silent fail — user can reconnect manually
+          break
+        }
+      }
+    }
   },[])
 
+  const refreshData=()=>{
+    const integMap={quickbooks:'qb',wave:'wave',freshbooks:'fb'}
+    for(const [pid] of Object.entries(integMap)){
+      const tok=localStorage.getItem('ts360_'+pid+'_token')
+      const connected=localStorage.getItem('ts360_'+pid+'_connected')
+      if(tok&&connected==='true'){
+        const extra=localStorage.getItem('ts360_'+pid+'_extra')
+        let url='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/'+pid+'/data?token='+encodeURIComponent(tok)
+        if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
+        if(pid==='freshbooks'&&extra) url+='&account='+encodeURIComponent(extra)
+        setRefreshing(true)
+        fetch(url).then(r=>r.json()).then(data=>{
+          if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
+            const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
+            const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
+            setBiz(p=>({...p,grossRevenue:rev,operatingExpenses:exp}))
+            setShowFin(true)
+          }
+          setRefreshing(false)
+        }).catch(()=>setRefreshing(false))
+        // Xero needs token refresh first
+        const xeroRefresh=localStorage.getItem('ts360_xero_refresh')
+        if(!tok&&xeroRefresh){
+          setRefreshing(true)
+          fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/refresh?refresh='+encodeURIComponent(xeroRefresh))
+            .then(r=>r.json()).then(d=>{
+              if(d.access_token){
+                localStorage.setItem('ts360_xero_token',d.access_token)
+                return fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/data?token='+encodeURIComponent(d.access_token))
+              }
+            }).then(r=>r?.json()).then(data=>{
+              if(data?.grossRevenue){setBiz(p=>({...p,grossRevenue:String(Math.round(data.grossRevenue)),operatingExpenses:String(Math.round(data.totalExpenses||0))}))}
+              setRefreshing(false)
+            }).catch(()=>setRefreshing(false))
+        }
+        break
+      }
+    }
+  }
   const hasNumbers=parseFloat(biz.grossRevenue)>0
   const calc=hasNumbers?calcAll(biz,f1040):null
   const recs=calc?buildRecs(biz,calc):[]
@@ -428,7 +502,7 @@ export default function Dashboard(){
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Step 2 - Business Income & Expenses</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>{connectedApp?'Imported from '+connectedApp+' - review and confirm below.':'Enter your business financials for the tax year.'}</p></div>
           <div style={{display:'flex',gap:10,flexShrink:0}}>
-            {connectedApp&&<button style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>Refresh</button>}
+            {connectedApp&&<button onClick={refreshData} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{refreshing?'Refreshing...':'↻ Refresh Data'}</button>}
             <button onClick={()=>setShowFin(v=>!v)} style={{padding:'7px 14px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{showFin?'Collapse':'Expand'} Details</button>
           </div>
         </div>
