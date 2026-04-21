@@ -399,7 +399,7 @@ export default function Dashboard(){
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
-          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}}</select></div>
+          <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
           <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>bSet('entityType',e.target.value)} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
