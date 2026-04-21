@@ -87,7 +87,7 @@ export default function Landing() {
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
         <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', paddingTop: '50.625%' }}>
-          <iframe src="https://player.vimeo.com/video/1180620888?autoplay=0&title=0&byline=0&portrait=0" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen></iframe>
+          <iframe src="https://player.vimeo.com/video/1185021252?autoplay=0&title=0&byline=0&portrait=0" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen></iframe>
         </div>
       </section>
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
