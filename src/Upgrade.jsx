@@ -81,7 +81,7 @@ export default function Upgrade() {
     if (mountedRef.current) return
     setTimeout(() => {
       if (!window.Stripe || !document.getElementById('card-element')) return
-      const stripe = window.Stripe('pk_live_51OHhIAHVzLMm42bBl1JJ3e1tnHQBsC4HOPuenBl8yUjnH3p8cJilqnN9eMBqcMPuAMxvq2fBjk5oC3w2wbFWJFe00QMGE30d0N')
+      const stripe = window.Stripe('PK_LIVE_KEY_REDACTED')
       stripeRef.current = stripe
       const elements = stripe.elements()
       const card = elements.create('card', {
