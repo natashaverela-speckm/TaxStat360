@@ -180,9 +180,13 @@ function calcAll(biz,f1040){
 }
 
 function buildRecs(biz,calc){
-  const recs=[],{k1,recSal,isSC,quarterly,qbi,effRate}=calc
+  const recs=[],{k1,recSal,isSC,isCCorp,quarterly,qbi,effRate,corpTax,netBiz,combinedTax}=calc
   const officerSal=parseFloat(biz.officerSalary)||0,grossRev=parseFloat(biz.grossRevenue)||0
   const dep=parseFloat(biz.depreciation)||0,adv=parseFloat(biz.advertising)||0
+  // C-Corp specific recommendations
+  if(isCCorp&&corpTax>0) recs.push({type:'danger',title:'C-Corp Double Taxation',msg:'Your corporation owes '+fmt(corpTax)+' in federal corporate tax (21% flat rate on '+fmt(netBiz)+' net profit). Profits distributed as dividends are taxed again on your personal return. Consider an S-Corp election to eliminate entity-level tax.'})
+  if(isCCorp&&officerSal===0&&netBiz>20000) recs.push({type:'warning',title:'No Officer Salary Recorded',msg:'C-Corp officers should pay themselves a reasonable W-2 salary. This is deductible to the corporation, reducing your corporate tax.'})
+  if(isCCorp&&netBiz>0) recs.push({type:'success',title:'C-Corp Tax Planning Tip',msg:'Consider retaining profits in the corporation rather than distributing as dividends to avoid double taxation. A tax advisor can help model the optimal salary vs. retained earnings strategy.'})
   if(isSC&&officerSal===0&&k1>20000) recs.push({type:'danger',title:'No Officer Compensation',msg:'S-Corp owners must pay themselves a reasonable salary. The IRS considers this a primary audit trigger. Recommended minimum: '+fmt(recSal)+'/yr.'})
   if(isSC&&officerSal>0&&officerSal<recSal&&k1>20000) recs.push({type:'warning',title:'Officer Compensation May Be Too Low',msg:'Your officer salary of '+fmt(officerSal)+' is below the IRS-recommended minimum of '+fmt(recSal)+'. Consider increasing to reduce audit risk.'})
   if(quarterly>500) recs.push({type:'warning',title:'Quarterly Estimated Payments Required',msg:'Pay approximately '+fmt(quarterly)+' per quarter. Due: Apr 15, Jun 15, Sep 15, Jan 15.'})
@@ -487,7 +491,7 @@ export default function Dashboard(){
             </div>
             <div>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:12}}>INSTANT ANALYSIS</div>
-              <AnalysisBadge label="Officer Compensation" value={calc.isSC?(parseFloat(biz.officerSalary)?fmt(biz.officerSalary):'Not Set'):'N/A for this entity'} risk={calc.isSC?(parseFloat(biz.officerSalary)>=calc.recSal?'low':parseFloat(biz.officerSalary)>0?'moderate':'high'):'low'} note={calc.isSC?'IRS recommended: '+fmt(calc.recSal)+'/yr':null}/>
+              <AnalysisBadge label="Officer Compensation" value={calc.isSC?(parseFloat(biz.officerSalary)?fmt(biz.officerSalary):'Not Set'):calc.isCCorp?(parseFloat(biz.officerSalary)?fmt(biz.officerSalary)+' (deductible)':'Not Set'):'N/A for this entity'} risk={calc.isSC?(parseFloat(biz.officerSalary)>=calc.recSal?'low':parseFloat(biz.officerSalary)>0?'moderate':'high'):calc.isCCorp?(parseFloat(biz.officerSalary)>0?'low':'moderate'):'low'} note={calc.isSC?'IRS recommended: '+fmt(calc.recSal)+'/yr':null}/>
               <AnalysisBadge label="QBI Deduction (20%)" value={calc.isPassthru?fmt(calc.qbi):'Not applicable'} risk={calc.isPassthru?'low':'low'} note={calc.isPassthru?'Reduces your taxable income automatically':null}/>
               <AnalysisBadge label="Depreciation" value={parseFloat(biz.depreciation)?fmt(biz.depreciation):'None recorded'} risk={parseFloat(biz.depreciation)?'low':'moderate'} note="Section 179 / Bonus depreciation available"/>
               <AnalysisBadge label="Advertising Deductions" value={parseFloat(biz.advertising)?fmt(biz.advertising):'None recorded'} risk={parseFloat(biz.advertising)?'low':'moderate'} note="Fully deductible business expense"/>
