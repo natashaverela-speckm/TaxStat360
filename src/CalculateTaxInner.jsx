@@ -289,6 +289,14 @@ export default function CalculateTax(){
     localStorage.setItem('ts360_records', JSON.stringify(recs.slice(0,20)))
   }
 
+  const entityCards = entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
+          <div key={i} style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'14px 16px',borderTop:'3px solid '+color}}>
+            <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:4}}>{ent.name}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership{ent.state?' · '+ent.state:''}</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net →</div>
+            <div style={{fontSize:22,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
+          </div>)})
+
   return(
     <>
       <style>{'input:focus,select:focus{outline:2px solid #0D1B3E !important;box-shadow:none !important;}'}</style>
@@ -326,13 +334,7 @@ export default function CalculateTax(){
             <div style={{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:16,padding:28,color:'#fff',marginBottom:24}}>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',letterSpacing:'1px',marginBottom:16,textAlign:'center'}}>COMBINED SUMMARY OF BUSINESS INCOME</div>
               <div style={{display:'grid',gridTemplateColumns:'repeat('+Math.min(entities.filter(e=>e.pnl).length,4)+',1fr)',gap:14,marginBottom:20}}>
-                {entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
-                  <div key={i} style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'14px 16px',borderTop:'3px solid '+color}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:4}}>{ent.name}</div>
-                    <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership{ent.state?' · '+ent.state:''}</div>
-                    <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net →</div>
-                    <div style={{fontSize:22,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
-                  </div>)})
+            {entityCards}
               </div>
               <div style={{borderTop:'1px solid rgba(255,255,255,0.12)',paddingTop:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div>
