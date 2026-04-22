@@ -489,7 +489,7 @@ export default function Dashboard(){
 
   const inp={width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}
   const lbl={display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.04em'}
-  const NumInput=({k,redBorder=false})=>(<input type="number" value={biz[k]} placeholder="0" onChange={e=>bSet(k,e.target.value)} style={{...inp,borderColor:redBorder?'#FCA5A5':'#E2E8F0',background:redBorder?'#FEF2F2':'#fff'}}/>)
+  const NumInput=({k,redBorder=false})=>(<input type="number" defaultValue={biz[k]} placeholder="0" onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);bSet(k,v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} style={{...inp,borderColor:redBorder?'#FCA5A5':'#E2E8F0',background:redBorder?'#FEF2F2':'#fff'}}/>)
   const AnalysisBadge=({label,value,risk,note})=>(<div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}><div><div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:2}}>{label}</div><div style={{fontSize:18,fontWeight:800,color:N}}>{value}</div>{note&&<div style={{fontSize:11,color:SL,marginTop:2}}>{note}</div>}</div><RiskBadge level={risk}/></div>)
 
   return(
@@ -661,7 +661,7 @@ export default function Dashboard(){
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
           <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
           <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>{bSet('entityType',e.target.value);if(e.target.value==='C-Corporation'&&activeView==='f1040')setActiveView('business')}} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-          <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
+          <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" defaultValue={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
 
         <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:20}}>
@@ -776,7 +776,7 @@ export default function Dashboard(){
                 ['Estimated Tax Payments Made','estimatedPayments','Total quarterly payments sent to the IRS this year. Find on IRS.gov My Account, or your bank records for payments to the IRS.'],
                 ['Number of Qualifying Children','dependents','Children under 17 who qualify for the Child Tax Credit ($2,000/child). Count only dependents you are claiming this year.']
               ].map(([label,key,hint])=>(
-                <div key={key} style={{marginBottom:14}}><label style={lbl}>{label} <InfoTip text={hint}/></label><input type="number" value={f1040[key]||''} placeholder="0" onChange={e=>fSet(key,e.target.value)} style={inp}/></div>
+                <div key={key} style={{marginBottom:14}}><label style={lbl}>{label} <InfoTip text={hint}/></label><input type="number" defaultValue={f1040[key]||''} placeholder="0" onChange={e=>fSet(key,e.target.value)} style={inp}/></div>
               ))}
               <div style={{marginBottom:14}}>
                 <label style={lbl}>Deduction Method</label>
@@ -784,7 +784,7 @@ export default function Dashboard(){
                   <button onClick={()=>fSet('useStandardDed',true)} style={{flex:1,padding:'9px',background:f1040.useStandardDed?B:'#fff',color:f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Standard ({fmt(getStdDed(parseInt(biz.year)||2025,f1040.filingStatus))})</button>
                   <button onClick={()=>fSet('useStandardDed',false)} style={{flex:1,padding:'9px',background:!f1040.useStandardDed?B:'#fff',color:!f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(!f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Itemized</button>
                 </div>
-                {!f1040.useStandardDed&&<input type="number" placeholder="Total itemized deductions" value={f1040.itemizedDed||''} onChange={e=>fSet('itemizedDed',e.target.value)} style={{...inp,marginTop:8}}/>}
+                {!f1040.useStandardDed&&<input type="number" placeholder="Total itemized deductions" defaultValue={f1040.itemizedDed||''} onChange={e=>fSet('itemizedDed',e.target.value)} style={{...inp,marginTop:8}}/>}
               </div>
             </div>
             <div>
