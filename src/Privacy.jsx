@@ -14,12 +14,39 @@ export default function Privacy() {
   )
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div onClick={() => nav('/')} style={{ fontWeight: 800, fontSize: 18, color: N, cursor: 'pointer' }}>TaxStat<span style={{ color: B }}>360</span></div>
-        <button onClick={() => nav('/')} style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 16px', cursor: 'pointer', fontSize: 13, color: SL }}>Back to Home</button>
+      
+      {/* Full navigation - restored for legal pages */}
+      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 40px',borderBottom:'1px solid #e5e7eb',background:'white',position:'sticky',top:0,zIndex:50}}>
+        <a href="/" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:32,height:32,background:'#0D1B4B',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <span style={{color:'white',fontWeight:800,fontSize:16}}>T</span>
+          </div>
+          <span style={{fontWeight:700,fontSize:18,color:'#0D1B4B'}}>TaxStat<span style={{color:'#2563EB'}}>360</span></span>
+        </a>
+        <div style={{display:'flex',alignItems:'center',gap:24}}>
+          <a href="/#features" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Features</a>
+          <a href="/#pricing" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Pricing</a>
+          <a href="/dashboard" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Sign In</a>
+          <a href="/signup" style={{padding:'8px 20px',background:'#0D1B4B',color:'white',borderRadius:8,textDecoration:'none',fontSize:14,fontWeight:600}}>Start Free Trial</a>
+        </div>
       </nav>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
+      {/* Full navigation - restored for legal pages */}
+      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 40px',borderBottom:'1px solid #e5e7eb',background:'white',position:'sticky',top:0,zIndex:50}}>
+        <a href="/" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:32,height:32,background:'#0D1B4B',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <span style={{color:'white',fontWeight:800,fontSize:16}}>T</span>
+          </div>
+          <span style={{fontWeight:700,fontSize:18,color:'#0D1B4B'}}>TaxStat<span style={{color:'#2563EB'}}>360</span></span>
+        </a>
+        <div style={{display:'flex',alignItems:'center',gap:24}}>
+          <a href="/#features" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Features</a>
+          <a href="/#pricing" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Pricing</a>
+          <a href="/dashboard" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Sign In</a>
+          <a href="/signup" style={{padding:'8px 20px',background:'#0D1B4B',color:'white',borderRadius:8,textDecoration:'none',fontSize:14,fontWeight:600}}>Start Free Trial</a>
+        </div>
+      </nav>
           <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: April 19, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Privacy Policy</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>TaxStat360 is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and protect your data.</p>
