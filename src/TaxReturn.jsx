@@ -224,7 +224,7 @@ function WhatGoesHere({ items }) {
       }}>
         {open ? '▲' : '▼'} What goes here?
       </button>
-      {open && (
+      {open ? (
         <div style={{ marginTop: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 14px' }}>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {items.map((item, i) => (
@@ -232,7 +232,7 @@ function WhatGoesHere({ items }) {
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -473,20 +473,20 @@ export default function TaxReturn() {
               <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, background: '#fff' }}>
                 {[2026,2025,2024].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-              {ytdMode && (
+              {ytdMode ? (
                 <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '2px solid #2563EB', borderRadius: 8, fontSize: 14, color: N, background: '#EFF6FF' }}>
                   {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
                     <option key={i+1} value={i+1}>Through {m}</option>
                   ))}
                 </select>
-              )}
+              ) : null}
               <div style={{ fontSize: 13, color: SL, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong></div>
             </div>
-            {ytdMode && (
+            {ytdMode ? (
               <div style={{ marginTop: 10, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 12, color: '#1E40AF' }}>
                 📅 YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} — all income inputs are being annualized × {(12/ytdMonth).toFixed(2)} to project full-year liability
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Filing Status */}
@@ -539,11 +539,11 @@ export default function TaxReturn() {
                 <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
                 Real Estate Professional
               </label>
-            {isREP && (
+            {isREP ? (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
                 ✓ REP status: rental losses fully deductible against all income (unlimited)
               </div>
-            )}
+            ) : null}
             {!isREP && (
               <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
                 ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
@@ -667,12 +667,12 @@ export default function TaxReturn() {
                 <span style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : 'Single'})</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{fmt(stdDed)}</span>
               </div>
-              {useItemized && (
+              {useItemized ? (
                 <div>
                   <label style={lbl}>Your Itemized Deductions (Schedule A) <InfoTip text="Total itemized deductions instead of the standard deduction. Find on Schedule A: mortgage interest (Form 1098), state taxes, charitable gifts, and medical expenses."/></label>
                   <input value={itemizedAmt} onChange={e => setItemizedAmt(e.target.value)} placeholder="0" style={inp} />
                 </div>
-              )}
+              ) : null}
             </div>
           </CollapsibleSection>
 
@@ -758,7 +758,7 @@ export default function TaxReturn() {
 
           {/* Income Waterfall */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <button onClick={() => setShowDetail(!showDetail)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={() => setShowDetail(prev => !prev)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
               INCOME WATERFALL {showDetail ? '▲' : '▼'}
             </button>
             {showDetail ? (

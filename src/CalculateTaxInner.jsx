@@ -98,7 +98,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
         </div>
       </div>
 
-      {showDetails&&(
+      {showDetails ? (
         <div style={{background:'#F8FAFC',padding:'14px 20px',borderBottom:'1px solid #E2E8F0'}}>
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10}}>ENTITY DETAILS</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:12}}>
@@ -108,7 +108,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             <div><label style={lbl}>Ownership %</label><select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,fontWeight:700,border:'2px solid '+color}}>{OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div style={{padding:20,background:'#fff'}}>
         {!ent.pnl&&(
@@ -322,7 +322,7 @@ export default function CalculateTax(){
             <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
             <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
           </div>
-          {anyPnl&&(
+          {anyPnl ? (
             <div style={{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:16,padding:28,color:'#fff',marginBottom:24}}>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',letterSpacing:'1px',marginBottom:16,textAlign:'center'}}>COMBINED SUMMARY OF BUSINESS INCOME</div>
               <div style={{display:'grid',gridTemplateColumns:'repeat('+Math.min(entities.filter(e=>e.pnl).length,4)+',1fr)',gap:14,marginBottom:20}}>
@@ -343,7 +343,7 @@ export default function CalculateTax(){
                 <button onClick={proceed} style={{padding:'16px 40px',background:B,border:'none',borderRadius:12,fontSize:16,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 20px rgba(37,99,235,0.5)'}}>Continue to Personal Tax Return →</button>
               </div>
             </div>
-          )}
+          ) : null}
           {!anyPnl&&(
             <div style={{textAlign:'center',padding:'32px 20px',color:SL}}>
               <div style={{fontSize:48,marginBottom:10}}>🏢</div>
