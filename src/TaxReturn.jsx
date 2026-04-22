@@ -178,7 +178,8 @@ export default function TaxReturn() {
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState('')
   const [rentalExpenses, setRentalExpenses] = React.useState('')
-  const [capitalGains, setCapitalGains] = React.useState('')
+  const [capitalGains, setCapitalGains] = React.useState('') // short-term (ordinary rates)
+  const [ltCapGains, setLtCapGains] = React.useState('')    // long-term (preferential rates)
   const [priorYearLosses, setPriorYearLosses] = React.useState('')
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
@@ -192,17 +193,22 @@ export default function TaxReturn() {
   // Core calculations
   const w2 = nv(w2Income)
   const rentalNet = isREP ? (nv(rentalIncome) - nv(rentalExpenses)) : Math.max(0, nv(rentalIncome) - nv(rentalExpenses))
-  const capGain = nv(capitalGains)
+  const stGain = nv(capitalGains)    // short-term: taxed at ordinary income rates
+  const ltGain = nv(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
+  const capGain = stGain + ltGain    // total capital gains for QBI income limitation
   const intInc = nv(interest)
-  const divInc = nv(dividends)
+  // FIX: Ordinary dividends (Line 3b) are entered once — qualified dividends are a SUBSET
+  // Do NOT add qualifiedDividends separately — it is already included in dividends (Line 3b)
+  const divInc = nv(dividends)       // ordinary dividends only (1040 Line 3b)
+  const qualDiv = nv(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
   const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
 
-  // Total gross income
+  // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
   // Social Security: up to 85% taxable (simplified for planning)
   const ssBenefits = nv(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
   const iraIncome = nv(iraDistributions)
-  const grossIncome = w2 + k1Total + rentalNet + capGain + intInc + divInc + taxableSS + iraIncome
+  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + taxableSS + iraIncome
 
   // Above-the-line deductions (Schedule 1, Part II)
   const selfEmpHealthDed = nv(selfEmpHealthIns)
@@ -216,10 +222,12 @@ export default function TaxReturn() {
   const itemized = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
-  // QBI — only on positive qualified business income
+  // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
   const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
   const taxableBeforeQBI = Math.max(0, agi - deduction)
-  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, capGain)
+  // Preferential income (LTCG + qualified dividends) excluded from QBI income limitation base
+  const prefIncome = ltGain + qualDiv
+  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome)
 
   // Taxable income
   const taxableIncome = Math.max(0, taxableBeforeQBI - qbi)
@@ -312,6 +320,16 @@ export default function TaxReturn() {
                 <span style={{ fontWeight: 700, color: N }}>Total K-1 to Schedule E</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</span>
               </div>
+              {entities.length === 0 && (
+                <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+                  ⚠ No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your S-Corp or LLC so the K-1 flows through here.
+                </div>
+              )}
+              {k1Total < 0 && (
+                <div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
+                  ✓ S-Corp loss of {fmt(Math.abs(k1Total))} is reducing your gross income on Schedule E
+                </div>
+              )}
             </div>
           )}
 
@@ -395,17 +413,23 @@ export default function TaxReturn() {
           <CollapsibleSection title="OTHER INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Capital Gains / (Losses) <InfoTip text="Gains or losses from selling stocks, crypto, or real estate. Find on your 1099-B from your broker. Enter negative numbers for losses."/></label>
-                <input value={capitalGains} onChange={e => setCapitalGains(e.target.value)} placeholder="0" style={inp} />
-                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Enter negative for losses</div>
+                <label style={lbl}>Short-Term Capital Gains / (Losses) <InfoTip text="Assets held 1 year or LESS. Taxed at your ordinary income rate (same as W-2). Find on Schedule D Part I Line 7 or your 1099-B. Enter a negative number for net losses (max $3,000 deductible/year)."/></label>
+                <input value={capitalGains} onChange={e => setCapitalGains(e.target.value)} placeholder="0" type="number" style={inp} />
+                <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
+              </div>
+              <div>
+                <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at preferential 0%, 15%, or 20% rates — lower than ordinary income. Find on Schedule D Part II Line 15 or your 1099-B. Includes real estate sold after 1+ year."/></label>
+                <input value={ltCapGains} onChange={e => setLtCapGains(e.target.value)} placeholder="0" type="number" style={inp} />
+                <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
               </div>
               <div>
                 <label style={lbl}>Taxable Interest <InfoTip text="Interest earned from bank accounts, CDs, or bonds. Find on your 1099-INT from your bank or financial institution."/></label>
                 <input value={interest} onChange={e => setInterest(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends received from stocks or mutual funds. Find on your 1099-DIV Box 1a from your brokerage account."/></label>
-                <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" style={inp} />
+                <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends from stocks and funds — from 1040 Line 3b or 1099-DIV Box 1a. Enter ONLY dividends here. Do NOT add interest income — interest goes in the Taxable Interest field above. These are separate income types."/></label>
+                <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" type="number" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
               </div>
             </div>
             {/* Prior Year Loss Carryforward */}
@@ -554,10 +578,12 @@ export default function TaxReturn() {
               <div style={{ marginTop: 12 }}>
                 {[
                   ['W-2 Wages', w2, true],
-                  ['K-1 Business Income', k1Total, k1Total >= 0],
-                  ['Rental Net', rentalNet, rentalNet >= 0],
-                  ['Capital Gains', capGain, capGain >= 0],
-                  ['Interest & Dividends', intInc + divInc, true],
+                  ['K-1 S-Corp / Business (Sch E)', k1Total, k1Total >= 0],
+                  ['Rental Net (Sch E)', rentalNet, rentalNet >= 0],
+                  ['Short-Term Capital Gains', stGain, stGain >= 0],
+                  ['Long-Term Capital Gains', ltGain, ltGain >= 0],
+                  ['Taxable Interest', intInc, true],
+                  ['Ordinary Dividends', divInc, true],
                   ['─────────────────', null, true],
                   ['Gross Income', grossIncome, grossIncome >= 0],
                   ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
@@ -661,13 +687,23 @@ export default function TaxReturn() {
                     : r
                   )
                 } else {
-                  // No Dashboard record found — create a standalone record
+                  // No Dashboard record found — create a standalone record with full metadata
                   const record = {
                     id: Date.now(),
                     savedAt: new Date().toLocaleString(),
-                    biz: { entityType: 'S-Corporation', year: taxYear },
+                    biz: {
+                      entityType: entities.length > 0 ? entities[0].type : 'S-Corporation',
+                      year: taxYear,
+                      grossRevenue: entities.length > 0 ? String(Math.round((entities[0].netProfit || 0) + Math.abs(entities[0].k1 || 0))) : '',
+                      operatingExpenses: '',
+                      officerSalary: '',
+                      ownershipPct: entities.length > 0 ? entities[0].own : '100',
+                    },
                     f1040: f1040Updated,
                     k1Income: Math.round(k1Total),
+                    quarterly: quarterlyRecommended,
+                    totalTax: Math.round(totalTax),
+                    agi: Math.round(agi),
                   }
                   updated = [record, ...existing.filter(r => r.biz).slice(0, 9)]
                 }
