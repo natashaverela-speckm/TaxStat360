@@ -36,7 +36,8 @@ function getRecord() {
     localStorage.getItem('ts360_records_' + email) ||
     localStorage.getItem('ts360_records') || '[]'
   )
-  return recs[0] || null
+  // Only return records with a biz object (Dashboard records), skip old flat TaxReturn records
+  return recs.find(r => r.biz) || null
 }
 
 function completeness(rec) {

@@ -611,11 +611,13 @@ export default function TaxReturn() {
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button onClick={() => {
               try {
-                const record = {
-                  id: Date.now(),
-                  savedAt: new Date().toLocaleString(),
-                  type: 'personal-return',
-                  // All 1040 inputs — fully restoreable
+                const email = localStorage.getItem('ts360_email') || 'default'
+                const key = 'ts360_records_' + email
+                // Always read fresh from localStorage
+                const existing = JSON.parse(localStorage.getItem(key) || localStorage.getItem('ts360_records') || '[]')
+
+                // The updated 1040 data to merge into the record
+                const f1040Updated = {
                   filingStatus: status,
                   w2Income,
                   w2Withheld,
@@ -625,24 +627,45 @@ export default function TaxReturn() {
                   interest,
                   dividends,
                   isREP,
-                  useItemized,
-                  itemizedAmt,
-                  estPaid,
+                  useStandardDed: !useItemized,
+                  itemizedDed: itemizedAmt,
+                  estimatedPayments: estPaid,
                   dependents,
                   priorYearLosses,
-                  k1Total: Math.round(k1Total),
-                  totalTax: Math.round(totalTax),
-                  balance: Math.round(balance),
-                  refund: balance < 0 ? Math.round(Math.abs(balance)) : 0,
-                  quarterly: quarterlyRecommended,
+                  qualifiedDividends,
+                  socialSecurity,
+                  iraDistributions,
+                  selfEmpHealthIns,
+                  hsaDeduction,
+                  studentLoanInt,
                 }
-                const email = localStorage.getItem('ts360_email') || 'default'
-                const key = 'ts360_records_' + email
-                const existing = JSON.parse(localStorage.getItem(key) || '[]')
-                localStorage.setItem(key, JSON.stringify([record, ...existing.slice(0, 19)]))
-                // Also keep legacy key for dashboard compatibility
-                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 19)]))
-                window._savedConfirm = true
+
+                // Find the first real Dashboard record (has biz object) and update its f1040
+                const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || r.k1Income > 0))
+
+                let updated
+                if (realIdx >= 0) {
+                  // Update the existing Dashboard record's f1040 in-place
+                  updated = existing.map((r, i) => i === realIdx
+                    ? { ...r, f1040: f1040Updated, k1Income: Math.round(k1Total), savedAt: new Date().toLocaleString() }
+                    : r
+                  )
+                } else {
+                  // No Dashboard record found — create a standalone record
+                  const record = {
+                    id: Date.now(),
+                    savedAt: new Date().toLocaleString(),
+                    biz: { entityType: 'S-Corporation', year: taxYear },
+                    f1040: f1040Updated,
+                    k1Income: Math.round(k1Total),
+                  }
+                  updated = [record, ...existing.filter(r => r.biz).slice(0, 9)]
+                }
+
+                // Remove any blank/orphan flat records (old format without biz)
+                const cleaned = updated.filter(r => r.biz)
+                localStorage.setItem(key, JSON.stringify(cleaned))
+                localStorage.setItem('ts360_records', JSON.stringify(cleaned))
                 setSaved(true)
                 setTimeout(() => setSaved(false), 3000)
               } catch(e) { console.error('Save failed:', e) }

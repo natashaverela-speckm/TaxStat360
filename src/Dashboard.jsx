@@ -238,7 +238,8 @@ export default function Dashboard(){
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
     // Remove any blank records (no revenue AND no W-2) that may have been saved previously
-    const cleanRecs = recs.filter(r => parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0)
+    // Remove flat/orphan records (no biz object) and blank records
+    const cleanRecs = recs.filter(r => r.biz && (parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0))
     if (cleanRecs.length !== recs.length) {
       // Persist the cleaned list immediately
       localStorage.setItem(key, JSON.stringify(cleanRecs))
