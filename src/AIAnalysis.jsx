@@ -852,7 +852,23 @@ export default function AIAnalysis() {
         <div onClick={() => nav('/dashboard')}><Logo /></div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/dashboard')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>📂 Dashboard</button>
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Calculate Tax</button>
+          <button onClick={() => {
+            const r = getRecord()
+            if (r) {
+              const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
+              sessionStorage.setItem('ts360_k1', String(r.k1Income || 0))
+              sessionStorage.setItem('ts360_taxyear', String(r.biz?.year || 2025))
+              sessionStorage.setItem('ts360_f1040', JSON.stringify(r.f1040 || {}))
+              sessionStorage.setItem('ts360_entities', JSON.stringify(
+                PASSTHROUGH.includes(r.biz?.entityType)
+                  ? [{ type: r.biz?.entityType, k1: r.k1Income || 0 }]
+                  : []
+              ))
+              nav('/tax-return')
+            } else {
+              nav('/calculate-tax')
+            }
+          }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Calculate Tax</button>
           <button style={{ padding: '7px 16px', background: B, color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>AI Analysis</button>
           <button onClick={() => nav('/settings')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>⚙ Settings</button>
           <button onClick={() => { ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k)); nav('/') }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Sign Out</button>
