@@ -786,7 +786,7 @@ export default function TaxReturn() {
                   ['Child Tax Credit', childCredit > 0 ? childCredit : 0, true],
                   ['─────────────────', null, true],
                   ['Total Tax', -totalTax, false],
-                ].map(([label, val, pos], i) => {
+                ].filter(Boolean).map(([label, val, pos], i) => {
                   if (val === null) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                   if (val === 0 && !['Gross Income','Taxable Income','Total Tax'].includes(label)) return null
                   const isBold = ['Gross Income','Taxable Income','Total Tax'].includes(label)
