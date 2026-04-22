@@ -332,8 +332,7 @@ export default function CalculateTax(){
                     <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership{ent.state?' · '+ent.state:''}</div>
                     <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net →</div>
                     <div style={{fontSize:22,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
-                  </div>
-                )})}
+                  </div>)})
               </div>
               <div style={{borderTop:'1px solid rgba(255,255,255,0.12)',paddingTop:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div>
