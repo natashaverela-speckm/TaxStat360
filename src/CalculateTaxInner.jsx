@@ -50,7 +50,7 @@ function ExpenseBreakdown({categories,total}){
       <button onClick={()=>setOpen(!open)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
         {open?'▼':'►'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
       </button>
-      {open ? <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
+      {open&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
         {Object.entries(categories).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>(
           <div key={cat} style={{background:'#F8FAFC',borderRadius:7,padding:'7px 10px',display:'flex',justifyContent:'space-between',alignItems:'center',border:'1px solid #F1F5F9'}}>
             <div><div style={{fontSize:11,fontWeight:600,color:N}}>{cat}</div><div style={{fontSize:10,color:SL}}>{total>0?Math.round((amt/total)*100)+'%':''}</div></div>
@@ -94,7 +94,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             {ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
           <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,color:'#fff',cursor:'pointer'}}>{showDetails?'▲ Details':'▼ Details'}</button>
-          {canRemove ? <button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer'}}>Remove</button>}
+          {canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer'}}>Remove</button>}
         </div>
       </div>
 
@@ -111,17 +111,17 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
       ) : null}
 
       <div style={{padding:20,background:'#fff'}}>
-        {!ent.pnl ? (
+        {!ent.pnl&&(
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>CONNECT ACCOUNTING SOFTWARE</div>
               <button onClick={()=>setManual(!manual)} style={{padding:'4px 12px',background:'none',border:'1px solid '+B,borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}}>{manual?'Use Software':'Enter Manually'}</button>
             </div>
-            {!manual ? <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
-            {manual ? <div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
+            {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
+            {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
           </div>
-        ) : null}
-        {ent.pnl ? (
+        )}
+        {ent.pnl&&(
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>{ent.isManual?'MANUAL ENTRY':'P&L FROM '+(ent.connectedId||'').toUpperCase()}</div>
@@ -156,7 +156,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   )
@@ -211,7 +211,7 @@ function ImportModal({onImport,onClose}){
           <div style={{fontSize:12,color:SL}}>Supports .csv files</div>
           <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
         </div>
-        {error ? <div style={{background:'#FEF2F2',color:R,padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{error}</div>}
+        {error&&<div style={{background:'#FEF2F2',color:R,padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{error}</div>}
         <p style={{fontSize:11,color:SL,margin:0,textAlign:'center'}}>Revenue & expenses auto-populate as manual P&L entries</p>
       </div>
     </div>
@@ -292,8 +292,8 @@ export default function CalculateTax(){
   return(
     <>
       <style>{'input:focus,select:focus{outline:2px solid #0D1B3E !important;box-shadow:none !important;}'}</style>
-      {showTemplates ? <TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)}/>}
-      {showImport ? <ImportModal onImport={handleImport} onClose={()=>setShowImport(false)}/>}
+      {showTemplates&&<TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)}/>}
+      {showImport&&<ImportModal onImport={handleImport} onClose={()=>setShowImport(false)}/>}
       <div style={{minHeight:'100vh',background:'#F8FAFC',fontFamily:'system-ui,sans-serif',color:N}}>
         <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 40px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -302,7 +302,7 @@ export default function CalculateTax(){
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={()=>setShowImport(true)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>📂 Import CSV</button>
-            {anyPnl ? <button onClick={()=>exportEntitiesToCSV(entities)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⬇ Export CSV</button>}
+            {anyPnl&&<button onClick={()=>exportEntitiesToCSV(entities)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⬇ Export CSV</button>}
             <button onClick={()=>nav('/dashboard')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>📂 Dashboard</button>
             <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>AI Analysis</button>
             <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>Sign Out</button>
