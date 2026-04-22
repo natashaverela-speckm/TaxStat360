@@ -111,7 +111,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
       ) : null}
 
       <div style={{padding:20,background:'#fff'}}>
-        {!ent.pnl&&(
+        {!ent.pnl ? (
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>CONNECT ACCOUNTING SOFTWARE</div>
@@ -120,8 +120,8 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
             {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
           </div>
-        )}
-        {ent.pnl&&(
+        ) : null}
+        {ent.pnl ? (
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>{ent.isManual?'MANUAL ENTRY':'P&L FROM '+(ent.connectedId||'').toUpperCase()}</div>
@@ -156,7 +156,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

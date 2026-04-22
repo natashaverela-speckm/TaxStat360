@@ -160,7 +160,7 @@ export default function Settings() {
             </div>
             <div>
               <div style={{fontSize:12,color:SL,marginBottom:4}}>Plan</div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan}</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan==='Basic'||plan==='basic'?'Starter':plan||'Starter'}</div>
             </div>
           </div>
 
