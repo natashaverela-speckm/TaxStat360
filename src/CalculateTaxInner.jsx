@@ -118,7 +118,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               <button onClick={()=>setManual(!manual)} style={{padding:'4px 12px',background:'none',border:'1px solid '+B,borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}}>{manual?'Use Software':'Enter Manually'}</button>
             </div>
             {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
-            {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input defaultValue={manRev} onBlur={e=>{const v=parseFloat(e.target.value)||0;setManRev(v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input defaultValue={manExp} onBlur={e=>{const v=parseFloat(e.target.value)||0;setManExp(v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
+            {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
           </div>
         ) : null}
         {ent.pnl ? (
@@ -278,6 +278,11 @@ export default function CalculateTax(){
   }
 
   const saveRecord = () => {
+    // B-03: Require at least one entity with a type before saving
+    if (!entities || entities.length === 0 || !entities[0].name) {
+      alert('Please add an entity name before saving.');
+      return;
+    }
     const recs = JSON.parse(localStorage.getItem('ts360_records') || '[]')
     const snap = {
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
@@ -355,8 +360,7 @@ export default function CalculateTax(){
         </div>
       </div>
       <div style={{textAlign:'center',padding:'16px 0 8px'}}>
-        <button onClick={()=>{saveRecord();alert('â Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}
-    if (!entities || entities.length === 0 || !entities[0].type) { alert("Please select an entity type before saving."); return; }>ð¾ Save Record</button>
+        <button onClick={()=>{saveRecord();alert('â Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}>ð¾ Save Record</button>
       </div>
     </>
   )
