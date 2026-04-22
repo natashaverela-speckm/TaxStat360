@@ -223,16 +223,22 @@ export default function Dashboard(){
     // ts360_connected_app is not trusted — always verify via live token fetch below
     const email = localStorage.getItem('ts360_email') || 'default'
     const key = 'ts360_records_' + email
-    // Load from user key, fallback to default key, fallback to legacy key
-    const recs=JSON.parse(
-      localStorage.getItem(key) ||
-      localStorage.getItem('ts360_records_default') ||
-      localStorage.getItem('ts360_records') ||
-      '[]'
-    )
-    // Migrate to correct key if email now known
-    if(email !== 'default' && !localStorage.getItem(key) && recs.length > 0) {
+    // Scan ALL ts360_records_* keys to find records regardless of email state
+    const allFound = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('ts360_records')) {
+        try {
+          const r = JSON.parse(localStorage.getItem(k) || '[]')
+          r.forEach(rec => { if (!allFound.find(x => x.id === rec.id)) allFound.push(rec) })
+        } catch(e) {}
+      }
+    }
+    const recs = allFound.sort((a,b) => (b.id||0) - (a.id||0))
+    // Ensure all found records are stored under the current email key
+    if (email !== 'default' && recs.length > 0) {
       localStorage.setItem(key, JSON.stringify(recs))
+      localStorage.setItem('ts360_records', JSON.stringify(recs))
     }
     // Clear connected badge — re-verified below via live fetch
     localStorage.removeItem('ts360_connected_app')

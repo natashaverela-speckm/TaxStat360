@@ -613,8 +613,15 @@ export default function TaxReturn() {
               try {
                 const email = localStorage.getItem('ts360_email') || 'default'
                 const key = 'ts360_records_' + email
-                // Always read fresh from localStorage
-                const existing = JSON.parse(localStorage.getItem(key) || localStorage.getItem('ts360_records') || '[]')
+                // Scan ALL ts360_records_* keys to find existing records
+                const allFound = []
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i)
+                  if (k && k.startsWith('ts360_records')) {
+                    try { JSON.parse(localStorage.getItem(k)||'[]').forEach(r => { if (!allFound.find(x=>x.id===r.id)) allFound.push(r) }) } catch(e) {}
+                  }
+                }
+                const existing = allFound.sort((a,b)=>(b.id||0)-(a.id||0))
 
                 // The updated 1040 data to merge into the record
                 const f1040Updated = {
@@ -641,7 +648,10 @@ export default function TaxReturn() {
                 }
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
-                const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || r.k1Income > 0))
+                // Find any Dashboard-format record (has biz object) — prefer ones with data
+                const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0)) >= 0
+                  ? existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0))
+                  : existing.findIndex(r => r.biz) // fallback: any record with biz
 
                 let updated
                 if (realIdx >= 0) {
