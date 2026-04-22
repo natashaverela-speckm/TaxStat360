@@ -91,8 +91,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <select value={ent.type} onChange={v=>onUpdate(idx,{...ent,type:v.target.value})} style={{padding:'4px 8px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,color:color,cursor:'pointer',background:'#fff'}}>
-            {ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
+            {ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>/select>
           <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,color:'#fff',cursor:'pointer'}}>{showDetails?'▲ Details':'▼ Details'}</button>
           {canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer'}}>Remove</button>}
         </div>
@@ -103,21 +102,18 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10}}>ENTITY DETAILS</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:12}}>
             <div><label style={lbl}>EIN</label><input value={ent.ein||''} onChange={e=>onUpdate(idx,{...ent,ein:e.target.value})} placeholder="XX-XXXXXXX" style={inp}/></div>
-            <div><label style={lbl}>State</label><select value={ent.state||''} onChange={e=>onUpdate(idx,{...ent,state:e.target.value})} style={inp}><option value="">— Select —</option>{US_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><label style={lbl}>State</label><select value={ent.state||''} onChange={e=>onUpdate(idx,{...ent,state:e.target.value})} style={inp}><option value="">— Select —</option>{US_STATES.map(s=><option key={s} value={s}>{s}</option>/select></div>
             <div><label style={lbl}>Formation Date</label><input type="date" value={ent.formationDate||''} onChange={e=>onUpdate(idx,{...ent,formationDate:e.target.value})} style={inp}/></div>
-            <div><label style={lbl}>Ownership %</label><select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,fontWeight:700,border:'2px solid '+color}}>{OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+            <div><label style={lbl}>Ownership %</label><select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,fontWeight:700,border:'2px solid '+color}}>{OWN.map(([v,l])=><option key={v} value={v}>{l}</option>/select></div>
           </div>
-        </div>
-      )}
-
-      <div style={{padding:20,background:'#fff'}}>
+        </div>div style={{padding:20,background:'#fff'}}>
         {!ent.pnl&&(
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>CONNECT ACCOUNTING SOFTWARE</div>
               <button onClick={()=>setManual(!manual)} style={{padding:'4px 12px',background:'none',border:'1px solid '+B,borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}}>{manual?'Use Software':'Enter Manually'}</button>
             </div>
-            {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
+            {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>/div>}
             {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
           </div>
         )}
@@ -142,8 +138,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               <div>
                 <label style={{fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:5}}>YOUR OWNERSHIP %</label>
                 <select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{width:'100%',padding:'9px 12px',border:'2px solid '+color,borderRadius:8,fontSize:15,fontWeight:700,color:N,background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
-                  {OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-                </select>
+                  {OWN.map(([v,l])=><option key={v} value={v}>{l}</option>/select>
               </div>
               <div style={{background:color,borderRadius:10,padding:'12px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',color:'#fff'}}>
                 <div>
@@ -155,9 +150,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               </div>
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
-          </div>
-        )}
-      </div>
+          </div>/div>
     </div>
   )
 }
@@ -349,9 +342,7 @@ export default function CalculateTax(){
               <div style={{fontSize:48,marginBottom:10}}>🏢</div>
               <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:6}}>Add your business entities above</div>
               <div style={{fontSize:13}}>Connect accounting software, enter P&L manually, or import from CSV</div>
-            </div>
-          )}
-        </div>
+            </div>/div>
       </div>
       <div style={{textAlign:'center',padding:'16px 0 8px'}}>
         <button onClick={()=>{saveRecord();alert('✅ Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}>💾 Save Record</button>
