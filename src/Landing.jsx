@@ -43,7 +43,7 @@ export default function Landing() {
     try {
       const res = await fetch('https://api.web3forms.com/submit', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed', subject:'TaxStat360 Contact — '+contactName, from_name:contactName, email:contactEmail, message:contactMsg })
+        body: JSON.stringify({ access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed', subject:'TaxStat360 Contact â '+contactName, from_name:contactName, email:contactEmail, message:contactMsg })
       })
       if (res.ok) { setContactSent(true); setContactName(''); setContactEmail(''); setContactMsg('') }
       else throw new Error()
@@ -107,11 +107,11 @@ export default function Landing() {
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
-            { icon: '🏢', label: 'K-1', title: 'S-Corporations', desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your real bottom line calculated instantly.' },
-            { icon: '🤝', label: 'K-1', title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
-            { icon: '📋', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs', desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
-            { icon: '💼', label: 'Combined', title: 'W-2 Plus Business Owner', desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
-            { icon: '🏗️', label: 'Multi', title: 'Multiple Entities', desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
+            { icon: 'ð¢', label: 'K-1', title: 'S-Corporations', desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your real bottom line calculated instantly.' },
+            { icon: 'ð¤', label: 'K-1', title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
+            { icon: 'ð', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs', desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+            { icon: 'ð¼', label: 'Combined', title: 'W-2 Plus Business Owner', desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
+            { icon: 'ðï¸', label: 'Multi', title: 'Multiple Entities', desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
           ].map((e,i) => (
             <div key={i} style={{ background: '#fff', borderRadius: 16, padding: 28, textAlign: 'left', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -151,8 +151,8 @@ export default function Landing() {
             { q: 'What accounting software does TaxStat360 connect to?', a: 'We currently integrate with QuickBooks Online, Xero, Wave, and FreshBooks. We pull your profit and loss data directly so you never have to manually enter numbers. More integrations are coming soon.' },
             { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
             { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
-            { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
-            { q: 'What does real-time mean exactly?', a: 'TaxStat360 gives you on-demand visibility into your tax liability — not a once-a-year surprise. When you log in, your numbers reflect the data from your last sync. To update your figures, simply hit the Refresh or Connect button to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it.' },
+            { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial â this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
+            { q: 'What does real-time mean exactly?', a: 'TaxStat360 gives you on-demand visibility into your tax liability â not a once-a-year surprise. When you log in, your numbers reflect the data from your last sync. To update your figures, simply hit the Refresh or Connect button to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it.' },
             { q: 'Does TaxStat360 replace my CPA?', a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same real-time visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
             <details key={i} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
@@ -167,7 +167,7 @@ export default function Landing() {
       </section>
       <section id="pricing" style={{ scrollMarginTop: 72, padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Card required — no charge until after your 7-day trial. Cancel anytime.</p>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Card required â no charge until after your 7-day trial. Cancel anytime.</p>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:28 }}>
           <span style={{ fontSize:14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
           <div onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')} style={{ width:50, height:26, background: isAnnual ? '#2563EB' : '#CBD5E1', borderRadius:13, cursor:'pointer', position:'relative', transition:'background 0.2s' }}><div style={{ position:'absolute', top:3, left: isAnnual ? 27 : 3, width:20, height:20, background:'#fff', borderRadius:'50%', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} /></div>
@@ -176,7 +176,7 @@ export default function Landing() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
-            { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
+            { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe â every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
             { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
             { name:'Enterprise', price:'$299', annualPrice:'$249', annualTotal:'$2,990', highlight:false, desc:'Built for owners running multiple businesses or entities.', features:['Everything in Professional plus:','Multi-entity consolidated tax view','AI-Generated Audit Defense Narrative','Risk Tolerance Profiling','CPA Collaboration Portal','Dedicated onboarding & setup call'] },
           ].map((p,i) => (
@@ -213,7 +213,7 @@ export default function Landing() {
           </div>
           {contactSent ? (
             <div style={{background:'#ECFDF5',border:'1px solid #6EE7B7',borderRadius:12,padding:'32px 24px',textAlign:'center'}}>
-              <div style={{fontSize:40,marginBottom:12}}>✅</div>
+              <div style={{fontSize:40,marginBottom:12}}>â</div>
               <h3 style={{color:'#065F46',fontWeight:700,fontSize:20,marginBottom:8}}>Message Sent!</h3>
               <p style={{color:'#047857',fontSize:14}}>Thank you for reaching out. Our team will get back to you at support@taxstat360.com within one business day.</p>
               <button onClick={()=>setContactSent(false)} style={{marginTop:16,padding:'8px 20px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600}}>Send Another Message</button>
@@ -236,7 +236,7 @@ export default function Landing() {
               </div>
               {contactErr && <p style={{color:'#DC2626',fontSize:13,marginBottom:12}}>{contactErr}</p>}
               <button onClick={handleContact} disabled={contactSending} style={{width:'100%',padding:'13px',background:contactSending?'#94a3b8':'#0D1B3E',color:'#fff',border:'none',borderRadius:10,fontSize:15,fontWeight:700,cursor:contactSending?'not-allowed':'pointer',transition:'background 0.2s'}}>
-                {contactSending ? 'Sending...' : 'Send Message →'}
+                {contactSending ? 'Sending...' : 'Send Message â'}
               </button>
               <p style={{textAlign:'center',color:'#94a3b8',fontSize:12,marginTop:12}}>Or email us directly at <a href="mailto:support@taxstat360.com" style={{color:'#2563EB'}}>support@taxstat360.com</a></p>
             </div>
@@ -257,7 +257,7 @@ export default function Landing() {
             <a href="/terms" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
             <a href="#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
-          <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
+          <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>Â© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
         </div>
       </footer>
       <Aria />
