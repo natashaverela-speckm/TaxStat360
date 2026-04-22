@@ -502,14 +502,14 @@ export default function Dashboard(){
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
       </nav>
-      {showDisclaimer&&(
+      {showDisclaimer ? (
         <div style={{background:'#FFFBEB',borderBottom:'2px solid #F59E0B',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
           <div style={{fontSize:13,color:'#92400E',lineHeight:1.5}}>
             <strong>⚠ Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing. <a href="/terms" style={{color:'#92400E',fontWeight:700,textDecoration:'underline'}}>View full disclaimer →</a>
           </div>
           <button onClick={dismissDisclaimer} style={{flexShrink:0,background:'#F59E0B',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Got it ✓</button>
         </div>
-      )}
+      ) : null}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
         {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
@@ -536,7 +536,7 @@ export default function Dashboard(){
       {xeroLoading&&<div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',fontSize:13,fontWeight:600,color:'#1D4ED8',textAlign:'center'}}>Importing your Xero financials... please wait</div>}
 
       {/* ════ RECORDS VIEW ════ */}
-      {activeView==='records'&&(
+      {activeView==='records' ? (
         <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
           <div style={{marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
@@ -608,10 +608,10 @@ export default function Dashboard(){
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* ════ CALCULATOR VIEW ════ */}
-      {activeView==='business'&&(
+      {activeView==='business' ? (
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
         {/* Business view header */}
@@ -635,12 +635,12 @@ export default function Dashboard(){
             </button>
           ))}
         </div>
-        {connectedApp&&(
+        {connectedApp ? (
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'10px 16px',marginTop:10}}>
             <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>✓ {connectedApp} connected — data imported below</span>
             <button onClick={()=>{setConnectedApp(null);localStorage.removeItem('ts360_connected_app');setBiz({entityType:biz.entityType,year:biz.year,ownershipPct:biz.ownershipPct,grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:''});setSaved(false)}} style={{padding:'5px 14px',background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>Disconnect</button>
           </div>
-        )}
+        ) : null}
         </div>{/* end connect card */}
 
         <div style={{display:'flex',alignItems:'center',gap:12,margin:'16px 0 8px',color:SL,fontSize:13}}>
@@ -695,7 +695,7 @@ export default function Dashboard(){
               {hasNumbers&&<div style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',marginTop:14}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:13,color:SL}}>Total Deductions</span><span style={{fontWeight:700,color:'#DC2626',fontSize:14}}>({fmt(calc.totalExp)})</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:13,color:SL,fontWeight:700}}>Net Business Income</span><span style={{fontWeight:800,color:N,fontSize:16}}>{fmt(calc.netBiz)}</span></div></div>}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* K-1 + ANALYSIS */}
         {hasNumbers&&calc&&(
@@ -805,7 +805,7 @@ export default function Dashboard(){
                   <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
                   <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
                   <div style={{fontSize:12,color:safeCalc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(safeCalc.effRate)} | Quarterly payment: {fmt(safeCalc.quarterly)}</div>
-                  {safeCalc.isCCorp&&(
+                  {safeCalc.isCCorp ? (
                     <div style={{marginTop:12,padding:'10px 12px',background:'rgba(0,0,0,0.06)',borderRadius:8,borderLeft:'3px solid #3B82F6'}}>
                       <div style={{fontSize:11,fontWeight:700,color:'#1E40AF',marginBottom:6,letterSpacing:'0.05em'}}>C-CORP BREAKDOWN</div>
                       <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Corporate Tax (21% IRC §11)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.corpTax)}</span></div>
@@ -813,7 +813,7 @@ export default function Dashboard(){
                       {safeCalc.dividends>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Dividend Tax (~15%)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.divTax)}</span></div>}
                       <div style={{display:'flex',justifyContent:'space-between',fontSize:12,paddingTop:6,borderTop:'1px solid rgba(30,64,175,0.2)',marginTop:4}}><span style={{color:'#1E40AF',fontWeight:700}}>Total Tax Burden</span><span style={{fontWeight:800,color:'#DC2626'}}>{fmt(safeCalc.combinedTax)}</span></div>
                     </div>
-                  )}
+                  ) : null}
                   <div style={{marginTop:10,padding:'8px 10px',background:'rgba(0,0,0,0.06)',borderRadius:6,borderLeft:'3px solid rgba(0,0,0,0.15)'}}>
                     <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.5}}>⚠ Accuracy depends on your inputs. Please review all fields for the most accurate result. This is an estimate — consult a tax professional for filing.</div>
                   </div>
