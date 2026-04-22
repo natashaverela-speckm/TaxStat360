@@ -468,7 +468,7 @@ export default function Dashboard(){
       )}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Step 1 — Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Step 2 — Personal 1040']])].map(([v,label])=>(
+        {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
               // Navigate to full Tax Return page with k1 data
@@ -573,14 +573,16 @@ export default function Dashboard(){
         {/* Business view header */}
         <div style={{marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
-            <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>Step 1 — Business Income</h2>
-            <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Connect your accounting software or enter numbers manually.</p>
+            <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>Business Income & Expenses</h2>
+            <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Enter your business financials for the tax year.</p>
           </div>
           <button onClick={()=>setActiveView('records')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← My Records</button>
         </div>
 
       {/* CONNECT */}
-        <div style={{marginBottom:16}}><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Connect Your Accounting Software</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Connect to automatically import your financials, or enter numbers manually below.</p></div>
+        <div style={{marginBottom:12,padding:'14px 18px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:12}}>
+          <div style={{fontWeight:700,color:N,fontSize:15,marginBottom:4}}>Connect Your Accounting Software</div>
+          <p style={{color:SL,fontSize:13,margin:'0 0 12px'}}>Connect QuickBooks, Wave, FreshBooks, or Xero to automatically import your income and expenses. No manual entry needed.</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {INTEGRATIONS.map(i=>(
             <button key={i.id} onClick={()=>handleConnect(i)} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:connectedApp===i.name?i.color:i.bg,border:'1.5px solid '+(connectedApp===i.name?i.color:i.color+'44'),borderRadius:12,cursor:'pointer'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor=connectedApp===i.name?i.color:i.color+'44'}>
@@ -590,19 +592,22 @@ export default function Dashboard(){
           ))}
         </div>
         {connectedApp&&(
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'10px 16px',marginBottom:10}}>
-            <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>{connectedApp} connected</span>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'10px 16px',marginTop:10}}>
+            <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>✓ {connectedApp} connected — data imported below</span>
             <button onClick={()=>{setConnectedApp(null);localStorage.removeItem('ts360_connected_app');setBiz({entityType:biz.entityType,year:biz.year,ownershipPct:biz.ownershipPct,grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:''});setSaved(false)}} style={{padding:'5px 14px',background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>Disconnect</button>
           </div>
         )}
-        <div style={{textAlign:'center',marginBottom:8,color:SL,fontSize:13}}>- or -</div>
-        <div style={{textAlign:'center',marginBottom:8}}><button onClick={()=>setShowFin(true)} style={{background:'none',border:'none',color:B,fontWeight:700,fontSize:14,cursor:'pointer',textDecoration:'underline'}}>Enter numbers manually</button></div>
+        </div>{/* end connect card */}
 
-        <Divider/>
+        <div style={{display:'flex',alignItems:'center',gap:12,margin:'14px 0',color:SL,fontSize:13}}>
+          <div style={{flex:1,height:1,background:'#E2E8F0'}}/>
+          <span>or enter manually below</span>
+          <div style={{flex:1,height:1,background:'#E2E8F0'}}/>
+        </div>
 
         {/* FINANCIALS */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-          <div><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Step 2 - Business Income & Expenses</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>{connectedApp?'Imported from '+connectedApp+' - review and confirm below.':'Enter your business financials for the tax year.'}</p></div>
+          <div><p style={{color:SL,fontSize:13,margin:0}}>{connectedApp?'Review imported data from '+connectedApp+' and confirm below.':'Enter your business income and expenses for the tax year.'}</p></div>
           <div style={{display:'flex',gap:10,flexShrink:0}}>
             {connectedApp&&<button onClick={refreshData} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{refreshing?'Refreshing...':'↻ Refresh Data'}</button>}
             <button onClick={()=>setShowFin(v=>!v)} style={{padding:'7px 14px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{showFin?'Collapse':'Expand'} Details</button>
