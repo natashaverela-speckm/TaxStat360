@@ -344,13 +344,13 @@ export default function CalculateTax(){
               </div>
             </div>
           ) : null}
-          {!anyPnl&&(
+          {!anyPnl ? (
             <div style={{textAlign:'center',padding:'32px 20px',color:SL}}>
               <div style={{fontSize:48,marginBottom:10}}>🏢</div>
               <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:6}}>Add your business entities above</div>
               <div style={{fontSize:13}}>Connect accounting software, enter P&L manually, or import from CSV</div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
       <div style={{textAlign:'center',padding:'16px 0 8px'}}>
