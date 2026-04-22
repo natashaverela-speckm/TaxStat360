@@ -48,8 +48,48 @@ function getAllRecords() {
 
 function getRecord() {
   const recs = getAllRecords()
-  // Return the most recent record with real business data
-  return recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
+  // First: try saved records with real business data
+  const saved = recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
+  if (saved) return saved
+
+  // Fallback: synthesize from current sessionStorage (user just ran Step 1+2 but hasn't saved yet)
+  try {
+    const k1 = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
+    const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
+    const f1040 = JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
+    const taxyear = parseInt(sessionStorage.getItem('ts360_taxyear') || '2025')
+    const ent = entities[0] || {}
+    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
+      // Build a synthetic record matching the saved record shape
+      return {
+        id: Date.now(),
+        savedAt: 'Current session (unsaved)',
+        type: 'personal-return',
+        _unsaved: true,
+        k1Income: k1,
+        biz: {
+          entityType: ent.type || ent.name || 'S-Corporation',
+          year: taxyear,
+          ownershipPct: ent.own || '100',
+          grossRevenue: String(ent.netProfit > 0 ? ent.netProfit : 0),
+          operatingExpenses: '',
+          officerSalary: '',
+        },
+        f1040: {
+          filingStatus: f1040.filingStatus || 'single',
+          w2Income: f1040.w2Income || '',
+          otherIncome: f1040.otherIncome || '',
+          estimatedPayments: f1040.estimatedPayments || '',
+          dependents: f1040.dependents || '',
+          useStandardDed: f1040.useStandardDed !== false,
+          itemizedDed: f1040.itemizedDed || '',
+        },
+        quarterly: 0,
+        totalTax: 0,
+      }
+    }
+  } catch(e) {}
+  return null
 }
 
 function completeness(rec) {
@@ -831,9 +871,12 @@ function NoData() {
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-      <div style={{ fontWeight: 700, color: N, fontSize: 18, marginBottom: 8 }}>No saved record found</div>
-      <div style={{ color: SL, fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Complete your business calculation on the Dashboard and save a record. The AI Analysis will then show findings specific to your situation.</div>
-      <button onClick={() => nav('/dashboard')} style={{ padding: '12px 28px', background: B, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Go to Dashboard →</button>
+      <div style={{ fontWeight: 700, color: N, fontSize: 18, marginBottom: 8 }}>No data found</div>
+      <div style={{ color: SL, fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Complete a tax calculation first — either save a record from the Dashboard, or run Step 1 + Step 2 and come back here without saving.</div>
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+        <button onClick={() => nav('/dashboard')} style={{ padding: '12px 28px', background: B, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Go to Dashboard →</button>
+        <button onClick={() => nav('/calculate-tax')} style={{ padding: '12px 28px', background: '#fff', color: N, border: '2px solid #E2E8F0', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Start Calculation →</button>
+      </div>
     </div>
   )
 }
@@ -898,6 +941,24 @@ export default function AIAnalysis() {
         </div>
 
         {/* Score bar */}
+        {rec?._unsaved && (
+          <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ fontSize: 13, color: '#92400E' }}>
+              <strong>⚠ Unsaved session —</strong> Analysis is based on your current inputs. Save a record to preserve this snapshot.
+            </div>
+            <button onClick={() => {
+              if (rec) {
+                const email = localStorage.getItem('ts360_email') || 'default'
+                const key = 'ts360_records_' + email
+                const record = { id: Date.now(), savedAt: new Date().toLocaleString(), type: 'personal-return', ...rec, _unsaved: undefined }
+                const existing = JSON.parse(localStorage.getItem(key) || '[]')
+                localStorage.setItem(key, JSON.stringify([record, ...existing.slice(0, 19)]))
+                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 19)]))
+                window.location.reload()
+              }
+            }} style={{ flexShrink: 0, padding: '8px 16px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Save Now</button>
+          </div>
+        )}
         {rec && (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ flex: 1 }}>
