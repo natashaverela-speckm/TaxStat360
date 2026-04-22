@@ -46,7 +46,7 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    // Try ts360_email first, then decode from JWT token as fallback
+    // Try ts360_email first, then decode from JWT token, then scan localStorage keys
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
       // Decode JWT payload to get email if not stored separately
@@ -57,6 +57,17 @@ export default function Settings() {
           storedEmail = payload.email || payload.sub || ''
           if (storedEmail) localStorage.setItem('ts360_email', storedEmail)
         } catch(e) { /* token not JWT format */ }
+      }
+    }
+    if (!storedEmail) {
+      // Scan localStorage for ts360_records_{email} pattern as last resort
+      for (const key of Object.keys(localStorage)) {
+        const match = key.match(/^ts360_records_(.+@.+)$/)
+        if (match && match[1] !== 'default') {
+          storedEmail = match[1]
+          localStorage.setItem('ts360_email', storedEmail)
+          break
+        }
       }
     }
     const storedPlan = localStorage.getItem('plan') || 'starter'
