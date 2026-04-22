@@ -14,9 +14,21 @@ export default function Terms() {
   )
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div onClick={() => nav('/')} style={{ fontWeight: 800, fontSize: 18, color: N, cursor: 'pointer' }}>TaxStat<span style={{ color: B }}>360</span></div>
-        <button onClick={() => nav('/')} style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 16px', cursor: 'pointer', fontSize: 13, color: SL }}>← Back to Home</button>
+      
+      {/* Full navigation - restored for legal pages */}
+      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 40px',borderBottom:'1px solid #e5e7eb',background:'white',position:'sticky',top:0,zIndex:50}}>
+        <a href="/" style={{textDecoration:'none',display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:32,height:32,background:'#0D1B4B',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <span style={{color:'white',fontWeight:800,fontSize:16}}>T</span>
+          </div>
+          <span style={{fontWeight:700,fontSize:18,color:'#0D1B4B'}}>TaxStat<span style={{color:'#2563EB'}}>360</span></span>
+        </a>
+        <div style={{display:'flex',alignItems:'center',gap:24}}>
+          <a href="/#features" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Features</a>
+          <a href="/#pricing" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Pricing</a>
+          <a href="/dashboard" style={{color:'#374151',textDecoration:'none',fontSize:14}}>Sign In</a>
+          <a href="/signup" style={{padding:'8px 20px',background:'#0D1B4B',color:'white',borderRadius:8,textDecoration:'none',fontSize:14,fontWeight:600}}>Start Free Trial</a>
+        </div>
       </nav>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
@@ -27,8 +39,8 @@ export default function Terms() {
         <Section title="1. Description of Service">
           <p>TaxStat360 is a real-time tax liability management platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts.</p>
         </Section>
-        <Section title="2. Not Professional Tax Advice — Estimation Tool Only">
-          <p style={{ marginBottom: 10, padding: '12px 16px', background: '#FEF2F2', borderLeft: '4px solid #DC2626', borderRadius: 6 }}><strong>⚠ Important Disclaimer:</strong> TaxStat360 is a tax estimation and planning tool only. It is NOT a licensed tax advisor, CPA, enrolled agent, or law firm. Nothing on this platform constitutes professional tax advice, legal advice, or financial advice of any kind.</p>
+        <Section title="2. Not Professional Tax Advice â Estimation Tool Only">
+          <p style={{ marginBottom: 10, padding: '12px 16px', background: '#FEF2F2', borderLeft: '4px solid #DC2626', borderRadius: 6 }}><strong>â  Important Disclaimer:</strong> TaxStat360 is a tax estimation and planning tool only. It is NOT a licensed tax advisor, CPA, enrolled agent, or law firm. Nothing on this platform constitutes professional tax advice, legal advice, or financial advice of any kind.</p>
           <p style={{ marginBottom: 10 }}>All calculations provided by TaxStat360 are <strong>estimates for planning purposes only</strong> and may not reflect your actual tax liability. Results are based on the information you enter and IRS-published rates, which are subject to change. TaxStat360 makes no warranty, express or implied, regarding the accuracy, completeness, or fitness of any calculation for any particular purpose.</p>
           <p style={{ marginBottom: 10 }}>You are <strong>solely responsible</strong> for: (a) the accuracy of all information you enter into the platform; (b) your actual tax filings with the IRS and any state tax authority; (c) any underpayment penalties, interest, or other amounts owed to any taxing authority; and (d) any decisions made based on information provided by TaxStat360.</p>
           <p style={{ marginBottom: 10 }}>TaxStat360, its owners, employees, and affiliates shall not be liable for any errors, omissions, or inaccuracies in the calculated results, or for any actions taken or not taken in reliance on those results. <strong>We strongly recommend consulting a licensed CPA, enrolled agent, or qualified tax professional before making any tax filing decisions.</strong></p>
@@ -36,16 +48,16 @@ export default function Terms() {
         </Section>
         <Section title="3. Subscriptions and Billing">
           <p style={{ marginBottom: 10 }}>TaxStat360 offers monthly and annual subscription plans. All subscriptions include a 7-day free trial with no charge until the trial ends.</p>
-          <p style={{ marginBottom: 10 }}>• <strong>Monthly plans</strong> are billed on the same date each month and may be cancelled at any time.</p>
-          <p style={{ marginBottom: 10 }}>• <strong>Annual plans</strong> are billed once per year. Cancellations take effect at the end of the billing period — we do not offer pro-rated refunds for annual plans.</p>
+          <p style={{ marginBottom: 10 }}>â¢ <strong>Monthly plans</strong> are billed on the same date each month and may be cancelled at any time.</p>
+          <p style={{ marginBottom: 10 }}>â¢ <strong>Annual plans</strong> are billed once per year. Cancellations take effect at the end of the billing period â we do not offer pro-rated refunds for annual plans.</p>
           <p>Prices are in USD. We reserve the right to change pricing with 30 days' notice to active subscribers.</p>
         </Section>
         <Section title="4. Acceptable Use">
           <p style={{ marginBottom: 10 }}>You agree not to:</p>
-          <p style={{ marginBottom: 8 }}>• Use TaxStat360 for any unlawful purpose or to facilitate tax fraud</p>
-          <p style={{ marginBottom: 8 }}>• Attempt to reverse engineer, copy, or resell our platform</p>
-          <p style={{ marginBottom: 8 }}>• Share your account credentials with others outside your organization</p>
-          <p>• Upload false or fabricated financial data</p>
+          <p style={{ marginBottom: 8 }}>â¢ Use TaxStat360 for any unlawful purpose or to facilitate tax fraud</p>
+          <p style={{ marginBottom: 8 }}>â¢ Attempt to reverse engineer, copy, or resell our platform</p>
+          <p style={{ marginBottom: 8 }}>â¢ Share your account credentials with others outside your organization</p>
+          <p>â¢ Upload false or fabricated financial data</p>
         </Section>
         <Section title="5. Data and Integrations">
           <p style={{ marginBottom: 10 }}>When you connect accounting software (QuickBooks, Xero, Wave, FreshBooks), you grant TaxStat360 read-only access to your financial data for the purpose of calculating tax estimates. You may revoke this access at any time from your integrations settings.</p>
@@ -65,7 +77,7 @@ export default function Terms() {
         </Section>
       </div>
       <footer style={{ borderTop: '1px solid #E2E8F0', padding: '24px 32px', textAlign: 'center', color: SL, fontSize: 13 }}>
-        © 2026 TaxStat360. All rights reserved. · <span onClick={() => nav('/privacy')} style={{ cursor: 'pointer', color: B }}>Privacy Policy</span>
+        Â© 2026 TaxStat360. All rights reserved. Â· <span onClick={() => nav('/privacy')} style={{ cursor: 'pointer', color: B }}>Privacy Policy</span>
       </footer>
     </div>
   )
