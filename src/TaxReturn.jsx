@@ -761,7 +761,7 @@ export default function TaxReturn() {
             <button onClick={() => setShowDetail(!showDetail)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
               INCOME WATERFALL {showDetail ? '▲' : '▼'}
             </button>
-            {showDetail && (
+            {showDetail ? (
               <div style={{ marginTop: 12 }}>
                 {[
                   ['W-2 Wages', w2, true],
@@ -800,7 +800,7 @@ export default function TaxReturn() {
                   )
                 })}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Quarterly Schedule */}
