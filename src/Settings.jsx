@@ -73,7 +73,7 @@ export default function Settings() {
     const storedPlan = localStorage.getItem('plan') || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
-    setPlan(((p=>p==='basic'||p==='Basic'?'Starter':p.charAt(0).toUpperCase()+p.slice(1)))(storedPlan.charAt(0)).toUpperCase() + storedPlan.slice(1))
+    setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
     // Approximate member since from session
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
