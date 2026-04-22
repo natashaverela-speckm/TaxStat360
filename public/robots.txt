@@ -1,0 +1,33 @@
+# robots.txt for TaxStat360
+# https://www.taxstat360.com
+
+User-agent: *
+Allow: /
+
+# Block auth / app routes from indexing — these require login
+Disallow: /login
+Disallow: /signup
+Disallow: /dashboard
+Disallow: /calculate-tax
+Disallow: /tax-return
+Disallow: /ai-analysis
+Disallow: /settings
+Disallow: /auth/
+
+# Allow AI crawlers (adjust based on your policy)
+User-agent: GPTBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+Sitemap: https://www.taxstat360.com/sitemap.xml
