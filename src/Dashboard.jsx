@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
 
 
-// ── Info Tooltip Component ──
+// ââ Info Tooltip Component ââ
 function InfoTip({ text }) {
   const [show, setShow] = useState(false)
   return (
@@ -42,15 +42,15 @@ function InfoTip({ text }) {
 const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
-// ─── IRS Tax Tables by Year ─────────────────────────────────────────────────
-// Standard Deductions (IRC §63)
+// âââ IRS Tax Tables by Year âââââââââââââââââââââââââââââââââââââââââââââââââ
+// Standard Deductions (IRC Â§63)
 const STD_BY_YEAR = {
   2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
   2025: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
   2026: { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
 }
 
-// Tax Brackets (IRC §1) — [upperBound, rate]
+// Tax Brackets (IRC Â§1) â [upperBound, rate]
 const BRACKETS_BY_YEAR = {
   2024: {
     single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
@@ -105,18 +105,18 @@ function calcBracketTax(income, year, fs) {
   return Math.round(tax)
 }
 
-// Child Tax Credit (IRC §24) by year
+// Child Tax Credit (IRC Â§24) by year
 const CHILD_TAX_CREDIT_BY_YEAR = {
   2024: { credit: 2000, refundable: 1700, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
   2025: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
   2026: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
 }
 
-// SE Tax rates (IRC §1401) — consistent across years
+// SE Tax rates (IRC Â§1401) â consistent across years
 const SE_RATE = 0.153
-const SE_DEDUCTION_RATE = 0.5 // IRC §164(f)
+const SE_DEDUCTION_RATE = 0.5 // IRC Â§164(f)
 
-// QBI Deduction (IRC §199A) — 20% of qualified business income (sunset 2026)
+// QBI Deduction (IRC Â§199A) â 20% of qualified business income (sunset 2026)
 const QBI_RATE = 0.20
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
 const ENTITY_TYPES=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor','C-Corporation']
@@ -145,7 +145,7 @@ function calcAll(biz,f1040){
   const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S-Corporation'
   const isCCorp=biz.entityType==='C-Corporation'
 
-  // ── C-Corp: entity-level only — no personal 1040 involvement ─────────────
+  // ââ C-Corp: entity-level only â no personal 1040 involvement âââââââââââââ
   if(isCCorp){
     const corpTax=Math.round(Math.max(0,netBiz)*0.21)
     const dividends=parseFloat(biz.ccorpDividends||0)
@@ -159,7 +159,7 @@ function calcAll(biz,f1040){
       w2,otherInc:0,estPay:0,isPassthru:false,isSC:false,isCCorp:true}
   }
 
-  // ── Passthrough entities: K-1 flows to personal 1040 ─────────────────────
+  // ââ Passthrough entities: K-1 flows to personal 1040 âââââââââââââââââââââ
   const seTaxBase=isPassthru&&!isSC?Math.max(0,k1)*0.9235:0
   const seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
   const qbi=isPassthru?Math.round(Math.max(0,k1)*0.20):0
@@ -220,7 +220,7 @@ export default function Dashboard(){
 
   const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
-    // ts360_connected_app is not trusted — always verify via live token fetch below
+    // ts360_connected_app is not trusted â always verify via live token fetch below
     const email = localStorage.getItem('ts360_email') || 'default'
     const key = 'ts360_records_' + email
     // Scan ALL ts360_records_* keys to find records regardless of email state
@@ -240,14 +240,14 @@ export default function Dashboard(){
       localStorage.setItem(key, JSON.stringify(recs))
       localStorage.setItem('ts360_records', JSON.stringify(recs))
     }
-    // Clear connected badge — re-verified below via live fetch
+    // Clear connected badge â re-verified below via live fetch
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
     // Remove any blank records (no revenue AND no W-2) that may have been saved previously
-    // Keep any record that has real data — biz-based OR flat personal-return format
+    // Keep any record that has real data â biz-based OR flat personal-return format
     const cleanRecs = recs.filter(r => {
       if (r.biz) return parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0
-      // flat personal-return records from TaxReturn page — keep if has any income
+      // flat personal-return records from TaxReturn page â keep if has any income
       return parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
     })
     if (cleanRecs.length !== recs.length) {
@@ -309,9 +309,9 @@ export default function Dashboard(){
         .catch(()=>{setXeroLoading(false);window.history.replaceState({},'','/dashboard')})
     }
 
-    // ── Auto-verify integration on login ─────────────────────────────────────
-    // Always fetch data on mount — only show badge if fetch succeeds with real data
-    // If fetch fails or returns no data → clear badge and tokens automatically
+    // ââ Auto-verify integration on login âââââââââââââââââââââââââââââââââââââ
+    // Always fetch data on mount â only show badge if fetch succeeds with real data
+    // If fetch fails or returns no data â clear badge and tokens automatically
     if(!xeroToken){
       const integMap={quickbooks:'QuickBooks',wave:'Wave',freshbooks:'FreshBooks'}
       let foundInteg=false
@@ -328,7 +328,7 @@ export default function Dashboard(){
             .then(r=>r.json())
             .then(data=>{
               if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
-                // ✅ Success — populate fields and show badge
+                // â Success â populate fields and show badge
                 const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
                 const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
                 setBiz(p=>({...p,grossRevenue:rev,operatingExpenses:exp}))
@@ -336,21 +336,21 @@ export default function Dashboard(){
                 setConnectedApp(label)
                 localStorage.setItem('ts360_connected_app',label)
               } else {
-                // ❌ No data or error — wipe everything, force reconnect
+                // â No data or error â wipe everything, force reconnect
                 ;['token','connected','extra'].forEach(k=>localStorage.removeItem('ts360_'+pid+'_'+k))
                 localStorage.removeItem('ts360_connected_app')
                 setConnectedApp(null)
               }
             })
             .catch(()=>{
-              // ❌ Network/server error — clear badge
+              // â Network/server error â clear badge
               localStorage.removeItem('ts360_connected_app')
               setConnectedApp(null)
             })
           break
         }
       }
-      // No integration tokens found at all — ensure badge is cleared
+      // No integration tokens found at all â ensure badge is cleared
       if(!foundInteg){
         localStorage.removeItem('ts360_connected_app')
         setConnectedApp(null)
@@ -437,10 +437,10 @@ export default function Dashboard(){
     setLoadedRecord(rec)
     setSavedRecordId(rec.id)
 
-    // ── Restore business state in Dashboard (for inline view) ──────────────
+    // ââ Restore business state in Dashboard (for inline view) ââââââââââââââ
     if(rec.biz) setBiz(prev => ({...prev, ...rec.biz}))
 
-    // ── Build the f1040 object from either new or old record format ─────────
+    // ââ Build the f1040 object from either new or old record format âââââââââ
     const saved1040 = rec.biz ? (rec.f1040||{}) : {
       filingStatus: rec.filingStatus || 'single',
       w2Income: rec.w2Income || '',
@@ -461,7 +461,7 @@ export default function Dashboard(){
     setF1040(f1040Restored)
     setSaved(false)
 
-    // ── Pass record data into the Step 1→2 flow via sessionStorage ──────────
+    // ââ Pass record data into the Step 1â2 flow via sessionStorage ââââââââââ
     // so the full TaxReturn page loads with all saved values pre-filled
     const bizData = rec.biz || {}
     const k1Income = rec.k1Income || rec.k1 || 0
@@ -482,7 +482,7 @@ export default function Dashboard(){
 
 
   const handleConnect=(integ)=>{
-    // ts360_connected_app not stored — verified on next load
+    // ts360_connected_app not stored â verified on next load
     setConnectedApp(integ.name)
     window.location.href=API+'/auth/'+integ.id+'/connect'
   }
@@ -499,20 +499,20 @@ export default function Dashboard(){
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
           <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
-          <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
+          <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>â Settings</button>
         </div>
       </nav>
-      {showDisclaimer ? (
+      {showDisclaimer&&(
         <div style={{background:'#FFFBEB',borderBottom:'2px solid #F59E0B',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
           <div style={{fontSize:13,color:'#92400E',lineHeight:1.5}}>
-            <strong>⚠ Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing. <a href="/terms" style={{color:'#92400E',fontWeight:700,textDecoration:'underline'}}>View full disclaimer →</a>
+            <strong>â  Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing. <a href="/terms" style={{color:'#92400E',fontWeight:700,textDecoration:'underline'}}>View full disclaimer â</a>
           </div>
-          <button onClick={dismissDisclaimer} style={{flexShrink:0,background:'#F59E0B',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Got it ✓</button>
+          <button onClick={dismissDisclaimer} style={{flexShrink:0,background:'#F59E0B',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Got it â</button>
         </div>
-      ) : null}
-      {/* ── View Toggle Tabs ── */}
+      )}
+      {/* ââ View Toggle Tabs ââ */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
+        {[['records','ð My Records'],['business','Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
               // Navigate to full Tax Return page with k1 data
@@ -535,8 +535,8 @@ export default function Dashboard(){
 
       {xeroLoading&&<div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',fontSize:13,fontWeight:600,color:'#1D4ED8',textAlign:'center'}}>Importing your Xero financials... please wait</div>}
 
-      {/* ════ RECORDS VIEW ════ */}
-      {activeView==='records' ? (
+      {/* ââââ RECORDS VIEW ââââ */}
+      {activeView==='records'&&(
         <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
           <div style={{marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
@@ -554,7 +554,7 @@ export default function Dashboard(){
           </div>
           {records.length===0?(
             <div style={{textAlign:'center',padding:'60px 20px',background:'#fff',borderRadius:16,border:'1px solid #E2E8F0'}}>
-              <div style={{fontSize:48,marginBottom:16}}>📂</div>
+              <div style={{fontSize:48,marginBottom:16}}>ð</div>
               <h3 style={{color:N,fontWeight:700,fontSize:18,marginBottom:8}}>No saved records yet</h3>
               <p style={{color:SL,fontSize:14,marginBottom:20}}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
               <button onClick={()=>{
@@ -564,7 +564,7 @@ export default function Dashboard(){
               setSaved(false)
               setLoadedRecord(null)
               setActiveView('business')
-            }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
+            }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation â</button>
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -572,14 +572,14 @@ export default function Dashboard(){
                 <div key={rec.id||i} style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
-                      📄 {rec.savedAt||'Saved Record'}
+                      ð {rec.savedAt||'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-                      <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'—'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'—'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'â'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'â'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?N:'#94A3B8'}}>{rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?'$'+parseFloat(rec.biz.grossRevenue).toLocaleString():'No data'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'—'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{(rec.f1040?.filingStatus||rec.filingStatus||'—').toUpperCase()}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'â'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{(rec.f1040?.filingStatus||rec.filingStatus||'â').toUpperCase()}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||rec.biz?.quarterly||0).toLocaleString()}</strong></span>
                     </div>
                   </div>
@@ -587,7 +587,7 @@ export default function Dashboard(){
                     <button onClick={()=>loadRecord(rec)} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
-                    }}>Load & Continue →</button>
+                    }}>Load & Continue â</button>
                     <button onClick={()=>{
                       if(!window.confirm('Delete this record?')) return
                       const email=localStorage.getItem('ts360_email')||'default'
@@ -601,17 +601,17 @@ export default function Dashboard(){
                       padding:'10px 14px',background:'#fff',color:'#DC2626',
                       border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:700,
                       fontSize:13,cursor:'pointer'
-                    }}>🗑</button>
+                    }}>ð</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-      ) : null}
+      )}
 
-      {/* ════ CALCULATOR VIEW ════ */}
-      {activeView==='business' ? (
+      {/* ââââ CALCULATOR VIEW ââââ */}
+      {activeView==='business'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
 
         {/* Business view header */}
@@ -620,7 +620,7 @@ export default function Dashboard(){
             <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>Business Income & Expenses</h2>
             <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Enter your business financials for the tax year.</p>
           </div>
-          <button onClick={()=>setActiveView('records')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← My Records</button>
+          <button onClick={()=>setActiveView('records')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>â My Records</button>
         </div>
 
       {/* CONNECT */}
@@ -635,12 +635,12 @@ export default function Dashboard(){
             </button>
           ))}
         </div>
-        {connectedApp ? (
+        {connectedApp&&(
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'10px 16px',marginTop:10}}>
-            <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>✓ {connectedApp} connected — data imported below</span>
+            <span style={{fontSize:13,fontWeight:600,color:'#166534'}}>â {connectedApp} connected â data imported below</span>
             <button onClick={()=>{setConnectedApp(null);localStorage.removeItem('ts360_connected_app');setBiz({entityType:biz.entityType,year:biz.year,ownershipPct:biz.ownershipPct,grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:''});setSaved(false)}} style={{padding:'5px 14px',background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>Disconnect</button>
           </div>
-        ) : null}
+        )}
         </div>{/* end connect card */}
 
         <div style={{display:'flex',alignItems:'center',gap:12,margin:'16px 0 8px',color:SL,fontSize:13}}>
@@ -653,7 +653,7 @@ export default function Dashboard(){
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div><p style={{color:SL,fontSize:13,margin:0}}>{connectedApp?'Review imported data from '+connectedApp+' and confirm below.':'Enter your business income and expenses for the tax year.'}</p></div>
           <div style={{display:'flex',gap:10,flexShrink:0}}>
-            {connectedApp&&<button onClick={refreshData} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{refreshing?'Refreshing...':'↻ Refresh Data'}</button>}
+            {connectedApp&&<button onClick={refreshData} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{refreshing?'Refreshing...':'â» Refresh Data'}</button>}
 
           </div>
         </div>
@@ -678,15 +678,15 @@ export default function Dashboard(){
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
                 <div><label style={lbl}>Operating Expenses <InfoTip text="All normal business expenses: rent, utilities, payroll, software, insurance. Find on your PandL under 'Total Expenses.' Exclude COGS, depreciation, and officer salary if listed separately."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Rent, utilities, contractors, payroll</div><NumInput k="operatingExpenses"/></div>
                 <div><label style={lbl}>Advertising & Marketing <InfoTip text="Total spent on ads, social media, marketing tools, and promotions this year. Find in your bookkeeping under the Advertising or Marketing expense category."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Fully deductible business promotion</div><NumInput k="advertising"/></div>
-                <div><label style={lbl}>Depreciation <InfoTip text="Find on your Depreciation Schedule (Form 4562) or ask your bookkeeper. This is the annual write-down on equipment, vehicles, and property — not a cash expense."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Section 179, bonus depreciation, MACRS</div><NumInput k="depreciation"/></div>
+                <div><label style={lbl}>Depreciation <InfoTip text="Find on your Depreciation Schedule (Form 4562) or ask your bookkeeper. This is the annual write-down on equipment, vehicles, and property â not a cash expense."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Section 179, bonus depreciation, MACRS</div><NumInput k="depreciation"/></div>
                 {biz.entityType==='S-Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp) <InfoTip text="Your W-2 salary paid to yourself as S-Corp officer. Find on your W-2 Box 1, or payroll records. The IRS requires a 'reasonable compensation' before taking distributions."/></label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
                 <div><label style={lbl}>Other Deductions <InfoTip text="Any deductible business expenses not captured above: professional fees, education, business travel, subscriptions, home office, etc. Find in your PandL under miscellaneous or other expenses."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Professional fees, insurance, home office</div><NumInput k="otherDeductions"/></div>
               </div>
               {biz.entityType==='C-Corporation'&&(
                 <div style={{marginTop:16,padding:'14px 16px',background:'#EFF6FF',borderRadius:10,border:'1px solid #BFDBFE'}}>
-                  <div style={{fontSize:11,fontWeight:700,color:'#1D4ED8',marginBottom:8,letterSpacing:'0.06em'}}>C-CORPORATION — ENTITY LEVEL TAX</div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#1D4ED8',marginBottom:8,letterSpacing:'0.06em'}}>C-CORPORATION â ENTITY LEVEL TAX</div>
                   <div style={{fontSize:12,color:'#1E40AF',marginBottom:14,lineHeight:1.6}}>
-                    C-Corps pay a flat <strong>21% federal corporate tax</strong> on net profit (IRC §11). Your personal return only includes your W-2 salary and any dividends distributed to you. If you receive dividends from the corporation, enter them below.
+                    C-Corps pay a flat <strong>21% federal corporate tax</strong> on net profit (IRC Â§11). Your personal return only includes your W-2 salary and any dividends distributed to you. If you receive dividends from the corporation, enter them below.
                   </div>
                   <div><label style={lbl}>Dividends Distributed to You <InfoTip text="If the corporation pays you dividends from retained earnings, enter the total here. Qualified dividends are taxed at 0%, 15%, or 20% on your personal return (not at ordinary income rates). This is separate from your W-2 salary. Enter $0 if no dividends were paid out to you this year."/></label>
                   <NumInput k="ccorpDividends"/></div>
@@ -695,7 +695,7 @@ export default function Dashboard(){
               {hasNumbers&&<div style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',marginTop:14}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:13,color:SL}}>Total Deductions</span><span style={{fontWeight:700,color:'#DC2626',fontSize:14}}>({fmt(calc.totalExp)})</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:13,color:SL,fontWeight:700}}>Net Business Income</span><span style={{fontWeight:800,color:N,fontSize:16}}>{fmt(calc.netBiz)}</span></div></div>}
             </div>
           </div>
-        ) : null}
+        )}
 
         {/* K-1 + ANALYSIS */}
         {hasNumbers&&calc&&(
@@ -715,7 +715,7 @@ export default function Dashboard(){
                   sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040))
                   sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
                   nav('/tax-return')
-                }} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to Personal Tax Return →</button>}
+                }} style={{flex:1,padding:'10px',background:'#2563EB',border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Continue to Personal Tax Return â</button>}
 
                 {connectedApp&&<button style={{padding:'10px 14px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,color:'#fff',fontWeight:600,fontSize:13,cursor:'pointer'}}>Refresh</button>}
               </div>
@@ -732,14 +732,14 @@ export default function Dashboard(){
 
         <Divider/>
 
-        {/* CTA — Continue to Personal Tax Return */}
+        {/* CTA â Continue to Personal Tax Return */}
         <div style={{background:isPassthru?'#FFFBEB':'#EFF6FF',border:'1px solid '+(isPassthru?'#FDE68A':'#BFDBFE'),borderRadius:12,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
           <div style={{flex:1,minWidth:200}}>
             <div style={{fontSize:14,fontWeight:700,color:isPassthru?'#92400E':'#1E40AF',marginBottom:4}}>
-              {isPassthru?'Step 2 — Enter Your Personal Tax Return':'Calculate Your Complete Tax Liability'}
+              {isPassthru?'Step 2 â Enter Your Personal Tax Return':'Calculate Your Complete Tax Liability'}
             </div>
             <div style={{fontSize:13,color:isPassthru?'#A16207':SL,lineHeight:1.5}}>
-              {isPassthru?'Your K-1 passes through to your personal Form 1040. Continue to Step 2 to see your complete federal tax liability — W-2, rental income, capital gains, and more.':'Enter your personal tax information to calculate your total Form 1040 liability.'}
+              {isPassthru?'Your K-1 passes through to your personal Form 1040. Continue to Step 2 to see your complete federal tax liability â W-2, rental income, capital gains, and more.':'Enter your personal tax information to calculate your total Form 1040 liability.'}
             </div>
           </div>
           <button onClick={()=>{
@@ -751,19 +751,19 @@ export default function Dashboard(){
             sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
             nav('/tax-return')
           }} style={{flexShrink:0,padding:'12px 28px',background:isPassthru?'#D97706':'#2563EB',border:'none',borderRadius:10,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer',whiteSpace:'nowrap'}}>
-            Continue to Personal Tax Return →
+            Continue to Personal Tax Return â
           </button>
         </div>
 
       </div>
       )}
 
-      {/* ════ 1040 / PERSONAL VIEW ════ */}
+      {/* ââââ 1040 / PERSONAL VIEW ââââ */}
       {activeView==='f1040'&&biz.entityType!=='C-Corporation'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
-          <button onClick={()=>setActiveView('business')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
+          <button onClick={()=>setActiveView('business')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>â Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
         </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
@@ -805,17 +805,17 @@ export default function Dashboard(){
                   <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
                   <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
                   <div style={{fontSize:12,color:safeCalc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(safeCalc.effRate)} | Quarterly payment: {fmt(safeCalc.quarterly)}</div>
-                  {safeCalc.isCCorp ? (
+                  {safeCalc.isCCorp&&(
                     <div style={{marginTop:12,padding:'10px 12px',background:'rgba(0,0,0,0.06)',borderRadius:8,borderLeft:'3px solid #3B82F6'}}>
                       <div style={{fontSize:11,fontWeight:700,color:'#1E40AF',marginBottom:6,letterSpacing:'0.05em'}}>C-CORP BREAKDOWN</div>
-                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Corporate Tax (21% IRC §11)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.corpTax)}</span></div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Corporate Tax (21% IRC Â§11)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.corpTax)}</span></div>
                       <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Personal Income Tax</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.incomeTax)}</span></div>
                       {safeCalc.dividends>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span style={{color:'#1E40AF'}}>Dividend Tax (~15%)</span><span style={{fontWeight:700,color:'#DC2626'}}>{fmt(safeCalc.divTax)}</span></div>}
                       <div style={{display:'flex',justifyContent:'space-between',fontSize:12,paddingTop:6,borderTop:'1px solid rgba(30,64,175,0.2)',marginTop:4}}><span style={{color:'#1E40AF',fontWeight:700}}>Total Tax Burden</span><span style={{fontWeight:800,color:'#DC2626'}}>{fmt(safeCalc.combinedTax)}</span></div>
                     </div>
-                  ) : null}
+                  )}
                   <div style={{marginTop:10,padding:'8px 10px',background:'rgba(0,0,0,0.06)',borderRadius:6,borderLeft:'3px solid rgba(0,0,0,0.15)'}}>
-                    <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.5}}>⚠ Accuracy depends on your inputs. Please review all fields for the most accurate result. This is an estimate — consult a tax professional for filing.</div>
+                    <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.5}}>â  Accuracy depends on your inputs. Please review all fields for the most accurate result. This is an estimate â consult a tax professional for filing.</div>
                   </div>
                 </div>
               </div>
@@ -847,9 +847,9 @@ export default function Dashboard(){
           <div style={{color:'#fff',fontWeight:700,fontSize:16,marginBottom:6}}>Ready to save your tax snapshot?</div>
           <div style={{color:'#93b4d4',fontSize:13,marginBottom:16}}>Your record will include all business and personal inputs.</div>
           <button onClick={handleSave} style={{padding:'12px 40px',background:saved?'#059669':'#2563EB',color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer',transition:'background 0.3s'}}>
-            {saved ? '✅ Record Saved!' : '💾 Save This Record'}
+            {saved ? 'â Record Saved!' : 'ð¾ Save This Record'}
           </button>
-          {saved && <div style={{color:'#6EE7B7',fontSize:13,marginTop:10}}>Saved! View it in 📂 My Records.</div>}
+          {saved && <div style={{color:'#6EE7B7',fontSize:13,marginTop:10}}>Saved! View it in ð My Records.</div>}
         </div>
 
         <div style={{height:48}}/>
