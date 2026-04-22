@@ -436,30 +436,48 @@ export default function Dashboard(){
   const loadRecord = (rec) => {
     setLoadedRecord(rec)
     setSavedRecordId(rec.id)
-    // Restore business data
-    if(rec.biz) setBiz({...rec.biz})
-    // Support both record formats
+
+    // ── Restore business state in Dashboard (for inline view) ──────────────
+    if(rec.biz) setBiz(prev => ({...prev, ...rec.biz}))
+
+    // ── Build the f1040 object from either new or old record format ─────────
     const saved1040 = rec.biz ? (rec.f1040||{}) : {
-      filingStatus:rec.filingStatus||'single',
-      w2Income:rec.w2Income||'',
-      estimatedPayments:rec.estPaid||'',
-      dependents:rec.dependents||'0',
-      useStandardDed:!rec.useItemized,
-      itemizedDed:rec.itemizedAmt||'',
+      filingStatus: rec.filingStatus || 'single',
+      w2Income: rec.w2Income || '',
+      estimatedPayments: rec.estPaid || '',
+      dependents: rec.dependents || '0',
+      useStandardDed: !rec.useItemized,
+      itemizedDed: rec.itemizedAmt || '',
     }
-    setF1040({
+    const f1040Restored = {
       filingStatus: saved1040.filingStatus || rec.filingStatus || 'single',
       w2Income: saved1040.w2Income || rec.w2Income || '',
       otherIncome: saved1040.otherIncome || rec.otherIncome || '',
       estimatedPayments: saved1040.estimatedPayments || rec.estPaid || '',
       dependents: saved1040.dependents || rec.dependents || '',
       useStandardDed: saved1040.useStandardDed !== undefined ? saved1040.useStandardDed : true,
-      itemizedDed: saved1040.itemizedDed || rec.itemizedDed || ''
-    })
-    setSaved(false)  // Show 'Save Record' so user can re-save after reviewing
-    // Go to Step 1 first so user sees their business data
-    setActiveView('business')
-    setShowFin(true)
+      itemizedDed: saved1040.itemizedDed || rec.itemizedAmt || '',
+    }
+    setF1040(f1040Restored)
+    setSaved(false)
+
+    // ── Pass record data into the Step 1→2 flow via sessionStorage ──────────
+    // so the full TaxReturn page loads with all saved values pre-filled
+    const bizData = rec.biz || {}
+    const k1Income = rec.k1Income || rec.k1 || 0
+    sessionStorage.setItem('ts360_k1', String(k1Income))
+    sessionStorage.setItem('ts360_entities', JSON.stringify([{
+      name: bizData.entityType || rec.entityType || 'Business',
+      type: bizData.entityType || rec.entityType || 'S-Corporation',
+      own: bizData.ownershipPct || '100',
+      netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
+      k1: k1Income,
+    }]))
+    sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040Restored))
+    sessionStorage.setItem('ts360_taxyear', String(bizData.year || rec.taxYear || 2025))
+
+    // Navigate to Personal Tax Return (Step 2) with all data loaded
+    nav('/tax-return')
   }
 
 
@@ -569,7 +587,7 @@ export default function Dashboard(){
                     <button onClick={()=>loadRecord(rec)} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
-                    }}>Load Record →</button>
+                    }}>Load & Continue →</button>
                     <button onClick={()=>{
                       if(!window.confirm('Delete this record?')) return
                       const email=localStorage.getItem('ts360_email')||'default'
@@ -714,12 +732,28 @@ export default function Dashboard(){
 
         <Divider/>
 
-        {/* 1040 */}
-        <div style={{background:isPassthru?'#FFFBEB':'#F8FAFC',border:'1px solid '+(isPassthru?'#FDE68A':'#E2E8F0'),borderRadius:12,padding:'16px 20px',marginBottom:20}}>
-          <div style={{fontSize:13,fontWeight:700,color:isPassthru?'#92400E':N,marginBottom:4}}>{isPassthru?'Important: Passthrough entities do not pay tax at the business level.':'Tax Liability Calculator'}</div>
-          <div style={{fontSize:13,color:isPassthru?'#92400E':SL,lineHeight:1.6}}>{isPassthru?'Your business profit passes through to your personal Form 1040 - that is where you actually pay taxes. Complete your personal tax information below to see your actual tax liability based on your K-1 income.':'Enter your personal tax information to calculate your total Form 1040 liability.'}</div>
+        {/* CTA — Continue to Personal Tax Return */}
+        <div style={{background:isPassthru?'#FFFBEB':'#EFF6FF',border:'1px solid '+(isPassthru?'#FDE68A':'#BFDBFE'),borderRadius:12,padding:'20px 24px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:14,fontWeight:700,color:isPassthru?'#92400E':'#1E40AF',marginBottom:4}}>
+              {isPassthru?'Step 2 — Enter Your Personal Tax Return':'Calculate Your Complete Tax Liability'}
+            </div>
+            <div style={{fontSize:13,color:isPassthru?'#A16207':SL,lineHeight:1.5}}>
+              {isPassthru?'Your K-1 passes through to your personal Form 1040. Continue to Step 2 to see your complete federal tax liability — W-2, rental income, capital gains, and more.':'Enter your personal tax information to calculate your total Form 1040 liability.'}
+            </div>
+          </div>
+          <button onClick={()=>{
+            sessionStorage.setItem('ts360_k1', String(safeCalc.k1||0))
+            sessionStorage.setItem('ts360_entities', JSON.stringify(
+              [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:safeCalc.netBiz||0,k1:safeCalc.k1||0}]
+            ))
+            sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040))
+            sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
+            nav('/tax-return')
+          }} style={{flexShrink:0,padding:'12px 28px',background:isPassthru?'#D97706':'#2563EB',border:'none',borderRadius:10,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer',whiteSpace:'nowrap'}}>
+            Continue to Personal Tax Return →
+          </button>
         </div>
-
 
       </div>
       )}
@@ -732,7 +766,6 @@ export default function Dashboard(){
           <button onClick={()=>setActiveView('business')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
         </div>
-        {(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22}}>
               <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:16,textTransform:'uppercase',letterSpacing:'0.06em'}}>Your Personal Tax Info</div>
@@ -796,7 +829,6 @@ export default function Dashboard(){
               )}
             </div>
           </div>
-        )}
 
         {/* RECOMMENDATIONS */}
         {show1040&&hasNumbers&&recs.length>0&&(<>

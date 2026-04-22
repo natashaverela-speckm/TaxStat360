@@ -46,7 +46,19 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    const storedEmail = localStorage.getItem('ts360_email') || ''
+    // Try ts360_email first, then decode from JWT token as fallback
+    let storedEmail = localStorage.getItem('ts360_email') || ''
+    if (!storedEmail) {
+      // Decode JWT payload to get email if not stored separately
+      const token = localStorage.getItem('token') || localStorage.getItem('ts360_session') || ''
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]))
+          storedEmail = payload.email || payload.sub || ''
+          if (storedEmail) localStorage.setItem('ts360_email', storedEmail)
+        } catch(e) { /* token not JWT format */ }
+      }
+    }
     const storedPlan = localStorage.getItem('plan') || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
