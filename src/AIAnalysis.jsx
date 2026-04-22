@@ -971,7 +971,7 @@ export default function AIAnalysis() {
               </div>
             </div>
             <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
-              Fill more fields for better accuracy (missing: revenue, withholding, deductions) — missing: Revenue, W-2 Withholding, Deductions
+              Fill more fields for better accuracy
             </div>
             <button onClick={() => {
               if (rec) {

@@ -572,7 +572,7 @@ export default function Dashboard(){
                 <div key={rec.id||i} style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
-                      <span style={{fontWeight:600,marginRight:8}}>{rec.name||rec.label||"Untitled"}</span>📄 {rec.savedAt||'Saved Record'}
+                      📄 {rec.savedAt||'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
                       <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'—'}</strong></span>
