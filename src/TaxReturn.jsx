@@ -19,9 +19,11 @@ const TAX_TABLES = {
       hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
       qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
     },
+    ltcg: { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
   2025: {
-    // OBBBA (Rev. Proc. 2025-32) raised 2025 std deduction: Single/MFS $15,750 | MFJ/QSS $31,500 | HOH $23,625
     std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
     brackets: {
       single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
@@ -30,9 +32,11 @@ const TAX_TABLES = {
       hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
       qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
     },
+    ltcg: { single:[48350,533400], mfj:[96700,600050], mfs:[48350,300000], hoh:[64750,566700], qss:[96700,600050] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
   2026: {
-    // Rev. Proc. 2025-32: Single/MFS $16,100 | MFJ/QSS $32,200 | HOH $24,150
     std:      { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
     brackets: {
       single: [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[648750,.35],[Infinity,.37]],
@@ -41,34 +45,91 @@ const TAX_TABLES = {
       hoh:    [[17600,.10],[67050,.12],[106900,.22],[203900,.24],[259300,.32],[648700,.35],[Infinity,.37]],
       qss:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
     },
+    ltcg: { single:[50400,557050], mfj:[100800,626350], mfs:[50400,313175], hoh:[67650,591800], qss:[100800,626350] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
 }
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
+function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
+function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
+function getAMTThreshold(year, fs) { const t = getTable(year).amt; return t[fs] || 200000 }
 
-// Standard deductions handled by TAX_TABLES above
-
-// Additional Medicare Tax thresholds
-const AMT_THRESHOLD = {
-  single: 200000,
-  mfj: 250000,
-  mfs: 125000,
-  hoh: 200000,
-  qss: 250000,
-}
-
-// getBrackets defined above
-
-function calcFederalTax(taxableIncome, year, fs) {
-  if (taxableIncome <= 0) return 0
+// Ordinary income tax (brackets only — does NOT include LTCG/qualified dividends)
+function calcFederalTax(ordinaryIncome, year, fs) {
+  if (ordinaryIncome <= 0) return 0
   let tax = 0, prev = 0
   for (const [cap, rate] of getBrackets(year, fs)) {
-    if (taxableIncome <= prev) break
-    tax += (Math.min(taxableIncome, cap) - prev) * rate
+    if (ordinaryIncome <= prev) break
+    tax += (Math.min(ordinaryIncome, cap) - prev) * rate
     prev = cap
   }
   return Math.round(tax)
+}
+
+// ── IRS Qualified Dividends & Capital Gain Tax Worksheet (QDCGTW) ──────────────
+// IRC §1(h) — LTCG and qualified dividends taxed at 0%, 15%, or 20%
+// Also handles: Unrecaptured Sec 1250 gain (max 25%) and Collectibles gain (max 28%)
+// ordinaryIncome = taxable income EXCLUDING preferential items
+// prefItems = { ltcg, qualDiv, unrecap1250, collectibles }
+function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
+  const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
+  const [threshold0, threshold15] = getLTCGThresholds(year, fs)
+  let tax = 0
+
+  // Step 1: Total preferential income (LTCG + qualified dividends)
+  const totalPref = ltcg + qualDiv
+  if (totalPref <= 0 && unrecap1250 <= 0 && collectibles <= 0) return 0
+
+  // Step 2: "Stacking" — ordinary income fills brackets first, then pref income stacks on top
+  const ordFloor = Math.max(0, ordinaryIncome)
+
+  // ── LTCG + Qualified Dividends (0/15/20% rates) ────────────────────────────
+  if (totalPref > 0) {
+    // Amount of LTCG in the 0% bucket
+    const zeroRoom = Math.max(0, threshold0 - ordFloor)
+    const atZero = Math.min(totalPref, zeroRoom)
+
+    // Amount of LTCG in the 15% bucket
+    const fifteenTop = threshold15
+    const fifteenRoom = Math.max(0, fifteenTop - Math.max(ordFloor, threshold0))
+    const remaining15 = totalPref - atZero
+    const atFifteen = Math.min(remaining15, fifteenRoom)
+
+    // Remainder at 20%
+    const atTwenty = totalPref - atZero - atFifteen
+
+    tax += atFifteen * 0.15
+    tax += atTwenty * 0.20
+  }
+
+  // ── Unrecaptured Section 1250 Gain (max 25%) — IRC §1(h)(1)(D) ─────────────
+  // Taxed at the LESSER of 25% or the taxpayer's ordinary bracket rate
+  // For planning purposes: use 25% (conservative, correct for mid/high income)
+  if (unrecap1250 > 0) {
+    // Stack 1250 gain on top of ordinary income + LTCG already used
+    const alreadyUsed = ordFloor + Math.min(totalPref, Math.max(0, threshold15 - ordFloor))
+    // Rate is min(25%, marginal ordinary rate above this stack point)
+    // Simplified: 25% for incomes above the 22% bracket, 22% for lower — use 25% for planning
+    tax += unrecap1250 * 0.25
+  }
+
+  // ── Collectibles Gain (max 28%) — IRC §1(h)(4) ─────────────────────────────
+  if (collectibles > 0) {
+    tax += collectibles * 0.28
+  }
+
+  return Math.round(tax)
+}
+
+// Net Investment Income Tax — IRC §1411 — 3.8% on lesser of NII or excess AGI over threshold
+function calcNIIT(nii, agi, year, fs) {
+  const threshold = getNIITThreshold(year, fs)
+  if (agi <= threshold || nii <= 0) return 0
+  const excessAGI = agi - threshold
+  return Math.round(Math.min(nii, excessAGI) * 0.038)
 }
 
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
@@ -180,6 +241,8 @@ export default function TaxReturn() {
   const [rentalExpenses, setRentalExpenses] = React.useState('')
   const [capitalGains, setCapitalGains] = React.useState('') // short-term (ordinary rates)
   const [ltCapGains, setLtCapGains] = React.useState('')    // long-term (preferential rates)
+  const [unrecap1250, setUnrecap1250] = React.useState('')  // unrecaptured Sec 1250 gain (max 25%)
+  const [collectiblesGain, setCollectiblesGain] = React.useState('') // collectibles gain (max 28%)
   const [priorYearLosses, setPriorYearLosses] = React.useState('')
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
@@ -222,42 +285,75 @@ export default function TaxReturn() {
   const itemized = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
+  // New: parse additional capital gain types
+  const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
+  const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
+
   // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
   const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
   const taxableBeforeQBI = Math.max(0, agi - deduction)
-  // Preferential income (LTCG + qualified dividends) excluded from QBI income limitation base
+  // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
   const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome)
 
-  // Taxable income
-  const taxableIncome = Math.max(0, taxableBeforeQBI - qbi)
+  // ── Split income into ordinary vs preferential for accurate tax calculation ──
+  // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
+  // These are already included in grossIncome → taxableBeforeQBI, so we subtract them out
+  const totalPrefIncome = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
+  const taxableAfterQBI = Math.max(0, taxableBeforeQBI - qbi)
+  // Ordinary income is whatever remains after removing preferential income (floor at 0)
+  const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
+  // Total taxable income (for display)
+  const taxableIncome = taxableAfterQBI
 
-  // Federal income tax
-  const fedTax = calcFederalTax(taxableIncome, taxYear, status)
+  // ── Federal income tax on ORDINARY income only (brackets) ───────────────────
+  const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
 
-  // Marginal rate
+  // ── Preferential tax via QDCGTW (IRC §1(h)) ─────────────────────────────────
+  // LTCG + qualified dividends at 0/15/20%; Sec 1250 at max 25%; Collectibles at max 28%
+  const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
+    ltcg: Math.max(0, ltGain),
+    qualDiv: Math.max(0, qualDiv),
+    unrecap1250: unrec1250,
+    collectibles,
+  }, taxYear, status)
+
+  const fedTax = ordFedTax + prefTax
+
+  // ── Marginal rate on ordinary income ────────────────────────────────────────
   const brackets = getBrackets(taxYear, status)
   let marginalRate = 0
-  if (taxableIncome > 0) {
+  if (ordinaryTaxableIncome > 0) {
     let prev = 0
     for (const [cap, rate] of brackets) {
-      if (taxableIncome > prev) { marginalRate = rate }
+      if (ordinaryTaxableIncome > prev) { marginalRate = rate }
       prev = cap
     }
+  } else if (totalPrefIncome > 0) {
+    // Show LTCG rate when only preferential income exists
+    const [t0, t15] = getLTCGThresholds(taxYear, status)
+    marginalRate = totalPrefIncome > t15 ? 0.20 : totalPrefIncome > t0 ? 0.15 : 0
   }
 
-  // Additional Medicare Tax (0.9% on wages/SE over threshold)
-  const amtThreshold = AMT_THRESHOLD[status] || 200000
+  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
+  const amtThreshold = getAMTThreshold(taxYear, status)
   const additionalMedicare = Math.round(Math.max(0, w2 - amtThreshold) * 0.009)
 
-  // Child tax credit
+  // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
+  // NII = net investment income: dividends, interest, rental income (if passive), LTCG
+  // For REP: rental income is NOT passive → excluded from NII
+  const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
+  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + Math.max(0, qualDiv) + rentalNII)
+  const niit = calcNIIT(nii, agi, taxYear, status)
+
+  // ── Child Tax Credit (IRC §24) ───────────────────────────────────────────────
   const numDependents = parseInt(dependents) || 0
-  const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare)
+  const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
-  // Total tax
-  const totalTax = Math.max(0, fedTax + additionalMedicare - childCredit)
+  // ── Total Tax ────────────────────────────────────────────────────────────────
+  const totalTax = Math.max(0, fedTax + additionalMedicare + niit - childCredit)
 
-  // Effective rate
+  // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
 
   // Payments
@@ -418,9 +514,14 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
               </div>
               <div>
-                <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at preferential 0%, 15%, or 20% rates — lower than ordinary income. Find on Schedule D Part II Line 15 or your 1099-B. Includes real estate sold after 1+ year."/></label>
+                <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at preferential 0%, 15%, or 20% rates. Find on Schedule D Part II Line 15 or your 1099-B. For property sales: enter the NET gain AFTER subtracting the Unrecaptured Sec 1250 and Form 4797 ordinary gain amounts."/></label>
                 <input value={ltCapGains} onChange={e => setLtCapGains(e.target.value)} placeholder="0" type="number" style={inp} />
                 <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
+              </div>
+              <div>
+                <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales — taxed at max 25% (IRC §1(h)(1)(D)). Find on Schedule D Worksheet Line 19, or your tax software output. Applies when you sell rental/business property that has been depreciated. Enter as positive number."/></label>
+                <input value={unrecap1250} onChange={e => setUnrecap1250(e.target.value)} placeholder="0" type="number" style={inp} />
+                <div style={{ fontSize: 10, color: '#854F0B', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
               </div>
               <div>
                 <label style={lbl}>Taxable Interest <InfoTip text="Interest earned from bank accounts, CDs, or bonds. Find on your 1099-INT from your bank or financial institution."/></label>
@@ -553,11 +654,25 @@ export default function TaxReturn() {
               </div>
             )}
 
-            {/* AMT */}
+            {/* Additional Medicare Tax */}
             {additionalMedicare > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Add'l Medicare Tax (0.9%)</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(additionalMedicare)}</span>
+              </div>
+            )}
+            {/* NIIT */}
+            {niit > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Net Investment Income Tax (3.8%)</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
+              </div>
+            )}
+            {/* Preferential tax breakdown */}
+            {prefTax > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>LTCG / Pref. Rate Tax</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(prefTax)}</span>
               </div>
             )}
 
@@ -582,6 +697,8 @@ export default function TaxReturn() {
                   ['Rental Net (Sch E)', rentalNet, rentalNet >= 0],
                   ['Short-Term Capital Gains', stGain, stGain >= 0],
                   ['Long-Term Capital Gains', ltGain, ltGain >= 0],
+                  unrec1250 > 0 ? ['Unrecaptured Sec 1250 Gain', unrec1250, false] : null,
+                  collectibles > 0 ? ['Collectibles Gain (28%)', collectibles, false] : null,
                   ['Taxable Interest', intInc, true],
                   ['Ordinary Dividends', divInc, true],
                   ['─────────────────', null, true],
@@ -590,7 +707,9 @@ export default function TaxReturn() {
                   ['QBI Deduction', qbi > 0 ? -qbi : 0, false],
                   ['─────────────────', null, true],
                   ['Taxable Income', taxableIncome, taxableIncome >= 0],
-                  ['Federal Income Tax', -fedTax, false],
+                  ['Federal Tax — Ordinary Income', ordFedTax > 0 ? -ordFedTax : null, false],
+                  ['Federal Tax — LTCG / 1250 / Qual Div', prefTax > 0 ? -prefTax : null, false],
+                  niit > 0 ? ['Net Investment Income Tax (3.8%)', -niit, false] : null,
                   ['Add\'l Medicare Tax', -additionalMedicare, false],
                   ['Child Tax Credit', childCredit > 0 ? childCredit : 0, true],
                   ['─────────────────', null, true],
