@@ -73,11 +73,11 @@ export default function Settings() {
     const storedPlan = localStorage.getItem('plan') || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
-    setPlan(((p) => p==='basic'||p==='Basic'?'Starter':p.charAt(0).toUpperCase()+p.slice(1))(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0)).toUpperCase()+storedPlan.slice(1))
+    setPlan(((p=>p==='basic'||p==='Basic'?'Starter':p.charAt(0).toUpperCase()+p.slice(1)))(storedPlan.charAt(0)).toUpperCase() + storedPlan.slice(1))
     // Approximate member since from session
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
-    else setMemberSince('Ã¢ÂÂ')
+    else setMemberSince('â')
   }, [])
 
   const handleEmailChange = async () => {
@@ -141,7 +141,7 @@ export default function Settings() {
           <NavBtn label="Dashboard" onClick={()=>nav('/dashboard')}/>
           <NavBtn label="Calculator" onClick={()=>nav('/calculate-tax')}/>
           <NavBtn label="AI Analysis" onClick={()=>nav('/ai-analysis')}/>
-          <NavBtn label="Ã¢ÂÂ Settings" onClick={()=>nav('/settings')} active/>
+          <NavBtn label="â Settings" onClick={()=>nav('/settings')} active/>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
         </div>
       </nav>
@@ -156,11 +156,11 @@ export default function Settings() {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
             <div>
               <div style={{fontSize:12,color:SL,marginBottom:4}}>Current email</div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{email || 'Ã¢ÂÂ'}</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{email || 'â'}</div>
             </div>
             <div>
               <div style={{fontSize:12,color:SL,marginBottom:4}}>Plan</div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan==='Basic'||plan==='starter'?'Starter':plan||'Starter'}</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan==='Basic'||plan==='basic'?'Starter':plan||'Starter'}</div>
             </div>
           </div>
 
@@ -180,10 +180,10 @@ export default function Settings() {
                 disabled={loading || emailSent || !emailInput || emailInput===email}
                 style={{padding:'9px 18px',background:emailSent?'#059669':B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput)?0.5:1}}
               >
-                {emailSent ? 'Ã¢ÂÂ Sent' : 'Send confirmation'}
+                {emailSent ? 'â Sent' : 'Send confirmation'}
               </button>
             </div>
-            {emailSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>Ã¢ÂÂ {msg}</div>}
+            {emailSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>â {msg}</div>}
           </div>
 
           {/* Change Password */}
@@ -195,9 +195,9 @@ export default function Settings() {
               disabled={loading || pwSent}
               style={{padding:'9px 18px',background:pwSent?'#059669':'#fff',color:pwSent?'#fff':N,border:`1px solid ${pwSent?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
             >
-              {pwSent ? 'Ã¢ÂÂ Reset link sent' : 'Send password reset link'}
+              {pwSent ? 'â Reset link sent' : 'Send password reset link'}
             </button>
-            {pwSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>Ã¢ÂÂ {msg}</div>}
+            {pwSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>â {msg}</div>}
           </div>
         </div>
 
@@ -206,17 +206,17 @@ export default function Settings() {
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Subscription</div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan==='Basic'||plan==='basic'?'Starter':plan} Plan</div>
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed monthly ÃÂ· Cancel anytime</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed monthly Â· Cancel anytime</div>
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
           </div>
           <div style={{display:'flex',gap:10}}>
             <button onClick={()=>nav('/upgrade')} style={{flex:1,padding:'10px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>
-              Ã¢ÂÂ Upgrade Plan
+              â Upgrade Plan
             </button>
             <button onClick={handleManageBilling} style={{flex:1,padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
-              Manage Billing Ã¢ÂÂ
+              Manage Billing â
             </button>
           </div>
         </div>
@@ -227,24 +227,12 @@ export default function Settings() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <div style={{fontSize:14,fontWeight:600,color:N}}>Sign out of all devices</div>
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Removes your session from this browser.<
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',borderTop:'1px solid #fee2e2',marginTop:8}}>
-          <div>
-            <div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div>
-            <div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all associated data. This cannot be undone.</div>
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Removes your session from this browser.</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',marginTop:8,borderTop:'1px solid #fee2e2'}}>
+            <div><div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div><div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div></div>
+            <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>Request Deletion</a>
           </div>
-          <a href="mailto:support@taxstat360.com?subject=Account%20Deletion%20Request&body=Please%20permanently%20delete%20my%20account%20and%20all%20data." style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',cursor:'pointer',whiteSpace:'nowrap'}}>Request Deletion â</a>
-        </div>/div>
             </div>
-
-          {/* B-10: Account deletion */}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',borderTop:'1px solid #fee2e2',marginTop:8}}>
-            <div>
-              <div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div>
-              <div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all associated data. This cannot be undone.</div>
-            </div>
-            <a href="mailto:support@taxstat360.com?subject=Account%20Deletion%20Request&body=Please%20permanently%20delete%20my%20account%20and%20all%20data." style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',cursor:'pointer',whiteSpace:'nowrap'}}>Request Deletion →</a>
-          </div>
             <button onClick={()=>signOut(nav)} style={{padding:'9px 18px',background:'#fff',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
               Sign Out
             </button>
