@@ -11,12 +11,12 @@ const ENTITY_TYPES=['S-Corp','LLC (Partnership)','LLC (Single-Member)','Sole Pro
 const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
 const US_STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 const TEMPLATES=[
-  {label:'S-Corp Owner',icon:'🏢',type:'S-Corp',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
-  {label:'Real Estate LLC',icon:'🏠',type:'LLC (Partnership)',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
-  {label:'Solo Consultant',icon:'💼',type:'Sole Proprietorship',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
-  {label:'Multi-Member LLC',icon:'🤝',type:'LLC (Partnership)',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
-  {label:'C-Corp',icon:'🏦',type:'C-Corp',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
-  {label:'Blank Entity',icon:'➕',type:'S-Corp',own:'100',defaults:{},desc:'Start from scratch'},
+  {label:'S-Corp Owner',icon:'ð¢',type:'S-Corp',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
+  {label:'Real Estate LLC',icon:'ð ',type:'LLC (Partnership)',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
+  {label:'Solo Consultant',icon:'ð¼',type:'Sole Proprietorship',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
+  {label:'Multi-Member LLC',icon:'ð¤',type:'LLC (Partnership)',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
+  {label:'C-Corp',icon:'ð¦',type:'C-Corp',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
+  {label:'Blank Entity',icon:'â',type:'S-Corp',own:'100',defaults:{},desc:'Start from scratch'},
 ]
 
 function exportEntitiesToCSV(entities){
@@ -48,7 +48,7 @@ function ExpenseBreakdown({categories,total}){
   return(
     <div style={{marginTop:12}}>
       <button onClick={()=>setOpen(!open)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
-        {open?'▼':'►'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
+        {open?'â¼':'âº'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
       </button>
       {open&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
         {Object.entries(categories).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>(
@@ -82,18 +82,18 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
     <div style={{border:'2px solid '+color,borderRadius:14,overflow:'hidden',marginBottom:16}}>
       <div style={{background:color,padding:'12px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>⠿</div>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>â ¿</div>
           <div style={{width:28,height:28,borderRadius:7,background:'rgba(0,0,0,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff'}}>{idx+1}</div>
           <div>
             <div contentEditable suppressContentEditableWarning onBlur={v=>onUpdate(idx,{...ent,name:v.target.innerText.trim()||'Business '+(idx+1)})} onKeyDown={v=>{if(v.key==='Enter')v.target.blur()}} style={{background:'transparent',border:'none',outline:'none',fontSize:15,fontWeight:700,color:'#fff',width:180,fontFamily:'inherit',cursor:'text',minWidth:80}}>{ent.name}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.state?' · '+ent.state:''}{ent.ein?' · EIN '+ent.ein:''}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.state?' Â· '+ent.state:''}{ent.ein?' Â· EIN '+ent.ein:''}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <select value={ent.type} onChange={v=>onUpdate(idx,{...ent,type:v.target.value})} style={{padding:'4px 8px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,color:color,cursor:'pointer',background:'#fff'}}>
             {ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
-          <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,color:'#fff',cursor:'pointer'}}>{showDetails?'▲ Details':'▼ Details'}</button>
+          <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,color:'#fff',cursor:'pointer'}}>{showDetails?'â² Details':'â¼ Details'}</button>
           {canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer'}}>Remove</button>}
         </div>
       </div>
@@ -103,7 +103,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10}}>ENTITY DETAILS</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:12}}>
             <div><label style={lbl}>EIN</label><input value={ent.ein||''} onChange={e=>onUpdate(idx,{...ent,ein:e.target.value})} placeholder="XX-XXXXXXX" style={inp}/></div>
-            <div><label style={lbl}>State</label><select value={ent.state||''} onChange={e=>onUpdate(idx,{...ent,state:e.target.value})} style={inp}><option value="">— Select —</option>{US_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><label style={lbl}>State</label><select value={ent.state||''} onChange={e=>onUpdate(idx,{...ent,state:e.target.value})} style={inp}><option value="">â Select â</option>{US_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
             <div><label style={lbl}>Formation Date</label><input type="date" value={ent.formationDate||''} onChange={e=>onUpdate(idx,{...ent,formationDate:e.target.value})} style={inp}/></div>
             <div><label style={lbl}>Ownership %</label><select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,fontWeight:700,border:'2px solid '+color}}>{OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
           </div>
@@ -118,7 +118,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               <button onClick={()=>setManual(!manual)} style={{padding:'4px 12px',background:'none',border:'1px solid '+B,borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}}>{manual?'Use Software':'Enter Manually'}</button>
             </div>
             {!manual&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>{INTS.map(i=><button key={i.id} onClick={()=>connectSoftware(i.id)} style={{padding:'10px 6px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontSize:11,fontWeight:700,color:N,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}><div style={{width:28,height:28,borderRadius:6,background:i.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff'}}>{i.abbr}</div>{i.name}</button>)}</div>}
-            {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input value={manRev} onChange={v=>setManRev(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input value={manExp} onChange={v=>setManExp(v.target.value)} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
+            {manual&&<div style={{background:'#F8FAFC',borderRadius:10,padding:16,border:'1px solid #E2E8F0'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}><div><label style={lbl}>Total Revenue</label><input defaultValue={manRev} onBlur={e=>{const v=parseFloat(e.target.value)||0;setManRev(v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div><div><label style={lbl}>Total Expenses</label><input defaultValue={manExp} onBlur={e=>{const v=parseFloat(e.target.value)||0;setManExp(v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={{width:'100%',padding:'9px 12px',border:'2px solid #E2E8F0',borderRadius:7,fontSize:14,boxSizing:'border-box',fontFamily:'inherit'}}/></div></div><button onClick={applyManual} style={{padding:'8px 18px',background:G,border:'none',borderRadius:7,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Apply P&L</button></div>}
           </div>
         ) : null}
         {ent.pnl ? (
@@ -168,7 +168,7 @@ function TemplatePicker({onSelect,onClose}){
       <div style={{background:'#fff',borderRadius:16,padding:28,maxWidth:560,width:'90%',boxShadow:'0 20px 60px rgba(0,0,0,0.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div><h3 style={{color:N,fontSize:18,fontWeight:800,margin:0}}>Choose Entity Template</h3><p style={{color:SL,fontSize:12,margin:'4px 0 0'}}>Start with pre-configured defaults or blank</p></div>
-          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:SL}}>×</button>
+          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:SL}}>Ã</button>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
           {TEMPLATES.map(t=>(
@@ -200,13 +200,13 @@ function ImportModal({onImport,onClose}){
       <div style={{background:'#fff',borderRadius:16,padding:28,maxWidth:480,width:'90%',boxShadow:'0 20px 60px rgba(0,0,0,0.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <h3 style={{color:N,fontSize:18,fontWeight:800,margin:0}}>Import Entities from CSV</h3>
-          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:SL}}>×</button>
+          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:SL}}>Ã</button>
         </div>
         <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:12,marginBottom:16,fontSize:11,color:SL,fontFamily:'monospace',lineHeight:1.6}}>
           Name, Entity Type, EIN, State, Formation Date, Ownership %, Gross Revenue, Total Expenses
         </div>
         <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);handleFile(e.dataTransfer.files[0])}} onClick={()=>fileRef.current.click()} style={{border:'2px dashed '+(dragging?B:'#CBD5E1'),borderRadius:10,padding:'32px 20px',textAlign:'center',cursor:'pointer',background:dragging?'#EFF6FF':'#fff',marginBottom:12}}>
-          <div style={{fontSize:32,marginBottom:8}}>📂</div>
+          <div style={{fontSize:32,marginBottom:8}}>ð</div>
           <div style={{fontWeight:700,color:N,fontSize:14,marginBottom:4}}>Drop CSV here or click to browse</div>
           <div style={{fontSize:12,color:SL}}>Supports .csv files</div>
           <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
@@ -292,8 +292,8 @@ export default function CalculateTax(){
   const entityCards = entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
           <div key={i} style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'14px 16px',borderTop:'3px solid '+color}}>
             <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:4}}>{ent.name}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership{ent.state?' · '+ent.state:''}</div>
-            <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net →</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} Â· {ent.own}% ownership{ent.state?' Â· '+ent.state:''}</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net â</div>
             <div style={{fontSize:22,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
           </div>)})
 
@@ -306,20 +306,20 @@ export default function CalculateTax(){
         <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 40px',height:60,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:32,height:32,background:N,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg></div><span style={{fontSize:19,fontWeight:800,color:N}}>TaxStat<span style={{color:B}}>360</span></span></div>
-            <span style={{fontSize:12,background:'#0D1B3E',color:'#fff',padding:'3px 10px',borderRadius:20,fontWeight:600}}>Step 1 of 2 — Business</span>
+            <span style={{fontSize:12,background:'#0D1B3E',color:'#fff',padding:'3px 10px',borderRadius:20,fontWeight:600}}>Step 1 of 2 â Business</span>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>setShowImport(true)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>📂 Import CSV</button>
-            {anyPnl&&<button onClick={()=>exportEntitiesToCSV(entities)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⬇ Export CSV</button>}
-            <button onClick={()=>nav('/dashboard')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>📂 Dashboard</button>
+            <button onClick={()=>setShowImport(true)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>ð Import CSV</button>
+            {anyPnl&&<button onClick={()=>exportEntitiesToCSV(entities)} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>â¬ Export CSV</button>}
+            <button onClick={()=>nav('/dashboard')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>ð Dashboard</button>
             <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>AI Analysis</button>
             <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>Sign Out</button>
-          <button onClick={()=>nav('/settings')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>⚙ Settings</button>
+          <button onClick={()=>nav('/settings')} style={{padding:'7px 14px',background:'none',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:SL,cursor:'pointer'}}>â Settings</button>
           </div>
         </nav>
         <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 20px'}}>
           <h1 style={{fontSize:26,fontWeight:800,color:N,textAlign:'center',marginBottom:4}}>Entity Calculator</h1>
-          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:28}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN, state & formation date.</p>
+          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:28}}>Add all your business entities. Drag â ¿ to reorder. Click â¼ Details to add EIN, state & formation date.</p>
           {entities.map((ent,idx)=>(
             <div key={idx} draggable onDragStart={()=>onDragStart(idx)} onDragOver={e=>onDragOver(e,idx)} onDrop={()=>onDrop(idx)} onDragEnd={onDragEnd}
               style={{opacity:dragIdx===idx?0.4:1,outline:dragOverIdx===idx&&dragIdx!==idx?'2px dashed '+B:'none',borderRadius:14,transition:'opacity 0.15s'}}>
@@ -327,7 +327,7 @@ export default function CalculateTax(){
             </div>
           ))}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
-            <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
+            <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>ð</span> Add from Template</button>
             <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
           </div>
           {anyPnl ? (
@@ -341,13 +341,13 @@ export default function CalculateTax(){
                   <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4}}>TOTAL K-1 TO SCHEDULE E</div>
                   <div style={{fontSize:44,fontWeight:800,color:k1Total>=0?'#4ADE80':'#F87171'}}>{fmt(k1Total)}</div>
                 </div>
-                <button onClick={proceed} style={{padding:'16px 40px',background:B,border:'none',borderRadius:12,fontSize:16,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 20px rgba(37,99,235,0.5)'}}>Continue to Personal Tax Return →</button>
+                <button onClick={proceed} style={{padding:'16px 40px',background:B,border:'none',borderRadius:12,fontSize:16,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 20px rgba(37,99,235,0.5)'}}>Continue to Personal Tax Return â</button>
               </div>
             </div>
           ) : null}
           {!anyPnl ? (
             <div style={{textAlign:'center',padding:'32px 20px',color:SL}}>
-              <div style={{fontSize:48,marginBottom:10}}>🏢</div>
+              <div style={{fontSize:48,marginBottom:10}}>ð¢</div>
               <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:6}}>Add your business entities above</div>
               <div style={{fontSize:13}}>Connect accounting software, enter P&L manually, or import from CSV</div>
             </div>
@@ -355,7 +355,8 @@ export default function CalculateTax(){
         </div>
       </div>
       <div style={{textAlign:'center',padding:'16px 0 8px'}}>
-        <button onClick={()=>{saveRecord();alert('✅ Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}>💾 Save Record</button>
+        <button onClick={()=>{saveRecord();alert('â Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}
+    if (!entities || entities.length === 0 || !entities[0].type) { alert("Please select an entity type before saving."); return; }>ð¾ Save Record</button>
       </div>
     </>
   )
