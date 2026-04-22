@@ -7,7 +7,7 @@ const G = '#16a34a'
 const R = '#dc2626'
 const SL = '#475569'
 
-// ── IRS Tax Tables 2024-2026 ─────────────────────────────────────────────────
+// ââ IRS Tax Tables 2024-2026 âââââââââââââââââââââââââââââââââââââââââââââââââ
 // Sources: Rev. Proc. 2023-34 (2024) | Rev. Proc. 2024-40 + OBBBA Rev. Proc. 2025-32 (2025) | Rev. Proc. 2025-32 (2026)
 const TAX_TABLES = {
   2024: {
@@ -57,7 +57,7 @@ function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[f
 function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
 function getAMTThreshold(year, fs) { const t = getTable(year).amt; return t[fs] || 200000 }
 
-// Ordinary income tax (brackets only — does NOT include LTCG/qualified dividends)
+// Ordinary income tax (brackets only â does NOT include LTCG/qualified dividends)
 function calcFederalTax(ordinaryIncome, year, fs) {
   if (ordinaryIncome <= 0) return 0
   let tax = 0, prev = 0
@@ -69,8 +69,8 @@ function calcFederalTax(ordinaryIncome, year, fs) {
   return Math.round(tax)
 }
 
-// ── IRS Qualified Dividends & Capital Gain Tax Worksheet (QDCGTW) ──────────────
-// IRC §1(h) — LTCG and qualified dividends taxed at 0%, 15%, or 20%
+// ââ IRS Qualified Dividends & Capital Gain Tax Worksheet (QDCGTW) ââââââââââââââ
+// IRC Â§1(h) â LTCG and qualified dividends taxed at 0%, 15%, or 20%
 // Also handles: Unrecaptured Sec 1250 gain (max 25%) and Collectibles gain (max 28%)
 // ordinaryIncome = taxable income EXCLUDING preferential items
 // prefItems = { ltcg, qualDiv, unrecap1250, collectibles }
@@ -83,10 +83,10 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   const totalPref = ltcg + qualDiv
   if (totalPref <= 0 && unrecap1250 <= 0 && collectibles <= 0) return 0
 
-  // Step 2: "Stacking" — ordinary income fills brackets first, then pref income stacks on top
+  // Step 2: "Stacking" â ordinary income fills brackets first, then pref income stacks on top
   const ordFloor = Math.max(0, ordinaryIncome)
 
-  // ── LTCG + Qualified Dividends (0/15/20% rates) ────────────────────────────
+  // ââ LTCG + Qualified Dividends (0/15/20% rates) ââââââââââââââââââââââââââââ
   if (totalPref > 0) {
     // Amount of LTCG in the 0% bucket
     const zeroRoom = Math.max(0, threshold0 - ordFloor)
@@ -105,18 +105,18 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
     tax += atTwenty * 0.20
   }
 
-  // ── Unrecaptured Section 1250 Gain (max 25%) — IRC §1(h)(1)(D) ─────────────
+  // ââ Unrecaptured Section 1250 Gain (max 25%) â IRC Â§1(h)(1)(D) âââââââââââââ
   // Taxed at the LESSER of 25% or the taxpayer's ordinary bracket rate
   // For planning purposes: use 25% (conservative, correct for mid/high income)
   if (unrecap1250 > 0) {
     // Stack 1250 gain on top of ordinary income + LTCG already used
     const alreadyUsed = ordFloor + Math.min(totalPref, Math.max(0, threshold15 - ordFloor))
     // Rate is min(25%, marginal ordinary rate above this stack point)
-    // Simplified: 25% for incomes above the 22% bracket, 22% for lower — use 25% for planning
+    // Simplified: 25% for incomes above the 22% bracket, 22% for lower â use 25% for planning
     tax += unrecap1250 * 0.25
   }
 
-  // ── Collectibles Gain (max 28%) — IRC §1(h)(4) ─────────────────────────────
+  // ââ Collectibles Gain (max 28%) â IRC Â§1(h)(4) âââââââââââââââââââââââââââââ
   if (collectibles > 0) {
     tax += collectibles * 0.28
   }
@@ -124,7 +124,7 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   return Math.round(tax)
 }
 
-// Net Investment Income Tax — IRC §1411 — 3.8% on lesser of NII or excess AGI over threshold
+// Net Investment Income Tax â IRC Â§1411 â 3.8% on lesser of NII or excess AGI over threshold
 function calcNIIT(nii, agi, year, fs) {
   const threshold = getNIITThreshold(year, fs)
   if (agi <= threshold || nii <= 0) return 0
@@ -171,7 +171,7 @@ function BracketBadge({ rate }) {
   )
 }
 
-// ── Info Tooltip ──
+// ââ Info Tooltip ââ
 function InfoTip({ text }) {
   const [show, setShow] = React.useState(false)
   return (
@@ -190,7 +190,7 @@ function InfoTip({ text }) {
   )
 }
 
-// ── Collapsible Section ──
+// ââ Collapsible Section ââ
 function CollapsibleSection({ title, children, defaultOpen = true, badge = null }) {
   const [open, setOpen] = React.useState(defaultOpen)
   return (
@@ -203,9 +203,15 @@ function CollapsibleSection({ title, children, defaultOpen = true, badge = null 
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '1px' }}>{title}</div>
+              {status === 'married_filing_jointly' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={lbl}>Spouse W-2 Wages <InfoTip text="Include your spouse's W-2 wages when filing Married Filing Jointly. This affects your combined AGI and tax bracket." /></label>
+                  <input defaultValue={spouseW2} onBlur={e => { const v = parseFloat(e.target.value)||0; setSpouseW2(v); e.target.value = v||''; }} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                </div>
+              )}
           {badge && <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{badge}</span>}
         </div>
-        <span style={{ fontSize: 11, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        <span style={{ fontSize: 11, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>â¼</span>
       </button>
       {open && <div style={{ padding: '4px 20px 20px 20px' }}>{children}</div>}
     </div>
@@ -213,7 +219,7 @@ function CollapsibleSection({ title, children, defaultOpen = true, badge = null 
 }
 
 
-// ── Feature #5: Collapsible "What goes here?" field explainers ───────────────
+// ââ Feature #5: Collapsible "What goes here?" field explainers âââââââââââââââ
 function WhatGoesHere({ items }) {
   const [open, setOpen] = React.useState(false)
   return (
@@ -222,7 +228,7 @@ function WhatGoesHere({ items }) {
         background: 'none', border: 'none', padding: 0, cursor: 'pointer',
         fontSize: 12, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
       }}>
-        {open ? '▲' : '▼'} What goes here?
+        {open ? 'â²' : 'â¼'} What goes here?
       </button>
       {open ? (
         <div style={{ marginTop: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 14px' }}>
@@ -249,7 +255,7 @@ export default function TaxReturn() {
   const savedF1040 = (() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}') } catch(e) { return {} } })()
   const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
 
-  // Personal inputs — pre-populated from saved record if available
+  // Personal inputs â pre-populated from saved record if available
   const [taxYear, setTaxYear] = React.useState(savedTaxYear)
   const [ytdMode, setYtdMode] = React.useState(false)
   const [ytdMonth, setYtdMonth] = React.useState(new Date().getMonth() + 1) // current month
@@ -290,13 +296,13 @@ export default function TaxReturn() {
   const ltGain = ytdScale(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
   const capGain = stGain + ltGain    // total capital gains for QBI income limitation
   const intInc = ytdScale(interest)
-  // FIX: Ordinary dividends (Line 3b) are entered once — qualified dividends are a SUBSET
-  // Do NOT add qualifiedDividends separately — it is already included in dividends (Line 3b)
+  // FIX: Ordinary dividends (Line 3b) are entered once â qualified dividends are a SUBSET
+  // Do NOT add qualifiedDividends separately â it is already included in dividends (Line 3b)
   const divInc = ytdScale(dividends)       // ordinary dividends only (1040 Line 3b)
-  const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
+  const qualDiv = ytdScale(qualifiedDividends) // subset of divInc â used only for LTCG rate calc
   const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
 
-  // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
+  // Total gross income â k1Total flows from Step 1 (negative = loss, reduces income)
   // Social Security: up to 85% taxable (simplified for planning)
   const ssBenefits = ytdScale(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
@@ -316,19 +322,19 @@ export default function TaxReturn() {
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
   // New: parse additional capital gain types
-  const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
-  const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
+  const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain â max 25%
+  const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles â max 28%
 
-  // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
+  // QBI â only on positive qualified business income; $0 when k1Total is negative (loss year)
   const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
   const taxableBeforeQBI = Math.max(0, agi - deduction)
-  // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
+  // LTCG + qualified dividends excluded from QBI income limitation base per IRC Â§199A(e)(1)
   const prefIncome = ltGain + qualDiv
   const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome)
 
-  // ── Split income into ordinary vs preferential for accurate tax calculation ──
+  // ââ Split income into ordinary vs preferential for accurate tax calculation ââ
   // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
-  // These are already included in grossIncome → taxableBeforeQBI, so we subtract them out
+  // These are already included in grossIncome â taxableBeforeQBI, so we subtract them out
   const totalPrefIncome = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
   const taxableAfterQBI = Math.max(0, taxableBeforeQBI - qbi)
   // Ordinary income is whatever remains after removing preferential income (floor at 0)
@@ -336,10 +342,10 @@ export default function TaxReturn() {
   // Total taxable income (for display)
   const taxableIncome = taxableAfterQBI
 
-  // ── Federal income tax on ORDINARY income only (brackets) ───────────────────
+  // ââ Federal income tax on ORDINARY income only (brackets) âââââââââââââââââââ
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
 
-  // ── Preferential tax via QDCGTW (IRC §1(h)) ─────────────────────────────────
+  // ââ Preferential tax via QDCGTW (IRC Â§1(h)) âââââââââââââââââââââââââââââââââ
   // LTCG + qualified dividends at 0/15/20%; Sec 1250 at max 25%; Collectibles at max 28%
   const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
     ltcg: Math.max(0, ltGain),
@@ -350,7 +356,7 @@ export default function TaxReturn() {
 
   const fedTax = ordFedTax + prefTax
 
-  // ── Marginal rate on ordinary income ────────────────────────────────────────
+  // ââ Marginal rate on ordinary income ââââââââââââââââââââââââââââââââââââââââ
   const brackets = getBrackets(taxYear, status)
   let marginalRate = 0
   if (ordinaryTaxableIncome > 0) {
@@ -365,22 +371,22 @@ export default function TaxReturn() {
     marginalRate = totalPrefIncome > t15 ? 0.20 : totalPrefIncome > t0 ? 0.15 : 0
   }
 
-  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
+  // ââ Additional Medicare Tax (0.9%) â IRC Â§3101(b)(2) ââââââââââââââââââââââââ
   const amtThreshold = getAMTThreshold(taxYear, status)
   const additionalMedicare = Math.round(Math.max(0, w2 - amtThreshold) * 0.009)
 
-  // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
+  // ââ Net Investment Income Tax (3.8%) â IRC Â§1411 ââââââââââââââââââââââââââââ
   // NII = net investment income: dividends, interest, rental income (if passive), LTCG
-  // For REP: rental income is NOT passive → excluded from NII
+  // For REP: rental income is NOT passive â excluded from NII
   const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
   const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + Math.max(0, qualDiv) + rentalNII)
   const niit = calcNIIT(nii, agi, taxYear, status)
 
-  // ── Child Tax Credit (IRC §24) ───────────────────────────────────────────────
+  // ââ Child Tax Credit (IRC Â§24) âââââââââââââââââââââââââââââââââââââââââââââââ
   const numDependents = parseInt(dependents) || 0
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
-  // ── Total Tax ────────────────────────────────────────────────────────────────
+  // ââ Total Tax ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   const totalTax = Math.max(0, fedTax + additionalMedicare + niit - childCredit)
 
   // Effective rate on earned income
@@ -411,20 +417,20 @@ export default function TaxReturn() {
             </div>
             <span style={{ fontSize: 19, fontWeight: 800, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
           </div>
-          <span style={{ fontSize: 12, background: B, color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Step 2 of 2 — Personal Return</span>
+          <span style={{ fontSize: 12, background: B, color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Step 2 of 2 â Personal Return</span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>← Back to Business</button>
-          <button onClick={() => nav('/dashboard')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>📂 Dashboard</button>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>â Back to Business</button>
+          <button onClick={() => nav('/dashboard')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>ð Dashboard</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>AI Analysis</button>
           <button onClick={() => { ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k)); nav('/') }} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>Sign Out</button>
-          <button onClick={() => nav('/settings')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>⚙ Settings</button>
+          <button onClick={() => nav('/settings')} style={{ padding: '7px 14px', background: 'none', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: SL, cursor: 'pointer' }}>â Settings</button>
         </div>
       </nav>
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
 
-        {/* LEFT — Inputs */}
+        {/* LEFT â Inputs */}
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 4 }}>Personal Tax Return</h1>
           <p style={{ color: SL, fontSize: 14, marginBottom: 24 }}>Enter your personal info to calculate your total federal tax liability.</p>
@@ -437,7 +443,7 @@ export default function TaxReturn() {
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: N }}>{e.name}</div>
-                    <div style={{ fontSize: 11, color: SL }}>{e.type} · {e.own}% ownership</div>
+                    <div style={{ fontSize: 11, color: SL }}>{e.type} Â· {e.own}% ownership</div>
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: e.k1 >= 0 ? G : R }}>{fmt(e.k1)}</div>
                 </div>
@@ -448,12 +454,12 @@ export default function TaxReturn() {
               </div>
               {entities.length === 0 && (
                 <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
-                  ⚠ No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your S-Corp or LLC so the K-1 flows through here.
+                  â  No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your S-Corp or LLC so the K-1 flows through here.
                 </div>
               )}
               {k1Total < 0 && (
                 <div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
-                  ✓ S-Corp loss of {fmt(Math.abs(k1Total))} is reducing your gross income on Schedule E
+                  â S-Corp loss of {fmt(Math.abs(k1Total))} is reducing your gross income on Schedule E
                 </div>
               )}
             </div>
@@ -484,7 +490,7 @@ export default function TaxReturn() {
             </div>
             {ytdMode ? (
               <div style={{ marginTop: 10, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 12, color: '#1E40AF' }}>
-                📅 YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} — all income inputs are being annualized × {(12/ytdMonth).toFixed(2)} to project full-year liability
+                ð YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} â all income inputs are being annualized Ã {(12/ytdMonth).toFixed(2)} to project full-year liability
               </div>
             ) : null}
           </div>
@@ -517,18 +523,18 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
-                <input value={w2Income} onChange={e => setW2Income(e.target.value)} placeholder="0" style={inp} />
+                <input defaultValue={w2Income} onBlur={e => { const v = parseFloat(e.target.value) || 0; setW2Income(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} />
                 <WhatGoesHere items={[
                   'W-2 Box 1 (Wages, tips, other compensation) from every employer',
                   'If you have multiple jobs, add all W-2 Box 1 amounts together',
-                  'Your last paystub → Gross Earnings YTD is a good estimate during the year',
-                  'Do NOT include 401(k) contributions — those already reduce Box 1',
-                  'Do NOT include your S-Corp officer salary if already entered in Step 1 — it flows via K-1',
+                  'Your last paystub â Gross Earnings YTD is a good estimate during the year',
+                  'Do NOT include 401(k) contributions â those already reduce Box 1',
+                  'Do NOT include your S-Corp officer salary if already entered in Step 1 â it flows via K-1',
                 ]} />
               </div>
               <div>
                 <label style={lbl}>Federal Tax Withheld (W-2) <InfoTip text="Total federal tax withheld by your employer(s). Find on W-2 Box 2, or your last paystub under Federal Tax YTD."/></label>
-                <input value={w2Withheld} onChange={e => setW2Withheld(e.target.value)} placeholder="0" style={inp} />
+                <input defaultValue={w2Withheld} onBlur={e => { const v = parseFloat(e.target.value) || 0; setW2Withheld(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
             </div>
           </CollapsibleSection>
@@ -541,28 +547,28 @@ export default function TaxReturn() {
               </label>
             {isREP ? (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
-                ✓ REP status: rental losses fully deductible against all income (unlimited)
+                â REP status: rental losses fully deductible against all income (unlimited)
               </div>
             ) : null}
             {!isREP && (
               <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
-                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
+                â  Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI)
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
-                <input value={rentalIncome} onChange={e => setRentalIncome(e.target.value)} placeholder="0" style={inp} />
+                <input defaultValue={rentalIncome} onBlur={e => { const v = parseFloat(e.target.value) || 0; setRentalIncome(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
-                <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
+                <input defaultValue={rentalExpenses} onBlur={e => { const v = parseFloat(e.target.value) || 0; setRentalExpenses(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
             </div>
             <WhatGoesHere items={[
-              'Total Rental Income: all rent collected this year — use bank deposits or last year\'s Schedule E Line 3',
+              'Total Rental Income: all rent collected this year â use bank deposits or last year\'s Schedule E Line 3',
               'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
-              'Depreciation: typically cost of building ÷ 27.5 years annually — find on prior Schedule E or ask your CPA',
+              'Depreciation: typically cost of building Ã· 27.5 years annually â find on prior Schedule E or ask your CPA',
               'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year AND >50% of work time)',
               'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
             ]} />
@@ -573,37 +579,37 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Short-Term Capital Gains / (Losses) <InfoTip text="Assets held 1 year or LESS. Taxed at your ordinary income rate (same as W-2). Find on Schedule D Part I Line 7 or your 1099-B. Enter a negative number for net losses (max $3,000 deductible/year)."/></label>
-                <input value={capitalGains} onChange={e => setCapitalGains(e.target.value)} placeholder="0" type="number" style={inp} />
-                <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
+                <input defaultValue={capitalGains} onBlur={e => { const v = parseFloat(e.target.value) || 0; setCapitalGains(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} type="number" />
+                <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held â¤1 yr â taxed at ordinary rates</div>
               </div>
               <div>
                 <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at preferential 0%, 15%, or 20% rates. Find on Schedule D Part II Line 15 or your 1099-B. For property sales: enter the NET gain AFTER subtracting the Unrecaptured Sec 1250 and Form 4797 ordinary gain amounts."/></label>
-                <input value={ltCapGains} onChange={e => setLtCapGains(e.target.value)} placeholder="0" type="number" style={inp} />
-                <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
+                <input defaultValue={ltCapGains} onBlur={e => { const v = parseFloat(e.target.value) || 0; setLtCapGains(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} type="number" />
+                <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr â taxed at 0/15/20%</div>
               </div>
               <div>
-                <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales — taxed at max 25% (IRC §1(h)(1)(D)). Find on Schedule D Worksheet Line 19, or your tax software output. Applies when you sell rental/business property that has been depreciated. Enter as positive number."/></label>
-                <input value={unrecap1250} onChange={e => setUnrecap1250(e.target.value)} placeholder="0" type="number" style={inp} />
-                <div style={{ fontSize: 10, color: '#854F0B', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
+                <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales â taxed at max 25% (IRC Â§1(h)(1)(D)). Find on Schedule D Worksheet Line 19, or your tax software output. Applies when you sell rental/business property that has been depreciated. Enter as positive number."/></label>
+                <input defaultValue={unrecap1250} onBlur={e => { const v = parseFloat(e.target.value) || 0; setUnrecap1250(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} type="number" />
+                <div style={{ fontSize: 10, color: '#854F0B', marginTop: 3 }}>Depreciation recapture â max 25% rate</div>
               </div>
               <div>
                 <label style={lbl}>Taxable Interest <InfoTip text="Interest earned from bank accounts, CDs, or bonds. Find on your 1099-INT from your bank or financial institution."/></label>
-                <input value={interest} onChange={e => setInterest(e.target.value)} placeholder="0" style={inp} />
+                <input defaultValue={interest} onBlur={e => { const v = parseFloat(e.target.value) || 0; setInterest(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends from stocks and funds — from 1040 Line 3b or 1099-DIV Box 1a. Enter ONLY dividends here. Do NOT add interest income — interest goes in the Taxable Interest field above. These are separate income types."/></label>
-                <input value={dividends} onChange={e => setDividends(e.target.value)} placeholder="0" type="number" style={inp} />
-                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
+                <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends from stocks and funds â from 1040 Line 3b or 1099-DIV Box 1a. Enter ONLY dividends here. Do NOT add interest income â interest goes in the Taxable Interest field above. These are separate income types."/></label>
+                <input defaultValue={dividends} onBlur={e => { const v = parseFloat(e.target.value) || 0; setDividends(v); e.target.value = v || ''; }} onFocus={e => e.target.select()} placeholder="0" style={inp} type="number" />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b â do not include interest</div>
               </div>
             </div>
             <WhatGoesHere items={[
-              'Short-Term Capital Gains: profits from assets sold within 1 year — taxed at ordinary income rates (same as W-2 wages)',
-              'Long-Term Capital Gains: profits from assets held >1 year — taxed at 0%, 15%, or 20% preferred rates',
+              'Short-Term Capital Gains: profits from assets sold within 1 year â taxed at ordinary income rates (same as W-2 wages)',
+              'Long-Term Capital Gains: profits from assets held >1 year â taxed at 0%, 15%, or 20% preferred rates',
               'Find both on 1099-B from your brokerage or Schedule D summary; enter losses as negative numbers',
-              'Unrecaptured Sec 1250 Gain: for rental or business property sales only — from Schedule D Tax Worksheet Line 19',
+              'Unrecaptured Sec 1250 Gain: for rental or business property sales only â from Schedule D Tax Worksheet Line 19',
               'Taxable Interest: 1099-INT Box 1 from banks, CDs, bonds; exclude tax-exempt municipal bond interest',
-              'Ordinary Dividends: 1099-DIV Box 1a — only stock/fund dividends, never double-count with interest above',
-              'Qualified Dividends: 1099-DIV Box 1b — subset of ordinary dividends taxed at the same 0/15/20% preferred rates',
+              'Ordinary Dividends: 1099-DIV Box 1a â only stock/fund dividends, never double-count with interest above',
+              'Qualified Dividends: 1099-DIV Box 1b â subset of ordinary dividends taxed at the same 0/15/20% preferred rates',
             ]} />
             {/* Prior Year Loss Carryforward */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
@@ -625,11 +631,11 @@ export default function TaxReturn() {
                 <input style={inp} type="text" placeholder="0" value={socialSecurity} onChange={e => setSocialSecurity(e.target.value)} />
               </div>
               <div>
-                <label style={lbl}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a. Includes traditional IRA withdrawals, 401(k) distributions, pension payments. Roth distributions are generally tax-free — do not include."/></label>
+                <label style={lbl}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a. Includes traditional IRA withdrawals, 401(k) distributions, pension payments. Roth distributions are generally tax-free â do not include."/></label>
                 <input style={inp} type="text" placeholder="0" value={iraDistributions} onChange={e => setIraDistributions(e.target.value)} />
               </div>
               <div>
-                <label style={lbl}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of your ordinary dividends taxed at the lower capital gains rate (0%, 15%, or 20%). Must be ≤ Ordinary Dividends entered above."/></label>
+                <label style={lbl}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b â a subset of your ordinary dividends taxed at the lower capital gains rate (0%, 15%, or 20%). Must be â¤ Ordinary Dividends entered above."/></label>
                 <input style={inp} type="text" placeholder="0" value={qualifiedDividends} onChange={e => setQualifiedDividends(e.target.value)} />
               </div>
             </div>
@@ -648,7 +654,7 @@ export default function TaxReturn() {
                 <input style={inp} type="text" placeholder="0" value={hsaDeduction} onChange={e => setHsaDeduction(e.target.value)} />
               </div>
               <div>
-                <label style={lbl}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans. Capped at $2,500. Phases out between $75,000–$90,000 AGI (single). From Form 1098-E."/></label>
+                <label style={lbl}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans. Capped at $2,500. Phases out between $75,000â$90,000 AGI (single). From Form 1098-E."/></label>
                 <input style={inp} type="text" placeholder="0" value={studentLoanInt} onChange={e => setStudentLoanInt(e.target.value)} />
               </div>
             </div>
@@ -686,7 +692,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
         </div>
 
-        {/* RIGHT — Live Results */}
+        {/* RIGHT â Live Results */}
         <div style={{ position: 'sticky', top: 72 }}>
 
           {/* Total Tax Card */}
@@ -751,7 +757,7 @@ export default function TaxReturn() {
             {/* Accuracy note */}
             <div style={{ marginTop: 16, padding: '10px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8, borderLeft: '3px solid rgba(255,255,255,0.2)' }}>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-                ⚠ Accuracy depends on your inputs. Please review all fields to ensure the most accurate result. This is an estimate — consult a tax professional for filing.
+                â  Accuracy depends on your inputs. Please review all fields to ensure the most accurate result. This is an estimate â consult a tax professional for filing.
               </div>
             </div>
           </div>
@@ -759,7 +765,7 @@ export default function TaxReturn() {
           {/* Income Waterfall */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
             <button onClick={() => setShowDetail(prev => !prev)} style={{ background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
-              INCOME WATERFALL {showDetail ? '▲' : '▼'}
+              INCOME WATERFALL {showDetail ? 'â²' : 'â¼'}
             </button>
             {showDetail ? (
               <div style={{ marginTop: 12 }}>
@@ -773,18 +779,18 @@ export default function TaxReturn() {
                   collectibles > 0 ? ['Collectibles Gain (28%)', collectibles, false] : null,
                   ['Taxable Interest', intInc, true],
                   ['Ordinary Dividends', divInc, true],
-                  ['─────────────────', null, true],
+                  ['âââââââââââââââââ', null, true],
                   ['Gross Income', grossIncome, grossIncome >= 0],
                   ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
                   ['QBI Deduction', qbi > 0 ? -qbi : 0, false],
-                  ['─────────────────', null, true],
+                  ['âââââââââââââââââ', null, true],
                   ['Taxable Income', taxableIncome, taxableIncome >= 0],
-                  ['Federal Tax — Ordinary Income', ordFedTax > 0 ? -ordFedTax : null, false],
-                  ['Federal Tax — LTCG / 1250 / Qual Div', prefTax > 0 ? -prefTax : null, false],
+                  ['Federal Tax â Ordinary Income', ordFedTax > 0 ? -ordFedTax : null, false],
+                  ['Federal Tax â LTCG / 1250 / Qual Div', prefTax > 0 ? -prefTax : null, false],
                   niit > 0 ? ['Net Investment Income Tax (3.8%)', -niit, false] : null,
                   ['Add\'l Medicare Tax', -additionalMedicare, false],
                   ['Child Tax Credit', childCredit > 0 ? childCredit : 0, true],
-                  ['─────────────────', null, true],
+                  ['âââââââââââââââââ', null, true],
                   ['Total Tax', -totalTax, false],
                 ].filter(Boolean).map(([label, val, pos], i) => {
                   if (val === null) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
@@ -821,7 +827,7 @@ export default function TaxReturn() {
               </div>
             ))}
             <div style={{ marginTop: 12, padding: '10px 14px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: SL, lineHeight: 1.5 }}>
-              Based on annual liability ÷ 4. Adjust for income earned to date.
+              Based on annual liability Ã· 4. Adjust for income earned to date.
             </div>
           </div>
 
@@ -865,7 +871,7 @@ export default function TaxReturn() {
                 }
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
-                // Find any Dashboard-format record (has biz object) — prefer ones with data
+                // Find any Dashboard-format record (has biz object) â prefer ones with data
                 const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0)) >= 0
                   ? existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0))
                   : existing.findIndex(r => r.biz) // fallback: any record with biz
@@ -878,7 +884,7 @@ export default function TaxReturn() {
                     : r
                   )
                 } else {
-                  // No Dashboard record found — create a standalone record with full metadata
+                  // No Dashboard record found â create a standalone record with full metadata
                   const record = {
                     id: Date.now(),
                     savedAt: new Date().toLocaleString(),
@@ -907,10 +913,10 @@ export default function TaxReturn() {
                 setTimeout(() => setSaved(false), 3000)
               } catch(e) { console.error('Save failed:', e) }
             }} style={{ width: '100%', padding: '13px', background: saved ? '#059669' : '#0D1B3E', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'background 0.3s' }}>
-              {saved ? '✅ Record Saved!' : '💾 Save This Record'}
+              {saved ? 'â Record Saved!' : 'ð¾ Save This Record'}
             </button>
             <button onClick={() => nav('/ai-analysis')} style={{ width: '100%', padding: '13px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              🧠 View AI Analysis & Risk Report →
+              ð§  View AI Analysis & Risk Report â
             </button>
           </div>
         </div>
