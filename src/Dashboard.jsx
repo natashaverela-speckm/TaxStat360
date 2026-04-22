@@ -244,17 +244,30 @@ export default function Dashboard(){
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
     // Remove any blank records (no revenue AND no W-2) that may have been saved previously
-    // Remove flat/orphan records (no biz object) and blank records
-    const cleanRecs = recs.filter(r => r.biz && (parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0))
+    // Keep any record that has real data — biz-based OR flat personal-return format
+    const cleanRecs = recs.filter(r => {
+      if (r.biz) return parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0
+      // flat personal-return records from TaxReturn page — keep if has any income
+      return parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
+    })
     if (cleanRecs.length !== recs.length) {
       // Persist the cleaned list immediately
       localStorage.setItem(key, JSON.stringify(cleanRecs))
       localStorage.setItem('ts360_records', JSON.stringify(cleanRecs))
     }
     setRecords(cleanRecs)
-    if(cleanRecs.length>0&&cleanRecs[0].biz){
-      setBiz(cleanRecs[0].biz)
-      const saved1040=cleanRecs[0].f1040||{}
+    if(cleanRecs.length>0){
+      const r0=cleanRecs[0]
+      if(r0.biz) setBiz(r0.biz)
+      // Support both record formats
+      const saved1040=r0.biz ? (r0.f1040||{}) : {
+        filingStatus:r0.filingStatus||'single',
+        w2Income:r0.w2Income||'',
+        estimatedPayments:r0.estPaid||'',
+        dependents:r0.dependents||'0',
+        useStandardDed:!r0.useItemized,
+        itemizedDed:r0.itemizedAmt||'',
+      }
       setF1040({
         filingStatus:saved1040.filingStatus||'single',
         w2Income:saved1040.w2Income||'',
@@ -425,8 +438,15 @@ export default function Dashboard(){
     setSavedRecordId(rec.id)
     // Restore business data
     if(rec.biz) setBiz({...rec.biz})
-    // Restore f1040 from rec.f1040 (the saved sub-object)
-    const saved1040 = rec.f1040 || {}
+    // Support both record formats
+    const saved1040 = rec.biz ? (rec.f1040||{}) : {
+      filingStatus:rec.filingStatus||'single',
+      w2Income:rec.w2Income||'',
+      estimatedPayments:rec.estPaid||'',
+      dependents:rec.dependents||'0',
+      useStandardDed:!rec.useItemized,
+      itemizedDed:rec.itemizedAmt||'',
+    }
     setF1040({
       filingStatus: saved1040.filingStatus || rec.filingStatus || 'single',
       w2Income: saved1040.w2Income || rec.w2Income || '',
@@ -605,9 +625,9 @@ export default function Dashboard(){
         )}
         </div>{/* end connect card */}
 
-        <div style={{display:'flex',alignItems:'center',gap:12,margin:'14px 0',color:SL,fontSize:13}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,margin:'16px 0 8px',color:SL,fontSize:13}}>
           <div style={{flex:1,height:1,background:'#E2E8F0'}}/>
-          <span>or enter manually below</span>
+          <span style={{fontWeight:600}}>Enter manually</span>
           <div style={{flex:1,height:1,background:'#E2E8F0'}}/>
         </div>
 
@@ -616,7 +636,7 @@ export default function Dashboard(){
           <div><p style={{color:SL,fontSize:13,margin:0}}>{connectedApp?'Review imported data from '+connectedApp+' and confirm below.':'Enter your business income and expenses for the tax year.'}</p></div>
           <div style={{display:'flex',gap:10,flexShrink:0}}>
             {connectedApp&&<button onClick={refreshData} style={{padding:'7px 14px',background:'#EFF6FF',color:B,border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{refreshing?'Refreshing...':'↻ Refresh Data'}</button>}
-            <button onClick={()=>setShowFin(v=>!v)} style={{padding:'7px 14px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer'}}>{showFin?'Collapse':'Expand'} Details</button>
+
           </div>
         </div>
 
@@ -626,8 +646,7 @@ export default function Dashboard(){
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" value={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
 
-        {showFin&&(
-          <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:20}}>
+        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:20}}>
             <div style={{marginBottom:18}}>
               <div style={{fontSize:12,fontWeight:700,color:B,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.06em'}}>Revenue</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
