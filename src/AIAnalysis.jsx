@@ -137,8 +137,19 @@ function RiskScan({ rec }) {
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
   const totalIncome = k1 + w2
   const today = new Date()
-  const month = today.getMonth() + 1
-  const deadlines = { 1:'April 15',2:'April 15',3:'April 15',4:'April 15',5:'June 16',6:'June 16',7:'September 15',8:'September 15',9:'September 15',10:'January 15',11:'January 15',12:'January 15' }
+  // Quarterly estimated tax deadlines (month/day)
+  const qDeadlines = [
+    {month:4,day:15,label:'April 15'},
+    {month:6,day:16,label:'June 16'},
+    {month:9,day:15,label:'September 15'},
+    {month:1,day:15,label:'January 15',nextYear:true}
+  ]
+  const nextDeadline = qDeadlines.find(d => {
+    const dl = new Date(today.getFullYear() + (d.nextYear ? 1 : 0), d.month-1, d.day)
+    return dl > today
+  }) || qDeadlines[0]
+  const deadlines = { get month(){ return nextDeadline.label } }
+  const month = 'month'
 
   const findings = []
 
