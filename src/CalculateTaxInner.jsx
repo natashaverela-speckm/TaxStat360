@@ -67,6 +67,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
   const[manual,setManual]=React.useState(false)
   const[manRev,setManRev]=React.useState('')
   const[manExp,setManExp]=React.useState('')
+  const[manOfficerSal,setManOfficerSal]=React.useState('')
   const[showDetails,setShowDetails]=React.useState(false)
   const color=COLORS[idx%COLORS.length]
   const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
@@ -74,7 +75,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
 
   async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
   function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API+'/auth/'+pid+'/connect'}}
-  function applyManual(){const r=nv(manRev),ex=nv(manExp);if(r>0||ex>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:ex,netProfit:r-ex,categories:{}},connectedId:null,isManual:true})}
+  function applyManual(){const r=nv(manRev),ex=nv(manExp),sal=nv(manOfficerSal);if(r>0||ex>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:ex,netProfit:r-ex,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
   const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):0
 
   return(
