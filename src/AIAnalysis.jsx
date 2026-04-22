@@ -30,14 +30,26 @@ const fmt = n => n < 0 ? '($' + Math.abs(Math.round(n)).toLocaleString() + ')' :
 const pct = n => (parseFloat(n) || 0).toFixed(1) + '%'
 
 // ── Data helpers ─────────────────────────────────────────────────────────────
+function getAllRecords() {
+  // Scan ALL ts360_records_* keys to find real records regardless of email state
+  const found = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith('ts360_records')) {
+      try {
+        const recs = JSON.parse(localStorage.getItem(k) || '[]')
+        recs.forEach(r => { if (r.biz && !found.find(x => x.id === r.id)) found.push(r) })
+      } catch(e) {}
+    }
+  }
+  // Sort newest first
+  return found.sort((a, b) => (b.id || 0) - (a.id || 0))
+}
+
 function getRecord() {
-  const email = localStorage.getItem('ts360_email') || 'default'
-  const recs = JSON.parse(
-    localStorage.getItem('ts360_records_' + email) ||
-    localStorage.getItem('ts360_records') || '[]'
-  )
-  // Only return records with a biz object (Dashboard records), skip old flat TaxReturn records
-  return recs.find(r => r.biz) || null
+  const recs = getAllRecords()
+  // Return the most recent record with real business data
+  return recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
 }
 
 function completeness(rec) {
