@@ -213,6 +213,30 @@ function CollapsibleSection({ title, children, defaultOpen = true, badge = null 
 }
 
 
+// ── Feature #5: Collapsible "What goes here?" field explainers ───────────────
+function WhatGoesHere({ items }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button onClick={() => setOpen(v => !v)} style={{
+        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        fontSize: 12, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
+      }}>
+        {open ? '▲' : '▼'} What goes here?
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 14px' }}>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {items.map((item, i) => (
+              <li key={i} style={{ fontSize: 12, color: '#0369A1', lineHeight: 1.7, marginBottom: 2 }}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TaxReturn() {
   const nav = useNavigate()
 
@@ -227,6 +251,8 @@ export default function TaxReturn() {
 
   // Personal inputs — pre-populated from saved record if available
   const [taxYear, setTaxYear] = React.useState(savedTaxYear)
+  const [ytdMode, setYtdMode] = React.useState(false)
+  const [ytdMonth, setYtdMonth] = React.useState(new Date().getMonth() + 1) // current month
   const [status, setStatus] = React.useState(savedF1040.filingStatus || 'single')
   const [qualifiedDividends, setQualifiedDividends] = React.useState('')
   const [socialSecurity, setSocialSecurity] = React.useState('')
@@ -254,29 +280,33 @@ export default function TaxReturn() {
   const [showDetail, setShowDetail] = React.useState(false)
 
   // Core calculations
-  const w2 = nv(w2Income)
-  const rentalNet = isREP ? (nv(rentalIncome) - nv(rentalExpenses)) : Math.max(0, nv(rentalIncome) - nv(rentalExpenses))
-  const stGain = nv(capitalGains)    // short-term: taxed at ordinary income rates
-  const ltGain = nv(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
+  // YTD annualization: scale YTD inputs to full-year projections
+  const ytdFactor = ytdMode && ytdMonth > 0 ? 12 / ytdMonth : 1
+  const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
+
+  const w2 = ytdScale(w2Income)
+  const rentalNet = isREP ? (ytdScale(rentalIncome) - ytdScale(rentalExpenses)) : Math.max(0, ytdScale(rentalIncome) - ytdScale(rentalExpenses))
+  const stGain = ytdScale(capitalGains)    // short-term: taxed at ordinary income rates
+  const ltGain = ytdScale(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
   const capGain = stGain + ltGain    // total capital gains for QBI income limitation
-  const intInc = nv(interest)
+  const intInc = ytdScale(interest)
   // FIX: Ordinary dividends (Line 3b) are entered once — qualified dividends are a SUBSET
   // Do NOT add qualifiedDividends separately — it is already included in dividends (Line 3b)
-  const divInc = nv(dividends)       // ordinary dividends only (1040 Line 3b)
-  const qualDiv = nv(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
+  const divInc = ytdScale(dividends)       // ordinary dividends only (1040 Line 3b)
+  const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
   const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
 
   // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
   // Social Security: up to 85% taxable (simplified for planning)
-  const ssBenefits = nv(socialSecurity)
+  const ssBenefits = ytdScale(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
-  const iraIncome = nv(iraDistributions)
+  const iraIncome = ytdScale(iraDistributions)
   const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + taxableSS + iraIncome
 
   // Above-the-line deductions (Schedule 1, Part II)
-  const selfEmpHealthDed = nv(selfEmpHealthIns)
-  const hsaDed = nv(hsaDeduction)
-  const studentLoanDed = Math.min(nv(studentLoanInt), 2500) // capped at $2,500
+  const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
+  const hsaDed = ytdScale(hsaDeduction)
+  const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
   const adjustments = priorLosses + selfEmpHealthDed + hsaDed + studentLoanDed
   const agi = grossIncome - adjustments
 
@@ -429,15 +459,34 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* Tax Year */}
+          {/* Tax Year + YTD Mode */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>TAX YEAR</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: ytdMode ? '#2563EB' : SL }}>
+                <input type="checkbox" checked={ytdMode} onChange={e => setYtdMode(e.target.checked)} style={{ width: 14, height: 14, accentColor: '#2563EB' }} />
+                YTD Mode (annualize)
+                <InfoTip text="Year-to-date mode: enter income and expenses as of today and we'll project your full-year tax liability. Select the month you're tracking through." />
+              </label>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, background: '#fff' }}>
                 {[2026,2025,2024].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-              <div style={{ fontSize: 13, color: SL }}>Std. deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong></div>
+              {ytdMode && (
+                <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))} style={{ flex: 1, padding: '10px 12px', border: '2px solid #2563EB', borderRadius: 8, fontSize: 14, color: N, background: '#EFF6FF' }}>
+                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
+                    <option key={i+1} value={i+1}>Through {m}</option>
+                  ))}
+                </select>
+              )}
+              <div style={{ fontSize: 13, color: SL, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(getStdDed(taxYear, status))}</strong></div>
             </div>
+            {ytdMode && (
+              <div style={{ marginTop: 10, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 12, color: '#1E40AF' }}>
+                📅 YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} — all income inputs are being annualized × {(12/ytdMonth).toFixed(2)} to project full-year liability
+              </div>
+            )}
           </div>
 
           {/* Filing Status */}
@@ -469,6 +518,13 @@ export default function TaxReturn() {
               <div>
                 <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
                 <input value={w2Income} onChange={e => setW2Income(e.target.value)} placeholder="0" style={inp} />
+                <WhatGoesHere items={[
+                  'W-2 Box 1 (Wages, tips, other compensation) from every employer',
+                  'If you have multiple jobs, add all W-2 Box 1 amounts together',
+                  'Your last paystub → Gross Earnings YTD is a good estimate during the year',
+                  'Do NOT include 401(k) contributions — those already reduce Box 1',
+                  'Do NOT include your S-Corp officer salary if already entered in Step 1 — it flows via K-1',
+                ]} />
               </div>
               <div>
                 <label style={lbl}>Federal Tax Withheld (W-2) <InfoTip text="Total federal tax withheld by your employer(s). Find on W-2 Box 2, or your last paystub under Federal Tax YTD."/></label>
@@ -503,6 +559,13 @@ export default function TaxReturn() {
                 <input value={rentalExpenses} onChange={e => setRentalExpenses(e.target.value)} placeholder="0" style={inp} />
               </div>
             </div>
+            <WhatGoesHere items={[
+              'Total Rental Income: all rent collected this year — use bank deposits or last year\'s Schedule E Line 3',
+              'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
+              'Depreciation: typically cost of building ÷ 27.5 years annually — find on prior Schedule E or ask your CPA',
+              'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year AND >50% of work time)',
+              'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
+            ]} />
           </CollapsibleSection>
 
           {/* Other Income */}
@@ -533,6 +596,15 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
               </div>
             </div>
+            <WhatGoesHere items={[
+              'Short-Term Capital Gains: profits from assets sold within 1 year — taxed at ordinary income rates (same as W-2 wages)',
+              'Long-Term Capital Gains: profits from assets held >1 year — taxed at 0%, 15%, or 20% preferred rates',
+              'Find both on 1099-B from your brokerage or Schedule D summary; enter losses as negative numbers',
+              'Unrecaptured Sec 1250 Gain: for rental or business property sales only — from Schedule D Tax Worksheet Line 19',
+              'Taxable Interest: 1099-INT Box 1 from banks, CDs, bonds; exclude tax-exempt municipal bond interest',
+              'Ordinary Dividends: 1099-DIV Box 1a — only stock/fund dividends, never double-count with interest above',
+              'Qualified Dividends: 1099-DIV Box 1b — subset of ordinary dividends taxed at the same 0/15/20% preferred rates',
+            ]} />
             {/* Prior Year Loss Carryforward */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
               <label style={lbl}>Prior Year Loss Carryforward <InfoTip text="Losses from prior years that carry forward. Find on last year's Form 8995 Line 16 (QBI losses) or Schedule D (capital loss carryovers)."/></label>
