@@ -323,7 +323,7 @@ export default function TaxReturn() {
   // ── Self-Employment income + SE tax (IRC §1401) ──────────────────────────────
   // SE-subject entity types: Sole Prop, SMLLC (disregarded), Partnership (GP default), LLC (Partnership)
   // NOT SE-subject: S-Corp (handled via officer W-2 payroll), C-Corp (corporate tax)
-  const SE_SUBJECT_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)', 'Partnership', 'LLC (Partnership)']
+  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
   const seNetIncome = entities.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     return sum + Math.max(0, parseFloat(e.k1) || 0)
@@ -339,8 +339,8 @@ export default function TaxReturn() {
   const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 adjustment, also reduces QBI basis)
 
   // Entity-mix classifiers for display labels
-  const SCHED_C_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)']
-  const K1_TYPES = ['S-Corp', 'C-Corp', 'Partnership', 'LLC (Partnership)']
+  const SCHED_C_TYPES = ['Sole Proprietor / Single-Member LLC']
+  const K1_TYPES = ['Partnership / Multi-Member LLC', 'S Corporation', 'C Corporation']
   const hasSchedC = entities.some(e => SCHED_C_TYPES.includes(e?.type))
   const hasK1 = entities.some(e => K1_TYPES.includes(e?.type))
   const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
@@ -937,7 +937,7 @@ export default function TaxReturn() {
                     id: Date.now(),
                     savedAt: new Date().toLocaleString(),
                     biz: {
-                      entityType: entities.length > 0 ? entities[0].type : 'S-Corporation',
+                      entityType: entities.length > 0 ? entities[0].type : 'S Corporation',
                       year: taxYear,
                       grossRevenue: entities.length > 0 ? String(Math.round((entities[0].netProfit || 0) + Math.abs(entities[0].k1 || 0))) : '',
                       operatingExpenses: '',
