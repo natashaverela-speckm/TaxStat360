@@ -9,7 +9,7 @@ const nv=v=>parseFloat((v||'').toString().replace(/[^0-9.-]/g,''))||0
 const OWN=[['100','100%'],['75','75%'],['67','67%'],['60','60%'],['50','50%'],['40','40%'],['33','33%'],['25','25%'],['20','20%'],['10','10%'],['5','5%'],['1','1%']]
 const ENTITY_TYPES=['S-Corp','LLC (Partnership)','LLC (Single-Member)','Sole Proprietorship','C-Corp','Partnership']
 const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
-const US_STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
+const US_STATES=['AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 const TEMPLATES=[
   {label:'S-Corp Owner',icon:'🏢',type:'S-Corp',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
   {label:'Real Estate LLC',icon:'🏠',type:'LLC (Partnership)',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
