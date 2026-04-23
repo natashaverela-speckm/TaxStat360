@@ -151,6 +151,37 @@ function nv(v) {
   return parseFloat((v || '').toString().replace(/[^0-9.-]/g, '')) || 0
 }
 
+// Money input with live comma formatting (used for all currency fields in TaxReturn)
+// Storage: string with commas; nv() parses downstream
+function MoneyInput({ value, onChange, placeholder, style }) {
+  const display = (() => {
+    const s = (value ?? '').toString()
+    if (s === '' || s === '-') return s
+    const cleaned = s.replace(/[^0-9.-]/g, '')
+    if (cleaned === '' || cleaned === '-') return cleaned
+    const n = parseFloat(cleaned)
+    if (isNaN(n)) return ''
+    const trailingDot = s.endsWith('.')
+    const decMatch = cleaned.match(/\.([0-9]*)$/)
+    const intPart = Math.trunc(Math.abs(n)).toLocaleString('en-US')
+    const sign = n < 0 ? '-' : ''
+    if (trailingDot) return sign + intPart + '.'
+    if (decMatch && decMatch[1]) return sign + intPart + '.' + decMatch[1]
+    return sign + intPart
+  })()
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      placeholder={placeholder}
+      style={style}
+      onChange={e => onChange(e.target.value)}
+    />
+  )
+}
+
+
 // Tax bracket indicator
 function BracketBadge({ rate }) {
   const colors = {
@@ -557,7 +588,7 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
-                <input defaultValue={w2Income} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setW2Income(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />
                 <WhatGoesHere items={[
                   'W-2 Box 1 (Wages, tips, other compensation) from every employer',
                   'If you have multiple jobs, add all W-2 Box 1 amounts together',
@@ -568,7 +599,7 @@ export default function TaxReturn() {
               </div>
               <div>
                 <label style={lbl}>Federal Tax Withheld (W-2) <InfoTip text="Total federal tax withheld by your employer(s). Find on W-2 Box 2, or your last paystub under Federal Tax YTD."/></label>
-                <input defaultValue={w2Withheld} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setW2Withheld(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" style={inp} />
               </div>
             </div>
           </CollapsibleSection>
@@ -592,11 +623,11 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
-                <input defaultValue={rentalIncome} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setRentalIncome(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                <MoneyInput value={rentalIncome} onChange={setRentalIncome} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
-                <input defaultValue={rentalExpenses} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setRentalExpenses(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" style={inp} />
               </div>
             </div>
             <WhatGoesHere items={[
@@ -613,26 +644,26 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Short-Term Capital Gains / (Losses) <InfoTip text="Assets held 1 year or LESS. Taxed at your ordinary income rate (same as W-2). Find on Schedule D Part I Line 7 or your 1099-B. Enter a negative number for net losses (max $3,000 deductible/year)."/></label>
-                <input defaultValue={capitalGains} onBlur={e=>{const v=parseFloat(e.target.value)||0;setCapitalGains(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={inp} />
+                <MoneyInput value={capitalGains} onChange={setCapitalGains} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
               </div>
               <div>
                 <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at preferential 0%, 15%, or 20% rates. Find on Schedule D Part II Line 15 or your 1099-B. For property sales: enter the NET gain AFTER subtracting the Unrecaptured Sec 1250 and Form 4797 ordinary gain amounts."/></label>
-                <input defaultValue={ltCapGains} onBlur={e=>{const v=parseFloat(e.target.value)||0;setLtCapGains(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={inp} />
+                <MoneyInput value={ltCapGains} onChange={setLtCapGains} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
               </div>
               <div>
                 <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales — taxed at max 25% (IRC §1(h)(1)(D)). Find on Schedule D Worksheet Line 19, or your tax software output. Applies when you sell rental/business property that has been depreciated. Enter as positive number."/></label>
-                <input defaultValue={unrecap1250} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setUnrecap1250(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={inp} />
+                <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: '#854F0B', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
               </div>
               <div>
                 <label style={lbl}>Taxable Interest <InfoTip text="Interest earned from bank accounts, CDs, or bonds. Find on your 1099-INT from your bank or financial institution."/></label>
-                <input defaultValue={interest} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setInterest(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                <MoneyInput value={interest} onChange={setInterest} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Ordinary Dividends <InfoTip text="Dividends from stocks and funds — from 1040 Line 3b or 1099-DIV Box 1a. Enter ONLY dividends here. Do NOT add interest income — interest goes in the Taxable Interest field above. These are separate income types."/></label>
-                <input defaultValue={dividends} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setDividends(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" type="number" style={inp} />
+                <MoneyInput value={dividends} onChange={setDividends} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
               </div>
             </div>
@@ -649,7 +680,7 @@ export default function TaxReturn() {
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
               <label style={lbl}>Prior Year Loss Carryforward <InfoTip text="Losses from prior years that carry forward. Find on last year's Form 8995 Line 16 (QBI losses) or Schedule D (capital loss carryovers)."/></label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <input defaultValue={priorYearLosses} onBlur={e=>{const v=parseFloat(e.target.value)||0;setPriorYearLosses(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
+                <MoneyInput value={priorYearLosses} onChange={setPriorYearLosses} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
                 <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>
                   Enter losses carried forward from prior year (positive number). Reduces your AGI.
                 </div>
@@ -662,15 +693,15 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label style={lbl}>Social Security Benefits <InfoTip text="Total SS/SSA-1099 Box 5 gross benefits received. We apply the 85% maximum inclusion rate for planning purposes. Find on SSA-1099 form mailed each January."/></label>
-                <input style={inp} type="text" placeholder="0" value={socialSecurity} onChange={e => setSocialSecurity(e.target.value)} />
+                <MoneyInput value={socialSecurity} onChange={setSocialSecurity} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a. Includes traditional IRA withdrawals, 401(k) distributions, pension payments. Roth distributions are generally tax-free — do not include."/></label>
-                <input style={inp} type="text" placeholder="0" value={iraDistributions} onChange={e => setIraDistributions(e.target.value)} />
+                <MoneyInput value={iraDistributions} onChange={setIraDistributions} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of your ordinary dividends taxed at the lower capital gains rate (0%, 15%, or 20%). Must be ≤ Ordinary Dividends entered above."/></label>
-                <input style={inp} type="text" placeholder="0" value={qualifiedDividends} onChange={e => setQualifiedDividends(e.target.value)} />
+                <MoneyInput value={qualifiedDividends} onChange={setQualifiedDividends} placeholder="0" style={inp} />
               </div>
             </div>
           </CollapsibleSection>
@@ -681,15 +712,15 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Premiums you paid for health/dental/vision insurance for yourself and family if self-employed. Found in your records or Schedule K-1 attachments. Cannot exceed your net self-employment income."/></label>
-                <input style={inp} type="text" placeholder="0" value={selfEmpHealthIns} onChange={e => setSelfEmpHealthIns(e.target.value)} />
+                <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>HSA Deduction <InfoTip text="Contributions you made directly to your Health Savings Account (not through payroll). From Form 8889. 2025 limit: $4,300 self-only, $8,550 family."/></label>
-                <input style={inp} type="text" placeholder="0" value={hsaDeduction} onChange={e => setHsaDeduction(e.target.value)} />
+                <MoneyInput value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans. Capped at $2,500. Phases out between $75,000–$90,000 AGI (single). From Form 1098-E."/></label>
-                <input style={inp} type="text" placeholder="0" value={studentLoanInt} onChange={e => setStudentLoanInt(e.target.value)} />
+                <MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" style={inp} />
               </div>
             </div>
           </CollapsibleSection>
@@ -710,7 +741,7 @@ export default function TaxReturn() {
               {useItemized ? (
                 <div>
                   <label style={lbl}>Your Itemized Deductions (Schedule A) <InfoTip text="Total itemized deductions instead of the standard deduction. Find on Schedule A: mortgage interest (Form 1098), state taxes, charitable gifts, and medical expenses."/></label>
-                  <input defaultValue={itemizedAmt} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setItemizedAmt(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={inp} />
+                  <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder="0" style={inp} />
                 </div>
               ) : null}
             </div>
@@ -720,7 +751,7 @@ export default function TaxReturn() {
           <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div>
               <label style={lbl}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly payments sent to the IRS this year (Form 1040-ES). Find in your IRS Online Account or bank records for payments on April 15, June 15, Sept 15, and Jan 15."/></label>
-              <input defaultValue={estPaid} onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);setEstPaid(v);e.target.value=v===0?'':v;}} onFocus={e=>e.target.select()} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
+              <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
           </CollapsibleSection>
