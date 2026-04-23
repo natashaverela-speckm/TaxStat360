@@ -213,6 +213,7 @@ export default function Dashboard(){
   const [showFin,setShowFin]=useState(true)
   const [show1040,setShow1040]=useState(false)
   const [loadedRecord,setLoadedRecord]=useState(null)
+  const navigate = useNavigate()
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
   const bSet=(k,v)=>{setSaved(false);setBiz(p=>({...p,[k]:v}))}
@@ -284,7 +285,7 @@ export default function Dashboard(){
       // Only auto-navigate to form if explicitly requested (e.g. "Update Data" button)
       if(sessionStorage.getItem('ts360_goto_form')==='1'){
         sessionStorage.removeItem('ts360_goto_form')
-        setActiveView('business')
+        navigate('/calculate-tax/')
       }
     }
     const params=new URLSearchParams(window.location.search)
@@ -512,7 +513,7 @@ export default function Dashboard(){
       )}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
+        {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
               // Navigate to full Tax Return page with k1 data
@@ -549,7 +550,7 @@ export default function Dashboard(){
               setSavedRecordId(null)
               setSaved(false)
               setLoadedRecord(null)
-              setActiveView('business')
+              navigate('/calculate-tax/')
             }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
           {records.length===0?(
@@ -563,7 +564,7 @@ export default function Dashboard(){
               setSavedRecordId(null)
               setSaved(false)
               setLoadedRecord(null)
-              setActiveView('business')
+              navigate('/calculate-tax/')
             }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
           ):(
@@ -763,7 +764,7 @@ export default function Dashboard(){
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
-          <button onClick={()=>setActiveView('business')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
+          <button onClick={()=>navigate('/calculate-tax/')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
         </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
