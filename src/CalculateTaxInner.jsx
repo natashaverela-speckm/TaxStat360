@@ -6,10 +6,9 @@ const API='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const INTS=[{id:'quickbooks',name:'QuickBooks',color:'#2CA01C',abbr:'QB'},{id:'xero',name:'Xero',color:'#13B5EA',abbr:'XE'},{id:'wave',name:'Wave',color:'#2C6ECB',abbr:'WV'},{id:'freshbooks',name:'FreshBooks',color:'#1a9c3e',abbr:'FB'}]
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 const nv=v=>parseFloat((v||'').toString().replace(/[^0-9.-]/g,''))||0
-const OWN=[['100','100%'],['75','75%'],['67','67%'],['60','60%'],['50','50%'],['40','40%'],['33','33%'],['25','25%'],['20','20%'],['10','10%'],['5','5%'],['1','1%']]
+const OWN_PRESETS=[100,75,50,33,25]
 const ENTITY_TYPES=['S-Corp','LLC (Partnership)','LLC (Single-Member)','Sole Proprietorship','C-Corp','Partnership']
 const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
-const US_STATES=['AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 const TEMPLATES=[
   {label:'S-Corp Owner',icon:'🏢',type:'S-Corp',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
   {label:'Real Estate LLC',icon:'🏠',type:'LLC (Partnership)',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
@@ -20,10 +19,10 @@ const TEMPLATES=[
 ]
 
 function exportEntitiesToCSV(entities){
-  const rows=[['Name','Entity Type','EIN','State','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
+  const rows=[['Name','Entity Type','EIN','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
   entities.forEach(ent=>{
     const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):''
-    rows.push([ent.name,ent.type,ent.ein||'',ent.state||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
+    rows.push([ent.name,ent.type,ent.ein||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
   })
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n')
   const blob=new Blob([csv],{type:'text/csv'})
@@ -36,7 +35,7 @@ function parseCSVImport(text){
   const lines=text.trim().split('\n').slice(1)
   return lines.map((line,i)=>{
     const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"').trim())
-    const[name,type,ein,state,formationDate,own,grossRevenue,totalExpenses]=cols
+    const[name,type,ein,formationDate,own,grossRevenue,totalExpenses]=cols
     const rev=parseFloat(grossRevenue)||0,exp=parseFloat(totalExpenses)||0
     const ownPct=own?own.replace('%',''):'100'
     return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S-Corp',ein:ein||'',state:state||'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
@@ -86,7 +85,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
           <div style={{width:28,height:28,borderRadius:7,background:'rgba(0,0,0,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff'}}>{idx+1}</div>
           <div>
             <div contentEditable suppressContentEditableWarning onBlur={v=>onUpdate(idx,{...ent,name:v.target.innerText.trim()||'Business '+(idx+1)})} onKeyDown={v=>{if(v.key==='Enter')v.target.blur()}} style={{background:'transparent',border:'none',outline:'none',fontSize:15,fontWeight:700,color:'#fff',width:180,fontFamily:'inherit',cursor:'text',minWidth:80}}>{ent.name}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.state?' · '+ent.state:''}{ent.ein?' · EIN '+ent.ein:''}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.ein?' · EIN '+ent.ein:''}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -103,9 +102,8 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10}}>ENTITY DETAILS</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:12}}>
             <div><label style={lbl}>EIN</label><input value={ent.ein||''} onChange={e=>onUpdate(idx,{...ent,ein:e.target.value})} placeholder="XX-XXXXXXX" style={inp}/></div>
-            <div><label style={lbl}>State</label><select value={ent.state||''} onChange={e=>onUpdate(idx,{...ent,state:e.target.value})} style={inp}><option value="">— Select —</option>{US_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
             <div><label style={lbl}>Formation Date</label><input type="date" value={ent.formationDate||''} onChange={e=>onUpdate(idx,{...ent,formationDate:e.target.value})} style={inp}/></div>
-            <div><label style={lbl}>Ownership %</label><select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,fontWeight:700,border:'2px solid '+color}}>{OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+            <div><label style={lbl}>Ownership %</label><input type="number" min="0.01" max="100" step="0.01" value={ent.own} onChange={v=>{const n=v.target.value;if(n===''||(parseFloat(n)>=0&&parseFloat(n)<=100))onUpdate(idx,{...ent,own:n})}} style={{...inp,fontWeight:700,border:'2px solid '+color}} placeholder="100" /></div>
           </div>
         </div>
       ) : null}
@@ -141,9 +139,10 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
             <div style={{display:'grid',gridTemplateColumns:'200px 1fr',gap:14,alignItems:'center'}}>
               <div>
                 <label style={{fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:5}}>YOUR OWNERSHIP %</label>
-                <select value={ent.own} onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{width:'100%',padding:'9px 12px',border:'2px solid '+color,borderRadius:8,fontSize:15,fontWeight:700,color:N,background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
-                  {OWN.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-                </select>
+                <input type="number" min="0.01" max="100" step="0.01" value={ent.own} onChange={v=>{const n=v.target.value;if(n===''||(parseFloat(n)>=0&&parseFloat(n)<=100))onUpdate(idx,{...ent,own:n})}} style={{width:'100%',padding:'9px 12px',border:'2px solid '+color,borderRadius:8,fontSize:15,fontWeight:700,color:N,background:'#fff',fontFamily:'inherit'}} placeholder="100" />
+                <div style={{display:'flex',gap:4,marginTop:6}}>
+                  {OWN_PRESETS.map(p=><button key={p} type="button" onClick={()=>onUpdate(idx,{...ent,own:String(p)})} style={{flex:1,padding:'4px 0',fontSize:11,fontWeight:600,border:'1px solid rgba(255,255,255,0.25)',borderRadius:5,background:'rgba(255,255,255,0.1)',color:'#fff',cursor:'pointer'}}>{p}%</button>)}
+                </div>
               </div>
               <div style={{background:color,borderRadius:10,padding:'12px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',color:'#fff'}}>
                 <div>
@@ -203,7 +202,7 @@ function ImportModal({onImport,onClose}){
           <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:SL}}>×</button>
         </div>
         <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:12,marginBottom:16,fontSize:11,color:SL,fontFamily:'monospace',lineHeight:1.6}}>
-          Name, Entity Type, EIN, State, Formation Date, Ownership %, Gross Revenue, Total Expenses
+          Name, Entity Type, EIN, Formation Date, Ownership %, Gross Revenue, Total Expenses
         </div>
         <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);handleFile(e.dataTransfer.files[0])}} onClick={()=>fileRef.current.click()} style={{border:'2px dashed '+(dragging?B:'#CBD5E1'),borderRadius:10,padding:'32px 20px',textAlign:'center',cursor:'pointer',background:dragging?'#EFF6FF':'#fff',marginBottom:12}}>
           <div style={{fontSize:32,marginBottom:8}}>📂</div>
@@ -220,7 +219,7 @@ function ImportModal({onImport,onClose}){
 
 export default function CalculateTax(){
   const nav=useNavigate()
-  const[entities,setEntities]=React.useState([{name:'Business 1',type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])
+  const[entities,setEntities]=React.useState([{name:'Business 1',type:'S-Corp',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])
   const[showTemplates,setShowTemplates]=React.useState(false)
   const[showImport,setShowImport]=React.useState(false)
   const[dragIdx,setDragIdx]=React.useState(null)
@@ -296,7 +295,7 @@ export default function CalculateTax(){
   const entityCards = entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
           <div key={i} style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'14px 16px',borderTop:'3px solid '+color}}>
             <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:4}}>{ent.name}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership{ent.state?' · '+ent.state:''}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership</div>
             <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{fmt(ent.pnl.netProfit)} net →</div>
             <div style={{fontSize:22,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
           </div>)})
