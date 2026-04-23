@@ -119,8 +119,8 @@ const SE_DEDUCTION_RATE = 0.5 // IRC §164(f)
 // QBI Deduction (IRC §199A) — 20% of qualified business income (sunset 2026)
 const QBI_RATE = 0.20
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
-const ENTITY_TYPES=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor','C-Corporation']
-const PASSTHROUGH=['S-Corporation','Multi-Member LLC','Single-Member LLC','Partnership','Sole Proprietor']
+const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
+const PASSTHROUGH=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation']
 const INTEGRATIONS=[
   {id:'quickbooks',name:'QuickBooks',color:'#2CA01C',bg:'#F0FBF0',abbr:'QB'},
   {id:'xero',      name:'Xero',      color:'#13B5EA',bg:'#EFF9FF',abbr:'XE'},
@@ -142,8 +142,8 @@ function calcAll(biz,f1040){
   const fs=f1040.filingStatus||'single',w2=parseFloat(f1040.w2Income)||0,otherInc=parseFloat(f1040.otherIncome)||0
   const deps=parseFloat(f1040.dependents)||0,estPay=parseFloat(f1040.estimatedPayments)||0
   const useStd=f1040.useStandardDed!==false,itemized=parseFloat(f1040.itemizedDed)||0
-  const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S-Corporation'
-  const isCCorp=biz.entityType==='C-Corporation'
+  const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S Corporation'
+  const isCCorp=biz.entityType==='C Corporation'
 
   // ── C-Corp: entity-level only — no personal 1040 involvement ─────────────
   if(isCCorp){
@@ -205,7 +205,7 @@ export default function Dashboard(){
   const [refreshing,setRefreshing]=useState(false)
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
-  const [biz,setBiz]=useState({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+  const [biz,setBiz]=useState({entityType:'S Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
   const [f1040,setF1040]=useState({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
   const [connectedApp,setConnectedApp]=useState(null)
   const [saved,setSaved]=useState(false)
@@ -468,7 +468,7 @@ export default function Dashboard(){
     sessionStorage.setItem('ts360_k1', String(k1Income))
     sessionStorage.setItem('ts360_entities', JSON.stringify([{
       name: bizData.entityType || rec.entityType || 'Business',
-      type: bizData.entityType || rec.entityType || 'S-Corporation',
+      type: bizData.entityType || rec.entityType || 'S Corporation',
       own: bizData.ownershipPct || '100',
       netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
       k1: k1Income,
@@ -512,7 +512,7 @@ export default function Dashboard(){
       )}
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
-        {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C-Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
+        {[['records','📂 My Records'],['business','Business'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
               // Navigate to full Tax Return page with k1 data
@@ -544,7 +544,7 @@ export default function Dashboard(){
               <p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Click any record to load it into the Tax Calculator.</p>
             </div>
             <button onClick={()=>{
-              setBiz({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+              setBiz({entityType:'S Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
               setF1040({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
               setSavedRecordId(null)
               setSaved(false)
@@ -558,7 +558,7 @@ export default function Dashboard(){
               <h3 style={{color:N,fontWeight:700,fontSize:18,marginBottom:8}}>No saved records yet</h3>
               <p style={{color:SL,fontSize:14,marginBottom:20}}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
               <button onClick={()=>{
-              setBiz({entityType:'S-Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+              setBiz({entityType:'S Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
               setF1040({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
               setSavedRecordId(null)
               setSaved(false)
@@ -660,7 +660,7 @@ export default function Dashboard(){
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:16}}>
           <div><label style={lbl}>Tax Year</label><select value={biz.year} onChange={e=>bSet('year',parseInt(e.target.value))} style={inp}>{[2026,2025,2024].map(y=><option key={y} value={y}>{y}</option>)}</select></div>
-          <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>{bSet('entityType',e.target.value);if(e.target.value==='C-Corporation'&&activeView==='f1040')setActiveView('business')}} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+          <div><label style={lbl}>Business Entity Type</label><select value={biz.entityType} onChange={e=>{bSet('entityType',e.target.value);if(e.target.value==='C Corporation'&&activeView==='f1040')setActiveView('business')}} style={inp}>{ENTITY_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Your Ownership % <InfoTip text="The percentage of the business you own. For a single-member LLC or sole owner S-Corp this is 100%. Find in your operating agreement or corporate docs if you have partners."/></label><input type="number" min="1" max="100" defaultValue={biz.ownershipPct} onChange={e=>bSet('ownershipPct',e.target.value)} style={inp}/></div>
         </div>
 
@@ -679,10 +679,10 @@ export default function Dashboard(){
                 <div><label style={lbl}>Operating Expenses <InfoTip text="All normal business expenses: rent, utilities, payroll, software, insurance. Find on your PandL under 'Total Expenses.' Exclude COGS, depreciation, and officer salary if listed separately."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Rent, utilities, contractors, payroll</div><NumInput k="operatingExpenses"/></div>
                 <div><label style={lbl}>Advertising & Marketing <InfoTip text="Total spent on ads, social media, marketing tools, and promotions this year. Find in your bookkeeping under the Advertising or Marketing expense category."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Fully deductible business promotion</div><NumInput k="advertising"/></div>
                 <div><label style={lbl}>Depreciation <InfoTip text="Find on your Depreciation Schedule (Form 4562) or ask your bookkeeper. This is the annual write-down on equipment, vehicles, and property — not a cash expense."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Section 179, bonus depreciation, MACRS</div><NumInput k="depreciation"/></div>
-                {biz.entityType==='S-Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp) <InfoTip text="Your W-2 salary paid to yourself as S-Corp officer. Find on your W-2 Box 1, or payroll records. The IRS requires a 'reasonable compensation' before taking distributions."/></label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
+                {biz.entityType==='S Corporation'&&<div><label style={{...lbl,color:'#DC2626'}}>Officer Salary (Required for S-Corp) <InfoTip text="Your W-2 salary paid to yourself as S-Corp officer. Find on your W-2 Box 1, or payroll records. The IRS requires a 'reasonable compensation' before taking distributions."/></label><div style={{fontSize:11,color:'#DC2626',marginBottom:5}}>IRS requires reasonable compensation before distributions</div><NumInput k="officerSalary" redBorder={!parseFloat(biz.officerSalary)&&hasNumbers}/></div>}
                 <div><label style={lbl}>Other Deductions <InfoTip text="Any deductible business expenses not captured above: professional fees, education, business travel, subscriptions, home office, etc. Find in your PandL under miscellaneous or other expenses."/></label><div style={{fontSize:11,color:'#94A3B8',marginBottom:5}}>Professional fees, insurance, home office</div><NumInput k="otherDeductions"/></div>
               </div>
-              {biz.entityType==='C-Corporation'&&(
+              {biz.entityType==='C Corporation'&&(
                 <div style={{marginTop:16,padding:'14px 16px',background:'#EFF6FF',borderRadius:10,border:'1px solid #BFDBFE'}}>
                   <div style={{fontSize:11,fontWeight:700,color:'#1D4ED8',marginBottom:8,letterSpacing:'0.06em'}}>C-CORPORATION — ENTITY LEVEL TAX</div>
                   <div style={{fontSize:12,color:'#1E40AF',marginBottom:14,lineHeight:1.6}}>
@@ -706,7 +706,7 @@ export default function Dashboard(){
               <div style={{fontSize:12,color:'#BFDBFE',lineHeight:1.6,marginBottom:16}}>This is your share of business profit flowing to Schedule E on your Form 1040. This is NOT your tax bill - your actual liability depends on your complete personal tax picture below.</div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={handleSave} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>{saved?'Record Saved':'Save Record'}</button>
-                {biz.entityType!=='C-Corporation'&&<button onClick={()=>{
+                {biz.entityType!=='C Corporation'&&<button onClick={()=>{
                   // Pass K-1 and entity data to Tax Return page via sessionStorage
                   sessionStorage.setItem('ts360_k1', String(safeCalc.k1||0))
                   sessionStorage.setItem('ts360_entities', JSON.stringify(
@@ -759,7 +759,7 @@ export default function Dashboard(){
       )}
 
       {/* ════ 1040 / PERSONAL VIEW ════ */}
-      {activeView==='f1040'&&biz.entityType!=='C-Corporation'&&(
+      {activeView==='f1040'&&biz.entityType!=='C Corporation'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
