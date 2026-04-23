@@ -210,8 +210,8 @@ function RiskScan({ rec }) {
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
       action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
     findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
-      detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $1.16M in 2025. Bonus depreciation (currently 60% in 2025) applies to new and used property.',
-      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, ${fmt(Math.round(roughTax / 0.22))} in equipment purchases could offset your estimated tax liability. Consult a CPA to confirm eligibility.` })
+      detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $2.5M in 2025 under the One Big Beautiful Bill Act (OBBBA), with phase-out beginning above $4M of qualifying purchases. Bonus depreciation was restored to 100% for property acquired and placed in service after January 19, 2025 (applies to both new and used property).',
+      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / 0.22), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
   // ── Real Estate Professional (REP) ──────────────────────────────────────────
@@ -326,7 +326,7 @@ function TaxOptimization({ rec }) {
     opportunities.push({
       icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
       saving: null,
-      detail: 'Section 179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $1.16M in 2025).',
+      detail: 'Section 179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }
