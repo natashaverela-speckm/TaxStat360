@@ -769,6 +769,20 @@ export default function TaxReturn() {
               </div>
             )}
 
+            {/* Income Tax (ordinary + preferential) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(fedTax)}</span>
+            </div>
+
+            {/* Self-Employment Tax — visible when user has any SE-subject entity */}
+            {seTax > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>SE Tax (15.3%)</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(seTax)}</span>
+              </div>
+            )}
+
             {/* Additional Medicare Tax */}
             {additionalMedicare > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
