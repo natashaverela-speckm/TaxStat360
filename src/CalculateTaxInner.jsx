@@ -125,7 +125,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>{ent.isManual?'MANUAL ENTRY':'P&L FROM '+(ent.connectedId||'').toUpperCase()}</div>
               <div style={{display:'flex',gap:6}}>
                 {!ent.isManual&&ent.connectedId&&<button onClick={()=>{const t=localStorage.getItem('ts360_'+ent.connectedId+'_token'),x=localStorage.getItem('ts360_'+ent.connectedId+'_extra');if(t)fetchPnL(ent.connectedId,t,x)}} style={{padding:'3px 9px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:5,fontSize:11,fontWeight:600,color:B,cursor:'pointer'}}>{syn?'Refreshing...':'Refresh'}</button>}
-                <button onClick={()=>onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})} style={{padding:'3px 9px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:5,fontSize:11,fontWeight:600,color:R,cursor:'pointer'}}>Disconnect</button>
+                {!ent.isManual && ent.connectedId && <button onClick={()=>{const pid=ent.connectedId;if(pid){localStorage.removeItem('ts360_'+pid+'_token');localStorage.removeItem('ts360_'+pid+'_connected');localStorage.removeItem('ts360_'+pid+'_extra')}onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}} style={{padding:'3px 9px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:5,fontSize:11,fontWeight:600,color:R,cursor:'pointer'}}>Disconnect</button>}
               </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
