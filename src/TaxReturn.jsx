@@ -391,6 +391,24 @@ export default function TaxReturn() {
   const seTax = Math.round(ssPortion + medicarePortion)
   const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 adjustment)
 
+  // Entity-mix classification for display labels
+  const SCHED_C_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)']
+  const K1_TYPES = ['S-Corp', 'C-Corp', 'Partnership', 'LLC (Partnership)']
+  const hasSchedC = entities.some(e => SCHED_C_TYPES.includes(e?.type))
+  const hasK1 = entities.some(e => K1_TYPES.includes(e?.type))
+  const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
+    : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
+    : hasK1 ? 'K-1 INCOME FROM STEP 1'
+    : 'BUSINESS INCOME FROM STEP 1'
+  const incomeFooterLabel = hasSchedC && hasK1 ? 'Total business income'
+    : hasSchedC ? 'Total Schedule C net profit'
+    : hasK1 ? 'Total K-1 to Schedule E'
+    : 'Total business income'
+  const breakdownRowLabel = hasSchedC && hasK1 ? 'Business / K-1 Income'
+    : hasSchedC ? 'Schedule C Net Profit'
+    : hasK1 ? 'K-1 S-Corp / Business (Sch E)'
+    : 'Business Income'
+
   // Additional Medicare Tax (0.9%) — Form 8959: unified threshold on combined W-2 + SE income
   const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - amtThreshold) * 0.009)
 
@@ -457,7 +475,7 @@ export default function TaxReturn() {
           {/* K-1 Summary from Step 1 */}
           {entities.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 INCOME FROM STEP 1</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>{incomeSectionLabel}</div>
               {entities.map((e, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
                   <div>
@@ -468,7 +486,7 @@ export default function TaxReturn() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid #E2E8F0' }}>
-                <span style={{ fontWeight: 700, color: N }}>Total K-1 to Schedule E</span>
+                <span style={{ fontWeight: 700, color: N }}>{incomeFooterLabel}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</span>
               </div>
               {entities.length === 0 && (
@@ -790,7 +808,7 @@ export default function TaxReturn() {
               <div style={{ marginTop: 12 }}>
                 {[
                   ['W-2 Wages', w2, true],
-                  ['K-1 S-Corp / Business (Sch E)', k1Total, k1Total >= 0],
+                  [breakdownRowLabel, k1Total, k1Total >= 0],
                   ['Rental Net (Sch E)', rentalNet, rentalNet >= 0],
                   ['Short-Term Capital Gains', stGain, stGain >= 0],
                   ['Long-Term Capital Gains', ltGain, ltGain >= 0],
