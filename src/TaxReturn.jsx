@@ -245,6 +245,15 @@ export default function TaxReturn() {
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
+  // ── Self-Employment income (by entity type) ─────────────────────────────────
+  // SE-subject: Sole Prop, SMLLC (disregarded), Partnership (GP), LLC (Partnership) default GP
+  // NOT SE-subject: S-Corp (handled via officer W-2 payroll), C-Corp (corporate tax, not passthrough)
+  const SE_SUBJECT_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)', 'Partnership', 'LLC (Partnership)']
+  const seNetIncome = entities.reduce((sum, e) => {
+    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
+    return sum + Math.max(0, parseFloat(e.k1) || 0)
+  }, 0)
+
   // Pre-load saved f1040 data if passed from Dashboard
   const savedF1040 = (() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}') } catch(e) { return {} } })()
   const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
@@ -320,7 +329,12 @@ export default function TaxReturn() {
   const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
 
   // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
-  const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
+  // Per Treas. Reg. §1.199A-3(b)(1)(vi): QBI for a self-employed owner must be reduced by
+  // the deductible portion of SE tax. S-Corp K-1 is NOT SE-subject, so only the SE-subject
+  // portion of k1Total gets the halfSE reduction; the S-Corp portion passes through unchanged.
+  const nonSEk1 = Math.max(0, k1Total - seNetIncome)
+  const seK1AfterHalfSE = Math.max(0, seNetIncome - halfSE)
+  const qbiBasis = nonSEk1 + seK1AfterHalfSE + Math.max(0, rentalNet)
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
@@ -367,7 +381,36 @@ export default function TaxReturn() {
 
   // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
   const amtThreshold = getAMTThreshold(taxYear, status)
-  const additionalMedicare = Math.round(Math.max(0, w2 - amtThreshold) * 0.009)
+  // ── Self-Employment Tax (IRC §1401) ─────────────────────────────────────────
+  // SS portion (12.4%) caps at annual wage base; Medicare portion (2.9%) uncapped
+  // Applied to 92.35% of SE earnings per IRC §1402(a)(12)
+  const ssWageBase = taxYear === 2026 ? 176100 : 168600 // 2025 & 2024 share $168,600; update when 2027 released
+  const seEarningsSubject = seNetIncome * 0.9235
+  const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
+  const medicarePortion = seEarningsSubject * 0.029
+  const seTax = Math.round(ssPortion + medicarePortion)
+  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 adjustment)
+
+  // Entity-mix classification for display labels
+  const SCHED_C_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)']
+  const K1_TYPES = ['S-Corp', 'C-Corp', 'Partnership', 'LLC (Partnership)']
+  const hasSchedC = entities.some(e => SCHED_C_TYPES.includes(e?.type))
+  const hasK1 = entities.some(e => K1_TYPES.includes(e?.type))
+  const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
+    : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
+    : hasK1 ? 'K-1 INCOME FROM STEP 1'
+    : 'BUSINESS INCOME FROM STEP 1'
+  const incomeFooterLabel = hasSchedC && hasK1 ? 'Total business income'
+    : hasSchedC ? 'Total Schedule C net profit'
+    : hasK1 ? 'Total K-1 to Schedule E'
+    : 'Total business income'
+  const breakdownRowLabel = hasSchedC && hasK1 ? 'Business / K-1 Income'
+    : hasSchedC ? 'Schedule C Net Profit'
+    : hasK1 ? 'K-1 S-Corp / Business (Sch E)'
+    : 'Business Income'
+
+  // Additional Medicare Tax (0.9%) — Form 8959: unified threshold on combined W-2 + SE income
+  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - amtThreshold) * 0.009)
 
   // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
   // NII = net investment income: dividends, interest, rental income (if passive), LTCG
@@ -381,7 +424,7 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-  const totalTax = Math.max(0, fedTax + additionalMedicare + niit - childCredit)
+  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit - childCredit)
 
   // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
@@ -432,7 +475,7 @@ export default function TaxReturn() {
           {/* K-1 Summary from Step 1 */}
           {entities.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 INCOME FROM STEP 1</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>{incomeSectionLabel}</div>
               {entities.map((e, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
                   <div>
@@ -443,7 +486,7 @@ export default function TaxReturn() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid #E2E8F0' }}>
-                <span style={{ fontWeight: 700, color: N }}>Total K-1 to Schedule E</span>
+                <span style={{ fontWeight: 700, color: N }}>{incomeFooterLabel}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</span>
               </div>
               {entities.length === 0 && (
@@ -726,6 +769,20 @@ export default function TaxReturn() {
               </div>
             )}
 
+            {/* Income Tax (ordinary + preferential) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(fedTax)}</span>
+            </div>
+
+            {/* Self-Employment Tax — visible when user has any SE-subject entity */}
+            {seTax > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>SE Tax (15.3%)</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(seTax)}</span>
+              </div>
+            )}
+
             {/* Additional Medicare Tax */}
             {additionalMedicare > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -765,7 +822,7 @@ export default function TaxReturn() {
               <div style={{ marginTop: 12 }}>
                 {[
                   ['W-2 Wages', w2, true],
-                  ['K-1 S-Corp / Business (Sch E)', k1Total, k1Total >= 0],
+                  [breakdownRowLabel, k1Total, k1Total >= 0],
                   ['Rental Net (Sch E)', rentalNet, rentalNet >= 0],
                   ['Short-Term Capital Gains', stGain, stGain >= 0],
                   ['Long-Term Capital Gains', ltGain, ltGain >= 0],
