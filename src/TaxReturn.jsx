@@ -329,7 +329,12 @@ export default function TaxReturn() {
   const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
 
   // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
-  const qbiBasis = Math.max(0, k1Total) + Math.max(0, rentalNet)
+  // Per Treas. Reg. §1.199A-3(b)(1)(vi): QBI for a self-employed owner must be reduced by
+  // the deductible portion of SE tax. S-Corp K-1 is NOT SE-subject, so only the SE-subject
+  // portion of k1Total gets the halfSE reduction; the S-Corp portion passes through unchanged.
+  const nonSEk1 = Math.max(0, k1Total - seNetIncome)
+  const seK1AfterHalfSE = Math.max(0, seNetIncome - halfSE)
+  const qbiBasis = nonSEk1 + seK1AfterHalfSE + Math.max(0, rentalNet)
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
