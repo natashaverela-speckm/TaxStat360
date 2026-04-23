@@ -245,6 +245,15 @@ export default function TaxReturn() {
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
+  // ── Self-Employment income (by entity type) ─────────────────────────────────
+  // SE-subject: Sole Prop, SMLLC (disregarded), Partnership (GP), LLC (Partnership) default GP
+  // NOT SE-subject: S-Corp (handled via officer W-2 payroll), C-Corp (corporate tax, not passthrough)
+  const SE_SUBJECT_TYPES = ['Sole Proprietorship', 'LLC (Single-Member)', 'Partnership', 'LLC (Partnership)']
+  const seNetIncome = entities.reduce((sum, e) => {
+    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
+    return sum + Math.max(0, parseFloat(e.k1) || 0)
+  }, 0)
+
   // Pre-load saved f1040 data if passed from Dashboard
   const savedF1040 = (() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}') } catch(e) { return {} } })()
   const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
@@ -367,7 +376,18 @@ export default function TaxReturn() {
 
   // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
   const amtThreshold = getAMTThreshold(taxYear, status)
-  const additionalMedicare = Math.round(Math.max(0, w2 - amtThreshold) * 0.009)
+  // ── Self-Employment Tax (IRC §1401) ─────────────────────────────────────────
+  // SS portion (12.4%) caps at annual wage base; Medicare portion (2.9%) uncapped
+  // Applied to 92.35% of SE earnings per IRC §1402(a)(12)
+  const ssWageBase = taxYear === 2026 ? 176100 : 168600 // 2025 & 2024 share $168,600; update when 2027 released
+  const seEarningsSubject = seNetIncome * 0.9235
+  const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
+  const medicarePortion = seEarningsSubject * 0.029
+  const seTax = Math.round(ssPortion + medicarePortion)
+  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 adjustment)
+
+  // Additional Medicare Tax (0.9%) — Form 8959: unified threshold on combined W-2 + SE income
+  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - amtThreshold) * 0.009)
 
   // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
   // NII = net investment income: dividends, interest, rental income (if passive), LTCG
@@ -381,7 +401,7 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-  const totalTax = Math.max(0, fedTax + additionalMedicare + niit - childCredit)
+  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit - childCredit)
 
   // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
