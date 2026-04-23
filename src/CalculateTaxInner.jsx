@@ -7,15 +7,15 @@ const INTS=[{id:'quickbooks',name:'QuickBooks',color:'#2CA01C',abbr:'QB'},{id:'x
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 const nv=v=>parseFloat((v||'').toString().replace(/[^0-9.-]/g,''))||0
 const OWN_PRESETS=[100,75,50,33,25]
-const ENTITY_TYPES=['S-Corp','LLC (Partnership)','LLC (Single-Member)','Sole Proprietorship','C-Corp','Partnership']
+const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
 const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
 const TEMPLATES=[
-  {label:'S-Corp Owner',icon:'🏢',type:'S-Corp',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
-  {label:'Real Estate LLC',icon:'🏠',type:'LLC (Partnership)',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
-  {label:'Solo Consultant',icon:'💼',type:'Sole Proprietorship',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
-  {label:'Multi-Member LLC',icon:'🤝',type:'LLC (Partnership)',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
-  {label:'C-Corp',icon:'🏦',type:'C-Corp',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
-  {label:'Blank Entity',icon:'➕',type:'S-Corp',own:'100',defaults:{},desc:'Start from scratch'},
+  {label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
+  {label:'Real Estate LLC',icon:'🏠',type:'Partnership / Multi-Member LLC',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
+  {label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
+  {label:'Multi-Member LLC',icon:'🤝',type:'Partnership / Multi-Member LLC',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
+  {label:'C Corporation',icon:'🏦',type:'C Corporation',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
+  {label:'Blank Entity',icon:'➕',type:'S Corporation',own:'100',defaults:{},desc:'Start from scratch'},
 ]
 
 function exportEntitiesToCSV(entities){
@@ -38,7 +38,7 @@ function parseCSVImport(text){
     const[name,type,ein,formationDate,own,grossRevenue,totalExpenses]=cols
     const rev=parseFloat(grossRevenue)||0,exp=parseFloat(totalExpenses)||0
     const ownPct=own?own.replace('%',''):'100'
-    return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S-Corp',ein:ein||'',state:state||'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
+    return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S Corporation',ein:ein||'',state:state||'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
   }).filter(e=>e.name)
 }
 
@@ -219,7 +219,7 @@ function ImportModal({onImport,onClose}){
 
 export default function CalculateTax(){
   const nav=useNavigate()
-  const[entities,setEntities]=React.useState([{name:'Business 1',type:'S-Corp',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])
+  const[entities,setEntities]=React.useState([{name:'Business 1',type:'S Corporation',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])
   const[showTemplates,setShowTemplates]=React.useState(false)
   const[showImport,setShowImport]=React.useState(false)
   const[dragIdx,setDragIdx]=React.useState(null)
@@ -331,7 +331,7 @@ export default function CalculateTax(){
           ))}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
             <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
-            <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S-Corp',own:'100',ein:'',state:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
+            <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S Corporation',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
           </div>
           {anyPnl ? (
             <div style={{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:16,padding:28,color:'#fff',marginBottom:24}}>
