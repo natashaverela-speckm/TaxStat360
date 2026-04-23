@@ -322,7 +322,7 @@ export default function CalculateTax(){
         </nav>
         <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 20px'}}>
           <h1 style={{fontSize:26,fontWeight:800,color:N,textAlign:'center',marginBottom:4}}>Entity Calculator</h1>
-          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:28}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN, state & formation date.</p>
+          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:28}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN & formation date.</p>
           {entities.map((ent,idx)=>(
             <div key={idx} draggable onDragStart={()=>onDragStart(idx)} onDragOver={e=>onDragOver(e,idx)} onDrop={()=>onDrop(idx)} onDragEnd={onDragEnd}
               style={{opacity:dragIdx===idx?0.4:1,outline:dragOverIdx===idx&&dragIdx!==idx?'2px dashed '+B:'none',borderRadius:14,transition:'opacity 0.15s'}}>
