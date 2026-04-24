@@ -114,6 +114,7 @@ export default function Landing() {
             { icon: '🏢', label: 'K-1', title: 'S-Corporations', desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your real bottom line calculated instantly.' },
             { icon: '🤝', label: 'K-1', title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
             { icon: '📋', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs', desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+            { icon: '🏠', label: 'Schedule E', title: 'Real Estate Investors', desc: 'Rental income, depreciation, passive losses, and cost segregation all factored in. Schedule E flows directly into your personal tax calculation.' },
             { icon: '💼', label: 'Combined', title: 'W-2 Plus Business Owner', desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
             { icon: '🏗️', label: 'Multi', title: 'Multiple Entities', desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
           ].map((e,i) => (
