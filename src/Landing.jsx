@@ -13,7 +13,7 @@ function Nav({ nav }) {
         <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="#94A3B8" rx="1"/><rect x="10" y="7" width="4" height="14" fill="#CBD5E1" rx="1"/><rect x="17" y="3" width="4" height="18" fill="#FFFFFF" rx="1"/></svg>
         </div>
-        <span style={{ fontWeight: 800, fontSize: 15, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+        <div style={{ display: 'inline-block', borderBottom: '2px solid ' + B, paddingBottom: 1 }}><span style={{ fontWeight: 800, fontSize: 15, color: N }}>TaxStat<span style={{ color: B }}>360</span></span></div>
       </div>
       <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
         <a href="#how-it-works" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>How It Works</a>
