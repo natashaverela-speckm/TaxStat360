@@ -300,7 +300,7 @@ export default function TaxReturn() {
   const [ltCapGains, setLtCapGains] = React.useState('')    // long-term (preferential rates)
   const [unrecap1250, setUnrecap1250] = React.useState('')  // unrecaptured Sec 1250 gain (max 25%)
   const [collectiblesGain, setCollectiblesGain] = React.useState('') // collectibles gain (max 28%)
-  const [priorYearLosses, setPriorYearLosses] = React.useState('')
+  const [priorYearQBILoss, setPriorYearQBILoss] = React.useState('')
   const [interest, setInterest] = React.useState('')
   const [dividends, setDividends] = React.useState('')
   const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
@@ -325,7 +325,7 @@ export default function TaxReturn() {
   // Do NOT add qualifiedDividends separately — it is already included in dividends (Line 3b)
   const divInc = ytdScale(dividends)       // ordinary dividends only (1040 Line 3b)
   const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
-  const priorLosses = Math.abs(nv(priorYearLosses)) // always treated as reduction
+  const priorQBILossCO = Math.abs(nv(priorYearQBILoss)) // QBI loss carryforward — reduces qbiBasis only, NOT AGI
 
   // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
   // Social Security: up to 85% taxable (simplified for planning)
@@ -338,7 +338,7 @@ export default function TaxReturn() {
   const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
   const hsaDed = ytdScale(hsaDeduction)
   const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
-  const adjustments = priorLosses + selfEmpHealthDed + hsaDed + studentLoanDed
+  const adjustments = selfEmpHealthDed + hsaDed + studentLoanDed
   const agi = grossIncome - adjustments
 
   // Deductions
@@ -391,7 +391,7 @@ export default function TaxReturn() {
   // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged
   const nonSEk1 = Math.max(0, k1Total - seNetIncome)
   const seK1AfterHalfSE = Math.max(0, seNetIncome - halfSE)
-  const qbiBasis = nonSEk1 + seK1AfterHalfSE + Math.max(0, rentalNet)
+  const qbiBasis = nonSEk1 + seK1AfterHalfSE + Math.max(0, rentalNet) - priorQBILossCO
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
@@ -678,11 +678,11 @@ export default function TaxReturn() {
             ]} />
             {/* Prior Year Loss Carryforward */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-              <label style={lbl}>Prior Year Loss Carryforward <InfoTip text="Losses from prior years that carry forward. Find on last year's Form 8995 Line 16 (QBI losses) or Schedule D (capital loss carryovers)."/></label>
+              <label style={lbl}>Prior Year QBI Loss Carryforward <InfoTip text="Negative qualified business income from a prior year. Find on last year's Form 8995 Line 16 or Form 8995-A Schedule C. Reduces this year's QBI deduction base only — does NOT reduce AGI. Capital loss carryovers go on Schedule D, not here."/></label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <MoneyInput value={priorYearLosses} onChange={setPriorYearLosses} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
+                <MoneyInput value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" style={{ ...inp, maxWidth: 200 }} />
                 <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>
-                  Enter losses carried forward from prior year (positive number). Reduces your AGI.
+                  Enter prior year QBI loss as positive number. Reduces this year's QBI deduction base; does not affect AGI.
                 </div>
               </div>
             </div>
@@ -940,7 +940,7 @@ export default function TaxReturn() {
                   itemizedDed: itemizedAmt,
                   estimatedPayments: estPaid,
                   dependents,
-                  priorYearLosses,
+                  priorYearQBILoss,
                   qualifiedDividends,
                   socialSecurity,
                   iraDistributions,
