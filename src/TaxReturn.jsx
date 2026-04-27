@@ -668,7 +668,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Rental Real Estate */}
-          <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E)">
+          <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N }}>
                 <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
                 Real Estate Professional
@@ -685,11 +685,11 @@ export default function TaxReturn() {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Total Rental Income <InfoTip text="All rent collected from tenants this year. Reference last year's Schedule E, or add up rental deposits from your bank statements."/></label>
+                <label style={lbl}>Total Rental Income (Sch E Part I, line 3) <InfoTip text="Rental property income ONLY. Do NOT include K-1 income from S-Corps/Partnerships — that flows into Sch E Part II separately via Step 1. Reference last year's Schedule E Part I line 3, or add up rental deposits from your bank statements."/></label>
                 <MoneyInput value={rentalIncome} onChange={setRentalIncome} placeholder="0" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Total Rental Expenses (incl. depreciation) <InfoTip text="All rental property expenses including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
+                <label style={lbl}>Total Rental Expenses incl. depreciation (Sch E Part I, line 20) <InfoTip text="Rental property expenses ONLY (not K-1 entity expenses). All rental property costs including mortgage interest, taxes, insurance, repairs, and depreciation. Find on Schedule E or your property records."/></label>
                 <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" style={inp} />
               </div>
             </div>
@@ -920,7 +920,7 @@ export default function TaxReturn() {
                 {[
                   ['W-2 Wages', w2, true],
                   [breakdownRowLabel, k1Total, k1Total >= 0],
-                  ['Rental Net (Sch E)', rentalNet, rentalNet >= 0],
+                  ['Rental Net (Sch E Part I)', rentalNet, rentalNet >= 0],
                   ['Short-Term Capital Gains', stGain, stGain >= 0],
                   ['Long-Term Capital Gains', ltGain, ltGain >= 0],
                   unrec1250 > 0 ? ['Unrecaptured Sec 1250 Gain', unrec1250, false] : null,
