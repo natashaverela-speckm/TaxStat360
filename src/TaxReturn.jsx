@@ -870,7 +870,7 @@ export default function TaxReturn() {
                   ['Add\'l Medicare Tax', -additionalMedicare, false],
                   ['Child Tax Credit', childCredit > 0 ? childCredit : 0, true],
                   ['─────────────────', null, true],
-                  ['Total Tax', -totalTax, false],
+                  ['Total Tax', totalTax, false],
                 ].filter(Boolean).map(([label, val, pos], i) => {
                   if (val === null) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                   if (val === 0 && !['Gross Income','Taxable Income','Total Tax'].includes(label)) return null
