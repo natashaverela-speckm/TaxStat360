@@ -302,6 +302,7 @@ export default function TaxReturn() {
   const [collectiblesGain, setCollectiblesGain] = React.useState('') // collectibles gain (max 28%)
   const [priorYearQBILoss, setPriorYearQBILoss] = React.useState('')
   const [interest, setInterest] = React.useState('')
+  const [form4797, setForm4797] = React.useState('')
   const [dividends, setDividends] = React.useState('')
   const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
   const [saved, setSaved] = React.useState(false)
@@ -324,6 +325,9 @@ export default function TaxReturn() {
   // FIX: Ordinary dividends (Line 3b) are entered once — qualified dividends are a SUBSET
   // Do NOT add qualifiedDividends separately — it is already included in dividends (Line 3b)
   const divInc = ytdScale(dividends)       // ordinary dividends only (1040 Line 3b)
+  // Form 4797 Part II ordinary gain/(loss): net §1231 loss + §1245 recapture (per Form 4797 Line 18b)
+  // Net §1231 GAIN goes to LTCG (already captured in ltCapGains); this field is for net loss / ordinary recapture
+  const f4797Inc = ytdScale(form4797)
   const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss)) // QBI loss carryforward — reduces qbiBasis only, NOT AGI
 
@@ -332,7 +336,7 @@ export default function TaxReturn() {
   const ssBenefits = ytdScale(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
   const iraIncome = ytdScale(iraDistributions)
-  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + taxableSS + iraIncome
+  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome
 
   // Above-the-line deductions (Schedule 1, Part II)
   const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
@@ -666,6 +670,11 @@ export default function TaxReturn() {
                 <MoneyInput value={dividends} onChange={setDividends} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
               </div>
+              <div>
+                <label style={lbl}>Form 4797 Ordinary Gain/(Loss) <InfoTip text="Form 4797 Part II Line 18b — net §1231 loss and/or §1245 ordinary recapture. Enter as a negative number for losses. Net §1231 GAIN is treated as long-term capital gain — enter that in the Long-Term Capital Gains field above instead. Common for real estate investors selling rental property at a loss, equipment dispositions, and §1231 transactions."/></label>
+                <MoneyInput value={form4797} onChange={setForm4797} placeholder="0" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 4 — flows from Form 4797 Part II</div>
+              </div>
             </div>
             <WhatGoesHere items={[
               'Short-Term Capital Gains: profits from assets sold within 1 year — taxed at ordinary income rates (same as W-2 wages)',
@@ -675,6 +684,7 @@ export default function TaxReturn() {
               'Taxable Interest: 1099-INT Box 1 from banks, CDs, bonds; exclude tax-exempt municipal bond interest',
               'Ordinary Dividends: 1099-DIV Box 1a — only stock/fund dividends, never double-count with interest above',
               'Qualified Dividends: 1099-DIV Box 1b — subset of ordinary dividends taxed at the same 0/15/20% preferred rates',
+              'Form 4797 Ordinary: net §1231 loss or §1245 recapture from selling business/rental property — enter losses as negative; net §1231 GAIN goes in Long-Term Capital Gains',
             ]} />
             {/* Prior Year Loss Carryforward */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
@@ -858,6 +868,7 @@ export default function TaxReturn() {
                   collectibles > 0 ? ['Collectibles Gain (28%)', collectibles, false] : null,
                   ['Taxable Interest', intInc, true],
                   ['Ordinary Dividends', divInc, true],
+                  f4797Inc !== 0 ? ['Form 4797 Ordinary', f4797Inc, f4797Inc >= 0] : null,
                   ['─────────────────', null, true],
                   ['Gross Income', grossIncome, grossIncome >= 0],
                   ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
@@ -935,6 +946,7 @@ export default function TaxReturn() {
                   capitalGains,
                   interest,
                   dividends,
+                  form4797,
                   isREP,
                   useStandardDed: !useItemized,
                   itemizedDed: itemizedAmt,
