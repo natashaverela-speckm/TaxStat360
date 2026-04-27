@@ -12,6 +12,7 @@ const SL = '#475569'
 const TAX_TABLES = {
   2024: {
     std:      { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
+    ssWageBase: 168600,
     brackets: {
       single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
       mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
@@ -25,6 +26,7 @@ const TAX_TABLES = {
   },
   2025: {
     std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
+    ssWageBase: 176100,
     brackets: {
       single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
       mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
@@ -38,6 +40,7 @@ const TAX_TABLES = {
   },
   2026: {
     std:      { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
+    ssWageBase: 184500,
     brackets: {
       single: [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[648750,.35],[Infinity,.37]],
       mfj:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
@@ -352,11 +355,27 @@ export default function TaxReturn() {
   const iraIncome = ytdScale(iraDistributions)
   const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome
 
-  // Above-the-line deductions (Schedule 1, Part II)
+  // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
+  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
+  const seNetIncome = entities.reduce((sum, e) => {
+    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
+    return sum + Math.max(0, parseFloat(e.k1) || 0)
+  }, 0)
+
+  // SE tax: 12.4% SS (capped at wage base) + 2.9% Medicare (uncapped), on 92.35% of SE earnings
+  // SS wage base parameterized via TAX_TABLES per year (2024: $168,600, 2025: $176,100, 2026: $184,500 per SSA)
+  const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
+  const seEarningsSubject = seNetIncome * 0.9235
+  const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
+  const medicarePortion = seEarningsSubject * 0.029
+  const seTax = Math.round(ssPortion + medicarePortion)
+  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 Line 15, reduces AGI; also reduces QBI basis per Reg §1.199A-3(b)(1)(vi))
+
+  // Above-the-line deductions (Schedule 1, Part II) — halfSE is included here so it reduces AGI
   const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
   const hsaDed = ytdScale(hsaDeduction)
   const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
-  const adjustments = selfEmpHealthDed + hsaDed + studentLoanDed
+  const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed
   const agi = grossIncome - adjustments
 
   // Deductions
@@ -372,20 +391,7 @@ export default function TaxReturn() {
   // ── Self-Employment income + SE tax (IRC §1401) ──────────────────────────────
   // SE-subject entity types: Sole Prop, SMLLC (disregarded), Partnership (GP default), LLC (Partnership)
   // NOT SE-subject: S-Corp (handled via officer W-2 payroll), C-Corp (corporate tax)
-  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
-  const seNetIncome = entities.reduce((sum, e) => {
-    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    return sum + Math.max(0, parseFloat(e.k1) || 0)
-  }, 0)
-
-  // SE tax: 12.4% SS (capped at wage base) + 2.9% Medicare (uncapped), on 92.35% of SE earnings
-  // Wage base: $168,600 (2024 & 2025), $176,100 (2026) per SSA
-  const ssWageBase = taxYear === 2026 ? 176100 : 168600
-  const seEarningsSubject = seNetIncome * 0.9235
-  const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
-  const medicarePortion = seEarningsSubject * 0.029
-  const seTax = Math.round(ssPortion + medicarePortion)
-  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 adjustment, also reduces QBI basis)
+  // SE tax block moved above (now computed before adjustments). seTax, halfSE, seNetIncome, SE_SUBJECT_TYPES available here.
 
   // Entity-mix classifiers for display labels
   const SCHED_C_TYPES = ['Sole Proprietor / Single-Member LLC']
@@ -405,11 +411,12 @@ export default function TaxReturn() {
     : hasK1 ? 'K-1 S-Corp / Business (Sch E)'
     : 'Business Income'
 
-  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi): reduce SE-subject income by halfSE
+  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi): reduce SE-subject income by halfSE AND SE health insurance
+  // SE retirement contributions also reduce per the reg, but app does not yet track them as a separate input
   // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged
   const nonSEk1 = Math.max(0, k1Total - seNetIncome)
-  const seK1AfterHalfSE = Math.max(0, seNetIncome - halfSE)
-  const qbiBasis = nonSEk1 + seK1AfterHalfSE + Math.max(0, rentalNet) - priorQBILossCO
+  const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, rentalNet) - priorQBILossCO
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
@@ -580,7 +587,7 @@ export default function TaxReturn() {
               )}
               {k1Total < 0 && (
                 <div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
-                  ✓ S-Corp loss of {fmt(Math.abs(k1Total))} is reducing your gross income on Schedule E
+                  ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchedC && !hasK1 ? 'Schedule C' : 'Schedule E'}
                 </div>
               )}
             </div>
