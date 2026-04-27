@@ -459,7 +459,7 @@ function IRSCompliance({ rec }) {
 
   // Additional Medicare
   const totalIncome = k1 + w2
-  if (totalIncome > 200000) {
+  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) { schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: 'Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at $10K), charitable contributions, medical.', deadline: 'Filed with Form 1040' }) } if (totalIncome > 200000) {
     schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', detail: `With total income of ${fmt(totalIncome)}, the 0.9% Additional Medicare Tax applies to wages/SE income over $200,000 (single).`, deadline: 'Filed with Form 1040' })
   }
 
