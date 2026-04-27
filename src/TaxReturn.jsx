@@ -22,7 +22,7 @@ const TAX_TABLES = {
     },
     ltcg: { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
-    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
   2025: {
     std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
@@ -36,7 +36,7 @@ const TAX_TABLES = {
     },
     ltcg: { single:[48350,533400], mfj:[96700,600050], mfs:[48350,300000], hoh:[64750,566700], qss:[96700,600050] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
-    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
   2026: {
     std:      { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
@@ -50,7 +50,7 @@ const TAX_TABLES = {
     },
     ltcg: { single:[50400,557050], mfj:[100800,626350], mfs:[50400,313175], hoh:[67650,591800], qss:[100800,626350] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
-    amt:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
 }
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
@@ -58,7 +58,7 @@ function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.s
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
 function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
-function getAMTThreshold(year, fs) { const t = getTable(year).amt; return t[fs] || 200000 }
+function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
 
 // Ordinary income tax (brackets only — does NOT include LTCG/qualified dividends)
 function calcFederalTax(ordinaryIncome, year, fs) {
@@ -462,8 +462,8 @@ export default function TaxReturn() {
   }
 
   // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
-  const amtThreshold = getAMTThreshold(taxYear, status)
-  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - amtThreshold) * 0.009) // Form 8959 unified threshold on combined W-2 + SE
+  const addlMedThreshold = getAddlMedicareThreshold(taxYear, status)
+  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * 0.009) // Form 8959 unified threshold on combined W-2 + SE
 
   // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
   // NII = net investment income: dividends, interest, rental income (if passive), LTCG
