@@ -413,10 +413,10 @@ export default function TaxReturn() {
   // ── Preferential tax via QDCGTW (IRC §1(h)) ─────────────────────────────────
   // LTCG + qualified dividends at 0/15/20%; Sec 1250 at max 25%; Collectibles at max 28%
   const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
-    ltcg: Math.max(0, ltGain),
-    qualDiv: Math.max(0, qualDiv),
-    unrecap1250: unrec1250,
-    collectibles,
+    ltcg: Math.min(Math.max(0, ltGain), taxableAfterQBI),
+    qualDiv: Math.min(Math.max(0, qualDiv), taxableAfterQBI),
+    unrecap1250: Math.min(unrec1250, taxableAfterQBI),
+    collectibles: Math.min(collectibles, taxableAfterQBI),
   }, taxYear, status)
 
   const fedTax = ordFedTax + prefTax
