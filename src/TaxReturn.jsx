@@ -327,6 +327,31 @@ export default function TaxReturn() {
   const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || '')
   const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
   const [showDetail, setShowDetail] = React.useState(false)
+  // Auto-save form state to sessionStorage on every change
+  // Prevents data loss when navigating between /tax-return and /dashboard
+  // Mirrors the f1040Updated shape from the explicit Save handler
+  React.useEffect(() => {
+    try {
+      const existing = (() => {
+        try { return JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}') } catch(e) { return {} }
+      })()
+      const formState = {
+        ...existing,
+        filingStatus: status,
+        w2Income, w2Withheld,
+        rentalIncome, rentalExpenses,
+        capitalGains, interest, dividends, form4797,
+        manualK1s, isREP,
+        useStandardDed: !useItemized, itemizedDed: itemizedAmt,
+        estimatedPayments: estPaid,
+        dependents,
+        priorYearQBILoss, qualifiedDividends,
+        socialSecurity, iraDistributions,
+        selfEmpHealthIns, hsaDeduction, studentLoanInt,
+      }
+      sessionStorage.setItem('ts360_f1040', JSON.stringify(formState))
+    } catch(e) { /* sessionStorage write failed, fail silently */ }
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt])
 
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
