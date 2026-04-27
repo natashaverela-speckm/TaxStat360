@@ -272,7 +272,11 @@ export default function TaxReturn() {
   const nav = useNavigate()
 
   // Load K-1 data passed from Step 1
-  const k1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
+  // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
+  const [manualK1s, setManualK1s] = React.useState((() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}').manualK1s || [] } catch(e) { return [] } })())
+  const dashboardK1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
+  const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseFloat(k.amount) || 0), 0)
+  const k1Total = dashboardK1Total + manualK1Total
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
@@ -302,6 +306,16 @@ export default function TaxReturn() {
   const [collectiblesGain, setCollectiblesGain] = React.useState('') // collectibles gain (max 28%)
   const [priorYearQBILoss, setPriorYearQBILoss] = React.useState('')
   const [interest, setInterest] = React.useState('')
+
+  // Manual K-1 helpers
+  const addManualK1 = () => setManualK1s([...manualK1s, {
+    id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    name: '',
+    type: 'S Corporation',
+    amount: ''
+  }])
+  const updateManualK1 = (id, patch) => setManualK1s(manualK1s.map(k => k.id === id ? { ...k, ...patch } : k))
+  const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
   const [form4797, setForm4797] = React.useState('')
   const [dividends, setDividends] = React.useState('')
   const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
@@ -505,7 +519,7 @@ export default function TaxReturn() {
           <p style={{ color: SL, fontSize: 14, marginBottom: 24 }}>Enter your personal info to calculate your total federal tax liability.</p>
 
           {/* K-1 Summary from Step 1 */}
-          {entities.length > 0 && (
+          {(entities.length > 0 || manualK1s.length > 0) && (
             <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>{incomeSectionLabel}</div>
               {entities.map((e, i) => (
@@ -517,11 +531,49 @@ export default function TaxReturn() {
                   <div style={{ fontSize: 15, fontWeight: 700, color: e.k1 >= 0 ? G : R }}>{fmt(e.k1)}</div>
                 </div>
               ))}
+              {/* Manual K-1 rows */}
+              {manualK1s.map((mk) => (
+                <div key={mk.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F1F5F9', gap: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Entity name"
+                    value={mk.name}
+                    onChange={(e) => updateManualK1(mk.id, { name: e.target.value })}
+                    style={{ flex: 1, minWidth: 0, padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13 }}
+                  />
+                  <select
+                    value={mk.type}
+                    onChange={(e) => updateManualK1(mk.id, { type: e.target.value })}
+                    style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, background: '#fff' }}
+                  >
+                    <option value="S Corporation">S Corp</option>
+                    <option value="Partnership / Multi-Member LLC">Partnership/LLC</option>
+                    <option value="C Corporation">C Corp</option>
+                  </select>
+                  <MoneyInput
+                    value={mk.amount}
+                    onChange={(v) => updateManualK1(mk.id, { amount: v })}
+                    placeholder="0"
+                    style={{ width: 140, padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13 }}
+                  />
+                  <button
+                    onClick={() => removeManualK1(mk.id)}
+                    style={{ background: 'none', border: 'none', color: SL, fontSize: 18, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+                    aria-label="Remove K-1"
+                  >×</button>
+                </div>
+              ))}
+              <button
+                onClick={addManualK1}
+                style={{ marginTop: 8, padding: '8px 14px', background: 'transparent', border: '1px dashed #CBD5E1', borderRadius: 8, color: B, fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}
+              >
+                + Add K-1
+              </button>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid #E2E8F0' }}>
                 <span style={{ fontWeight: 700, color: N }}>{incomeFooterLabel}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</span>
               </div>
-              {entities.length === 0 && (
+              {entities.length === 0 && manualK1s.length === 0 && (
                 <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
                   ⚠ No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your S-Corp or LLC so the K-1 flows through here.
                 </div>
@@ -947,6 +999,7 @@ export default function TaxReturn() {
                   interest,
                   dividends,
                   form4797,
+                  manualK1s,
                   isREP,
                   useStandardDed: !useItemized,
                   itemizedDed: itemizedAmt,
