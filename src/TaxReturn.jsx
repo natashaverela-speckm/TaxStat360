@@ -364,6 +364,8 @@ export default function TaxReturn() {
   const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState('')
   const [hsaDeduction, setHsaDeduction] = React.useState('')
   const [studentLoanInt, setStudentLoanInt] = React.useState('')
+  // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
+  const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || '')
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
@@ -431,7 +433,7 @@ export default function TaxReturn() {
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
-  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, taxYear])
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward, taxYear])
 
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
@@ -458,7 +460,7 @@ export default function TaxReturn() {
   const ssBenefits = ytdScale(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
   const iraIncome = ytdScale(iraDistributions)
-  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome
+  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome - Math.max(0, nv(nolCarryforward))
 
   // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
   const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
@@ -935,6 +937,11 @@ export default function TaxReturn() {
                 <label style={lbl}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans. Capped at $2,500. Phases out between $75,000–$90,000 AGI (single). From Form 1098-E."/></label>
                 <MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" style={inp} />
               </div>
+              <div>
+                <label style={lbl}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carried forward from a prior year (Schedule 1 Line 8a). Reduces ordinary income before AGI. Post-TCJA NOLs (from tax years after 2017) are limited to 80% of taxable income computed without the NOL deduction; pre-TCJA NOLs follow older 2-year carryback / 20-year carryforward rules with no 80% cap. Enter as positive — it will be subtracted from your income."/></label>
+                <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
+              </div>
             </div>
           </CollapsibleSection>
 
@@ -1208,6 +1215,7 @@ export default function TaxReturn() {
                   selfEmpHealthIns,
                   hsaDeduction,
                   studentLoanInt,
+                  nolCarryforward,
                 }
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
