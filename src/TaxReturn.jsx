@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv } from './taxCalc'
+import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -255,46 +255,6 @@ export default function TaxReturn() {
   const ssBenefits = ytdScale(socialSecurity)
   const taxableSS = Math.round(ssBenefits * 0.85)
   const iraIncome = ytdScale(iraDistributions)
-  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome - Math.max(0, nv(nolCarryforward))
-
-  // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
-  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
-  const seNetIncome = entities.reduce((sum, e) => {
-    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    return sum + Math.max(0, parseFloat(e.k1) || 0)
-  }, 0)
-
-  // SE tax: 12.4% SS (capped at wage base) + 2.9% Medicare (uncapped), on 92.35% of SE earnings
-  // SS wage base parameterized via TAX_TABLES per year (2024: $168,600, 2025: $176,100, 2026: $184,500 per SSA)
-  const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
-  const seEarningsSubject = seNetIncome * 0.9235
-  const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
-  const medicarePortion = seEarningsSubject * 0.029
-  const seTax = Math.round(ssPortion + medicarePortion)
-  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 Line 15, reduces AGI; also reduces QBI basis per Reg §1.199A-3(b)(1)(vi))
-
-  // Above-the-line deductions (Schedule 1, Part II) — halfSE is included here so it reduces AGI
-  const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
-  const hsaDed = ytdScale(hsaDeduction)
-  const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
-  const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed
-  const agi = grossIncome - adjustments
-
-  // Deductions
-  const stdDed = getStdDed(taxYear, status)
-  const itemized = nv(itemizedAmt)
-  const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
-
-  // New: parse additional capital gain types
-  const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
-  const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
-
-  // QBI — only on positive qualified business income; $0 when k1Total is negative (loss year)
-  // ── Self-Employment income + SE tax (IRC §1401) ──────────────────────────────
-  // SE-subject entity types: Sole Prop, SMLLC (disregarded), Partnership (GP default), LLC (Partnership)
-  // NOT SE-subject: S-Corp (handled via officer W-2 payroll), C-Corp (corporate tax)
-  // SE tax block moved above (now computed before adjustments). seTax, halfSE, seNetIncome, SE_SUBJECT_TYPES available here.
-
   // Entity-mix classifiers for display labels
   const SCHED_C_TYPES = ['Sole Proprietor / Single-Member LLC']
   const K1_TYPES = ['Partnership / Multi-Member LLC', 'S Corporation', 'C Corporation']
@@ -326,86 +286,40 @@ export default function TaxReturn() {
     : hasK1 ? 'K-1 S-Corp / Business (Sch E)'
     : 'Business Income'
 
-  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi): reduce SE-subject income by halfSE AND SE health insurance
-  // SE retirement contributions also reduce per the reg, but app does not yet track them as a separate input
-  // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged
-  const nonSEk1 = Math.max(0, k1Total - seNetIncome)
-  const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, rentalNet) - priorQBILossCO
-  const taxableBeforeQBI = Math.max(0, agi - deduction)
-  // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
-  const prefIncome = ltGain + qualDiv
-  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome)
-
-  // ── Split income into ordinary vs preferential for accurate tax calculation ──
-  // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
-  // These are already included in grossIncome → taxableBeforeQBI, so we subtract them out
-  const totalPrefIncome = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
-  const taxableAfterQBI = Math.max(0, taxableBeforeQBI - qbi)
-  // Ordinary income is whatever remains after removing preferential income (floor at 0)
-  const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
-  // Total taxable income (for display)
-  const taxableIncome = taxableAfterQBI
-
-  // ── Federal income tax on ORDINARY income only (brackets) ───────────────────
-  const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
-
-  // ── Preferential tax via QDCGTW (IRC §1(h)) ─────────────────────────────────
-  // LTCG + qualified dividends at 0/15/20%; Sec 1250 at max 25%; Collectibles at max 28%
-  const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
-    ltcg: Math.min(Math.max(0, ltGain), taxableAfterQBI),
-    qualDiv: Math.min(Math.max(0, qualDiv), taxableAfterQBI),
-    unrecap1250: Math.min(unrec1250, taxableAfterQBI),
-    collectibles: Math.min(collectibles, taxableAfterQBI),
-  }, taxYear, status)
-
-  const fedTax = ordFedTax + prefTax
-
-  // ── Marginal rate on ordinary income ────────────────────────────────────────
-  const brackets = getBrackets(taxYear, status)
-  let marginalRate = 0
-  if (ordinaryTaxableIncome > 0) {
-    let prev = 0
-    for (const [cap, rate] of brackets) {
-      if (ordinaryTaxableIncome > prev) { marginalRate = rate }
-      prev = cap
-    }
-  } else if (totalPrefIncome > 0) {
-    // Show LTCG rate when only preferential income exists
-    const [t0, t15] = getLTCGThresholds(taxYear, status)
-    marginalRate = totalPrefIncome > t15 ? 0.20 : totalPrefIncome > t0 ? 0.15 : 0
-  }
-
-  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ────────────────────────
-  const addlMedThreshold = getAddlMedicareThreshold(taxYear, status)
-  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * 0.009) // Form 8959 unified threshold on combined W-2 + SE
-
-  // ── Net Investment Income Tax (3.8%) — IRC §1411 ────────────────────────────
-  // NII = net investment income: dividends, interest, rental income (if passive), LTCG
-  // For REP: rental income is NOT passive → excluded from NII
-  const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
-  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + Math.max(0, qualDiv) + rentalNII)
-  const niit = calcNIIT(nii, agi, taxYear, status)
-
-  // ── Child Tax Credit (IRC §24) ───────────────────────────────────────────────
-  const numDependents = parseInt(dependents) || 0
-  const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
-
-  // ── Total Tax ────────────────────────────────────────────────────────────────
-  const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), isoBargainElement: hasISO ? nv(isoBargainElement) : 0, ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
-  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
-
-  // Effective rate on earned income
-  const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
-
-  // Payments
-  const withheld = nv(w2Withheld)
-  const estimated = nv(estPaid)
-  const totalPayments = withheld + estimated
-  const balance = totalTax - totalPayments
-
-  // Quarterly estimate recommendation (remaining quarters)
-  const quarterlyRecommended = balance > 0 ? Math.round(balance / 4) : 0
+  // ── Tax calculations: orchestrator (Issue #59 PR-H2) ──────────────────────────
+  const r = calcTaxReturn({
+    taxYear, status, dependents,
+    entities,
+    // Pre-YTD-scaled income inputs:
+    w2, k1Total, rentalNet, stGain, ltGain, intInc, divInc, qualDiv,
+    f4797Inc, taxableSS, iraIncome,
+    // Raw strings (orchestrator nv()s + ytdScales as appropriate):
+    selfEmpHealthIns, hsaDeduction, studentLoanInt,
+    nolCarryforward, priorYearQBILoss,
+    useItemized, itemizedAmt, saltAmount,
+    hasISO, isoBargainElement,
+    isREP,
+    unrecap1250, collectiblesGain,
+    w2Withheld, estPaid,
+    ytdFactor,
+  })
+  const {
+    grossIncome, agi,
+    seNetIncome, seEarningsSubject, seTax, halfSE,
+    selfEmpHealthDed, hsaDed, studentLoanDed, adjustments,
+    stdDed, itemized, deduction,
+    unrec1250, collectibles,
+    nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome, qbi,
+    totalPrefIncome, taxableAfterQBI, ordinaryTaxableIncome, taxableIncome,
+    ordFedTax, prefTax, fedTax,
+    marginalRate,
+    addlMedThreshold, additionalMedicare, rentalNII, nii, niit,
+    numDependents, childCredit,
+    amt,
+    totalTax, effectiveRate,
+    withheld, estimated, totalPayments, balance, quarterlyRecommended,
+    priorQBILossCO,
+  } = r
 
   const inp = { width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', outline: 'none' }
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }
