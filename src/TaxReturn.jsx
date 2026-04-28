@@ -1034,7 +1034,7 @@ export default function TaxReturn() {
                   isREP,
                   useStandardDed: !useItemized,
                   itemizedDed: itemizedAmt,
-                  saltAmount,                  estimatedPayments: estPaid,
+                  estimatedPayments: estPaid,
                   dependents,
                   priorYearQBILoss,
                   qualifiedDividends,
