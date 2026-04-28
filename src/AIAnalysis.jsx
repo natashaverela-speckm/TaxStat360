@@ -50,7 +50,7 @@ function getRecord() {
   const recs = getAllRecords()
   // First: try saved records with real business data
   const saved = recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
-  if (saved) return saved
+  // PR-D: prefer live sessionStorage state over saved records — saved becomes fallback below
 
   // Fallback: synthesize from current sessionStorage (user just ran Step 1+2 but hasn't saved yet)
   try {
@@ -105,6 +105,9 @@ function getRecord() {
       }
     }
   } catch(e) {}
+
+  // PR-D: no live state — fall back to saved record, tagged so banner can warn user
+  if (saved) return Object.assign({ _savedFallback: true }, saved)
   return null
 }
 
@@ -995,10 +998,10 @@ export default function AIAnalysis() {
         </div>
 
         {/* Score bar */}
-        {rec?._unsaved && (
+        {rec?._savedFallback && (
           <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ fontSize: 13, color: '#92400E' }}>
-              <strong>⚠ Unsaved session —</strong> Analysis is based on your current inputs. Save a record to preserve this snapshot.
+              <strong>⚠ Showing saved record —</strong> Analysis below is from a saved snapshot. Open the calculator to see analysis on your current inputs.
             </div>
             <button onClick={() => {
               if (rec) {
