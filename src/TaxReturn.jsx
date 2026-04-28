@@ -348,6 +348,7 @@ export default function TaxReturn() {
   const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
   const [saved, setSaved] = React.useState(false)
   const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || '')
+  const [saltAmount, setSaltAmount] = React.useState(savedF1040.saltAmount || '')
   const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || '')
   const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
   const [showDetail, setShowDetail] = React.useState(false)
