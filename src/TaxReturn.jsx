@@ -53,6 +53,30 @@ const TAX_TABLES = {
     addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
   },
 }
+// ── AMT Tables — Form 6251 — IRC §55-59 ──
+// 2024: Rev. Proc. 2023-34 §3.11 | 2025: Rev. Proc. 2024-40 §3.12 | 2026: Rev. Proc. 2025-32 §3.12 (post-OBBBA P.L. 119-21 §70107)
+// Note: OBBBA returned 2026 phaseout thresholds to 2018 levels and doubled the phaseout rate from 25¢/dollar to 50¢/dollar over threshold.
+// QSS uses MFJ amounts per §55(d)(1).
+const AMT_TABLES = {
+    2024: {
+          exemption:        { single:85700,  mfj:133300, mfs:66650, hoh:85700,  qss:133300 },
+          phaseoutStart:    { single:609350, mfj:1218700, mfs:609350, hoh:609350, qss:1218700 },
+          phaseoutRate:     0.25,
+          bracket26_28:     { single:232600, mfj:232600, mfs:116300, hoh:232600, qss:232600 },
+    },
+    2025: {
+          exemption:        { single:88100,  mfj:137000, mfs:68650, hoh:88100,  qss:137000 },
+          phaseoutStart:    { single:626350, mfj:1252700, mfs:626350, hoh:626350, qss:1252700 },
+          phaseoutRate:     0.25,
+          bracket26_28:     { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
+    },
+    2026: {
+          exemption:        { single:90100,  mfj:140200, mfs:70100, hoh:90100,  qss:140200 },
+          phaseoutStart:    { single:500000, mfj:1000000, mfs:500000, hoh:500000, qss:1000000 },
+          phaseoutRate:     0.50, // OBBBA doubled the phaseout rate beginning 2026
+          bracket26_28:     { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
+    },
+}
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
