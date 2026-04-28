@@ -159,8 +159,45 @@ function calcNIIT(nii, agi, year, fs) {
   return Math.round(Math.min(nii, excessAGI) * 0.038)
 }
 
-/* Alternative Minimum Tax — Form 6251 — IRC §55-59 — STUB; full impl tracked in Issue #44 */ function calcAMT() { /* TODO Issue #44: AMTI = taxableIncome + qbiDeduction (§199A(f)(2)) + saltAddback + isoBargainElement; apply phaseout per filing status × tax year; tax at 26%/28%; carve out LTCG portion; return max(0, TMT - regularTax). v1 stub returns 0. */ return 0 } function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
-  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
+// ── Alternative Minimum Tax — Form 6251 — IRC §55-59 ──
+// AMTI = taxableIncome + QBI add-back (§199A(f)(2)) + SALT add-back (post-cap, §56(b)(1)(A)(ii) / Form 6251 line 2a)
+// Note: standard deduction is NOT added back (§56(b)(1)(F) since TCJA 2018, made permanent by OBBBA)
+// LTCG/qualified dividends carved out of AMTI for ordinary 26/28% calc; taxed at preferential rates via existing calcPreferentialTax
+// Tentative Minimum Tax = ordinary AMT (26/28%) + preferential AMT (0/15/20%); AMT owed = max(0, TMT − regular tax)
+// SALT cap parameterized per year — 2024: $10K, 2025: $40K, 2026: $40,400 (MFS = half); ISO bargain element wired in PR-C
+const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
+function calcAMT({ taxableIncome, qbi, saltAmount, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+  const amtTable = AMT_TABLES[taxYear] || AMT_TABLES[2025]
+  const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
+  const saltCap = status === 'mfs' ? baseSaltCap / 2 : baseSaltCap
+  // SALT add-back applies ONLY if filer is actually itemizing (and itemized exceeds stdDed, which is what triggers Schedule A)
+  const isItemizing = useItemized && itemized > stdDed
+  const saltAddback = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
+  // QBI add-back per §199A(f)(2): taxableIncome already had QBI subtracted; restore it for AMTI
+  // ISO bargain element will be added here in PR-C
+  const amti = Math.max(0, taxableIncome) + Math.max(0, qbi) + saltAddback
+  // Exemption with phaseout — phaseoutRate is 0.25 (pre-OBBBA) or 0.50 (2026+ OBBBA, already encoded in AMT_TABLES)
+  const phaseoutOver = Math.max(0, amti - amtTable.phaseoutStart[status])
+  const exemption = Math.max(0, amtTable.exemption[status] - phaseoutOver * amtTable.phaseoutRate)
+  const amtTaxable = Math.max(0, amti - exemption)
+  if (amtTaxable === 0) return 0
+  // Carve out preferential-rate income — taxed at LTCG rates inside AMT, not 26/28%
+  const preferential = Math.max(0, ltGain) + Math.max(0, qualDiv)
+  const ordinaryAMTI = Math.max(0, amtTaxable - preferential)
+  // 26% / 28% on ordinary AMTI; bracket26_28 is the threshold ($232,600 in 2024 etc., MFS = half, already encoded)
+  const threshold = amtTable.bracket26_28[status]
+  const ordinaryAMT = ordinaryAMTI <= threshold
+    ? ordinaryAMTI * 0.26
+    : threshold * 0.26 + (ordinaryAMTI - threshold) * 0.28
+  // Reuse calcPreferentialTax for the LTCG portion — same 0/15/20% brackets apply inside AMT
+  // Stack preferential income on top of ordinaryAMTI, mirroring the QDCGTW logic
+  const preferentialAMT = calcPreferentialTax(ordinaryAMTI, { ltcg: Math.max(0, ltGain), qualDiv: Math.max(0, qualDiv) }, taxYear, status)
+  const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
+  // AMT owed = excess of TMT over regular tax (regular tax here = fedTax = ordinary + LTCG combined, which matches Form 6251 line 9)
+  return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
+}
+
+function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
   const qbiComponent = qbiIncome * 0.20
   const netCapGain = Math.max(0, capitalGains)
   const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20
