@@ -521,7 +521,7 @@ export default function Dashboard(){
               sessionStorage.setItem('ts360_entities', JSON.stringify(
                 [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}]
               ))
-              sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040))
+              sessionStorage.setItem('ts360_f1040', JSON.stringify({ ...JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}'), ...f1040, officerSalary: calc?.officerSalary || biz?.officerSalary || 0 }))
               sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
               nav('/tax-return')
             } else {
