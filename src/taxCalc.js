@@ -1,0 +1,228 @@
+// Pure tax calculation helpers extracted from TaxReturn.jsx (Issue #59).
+// No React, no DOM, no side effects. Safe to call from any module.
+// Behavior is preserved exactly; this PR (PR-H1) only relocates already-pure
+// module-scope helpers. PR-H2 will extract still-inline math into calcTaxReturn().
+
+// ── IRS Tax Tables 2024-2026 ─────────────────────────────────────────────────
+// Sources: Rev. Proc. 2023-34 (2024) | Rev. Proc. 2024-40 + OBBBA Rev. Proc. 2025-32 (2025) | Rev. Proc. 2025-32 (2026)
+const TAX_TABLES = {
+  2024: {
+    std:      { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
+    ssWageBase: 168600,
+    brackets: {
+      single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
+      mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+      mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
+      hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
+      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+    },
+    ltcg: { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+  },
+  2025: {
+    std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
+    ssWageBase: 176100,
+    brackets: {
+      single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+      mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+      mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
+      hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
+      qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+    },
+    ltcg: { single:[48350,533400], mfj:[96700,600050], mfs:[48350,300000], hoh:[64750,566700], qss:[96700,600050] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+  },
+  2026: {
+    std:      { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
+    ssWageBase: 184500,
+    brackets: {
+      single: [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[648750,.35],[Infinity,.37]],
+      mfj:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
+      mfs:    [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[388825,.35],[Infinity,.37]],
+      hoh:    [[17600,.10],[67050,.12],[106900,.22],[203900,.24],[259300,.32],[648700,.35],[Infinity,.37]],
+      qss:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
+    },
+    ltcg: { single:[50400,557050], mfj:[100800,626350], mfs:[50400,313175], hoh:[67650,591800], qss:[100800,626350] },
+    niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+  },
+}
+// ── AMT Tables — Form 6251 — IRC §55-59 ──
+// 2024: Rev. Proc. 2023-34 §3.11 | 2025: Rev. Proc. 2024-40 §3.12 | 2026: Rev. Proc. 2025-32 §3.12 (post-OBBBA P.L. 119-21 §70107)
+// Note: OBBBA returned 2026 phaseout thresholds to 2018 levels and doubled the phaseout rate from 25¢/dollar to 50¢/dollar over threshold.
+// QSS uses MFJ amounts per §55(d)(1).
+const AMT_TABLES = {
+    2024: {
+          exemption:        { single:85700,  mfj:133300, mfs:66650, hoh:85700,  qss:133300 },
+          phaseoutStart:    { single:609350, mfj:1218700, mfs:609350, hoh:609350, qss:1218700 },
+          phaseoutRate:     0.25,
+          bracket26_28:     { single:232600, mfj:232600, mfs:116300, hoh:232600, qss:232600 },
+    },
+    2025: {
+          exemption:        { single:88100,  mfj:137000, mfs:68650, hoh:88100,  qss:137000 },
+          phaseoutStart:    { single:626350, mfj:1252700, mfs:626350, hoh:626350, qss:1252700 },
+          phaseoutRate:     0.25,
+          bracket26_28:     { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
+    },
+    2026: {
+          exemption:        { single:90100,  mfj:140200, mfs:70100, hoh:90100,  qss:140200 },
+          phaseoutStart:    { single:500000, mfj:1000000, mfs:500000, hoh:500000, qss:1000000 },
+          phaseoutRate:     0.50, // OBBBA doubled the phaseout rate beginning 2026
+          bracket26_28:     { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
+    },
+}
+// SALT deduction caps — Schedule A Line 5e — IRC §164(b)(6) (TCJA) as amended by OBBBA §70106
+// 2024: $10K (TCJA original); 2025: $40K (OBBBA increase); 2026: $40,400 (1% inflation adj per OBBBA); MFS = half
+const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
+
+function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
+function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
+function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
+function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
+function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
+function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
+
+// Ordinary income tax (brackets only — does NOT include LTCG/qualified dividends)
+function calcFederalTax(ordinaryIncome, year, fs) {
+  if (ordinaryIncome <= 0) return 0
+  let tax = 0, prev = 0
+  for (const [cap, rate] of getBrackets(year, fs)) {
+    if (ordinaryIncome <= prev) break
+    tax += (Math.min(ordinaryIncome, cap) - prev) * rate
+    prev = cap
+  }
+  return Math.round(tax)
+}
+
+// ── IRS Qualified Dividends & Capital Gain Tax Worksheet (QDCGTW) ──────────────
+// IRC §1(h) — LTCG and qualified dividends taxed at 0%, 15%, or 20%
+// Also handles: Unrecaptured Sec 1250 gain (max 25%) and Collectibles gain (max 28%)
+// ordinaryIncome = taxable income EXCLUDING preferential items
+// prefItems = { ltcg, qualDiv, unrecap1250, collectibles }
+function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
+  const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
+  const [threshold0, threshold15] = getLTCGThresholds(year, fs)
+  let tax = 0
+
+  // Step 1: Total preferential income (LTCG + qualified dividends)
+  const totalPref = ltcg + qualDiv
+  if (totalPref <= 0 && unrecap1250 <= 0 && collectibles <= 0) return 0
+
+  // Step 2: "Stacking" — ordinary income fills brackets first, then pref income stacks on top
+  const ordFloor = Math.max(0, ordinaryIncome)
+
+  // ── LTCG + Qualified Dividends (0/15/20% rates) ────────────────────────────
+  if (totalPref > 0) {
+    // Amount of LTCG in the 0% bucket
+    const zeroRoom = Math.max(0, threshold0 - ordFloor)
+    const atZero = Math.min(totalPref, zeroRoom)
+
+    // Amount of LTCG in the 15% bucket
+    const fifteenTop = threshold15
+    const fifteenRoom = Math.max(0, fifteenTop - Math.max(ordFloor, threshold0))
+    const remaining15 = totalPref - atZero
+    const atFifteen = Math.min(remaining15, fifteenRoom)
+
+    // Remainder at 20%
+    const atTwenty = totalPref - atZero - atFifteen
+
+    tax += atFifteen * 0.15
+    tax += atTwenty * 0.20
+  }
+
+  // ── Unrecaptured Section 1250 Gain (max 25%) — IRC §1(h)(1)(D) ─────────────
+  // Taxed at the LESSER of 25% or the taxpayer's ordinary bracket rate
+  // For planning purposes: use 25% (conservative, correct for mid/high income)
+  if (unrecap1250 > 0) {
+    // Stack 1250 gain on top of ordinary income + LTCG already used
+    const alreadyUsed = ordFloor + Math.min(totalPref, Math.max(0, threshold15 - ordFloor))
+    // Rate is min(25%, marginal ordinary rate above this stack point)
+    // Simplified: 25% for incomes above the 22% bracket, 22% for lower — use 25% for planning
+    tax += unrecap1250 * 0.25
+  }
+
+  // ── Collectibles Gain (max 28%) — IRC §1(h)(4) ─────────────────────────────
+  if (collectibles > 0) {
+    tax += collectibles * 0.28
+  }
+
+  return Math.round(tax)
+}
+
+// Net Investment Income Tax — IRC §1411 — 3.8% on lesser of NII or excess AGI over threshold
+function calcNIIT(nii, agi, year, fs) {
+  const threshold = getNIITThreshold(year, fs)
+  if (agi <= threshold || nii <= 0) return 0
+  const excessAGI = agi - threshold
+  return Math.round(Math.min(nii, excessAGI) * 0.038)
+}
+
+// ── Alternative Minimum Tax — Form 6251 — IRC §55-59 ──────────────────────────
+// AMTI = taxableIncome + QBI add-back (§199A(f)(2)) + SALT add-back (post-cap, §56(b)(1)(A)(ii) / Form 6251 line 2a)
+// Note: standard deduction is NOT added back (§56(b)(1)(F) since TCJA 2018, made permanent by OBBBA)
+// LTCG/qualified dividends carved out of AMTI for ordinary 26/28% calc; taxed at preferential rates via existing calcPreferentialTax
+// Tentative Minimum Tax = ordinary AMT (26/28%) + preferential AMT (0/15/20%); AMT owed = max(0, TMT − regular tax)
+// SALT_CAPS parameterized per year — see top of file. ISO bargain element wiring deferred to PR-C (Issue #44).
+function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+  const amtTable = AMT_TABLES[taxYear] || AMT_TABLES[2025]
+  const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
+  const saltCap = status === 'mfs' ? baseSaltCap / 2 : baseSaltCap
+  // SALT add-back applies ONLY if filer is actually itemizing (and itemized exceeds stdDed, which is what triggers Schedule A)
+  const isItemizing = useItemized && itemized > stdDed
+  const saltAddback = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
+  // QBI add-back per §199A(f)(2): taxableIncome already had QBI subtracted; restore it for AMTI
+  // ISO bargain element add-back per §56(b)(3) / Form 6251 line 2i — never capped, always added when present
+  const isoAddback = Math.max(0, isoBargainElement || 0)
+  const amti = Math.max(0, taxableIncome) + Math.max(0, qbi) + saltAddback + isoAddback
+  // Exemption with phaseout — phaseoutRate is 0.25 (pre-OBBBA) or 0.50 (2026+ OBBBA, already encoded in AMT_TABLES)
+  const phaseoutOver = Math.max(0, amti - amtTable.phaseoutStart[status])
+  const exemption = Math.max(0, amtTable.exemption[status] - phaseoutOver * amtTable.phaseoutRate)
+  const amtTaxable = Math.max(0, amti - exemption)
+  if (amtTaxable === 0) return 0
+  // Carve out preferential-rate income — taxed at LTCG rates inside AMT, not 26/28%
+  const preferential = Math.max(0, ltGain) + Math.max(0, qualDiv)
+  const ordinaryAMTI = Math.max(0, amtTaxable - preferential)
+  // 26% / 28% on ordinary AMTI; bracket26_28 is the threshold ($232,600 in 2024 etc., MFS = half, already encoded)
+  const threshold = amtTable.bracket26_28[status]
+  const ordinaryAMT = ordinaryAMTI <= threshold
+    ? ordinaryAMTI * 0.26
+    : threshold * 0.26 + (ordinaryAMTI - threshold) * 0.28
+  // Reuse calcPreferentialTax for the LTCG portion — same 0/15/20% brackets apply inside AMT
+  // Stack preferential income on top of ordinaryAMTI, mirroring the QDCGTW logic
+  const preferentialAMT = calcPreferentialTax(ordinaryAMTI, { ltcg: Math.max(0, ltGain), qualDiv: Math.max(0, qualDiv) }, taxYear, status)
+  const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
+  // AMT owed = excess of TMT over regular tax (regular tax here = fedTax = ordinary + LTCG combined, which matches Form 6251 line 9)
+  return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
+}
+
+function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
+  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
+  const qbiComponent = qbiIncome * 0.20
+  const netCapGain = Math.max(0, capitalGains)
+  const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20
+  return Math.round(Math.min(qbiComponent, incomeLimitation))
+}
+
+
+function nv(v) {
+  return parseFloat((v || '').toString().replace(/[^0-9.-]/g, '')) || 0
+}
+
+export {
+  TAX_TABLES,
+  AMT_TABLES,
+  SALT_CAPS,
+  getTable,
+  getStdDed,
+  getBrackets,
+  getLTCGThresholds,
+  getAddlMedicareThreshold,
+  calcFederalTax,
+  calcPreferentialTax,
+  calcNIIT,
+  calcAMT,
+  calcQBI,
+  nv,
+}
