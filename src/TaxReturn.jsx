@@ -248,7 +248,6 @@ export default function TaxReturn() {
   // Net §1231 GAIN goes to LTCG (already captured in ltCapGains); this field is for net loss / ordinary recapture
   const f4797Inc = ytdScale(form4797)
   const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
-  const priorQBILossCO = Math.abs(nv(priorYearQBILoss)) // QBI loss carryforward — reduces qbiBasis only, NOT AGI
 
   // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
   // Social Security: up to 85% taxable (simplified for planning)
