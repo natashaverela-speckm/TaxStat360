@@ -157,18 +157,24 @@ function RiskScan({ rec }) {
   const findings = []
 
   // ── S-Corp salary check ──────────────────────────────────────────────────────
-  if (b.entityType === 'S-Corporation') {
-    if (officerSal === 0 && k1 > 20000) {
+  // PR-E (Issue #36): tolerant entity-type match — historical data has 'S Corporation'
+  // (canonical, with space) and 'S-Corporation' (legacy, with hyphen) variants.
+  // ownerComp falls back to W-2 wages when officerSalary isn't tracked (synthesized
+  // records from the calculator flow always have officerSalary empty).
+  const isSCorpEntity = /s.?corp/i.test(b.entityType || '')
+  const ownerComp = officerSal > 0 ? officerSal : w2
+  if (isSCorpEntity) {
+    if (ownerComp === 0 && k1 > 20000) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    } else if (officerSal > 0 && k1 > 30000 && officerSal < k1 * 0.3) {
+    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.4) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
-        detail: `Your officer salary is ${fmt(officerSal)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
+        detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
         action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
-    } else if (officerSal > 0) {
+    } else if (ownerComp > 0) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded',
-        detail: `Officer salary of ${fmt(officerSal)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
+        detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
         action: null })
     }
   }
