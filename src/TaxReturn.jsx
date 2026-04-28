@@ -169,7 +169,7 @@ function calcNIIT(nii, agi, year, fs) {
 // LTCG/qualified dividends carved out of AMTI for ordinary 26/28% calc; taxed at preferential rates via existing calcPreferentialTax
 // Tentative Minimum Tax = ordinary AMT (26/28%) + preferential AMT (0/15/20%); AMT owed = max(0, TMT − regular tax)
 // SALT_CAPS parameterized per year — see top of file. ISO bargain element wiring deferred to PR-C (Issue #44).
-function calcAMT({ taxableIncome, qbi, saltAmount, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
   const amtTable = AMT_TABLES[taxYear] || AMT_TABLES[2025]
   const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
   const saltCap = status === 'mfs' ? baseSaltCap / 2 : baseSaltCap
@@ -177,8 +177,9 @@ function calcAMT({ taxableIncome, qbi, saltAmount, ltGain, qualDiv, regularTax, 
   const isItemizing = useItemized && itemized > stdDed
   const saltAddback = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
   // QBI add-back per §199A(f)(2): taxableIncome already had QBI subtracted; restore it for AMTI
-  // ISO bargain element will be added here in PR-C
-  const amti = Math.max(0, taxableIncome) + Math.max(0, qbi) + saltAddback
+  // ISO bargain element add-back per §56(b)(3) / Form 6251 line 2i — never capped, always added when present
+  const isoAddback = Math.max(0, isoBargainElement || 0)
+  const amti = Math.max(0, taxableIncome) + Math.max(0, qbi) + saltAddback + isoAddback
   // Exemption with phaseout — phaseoutRate is 0.25 (pre-OBBBA) or 0.50 (2026+ OBBBA, already encoded in AMT_TABLES)
   const phaseoutOver = Math.max(0, amti - amtTable.phaseoutStart[status])
   const exemption = Math.max(0, amtTable.exemption[status] - phaseoutOver * amtTable.phaseoutRate)
@@ -390,6 +391,8 @@ export default function TaxReturn() {
   const [saved, setSaved] = React.useState(false)
   const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || '')
   const [saltAmount, setSaltAmount] = React.useState(savedF1040.saltAmount || '')
+  const [hasISO, setHasISO] = React.useState(!!savedF1040.hasISO)
+  const [isoBargainElement, setIsoBargainElement] = React.useState(savedF1040.isoBargainElement || '')
   const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || '')
   const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
   const [showDetail, setShowDetail] = React.useState(false)
@@ -543,7 +546,7 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-  const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
+  const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), isoBargainElement: hasISO ? nv(isoBargainElement) : 0, ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
   const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
 
   // Effective rate on earned income
@@ -824,6 +827,31 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
+          {/* Incentive Stock Options — AMT trap (§56(b)(3) / Form 6251 line 2i) */}
+          <CollapsibleSection title="INCENTIVE STOCK OPTIONS (AMT)" defaultOpen={false}>
+            <div style={{ fontSize: 12, color: SL, marginBottom: 12, lineHeight: 1.5 }}>
+              If you exercised ISOs this year and held the shares past year-end, the bargain element (FMV at exercise minus strike price) is added to your AMT income — even though it's not taxable for regular tax purposes. This is the most common AMT trigger.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: N, marginBottom: hasISO ? 12 : 0 }}>
+              <input type="checkbox" checked={hasISO} onChange={e => setHasISO(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+              I exercised ISOs and held shares past year-end
+            </label>
+            {hasISO ? (
+              <div style={{ marginTop: 4 }}>
+                <label style={lbl}>ISO Bargain Element <InfoTip text="(FMV at exercise) − (strike price) × shares exercised, for shares NOT sold in the same calendar year. From Form 3921 Box 4 minus Box 3, multiplied by Box 5. Added to AMTI per IRC §56(b)(3) — Form 6251 line 2i. Never capped. If you sold the shares in the same year you exercised (disqualifying disposition), enter $0 here — the gain is already in your W-2 ordinary income."/></label>
+                <MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" style={{ ...inp, maxWidth: 320 }} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Form 6251 line 2i — added to AMTI, no cap</div>
+                <WhatGoesHere items={[
+                  'Form 3921 received from your employer for each ISO exercise',
+                  'Bargain element = (Box 4 FMV at exercise) − (Box 3 strike price) × (Box 5 shares)',
+                  'Only count shares you STILL HELD at year-end — sales in same year are not added back',
+                  'If shares were sold same year (disqualifying disposition), the gain is already on W-2 — enter $0 here',
+                  'Multiple exercises: sum the bargain elements across all Form 3921s',
+                ]} />
+              </div>
+            ) : null}
+          </CollapsibleSection>
+
           {/* Additional Income */}
           <CollapsibleSection title="RETIREMENT & SOCIAL SECURITY INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -1090,6 +1118,8 @@ export default function TaxReturn() {
                   useStandardDed: !useItemized,
                   itemizedDed: itemizedAmt,
                   saltAmount,
+                  hasISO,
+                  isoBargainElement,
                   estimatedPayments: estPaid,
                   dependents,
                   priorYearQBILoss,
