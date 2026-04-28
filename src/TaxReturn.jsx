@@ -397,6 +397,42 @@ export default function TaxReturn() {
   const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
   const [showDetail, setShowDetail] = React.useState(false)
 
+  // Live-sync to sessionStorage so AI Analysis sees current calculator state without requiring a Save.
+  // Mirrors the f1040Updated payload from the Save handler — same fields, same shape, written reactively.
+  React.useEffect(() => {
+    try {
+      const liveF1040 = {
+        filingStatus: status,
+        w2Income,
+        w2Withheld,
+        rentalIncome,
+        rentalExpenses,
+        capitalGains,
+        interest,
+        dividends,
+        form4797,
+        manualK1s,
+        isREP,
+        useStandardDed: !useItemized,
+        itemizedDed: itemizedAmt,
+        saltAmount,
+        hasISO,
+        isoBargainElement,
+        estimatedPayments: estPaid,
+        dependents,
+        priorYearQBILoss,
+        qualifiedDividends,
+        socialSecurity,
+        iraDistributions,
+        selfEmpHealthIns,
+        hsaDeduction,
+        studentLoanInt,
+      }
+      sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
+      sessionStorage.setItem('ts360_taxyear', String(taxYear))
+    } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, taxYear])
+
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
   const ytdFactor = ytdMode && ytdMonth > 0 ? 12 / ytdMonth : 1
