@@ -77,6 +77,10 @@ const AMT_TABLES = {
           bracket26_28:     { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
     },
 }
+// SALT deduction caps — Schedule A Line 5e — IRC §164(b)(6) (TCJA) as amended by OBBBA §70106
+// 2024: $10K (TCJA original); 2025: $40K (OBBBA increase); 2026: $40,400 (1% inflation adj per OBBBA); MFS = half
+const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
+
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
@@ -159,13 +163,12 @@ function calcNIIT(nii, agi, year, fs) {
   return Math.round(Math.min(nii, excessAGI) * 0.038)
 }
 
-// ── Alternative Minimum Tax — Form 6251 — IRC §55-59 ──
+// ── Alternative Minimum Tax — Form 6251 — IRC §55-59 ──────────────────────────
 // AMTI = taxableIncome + QBI add-back (§199A(f)(2)) + SALT add-back (post-cap, §56(b)(1)(A)(ii) / Form 6251 line 2a)
 // Note: standard deduction is NOT added back (§56(b)(1)(F) since TCJA 2018, made permanent by OBBBA)
 // LTCG/qualified dividends carved out of AMTI for ordinary 26/28% calc; taxed at preferential rates via existing calcPreferentialTax
 // Tentative Minimum Tax = ordinary AMT (26/28%) + preferential AMT (0/15/20%); AMT owed = max(0, TMT − regular tax)
-// SALT cap parameterized per year — 2024: $10K, 2025: $40K, 2026: $40,400 (MFS = half); ISO bargain element wired in PR-C
-const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
+// SALT_CAPS parameterized per year — see top of file. ISO bargain element wiring deferred to PR-C (Issue #44).
 function calcAMT({ taxableIncome, qbi, saltAmount, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
   const amtTable = AMT_TABLES[taxYear] || AMT_TABLES[2025]
   const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
@@ -197,7 +200,8 @@ function calcAMT({ taxableIncome, qbi, saltAmount, ltGain, qualDiv, regularTax, 
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
 }
 
-function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
+function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
+  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
   const qbiComponent = qbiIncome * 0.20
   const netCapGain = Math.max(0, capitalGains)
   const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20
@@ -539,8 +543,9 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
+  const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
   const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
+
   // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
 
@@ -876,6 +881,13 @@ const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qu
                 </div>
               ) : null}
             </div>
+            {useItemized ? (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
+                <label style={lbl}>State & Local Taxes Paid (gross, pre-cap) <InfoTip text="Total state income tax + property tax paid this year — BEFORE the SALT cap. Schedule A Lines 5a + 5b. The SALT cap applies automatically (2024: $10K; 2025: $40K; 2026: $40,400; MFS: half). Used for AMT — Form 6251 line 2a adds the capped SALT deduction back to AMTI."/></label>
+                <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" style={{ ...inp, maxWidth: 280 }} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Form 6251 line 2a — capped amount added back to AMTI</div>
+              </div>
+            ) : null}
           </CollapsibleSection>
 
           {/* Estimated Tax Payments */}
@@ -956,7 +968,12 @@ const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qu
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
               </div>
             )}
-            {/* AMT — Always shown (even at $0) per Issue #44 design — "yes, we checked" reassurance */}<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}><span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>AMT (Form 6251) <span style={{ fontSize: 10, opacity: 0.5 }}>· checked</span></span><span style={{ fontSize: 13, fontWeight: 700, color: amt > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amt)}</span></div>{/* Preferential tax breakdown */}
+            {/* AMT — Always shown (even at $0) per Issue #44 design — "yes, we checked" reassurance */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>AMT (Form 6251) <span style={{ fontSize: 10, opacity: 0.5 }}>· checked</span></span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: amt > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amt)}</span>
+            </div>
+            {/* Preferential tax breakdown */}
             {prefTax > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>LTCG / Pref. Rate Tax</span>
