@@ -502,8 +502,8 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-  const amt = calcAMT(); const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
-
+const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
+  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
   // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
 
