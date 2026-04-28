@@ -130,7 +130,7 @@ function RiskScan({ rec }) {
   const revenue = parseFloat(b.grossRevenue) || 0
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
-  const w2 = parseFloat(f.w2Income) || 0
+  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const estPay = parseFloat(f.estimatedPayments) || 0
   const dep = parseFloat(b.depreciation) || 0
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
@@ -285,7 +285,7 @@ function TaxOptimization({ rec }) {
   const dep = parseFloat(b.depreciation) || 0
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
-  const w2 = parseFloat(f.w2Income) || 0
+  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const estPay = parseFloat(f.estimatedPayments) || 0
   const year = parseInt(b.year) || 2025
   const isPassthrough = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType)
@@ -416,7 +416,7 @@ function TaxOptimization({ rec }) {
 function IRSCompliance({ rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
-  const w2 = parseFloat(f.w2Income) || 0
+  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const rental = false // future
   const entity = b.entityType || 'S-Corporation'
   const year = parseInt(b.year) || 2025
