@@ -503,6 +503,19 @@ export default function TaxReturn() {
   const K1_TYPES = ['Partnership / Multi-Member LLC', 'S Corporation', 'C Corporation']
   const hasSchedC = entities.some(e => SCHED_C_TYPES.includes(e?.type))
   const hasK1 = entities.some(e => K1_TYPES.includes(e?.type))
+
+  // PR-E (Issue #36): S-Corp reasonable compensation soft-warning.
+  // Mirrors the AIAnalysis Risk Scan check: when an S-Corp entity has positive K-1 income but
+  // owner compensation (W-2 wages used as a proxy here) is below 40% of S-Corp profit, surface
+  // a soft warning. The IRS scrutinizes this pattern aggressively (IRC §1366 / §3121).
+  // Threshold of 40% catches the gray zone — the issue's "30–60% rule of thumb" range.
+  // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
+  const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
+  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseFloat(e.netProfit) || 0), 0)
+  const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
+  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (sCorpProfit > 30000 && rcRiskRatio !== null && rcRiskRatio < 0.4)))
+    ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, severity: w2 === 0 ? 'high' : 'medium' }
+    : null
   const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
     : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
     : hasK1 ? 'K-1 INCOME FROM STEP 1'
@@ -1052,6 +1065,36 @@ export default function TaxReturn() {
               </div>
             </div>
           </div>
+
+          {/* PR-E (Issue #36): S-Corp Reasonable Compensation soft-warning */}
+          {rcRisk && (
+            <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 14, padding: '16px 20px', marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 18, lineHeight: '24px' }}>{rcRisk.severity === 'high' ? '🚨' : '⚠️'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>
+                    Reasonable Compensation Risk — IRS Audit Flag
+                  </div>
+                  <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.6, marginBottom: 8 }}>
+                    Your S-Corp shows {fmt(rcRisk.sCorpProfit)} in net income but you reported {fmt(rcRisk.w2Wages)} in W-2 wages
+                    {rcRisk.ratio !== null ? ' (' + (rcRisk.ratio * 100).toFixed(1) + '% ratio)' : ''}.
+                    The IRS requires S-Corp owner-employees to pay themselves "reasonable compensation"
+                    for services rendered before taking distributions (IRC §1366 / §3121). Distributions reclassified
+                    as wages by the IRS trigger payroll tax + penalties + interest.
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(146, 64, 14, 0.75)', lineHeight: 1.5, marginBottom: 8, fontStyle: 'italic' }}>
+                    Note: This estimate is based on your total W-2 wages — TaxStat360 cannot tell which W-2 came from this S-Corp.
+                    If you have a separate W-2 job, your actual S-Corp officer comp may be lower, which increases the audit risk.
+                  </div>
+                  <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5 }}>
+                    <strong>What to do:</strong> Industry rule-of-thumb is 30–60% of net profit, depending on the work.
+                    Review with your CPA whether your W-2 ratio is defensible — see <a href="https://www.rcreports.com" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline' }}>RC Reports</a> for benchmark data.
+                    Document your reasoning.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Income Waterfall */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0', marginBottom: 16 }}>
