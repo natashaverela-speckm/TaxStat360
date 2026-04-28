@@ -135,7 +135,7 @@ function calcNIIT(nii, agi, year, fs) {
   return Math.round(Math.min(nii, excessAGI) * 0.038)
 }
 
-function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
+/* Alternative Minimum Tax — Form 6251 — IRC §55-59 — STUB; full impl tracked in Issue #44 */ function calcAMT() { /* TODO Issue #44: AMTI = taxableIncome + qbiDeduction (§199A(f)(2)) + saltAddback + isoBargainElement; apply phaseout per filing status × tax year; tax at 26%/28%; carve out LTCG portion; return max(0, TMT - regularTax). v1 stub returns 0. */ return 0 } function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
   const qbiComponent = qbiIncome * 0.20
   const netCapGain = Math.max(0, capitalGains)
@@ -477,7 +477,7 @@ export default function TaxReturn() {
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
   // ── Total Tax ────────────────────────────────────────────────────────────────
-  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit - childCredit)
+  const amt = calcAMT(); const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
 
   // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
@@ -894,7 +894,7 @@ export default function TaxReturn() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
               </div>
             )}
-            {/* Preferential tax breakdown */}
+            {/* AMT — Always shown (even at $0) per Issue #44 design — "yes, we checked" reassurance */}<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}><span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>AMT (Form 6251) <span style={{ fontSize: 10, opacity: 0.5 }}>· checked</span></span><span style={{ fontSize: 13, fontWeight: 700, color: amt > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amt)}</span></div>{/* Preferential tax breakdown */}
             {prefTax > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>LTCG / Pref. Rate Tax</span>
