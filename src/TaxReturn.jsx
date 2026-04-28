@@ -298,7 +298,7 @@ export default function TaxReturn() {
   const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState('')
   const [hsaDeduction, setHsaDeduction] = React.useState('')
   const [studentLoanInt, setStudentLoanInt] = React.useState('')
-  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
+  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState('')
@@ -651,7 +651,7 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
-                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />
+                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />{w2WasAutoPopulated && <div style={{fontSize:11,fontStyle:'italic',color:'#6B7280',marginTop:4,lineHeight:1.4}}>Pre-filled from your business's officer/owner W-2 wages in Step 1. Add additional W-2 income (from another job) on top of this if applicable.</div>}
                 <WhatGoesHere items={[
                   'W-2 Box 1 (Wages, tips, other compensation) from every employer',
                   'If you have multiple jobs, add all W-2 Box 1 amounts together',
