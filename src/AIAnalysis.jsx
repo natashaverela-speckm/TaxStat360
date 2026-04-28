@@ -472,6 +472,30 @@ function IRSCompliance({ rec }) {
   // Schedule 2 — additional taxes
   schedules.push({ form: 'Schedule 2', title: 'Additional Taxes', status: 'required', detail: 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 23.', deadline: 'Filed with Form 1040' })
 
+  // PR-F (Issue #34): Schedule B — interest > $1,500 OR ordinary dividends > $1,500
+  const _interest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
+  const _dividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  if (_interest > 1500 || _dividends > 1500) {
+    schedules.push({ form: 'Schedule B', title: 'Interest and Ordinary Dividends', status: 'required', detail: `Required when interest or ordinary dividends exceed $1,500. You reported ${fmt(_interest)} in interest and ${fmt(_dividends)} in ordinary dividends.`, deadline: 'Filed with Form 1040' })
+  }
+
+  // PR-F (Issue #34): Schedule D + Form 8949 — any capital gains/losses entered
+  const _stGain = parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0
+  const _ltGain = parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0
+  const _unrec1250 = parseFloat(String(f.unrecap1250 || '').replace(/,/g, '')) || 0
+  const _collectibles = parseFloat(String(f.collectiblesGain || '').replace(/,/g, '')) || 0
+  const _capGainTotal = _stGain + _ltGain + _unrec1250 + _collectibles
+  if (_capGainTotal !== 0) {
+    schedules.push({ form: 'Schedule D', title: 'Capital Gains and Losses', status: 'required', detail: `Reports your ${fmt(_stGain + _ltGain)} in capital gains/losses. Short-term taxed at ordinary rates; long-term at 0/15/20% preferential rates.`, deadline: 'Filed with Form 1040' })
+    schedules.push({ form: 'Form 8949', title: 'Sales and Other Dispositions of Capital Assets', status: 'required', detail: 'Lists individual capital asset sales — purchase date, sale date, basis, proceeds. Subtotals roll up to Schedule D.', deadline: 'Filed with Schedule D' })
+  }
+
+  // PR-F (Issue #34): Form 4797 — Form 4797 ordinary gain/loss OR §1250 unrecaptured gain
+  const _form4797 = parseFloat(String(f.form4797 || '').replace(/,/g, '')) || 0
+  if (_form4797 !== 0 || _unrec1250 > 0) {
+    schedules.push({ form: 'Form 4797', title: 'Sales of Business Property', status: 'required', detail: `Reports ${_form4797 !== 0 ? 'ordinary gain/loss on §1231 property and §1245/§1250 recapture' : 'unrecaptured §1250 gain (depreciation recapture on real property, taxed at max 25%)'}.`, deadline: 'Filed with Form 1040' })
+  }
+
   // Rental real estate — Schedule E Part I + Form 8582 if non-REP
   const _rentalIncomeSch = parseFloat(String(b.rentalIncome || f.rentalIncome || '').replace(/,/g, '')) || 0
   const _isREP = b.isREP || f.isREP || rec?.isREP
@@ -495,8 +519,15 @@ function IRSCompliance({ rec }) {
 
   // Additional Medicare
   const totalIncome = k1 + w2
-  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) { schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: 'Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at $10K), charitable contributions, medical.', deadline: 'Filed with Form 1040' }) } if (totalIncome > 200000) {
-    schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', detail: `With total income of ${fmt(totalIncome)}, the 0.9% Additional Medicare Tax applies to wages/SE income over $200,000 (single).`, deadline: 'Filed with Form 1040' })
+  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) { schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: 'Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at $10K), charitable contributions, medical.', deadline: 'Filed with Form 1040' }) }
+
+  // PR-F (Issue #34): Form 8959 — Additional Medicare Tax 0.9%.
+  // IRS thresholds: $200K single/HOH, $250K MFJ/QSS, $125K MFS. Applies to W-2 wages + SE income only
+  // (K-1 income from S-Corps is NOT subject to Add'l Medicare). Using w2 as the available proxy here
+  // since SE income isn't separately tracked in this synthesized record.
+  const _addlMedThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
+  if (w2 > _addlMedThreshold) {
+    schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', detail: `With ${fmt(w2)} in wages, the 0.9% Additional Medicare Tax applies to wages above ${fmt(_addlMedThreshold)} (${f.filingStatus || 'single'} threshold).`, deadline: 'Filed with Form 1040' })
   }
 
   // Deadline calendar
