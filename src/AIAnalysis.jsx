@@ -457,6 +457,33 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estimatedPayments))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 16 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
+  // Schedule 1 — always required (adjustments to income)
+  schedules.push({ form: 'Schedule 1', title: 'Additional Income and Adjustments', status: 'required', detail: 'Reports K-1 income, rental income, capital gains, NOL carryforward, and above-the-line deductions. Flows to Form 1040 Lines 8 and 10.', deadline: 'Filed with Form 1040' })
+
+  // Schedule 2 — additional taxes
+  schedules.push({ form: 'Schedule 2', title: 'Additional Taxes', status: 'required', detail: 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 23.', deadline: 'Filed with Form 1040' })
+
+  // Rental real estate — Schedule E Part I + Form 8582 if non-REP
+  const _rentalIncomeSch = parseFloat(String(b.rentalIncome || f.rentalIncome || '').replace(/,/g, '')) || 0
+  const _isREP = b.isREP || f.isREP || rec?.isREP
+  if (_rentalIncomeSch > 0) {
+    schedules.push({ form: 'Schedule E (Part I)', title: 'Rental Real Estate', status: 'required', detail: 'Reports rental property income and expenses. ' + (_isREP ? 'REP status under IRC 469(c)(7) allows full loss deduction.' : 'Non-REP filers limited to passive loss rules under IRC 469.'), deadline: 'Filed with Form 1040' })
+    if (!_isREP) {
+      schedules.push({ form: 'Form 8582', title: 'Passive Activity Loss Limitations', status: 'required', detail: 'Required for non-REP filers with rental activities.', deadline: 'Filed with Form 1040' })
+    }
+  }
+
+  // Form 4562 — depreciation
+  if ((parseFloat(String(b.depreciation || '').replace(/,/g, '')) || 0) > 0) {
+    schedules.push({ form: 'Form 4562', title: 'Depreciation and Amortization', status: 'required', detail: 'Reports depreciation deductions for business assets and rental property.', deadline: 'Filed with Form 1040' })
+  }
+
+  // Form 8960 — NIIT (high-income only)
+  const _niitThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
+  if ((k1 + w2) > _niitThreshold) {
+    schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', detail: 'MAGI exceeds the NIIT threshold for the selected filing status. Applies 3.8% to net investment income.', deadline: 'Filed with Form 1040' })
+  }
+
   // Additional Medicare
   const totalIncome = k1 + w2
   if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) { schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: 'Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at $10K), charitable contributions, medical.', deadline: 'Filed with Form 1040' }) } if (totalIncome > 200000) {
