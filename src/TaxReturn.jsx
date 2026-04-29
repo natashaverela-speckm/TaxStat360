@@ -821,7 +821,7 @@ export default function TaxReturn() {
                 {[
                   ['W-2 Wages', w2, true],
                   [breakdownRowLabel, k1Total, k1Total >= 0],
-                  ['Rental Net (Sch E Part I)', rentalNet, rentalNet >= 0],
+                  ['Rental Net Profit/Loss (Sch E, line 26)', rentalNet, rentalNet >= 0],
                   ['Short-Term Capital Gains', stGain, stGain >= 0],
                   ['Long-Term Capital Gains', ltGain, ltGain >= 0],
                   unrec1250 > 0 ? ['Unrecaptured Sec 1250 Gain', unrec1250, false] : null,
