@@ -1,4 +1,5 @@
 import React from 'react'
+import EntityCompareModal from './EntityCompareModal'
 import { useNavigate } from 'react-router-dom'
 
 const N='#0D1B3E',B='#2563EB',SL='#475569',G='#16a34a',R='#dc2626'
@@ -81,7 +82,7 @@ function ExpenseBreakdown({categories,total}){
   )
 }
 
-function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
+function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   const[syn,setSyn]=React.useState(null)
   const[manual,setManual]=React.useState(false)
   const[manRev,setManRev]=React.useState('')
@@ -175,6 +176,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove}){
               </div>
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
+            <button onClick={onCompare} style={{marginTop:14,padding:'10px 16px',background:'#fff',border:'2px solid '+B,borderRadius:8,fontSize:13,fontWeight:700,color:B,cursor:'pointer',width:'100%'}}>📊 Compare entity types</button>
           </div>
         ) : null}
       </div>
@@ -245,6 +247,7 @@ export default function CalculateTax(){
   const[showImport,setShowImport]=React.useState(false)
   const[dragIdx,setDragIdx]=React.useState(null)
   const[dragOverIdx,setDragOverIdx]=React.useState(null)
+  const[compareIdx,setCompareIdx]=React.useState(null)
 
   React.useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
@@ -347,7 +350,7 @@ export default function CalculateTax(){
           {entities.map((ent,idx)=>(
             <div key={idx} draggable onDragStart={()=>onDragStart(idx)} onDragOver={e=>onDragOver(e,idx)} onDrop={()=>onDrop(idx)} onDragEnd={onDragEnd}
               style={{opacity:dragIdx===idx?0.4:1,outline:dragOverIdx===idx&&dragIdx!==idx?'2px dashed '+B:'none',borderRadius:14,transition:'opacity 0.15s'}}>
-              <EntityCard ent={ent} idx={idx} onUpdate={updateEntity} onRemove={removeEntity} canRemove={entities.length>1}/>
+              <EntityCard ent={ent} idx={idx} onUpdate={updateEntity} onRemove={removeEntity} canRemove={entities.length>1} onCompare={()=>setCompareIdx(idx)}/>
             </div>
           ))}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
@@ -381,6 +384,14 @@ export default function CalculateTax(){
       <div style={{textAlign:'center',padding:'16px 0 8px'}}>
         <button onClick={()=>{saveRecord();alert('✅ Record saved! View it on your Dashboard.')}} style={{padding:'10px 24px',background:'#0D1B3E',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',letterSpacing:'0.3px'}}>💾 Save Record</button>
       </div>
+    <EntityCompareModal
+      isOpen={compareIdx !== null}
+      onClose={() => setCompareIdx(null)}
+      entity={compareIdx !== null ? entities[compareIdx] : null}
+      entities={entities}
+      entityIdx={compareIdx}
+      personalContext={{ taxYear: 2025, status: 'single', dependents: 0 }}
+    />
     </>
   )
 }
