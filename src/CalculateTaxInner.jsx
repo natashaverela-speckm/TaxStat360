@@ -135,6 +135,8 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
           <div style={{marginTop:10}}>
             <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 disposition gain (K-1 Box 17K) <span title="If this K-1 reports a §179 disposition gain in Box 17K (typically when the entity sold equipment or a vehicle previously expensed under §179), enter the gain amount here. It will flow to your Form 4797." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
             <input type="number" value={ent.box17K || ''} onChange={e => onUpdate(idx, {...ent, box17K: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 partnership / Box 12 S-corp) <span title="If your K-1 reports §179 expense (Box 11 for partnerships, Box 12 for S-corps), enter the amount your K-1 shows here. It will be deducted from your share of K-1 ordinary income for the analysis. Note: the §179 income limit (which caps total §179 deduction at active business income) is not modeled — for users at or near the limit, the analysis may overstate the deduction." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
+            <input type="number" min="0" value={ent.box11_12 || ''} onChange={e => onUpdate(idx, {...ent, box11_12: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
           </div>
         ) : null}
       </div>
@@ -302,11 +304,11 @@ export default function CalculateTax(){
   function onDrop(idx){if(dragIdx===null||dragIdx===idx)return;setEntities(prev=>{const next=[...prev];const[moved]=next.splice(dragIdx,1);next.splice(idx,0,moved);return next});setDragIdx(null);setDragOverIdx(null)}
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
-  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):sum,0)
+  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseFloat(ent.box11_12)||0):sum,0)
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
-    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100)),box17K:parseFloat(e.box17K)||0}))
+    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseFloat(e.box11_12)||0),box17K:parseFloat(e.box17K)||0,box11_12:parseFloat(e.box11_12)||0}))
     sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
   }
 
