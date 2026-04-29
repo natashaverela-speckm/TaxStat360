@@ -202,14 +202,23 @@ function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qu
 
 // §199A QBI threshold amounts per IRC §199A(e)(2), inflation-adjusted per IRS Rev. Proc.
 // Above the threshold, the wage/UBIA limit (§199A(b)(2)) and SSTB exclusion (§199A(d)(2)) apply.
+// §199A(e)(2) threshold amounts (start of phase-in) — taxable income above which
+// wage/UBIA limits and SSTB exclusion begin to phase in.
+// Sources: Rev. Proc. 2023-34 (2024), Rev. Proc. 2024-40 (2025), Rev. Proc. 2025-32 (2026 post-OBBBA).
 const QBI_THRESHOLDS = {
-  2024: { single: 241950, mfj: 483900, hoh: 241950, mfs: 241950 },
-  2025: { single: 250500, mfj: 501000, hoh: 250500, mfs: 250500 },
-  2026: { single: 261650, mfj: 523300, hoh: 261650, mfs: 261650 }
+  2024: { single: 191950, mfj: 383900, hoh: 191950, mfs: 191950 },
+  2025: { single: 197300, mfj: 394600, hoh: 197300, mfs: 197300 },
+  2026: { single: 201775, mfj: 403500, hoh: 201775, mfs: 201775 }
 };
 
-// §199A(e)(2)(B) phase-in range — wage/UBIA limit and SSTB exclusion phase in linearly across this band above threshold.
-const QBI_PHASE_IN_RANGE = { single: 50000, mfj: 100000, hoh: 50000, mfs: 50000 };
+// §199A(b)(3)(B) phase-in range — wage/UBIA limit and SSTB exclusion phase in linearly
+// across this band above threshold. OBBBA (P.L. 119-21) expanded the range to
+// $75K/$150K starting tax year 2026; 2024–2025 retain the original $50K/$100K.
+const QBI_PHASE_IN_RANGE = {
+  2024: { single: 50000, mfj: 100000, hoh: 50000, mfs: 50000 },
+  2025: { single: 50000, mfj: 100000, hoh: 50000, mfs: 50000 },
+  2026: { single: 75000, mfj: 150000, hoh: 75000, mfs: 75000 }
+};
 
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const { status = 'single', taxYear = 2025, entityQbiData = [] } = opts;
@@ -228,7 +237,8 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   }
 
   // Above threshold: §199A(b)(2) wage/UBIA limit, §199A(b)(3)(B) phase-in, §199A(d)(3) SSTB applicable percentage
-  const phaseInRange = QBI_PHASE_IN_RANGE[status] || QBI_PHASE_IN_RANGE.single;
+  const phaseInForYear = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025];
+  const phaseInRange = phaseInForYear[status] || phaseInForYear.single;
   const excessOverThreshold = taxableBeforeQBI - threshold;
   const phasePercent = Math.min(1, excessOverThreshold / phaseInRange);
 
