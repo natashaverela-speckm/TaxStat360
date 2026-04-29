@@ -505,12 +505,12 @@ export default function TaxReturn() {
               </label>
             {isREP ? (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
-                ✓ REP status: rental losses fully deductible against all income (unlimited). Higher-income REPs should also consider §163(j) business interest limit, §461(l) excess business loss limit, and the §469(c)(7)(A) aggregation election if owning multiple rentals.
+                ✓ REP status: rental losses fully deductible against all income (subject to §461(l) excess business loss limit). Higher-income REPs should also consider §163(j) business interest limit and the §469(c)(7)(A) aggregation election if owning multiple rentals. Maintain contemporaneous time logs — IRS challenges to REP status frequently turn on documentation.
               </div>
             ) : null}
             {!isREP && (
               <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
-                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI). To qualify under §469(c)(7): >750 hours/year in real property trades, >50% of personal services in real property trades, AND material participation in each rental — or aggregate via §469(c)(7)(A) election.
+                ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI). To qualify under §469(c)(7): >750 hours/year in real property trades, >50% of personal services in real property trades, AND material participation in each rental — or aggregate via §469(c)(7)(A) election. For MFJ, only one spouse needs to meet the >750-hour and >50% tests separately (§469(c)(7)(B)).
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
