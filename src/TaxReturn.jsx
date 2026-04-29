@@ -263,14 +263,14 @@ export default function TaxReturn() {
   // PR-E (Issue #36): S-Corp reasonable compensation soft-warning.
   // Mirrors the AIAnalysis Risk Scan check: when an S-Corp entity has positive K-1 income but
   // owner compensation (W-2 wages used as a proxy here) is below 40% of S-Corp profit, surface
-  // a soft warning. The IRS scrutinizes this pattern aggressively (IRC §1366 / §3121).
-  // Threshold of 40% catches the gray zone — the issue's "30–60% rule of thumb" range.
+  // a soft warning. The IRS scrutinizes this pattern aggressively (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r).
+  // Threshold of 40% catches the gray zone — the conservative end of the 30–60% rule-of-thumb range.
   // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
   const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseFloat(e.netProfit) || 0), 0)
   const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
-  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (sCorpProfit > 30000 && rcRiskRatio !== null && rcRiskRatio < 0.4)))
-    ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, severity: w2 === 0 ? 'high' : 'medium' }
+  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
+    ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: w2 === 0 ? 'high' : 'medium' }
     : null
   const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
     : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
@@ -793,17 +793,31 @@ export default function TaxReturn() {
                   <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.6, marginBottom: 8 }}>
                     Your S-Corp shows {fmt(rcRisk.sCorpProfit)} in net income but you reported {fmt(rcRisk.w2Wages)} in W-2 wages
                     {rcRisk.ratio !== null ? ' (' + (rcRisk.ratio * 100).toFixed(1) + '% ratio)' : ''}.
-                    The IRS requires S-Corp owner-employees to pay themselves "reasonable compensation"
-                    for services rendered before taking distributions (IRC §1366 / §3121). Distributions reclassified
+                    {' '}Conservative target: at least {fmt(rcRisk.targetW2)} in W-2 wages (40% of net profit) — a planning rule of thumb, not a guaranteed safe harbor.
+                    {' '}The IRS requires S-Corp owner-employees to pay themselves "reasonable compensation"
+                    for services rendered before taking distributions (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r). Distributions reclassified
                     as wages by the IRS trigger payroll tax + penalties + interest.
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(146, 64, 14, 0.75)', lineHeight: 1.5, marginBottom: 8, fontStyle: 'italic' }}>
                     Note: This estimate is based on your total W-2 wages — TaxStat360 cannot tell which W-2 came from this S-Corp.
                     If you have a separate W-2 job, your actual S-Corp officer comp may be lower, which increases the audit risk.
                   </div>
+                  <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5, marginBottom: 8 }}>
+                    <strong>How the IRS / courts evaluate "reasonable"</strong> (Watson factors):
+                    <ul style={{ margin: '4px 0 0 0', paddingLeft: 20 }}>
+                      <li>Training and experience of the owner</li>
+                      <li>Duties and responsibilities</li>
+                      <li>Time and effort devoted to the business</li>
+                      <li>Dividends paid to other shareholders</li>
+                      <li>Payments to non-shareholder employees</li>
+                      <li>Compensation paid in prior years</li>
+                      <li>Comparable salaries for similar work in similar businesses</li>
+                      <li>The company's financial condition</li>
+                    </ul>
+                  </div>
                   <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5 }}>
                     <strong>What to do:</strong> Industry rule-of-thumb is 30–60% of net profit, depending on the work.
-                    Review with your CPA whether your W-2 ratio is defensible — see <a href="https://www.rcreports.com" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline' }}>RC Reports</a> for benchmark data.
+                    Review with your CPA whether your W-2 ratio is defensible — see <a href="https://www.rcreports.com" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline' }}>RC Reports</a> for benchmark data, and the <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-employees-shareholders-and-corporate-officers" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline' }}>IRS guidance on S-Corp officer compensation</a>.
                     Document your reasoning.
                   </div>
                 </div>
