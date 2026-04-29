@@ -196,6 +196,13 @@ export default function TaxReturn() {
 
   // Live-sync to sessionStorage so AI Analysis sees current calculator state without requiring a Save.
   // Mirrors the f1040Updated payload from the Save handler — same fields, same shape, written reactively.
+  // §179 income limit display values (mirrors the cap math in the useEffect below for render-scope use)
+  const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
+  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseFloat(w2Income)||0))
+  const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
+  const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
+
   React.useEffect(() => {
     try {
       const liveF1040 = {
@@ -227,7 +234,13 @@ export default function TaxReturn() {
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
-  const liveStateForAI = { entities, k1Income: entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100)-(parseFloat(e.box11_12)||0)-(parseFloat(e.box12_13)||0), 0), taxYear, f1040: liveF1040 }
+  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
+  const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
+  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(liveF1040.w2Income)||0))
+  const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
+  const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
+  const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
   }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward, taxYear])
 
@@ -327,6 +340,11 @@ export default function TaxReturn() {
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', color: N }}>
       <style>{`input:focus, select:focus { outline: 2px solid ${B} !important; box-shadow: none !important; }`}</style>
+      {sec179DisallowedForDisplay > 0 && (
+        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '12px 24px', fontSize: 13, color: '#92400E' }}>
+          ⚠ <strong>§179 deduction capped at active business income.</strong> Total §179 election: ${totalSec179ForDisplay.toLocaleString()}. Active business income: ${activeBizIncomeForDisplay.toLocaleString()}. Allowed this year: <strong>${sec179AllowedForDisplay.toLocaleString()}</strong>. Carryforward to next year per IRC §179(b)(3): <strong>${sec179DisallowedForDisplay.toLocaleString()}</strong>.
+        </div>
+      )}
 
       {/* Nav */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
