@@ -227,7 +227,7 @@ export default function TaxReturn() {
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
-  const liveStateForAI = { entities, k1Income: entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100)-(parseFloat(e.box11_12)||0), 0), taxYear, f1040: liveF1040 }
+  const liveStateForAI = { entities, k1Income: entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100)-(parseFloat(e.box11_12)||0)-(parseFloat(e.box12_13)||0), 0), taxYear, f1040: liveF1040 }
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
   }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward, taxYear])
 
