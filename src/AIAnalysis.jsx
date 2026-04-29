@@ -114,7 +114,7 @@ function getRecord(liveState) {
           stGain: f1040.stGain || '',
           interest: f1040.interest || '',
           dividends: f1040.dividends || '',
-          qualDividends: f1040.qualDividends || '',
+          qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '',
           priorYearLosses: f1040.priorYearLosses || '',
           estPaid: f1040.estPaid || '',
           useItemized: f1040.useItemized || false,
