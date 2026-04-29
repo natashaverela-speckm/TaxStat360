@@ -121,6 +121,7 @@ function getRecord(liveState) {
           itemizedAmt: f1040.itemizedAmt || '',
           niit: f1040.niit || 0,
           additionalMedicare: f1040.additionalMedicare || 0,
+          form4797: (parseFloat(f1040.form4797) || 0) + entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0),
         },
         quarterly: 0,
         totalTax: 0,
