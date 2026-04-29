@@ -197,19 +197,46 @@ function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qu
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
 }
 
-function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains) {
-  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0
-  const qbiComponent = qbiIncome * 0.20
-  const netCapGain = Math.max(0, capitalGains)
-  const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20
-  return Math.round(Math.min(qbiComponent, incomeLimitation))
+// §199A QBI threshold amounts per IRC §199A(e)(2), inflation-adjusted per IRS Rev. Proc.
+// Above the threshold, the wage/UBIA limit (§199A(b)(2)) and SSTB exclusion (§199A(d)(2)) apply.
+const QBI_THRESHOLDS = {
+  2024: { single: 241950, mfj: 483900, hoh: 241950, mfs: 241950 },
+  2025: { single: 250500, mfj: 501000, hoh: 250500, mfs: 250500 },
+  2026: { single: 261650, mfj: 523300, hoh: 261650, mfs: 261650 }
+};
+
+function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
+  const { status = 'single', taxYear = 2025, entityQbiData = [] } = opts;
+  if (qbiIncome <= 0 || taxableBeforeQBI <= 0) return 0;
+  const netCapGain = Math.max(0, capitalGains);
+  const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20;
+  const qbiComponent = qbiIncome * 0.20;
+
+  // §199A(e)(2) threshold check
+  const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025];
+  const threshold = thresholds[status] || thresholds.single;
+
+  // Below threshold: simple 20% of QBI capped by income limitation, no wage/UBIA/SSTB limits
+  if (taxableBeforeQBI <= threshold) {
+    return Math.round(Math.min(qbiComponent, incomeLimitation)) || 0;
+  }
+
+  // Above threshold: apply §199A(b)(2) wage/UBIA limit
+  // Phase-in approximation: hard cutoff at threshold (true phase-in spans 50K single / 100K MFJ above threshold)
+  const totalWages = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_wages) || 0), 0);
+  const totalUBIA = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_ubia) || 0), 0);
+
+  // If no Box 17V data entered, preserve backward-compat behavior (simple 20%).
+  // Users above threshold should enter wages/UBIA from K-1 Box 17V (S-corp) / Box 20Z (partnership) for accurate calc.
+  if (totalWages === 0 && totalUBIA === 0) {
+    return Math.round(Math.min(qbiComponent, incomeLimitation)) || 0;
+  }
+
+  // Wage/UBIA limit per §199A(b)(2): greater of 50% wages OR 25% wages + 2.5% UBIA
+  const wageLimit = Math.max(totalWages * 0.50, totalWages * 0.25 + totalUBIA * 0.025);
+
+  return Math.round(Math.min(qbiComponent, wageLimit, incomeLimitation)) || 0;
 }
-
-
-function nv(v) {
-  return parseFloat((v || '').toString().replace(/[^0-9.-]/g, '')) || 0
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // calcTaxReturn — top-level pure orchestrator (Issue #59 PR-H2)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,7 +325,7 @@ function calcTaxReturn(input) {
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
-  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome)
+  const qbi = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, { status, taxYear, entityQbiData: entities })
 
   // ── Split income into ordinary vs preferential for accurate tax calculation ──
   // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
