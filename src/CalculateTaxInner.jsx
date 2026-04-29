@@ -89,6 +89,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   const[manExp,setManExp]=React.useState('')
   const[manOfficerSal,setManOfficerSal]=React.useState('')
   const[showDetails,setShowDetails]=React.useState(false)
+  const[showAdvK1,setShowAdvK1]=React.useState(false)
   const color=COLORS[idx%COLORS.length]
   const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
   const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.5px'}
@@ -128,6 +129,15 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
           </div>
         </div>
       ) : null}
+      <div style={{padding:'10px 20px 14px 20px',borderBottom:'1px solid #E2E8F0'}}>
+        <button onClick={()=>setShowAdvK1(!showAdvK1)} style={{padding:'4px 10px',background:'transparent',border:'1px solid #CBD5E1',borderRadius:6,fontSize:11,fontWeight:600,color:'#475569',cursor:'pointer'}}>{showAdvK1?'▲ Advanced K-1 items':'▼ Advanced K-1 items'}</button>
+        {showAdvK1 ? (
+          <div style={{marginTop:10}}>
+            <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 disposition gain (K-1 Box 17K) <span title="If this K-1 reports a §179 disposition gain in Box 17K (typically when the entity sold equipment or a vehicle previously expensed under §179), enter the gain amount here. It will flow to your Form 4797." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
+            <input type="number" value={ent.box17K || ''} onChange={e => onUpdate(idx, {...ent, box17K: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+          </div>
+        ) : null}
+      </div>
 
       <div style={{padding:20,background:'#fff'}}>
         {!ent.pnl ? (
@@ -296,7 +306,7 @@ export default function CalculateTax(){
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
-    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))}))
+    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100)),box17K:parseFloat(e.box17K)||0}))
     sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
   }
 
