@@ -168,11 +168,11 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
               </div>
               <div style={{background:color,borderRadius:10,padding:'12px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',color:'#fff'}}>
                 <div>
-                  <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginBottom:2}}>K-1 DISTRIBUTIVE SHARE</div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginBottom:2}}>{ent.type==='Sole Proprietor / Single-Member LLC'?'SCHEDULE C NET PROFIT':'K-1 DISTRIBUTIVE SHARE'}</div>
                   <div style={{fontSize:26,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:2}}>{fmt(ent.pnl.netProfit)} x {ent.own}%</div>
                 </div>
-                <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',maxWidth:160,textAlign:'right',lineHeight:1.4}}>{k1>=0?'Flows to Schedule E on your personal 1040':'Loss may offset other income on personal return'}</div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',maxWidth:160,textAlign:'right',lineHeight:1.4}}>{k1>=0?(ent.type==='Sole Proprietor / Single-Member LLC'?'Flows to Schedule C — subject to SE tax':ent.type==='Partnership / Multi-Member LLC'?'Flows to Schedule E — subject to SE tax':'Flows to Schedule E on your personal 1040'):'Loss may offset other income on personal return'}</div>
               </div>
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
@@ -365,7 +365,7 @@ export default function CalculateTax(){
               </div>
               <div style={{borderTop:'1px solid rgba(255,255,255,0.12)',paddingTop:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div>
-                  <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4}}>TOTAL K-1 TO SCHEDULE E</div>
+                  <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4}}>TOTAL BUSINESS INCOME</div>
                   <div style={{fontSize:44,fontWeight:800,color:k1Total>=0?'#4ADE80':'#F87171'}}>{fmt(k1Total)}</div>
                 </div>
                 <button onClick={proceed} style={{padding:'16px 40px',background:B,border:'none',borderRadius:12,fontSize:16,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 20px rgba(37,99,235,0.5)'}}>Continue to Personal Tax Return →</button>
