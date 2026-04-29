@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -52,7 +52,23 @@ function getAllRecords() {
   return found.sort((a, b) => (b.id || 0) - (a.id || 0))
 }
 
-function getRecord() {
+function getRecord(liveState) {
+  if (liveState) {
+    const ent = (liveState.entities || [])[0] || {}
+    const f1040 = liveState.f1040 || JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
+    const k1 = liveState.k1Income || 0
+    const taxyear = liveState.taxYear || parseInt(sessionStorage.getItem('ts360_taxyear') || String(new Date().getFullYear()))
+    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
+      return {
+        type: 'personal-return',
+        _unsaved: true,
+        _source: 'live',
+        k1Income: k1,
+        biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(ent.netProfit || 0) },
+        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estimatedPayments: f1040.estimatedPayments || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '' }
+      }
+    }
+  }
   const recs = getAllRecords()
   // First: try saved records with real business data
   const saved = recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
@@ -967,6 +983,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
 
 function NoData() {
   const nav = useNavigate()
+  const location = useLocation()
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
@@ -982,12 +999,13 @@ function NoData() {
 
 export default function AIAnalysis() {
   const nav = useNavigate()
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState(0)
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
 
-  const rec = getRecord()
+  const rec = getRecord(location.state?.liveState)
   const score = completeness(rec)
 
   const TABS = [
@@ -1008,7 +1026,7 @@ export default function AIAnalysis() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/dashboard')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>📂 Dashboard</button>
           <button onClick={() => {
-            const r = getRecord()
+            const r = getRecord(location.state?.liveState)
             if (r) {
               sessionStorage.setItem('ts360_k1', String(r.k1Income || 0))
               sessionStorage.setItem('ts360_taxyear', String(r.biz?.year || 2025))
