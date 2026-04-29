@@ -224,35 +224,41 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     return Math.round(Math.min(qbiComponent, incomeLimitation)) || 0;
   }
 
-  // Above threshold: §199A(b)(2) wage/UBIA limit applies, with §199A(b)(3)(B) phase-in
-  const totalWages = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_wages) || 0), 0);
-  const totalUBIA = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_ubia) || 0), 0);
+  // Above threshold: §199A(b)(2) wage/UBIA limit, §199A(b)(3)(B) phase-in, §199A(d)(3) SSTB applicable percentage
+  const phaseInRange = QBI_PHASE_IN_RANGE[status] || QBI_PHASE_IN_RANGE.single;
+  const excessOverThreshold = taxableBeforeQBI - threshold;
+  const phasePercent = Math.min(1, excessOverThreshold / phaseInRange);
 
-  // Backward-compat: if no Box 17V data entered, fall back to simple 20% (preserves existing audit cases).
+  // §199A(d)(3) SSTB applicable percentage: 100% at threshold, 0% at threshold+phaseInRange.
+  // LIMITATION: only applied when ALL entities are flagged SSTB. Mixed SSTB+non-SSTB filers still over-deduct
+  // on the SSTB portion (this requires per-entity QBI breakdown the orchestrator doesn't currently track).
+  const totalEntities = entityQbiData.length;
+  const sstbCount = entityQbiData.filter(e => e.box17V_sstb).length;
+  const allSSTB = totalEntities > 0 && sstbCount === totalEntities;
+  const applicablePct = allSSTB ? Math.max(0, 1 - phasePercent) : 1;
+
+  // Scale QBI / wages / UBIA by applicable percentage (no-op for non-SSTB filers since applicablePct = 1)
+  const scaledQbiComponent = qbiComponent * applicablePct;
+  const totalWages = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_wages) || 0), 0) * applicablePct;
+  const totalUBIA = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_ubia) || 0), 0) * applicablePct;
+
+  // Backward-compat: if no Box 17V wage/UBIA data entered, fall back to (scaled) simple 20%.
   // Users above threshold should enter wages/UBIA from K-1 Box 17V (S-corp) / Box 20Z (partnership) for accurate calc.
   if (totalWages === 0 && totalUBIA === 0) {
-    return Math.round(Math.min(qbiComponent, incomeLimitation)) || 0;
+    return Math.round(Math.min(scaledQbiComponent, incomeLimitation)) || 0;
   }
 
   // Wage/UBIA limit per §199A(b)(2): greater of 50% wages OR 25% wages + 2.5% UBIA
   const wageLimit = Math.max(totalWages * 0.50, totalWages * 0.25 + totalUBIA * 0.025);
 
-  // §199A(b)(3)(B) phase-in: linearly between threshold and threshold+phaseInRange.
+  // §199A(b)(3)(B) phase-in: linear between threshold and threshold+phaseInRange.
   // At threshold: no reduction (simple 20% applies). At threshold+range: full wage limit applies.
-  const phaseInRange = QBI_PHASE_IN_RANGE[status] || QBI_PHASE_IN_RANGE.single;
-  const excessOverThreshold = taxableBeforeQBI - threshold;
-
   let limitedAmount;
   if (excessOverThreshold >= phaseInRange) {
-    // Fully above the phase-in band: full wage/UBIA limit applies
-    limitedAmount = Math.min(qbiComponent, wageLimit);
+    limitedAmount = Math.min(scaledQbiComponent, wageLimit);
   } else {
-    // Inside the phase-in band: gradual reduction per §199A(b)(3)(B)
-    // reduction = (qbiComponent − wageLimit) × (excessOverThreshold / phaseInRange)
-    // — only reduces if wageLimit < qbiComponent (i.e., wage cap would otherwise bind)
-    const phasePercent = excessOverThreshold / phaseInRange;
-    const reduction = Math.max(0, qbiComponent - wageLimit) * phasePercent;
-    limitedAmount = qbiComponent - reduction;
+    const reduction = Math.max(0, scaledQbiComponent - wageLimit) * phasePercent;
+    limitedAmount = scaledQbiComponent - reduction;
   }
 
   return Math.round(Math.min(limitedAmount, incomeLimitation)) || 0;
