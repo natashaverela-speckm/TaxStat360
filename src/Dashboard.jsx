@@ -529,7 +529,7 @@ export default function Dashboard(){
             }
           }} style={{
             padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
-            fontWeight:700,fontSize:13,color:activeView===v?B:SL,cursor:'pointer',transition:'all 0.15s'
+            fontWeight:700,fontSize:13,color:activeView===v?B:SL,transition:'all 0.15s'
           }}>{label}</button>
         ))}
       </div>
