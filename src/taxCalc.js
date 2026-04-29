@@ -230,17 +230,31 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const phasePercent = Math.min(1, excessOverThreshold / phaseInRange);
 
   // §199A(d)(3) SSTB applicable percentage: 100% at threshold, 0% at threshold+phaseInRange.
-  // LIMITATION: only applied when ALL entities are flagged SSTB. Mixed SSTB+non-SSTB filers still over-deduct
-  // on the SSTB portion (this requires per-entity QBI breakdown the orchestrator doesn't currently track).
-  const totalEntities = entityQbiData.length;
-  const sstbCount = entityQbiData.filter(e => e.box17V_sstb).length;
-  const allSSTB = totalEntities > 0 && sstbCount === totalEntities;
-  const applicablePct = allSSTB ? Math.max(0, 1 - phasePercent) : 1;
+  // Applied per-entity so mixed SSTB + non-SSTB filers correctly exclude only the SSTB portion.
+  const sstbApplicablePct = Math.max(0, 1 - phasePercent);
 
-  // Scale QBI / wages / UBIA by applicable percentage (no-op for non-SSTB filers since applicablePct = 1)
-  const scaledQbiComponent = qbiComponent * applicablePct;
-  const totalWages = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_wages) || 0), 0) * applicablePct;
-  const totalUBIA = entityQbiData.reduce((s, e) => s + (parseFloat(e.box17V_ubia) || 0), 0) * applicablePct;
+  // SSTB entities' contribution to QBI (their share of qbiIncome from K-1 SSTB activities).
+  const sstbEntityQBI = entityQbiData.reduce((s, e) => {
+    if (!e.box17V_sstb) return s;
+    const k1Income = (parseFloat(e.netProfit) || 0) * ((parseInt(e.own) || 100) / 100);
+    const sec179 = parseFloat(e.box11_12) || 0;
+    const otherDed = parseFloat(e.box12_13) || 0;
+    return s + Math.max(0, k1Income - sec179 - otherDed);
+  }, 0);
+
+  // Reduce aggregate QBI by SSTB exclusion: non-SSTB QBI kept in full; SSTB QBI scaled by sstbApplicablePct.
+  const adjQBI = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct));
+  const scaledQbiComponent = adjQBI * 0.20;
+
+  // Wages / UBIA: scale only the SSTB-attributed portion by sstbApplicablePct
+  const totalWages = entityQbiData.reduce((s, e) => {
+    const w = parseFloat(e.box17V_wages) || 0;
+    return s + (e.box17V_sstb ? w * sstbApplicablePct : w);
+  }, 0);
+  const totalUBIA = entityQbiData.reduce((s, e) => {
+    const u = parseFloat(e.box17V_ubia) || 0;
+    return s + (e.box17V_sstb ? u * sstbApplicablePct : u);
+  }, 0);
 
   // Backward-compat: if no Box 17V wage/UBIA data entered, fall back to (scaled) simple 20%.
   // Users above threshold should enter wages/UBIA from K-1 Box 17V (S-corp) / Box 20Z (partnership) for accurate calc.
