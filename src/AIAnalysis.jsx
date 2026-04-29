@@ -79,6 +79,13 @@ function getRecord(liveState) {
     const k1 = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
     const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
     const f1040 = JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
+    const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
+    const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
+    const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
+    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(f1040.w2Income)||0))
+    const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
+    const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
+    const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
     const taxyear = parseInt(sessionStorage.getItem('ts360_taxyear') || '2025')
     const ent = entities[0] || {}
     if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
@@ -88,7 +95,7 @@ function getRecord(liveState) {
         savedAt: 'Current session (unsaved)',
         type: 'personal-return',
         _unsaved: true,
-        k1Income: k1,
+        k1Income: k1Capped, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome,
         biz: {
           entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
