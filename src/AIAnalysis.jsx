@@ -1018,6 +1018,11 @@ export default function AIAnalysis() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {rec && rec._source !== 'live' && (
+        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '10px 20px', textAlign: 'center', fontSize: 13, color: '#92400E' }}>
+          ℹ Showing last saved data — <a href="#" onClick={(e) => { e.preventDefault(); nav('/tax-return'); }} style={{ color: '#92400E', textDecoration: 'underline', fontWeight: 600 }}>return to the calculator</a> to refresh with current inputs.
+        </div>
+      )}
       {showReport && <ReportModal onClose={() => setShowReport(false)} rec={rec} />}
       {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} rec={rec} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
