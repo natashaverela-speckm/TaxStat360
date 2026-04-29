@@ -137,6 +137,8 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
             <input type="number" value={ent.box17K || ''} onChange={e => onUpdate(idx, {...ent, box17K: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 S-corp / Box 12 partnership) <span title="If your K-1 reports §179 expense (Box 11 for S-corps, Box 12 for partnerships), enter the amount your K-1 shows here. It will be deducted from your share of K-1 ordinary income for the analysis. Note: the §179 income limit (which caps total §179 deduction at active business income) is not modeled — for users at or near the limit, the analysis may overstate the deduction." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
             <input type="number" min="0" value={ent.box11_12 || ''} onChange={e => onUpdate(idx, {...ent, box11_12: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>K-1 ordinary deductions (do NOT include charitable contributions, investment interest, or §199A info — those flow elsewhere) <span title="K-1 Box 12 S-corp Other Deductions / Box 13 partnership Other Deductions. Charitable contributions flow to Schedule A, investment interest to Form 4952, §199A QBI info to QBI calculation — none reduce K-1 ordinary income. Only enter items that DO reduce ordinary business income." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
+            <input type="number" min="0" value={ent.box12_13 || ''} onChange={e => onUpdate(idx, {...ent, box12_13: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
           </div>
         ) : null}
       </div>
@@ -304,11 +306,11 @@ export default function CalculateTax(){
   function onDrop(idx){if(dragIdx===null||dragIdx===idx)return;setEntities(prev=>{const next=[...prev];const[moved]=next.splice(dragIdx,1);next.splice(idx,0,moved);return next});setDragIdx(null);setDragOverIdx(null)}
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
-  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseFloat(ent.box11_12)||0):sum,0)
+  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseFloat(ent.box11_12)||0)-(parseFloat(ent.box12_13)||0):sum,0)
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
-    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseFloat(e.box11_12)||0),box17K:parseFloat(e.box17K)||0,box11_12:parseFloat(e.box11_12)||0}))
+    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseFloat(e.box11_12)||0)-(parseFloat(e.box12_13)||0),box17K:parseFloat(e.box17K)||0,box11_12:parseFloat(e.box11_12)||0,box12_13:parseFloat(e.box12_13)||0}))
     sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
   }
 
