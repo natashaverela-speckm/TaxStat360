@@ -9,6 +9,12 @@ const R = '#DC2626'
 const P = '#7C3AED'
 const O = '#D97706'
 
+// Entity-type predicates (Issue #56) — tolerant of 'S Corporation' (canonical, with space)
+// and 'S-Corporation' (legacy, with hyphen) variants in saved or synthesized records.
+const isPassthroughEntity = (t) => /partnership|llc|s.?corp|sole/i.test(t || '')
+const isSCorpEntity      = (t) => /s.?corp/i.test(t || '')
+const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
+
 function Logo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -68,7 +74,7 @@ function getRecord() {
         _unsaved: true,
         k1Income: k1,
         biz: {
-          entityType: ent.type || ent.name || 'S-Corporation',
+          entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
           ownershipPct: ent.own || '100',
           grossRevenue: String(ent.netProfit > 0 ? ent.netProfit : 0),
@@ -198,7 +204,7 @@ function RiskScan({ rec }) {
   }
 
   // ── QBI deduction ────────────────────────────────────────────────────────────
-  if (['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType) && k1 > 10000) {
+  if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const qbi = Math.round(k1 * 0.20)
     findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
       detail: `The 20% Qualified Business Income deduction (IRC §199A) is automatically applied to your K-1 income. This reduced your taxable income by ${fmt(qbi)}.`,
@@ -206,7 +212,7 @@ function RiskScan({ rec }) {
   }
 
   // ── C-Corp double tax ────────────────────────────────────────────────────────
-  if (b.entityType === 'C-Corporation' && revenue > 0) {
+  if (isCCorpEntity(b.entityType) && revenue > 0) {
     findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
       detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
       action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
@@ -297,7 +303,7 @@ function TaxOptimization({ rec }) {
   const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const estPay = parseFloat(f.estimatedPayments) || 0
   const year = parseInt(b.year) || 2025
-  const isPassthrough = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(b.entityType)
+  const isPassthrough = isPassthroughEntity(b.entityType)
 
   // Tax tables by year
   const TAX_TABLES_OPT = {
@@ -349,7 +355,7 @@ function TaxOptimization({ rec }) {
   })
 
   // Reasonable salary optimization for S-Corps
-  if (b.entityType === 'S-Corporation' && officerSal > 0 && k1 > 50000) {
+  if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 50000) {
     const seTaxSaved = Math.round((k1 - officerSal) * 0.0765 * 2) // employer+employee FICA avoided on distributions
     if (seTaxSaved > 1000) {
       opportunities.push({
@@ -370,7 +376,7 @@ function TaxOptimization({ rec }) {
   })
 
   // Augusta Rule (if S-Corp)
-  if (b.entityType === 'S-Corporation' && revenue > 0) {
+  if (isSCorpEntity(b.entityType) && revenue > 0) {
     opportunities.push({
       icon: '🏡', title: 'Augusta Rule — IRC §280A(g)', priority: 'low',
       saving: null,
@@ -427,7 +433,7 @@ function IRSCompliance({ rec }) {
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const rental = false // future
-  const entity = b.entityType || 'S-Corporation'
+  const entity = b.entityType || 'Unknown'
   const year = parseInt(b.year) || 2025
   const today = new Date()
 
@@ -437,7 +443,7 @@ function IRSCompliance({ rec }) {
   schedules.push({ form: 'Form 1040', title: 'U.S. Individual Income Tax Return', status: 'required', detail: 'Your main personal tax return. All income sources flow here — W-2, K-1, Schedule E, Schedule C.', deadline: `April 15, ${year + 1}` })
 
   // S-Corp / Partnership
-  if (['S-Corporation'].includes(entity)) {
+  if (isSCorpEntity(entity)) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
     schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(k1)} share of S-Corp income flows to your personal return via this form. Attach to Schedule E, Part II.`, deadline: `Issued with Form 1120-S` })
     schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
@@ -452,7 +458,7 @@ function IRSCompliance({ rec }) {
   }
 
   // QBI deduction
-  if (['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor'].includes(entity) && k1 > 0) {
+  if (isPassthroughEntity(entity) && k1 > 0) {
     schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC §199A)', status: 'required', detail: `Your 20% Qualified Business Income deduction of ~${fmt(Math.round(k1 * 0.20))} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
@@ -649,7 +655,7 @@ function SimulatorModal({ onClose, rec }) {
   const taxYear = parseInt(b.year) || 2025
   const filing  = f.filingStatus || 'single'
   const ownerPct = parseFloat(b.ownershipPct || 100) / 100
-  const entity  = b.entityType || 'S-Corporation'
+  const entity  = b.entityType || 'Unknown'
 
   // ── Saved baseline numbers ────────────────────────────────────────────────
   const base = {
@@ -695,7 +701,6 @@ function SimulatorModal({ onClose, rec }) {
   const table = TAX_TABLES[taxYear] || TAX_TABLES[2025]
   const stdDed = table.std[filing] || table.std.single
 
-  const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
 
   const calcScenario = (d) => {
     const rev   = base.grossRevenue      + (d.grossRevenue      || 0)
@@ -714,12 +719,12 @@ function SimulatorModal({ onClose, rec }) {
 
     // K-1 passthrough
     let k1 = 0
-    if (PASSTHROUGH.includes(entity)) {
+    if (isPassthroughEntity(entity)) {
       k1 = Math.max(0, netBizIncome) * ownerPct
     }
 
     // Personal 1040
-    const qbi = PASSTHROUGH.includes(entity) ? Math.round(k1 * 0.20) : 0
+    const qbi = isPassthroughEntity(entity) ? Math.round(k1 * 0.20) : 0
     const totalPersonalIncome = k1 + w2
     const agi = Math.max(0, totalPersonalIncome - qbi)
     const taxableInc = Math.max(0, agi - stdDed)
@@ -1005,12 +1010,11 @@ export default function AIAnalysis() {
           <button onClick={() => {
             const r = getRecord()
             if (r) {
-              const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
               sessionStorage.setItem('ts360_k1', String(r.k1Income || 0))
               sessionStorage.setItem('ts360_taxyear', String(r.biz?.year || 2025))
               sessionStorage.setItem('ts360_f1040', JSON.stringify(r.f1040 || {}))
               sessionStorage.setItem('ts360_entities', JSON.stringify(
-                PASSTHROUGH.includes(r.biz?.entityType)
+                isPassthroughEntity(r.biz?.entityType)
                   ? [{ type: r.biz?.entityType, k1: r.k1Income || 0 }]
                   : []
               ))
@@ -1070,12 +1074,11 @@ export default function AIAnalysis() {
             <button onClick={() => {
               if (rec) {
                 // Pre-populate TaxReturn with saved record data — same keys Dashboard uses
-                const PASSTHROUGH = ['S-Corporation','Partnership','Multi-Member LLC','Single-Member LLC','Sole Proprietor']
                 sessionStorage.setItem('ts360_k1', String(rec.k1Income || 0))
                 sessionStorage.setItem('ts360_taxyear', String(rec.biz?.year || 2025))
                 sessionStorage.setItem('ts360_f1040', JSON.stringify(rec.f1040 || {}))
                 sessionStorage.setItem('ts360_entities', JSON.stringify(
-                  PASSTHROUGH.includes(rec.biz?.entityType)
+                  isPassthroughEntity(rec.biz?.entityType)
                     ? [{ type: rec.biz?.entityType, k1: rec.k1Income || 0 }]
                     : []
                 ))
