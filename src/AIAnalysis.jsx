@@ -54,6 +54,10 @@ function getAllRecords() {
 }
 
 function getRecord(liveState) {
+  // #112: co-op patron flag is stored as a top-level sessionStorage key (not inside ts360_f1040)
+  // and threaded into rec.f1040.isCoopPatron so IRSCompliance can drive Form 8995 vs 8995-A selection
+  // per IRS Form 8995 instructions (co-op patrons file 8995-A regardless of TI threshold).
+  const _isCoopPatron = sessionStorage.getItem('ts360_isCoopPatron') === 'true'
   if (liveState) {
     const ent = (liveState.entities || [])[0] || {}
     const f1040 = liveState.f1040 || JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
@@ -67,7 +71,7 @@ function getRecord(liveState) {
         k1Income: k1,
         entities: liveState.entities || [],
         biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(ent.netProfit || 0) },
-        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estimatedPayments: f1040.estimatedPayments || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
+        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estimatedPayments: f1040.estimatedPayments || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
       }
     }
   }
@@ -120,6 +124,7 @@ function getRecord(liveState) {
           rentalIncome: f1040.rentalIncome || '',
           rentalExpenses: f1040.rentalExpenses || '',
           isREP: f1040.isREP || false,
+          isCoopPatron: _isCoopPatron,
           capitalGains: f1040.capitalGains || '',
           stGain: f1040.stGain || '',
           interest: f1040.interest || '',
@@ -500,14 +505,18 @@ function IRSCompliance({ rec }) {
     // Form 8995 vs 8995-A selection (#107) per IRS Form 8995 instructions:
     //   file 8995-A if TI > threshold OR co-op patron; else file 8995.
     // SSTB doesn't drive form choice (handled inside 8995-A Schedule A when above threshold).
-    // Co-op patron flag deferred to #112 (input field + data threading).
+    // Co-op patron flag (#112): read from rec.f1040.isCoopPatron (populated by getRecord
+    // from the ts360_isCoopPatron sessionStorage key set in Step 1). The §199A(g)(2) patron
+    // reduction calculation (Form 8995-A Schedule D) is NOT yet implemented in taxCalc.js;
+    // patrons see a Schedule D reference in the detail text below as a flag for manual review.
     const _qbiThresholds = QBI_THRESHOLDS[year] || QBI_THRESHOLDS[2025]
     const _qbiThreshold = _qbiThresholds[_filing] || _qbiThresholds.single
-    const _isCoopPatron = false // TODO #112
+    const _isCoopPatron = !!f.isCoopPatron
     const _useForm8995A = _taxableBeforeQBI > _qbiThreshold || _isCoopPatron
     const _formNum = _useForm8995A ? 'Form 8995-A' : 'Form 8995'
     const _formTitle = _useForm8995A ? 'QBI Deduction \u2014 Detailed Computation (IRC \u00A7199A)' : 'QBI Deduction (IRC \u00A7199A)'
-    schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    const _coopNote = (_isCoopPatron && _useForm8995A) ? ' Co-op patron status flagged \u2014 see Form 8995-A Schedule D for the \u00A7199A(g)(2) patron reduction (lesser of 9% of QBI allocable to qualified payments or 50% of allocable W-2 wages); not currently calculated by this tool.' : ''
+    schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.${_coopNote}`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding

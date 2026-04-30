@@ -267,6 +267,10 @@ export default function CalculateTax(){
   const[dragIdx,setDragIdx]=React.useState(null)
   const[dragOverIdx,setDragOverIdx]=React.useState(null)
   const[compareIdx,setCompareIdx]=React.useState(null)
+  // #112: co-op patron flag persists in sessionStorage as ts360_isCoopPatron and is read by
+  // AIAnalysis.getRecord() into rec.f1040.isCoopPatron (drives Form 8995 vs 8995-A selection).
+  const[isCoopPatron,setIsCoopPatron]=React.useState(()=>sessionStorage.getItem('ts360_isCoopPatron')==='true')
+  React.useEffect(()=>{sessionStorage.setItem('ts360_isCoopPatron',String(isCoopPatron))},[isCoopPatron])
 
   React.useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
@@ -375,6 +379,16 @@ export default function CalculateTax(){
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
             <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
             <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S Corporation',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
+          </div>
+          {/* #112: co-op patron flag — drives Form 8995 vs 8995-A in IRSCompliance */}
+          <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'14px 18px',marginBottom:24}}>
+            <label style={{display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer'}}>
+              <input type="checkbox" checked={isCoopPatron} onChange={e=>setIsCoopPatron(e.target.checked)} style={{marginTop:3,cursor:'pointer'}}/>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:N}}>I am a patron of an agricultural or horticultural cooperative</div>
+                <div style={{fontSize:12,color:SL,marginTop:3,lineHeight:1.45}}>Check this if you received Form 1099-PATR or a K-1 from an ag/hort co-op (e.g., dairy, grain, fruit/vegetable, or livestock). Per IRS Form 8995 instructions, co-op patrons file Form 8995-A regardless of taxable income. The §199A(g)(2) patron reduction (Form 8995-A Schedule D) is not currently calculated by this tool.</div>
+              </div>
+            </label>
           </div>
           {anyPnl ? (
             <div style={{background:'linear-gradient(135deg,#0D1B3E 0%,#1e3a70 100%)',borderRadius:16,padding:28,color:'#fff',marginBottom:24}}>
