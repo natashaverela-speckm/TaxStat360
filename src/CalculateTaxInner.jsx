@@ -333,6 +333,9 @@ export default function CalculateTax(){
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
       taxTotal: sessionStorage.getItem('ts360_k1') || '0',
       biz: entities && entities[0] ? {...entities[0]} : null,
+      // #113: persist full entities array (not just biz=entities[0]) so AIAnalysis.getRecord's
+      // saved-record fallback can pass entityQbiData to calcQBI — preserves SSTB / Box 17V wages / UBIA.
+      entities: Array.isArray(entities) ? entities.map(e => ({...e})) : [],
       f1040: {filingStatus:'single',w2Income:'',otherIncome:'',extraDeductions:'',retirement:''}
     }
     recs.unshift(snap)

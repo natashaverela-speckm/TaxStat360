@@ -145,7 +145,19 @@ function getRecord(liveState) {
   } catch(e) {}
 
   // PR-D: no live state — fall back to saved record, tagged so banner can warn user
-  if (saved) return Object.assign({ _savedFallback: true }, saved)
+  // #113: ensure rec.entities is populated when restoring from a saved record. Older saves
+  // only stored biz (the first entity); without the full array, calcQBI sees entityQbiData=[]
+  // and silently drops SSTB / Box 17V wages / UBIA — divergent from TaxReturn results.
+  if (saved) {
+    const fallback = Object.assign({ _savedFallback: true }, saved)
+    if (!Array.isArray(fallback.entities) || fallback.entities.length === 0) {
+      try {
+        const sessionEntities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
+        if (Array.isArray(sessionEntities) && sessionEntities.length > 0) fallback.entities = sessionEntities
+      } catch(e) {}
+    }
+    return fallback
+  }
   return null
 }
 
@@ -513,10 +525,25 @@ function IRSCompliance({ rec }) {
     const _qbiThreshold = _qbiThresholds[_filing] || _qbiThresholds.single
     const _isCoopPatron = !!f.isCoopPatron
     const _useForm8995A = _taxableBeforeQBI > _qbiThreshold || _isCoopPatron
+    // #113: surface 8995-A schedule references when underlying entity / loss conditions apply.
+    // Schedule A = SSTB phase-in/phase-out at or above the §199A threshold.
+    // Schedule C = QBI loss netting and §199A(c)(2) carryforward (current-year loss across entities OR prior-year QBI carryover).
+    // Schedule B (aggregation election) is intentionally not surfaced yet — taxpayer-level aggregation flag is not tracked anywhere
+    // in the data model; tracked as a follow-up issue rather than guessing.
+    const _entitiesArr = Array.isArray(rec.entities) ? rec.entities : []
+    const _hasSSTB = _entitiesArr.some(e => !!(e && (e.box17V_sstb || e.sstb)))
+    const _currentYearQbiLoss = _entitiesArr.some(e => {
+      const np = parseFloat(e?.netProfit ?? e?.pnl?.netProfit ?? 0) || 0
+      const own = parseFloat(e?.own ?? 100) || 100
+      return (np * own / 100) < 0
+    }) || k1 < 0
+    const _priorQbiLoss = (parseFloat(f.priorQBILossCO || f.priorYearLosses || 0) || 0) > 0
     const _formNum = _useForm8995A ? 'Form 8995-A' : 'Form 8995'
     const _formTitle = _useForm8995A ? 'QBI Deduction \u2014 Detailed Computation (IRC \u00A7199A)' : 'QBI Deduction (IRC \u00A7199A)'
+    const _sstbNote = (_useForm8995A && _hasSSTB && _taxableBeforeQBI > _qbiThreshold) ? ' SSTB activity detected at or above the income threshold \u2014 see Form 8995-A Schedule A for the \u00A7199A(d)(3) phase-in / phase-out of the QBI deduction for specified service trades or businesses.' : ''
+    const _lossNote = (_useForm8995A && (_currentYearQbiLoss || _priorQbiLoss)) ? ' QBI loss detected \u2014 see Form 8995-A Schedule C for loss netting across qualified businesses and the \u00A7199A(c)(2) carryforward of negative QBI to subsequent years.' : ''
     const _coopNote = (_isCoopPatron && _useForm8995A) ? ' Co-op patron status flagged \u2014 see Form 8995-A Schedule D for the \u00A7199A(g)(2) patron reduction (lesser of 9% of QBI allocable to qualified payments or 50% of allocable W-2 wages); not currently calculated by this tool.' : ''
-    schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.${_coopNote}`, deadline: 'Filed with Form 1040' })
+    schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.${_sstbNote}${_lossNote}${_coopNote}`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
@@ -781,7 +808,8 @@ function SimulatorModal({ onClose, rec }) {
     // Personal 1040
     const totalPersonalIncome = k1 + w2
     const _taxableBeforeQBI = Math.max(0, totalPersonalIncome - stdDed)
-    const { deduction: qbi } = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear }) : { deduction: 0 }
+    // #113: thread entityQbiData so SSTB / wage-UBIA caps apply consistently with RiskScan + IRSCompliance + TaxReturn
+    const { deduction: qbi } = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear, entityQbiData: rec?.entities || [] }) : { deduction: 0 }
     const agi = Math.max(0, totalPersonalIncome - qbi)
     const taxableInc = Math.max(0, agi - stdDed)
 
