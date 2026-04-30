@@ -233,10 +233,11 @@ function RiskScan({ rec }) {
     const _year = parseInt(b.year) || 2025
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
-    const { deduction: qbi, limitApplied: _limitApplied } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
+    const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
-    const _limitPrefix = _limitApplied === 'wage' ? 'Your deduction is currently reduced by the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) could increase it. '
-                       : _limitApplied === 'income' ? 'Your deduction is currently capped by your overall taxable income (20% of taxable income less net capital gain). '
+    const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
+    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
+                       : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : ''
     findings.push({ level: 'good', icon: '\u2705', title: `QBI Deduction Applied \u2014 ${fmt(qbi)} Saved`,
       detail: `The Qualified Business Income deduction (IRC \u00A7199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
