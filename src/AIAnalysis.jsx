@@ -494,8 +494,9 @@ function IRSCompliance({ rec }) {
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
-    const { deduction: _qbi, limitApplied: _limitApplied } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
-    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ' (limited by W-2 wage/UBIA cap)' : _limitApplied === 'income' ? ' (capped by 20% of taxable income)' : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
+    const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - _qbi)) : 0
+    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
