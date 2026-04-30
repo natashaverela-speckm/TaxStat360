@@ -484,6 +484,8 @@ export {
   calcNIIT,
   calcAMT,
   calcQBI,
+  QBI_THRESHOLDS,
+  QBI_PHASE_IN_RANGE,
   nv,
   calcTaxReturn,
 }
