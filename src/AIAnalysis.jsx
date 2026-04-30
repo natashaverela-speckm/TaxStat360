@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { calcQBI, QBI_THRESHOLDS, getStdDed } from './taxCalc'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -229,10 +230,14 @@ function RiskScan({ rec }) {
 
   // ── QBI deduction ────────────────────────────────────────────────────────────
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
-    const qbi = Math.round(k1 * 0.20)
+    const _year = parseInt(b.year) || 2025
+    const _filing = f.filingStatus || 'single'
+    const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
+    const qbi = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
+    const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
     findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
-      detail: `The 20% Qualified Business Income deduction (IRC §199A) is automatically applied to your K-1 income. This reduced your taxable income by ${fmt(qbi)}.`,
-      action: 'QBI phases out above $197,300 (single) or $394,600 (MFJ) in 2025. For W-2 wage businesses above these thresholds, the deduction may be limited.' })
+      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
+      action: `QBI begins phasing out above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}. Above the phase-in band, the deduction is limited by W-2 wages and UBIA — enter K-1 Box 17V (S-corp) or Box 20Z (partnership) for accurate calculation.` })
   }
 
   // ── C-Corp double tax ────────────────────────────────────────────────────────
@@ -483,7 +488,10 @@ function IRSCompliance({ rec }) {
 
   // QBI deduction
   if (isPassthroughEntity(entity) && k1 > 0) {
-    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC §199A)', status: 'required', detail: `Your 20% Qualified Business Income deduction of ~${fmt(Math.round(k1 * 0.20))} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    const _filing = f.filingStatus || 'single'
+    const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
+    const _qbi = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
+    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC §199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
@@ -748,8 +756,9 @@ function SimulatorModal({ onClose, rec }) {
     }
 
     // Personal 1040
-    const qbi = isPassthroughEntity(entity) ? Math.round(k1 * 0.20) : 0
     const totalPersonalIncome = k1 + w2
+    const _taxableBeforeQBI = Math.max(0, totalPersonalIncome - stdDed)
+    const qbi = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear }) : 0
     const agi = Math.max(0, totalPersonalIncome - qbi)
     const taxableInc = Math.max(0, agi - stdDed)
 
