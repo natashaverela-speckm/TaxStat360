@@ -233,11 +233,14 @@ function RiskScan({ rec }) {
     const _year = parseInt(b.year) || 2025
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
-    const qbi = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
+    const { deduction: qbi, limitApplied: _limitApplied } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
-    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
-      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
-      action: `QBI begins phasing out above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}. Above the phase-in band, the deduction is limited by W-2 wages and UBIA — enter K-1 Box 17V (S-corp) or Box 20Z (partnership) for accurate calculation.` })
+    const _limitPrefix = _limitApplied === 'wage' ? 'Your deduction is currently reduced by the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) could increase it. '
+                       : _limitApplied === 'income' ? 'Your deduction is currently capped by your overall taxable income (20% of taxable income less net capital gain). '
+                       : ''
+    findings.push({ level: 'good', icon: '\u2705', title: `QBI Deduction Applied \u2014 ${fmt(qbi)} Saved`,
+      detail: `The Qualified Business Income deduction (IRC \u00A7199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
+      action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.` })
   }
 
   // ── C-Corp double tax ────────────────────────────────────────────────────────
@@ -490,8 +493,8 @@ function IRSCompliance({ rec }) {
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
-    const _qbi = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
-    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC §199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    const { deduction: _qbi, limitApplied: _limitApplied } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
+    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ' (limited by W-2 wage/UBIA cap)' : _limitApplied === 'income' ? ' (capped by 20% of taxable income)' : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
@@ -758,7 +761,7 @@ function SimulatorModal({ onClose, rec }) {
     // Personal 1040
     const totalPersonalIncome = k1 + w2
     const _taxableBeforeQBI = Math.max(0, totalPersonalIncome - stdDed)
-    const qbi = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear }) : 0
+    const { deduction: qbi } = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear }) : { deduction: 0 }
     const agi = Math.max(0, totalPersonalIncome - qbi)
     const taxableInc = Math.max(0, agi - stdDed)
 
