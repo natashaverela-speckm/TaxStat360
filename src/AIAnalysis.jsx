@@ -65,6 +65,7 @@ function getRecord(liveState) {
         _unsaved: true,
         _source: 'live',
         k1Income: k1,
+        entities: liveState.entities || [],
         biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(ent.netProfit || 0) },
         f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estimatedPayments: f1040.estimatedPayments || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
       }
@@ -97,6 +98,7 @@ function getRecord(liveState) {
         type: 'personal-return',
         _unsaved: true,
         k1Income: k1Capped, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome,
+        entities,
         biz: {
           entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
@@ -233,7 +235,7 @@ function RiskScan({ rec }) {
     const _year = parseInt(b.year) || 2025
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
-    const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year })
+    const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
@@ -495,7 +497,7 @@ function IRSCompliance({ rec }) {
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
-    const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
+    const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year, entityQbiData: rec.entities || [] })
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - _qbi)) : 0
     // Form 8995 vs 8995-A selection (#107) per IRS Form 8995 instructions:
     //   file 8995-A if TI > threshold OR co-op patron; else file 8995.
