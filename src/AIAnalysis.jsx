@@ -497,7 +497,17 @@ function IRSCompliance({ rec }) {
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
     const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - _qbi)) : 0
-    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    // Form 8995 vs 8995-A selection (#107) per IRS Form 8995 instructions:
+    //   file 8995-A if TI > threshold OR co-op patron; else file 8995.
+    // SSTB doesn't drive form choice (handled inside 8995-A Schedule A when above threshold).
+    // Co-op patron flag deferred to #112 (input field + data threading).
+    const _qbiThresholds = QBI_THRESHOLDS[year] || QBI_THRESHOLDS[2025]
+    const _qbiThreshold = _qbiThresholds[_filing] || _qbiThresholds.single
+    const _isCoopPatron = false // TODO #112
+    const _useForm8995A = _taxableBeforeQBI > _qbiThreshold || _isCoopPatron
+    const _formNum = _useForm8995A ? 'Form 8995-A' : 'Form 8995'
+    const _formTitle = _useForm8995A ? 'QBI Deduction \u2014 Detailed Computation (IRC \u00A7199A)' : 'QBI Deduction (IRC \u00A7199A)'
+    schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
