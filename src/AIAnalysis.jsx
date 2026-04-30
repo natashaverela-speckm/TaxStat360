@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { calcQBI, QBI_THRESHOLDS, getStdDed } from './taxCalc'
+import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -172,6 +172,8 @@ function RiskScan({ rec }) {
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
   const totalIncome = k1 + w2
+  const year = parseInt(b.year) || 2025
+  const filing = f.filingStatus || 'single'
   const today = new Date()
   // Quarterly estimated tax deadlines (month/day)
   const qDeadlines = [
@@ -255,14 +257,18 @@ function RiskScan({ rec }) {
   }
 
   // ── Large tax liability — advertising & Section 179 ──────────────────────────
-  const roughTax = Math.round(Math.max(0, totalIncome - 15750) * 0.22)
+  // Pre-#199A rough estimate: AGI − std deduction → progressive bracket walk.
+  // Marginal rate used below for Section 179 capacity heuristic.
+  const _taxable = Math.max(0, totalIncome - getStdDed(year, filing))
+  const roughTax = calcFederalTax(_taxable, year, filing)
+  const _marginalRate = getMarginalRate(_taxable, year, filing)
   if (roughTax > 10000) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
       action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
     findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
       detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $2.5M in 2025 under the One Big Beautiful Bill Act (OBBBA), with phase-out beginning above $4M of qualifying purchases. Bonus depreciation was restored to 100% for property acquired and placed in service after January 19, 2025 (applies to both new and used property).',
-      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / 0.22), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
+      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / _marginalRate), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
   // ── Real Estate Professional (REP) ──────────────────────────────────────────
@@ -341,20 +347,12 @@ function TaxOptimization({ rec }) {
   const year = parseInt(b.year) || 2025
   const isPassthrough = isPassthroughEntity(b.entityType)
 
-  // Tax tables by year
-  const TAX_TABLES_OPT = {
-    2024: { brackets: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], stdDed: {single:14600,mfj:29200,mfs:14600,hoh:21900} },
-    2025: { brackets: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], stdDed: {single:15750,mfj:31500,mfs:15750,hoh:23625} },
-    2026: { brackets: [[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], stdDed: {single:16100,mfj:32200,mfs:16100,hoh:24150} },
-  }
-  const table = TAX_TABLES_OPT[year] || TAX_TABLES_OPT[2025]
-  const brackets = table.brackets
-  const agi = Math.max(0, k1 + w2)
+  // Tax tables / std-ded / marginal rate now sourced from taxCalc.js (#105 PR 2)
   const filing = f.filingStatus || 'single'
-  const stdDed = table.stdDed[filing] || table.stdDed.single
+  const stdDed = getStdDed(year, filing)
+  const agi = Math.max(0, k1 + w2)
   const taxable = Math.max(0, agi - stdDed)
-  let marginalRate = 0.10, prev = 0
-  for (const [cap, rate] of brackets) { if (taxable > prev) marginalRate = rate; prev = cap }
+  const marginalRate = getMarginalRate(taxable, year, filing)
 
   const opportunities = []
 
@@ -575,7 +573,10 @@ function IRSCompliance({ rec }) {
 
   // Additional Medicare
   const totalIncome = k1 + w2
-  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) { schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: 'Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at $10K), charitable contributions, medical.', deadline: 'Filed with Form 1040' }) }
+  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) {
+    const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
+    schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
+  }
 
   // PR-F (Issue #34): Form 8959 — Additional Medicare Tax 0.9%.
   // IRS thresholds: $200K single/HOH, $250K MFJ/QSS, $125K MFS. Applies to W-2 wages + SE income only
@@ -743,13 +744,8 @@ function SimulatorModal({ onClose, rec }) {
   }
 
   // ── Tax engine ────────────────────────────────────────────────────────────
-  const TAX_TABLES = {
-    2024: { brackets:[[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]], std:{single:14600,mfj:29200,mfs:14600,hoh:21900} },
-    2025: { brackets:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]], std:{single:15750,mfj:31500,mfs:15750,hoh:23625} },
-    2026: { brackets:[[12000,.10],[49000,.12],[105000,.22],[200000,.24],[253000,.32],[633000,.35],[Infinity,.37]], std:{single:16100,mfj:32200,mfs:16100,hoh:24150} },
-  }
-  const table = TAX_TABLES[taxYear] || TAX_TABLES[2025]
-  const stdDed = table.std[filing] || table.std.single
+  // Std deduction + bracket data sourced from taxCalc.js (#105 PR 2)
+  const stdDed = getStdDed(taxYear, filing)
 
 
   const calcScenario = (d) => {
@@ -780,14 +776,9 @@ function SimulatorModal({ onClose, rec }) {
     const agi = Math.max(0, totalPersonalIncome - qbi)
     const taxableInc = Math.max(0, agi - stdDed)
 
-    let fedTax = 0, prev = 0
-    for (const [cap, rate] of table.brackets) {
-      if (taxableInc <= prev) break
-      fedTax += (Math.min(taxableInc, cap) - prev) * rate
-      prev = cap
-    }
+    let fedTax = calcFederalTax(taxableInc, taxYear, filing)
 
-    return { rev, opex, sal, dep, adv, other, netBizIncome, k1, qbi, w2, agi, taxableInc, fedTax: Math.round(fedTax) }
+    return { rev, opex, sal, dep, adv, other, netBizIncome, k1, qbi, w2, agi, taxableInc, fedTax }
   }
 
   const baseline = calcScenario({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0 })
