@@ -322,7 +322,7 @@ export default function TaxReturn() {
     selfEmpHealthDed, hsaDed, studentLoanDed, adjustments,
     stdDed, itemized, deduction,
     unrec1250, collectibles,
-    nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome, qbi,
+    nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome, qbi, qbiLimitApplied, qbiCaps,
     totalPrefIncome, taxableAfterQBI, ordinaryTaxableIncome, taxableIncome,
     ordFedTax, prefTax, fedTax,
     marginalRate,
@@ -745,9 +745,16 @@ export default function TaxReturn() {
 
             {/* QBI */}
             {qbi > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>QBI deduction</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#4ADE80' }}>{fmt(qbi)} saved</span>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>QBI deduction</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#4ADE80' }}>{fmt(qbi)} saved</span>
+                </div>
+                {qbiLimitApplied && qbiLimitApplied !== 'none' && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textAlign: 'right', marginTop: 2 }}>
+                    Limited by {qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA cap' : 'income cap'}
+                  </div>
+                )}
               </div>
             )}
 
@@ -865,7 +872,7 @@ export default function TaxReturn() {
                   ['─────────────────', null, true],
                   ['Gross Income', grossIncome, grossIncome >= 0],
                   ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
-                  ['QBI Deduction', qbi > 0 ? -qbi : 0, false],
+                  ['QBI Deduction' + (qbi > 0 && qbiLimitApplied && qbiLimitApplied !== 'none' ? ' (limited by ' + (qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA' : 'income cap') + ')' : ''), qbi > 0 ? -qbi : 0, false],
                   ['─────────────────', null, true],
                   ['Taxable Income', taxableIncome, taxableIncome >= 0],
                   ['Federal Tax — Ordinary Income', ordFedTax > 0 ? -ordFedTax : null, false],
