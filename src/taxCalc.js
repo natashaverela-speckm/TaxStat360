@@ -220,16 +220,50 @@ const QBI_PHASE_IN_RANGE = {
   2026: { single: 75000, mfj: 150000, hoh: 75000, mfs: 75000 }
 };
 
+// §199A(i) — OBBBA P.L. 119-21 minimum deduction for active QBI.
+// For tax years beginning after 12/31/2025: if aggregate QBI from active QTBs
+// (material participation per §469(h)) is ≥ $1,000, deduction is the GREATER
+// of the regular calc or $400. The conforming amendment to §199A(a) ("except
+// as provided in subsection (i),") carves out (i) from the lesser-of, so the
+// floor overrides the TI cap when it binds.
+// Both amounts indexed for inflation in $5 increments after 2026 — extend
+// once IRS publishes the 2027 Rev. Proc.
+const QBI_MIN_DEDUCTION = { 2026: 400 };
+const QBI_MIN_THRESHOLD = { 2026: 1000 };
+
+// §199A(i) — apply minimum deduction floor to a calcQBI result.
+// Returns result unchanged if not an applicable taxpayer (active QBI < threshold)
+// or if regular deduction already meets the floor; otherwise lifts deduction to
+// floor and sets limitApplied = 'min400'.
+function _applyMinQBI(result, activeQbiForFloor, taxYear) {
+  const floor = QBI_MIN_DEDUCTION[taxYear];
+  const threshold = QBI_MIN_THRESHOLD[taxYear];
+  if (floor == null || threshold == null) return result;
+  if (activeQbiForFloor < threshold) return result;
+  if (result.deduction >= floor) {
+    return { ...result, caps: { ...result.caps, min400: floor } };
+  }
+  return {
+    deduction: floor,
+    limitApplied: 'min400',
+    caps: { ...result.caps, min400: floor },
+  };
+}
+
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   // Returns { deduction, limitApplied, caps } where:
   //   deduction    — the actual QBI deduction (rounded)
-  //   limitApplied — 'qbi' | 'wage' | 'income' | 'none'
-  //   caps         — { qbi, wage, income } actual values of each cap (wage may be null
-  //                  if not above threshold or no Box 17V data)
-  const { status = 'single', taxYear = 2025, entityQbiData = [] } = opts;
+  //   limitApplied — 'qbi' | 'wage' | 'income' | 'min400' | 'none'
+  //   caps         — { qbi, wage, income, min400? } actual values of each cap (wage may be null
+  //                  if not above threshold or no Box 17V data; min400 present when §199A(i) gates)
+  const { status = 'single', taxYear = 2025, entityQbiData = [], activeQbi } = opts;
 
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) {
-    return { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } };
+    return _applyMinQBI(
+      { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } },
+      activeQbi ?? qbiIncome,
+      taxYear,
+    );
   }
 
   const netCapGain = Math.max(0, capitalGains);
@@ -244,11 +278,15 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   if (taxableBeforeQBI <= threshold) {
     const ded = Math.min(qbiComponent, incomeLimitation);
     const limitApplied = qbiComponent <= incomeLimitation ? 'qbi' : 'income';
-    return {
-      deduction: Math.round(ded) || 0,
-      limitApplied,
-      caps: { qbi: Math.round(qbiComponent), wage: null, income: Math.round(incomeLimitation) }
-    };
+    return _applyMinQBI(
+      {
+        deduction: Math.round(ded) || 0,
+        limitApplied,
+        caps: { qbi: Math.round(qbiComponent), wage: null, income: Math.round(incomeLimitation) },
+      },
+      activeQbi ?? qbiIncome,
+      taxYear,
+    );
   }
 
   // Above threshold: §199A(b)(2) wage/UBIA limit, §199A(b)(3)(B) phase-in, §199A(d)(3) SSTB applicable percentage
@@ -289,11 +327,15 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   if (totalWages === 0 && totalUBIA === 0) {
     const ded = Math.min(scaledQbiComponent, incomeLimitation);
     const limitApplied = scaledQbiComponent <= incomeLimitation ? 'qbi' : 'income';
-    return {
-      deduction: Math.round(ded) || 0,
-      limitApplied,
-      caps: { qbi: Math.round(scaledQbiComponent), wage: null, income: Math.round(incomeLimitation) }
-    };
+    return _applyMinQBI(
+      {
+        deduction: Math.round(ded) || 0,
+        limitApplied,
+        caps: { qbi: Math.round(scaledQbiComponent), wage: null, income: Math.round(incomeLimitation) },
+      },
+      activeQbi ?? adjQBI,
+      taxYear,
+    );
   }
 
   // Wage/UBIA limit per §199A(b)(2): greater of 50% wages OR 25% wages + 2.5% UBIA
@@ -322,15 +364,19 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     limitApplied = 'qbi';
   }
 
-  return {
-    deduction: Math.round(ded) || 0,
-    limitApplied,
-    caps: {
-      qbi: Math.round(scaledQbiComponent),
-      wage: Math.round(wageLimit),
-      income: Math.round(incomeLimitation)
-    }
-  };
+  return _applyMinQBI(
+    {
+      deduction: Math.round(ded) || 0,
+      limitApplied,
+      caps: {
+        qbi: Math.round(scaledQbiComponent),
+        wage: Math.round(wageLimit),
+        income: Math.round(incomeLimitation),
+      },
+    },
+    activeQbi ?? adjQBI,
+    taxYear,
+  );
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // calcTaxReturn — top-level pure orchestrator (Issue #59 PR-H2)
