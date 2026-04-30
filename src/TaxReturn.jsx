@@ -752,7 +752,7 @@ export default function TaxReturn() {
                 </div>
                 {qbiLimitApplied && qbiLimitApplied !== 'none' && (
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textAlign: 'right', marginTop: 2 }}>
-                    Limited by {qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA cap' : 'income cap'}{qbiCaps && qbiCaps.qbi > qbi ? ` (−${fmt(Math.round(qbiCaps.qbi - qbi))})` : ''}
+                    {qbiLimitApplied === 'min400' ? '§199A(i) OBBBA minimum applied' : 'Limited by ' + (qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA cap' : 'income cap') + (qbiCaps && qbiCaps.qbi > qbi ? ` (−${fmt(Math.round(qbiCaps.qbi - qbi))})` : '')}
                   </div>
                 )}
               </div>
@@ -872,7 +872,7 @@ export default function TaxReturn() {
                   ['─────────────────', null, true],
                   ['Gross Income', grossIncome, grossIncome >= 0],
                   ['Deduction (' + (useItemized && itemized > stdDed ? 'Itemized' : 'Standard') + ')', -deduction, false],
-                  ['QBI Deduction' + (qbi > 0 && qbiLimitApplied && qbiLimitApplied !== 'none' ? ' (limited by ' + (qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA' : 'income cap') + (qbiCaps && qbiCaps.qbi > qbi ? `; −${fmt(Math.round(qbiCaps.qbi - qbi))}` : '') + ')' : ''), qbi > 0 ? -qbi : 0, false],
+                  ['QBI Deduction' + (qbi > 0 && qbiLimitApplied && qbiLimitApplied !== 'none' ? (qbiLimitApplied === 'min400' ? ' (§199A(i) OBBBA minimum)' : ' (limited by ' + (qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA' : 'income cap') + (qbiCaps && qbiCaps.qbi > qbi ? `; −${fmt(Math.round(qbiCaps.qbi - qbi))}` : '') + ')') : ''), qbi > 0 ? -qbi : 0, false],
                   ['─────────────────', null, true],
                   ['Taxable Income', taxableIncome, taxableIncome >= 0],
                   ['Federal Tax — Ordinary Income', ordFedTax > 0 ? -ordFedTax : null, false],
