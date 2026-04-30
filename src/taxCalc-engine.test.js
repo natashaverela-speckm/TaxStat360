@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   getStdDed, getBrackets, calcFederalTax, calcPreferentialTax,
-  calcNIIT, calcAMT,
+  calcNIIT, calcAMT, getMarginalRate,
 } from './taxCalc.js'
 
 // =============================================================================
@@ -187,7 +187,38 @@ describe('calcNIIT', () => {
 })
 
 // =============================================================================
-// calcAMT — Form 6251 alternative minimum tax
+// getMarginalRate — bracket-walk to find the rate at a taxable income level
+// =============================================================================
+describe('getMarginalRate', () => {
+  it('returns 10% for income in the lowest bracket', () => {
+    expect(getMarginalRate(5000, 2025, 'single')).toBe(0.10)
+  })
+  it('returns 22% for mid-bracket income (single 2025, $75k taxable)', () => {
+    expect(getMarginalRate(75000, 2025, 'single')).toBe(0.22)
+  })
+  it('returns 37% for top-bracket income', () => {
+    expect(getMarginalRate(1000000, 2025, 'single')).toBe(0.37)
+  })
+  it('respects filing status: same income, MFJ pays at lower rate', () => {
+    // $75k taxable: single = 22% bracket; MFJ = 12% bracket (boundary at $96,950)
+    expect(getMarginalRate(75000, 2025, 'mfj')).toBe(0.12)
+  })
+  it('zero or negative income returns lowest rate (10%)', () => {
+    expect(getMarginalRate(0, 2025, 'single')).toBe(0.10)
+    expect(getMarginalRate(-5000, 2025, 'single')).toBe(0.10)
+  })
+  it('exactly at a bracket boundary stays in the lower bracket', () => {
+    // $48,475 is the 2025 single 12% bracket cap; income exactly there is still 12%
+    expect(getMarginalRate(48475, 2025, 'single')).toBe(0.12)
+  })
+  it('$1 above the boundary moves to the next bracket', () => {
+    expect(getMarginalRate(48476, 2025, 'single')).toBe(0.22)
+  })
+  it('2026 brackets differ from 2025 (post-OBBBA)', () => {
+    // 2026 single 22% boundary at $106,900; $100k still in 22%
+    expect(getMarginalRate(100000, 2026, 'single')).toBe(0.22)
+  })
+})
 // =============================================================================
 describe('calcAMT', () => {
   const baseAMT = (overrides = {}) => calcAMT({

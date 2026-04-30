@@ -86,6 +86,17 @@ function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs]
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
 function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
 function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
+// Marginal ordinary-income tax rate at a given taxable income level.
+// Walks the year/status brackets and returns the rate of the bracket the income lands in.
+// Used for planning-tool heuristics (e.g., "$X more income would cost $X * marginalRate in tax").
+function getMarginalRate(taxable, year, fs) {
+  let rate = 0.10, prev = 0
+  for (const [cap, r] of getBrackets(year, fs)) {
+    if (taxable > prev) rate = r
+    prev = cap
+  }
+  return rate
+}
 
 // Ordinary income tax (brackets only — does NOT include LTCG/qualified dividends)
 function calcFederalTax(ordinaryIncome, year, fs) {
@@ -582,7 +593,9 @@ export {
   getStdDed,
   getBrackets,
   getLTCGThresholds,
+  getNIITThreshold,
   getAddlMedicareThreshold,
+  getMarginalRate,
   calcFederalTax,
   calcPreferentialTax,
   calcNIIT,
