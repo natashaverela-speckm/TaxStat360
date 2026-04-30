@@ -238,6 +238,7 @@ function RiskScan({ rec }) {
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
+                       : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
     findings.push({ level: 'good', icon: '\u2705', title: `QBI Deduction Applied \u2014 ${fmt(qbi)} Saved`,
       detail: `The Qualified Business Income deduction (IRC \u00A7199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
@@ -496,7 +497,7 @@ function IRSCompliance({ rec }) {
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
     const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year })
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - _qbi)) : 0
-    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
+    schedules.push({ form: 'Form 8995', title: 'QBI Deduction (IRC \u00A7199A)', status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.`, deadline: 'Filed with Form 1040' })
   }
 
   // W-2 / withholding
