@@ -6,7 +6,7 @@
 // ── IRS Tax Tables 2024-2026 ─────────────────────────────────────────────────
 // Sources: Rev. Proc. 2023-34 (2024) | Rev. Proc. 2024-40 + OBBBA Rev. Proc. 2025-32 (2025) | Rev. Proc. 2025-32 (2026)
 // Numeric value coercer — used throughout calcTaxReturn to safely cast form-state inputs (which may be empty strings, undefined, or numbers) to a finite number, defaulting to 0.
-const nv = (v) => parseFloat(v) || 0
+const nv = (v) => parseFloat(String(v ?? '').replace(/[,$\s]/g, '')) || 0
 
 const TAX_TABLES = {
   2024: {
