@@ -1,5 +1,52 @@
 import { describe, it, expect } from 'vitest'
-import { calcQBI } from './taxCalc.js'
+import { calcQBI, nv } from './taxCalc.js'
+
+// ============================================================================
+// nv() — numeric value coercer for form-state inputs
+// Regression: nv() was previously parseFloat(v) || 0, which silently truncated
+// comma-formatted strings (e.g. '287,500' → 287). These tests lock in the fix.
+// ============================================================================
+describe('nv() numeric value coercer', () => {
+  it('strips commas before parsing', () => {
+    expect(nv('287,500')).toBe(287500)
+    expect(nv('113,141')).toBe(113141)
+    expect(nv('66,587')).toBe(66587)
+    expect(nv('1,234,567')).toBe(1234567)
+  })
+
+  it('handles negative comma-formatted strings', () => {
+    expect(nv('-91,599')).toBe(-91599)
+    expect(nv('-343,443')).toBe(-343443)
+  })
+
+  it('strips dollar signs and whitespace', () => {
+    expect(nv('$1,234.56')).toBe(1234.56)
+    expect(nv(' 287,500 ')).toBe(287500)
+  })
+
+  it('returns 0 for empty / null / undefined', () => {
+    expect(nv('')).toBe(0)
+    expect(nv(null)).toBe(0)
+    expect(nv(undefined)).toBe(0)
+  })
+
+  it('returns 0 for unparseable input', () => {
+    expect(nv('abc')).toBe(0)
+    expect(nv('not a number')).toBe(0)
+  })
+
+  it('passes through valid numbers unchanged', () => {
+    expect(nv(287500)).toBe(287500)
+    expect(nv(0)).toBe(0)
+    expect(nv(-69)).toBe(-69)
+    expect(nv(1234.56)).toBe(1234.56)
+  })
+
+  it('handles decimal values with commas', () => {
+    expect(nv('1,234.56')).toBe(1234.56)
+    expect(nv('12,345.67')).toBe(12345.67)
+  })
+})
 
 // =============================================================================
 // §199A(i) OBBBA minimum deduction (#106 / #110)
