@@ -30,6 +30,7 @@ export default function MoneyInput({
   ariaLabel,
   id,
   className,
+  style,
   disabled = false,
   allowNegative = true,
 }) {
@@ -78,6 +79,7 @@ export default function MoneyInput({
       autoComplete="off"
       id={id}
       className={className}
+      style={style}
       placeholder={placeholder}
       aria-label={ariaLabel}
       disabled={disabled}
