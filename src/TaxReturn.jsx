@@ -17,35 +17,6 @@ function fmt(n) {
   return n < 0 ? '(' + str + ')' : str
 }
 
-// Money input with live comma formatting (used for all currency fields in TaxReturn)
-// Storage: string with commas; nv() parses downstream
-function MoneyInput({ value, onChange, placeholder, style }) {
-  const display = (() => {
-    const s = (value ?? '').toString()
-    if (s === '' || s === '-') return s
-    const cleaned = s.replace(/[^0-9.-]/g, '')
-    if (cleaned === '' || cleaned === '-') return cleaned
-    const n = parseFloat(cleaned)
-    if (isNaN(n)) return ''
-    const trailingDot = s.endsWith('.')
-    const decMatch = cleaned.match(/\.([0-9]*)$/)
-    const intPart = Math.trunc(Math.abs(n)).toLocaleString('en-US')
-    const sign = n < 0 ? '-' : ''
-    if (trailingDot) return sign + intPart + '.'
-    if (decMatch && decMatch[1]) return sign + intPart + '.' + decMatch[1]
-    return sign + intPart
-  })()
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      value={display}
-      placeholder={placeholder}
-      style={style}
-      onChange={e => onChange(e.target.value)}
-    />
-  )
-}
 
 
 // Tax bracket indicator
