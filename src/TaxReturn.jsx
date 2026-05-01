@@ -1,6 +1,8 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
+import MoneyInput from './components/MoneyInput.jsx'
+import { parseMoney } from './utils/parseMoney.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
