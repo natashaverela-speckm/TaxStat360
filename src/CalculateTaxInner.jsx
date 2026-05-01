@@ -1,33 +1,14 @@
 import React from 'react'
 import EntityCompareModal from './EntityCompareModal'
 import { useNavigate } from 'react-router-dom'
+import MoneyInput from './components/MoneyInput.jsx'
+import { parseMoney } from './utils/parseMoney.js'
 
 const N='#0D1B3E',B='#2563EB',SL='#475569',G='#16a34a',R='#dc2626'
 const API='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
 const INTS=[{id:'quickbooks',name:'QuickBooks',color:'#2CA01C',abbr:'QB'},{id:'xero',name:'Xero',color:'#13B5EA',abbr:'XE'},{id:'wave',name:'Wave',color:'#2C6ECB',abbr:'WV'},{id:'freshbooks',name:'FreshBooks',color:'#1a9c3e',abbr:'FB'}]
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
-const nv=v=>parseFloat((v||'').toString().replace(/[^0-9.-]/g,''))||0
-function InfoTip({ text }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } function MoneyInput({ value, onChange, placeholder, style }) {
-  const display = (() => {
-    const s = (value ?? '').toString()
-    if (s === '' || s === '-') return s
-    const cleaned = s.replace(/[^0-9.-]/g, '')
-    if (cleaned === '' || cleaned === '-') return cleaned
-    const n = parseFloat(cleaned)
-    if (isNaN(n)) return ''
-    const trailingDot = s.endsWith('.')
-    const decMatch = cleaned.match(/\.([0-9]*)$/)
-    const intPart = Math.trunc(Math.abs(n)).toLocaleString('en-US')
-    const sign = n < 0 ? '-' : ''
-    if (trailingDot) return sign + intPart + '.'
-    if (decMatch && decMatch[1]) return sign + intPart + '.' + decMatch[1]
-    return sign + intPart
-  })()
-  return (
-    <input type="text" inputMode="numeric" value={display} placeholder={placeholder} style={style} onChange={e => onChange(e.target.value)} />
-  )
-}
-const OWN_PRESETS=[100,75,50,33,25]
+function InfoTip({ text }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
 const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
 const TEMPLATES=[
@@ -57,7 +38,7 @@ function parseCSVImport(text){
   return lines.map((line,i)=>{
     const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"').trim())
     const[name,type,ein,formationDate,own,grossRevenue,totalExpenses]=cols
-    const rev=parseFloat(grossRevenue)||0,exp=parseFloat(totalExpenses)||0
+    const rev=parseMoney(grossRevenue),exp=parseMoney(totalExpenses)
     const ownPct=own?own.replace('%',''):'100'
     return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S Corporation',ein:ein||'',state:state||'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
   }).filter(e=>e.name)
@@ -85,9 +66,9 @@ function ExpenseBreakdown({categories,total}){
 function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   const[syn,setSyn]=React.useState(null)
   const[manual,setManual]=React.useState(false)
-  const[manRev,setManRev]=React.useState('')
-  const[manExp,setManExp]=React.useState('')
-  const[manOfficerSal,setManOfficerSal]=React.useState('')
+  const[manRev,setManRev]=React.useState(0)
+  const[manExp,setManExp]=React.useState(0)
+  const[manOfficerSal,setManOfficerSal]=React.useState(0)
   const[showDetails,setShowDetails]=React.useState(false)
   const[showAdvK1,setShowAdvK1]=React.useState(false)
   const color=COLORS[idx%COLORS.length]
@@ -96,7 +77,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
 
   async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
   function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API+'/auth/'+pid+'/connect'}}
-  function applyManual(){const r=nv(manRev),opEx=nv(manExp),sal=nv(manOfficerSal),totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
+  function applyManual(){const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
   const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):0
 
   return(
@@ -134,15 +115,15 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
         {showAdvK1 ? (
           <div style={{marginTop:10}}>
             <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 disposition gain (K-1 Box 17K) <span title="If this K-1 reports a §179 disposition gain in Box 17K (typically when the entity sold equipment or a vehicle previously expensed under §179), enter the gain amount here. It will flow to your Form 4797." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
-            <input type="number" value={ent.box17K || ''} onChange={e => onUpdate(idx, {...ent, box17K: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <MoneyInput value={ent.box17K || 0} onChange={n => onUpdate(idx, {...ent, box17K: n})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 S-corp / Box 12 partnership) <span title="If your K-1 reports §179 expense (Box 11 for S-corps, Box 12 for partnerships), enter the amount your K-1 shows here. It will be deducted from your share of K-1 ordinary income for the analysis. Note: the §179 income limit (which caps total §179 deduction at active business income) is not modeled — for users at or near the limit, the analysis may overstate the deduction." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
-            <input type="number" min="0" value={ent.box11_12 || ''} onChange={e => onUpdate(idx, {...ent, box11_12: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <MoneyInput value={ent.box11_12 || 0} onChange={n => onUpdate(idx, {...ent, box11_12: n})} placeholder="0" allowNegative={false} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>K-1 ordinary deductions (do NOT include charitable contributions, investment interest, or §199A info — those flow elsewhere) <span title="K-1 Box 12 S-corp Other Deductions / Box 13 partnership Other Deductions. Charitable contributions flow to Schedule A, investment interest to Form 4952, §199A QBI info to QBI calculation — none reduce K-1 ordinary income. Only enter items that DO reduce ordinary business income." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
-            <input type="number" min="0" value={ent.box12_13 || ''} onChange={e => onUpdate(idx, {...ent, box12_13: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <MoneyInput value={ent.box12_13 || 0} onChange={n => onUpdate(idx, {...ent, box12_13: n})} placeholder="0" allowNegative={false} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>QBI: entity W-2 wages (S-corp K-1 Box 17V / partnership K-1 Box 20Z) <span title="W-2 wages paid by this entity, used for the QBI wage limit at high taxable income (above ~$241K single / $483K MFJ for 2024). Captured here for the model; the simplified 20% QBI deduction is currently applied without the wage limit. Wage-limit enforcement is a planned follow-up." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
-            <input type="number" min="0" value={ent.box17V_wages || ''} onChange={e => onUpdate(idx, {...ent, box17V_wages: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <MoneyInput value={ent.box17V_wages || 0} onChange={n => onUpdate(idx, {...ent, box17V_wages: n})} placeholder="0" allowNegative={false} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17V / partnership K-1 Box 20Z) <span title="Unadjusted basis immediately after acquisition of qualified property held by this entity. Used for the alternative QBI limit (greater of 50% W-2 wages OR 25% wages + 2.5% UBIA) at high income. Captured here for the model; not yet enforced in the QBI calc." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
-            <input type="number" min="0" value={ent.box17V_ubia || ''} onChange={e => onUpdate(idx, {...ent, box17V_ubia: e.target.value})} placeholder="0" style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
+            <MoneyInput value={ent.box17V_ubia || 0} onChange={n => onUpdate(idx, {...ent, box17V_ubia: n})} placeholder="0" allowNegative={false} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:4,fontSize:14}} />
             <label style={{display:'block',fontSize:12,color:'#475569',marginTop:12,fontWeight:600}}><input type="checkbox" checked={!!ent.box17V_sstb} onChange={e => onUpdate(idx, {...ent, box17V_sstb: e.target.checked})} style={{marginRight:6,verticalAlign:'middle'}}/>Specified Service Trade or Business (SSTB) <span title="Check if this entity is an SSTB — health, law, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage services, investment management, or any trade where the principal asset is the reputation/skill of one or more employees. Per §199A(d)(2), SSTBs face a QBI deduction phase-out at high income (~$241K single / $483K MFJ in 2024) and full disallowance ~$50K above the threshold. Captured here; phase-out logic is a planned follow-up." style={{marginLeft:6,cursor:'help',color:'#94A3B8',fontWeight:'normal'}}>?</span></label>
           </div>
         ) : null}
@@ -303,7 +284,7 @@ export default function CalculateTax(){
   function removeEntity(idx){setEntities(prev=>prev.filter((_,i)=>i!==idx))}
 
   function addFromTemplate(t){
-    const rev=parseFloat(t.defaults.grossRevenue)||0,exp=parseFloat(t.defaults.operatingExpenses)||0
+    const rev=parseMoney(t.defaults.grossRevenue),exp=parseMoney(t.defaults.operatingExpenses)
     const newEnt={name:t.label==='Blank Entity'?'Business '+(entities.length+1):t.label,type:t.type,own:t.own,ein:'',state:'',formationDate:'',pnl:Object.keys(t.defaults).length>0?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:Object.keys(t.defaults).length>0}
     setEntities(prev=>[...prev,newEnt]);setShowTemplates(false)
   }
@@ -315,11 +296,11 @@ export default function CalculateTax(){
   function onDrop(idx){if(dragIdx===null||dragIdx===idx)return;setEntities(prev=>{const next=[...prev];const[moved]=next.splice(dragIdx,1);next.splice(idx,0,moved);return next});setDragIdx(null);setDragOverIdx(null)}
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
-  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseFloat(ent.box11_12)||0)-(parseFloat(ent.box12_13)||0):sum,0)
+  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
-    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseFloat(e.box11_12)||0)-(parseFloat(e.box12_13)||0),box17K:parseFloat(e.box17K)||0,box11_12:parseFloat(e.box11_12)||0,box12_13:parseFloat(e.box12_13)||0,box17V_wages:parseFloat(e.box17V_wages)||0,box17V_ubia:parseFloat(e.box17V_ubia)||0,box17V_sstb:!!e.box17V_sstb}))
+    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
     sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
   }
 
