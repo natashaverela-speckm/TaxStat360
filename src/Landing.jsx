@@ -66,10 +66,10 @@ export default function Landing() {
           <span style={{ color: B }}>&#10003;</span> Get in Front of Your Largest Expense
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          Build Wealth by Managing Tax<br />Liability in Real Time.
+          Build Wealth by Managing Tax<br />Liability Year-Round.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 40px', lineHeight: 1.7 }}>
-          Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe every month, so you can make strategic moves that preserve capital and accelerate wealth building.
+          Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe whenever you need it, so you can make strategic moves that preserve capital and accelerate wealth building.
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Start Free 7-Day Trial</button>
@@ -89,7 +89,7 @@ export default function Landing() {
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
-        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use real-time tax intelligence to make wealth-building decisions every month</p>
+        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
         <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', paddingTop: '50.625%' }}>
           <iframe src="https://player.vimeo.com/video/1185021252?autoplay=0&title=0&byline=0&portrait=0" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen></iframe>
         </div>
@@ -157,8 +157,8 @@ export default function Landing() {
             { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
             { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
-            { q: 'What does real-time mean exactly?', a: 'TaxStat360 gives you on-demand visibility into your tax liability — not a once-a-year surprise. When you log in, your numbers reflect the data from your last sync. To update your figures, simply hit the Refresh or Connect button to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it.' },
-            { q: 'Does TaxStat360 replace my CPA?', a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same real-time visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
+            { q: 'How current is the data I see?', a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute." },
+            { q: 'Does TaxStat360 replace my CPA?', a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same up-to-date visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
             <details key={i} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
               <summary style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -181,8 +181,8 @@ export default function Landing() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
-            { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Real-time tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
-            { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Real-Time Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
+            { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Year-round tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
+            { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
             { name:'Enterprise', price:'$299', annualPrice:'$249', annualTotal:'$2,990', highlight:false, desc:'Built for owners running multiple businesses or entities.', features:['Everything in Professional plus:','Multi-entity consolidated tax view','AI-Generated Audit Defense Narrative','Risk Tolerance Profiling','CPA Collaboration Portal','Dedicated onboarding & setup call'] },
           ].map((p,i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
