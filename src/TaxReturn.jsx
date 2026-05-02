@@ -2,6 +2,7 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
 import MoneyInput from './components/MoneyInput.jsx'
+import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import { parseMoney } from './utils/parseMoney.js'
 
 const N = '#0D1B3E'
@@ -690,6 +691,7 @@ export default function TaxReturn() {
           {/* Total Tax Card */}
           <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16, boxShadow: '0 12px 40px rgba(13,27,62,0.25)' }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
+            <FederalScopeBanner />
             <div style={{ fontSize: 48, fontWeight: 900, color: totalTax === 0 ? '#4ADE80' : '#F87171', lineHeight: 1, marginBottom: 4 }}>
               {fmt(totalTax)}
             </div>
