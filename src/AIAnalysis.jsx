@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
+import DismissibleNotice from './components/DismissibleNotice'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -991,9 +992,14 @@ function NarrativeModal({ onClose }) {
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
+        <DismissibleNotice storageKey="tx360.positionDocBanner.dismissed">
+          This document organizes your records and the positions taken on your return.
+          It is not legal or tax representation. For an actual audit response, engage
+          a CPA, EA, or tax attorney authorized to practice before the IRS.
+        </DismissibleNotice>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: P, letterSpacing: '1px', marginBottom: 4 }}>AUDIT DEFENSE NARRATIVE</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: P, letterSpacing: '1px', marginBottom: 4 }}>POSITION DOCUMENTATION</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>IRS Response Templates</h2>
             <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Review and edit before sending — not a substitute for legal advice</div>
           </div>
@@ -1020,7 +1026,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
   const tools = [
     { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: B, action: onReport, available: true },
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the exact dollar impact on your estimated tax.', btn: 'Open Simulator', color: G, action: onSimulator, available: true },
-    { icon: '🛡️', title: 'Audit Defense Narrative', desc: 'Plain-English IRS response templates for the three most common S-Corp and real estate audit triggers. Review with your CPA or tax attorney before sending.', btn: 'View Templates', color: P, action: onNarrative, available: true },
+    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: P, action: onNarrative, available: true },
   ]
   return (
     <div>
@@ -1075,7 +1081,7 @@ export default function AIAnalysis() {
     { label: '🔍 Risk Scan', desc: 'AI findings from your data' },
     { label: '💡 Tax Optimization', desc: 'Strategies to reduce your tax' },
     { label: '📋 IRS Filing Map', desc: 'Your required forms & deadlines' },
-    { label: '🛠 Reports & Tools', desc: 'CPA export, simulator, audit defense' },
+    { label: '🛠 Reports & Tools', desc: 'CPA export, simulator, position documentation' },
   ]
 
   return (

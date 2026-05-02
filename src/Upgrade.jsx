@@ -11,13 +11,13 @@ const PLANS = {
 }
 
 const FEATURES = [
-  { label:'Real-time tax liability calculator',    starter:true,  professional:true, enterprise:true  },
+  { label:'Year-round tax liability calculator',    starter:true,  professional:true, enterprise:true  },
   { label:'Unlimited saved records',               starter:true,  professional:true, enterprise:true  },
   { label:'Dashboard with My Records',             starter:true,  professional:true, enterprise:true  },
   { label:'InfoTip field guidance',                starter:true,  professional:true, enterprise:true  },
   { label:'Prior year loss carryforward',          starter:true,  professional:true, enterprise:true  },
   { label:'AI Risk & Compliance Planner',          starter:false, professional:true, enterprise:true  },
-  { label:'Real-time risk alert engine',           starter:false, professional:true, enterprise:true  },
+  { label:'Risk alert engine',           starter:false, professional:true, enterprise:true  },
   { label:'Officer compensation analysis',         starter:false, professional:true, enterprise:true  },
   { label:'QuickBooks / Xero / Wave import',       starter:false, professional:true, enterprise:true  },
   { label:'Multiple business entities',            starter:false, professional:false, enterprise:true },
