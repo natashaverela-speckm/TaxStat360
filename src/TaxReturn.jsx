@@ -629,7 +629,7 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 14 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Premiums you paid for health/dental/vision insurance for yourself and family if self-employed. Found in your records or Schedule K-1 attachments. Cannot exceed your net self-employment income."/></label>
+                <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Schedule 1 line 17. Premiums paid for sole proprietors AND >2% S Corp shareholders (whose health insurance was reported on their W-2 Box 1 and Box 14 with code DD). Limited to net SE earnings or W-2 income from the same business."/></label>
                 <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" style={inp} />
               </div>
               <div>
