@@ -43,85 +43,9 @@ function InfoTip({ text }) {
 
 
 
-// ─── IRS Tax Tables by Year ─────────────────────────────────────────────────
-// Standard Deductions (IRC §63)
-const STD_BY_YEAR = {
-  2024: { single:14600, mfj:29200, mfs:14600, hoh:21900, qss:29200 },
-  2025: { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
-  2026: { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
-}
 
-// Tax Brackets (IRC §1) — [upperBound, rate]
-const BRACKETS_BY_YEAR = {
-  2024: {
-    single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
-    mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
-    mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
-    hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-    qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
-  },
-  2025: {
-    single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
-    mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-    mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
-    hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
-    qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-  },
-  2026: {
-    single: [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[648750,.35],[Infinity,.37]],
-    mfj:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
-    mfs:    [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[388825,.35],[Infinity,.37]],
-    hoh:    [[17600,.10],[67050,.12],[106900,.22],[203900,.24],[259300,.32],[648700,.35],[Infinity,.37]],
-    qss:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
-  },
-}
-
-// Helper: get std deduction for a given year + filing status
-function getStdDed(year, fs) {
-  const y = clampYear(year)
-  const tbl = STD_BY_YEAR[y] || STD_BY_YEAR[2025]
-  return tbl[fs] || tbl.single
-}
-
-// Helper: get brackets for a given year + filing status
-
-function clampYear(year) {
-  const cy = new Date().getFullYear()
-  return Math.min(cy, Math.max(cy - 3, parseInt(year) || cy))
-}
-function getBrackets(year, fs) {
-  const y = clampYear(year)
-  const tbl = BRACKETS_BY_YEAR[y] || BRACKETS_BY_YEAR[2025]
-  return tbl[fs] || tbl.single
-}
-
-// Helper: calculate bracket tax
-function calcBracketTax(income, year, fs) {
-  let tax = 0, prev = 0
-  for (const [cap, rate] of getBrackets(year, fs)) {
-    if (income <= prev) break
-    tax += (Math.min(income, cap) - prev) * rate
-    prev = cap
-  }
-  return Math.round(tax)
-}
-
-// Child Tax Credit (IRC §24) by year
-const CHILD_TAX_CREDIT_BY_YEAR = {
-  2024: { credit: 2000, refundable: 1700, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
-  2025: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
-  2026: { credit: 2000, refundable: 1800, phaseoutSingle: 200000, phaseoutMFJ: 400000 },
-}
-
-// SE Tax rates (IRC §1401) — consistent across years
-const SE_RATE = 0.153
-const SE_DEDUCTION_RATE = 0.5 // IRC §164(f)
-
-// QBI Deduction (IRC §199A) — 20% of qualified business income (sunset 2026)
-const QBI_RATE = 0.20
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
 const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
-const PASSTHROUGH=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation']
 const INTEGRATIONS=[
   {id:'quickbooks',name:'QuickBooks',color:'#2CA01C',bg:'#F0FBF0',abbr:'QB'},
   {id:'xero',      name:'Xero',      color:'#13B5EA',bg:'#EFF9FF',abbr:'XE'},
@@ -131,13 +55,6 @@ const INTEGRATIONS=[
 
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
-
-
-
-// ── calcDashboard — canonical adapter (replaces calcAll) ─────────────────────
-// Maps Dashboard's biz + f1040 form state into calcTaxReturn's pure-function
-// contract. The old calcAll and its duplicate tax tables are preserved below
-// for reference but are no longer called; they will be deleted in the next PR.
 // C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
 function calcDashboard(biz, f1040) {
   const rev    = parseFloat(biz.grossRevenue)     || 0
