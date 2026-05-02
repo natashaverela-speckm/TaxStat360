@@ -4,7 +4,6 @@ import Terms from './Terms'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
-import CalculateTax from './CalculateTax'
 import CalculateTaxInner from './CalculateTaxInner'
 import TaxReturn from './TaxReturn'
 import AIAnalysis from './AIAnalysis'
@@ -61,7 +60,7 @@ export default function App() {
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
         {/* Protected app routes */}
-        <Route path="/calculate-tax" element={<CalculateTax />} />
+                <Route path="/calculate-tax" element={<CalculateTaxInner />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tax-return" element={<TaxReturn />} />
         <Route path="/ai-analysis" element={<AIAnalysis />} />
