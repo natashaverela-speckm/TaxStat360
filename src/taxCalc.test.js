@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcQBI } from './taxCalc.js'
+import { calcQBI, calcTaxReturn } from './taxCalc.js'
 
 // =============================================================================
 // §199A(i) OBBBA minimum deduction (#106 / #110)
@@ -357,5 +357,29 @@ describe('calcQBI filing status & tax year', () => {
     expect(r.deduction).toBe(2000)
     expect(r.limitApplied).toBe('qbi')
     expect(r.caps.min400).toBeUndefined() // §199A(i) not active for unknown years
+  })
+})
+
+// =============================================================================
+// Schedule 1 line 16 — Self-Employed Retirement Plans (#8.4-PEN)
+// =============================================================================
+
+describe('Schedule 1 line 16 - Self-Employed Retirement', () => {
+  it('reduces AGI dollar-for-dollar', () => {
+    const baseline = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 0 })
+    const withRetirement = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 10000 })
+    expect(withRetirement.agi).toBe(baseline.agi - 10000)
+  })
+
+  it('handles missing/null/undefined values without throwing', () => {
+    expect(() => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 50000 })).not.toThrow()
+    expect(() => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 50000, selfEmpRetirement: null })).not.toThrow()
+    expect(() => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 50000, selfEmpRetirement: undefined })).not.toThrow()
+  })
+
+  it('exposes selfEmpRetirementDed in the return shape', () => {
+    const r = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 7500 })
+    expect(r.selfEmpRetirementDed).toBe(7500)
+    expect(r.adjustments).toBeGreaterThanOrEqual(7500)
   })
 })
