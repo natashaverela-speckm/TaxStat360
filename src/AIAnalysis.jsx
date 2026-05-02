@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
+import DismissibleNotice from './components/DismissibleNotice'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -991,6 +992,11 @@ function NarrativeModal({ onClose }) {
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
+        <DismissibleNotice storageKey="tx360.positionDocBanner.dismissed">
+          This document organizes your records and the positions taken on your return.
+          It is not legal or tax representation. For an actual audit response, engage
+          a CPA, EA, or tax attorney authorized to practice before the IRS.
+        </DismissibleNotice>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: P, letterSpacing: '1px', marginBottom: 4 }}>POSITION DOCUMENTATION</div>
