@@ -1,6 +1,8 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
+import MoneyInput from './components/MoneyInput.jsx'
+import { parseMoney } from './utils/parseMoney.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -15,35 +17,6 @@ function fmt(n) {
   return n < 0 ? '(' + str + ')' : str
 }
 
-// Money input with live comma formatting (used for all currency fields in TaxReturn)
-// Storage: string with commas; nv() parses downstream
-function MoneyInput({ value, onChange, placeholder, style }) {
-  const display = (() => {
-    const s = (value ?? '').toString()
-    if (s === '' || s === '-') return s
-    const cleaned = s.replace(/[^0-9.-]/g, '')
-    if (cleaned === '' || cleaned === '-') return cleaned
-    const n = parseFloat(cleaned)
-    if (isNaN(n)) return ''
-    const trailingDot = s.endsWith('.')
-    const decMatch = cleaned.match(/\.([0-9]*)$/)
-    const intPart = Math.trunc(Math.abs(n)).toLocaleString('en-US')
-    const sign = n < 0 ? '-' : ''
-    if (trailingDot) return sign + intPart + '.'
-    if (decMatch && decMatch[1]) return sign + intPart + '.' + decMatch[1]
-    return sign + intPart
-  })()
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      value={display}
-      placeholder={placeholder}
-      style={style}
-      onChange={e => onChange(e.target.value)}
-    />
-  )
-}
 
 
 // Tax bracket indicator
@@ -138,8 +111,8 @@ export default function TaxReturn() {
   // Load K-1 data passed from Step 1
   // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
   const [manualK1s, setManualK1s] = React.useState((() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}').manualK1s || [] } catch(e) { return [] } })())
-  const dashboardK1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
-  const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseFloat(k.amount) || 0), 0)
+  const dashboardK1Total = parseMoney(sessionStorage.getItem('ts360_k1') || '0')
+  const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
@@ -153,25 +126,25 @@ export default function TaxReturn() {
   const [ytdMode, setYtdMode] = React.useState(false)
   const [ytdMonth, setYtdMonth] = React.useState(new Date().getMonth() + 1) // current month
   const [status, setStatus] = React.useState(savedF1040.filingStatus || 'single')
-  const [qualifiedDividends, setQualifiedDividends] = React.useState('')
-  const [socialSecurity, setSocialSecurity] = React.useState('')
-  const [iraDistributions, setIraDistributions] = React.useState('')
-  const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState('')
-  const [hsaDeduction, setHsaDeduction] = React.useState('')
-  const [studentLoanInt, setStudentLoanInt] = React.useState('')
+  const [qualifiedDividends, setQualifiedDividends] = React.useState(0)
+  const [socialSecurity, setSocialSecurity] = React.useState(0)
+  const [iraDistributions, setIraDistributions] = React.useState(0)
+  const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState(0)
+  const [hsaDeduction, setHsaDeduction] = React.useState(0)
+  const [studentLoanInt, setStudentLoanInt] = React.useState(0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
-  const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || '')
+  const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
-  const [rentalIncome, setRentalIncome] = React.useState('')
-  const [rentalExpenses, setRentalExpenses] = React.useState('')
-  const [capitalGains, setCapitalGains] = React.useState('') // short-term (ordinary rates)
-  const [ltCapGains, setLtCapGains] = React.useState('')    // long-term (preferential rates)
-  const [unrecap1250, setUnrecap1250] = React.useState('')  // unrecaptured Sec 1250 gain (max 25%)
-  const [collectiblesGain, setCollectiblesGain] = React.useState('') // collectibles gain (max 28%)
-  const [priorYearQBILoss, setPriorYearQBILoss] = React.useState('')
-  const [interest, setInterest] = React.useState('')
+  const [rentalIncome, setRentalIncome] = React.useState(0)
+  const [rentalExpenses, setRentalExpenses] = React.useState(0)
+  const [capitalGains, setCapitalGains] = React.useState(0) // short-term (ordinary rates)
+  const [ltCapGains, setLtCapGains] = React.useState(0)    // long-term (preferential rates)
+  const [unrecap1250, setUnrecap1250] = React.useState(0)  // unrecaptured Sec 1250 gain (max 25%)
+  const [collectiblesGain, setCollectiblesGain] = React.useState(0) // collectibles gain (max 28%)
+  const [priorYearQBILoss, setPriorYearQBILoss] = React.useState(0)
+  const [interest, setInterest] = React.useState(0)
 
   // Manual K-1 helpers
   const addManualK1 = () => setManualK1s([...manualK1s, {
@@ -182,24 +155,24 @@ export default function TaxReturn() {
   }])
   const updateManualK1 = (id, patch) => setManualK1s(manualK1s.map(k => k.id === id ? { ...k, ...patch } : k))
   const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
-  const [form4797, setForm4797] = React.useState('')
-  const [dividends, setDividends] = React.useState('')
+  const [form4797, setForm4797] = React.useState(0)
+  const [dividends, setDividends] = React.useState(0)
   const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
   const [saved, setSaved] = React.useState(false)
-  const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || '')
-  const [saltAmount, setSaltAmount] = React.useState(savedF1040.saltAmount || '')
+  const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || 0)
+  const [saltAmount, setSaltAmount] = React.useState(savedF1040.saltAmount || 0)
   const [hasISO, setHasISO] = React.useState(!!savedF1040.hasISO)
-  const [isoBargainElement, setIsoBargainElement] = React.useState(savedF1040.isoBargainElement || '')
-  const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || '')
-  const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || '')
+  const [isoBargainElement, setIsoBargainElement] = React.useState(savedF1040.isoBargainElement || 0)
+  const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || 0)
+  const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
   const [showDetail, setShowDetail] = React.useState(false)
 
   // Live-sync to sessionStorage so AI Analysis sees current calculator state without requiring a Save.
   // Mirrors the f1040Updated payload from the Save handler — same fields, same shape, written reactively.
   // §179 income limit display values (mirrors the cap math in the useEffect below for render-scope use)
-  const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
-  const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
-  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseFloat(w2Income)||0))
+  const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
+  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0))
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
 
@@ -234,10 +207,10 @@ export default function TaxReturn() {
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
-  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
-  const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
-  const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
-  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(liveF1040.w2Income)||0))
+  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179 = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
+  const totalBox12_13 = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
+  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseMoney(liveF1040.w2Income)||0))
   const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
   const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
   const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
@@ -281,7 +254,7 @@ export default function TaxReturn() {
   // Threshold of 40% catches the gray zone — the conservative end of the 30–60% rule-of-thumb range.
   // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
-  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseFloat(e.netProfit) || 0), 0)
+  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
   const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
   const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
     ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: w2 === 0 ? 'high' : 'medium' }
@@ -968,8 +941,8 @@ export default function TaxReturn() {
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
                 // Find any Dashboard-format record (has biz object) — prefer ones with data
-                const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0)) >= 0
-                  ? existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0))
+                const realIdx = existing.findIndex(r => r.biz && (parseMoney(r.biz.grossRevenue) > 0 || parseMoney(r.k1Income) > 0)) >= 0
+                  ? existing.findIndex(r => r.biz && (parseMoney(r.biz.grossRevenue) > 0 || parseMoney(r.k1Income) > 0))
                   : existing.findIndex(r => r.biz) // fallback: any record with biz
 
                 let updated
