@@ -145,50 +145,6 @@ function calcDashboard(biz, f1040) {
   }
 }
 
-
-function calcAll(biz,f1040){
-  const rev=parseFloat(biz.grossRevenue)||0,cogs=parseFloat(biz.cogs)||0,gross=rev-cogs
-  const opExp=parseFloat(biz.operatingExpenses)||0,sal=parseFloat(biz.officerSalary)||0
-  const dep=parseFloat(biz.depreciation)||0,adv=parseFloat(biz.advertising)||0,other=parseFloat(biz.otherDeductions)||0
-  const totalExp=opExp+sal+dep+adv+other,netBiz=gross-totalExp
-  const own=(parseFloat(biz.ownershipPct)||100)/100,k1=Math.round(netBiz*own)
-  const fs=f1040.filingStatus||'single',w2=parseFloat(f1040.w2Income)||0,otherInc=parseFloat(f1040.otherIncome)||0
-  const deps=parseFloat(f1040.dependents)||0,estPay=parseFloat(f1040.estimatedPayments)||0
-  const useStd=f1040.useStandardDed!==false,itemized=parseFloat(f1040.itemizedDed)||0
-  const isPassthru=PASSTHROUGH.includes(biz.entityType),isSC=biz.entityType==='S Corporation'
-  const isCCorp=biz.entityType==='C Corporation'
-
-  // ── C-Corp: entity-level only — no personal 1040 involvement ─────────────
-  if(isCCorp){
-    const corpTax=Math.round(Math.max(0,netBiz)*0.21)
-    const dividends=parseFloat(biz.ccorpDividends||0)
-    const divTax=Math.round(Math.max(0,dividends)*0.15)
-    const quarterly=Math.round(corpTax/4)
-    const recSal=Math.round(Math.max(0,k1)*0.35)
-    return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,own,
-      corpTax,divTax,dividends,combinedTax:corpTax,
-      agi:0,ded:0,qbi:0,seTax:0,seDed:0,taxableInc:0,incomeTax:0,ctc:0,
-      totalTax:0,taxOwed:0,refund:0,effRate:'0.0',quarterly,recSal,stdDed:0,
-      w2,otherInc:0,estPay:0,isPassthru:false,isSC:false,isCCorp:true}
-  }
-
-  // ── Passthrough entities: K-1 flows to personal 1040 ─────────────────────
-  const seTaxBase=isPassthru&&!isSC?Math.max(0,k1)*0.9235:0
-  const seTax=Math.round(seTaxBase*0.153),seDed=Math.round(seTax/2)
-  const qbi=isPassthru?Math.round(Math.max(0,k1)*0.20):0
-  const agi=Math.max(0,k1+w2+otherInc-seDed)
-  const stdDed=getStdDed(parseInt(biz.year)||2025,fs),ded=useStd?stdDed:Math.max(stdDed,itemized)
-  const taxableInc=Math.max(0,agi-ded-qbi),incomeTax=calcBracketTax(taxableInc,parseInt(biz.year)||2025,fs)
-  const phaseout=fs==='mfj'?400000:200000,ctcReduce=Math.max(0,Math.floor((agi-phaseout)/1000)*50)
-  const ctc=Math.max(0,deps*2000-ctcReduce)
-  const totalTax=Math.max(0,incomeTax+seTax-ctc)
-  const taxOwed=Math.max(0,totalTax-estPay),refund=Math.max(0,estPay-totalTax)
-  const effRate=agi>0?(totalTax/agi*100).toFixed(1):'0.0'
-  const quarterly=Math.round(Math.max(0,totalTax-estPay)/4)
-  const recSal=isSC?Math.round(Math.max(0,k1)*0.35):0
-  return {rev,cogs,gross,opExp,sal,dep,adv,other,totalExp,netBiz,k1,own,agi,ded,qbi,seTax,seDed,taxableInc,incomeTax,ctc,totalTax,corpTax:0,divTax:0,combinedTax:totalTax,dividends:0,taxOwed,refund,effRate,quarterly,recSal,stdDed,w2,otherInc,estPay,isPassthru,isSC,isCCorp:false}
-}
-
 function buildRecs(biz,calc){
   const recs=[],{k1,recSal,isSC,isCCorp,quarterly,qbi,effRate,corpTax,netBiz,combinedTax}=calc
   const officerSal=parseFloat(biz.officerSalary)||0,grossRev=parseFloat(biz.grossRevenue)||0
@@ -498,7 +454,7 @@ export default function Dashboard(){
   const handleConnect=(integ)=>{
     // ts360_connected_app not stored — verified on next load
     setConnectedApp(integ.name)
-    window.location.href=API+'/auth/'+integ.id+'/connect'
+        window.location.href=API_BASE_URL+'/auth/'+integ.id+'/connect'
   }
 
   const inp={width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}
