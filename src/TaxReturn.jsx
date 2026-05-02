@@ -133,6 +133,7 @@ export default function TaxReturn() {
   const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState(0)
   const [hsaDeduction, setHsaDeduction] = React.useState(0)
   const [studentLoanInt, setStudentLoanInt] = React.useState(0)
+  const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
@@ -205,6 +206,7 @@ export default function TaxReturn() {
         selfEmpHealthIns,
         hsaDeduction,
         studentLoanInt,
+        selfEmpRetirement,
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
@@ -216,7 +218,7 @@ export default function TaxReturn() {
   const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
   const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
-  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward, taxYear])
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward, taxYear])
 
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
@@ -627,7 +629,7 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 14 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Premiums you paid for health/dental/vision insurance for yourself and family if self-employed. Found in your records or Schedule K-1 attachments. Cannot exceed your net self-employment income."/></label>
+                <label style={lbl}>Self-Employed Health Insurance <InfoTip text="Schedule 1 line 17. Premiums paid for sole proprietors AND >2% S Corp shareholders (whose health insurance was reported on their W-2 Box 1 and Box 14 with code DD). Limited to net SE earnings or W-2 income from the same business."/></label>
                 <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" style={inp} />
               </div>
               <div>
@@ -642,6 +644,11 @@ export default function TaxReturn() {
                 <label style={lbl}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carried forward from a prior year (Schedule 1 Line 8a). Reduces ordinary income before AGI. Post-TCJA NOLs (from tax years after 2017) are limited to 80% of taxable income computed without the NOL deduction; pre-TCJA NOLs follow older 2-year carryback / 20-year carryforward rules with no 80% cap. Enter as positive — it will be subtracted from your income."/></label>
                 <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
+              </div>
+              <div>
+                <label style={lbl}>Self-Employed Retirement Plans <InfoTip text="Limited to 25% of net SE earnings (after 1/2 SE tax) for SEP, or based on plan rules for SIMPLE/Solo 401(k). 2025 limit: $70,000 ($77,500 if 50+). This tool does not validate the limit — confirm with your plan administrator."/></label>
+                <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
               </div>
             </div>
           </CollapsibleSection>
@@ -938,6 +945,7 @@ export default function TaxReturn() {
                   selfEmpHealthIns,
                   hsaDeduction,
                   studentLoanInt,
+                  selfEmpRetirement,
                   nolCarryforward,
                 }
 
