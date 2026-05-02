@@ -111,8 +111,8 @@ export default function TaxReturn() {
   // Load K-1 data passed from Step 1
   // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
   const [manualK1s, setManualK1s] = React.useState((() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}').manualK1s || [] } catch(e) { return [] } })())
-  const dashboardK1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
-  const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseFloat(k.amount) || 0), 0)
+  const dashboardK1Total = parseMoney(sessionStorage.getItem('ts360_k1') || '0')
+  const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
   const entitiesRaw = sessionStorage.getItem('ts360_entities')
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
@@ -170,9 +170,9 @@ export default function TaxReturn() {
   // Live-sync to sessionStorage so AI Analysis sees current calculator state without requiring a Save.
   // Mirrors the f1040Updated payload from the Save handler — same fields, same shape, written reactively.
   // §179 income limit display values (mirrors the cap math in the useEffect below for render-scope use)
-  const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
-  const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
-  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseFloat(w2Income)||0))
+  const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
+  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0))
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
 
@@ -207,10 +207,10 @@ export default function TaxReturn() {
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
-  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseFloat(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
-  const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
-  const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
-  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(liveF1040.w2Income)||0))
+  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
+  const totalSec179 = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
+  const totalBox12_13 = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
+  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseMoney(liveF1040.w2Income)||0))
   const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
   const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
   const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
@@ -254,7 +254,7 @@ export default function TaxReturn() {
   // Threshold of 40% catches the gray zone — the conservative end of the 30–60% rule-of-thumb range.
   // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
-  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseFloat(e.netProfit) || 0), 0)
+  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
   const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
   const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
     ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: w2 === 0 ? 'high' : 'medium' }
@@ -941,8 +941,8 @@ export default function TaxReturn() {
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
                 // Find any Dashboard-format record (has biz object) — prefer ones with data
-                const realIdx = existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0)) >= 0
-                  ? existing.findIndex(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0))
+                const realIdx = existing.findIndex(r => r.biz && (parseMoney(r.biz.grossRevenue) > 0 || parseMoney(r.k1Income) > 0)) >= 0
+                  ? existing.findIndex(r => r.biz && (parseMoney(r.biz.grossRevenue) > 0 || parseMoney(r.k1Income) > 0))
                   : existing.findIndex(r => r.biz) // fallback: any record with biz
 
                 let updated
