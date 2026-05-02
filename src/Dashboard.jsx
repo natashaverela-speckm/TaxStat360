@@ -42,8 +42,6 @@ function InfoTip({ text }) {
 }
 
 
-const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569', G = '#16A34A'
 
 // ─── IRS Tax Tables by Year ─────────────────────────────────────────────────
 // Standard Deductions (IRC §63)
@@ -497,10 +495,10 @@ export default function Dashboard(){
     }
   }
   const hasNumbers=parseFloat(biz.grossRevenue)>0
-  const calc=hasNumbers?calcAll(biz,f1040):null
+  const calc=hasNumbers?calcDashboard(biz,f1040):null
   const recs=calc?buildRecs(biz,calc):[]
   const safeCalc=calc||{k1:0,w2:0,otherInc:0,seDed:0,agi:0,ded:0,qbi:0,taxableInc:0,incomeTax:0,selfEmpTax:0,childCredit:0,totalTax:0,effectiveRate:0,quarterly:0,balance:0,refund:0,isSC:false,isPassthru:false,recSal:0,k1Net:0}
-  const isPassthru=PASSTHROUGH.includes(biz.entityType)
+  const isPassthru=PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
 
   const handleSave=()=>{
     if(!parseFloat(biz.grossRevenue) && !parseFloat(biz.operatingExpenses) && !parseFloat(f1040.w2Income)){
