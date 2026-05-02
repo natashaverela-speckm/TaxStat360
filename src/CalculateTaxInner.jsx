@@ -298,9 +298,8 @@ export default function CalculateTax(){
   const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
-  function proceed(){
-    const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
-    sessionStorage.setItem('ts360_k1',k1Total);sessionStorage.setItem('ts360_own','100');sessionStorage.setItem('ts360_entities',JSON.stringify(k1Data));nav('/tax-return')
+  function proceed(){}
+    writeStep1State({entities:k1Data,k1Total,isCoopPatron});nav('/tax-return')
   }
 
   const saveRecord = () => {
@@ -406,7 +405,7 @@ export default function CalculateTax(){
       entity={compareIdx !== null ? entities[compareIdx] : null}
       entities={entities}
       entityIdx={compareIdx}
-      personalContext={{ taxYear: 2025, status: 'single', dependents: 0 }}
+      ={(() => { const pc = readPersonalContext(); return { taxYear: pc.taxYear, status: pc.filingStatus, dependents: pc.dependents }; })()}restore proceed(), writeStep1State, EntityCompareModal personalContext
     />
     </>
   )
