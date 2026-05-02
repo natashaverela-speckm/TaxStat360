@@ -4,14 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import MoneyInput from './components/MoneyInput.jsx'
 import { parseMoney } from './utils/parseMoney.js'
 
-const N='#0D1B3E',B='#2563EB',SL='#475569',G='#16a34a',R='#dc2626'
-const API='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
-const INTS=[{id:'quickbooks',name:'QuickBooks',color:'#2CA01C',abbr:'QB'},{id:'xero',name:'Xero',color:'#13B5EA',abbr:'XE'},{id:'wave',name:'Wave',color:'#2C6ECB',abbr:'WV'},{id:'freshbooks',name:'FreshBooks',color:'#1a9c3e',abbr:'FB'}]
+import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
+import { writeStep1State, readPersonalContext } from './utils/sessionState.js'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 function InfoTip({ text }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
-const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
-const COLORS=['#2563EB','#16a34a','#dc2626','#7c3aed','#d97706','#0891b2']
-const TEMPLATES=[
+const INTS=INTEGRATIONS
   {label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
   {label:'Real Estate LLC',icon:'🏠',type:'Partnership / Multi-Member LLC',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
   {label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
@@ -297,6 +295,7 @@ export default function CalculateTax(){
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
   const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
+  const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
