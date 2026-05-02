@@ -133,6 +133,7 @@ export default function TaxReturn() {
   const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState(0)
   const [hsaDeduction, setHsaDeduction] = React.useState(0)
   const [studentLoanInt, setStudentLoanInt] = React.useState(0)
+  const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
@@ -642,6 +643,11 @@ export default function TaxReturn() {
                 <label style={lbl}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carried forward from a prior year (Schedule 1 Line 8a). Reduces ordinary income before AGI. Post-TCJA NOLs (from tax years after 2017) are limited to 80% of taxable income computed without the NOL deduction; pre-TCJA NOLs follow older 2-year carryback / 20-year carryforward rules with no 80% cap. Enter as positive — it will be subtracted from your income."/></label>
                 <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
+              </div>
+              <div>
+                <label style={lbl}>Self-Employed Retirement Plans <InfoTip text="Limited to 25% of net SE earnings (after 1/2 SE tax) for SEP, or based on plan rules for SIMPLE/Solo 401(k). 2025 limit: $70,000 ($77,500 if 50+). This tool does not validate the limit — confirm with your plan administrator."/></label>
+                <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={inp} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
               </div>
             </div>
           </CollapsibleSection>
