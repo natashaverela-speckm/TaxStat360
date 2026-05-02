@@ -419,7 +419,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 //   Pre-YTD-scaled income: w2, k1Total, rentalNet, stGain, ltGain, intInc,
 //     divInc, qualDiv, f4797Inc, taxableSS, iraIncome
 //   Raw strings (orchestrator nv()s + ytdScales as appropriate):
-//     selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward,
+//     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward,
 //     priorYearQBILoss, itemizedAmt, saltAmount, isoBargainElement,
 //     unrecap1250, collectiblesGain, w2Withheld, estPaid
 //   Booleans: useItemized, hasISO, isREP
@@ -431,7 +431,7 @@ function calcTaxReturn(input) {
     w2 = 0, k1Total = 0, rentalNet = 0,
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt,
+    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
     useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement,
@@ -470,7 +470,8 @@ function calcTaxReturn(input) {
   const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
   const hsaDed = ytdScale(hsaDeduction)
   const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
-  const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed
+  const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
+  const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
   const agi = grossIncome - adjustments
 
   // Deductions
@@ -568,7 +569,7 @@ function calcTaxReturn(input) {
   return {
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE,
-    selfEmpHealthDed, hsaDed, studentLoanDed, adjustments,
+    selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     stdDed, itemized, deduction,
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome, qbi, qbiLimitApplied, qbiCaps,
