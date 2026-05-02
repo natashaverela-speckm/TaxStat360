@@ -206,6 +206,7 @@ export default function TaxReturn() {
         selfEmpHealthIns,
         hsaDeduction,
         studentLoanInt,
+        selfEmpRetirement,
       }
       sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
       sessionStorage.setItem('ts360_taxyear', String(taxYear))
@@ -217,7 +218,7 @@ export default function TaxReturn() {
   const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
   const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
-  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, nolCarryforward, taxYear])
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward, taxYear])
 
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
@@ -944,6 +945,7 @@ export default function TaxReturn() {
                   selfEmpHealthIns,
                   hsaDeduction,
                   studentLoanInt,
+                  selfEmpRetirement,
                   nolCarryforward,
                 }
 
