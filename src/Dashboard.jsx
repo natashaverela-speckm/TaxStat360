@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
+import { calcTaxReturn } from './taxCalc'
+import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES } from './constants'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 
 
 // ── Info Tooltip Component ──
@@ -131,6 +134,101 @@ const INTEGRATIONS=[
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
 
+
+
+// ── calcDashboard — canonical adapter (replaces calcAll) ─────────────────────
+// Maps Dashboard's biz + f1040 form state into calcTaxReturn's pure-function
+// contract. The old calcAll and its duplicate tax tables are preserved below
+// for reference but are no longer called; they will be deleted in the next PR.
+// C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
+function calcDashboard(biz, f1040) {
+  const rev    = parseFloat(biz.grossRevenue)     || 0
+  const cogs   = parseFloat(biz.cogs)             || 0
+  const gross  = rev - cogs
+  const opExp  = parseFloat(biz.operatingExpenses)|| 0
+  const sal    = parseFloat(biz.officerSalary)    || 0
+  const dep    = parseFloat(biz.depreciation)     || 0
+  const adv    = parseFloat(biz.advertising)      || 0
+  const other  = parseFloat(biz.otherDeductions)  || 0
+  const totalExp = opExp + sal + dep + adv + other
+  const netBiz   = gross - totalExp
+  const own      = (parseFloat(biz.ownershipPct) || 100) / 100
+  const k1       = Math.round(netBiz * own)
+
+  const fs       = f1040.filingStatus || 'single'
+  const year     = parseInt(biz.year) || 2025
+  const w2       = parseFloat(f1040.w2Income)          || 0
+  const otherInc = parseFloat(f1040.otherIncome)       || 0
+  const deps     = parseFloat(f1040.dependents)        || 0
+  const estPay   = parseFloat(f1040.estimatedPayments) || 0
+  const useStd   = f1040.useStandardDed !== false
+  const itemized = parseFloat(f1040.itemizedDed)       || 0
+
+  const isCCorp    = biz.entityType === 'C Corporation'
+  const isSC       = biz.entityType === 'S Corporation'
+  const isPassthru = PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
+
+  // Shared base input for calcTaxReturn — non-entity income fields
+  const baseInput = {
+    taxYear: year, status: fs, dependents: deps,
+    k1Total: 0, rentalNet: 0, stGain: 0, ltGain: 0,
+    intInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0,
+    selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0,
+    selfEmpRetirement: 0, nolCarryforward: 0, priorYearQBILoss: 0,
+    saltAmount: 0, hasISO: false, isoBargainElement: 0,
+    isREP: false, unrecap1250: 0, collectiblesGain: 0,
+    w2Withheld: 0, estPaid: estPay, ytdFactor: 1,
+    useItemized: !useStd, itemizedAmt: itemized,
+  }
+
+  // ── C-Corp: entity-level 21% tax + personal tax on officer W-2 + dividends ─
+  if (isCCorp) {
+    const corpTax   = Math.round(Math.max(0, netBiz) * 0.21)
+    const dividends = parseFloat(biz.ccorpDividends || 0)
+    const r = calcTaxReturn({
+      ...baseInput,
+      entities: [], w2: w2 + sal,
+      divInc: dividends, iraIncome: otherInc,
+    })
+    return {
+      rev, cogs, gross, opExp, sal, dep, adv, other, totalExp, netBiz, k1, own,
+      corpTax, divTax: r.prefTax, dividends,
+      combinedTax: corpTax + r.fedTax,
+      agi: r.agi, ded: r.deduction, qbi: 0,
+      seTax: 0, seDed: 0,
+      taxableInc: r.taxableAfterQBI, incomeTax: r.fedTax, ctc: r.childCredit,
+      totalTax: r.totalTax, taxOwed: Math.max(0, r.totalTax - estPay),
+      refund: Math.max(0, estPay - r.totalTax),
+      effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
+      quarterly: r.quarterlyRecommended,
+      recSal: Math.round(Math.max(0, k1) * 0.35),
+      stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: true,
+    }
+  }
+
+  // ── Passthrough / non-entity: K-1 flows to personal 1040 ─────────────────
+  const entities = isPassthru
+    ? [{ type: biz.entityType, k1, own: 100 }]
+    : []
+
+  const r = calcTaxReturn({
+    ...baseInput,
+    entities, w2, k1Total: k1, divInc: 0, iraIncome: otherInc,
+  })
+
+  return {
+    rev, cogs, gross, opExp, sal, dep, adv, other, totalExp, netBiz, k1, own,
+    agi: r.agi, ded: r.deduction, qbi: r.qbi, seTax: r.seTax, seDed: r.halfSE,
+    taxableInc: r.taxableAfterQBI, incomeTax: r.fedTax, ctc: r.childCredit,
+    totalTax: r.totalTax, corpTax: 0, divTax: 0, combinedTax: r.totalTax, dividends: 0,
+    taxOwed: Math.max(0, r.totalTax - estPay),
+    refund:  Math.max(0, estPay - r.totalTax),
+    effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
+    quarterly: r.quarterlyRecommended,
+    recSal: isSC ? Math.round(Math.max(0, k1) * 0.35) : 0,
+    stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
+  }
+}
 
 
 function calcAll(biz,f1040){

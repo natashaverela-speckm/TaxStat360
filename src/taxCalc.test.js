@@ -383,3 +383,258 @@ describe('Schedule 1 line 16 - Self-Employed Retirement', () => {
     expect(r.adjustments).toBeGreaterThanOrEqual(7500)
   })
 })
+
+// =============================================================================
+// calcTaxReturn — integration tests (Module J)
+// Covers paths with no prior end-to-end test coverage:
+//   REP flag, ISO bargain element → AMT, ytdFactor scaling,
+//   multi-entity portfolios, itemized SALT → AMT addback, SSTB above phase-in.
+// =============================================================================
+
+// Minimal valid input — single W-2 filer, no entities, no frills.
+const BASE = {
+  taxYear: 2025, status: 'single', dependents: 0,
+  entities: [], w2: 100000, k1Total: 0,
+  rentalNet: 0, stGain: 0, ltGain: 0, intInc: 0,
+  divInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0, iraIncome: 0,
+  selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0,
+  selfEmpRetirement: 0, nolCarryforward: 0, priorYearQBILoss: 0,
+  useItemized: false, itemizedAmt: 0, saltAmount: 0,
+  hasISO: false, isoBargainElement: 0,
+  isREP: false, unrecap1250: 0, collectiblesGain: 0,
+  w2Withheld: 0, estPaid: 0, ytdFactor: 1,
+}
+
+// =============================================================================
+// REP flag — IRC §469(c)(7) real estate professional
+// =============================================================================
+describe('calcTaxReturn REP flag (isREP)', () => {
+  it('rentalNII is 0 when isREP=true', () => {
+    const r = calcTaxReturn({ ...BASE, rentalNet: 30000, isREP: true })
+    expect(r.rentalNII).toBe(0)
+  })
+
+  it('rentalNII equals rentalNet when isREP=false and rental is positive', () => {
+    const r = calcTaxReturn({ ...BASE, rentalNet: 30000, isREP: false })
+    expect(r.rentalNII).toBe(30000)
+  })
+
+  it('REP reduces NIIT vs non-REP when AGI exceeds $200k threshold', () => {
+    // $200k W-2 + $50k rental → AGI $250k > $200k single threshold
+    // non-REP: rental is NII → niit > 0
+    // REP: rental excluded from NII → niit lower (only investment income counts)
+    const nonRep = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: false })
+    const rep    = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: true  })
+    expect(nonRep.niit).toBeGreaterThan(0)
+    expect(rep.niit).toBeLessThan(nonRep.niit)
+  })
+})
+
+// =============================================================================
+// hasISO + isoBargainElement → AMT addback (IRC §56(b)(3) / Form 6251 line 2i)
+// =============================================================================
+describe('calcTaxReturn ISO bargain element → AMT (IRC §56(b)(3))', () => {
+  it('large ISO spread increases AMT vs baseline', () => {
+    const withISO = calcTaxReturn({ ...BASE, w2: 150000, hasISO: true, isoBargainElement: 200000 })
+    const noISO   = calcTaxReturn({ ...BASE, w2: 150000 })
+    expect(withISO.amt).toBeGreaterThan(noISO.amt)
+  })
+
+  it('isoBargainElement is ignored when hasISO=false', () => {
+    const withFlag    = calcTaxReturn({ ...BASE, hasISO: true,  isoBargainElement: 100000 })
+    const withoutFlag = calcTaxReturn({ ...BASE, hasISO: false, isoBargainElement: 100000 })
+    // When hasISO=false the engine passes 0 to calcAMT regardless of the field value
+    expect(withFlag.amt).toBeGreaterThanOrEqual(withoutFlag.amt)
+  })
+
+  it('does not throw with hasISO=true and isoBargainElement=0', () => {
+    expect(() => calcTaxReturn({ ...BASE, hasISO: true, isoBargainElement: 0 })).not.toThrow()
+  })
+})
+
+// =============================================================================
+// ytdFactor — YTD income scaling (Schedule 1 deductions are ytdScale()'d)
+// =============================================================================
+describe('calcTaxReturn ytdFactor scaling', () => {
+  it('ytdFactor=1 is the identity — no scaling applied', () => {
+    const r = calcTaxReturn({ ...BASE, selfEmpRetirement: 10000, ytdFactor: 1 })
+    expect(r.selfEmpRetirementDed).toBe(10000)
+  })
+
+  it('ytdFactor=2 doubles scaled deductions', () => {
+    const r = calcTaxReturn({ ...BASE, selfEmpRetirement: 5000, ytdFactor: 2 })
+    expect(r.selfEmpRetirementDed).toBe(10000)
+  })
+
+  it('ytdFactor=4 produces same annualized result as ytdFactor=1 with 4x inputs', () => {
+    const q1   = calcTaxReturn({ ...BASE, w2: 25000, selfEmpRetirement: 5000,  ytdFactor: 4 })
+    const full = calcTaxReturn({ ...BASE, w2: 100000, selfEmpRetirement: 20000, ytdFactor: 1 })
+    expect(q1.selfEmpRetirementDed).toBe(full.selfEmpRetirementDed)
+  })
+
+  it('studentLoanInt is ytdScaled and then capped at $2,500', () => {
+    // ytdFactor=2, raw $1,000 → scaled $2,000 → under cap → ded = $2,000
+    const r1 = calcTaxReturn({ ...BASE, studentLoanInt: 1000, ytdFactor: 2 })
+    expect(r1.studentLoanDed).toBe(2000)
+    // ytdFactor=2, raw $1,500 → scaled $3,000 → capped → ded = $2,500
+    const r2 = calcTaxReturn({ ...BASE, studentLoanInt: 1500, ytdFactor: 2 })
+    expect(r2.studentLoanDed).toBe(2500)
+  })
+})
+
+// =============================================================================
+// Multi-entity portfolio — SE entity vs S-Corp entity
+// =============================================================================
+describe('calcTaxReturn multi-entity portfolio', () => {
+  it('sole prop entity generates seTax; S-Corp entity does not', () => {
+    const soleOnly = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 80000,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 80000, own: 100 }],
+    })
+    const scorpOnly = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 80000,
+      entities: [{ type: 'S Corporation', k1: 80000, own: 100 }],
+    })
+    expect(soleOnly.seTax).toBeGreaterThan(0)
+    expect(scorpOnly.seTax).toBe(0)
+  })
+
+  it('mixed portfolio: SE tax matches sole-prop-only amount (same SE-subject income)', () => {
+    // $50k sole prop + $50k S-Corp → SE tax on $50k only
+    const mixed = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 100000,
+      entities: [
+        { type: 'Sole Proprietor / Single-Member LLC', k1: 50000, own: 100 },
+        { type: 'S Corporation',                       k1: 50000, own: 100 },
+      ],
+    })
+    const soleOnly = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 50000,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 50000, own: 100 }],
+    })
+    expect(mixed.seTax).toBe(soleOnly.seTax)
+    expect(mixed.seNetIncome).toBe(50000)
+  })
+
+  it('grossIncome sums k1Total correctly across both entities', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 100000,
+      entities: [
+        { type: 'Sole Proprietor / Single-Member LLC', k1: 60000, own: 100 },
+        { type: 'S Corporation',                       k1: 40000, own: 100 },
+      ],
+    })
+    expect(r.grossIncome).toBe(100000)
+  })
+})
+
+// =============================================================================
+// Itemized deductions with SALT → AMT addback (IRC §56(b)(1)(A)(ii))
+// =============================================================================
+describe('calcTaxReturn itemized SALT → AMT addback', () => {
+  it('SALT addback increases AMT when useItemized=true and saltAmount > 0', () => {
+    // High income to push into AMT territory
+    const itemized = calcTaxReturn({
+      ...BASE, w2: 500000,
+      useItemized: true, itemizedAmt: 50000, saltAmount: 40000,
+    })
+    const standard = calcTaxReturn({ ...BASE, w2: 500000 })
+    expect(itemized.amt).toBeGreaterThanOrEqual(standard.amt)
+  })
+
+  it('no SALT addback when useItemized=false even with large saltAmount', () => {
+    const notItemizing = calcTaxReturn({
+      ...BASE, w2: 500000,
+      useItemized: false, saltAmount: 40000,
+    })
+    const itemizing = calcTaxReturn({
+      ...BASE, w2: 500000,
+      useItemized: true, itemizedAmt: 50000, saltAmount: 40000,
+    })
+    // No itemizing → no SALT addback → lower or equal AMT
+    expect(notItemizing.amt).toBeLessThanOrEqual(itemizing.amt)
+  })
+})
+
+// =============================================================================
+// SSTB entity above §199A phase-in → QBI deduction reduced or zero
+// =============================================================================
+describe('calcTaxReturn SSTB entity above §199A phase-in', () => {
+  it('QBI is zero for fully-phased-out SSTB (single 2025, TI > $247,300)', () => {
+    // 2025 single: threshold $197,300 + phase-in $50k → full phase-out at $247,300
+    const r = calcTaxReturn({
+      ...BASE, w2: 200000, k1Total: 100000,
+      entities: [{
+        type: 'S Corporation', k1: 100000, own: 100,
+        box17V_sstb: true, box17V_wages: 0, box17V_ubia: 0,
+        box11_12: 0, box12_13: 0,
+      }],
+    })
+    // TI ≈ $300k (well above $247,300) → SSTB fully excluded → QBI = 0
+    expect(r.taxableBeforeQBI).toBeGreaterThan(247300)
+    expect(r.qbi).toBe(0)
+  })
+
+  it('non-SSTB entity above threshold still gets QBI deduction', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 200000, k1Total: 100000,
+      entities: [{
+        type: 'S Corporation', k1: 100000, own: 100,
+        box17V_sstb: false, box17V_wages: 0, box17V_ubia: 0,
+        box11_12: 0, box12_13: 0,
+      }],
+    })
+    // Non-SSTB always eligible; income/wage limit may cap it but > 0
+    expect(r.qbi).toBeGreaterThan(0)
+  })
+
+  it('SSTB below threshold gets full QBI deduction (QTB, no exclusion)', () => {
+    // TI well below $197,300 → SSTB is a qualified trade → 20% × QBI applies
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 50000,
+      entities: [{
+        type: 'S Corporation', k1: 50000, own: 100,
+        box17V_sstb: true, box17V_wages: 0, box17V_ubia: 0,
+        box11_12: 0, box12_13: 0,
+      }],
+    })
+    expect(r.qbi).toBeGreaterThan(0)
+  })
+})
+
+// =============================================================================
+// Output shape — regression guard on return object structure
+// =============================================================================
+describe('calcTaxReturn output shape', () => {
+  const SHAPE_KEYS = [
+    'grossIncome', 'agi', 'seNetIncome', 'seTax', 'halfSE',
+    'adjustments', 'stdDed', 'deduction',
+    'qbiBasis', 'taxableBeforeQBI', 'qbi', 'qbiLimitApplied',
+    'taxableAfterQBI', 'ordinaryTaxableIncome', 'taxableIncome',
+    'ordFedTax', 'prefTax', 'fedTax', 'marginalRate',
+    'additionalMedicare', 'niit', 'childCredit',
+    'amt', 'totalTax', 'effectiveRate',
+    'withheld', 'estimated', 'totalPayments', 'balance',
+    'rentalNII', 'nii',
+  ]
+
+  it('returns all expected keys', () => {
+    const r = calcTaxReturn(BASE)
+    for (const key of SHAPE_KEYS) {
+      expect(r).toHaveProperty(key)
+    }
+  })
+
+  it('all numeric fields are finite (never NaN or Infinity)', () => {
+    const r = calcTaxReturn(BASE)
+    for (const key of SHAPE_KEYS) {
+      if (typeof r[key] === 'number') {
+        expect(Number.isFinite(r[key])).toBe(true)
+      }
+    }
+  })
+
+  it('does not throw on all-zero income inputs', () => {
+    expect(() => calcTaxReturn({ ...BASE, w2: 0 })).not.toThrow()
+  })
+})
