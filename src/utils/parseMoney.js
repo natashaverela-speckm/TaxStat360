@@ -50,7 +50,8 @@ export function parseMoney(input) {
   const num = Number(s);
   if (!Number.isFinite(num)) return 0;
 
-  return isParenNegative ? -num : num;
+  const signed = isParenNegative ? -num : num;
+  return signed || 0;  // normalize -0 to 0
 }
 
 /**

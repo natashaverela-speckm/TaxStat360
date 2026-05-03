@@ -320,7 +320,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   // SSTB entities' contribution to qbiIncome (for proration in adjQBI)
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s;
-    const k1Income = (parseFloat(e.netProfit) || 0) * ((parseInt(e.own) || 100) / 100);
+    const k1Income = (parseFloat(e.k1 ?? e.netProfit) || 0) * ((parseInt(e.own) || 100) / 100);
     const sec179 = parseFloat(e.box11_12) || 0;
     const otherDed = parseFloat(e.box12_13) || 0;
     return s + Math.max(0, k1Income - sec179 - otherDed);
