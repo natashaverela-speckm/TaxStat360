@@ -753,7 +753,7 @@ function SimulatorModal({ onClose, rec }) {
     advertising:       parseFloat(b.advertising)        || 0,
     otherDeductions:   parseFloat(b.otherDeductions)    || 0,
     w2Income:          parseFloat(f.w2Income)            || 0,
-    estimatedPayments: parseFloat(f.estPaid)  || 0,
+    estPaid:           parseFloat(f.estPaid)  || 0,
   }
 
   // ── Scenario adjustments (deltas on top of base) ──────────────────────────
