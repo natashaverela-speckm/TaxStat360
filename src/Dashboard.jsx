@@ -6,7 +6,7 @@ import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 
 
 // ── Info Tooltip Component ──
-function InfoTip({ text }) 
+function InfoTip({ text })  {
   const [show, setShow] = useState(false)
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
