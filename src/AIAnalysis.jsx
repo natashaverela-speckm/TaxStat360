@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
 import DismissibleNotice from './components/DismissibleNotice'
+import { readPersonalContext, writePersonalContext, writeTaxYear } from './utils/sessionState.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -61,7 +62,7 @@ function getRecord(liveState) {
   const _isCoopPatron = sessionStorage.getItem('ts360_isCoopPatron') === 'true'
   if (liveState) {
     const ent = (liveState.entities || [])[0] || {}
-    const f1040 = liveState.f1040 || JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
+    const f1040 = liveState.f1040 || readPersonalContext()
     const k1 = liveState.k1Income || 0
     const taxyear = liveState.taxYear || parseInt(sessionStorage.getItem('ts360_taxyear') || String(new Date().getFullYear()))
     if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
@@ -72,7 +73,7 @@ function getRecord(liveState) {
         k1Income: k1,
         entities: liveState.entities || [],
         biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(ent.netProfit || 0) },
-        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estimatedPayments: f1040.estimatedPayments || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
+        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
       }
     }
   }
@@ -85,7 +86,7 @@ function getRecord(liveState) {
   try {
     const k1 = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
     const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
-    const f1040 = JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}')
+    const f1040 = readPersonalContext()
     const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
     const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
     const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
@@ -117,10 +118,7 @@ function getRecord(liveState) {
           filingStatus: f1040.filingStatus || 'single',
           w2Income: f1040.w2Income || '',
           otherIncome: f1040.otherIncome || '',
-          estimatedPayments: f1040.estimatedPayments || '',
           dependents: f1040.dependents || '',
-          useStandardDed: f1040.useStandardDed !== false,
-          itemizedDed: f1040.itemizedDed || '',
           w2Withheld: f1040.w2Withheld || '',
           rentalIncome: f1040.rentalIncome || '',
           rentalExpenses: f1040.rentalExpenses || '',
@@ -173,7 +171,7 @@ function completeness(rec) {
   if (parseFloat(b.officerSalary) > 0) s += 5
   if (parseFloat(b.operatingExpenses) > 0) s += 5
   if (parseFloat(b.depreciation) > 0) s += 5
-  if (parseFloat(f.estimatedPayments) > 0) s += 10
+  if (parseFloat(f.estPaid) > 0) s += 10
   return Math.min(s, 98)
 }
 
@@ -185,7 +183,7 @@ function RiskScan({ rec }) {
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
-  const estPay = parseFloat(f.estimatedPayments) || 0
+  const estPay = parseFloat(f.estPaid) || 0
   const dep = parseFloat(b.depreciation) || 0
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
@@ -361,7 +359,7 @@ function TaxOptimization({ rec }) {
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
-  const estPay = parseFloat(f.estimatedPayments) || 0
+  const estPay = parseFloat(f.estPaid) || 0
   const year = parseInt(b.year) || 2025
   const isPassthrough = isPassthroughEntity(b.entityType)
 
@@ -553,8 +551,8 @@ function IRSCompliance({ rec }) {
   }
 
   // Estimated payments
-  if (parseFloat(f.estimatedPayments) > 0) {
-    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estimatedPayments))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 16 | Q3: Sep 15 | Q4: Jan 15' })
+  if (parseFloat(f.estPaid) > 0) {
+    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 16 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
   // Schedule 1 — always required (adjustments to income)
@@ -610,7 +608,7 @@ function IRSCompliance({ rec }) {
 
   // Additional Medicare
   const totalIncome = k1 + w2
-  if (!f.useStandardDed && (parseFloat(f.itemizedDed)||0) > 0) {
+  if (f.useItemized && (parseFloat(f.itemizedAmt)||0) > 0) {
     const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
@@ -709,7 +707,7 @@ function ReportModal({ onClose, rec }) {
               ['K-1 Income to Personal Return', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               ['W-2 Income', f.w2Income ? '$' + parseFloat(f.w2Income).toLocaleString() : ''],
-              ['Estimated Payments Made', f.estimatedPayments ? '$' + parseFloat(f.estimatedPayments).toLocaleString() : ''],
+              ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
                 <span style={{ color: SL }}>{label}</span><span style={{ fontWeight: 600, color: N }}>{value}</span>
@@ -755,7 +753,7 @@ function SimulatorModal({ onClose, rec }) {
     advertising:       parseFloat(b.advertising)        || 0,
     otherDeductions:   parseFloat(b.otherDeductions)    || 0,
     w2Income:          parseFloat(f.w2Income)            || 0,
-    estimatedPayments: parseFloat(f.estimatedPayments)  || 0,
+    estimatedPayments: parseFloat(f.estPaid)  || 0,
   }
 
   // ── Scenario adjustments (deltas on top of base) ──────────────────────────
@@ -1103,8 +1101,8 @@ export default function AIAnalysis() {
             const r = getRecord(location.state?.liveState)
             if (r) {
               sessionStorage.setItem('ts360_k1', String(r.k1Income || 0))
-              sessionStorage.setItem('ts360_taxyear', String(r.biz?.year || 2025))
-              sessionStorage.setItem('ts360_f1040', JSON.stringify(r.f1040 || {}))
+              writeTaxYear(r.biz?.year || 2025)
+              writePersonalContext(r.f1040 || {})
               sessionStorage.setItem('ts360_entities', JSON.stringify(
                 isPassthroughEntity(r.biz?.entityType)
                   ? [{ type: r.biz?.entityType, k1: r.k1Income || 0 }]
@@ -1167,8 +1165,8 @@ export default function AIAnalysis() {
               if (rec) {
                 // Pre-populate TaxReturn with saved record data — same keys Dashboard uses
                 sessionStorage.setItem('ts360_k1', String(rec.k1Income || 0))
-                sessionStorage.setItem('ts360_taxyear', String(rec.biz?.year || 2025))
-                sessionStorage.setItem('ts360_f1040', JSON.stringify(rec.f1040 || {}))
+                writeTaxYear(rec.biz?.year || 2025)
+                writePersonalContext(rec.f1040 || {})
                 sessionStorage.setItem('ts360_entities', JSON.stringify(
                   isPassthroughEntity(rec.biz?.entityType)
                     ? [{ type: rec.biz?.entityType, k1: rec.k1Income || 0 }]
