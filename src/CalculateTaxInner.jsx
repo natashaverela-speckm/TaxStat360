@@ -404,7 +404,7 @@ export default function CalculateTax(){
       onClose={() => setCompareIdx(null)}
       entity={compareIdx !== null ? entities[compareIdx] : null}
       entities={entities}
-      entityIdx={compareIdx
+      entityIdx={compareIdx}
       personalContext={(() => { const pc = readPersonalContext(); return { taxYear: pc.taxYear, status: pc.filingStatus, dependents: pc.dependents }; })()}
     />
     </>
