@@ -22,6 +22,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Run vitest test suite. Build/deploy will fail if any test fails — protects
+      # tax calculations and entity scenario logic from silent regressions.
+      - name: Run tests
+        run: npm run test
+
       - name: Build
         run: npm run build
 
