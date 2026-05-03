@@ -4,6 +4,7 @@ import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, ge
 import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import { parseMoney } from './utils/parseMoney.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear } from './utils/sessionState.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -111,7 +112,7 @@ export default function TaxReturn() {
 
   // Load K-1 data passed from Step 1
   // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
-  const [manualK1s, setManualK1s] = React.useState((() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}').manualK1s || [] } catch(e) { return [] } })())
+  const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s)
   const dashboardK1Total = parseMoney(sessionStorage.getItem('ts360_k1') || '0')
   const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
@@ -119,7 +120,7 @@ export default function TaxReturn() {
   const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
   // Pre-load saved f1040 data if passed from Dashboard
-  const savedF1040 = (() => { try { return JSON.parse(sessionStorage.getItem('ts360_f1040')||'{}') } catch(e) { return {} } })()
+  const savedF1040 = readPersonalContext()
   const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
 
   // Personal inputs — pre-populated from saved record if available
@@ -136,7 +137,7 @@ export default function TaxReturn() {
   const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
-  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || (savedF1040.officerSalary ? String(savedF1040.officerSalary) : '')); const [w2WasAutoPopulated] = React.useState(!savedF1040.w2Income && !!savedF1040.officerSalary)
+  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || ''); const [w2WasAutoPopulated] = React.useState(false)
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState(0)
@@ -159,13 +160,13 @@ export default function TaxReturn() {
   const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
   const [form4797, setForm4797] = React.useState(0)
   const [dividends, setDividends] = React.useState(0)
-  const [useItemized, setUseItemized] = React.useState(savedF1040.useStandardDed===false)
+  const [useItemized, setUseItemized] = React.useState(savedF1040.useItemized)
   const [saved, setSaved] = React.useState(false)
-  const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedDed || 0)
+  const [itemizedAmt, setItemizedAmt] = React.useState(savedF1040.itemizedAmt || 0)
   const [saltAmount, setSaltAmount] = React.useState(savedF1040.saltAmount || 0)
   const [hasISO, setHasISO] = React.useState(!!savedF1040.hasISO)
   const [isoBargainElement, setIsoBargainElement] = React.useState(savedF1040.isoBargainElement || 0)
-  const [estPaid, setEstPaid] = React.useState(savedF1040.estimatedPayments || 0)
+  const [estPaid, setEstPaid] = React.useState(savedF1040.estPaid || 0)
   const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
   const [showDetail, setShowDetail] = React.useState(false)
 
@@ -182,34 +183,36 @@ export default function TaxReturn() {
     try {
       const liveF1040 = {
         filingStatus: status,
-        w2Income,
-        w2Withheld,
-        rentalIncome,
-        rentalExpenses,
-        capitalGains,
-        interest,
-        dividends,
-        form4797,
+        taxYear: parseInt(taxYear) || 2025,
+        w2Income: parseFloat(w2Income) || 0,
+        w2Withheld: parseFloat(w2Withheld) || 0,
+        rentalIncome: parseFloat(rentalIncome) || 0,
+        rentalExpenses: parseFloat(rentalExpenses) || 0,
+        capitalGains: parseFloat(capitalGains) || 0,
+        interest: parseFloat(interest) || 0,
+        dividends: parseFloat(dividends) || 0,
+        form4797: parseFloat(form4797) || 0,
         manualK1s,
         isREP,
-        useStandardDed: !useItemized,
-        itemizedDed: itemizedAmt,
-        saltAmount,
+        useItemized,
+        itemizedAmt: parseFloat(itemizedAmt) || 0,
+        saltAmount: parseFloat(saltAmount) || 0,
         hasISO,
-        isoBargainElement,
-        estimatedPayments: estPaid,
-        dependents,
-        priorYearQBILoss,
-        qualifiedDividends,
-        socialSecurity,
-        iraDistributions,
-        selfEmpHealthIns,
-        hsaDeduction,
-        studentLoanInt,
-        selfEmpRetirement,
+        isoBargainElement: parseFloat(isoBargainElement) || 0,
+        estPaid: parseFloat(estPaid) || 0,
+        dependents: parseInt(dependents) || 0,
+        priorYearQBILoss: parseFloat(priorYearQBILoss) || 0,
+        qualifiedDividends: parseFloat(qualifiedDividends) || 0,
+        socialSecurity: parseFloat(socialSecurity) || 0,
+        iraDistributions: parseFloat(iraDistributions) || 0,
+        selfEmpHealthIns: parseFloat(selfEmpHealthIns) || 0,
+        hsaDeduction: parseFloat(hsaDeduction) || 0,
+        studentLoanInt: parseFloat(studentLoanInt) || 0,
+        selfEmpRetirement: parseFloat(selfEmpRetirement) || 0,
+        nolCarryforward: parseFloat(nolCarryforward) || 0,
       }
-      sessionStorage.setItem('ts360_f1040', JSON.stringify(liveF1040))
-      sessionStorage.setItem('ts360_taxyear', String(taxYear))
+      writePersonalContext(liveF1040)
+      writeTaxYear(taxYear)
   const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
   const totalSec179 = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
   const totalBox12_13 = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
@@ -921,32 +924,32 @@ export default function TaxReturn() {
                 // The updated 1040 data to merge into the record
                 const f1040Updated = {
                   filingStatus: status,
-                  w2Income,
-                  w2Withheld,
-                  rentalIncome,
-                  rentalExpenses,
-                  capitalGains,
-                  interest,
-                  dividends,
-                  form4797,
+                  w2Income: parseFloat(w2Income) || 0,
+                  w2Withheld: parseFloat(w2Withheld) || 0,
+                  rentalIncome: parseFloat(rentalIncome) || 0,
+                  rentalExpenses: parseFloat(rentalExpenses) || 0,
+                  capitalGains: parseFloat(capitalGains) || 0,
+                  interest: parseFloat(interest) || 0,
+                  dividends: parseFloat(dividends) || 0,
+                  form4797: parseFloat(form4797) || 0,
                   manualK1s,
                   isREP,
-                  useStandardDed: !useItemized,
-                  itemizedDed: itemizedAmt,
-                  saltAmount,
+                  useItemized,
+                  itemizedAmt: parseFloat(itemizedAmt) || 0,
+                  saltAmount: parseFloat(saltAmount) || 0,
                   hasISO,
-                  isoBargainElement,
-                  estimatedPayments: estPaid,
-                  dependents,
-                  priorYearQBILoss,
-                  qualifiedDividends,
-                  socialSecurity,
-                  iraDistributions,
-                  selfEmpHealthIns,
-                  hsaDeduction,
-                  studentLoanInt,
-                  selfEmpRetirement,
-                  nolCarryforward,
+                  isoBargainElement: parseFloat(isoBargainElement) || 0,
+                  estPaid: parseFloat(estPaid) || 0,
+                  dependents: parseInt(dependents) || 0,
+                  priorYearQBILoss: parseFloat(priorYearQBILoss) || 0,
+                  qualifiedDividends: parseFloat(qualifiedDividends) || 0,
+                  socialSecurity: parseFloat(socialSecurity) || 0,
+                  iraDistributions: parseFloat(iraDistributions) || 0,
+                  selfEmpHealthIns: parseFloat(selfEmpHealthIns) || 0,
+                  hsaDeduction: parseFloat(hsaDeduction) || 0,
+                  studentLoanInt: parseFloat(studentLoanInt) || 0,
+                  selfEmpRetirement: parseFloat(selfEmpRetirement) || 0,
+                  nolCarryforward: parseFloat(nolCarryforward) || 0,
                 }
 
                 // Find the first real Dashboard record (has biz object) and update its f1040
