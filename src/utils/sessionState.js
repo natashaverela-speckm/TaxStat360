@@ -18,7 +18,7 @@
 // readPersonalContext — called by TaxReturn on mount, AIAnalysis
 // readTaxYear — called by TaxReturn, EntityCompareModal
 
-// ─── Step 1 state (entity list + totals) ──────────────────────────────────────
+// ─── Step 1 state (entity list + totals) ──────────────────────────────────
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
 // Read by: TaxReturn, AIAnalysis
 
@@ -191,16 +191,62 @@ export function readPersonalContext() {
     selfEmpRetirement: 0,
     nolCarryforward: 0,
   }
+  let parsed
   try {
     const raw = sessionStorage.getItem('ts360_f1040')
     if (!raw) return defaults
-    return { ...defaults, ...JSON.parse(raw) }
+    parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return defaults
   } catch {
     return defaults
   }
+  // Explicit field extraction (NOT a spread merge). Spread would let unknown
+  // keys from older sessionStorage data — including legacy field names like
+  // useStandardDed, itemizedDed, estimatedPayments — sit alongside the
+  // canonical fields, masking missing-data bugs and making the contract
+  // ambiguous. `??` preserves valid falsy values (false, 0, '') while
+  // falling through to defaults only when the field is missing/undefined.
+  //
+  // Legacy-name fallbacks below preserve user choice when sessionStorage
+  // contains pre-migration data (e.g. from a dev browser tested before
+  // this PR landed). These fallbacks are pre-launch transition aids
+  // and can be removed once the app is launched and no stale browser
+  // sessions remain. Tracked as a follow-up.
+  return {
+    filingStatus: parsed.filingStatus ?? defaults.filingStatus,
+    taxYear: parsed.taxYear ?? defaults.taxYear,
+    dependents: parsed.dependents ?? defaults.dependents,
+    w2Income: parsed.w2Income ?? defaults.w2Income,
+    w2Withheld: parsed.w2Withheld ?? defaults.w2Withheld,
+    rentalIncome: parsed.rentalIncome ?? defaults.rentalIncome,
+    rentalExpenses: parsed.rentalExpenses ?? defaults.rentalExpenses,
+    capitalGains: parsed.capitalGains ?? defaults.capitalGains,
+    interest: parsed.interest ?? defaults.interest,
+    dividends: parsed.dividends ?? defaults.dividends,
+    qualifiedDividends: parsed.qualifiedDividends ?? defaults.qualifiedDividends,
+    form4797: parsed.form4797 ?? defaults.form4797,
+    manualK1s: Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
+    isREP: parsed.isREP ?? defaults.isREP,
+    // Renamed-field migrations — read new name first, fall back to legacy
+    // name to preserve choice from pre-migration sessionStorage data.
+    useItemized: parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
+    itemizedAmt: parsed.itemizedAmt ?? parsed.itemizedDed ?? defaults.itemizedAmt,
+    estPaid: parsed.estPaid ?? parsed.estimatedPayments ?? defaults.estPaid,
+    saltAmount: parsed.saltAmount ?? defaults.saltAmount,
+    hasISO: parsed.hasISO ?? defaults.hasISO,
+    isoBargainElement: parsed.isoBargainElement ?? defaults.isoBargainElement,
+    priorYearQBILoss: parsed.priorYearQBILoss ?? defaults.priorYearQBILoss,
+    socialSecurity: parsed.socialSecurity ?? defaults.socialSecurity,
+    iraDistributions: parsed.iraDistributions ?? defaults.iraDistributions,
+    selfEmpHealthIns: parsed.selfEmpHealthIns ?? defaults.selfEmpHealthIns,
+    hsaDeduction: parsed.hsaDeduction ?? defaults.hsaDeduction,
+    studentLoanInt: parsed.studentLoanInt ?? defaults.studentLoanInt,
+    selfEmpRetirement: parsed.selfEmpRetirement ?? defaults.selfEmpRetirement,
+    nolCarryforward: parsed.nolCarryforward ?? defaults.nolCarryforward,
+  }
 }
 
-// ─── Tax year (standalone, because Dashboard writes it separately) ─────────────
+// ─── Tax year (standalone, because Dashboard writes it separately) ─────────
 export function writeTaxYear(year) {
   sessionStorage.setItem('ts360_taxyear', String(parseInt(year) || 2025))
 }
