@@ -6,7 +6,7 @@ import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 
 
 // ── Info Tooltip Component ──
-function InfoTip({ text }) {
+function InfoTip({ text }) 
   const [show, setShow] = useState(false)
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
@@ -603,7 +603,7 @@ export default function Dashboard(){
               <div style={{marginBottom:14}}>
                 <label style={lbl}>Deduction Method</label>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>fSet('useStandardDed',true)} style={{flex:1,padding:'9px',background:f1040.useStandardDed?B:'#fff',color:f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Standard ({fmt(getStdDed(parseInt(biz.year)||2025,f1040.filingStatus))})</button>
+                  <button onClick={()=>fSet('useStandardDed',true)} style={{flex:1,padding:'9px',background:f1040.useStandardDed?B:'#fff',color:f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Standard ({fmt(safeCalc.stdDed)})</button>
                   <button onClick={()=>fSet('useStandardDed',false)} style={{flex:1,padding:'9px',background:!f1040.useStandardDed?B:'#fff',color:!f1040.useStandardDed?'#fff':SL,border:'1.5px solid '+(!f1040.useStandardDed?B:'#E2E8F0'),borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>Itemized</button>
                 </div>
                 {!f1040.useStandardDed&&<input type="number" placeholder="Total itemized deductions" defaultValue={f1040.itemizedDed||''} onChange={e=>fSet('itemizedDed',e.target.value)} style={{...inp,marginTop:8}}/>}
