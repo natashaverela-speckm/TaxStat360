@@ -403,6 +403,14 @@ export default function Dashboard(){
     setSaved(true)
   }
 
+  // loadRecord restores a saved record into Dashboard state and writes it
+  // through the typed sessionState contract so TaxReturn picks it up. NOTE:
+  // this is a RESET action — fields not captured at save time (rentalIncome,
+  // rentalExpenses, NOL carryforward, ISO/AMT fields, etc.) are intentionally
+  // reset to defaults rather than preserved from the previous session, because
+  // saved records pre-dating those fields have no values for them. If you need
+  // preserve-and-merge semantics in the future, add a separate "restore over
+  // current session" action — don't change loadRecord's contract.
   const loadRecord = (rec) => {
     setLoadedRecord(rec)
     setSavedRecordId(rec.id)
