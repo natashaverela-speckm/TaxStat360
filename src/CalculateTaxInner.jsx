@@ -405,7 +405,7 @@ export default function CalculateTax(){
       entity={compareIdx !== null ? entities[compareIdx] : null}
       entities={entities}
       entityIdx={compareIdx}
-      ={(() => { const pc = readPersonalContext(); return { taxYear: pc.taxYear, status: pc.filingStatus, dependents: pc.dependents }; })()}restore proceed(), writeStep1State, EntityCompareModal personalContext
+      personalContext={(() => { const pc = readPersonalContext(); return { taxYear: pc.taxYear, status: pc.filingStatus, dependents: pc.dependents }; })()}
     />
     </>
   )
