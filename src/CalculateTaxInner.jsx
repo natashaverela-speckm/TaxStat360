@@ -73,8 +73,8 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
   const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.5px'}
 
-  async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
-  function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API+'/auth/'+pid+'/connect'}}
+  async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
+  function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API_BASE_URL+'/auth/'+pid+'/connect'}}
   function applyManual(){const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
   const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):0
 
@@ -277,7 +277,7 @@ export default function CalculateTax(){
     }
   },[])
 
-  async function fetchEntityPnL(idx,pid,tok,extra){if(pid==='xero'){const refresh=localStorage.getItem('ts360_xero_refresh');if(refresh){try{const r=await fetch(API+'/auth/xero/refresh?refresh='+encodeURIComponent(refresh));const d=await r.json();if(d.access_token){tok=d.access_token;localStorage.setItem('ts360_xero_token',tok);if(d.refresh_token)localStorage.setItem('ts360_xero_refresh',d.refresh_token)}}catch(e){}}}try{let url=API+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error){setEntities(prev=>{const next=[...prev];if(next[idx])next[idx]={...next[idx],pnl:d,connectedId:pid};return next})}}catch(ex){console.error(ex)}}
+  async function fetchEntityPnL(idx,pid,tok,extra){if(pid==='xero'){const refresh=localStorage.getItem('ts360_xero_refresh');if(refresh){try{const r=await fetch(API_BASE_URL+'/auth/xero/refresh?refresh='+encodeURIComponent(refresh));const d=await r.json();if(d.access_token){tok=d.access_token;localStorage.setItem('ts360_xero_token',tok);if(d.refresh_token)localStorage.setItem('ts360_xero_refresh',d.refresh_token)}}catch(e){}}}try{let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error){setEntities(prev=>{const next=[...prev];if(next[idx])next[idx]={...next[idx],pnl:d,connectedId:pid};return next})}}catch(ex){console.error(ex)}}
   function updateEntity(idx,updated){setEntities(prev=>{const n=[...prev];n[idx]=updated;return n})}
   function removeEntity(idx){setEntities(prev=>prev.filter((_,i)=>i!==idx))}
 
@@ -404,7 +404,7 @@ export default function CalculateTax(){
       onClose={() => setCompareIdx(null)}
       entity={compareIdx !== null ? entities[compareIdx] : null}
       entities={entities}
-      entityIdx={compareIdx}
+      entityIdx={compareIdx
       personalContext={(() => { const pc = readPersonalContext(); return { taxYear: pc.taxYear, status: pc.filingStatus, dependents: pc.dependents }; })()}
     />
     </>
