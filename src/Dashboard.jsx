@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
-import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES } from './constants'
+import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 
 
@@ -45,13 +45,6 @@ function InfoTip({ text })  {
 
 
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
-const ENTITY_TYPES=['Sole Proprietor / Single-Member LLC','Partnership / Multi-Member LLC','S Corporation','C Corporation']
-const INTEGRATIONS=[
-  {id:'quickbooks',name:'QuickBooks',color:'#2CA01C',bg:'#F0FBF0',abbr:'QB'},
-  {id:'xero',      name:'Xero',      color:'#13B5EA',bg:'#EFF9FF',abbr:'XE'},
-  {id:'wave',      name:'Wave',      color:'#2C6ECB',bg:'#EFF4FF',abbr:'WV'},
-  {id:'freshbooks',name:'FreshBooks',color:'#1a9c3e',bg:'#F0FBF4',abbr:'FB'},
-]
 
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
@@ -98,7 +91,7 @@ function calcDashboard(biz, f1040) {
 
   // ── C-Corp: entity-level 21% tax + personal tax on officer W-2 + dividends ─
   if (isCCorp) {
-    const corpTax   = Math.round(Math.max(0, netBiz) * 0.21)
+    const corpTax   = Math.round(Math.max(0, netBiz) * C_CORP_TAX_RATE)
     const dividends = parseFloat(biz.ccorpDividends || 0)
     const r = calcTaxReturn({
       ...baseInput,
@@ -263,7 +256,7 @@ export default function Dashboard(){
       // verified below
       setConnectedApp('Xero')
       setXeroLoading(true)
-      fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/data?token='+xeroToken)
+      fetch(API_BASE_URL+'/auth/xero/data?token='+xeroToken)
         .then(r=>r.json())
         .then(data=>{
           if(data.grossRevenue){
@@ -291,7 +284,7 @@ export default function Dashboard(){
         if(tok&&connected==='true'){
           foundInteg=true
           const extra=localStorage.getItem('ts360_'+pid+'_extra')
-          let url='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/'+pid+'/data?token='+encodeURIComponent(tok)
+          let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok)
           if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
           if(pid==='freshbooks'&&extra) url+='&account='+encodeURIComponent(extra)
           fetch(url)
@@ -335,7 +328,7 @@ export default function Dashboard(){
       const connected=localStorage.getItem('ts360_'+pid+'_connected')
       if(tok&&connected==='true'){
         const extra=localStorage.getItem('ts360_'+pid+'_extra')
-        let url='https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/'+pid+'/data?token='+encodeURIComponent(tok)
+        let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok)
         if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
         if(pid==='freshbooks'&&extra) url+='&account='+encodeURIComponent(extra)
         setRefreshing(true)
@@ -352,11 +345,11 @@ export default function Dashboard(){
         const xeroRefresh=localStorage.getItem('ts360_xero_refresh')
         if(!tok&&xeroRefresh){
           setRefreshing(true)
-          fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/refresh?refresh='+encodeURIComponent(xeroRefresh))
+          fetch(API_BASE_URL+'/auth/xero/refresh?refresh='+encodeURIComponent(xeroRefresh))
             .then(r=>r.json()).then(d=>{
               if(d.access_token){
                 localStorage.setItem('ts360_xero_token',d.access_token)
-                return fetch('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/xero/data?token='+encodeURIComponent(d.access_token))
+                return fetch(API_BASE_URL+'/auth/xero/data?token='+encodeURIComponent(d.access_token))
               }
             }).then(r=>r?.json()).then(data=>{
               if(data?.grossRevenue){setBiz(p=>({...p,grossRevenue:String(Math.round(data.grossRevenue)),operatingExpenses:String(Math.round(data.totalExpenses||0))}))}

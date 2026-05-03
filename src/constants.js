@@ -40,8 +40,8 @@ export const SE_SUBJECT_TYPES = [
 
 // Accounting software integrations config
 export const INTEGRATIONS = [
-  { id: 'quickbooks', name: 'QuickBooks', color: '#2CA01C', abbr: 'QB' },
-  { id: 'xero',       name: 'Xero',       color: '#13B5EA', abbr: 'XE' },
-  { id: 'wave',       name: 'Wave',       color: '#2C6ECB', abbr: 'WV' },
-  { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', abbr: 'FB' },
+  { id: 'quickbooks', name: 'QuickBooks', color: '#2CA01C', bg: '#F0FBF0', abbr: 'QB' },
+  { id: 'xero',       name: 'Xero',       color: '#13B5EA', bg: '#EFF9FF', abbr: 'XE' },
+  { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'WV' },
+  { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
