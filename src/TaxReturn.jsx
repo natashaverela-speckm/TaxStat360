@@ -178,48 +178,61 @@ export default function TaxReturn() {
   const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0))
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
+  const totalBox12_13ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
+
+  // liveF1040 and liveStateForAI are built at render scope (not inside the
+  // useEffect below) so the AI Analysis nav buttons further down in JSX can
+  // reference liveStateForAI from their onClick handlers. Previously these
+  // were declared inside the useEffect's try block, which made them
+  // unreachable from JSX — clicking the AI Analysis button silently threw a
+  // ReferenceError. The useEffect now writes these same render-scope values
+  // to sessionStorage so the contract is preserved.
+  const liveF1040 = {
+    filingStatus: status,
+    taxYear: parseInt(taxYear) || 2025,
+    w2Income: parseFloat(w2Income) || 0,
+    w2Withheld: parseFloat(w2Withheld) || 0,
+    rentalIncome: parseFloat(rentalIncome) || 0,
+    rentalExpenses: parseFloat(rentalExpenses) || 0,
+    capitalGains: parseFloat(capitalGains) || 0,
+    interest: parseFloat(interest) || 0,
+    dividends: parseFloat(dividends) || 0,
+    form4797: parseFloat(form4797) || 0,
+    manualK1s,
+    isREP,
+    useItemized,
+    itemizedAmt: parseFloat(itemizedAmt) || 0,
+    saltAmount: parseFloat(saltAmount) || 0,
+    hasISO,
+    isoBargainElement: parseFloat(isoBargainElement) || 0,
+    estPaid: parseFloat(estPaid) || 0,
+    dependents: parseInt(dependents) || 0,
+    priorYearQBILoss: parseFloat(priorYearQBILoss) || 0,
+    qualifiedDividends: parseFloat(qualifiedDividends) || 0,
+    socialSecurity: parseFloat(socialSecurity) || 0,
+    iraDistributions: parseFloat(iraDistributions) || 0,
+    selfEmpHealthIns: parseFloat(selfEmpHealthIns) || 0,
+    hsaDeduction: parseFloat(hsaDeduction) || 0,
+    studentLoanInt: parseFloat(studentLoanInt) || 0,
+    selfEmpRetirement: parseFloat(selfEmpRetirement) || 0,
+    nolCarryforward: parseFloat(nolCarryforward) || 0,
+  }
+
+  const liveStateForAI = {
+    entities,
+    k1Income: k1ActiveForDisplay - sec179AllowedForDisplay - totalBox12_13ForDisplay,
+    taxYear,
+    f1040: liveF1040,
+    sec179Disallowed: sec179DisallowedForDisplay,
+    sec179Allowed: sec179AllowedForDisplay,
+    totalSec179: totalSec179ForDisplay,
+    activeBusinessIncome: activeBizIncomeForDisplay,
+  }
 
   React.useEffect(() => {
     try {
-      const liveF1040 = {
-        filingStatus: status,
-        taxYear: parseInt(taxYear) || 2025,
-        w2Income: parseFloat(w2Income) || 0,
-        w2Withheld: parseFloat(w2Withheld) || 0,
-        rentalIncome: parseFloat(rentalIncome) || 0,
-        rentalExpenses: parseFloat(rentalExpenses) || 0,
-        capitalGains: parseFloat(capitalGains) || 0,
-        interest: parseFloat(interest) || 0,
-        dividends: parseFloat(dividends) || 0,
-        form4797: parseFloat(form4797) || 0,
-        manualK1s,
-        isREP,
-        useItemized,
-        itemizedAmt: parseFloat(itemizedAmt) || 0,
-        saltAmount: parseFloat(saltAmount) || 0,
-        hasISO,
-        isoBargainElement: parseFloat(isoBargainElement) || 0,
-        estPaid: parseFloat(estPaid) || 0,
-        dependents: parseInt(dependents) || 0,
-        priorYearQBILoss: parseFloat(priorYearQBILoss) || 0,
-        qualifiedDividends: parseFloat(qualifiedDividends) || 0,
-        socialSecurity: parseFloat(socialSecurity) || 0,
-        iraDistributions: parseFloat(iraDistributions) || 0,
-        selfEmpHealthIns: parseFloat(selfEmpHealthIns) || 0,
-        hsaDeduction: parseFloat(hsaDeduction) || 0,
-        studentLoanInt: parseFloat(studentLoanInt) || 0,
-        selfEmpRetirement: parseFloat(selfEmpRetirement) || 0,
-        nolCarryforward: parseFloat(nolCarryforward) || 0,
-      }
       writePersonalContext(liveF1040)
       writeTaxYear(taxYear)
-  const k1ActiveIncome = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
-  const totalSec179 = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
-  const totalBox12_13 = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
-  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseMoney(liveF1040.w2Income)||0))
-  const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
-  const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
-  const liveStateForAI = { entities, k1Income: k1ActiveIncome - sec179Allowed - totalBox12_13, taxYear, f1040: liveF1040, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome }
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
   }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward, taxYear])
 
