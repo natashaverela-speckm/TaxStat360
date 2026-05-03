@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
+import { writePersonalContext, readPersonalContext, writeTaxYear } from './utils/sessionState.js'
 
 
 // ── Info Tooltip Component ──
@@ -168,6 +169,11 @@ export default function Dashboard(){
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
   const [biz,setBiz]=useState({entityType:'S Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
+  // NOTE: Dashboard's f1040 UI state intentionally keeps legacy internal field names
+  // (useStandardDed, itemizedDed, estimatedPayments). These are translated to the
+  // canonical session contract (useItemized, itemizedAmt, estPaid) at every
+  // writePersonalContext() call site below. Renaming Dashboard's internal state
+  // to match the canonical contract is a deferred follow-up.
   const [f1040,setF1040]=useState({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
   const [connectedApp,setConnectedApp]=useState(null)
   const [saved,setSaved]=useState(false)
@@ -222,23 +228,24 @@ export default function Dashboard(){
     if(cleanRecs.length>0){
       const r0=cleanRecs[0]
       if(r0.biz) setBiz(r0.biz)
-      // Support both record formats
+      // Support both record formats. saved1040 always uses canonical contract
+      // field names (estPaid, useItemized, itemizedAmt) regardless of source path.
       const saved1040=r0.biz ? (r0.f1040||{}) : {
         filingStatus:r0.filingStatus||'single',
         w2Income:r0.w2Income||'',
-        estimatedPayments:r0.estPaid||'',
+        estPaid:r0.estPaid||'',
         dependents:r0.dependents||'0',
-        useStandardDed:!r0.useItemized,
-        itemizedDed:r0.itemizedAmt||'',
+        useItemized:!!r0.useItemized,
+        itemizedAmt:r0.itemizedAmt||'',
       }
       setF1040({
         filingStatus:saved1040.filingStatus||'single',
         w2Income:saved1040.w2Income||'',
         otherIncome:saved1040.otherIncome||'',
-        estimatedPayments:saved1040.estimatedPayments||'',
+        estimatedPayments:saved1040.estPaid||'',                                  // ← contract → legacy UI name
         dependents:saved1040.dependents||'',
-        useStandardDed:saved1040.useStandardDed!==undefined?saved1040.useStandardDed:true,
-        itemizedDed:saved1040.itemizedDed||''
+        useStandardDed:saved1040.useItemized!==undefined?!saved1040.useItemized:true, // ← contract → legacy UI name (inverted)
+        itemizedDed:saved1040.itemizedAmt||''                                     // ← contract → legacy UI name
       })
       setSaved(true)
       // Bind to the first record with actual data (not a blank duplicate)
@@ -404,22 +411,26 @@ export default function Dashboard(){
     if(rec.biz) setBiz(prev => ({...prev, ...rec.biz}))
 
     // ── Build the f1040 object from either new or old record format ─────────
+    // saved1040 always uses canonical contract field names (estPaid, useItemized,
+    // itemizedAmt) regardless of source path. f1040Restored keeps Dashboard's
+    // legacy internal names — translation back to the contract happens at the
+    // writePersonalContext call below.
     const saved1040 = rec.biz ? (rec.f1040||{}) : {
       filingStatus: rec.filingStatus || 'single',
       w2Income: rec.w2Income || '',
-      estimatedPayments: rec.estPaid || '',
+      estPaid: rec.estPaid || '',
       dependents: rec.dependents || '0',
-      useStandardDed: !rec.useItemized,
-      itemizedDed: rec.itemizedAmt || '',
+      useItemized: !!rec.useItemized,
+      itemizedAmt: rec.itemizedAmt || '',
     }
     const f1040Restored = {
       filingStatus: saved1040.filingStatus || rec.filingStatus || 'single',
       w2Income: saved1040.w2Income || rec.w2Income || '',
       otherIncome: saved1040.otherIncome || rec.otherIncome || '',
-      estimatedPayments: saved1040.estimatedPayments || rec.estPaid || '',
+      estimatedPayments: saved1040.estPaid || rec.estPaid || '',                              // ← contract → legacy UI name
       dependents: saved1040.dependents || rec.dependents || '',
-      useStandardDed: saved1040.useStandardDed !== undefined ? saved1040.useStandardDed : true,
-      itemizedDed: saved1040.itemizedDed || rec.itemizedAmt || '',
+      useStandardDed: saved1040.useItemized !== undefined ? !saved1040.useItemized : true,    // ← contract → legacy UI name (inverted)
+      itemizedDed: saved1040.itemizedAmt || rec.itemizedAmt || '',                            // ← contract → legacy UI name
     }
     setF1040(f1040Restored)
     setSaved(false)
@@ -436,8 +447,15 @@ export default function Dashboard(){
       netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
       k1: k1Income,
     }]))
-    sessionStorage.setItem('ts360_f1040', JSON.stringify(f1040Restored))
-    sessionStorage.setItem('ts360_taxyear', String(bizData.year || rec.taxYear || 2025))
+    writePersonalContext({
+      filingStatus: f1040Restored.filingStatus,
+      w2Income: parseFloat(f1040Restored.w2Income) || 0,
+      dependents: parseInt(f1040Restored.dependents) || 0,
+      estPaid: parseFloat(f1040Restored.estimatedPayments) || 0,                  // ← legacy UI → contract
+      useItemized: !f1040Restored.useStandardDed,                                  // ← legacy UI → contract (inverted)
+      itemizedAmt: parseFloat(f1040Restored.itemizedDed) || 0,                     // ← legacy UI → contract
+    })
+    writeTaxYear(bizData.year || rec.taxYear || 2025)
 
     // Navigate to Personal Tax Return (Step 2) with all data loaded
     nav('/tax-return')
@@ -483,8 +501,17 @@ export default function Dashboard(){
               sessionStorage.setItem('ts360_entities', JSON.stringify(
                 [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}]
               ))
-              sessionStorage.setItem('ts360_f1040', JSON.stringify({ ...JSON.parse(sessionStorage.getItem('ts360_f1040') || '{}'), ...f1040, officerSalary: calc?.officerSalary || biz?.officerSalary || 0 }))
-              sessionStorage.setItem('ts360_taxyear', String(biz.year||2025))
+              writePersonalContext({
+                ...readPersonalContext(),                                            // preserve fields already in session
+                filingStatus: f1040.filingStatus || 'single',
+                w2Income: parseFloat(f1040.w2Income) || 0,
+                dependents: parseInt(f1040.dependents) || 0,
+                estPaid: parseFloat(f1040.estimatedPayments) || 0,                   // ← legacy UI → contract
+                useItemized: !f1040.useStandardDed,                                   // ← legacy UI → contract (inverted)
+                itemizedAmt: parseFloat(f1040.itemizedDed) || 0,                     // ← legacy UI → contract
+                // officerSalary removed — legacy orphan, nothing reads it
+              })
+              writeTaxYear(biz.year||2025)
               nav('/tax-return')
             } else {
               setActiveView(v)
