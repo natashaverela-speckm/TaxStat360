@@ -10,6 +10,8 @@ import { writeStep1State, readPersonalContext } from './utils/sessionState.js'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 function InfoTip({ text }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const INTS=INTEGRATIONS
+const COLORS=['#2563EB','#16a34a','#A855F7','#F59E0B','#EC4899','#06B6D4']
+const TEMPLATES=[
   {label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
   {label:'Real Estate LLC',icon:'🏠',type:'Partnership / Multi-Member LLC',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
   {label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
@@ -38,7 +40,7 @@ function parseCSVImport(text){
     const[name,type,ein,formationDate,own,grossRevenue,totalExpenses]=cols
     const rev=parseMoney(grossRevenue),exp=parseMoney(totalExpenses)
     const ownPct=own?own.replace('%',''):'100'
-    return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S Corporation',ein:ein||'',state:state||'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
+    return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S Corporation',ein:ein||'',state:'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
   }).filter(e=>e.name)
 }
 
@@ -298,7 +300,7 @@ export default function CalculateTax(){
   const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
-  function proceed(){}
+  function proceed(){
     writeStep1State({entities:k1Data,k1Total,isCoopPatron});nav('/tax-return')
   }
 
