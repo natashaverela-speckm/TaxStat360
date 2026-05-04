@@ -23,6 +23,7 @@
 // writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
 // writeTaxYear — called by Dashboard and TaxReturn
 // writeIsCoopPatron — called by CalculateTaxInner (checkbox sync)
+// clearStep1State — called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
 //
 // Readers:
 // readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
@@ -71,6 +72,21 @@ export function readStep1StateRaw() {
   } catch {
     return []
   }
+}
+
+/**
+ * Clear all Step 1 sessionStorage keys atomically. Called when the user starts
+ * a fresh calculation (Dashboard "+ New Calculation" buttons) so a previously-
+ * loaded record's entity data doesn't bleed into the new session.
+ *
+ * Does NOT clear ts360_f1040 or ts360_taxyear — those are Step 2 keys with
+ * their own reset semantics owned by TaxReturn / Dashboard's loadRecord.
+ */
+export function clearStep1State() {
+  sessionStorage.removeItem('ts360_entities')
+  sessionStorage.removeItem('ts360_entities_raw')
+  sessionStorage.removeItem('ts360_k1')
+  sessionStorage.removeItem('ts360_isCoopPatron')
 }
 
 // ─── Personal 1040 context (filing status, year, income, deductions, payments) ─
