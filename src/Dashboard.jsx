@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
-import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State } from './utils/sessionState.js'
+import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 
 
@@ -610,6 +610,7 @@ export default function Dashboard(){
               setSavedRecordId(null)
               setSaved(false)
               setLoadedRecord(null)
+              clearStep1State()
               navigate('/calculate-tax/')
             }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
@@ -624,6 +625,7 @@ export default function Dashboard(){
               setSavedRecordId(null)
               setSaved(false)
               setLoadedRecord(null)
+              clearStep1State()
               navigate('/calculate-tax/')
             }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
