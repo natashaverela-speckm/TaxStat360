@@ -319,6 +319,7 @@ export default function CalculateTax(){
     }
     const recs = JSON.parse(localStorage.getItem('ts360_records') || '[]')
     const snap = {
+      id: Date.now(),
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
       taxTotal: String(k1Total),
       biz: entities && entities[0] ? {...entities[0]} : null,
