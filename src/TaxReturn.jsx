@@ -4,7 +4,7 @@ import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, ge
 import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import { parseMoney } from './utils/parseMoney.js'
-import { readPersonalContext, writePersonalContext, writeTaxYear } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readTaxYear } from './utils/sessionState.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -113,15 +113,13 @@ export default function TaxReturn() {
   // Load K-1 data passed from Step 1
   // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
   const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s)
-  const dashboardK1Total = parseMoney(sessionStorage.getItem('ts360_k1') || '0')
+  const { entities, k1Total: dashboardK1Total } = readStep1State()
   const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
-  const entitiesRaw = sessionStorage.getItem('ts360_entities')
-  const entities = entitiesRaw ? JSON.parse(entitiesRaw) : []
 
   // Pre-load saved f1040 data if passed from Dashboard
   const savedF1040 = readPersonalContext()
-  const savedTaxYear = parseInt(sessionStorage.getItem('ts360_taxyear')||'0') || 2025
+  const savedTaxYear = readTaxYear()
 
   // Personal inputs — pre-populated from saved record if available
   const [taxYear, setTaxYear] = React.useState(savedTaxYear)

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -59,12 +59,12 @@ function getRecord(liveState) {
   // #112: co-op patron flag is stored as a top-level sessionStorage key (not inside ts360_f1040)
   // and threaded into rec.f1040.isCoopPatron so IRSCompliance can drive Form 8995 vs 8995-A selection
   // per IRS Form 8995 instructions (co-op patrons file 8995-A regardless of TI threshold).
-  const _isCoopPatron = sessionStorage.getItem('ts360_isCoopPatron') === 'true'
+  const _isCoopPatron = readStep1State().isCoopPatron
   if (liveState) {
     const ent = (liveState.entities || [])[0] || {}
     const f1040 = liveState.f1040 || readPersonalContext()
     const k1 = liveState.k1Income || 0
-    const taxyear = liveState.taxYear || parseInt(sessionStorage.getItem('ts360_taxyear') || String(new Date().getFullYear()))
+    const taxyear = liveState.taxYear || readTaxYear()
     if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
       return {
         type: 'personal-return',
@@ -84,8 +84,7 @@ function getRecord(liveState) {
 
   // Fallback: synthesize from current sessionStorage (user just ran Step 1+2 but hasn't saved yet)
   try {
-    const k1 = parseFloat(sessionStorage.getItem('ts360_k1') || '0')
-    const entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
+    const { entities, k1Total: k1 } = readStep1State()
     const f1040 = readPersonalContext()
     const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
     const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
@@ -94,7 +93,7 @@ function getRecord(liveState) {
     const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
     const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
     const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
-    const taxyear = parseInt(sessionStorage.getItem('ts360_taxyear') || '2025')
+    const taxyear = readTaxYear()
     const ent = entities[0] || {}
     if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
       // Build a synthetic record matching the saved record shape
@@ -151,7 +150,7 @@ function getRecord(liveState) {
     const fallback = Object.assign({ _savedFallback: true }, saved)
     if (!Array.isArray(fallback.entities) || fallback.entities.length === 0) {
       try {
-        const sessionEntities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]')
+        const sessionEntities = readStep1State().entities
         if (Array.isArray(sessionEntities) && sessionEntities.length > 0) fallback.entities = sessionEntities
       } catch(e) {}
     }
@@ -1100,14 +1099,15 @@ export default function AIAnalysis() {
           <button onClick={() => {
             const r = getRecord(location.state?.liveState)
             if (r) {
-              sessionStorage.setItem('ts360_k1', String(r.k1Income || 0))
               writeTaxYear(r.biz?.year || 2025)
-              writePersonalContext(r.f1040 || {})
-              sessionStorage.setItem('ts360_entities', JSON.stringify(
-                isPassthroughEntity(r.biz?.entityType)
+              writePersonalContext(normalizeF1040(r.f1040 || {}))
+              writeStep1State({
+                entities: isPassthroughEntity(r.biz?.entityType)
                   ? [{ type: r.biz?.entityType, k1: r.k1Income || 0 }]
-                  : []
-              ))
+                  : [],
+                k1Total: r.k1Income || 0,
+                isCoopPatron: !!r.f1040?.isCoopPatron,
+              })
               nav('/tax-return')
             } else {
               nav('/calculate-tax')
@@ -1163,15 +1163,21 @@ export default function AIAnalysis() {
             </div>
             <button onClick={() => {
               if (rec) {
-                // Pre-populate TaxReturn with saved record data — same keys Dashboard uses
-                sessionStorage.setItem('ts360_k1', String(rec.k1Income || 0))
+                // Pre-populate TaxReturn with saved record data via the typed
+                // sessionState contract. normalizeF1040 coerces string-typed
+                // numeric fields (saved records carry strings from Dashboard's
+                // UI) into numbers per writePersonalContext's documented
+                // contract. writeStep1State propagates the co-op patron flag
+                // forward — getRecord already attached it to rec.f1040.
                 writeTaxYear(rec.biz?.year || 2025)
-                writePersonalContext(rec.f1040 || {})
-                sessionStorage.setItem('ts360_entities', JSON.stringify(
-                  isPassthroughEntity(rec.biz?.entityType)
+                writePersonalContext(normalizeF1040(rec.f1040 || {}))
+                writeStep1State({
+                  entities: isPassthroughEntity(rec.biz?.entityType)
                     ? [{ type: rec.biz?.entityType, k1: rec.k1Income || 0 }]
-                    : []
-                ))
+                    : [],
+                  k1Total: rec.k1Income || 0,
+                  isCoopPatron: !!rec.f1040?.isCoopPatron,
+                })
                 nav('/tax-return')
               } else {
                 nav('/dashboard')
