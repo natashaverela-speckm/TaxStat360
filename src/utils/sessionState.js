@@ -9,14 +9,16 @@
 // - Never write different shapes for the same key from different call sites.
 //
 // Writers:
-// writeStep1State — called by CalculateTaxInner after entity entry
+// writeStep1State — called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
 // writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
 // writeTaxYear — called by Dashboard and TaxReturn
+// writeIsCoopPatron — called by CalculateTaxInner (checkbox sync)
 //
 // Readers:
 // readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
 // readPersonalContext — called by TaxReturn on mount, AIAnalysis
 // readTaxYear — called by TaxReturn, EntityCompareModal
+// readIsCoopPatron — called by CalculateTaxInner (useState initializer)
 
 // ─── Step 1 state (entity list + totals) ──────────────────────────────────
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
@@ -253,6 +255,20 @@ export function writeTaxYear(year) {
 
 export function readTaxYear() {
   return parseInt(sessionStorage.getItem('ts360_taxyear') || '2025') || 2025
+}
+
+// ─── Co-op patron flag (standalone, because CalculateTaxInner syncs it on every checkbox toggle) ─
+// CalculateTaxInner manages isCoopPatron as local React state and writes it
+// to storage via useEffect on every change. Using writeStep1State there would
+// also rewrite entities and k1Total on every checkbox toggle, which is
+// unnecessary churn. Atomic helpers keep the contract clean while letting
+// callers update one managed key at a time when that's what they want.
+export function writeIsCoopPatron(value) {
+  sessionStorage.setItem('ts360_isCoopPatron', String(!!value))
+}
+
+export function readIsCoopPatron() {
+  return sessionStorage.getItem('ts360_isCoopPatron') === 'true'
 }
 
 // ─── Coercion helper for saved-record data ────────────────────────────────
