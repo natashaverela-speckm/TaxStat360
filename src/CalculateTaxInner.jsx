@@ -6,7 +6,7 @@ import { parseMoney } from './utils/parseMoney.js'
 
 import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { writeStep1State, readPersonalContext } from './utils/sessionState.js'
+import { writeStep1State, readPersonalContext, readStep1State, readIsCoopPatron, writeIsCoopPatron } from './utils/sessionState.js'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 function InfoTip({ text }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const INTS=INTEGRATIONS
@@ -250,8 +250,8 @@ export default function CalculateTax(){
   const[compareIdx,setCompareIdx]=React.useState(null)
   // #112: co-op patron flag persists in sessionStorage as ts360_isCoopPatron and is read by
   // AIAnalysis.getRecord() into rec.f1040.isCoopPatron (drives Form 8995 vs 8995-A selection).
-  const[isCoopPatron,setIsCoopPatron]=React.useState(()=>sessionStorage.getItem('ts360_isCoopPatron')==='true')
-  React.useEffect(()=>{sessionStorage.setItem('ts360_isCoopPatron',String(isCoopPatron))},[isCoopPatron])
+  const[isCoopPatron,setIsCoopPatron]=React.useState(readIsCoopPatron)
+  React.useEffect(()=>{writeIsCoopPatron(isCoopPatron)},[isCoopPatron])
 
   React.useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
@@ -312,7 +312,7 @@ export default function CalculateTax(){
     const recs = JSON.parse(localStorage.getItem('ts360_records') || '[]')
     const snap = {
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
-      taxTotal: sessionStorage.getItem('ts360_k1') || '0',
+      taxTotal: String(readStep1State().k1Total),
       biz: entities && entities[0] ? {...entities[0]} : null,
       // #113: persist full entities array (not just biz=entities[0]) so AIAnalysis.getRecord's
       // saved-record fallback can pass entityQbiData to calcQBI — preserves SSTB / Box 17V wages / UBIA.
