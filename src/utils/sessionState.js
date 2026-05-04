@@ -14,7 +14,7 @@
 // writeTaxYear — called by Dashboard and TaxReturn
 //
 // Readers:
-// readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord co-op patron)
+// readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
 // readPersonalContext — called by TaxReturn on mount, AIAnalysis
 // readTaxYear — called by TaxReturn, EntityCompareModal
 
@@ -282,7 +282,7 @@ export function normalizeF1040(rec = {}) {
     capitalGains: parseFloat(rec.capitalGains) || 0,
     interest: parseFloat(rec.interest) || 0,
     dividends: parseFloat(rec.dividends) || 0,
-    qualifiedDividends: parseFloat(rec.qualifiedDividends ?? rec.qualDividends) || 0,
+    qualifiedDividends: parseFloat(rec.qualifiedDividends ?? rec.qualDividends) || 0, // ← legacy alias: qualDividends was the saved-record field name in older data
     form4797: parseFloat(rec.form4797) || 0,
     manualK1s: Array.isArray(rec.manualK1s) ? rec.manualK1s : [],
     isREP: !!rec.isREP,
