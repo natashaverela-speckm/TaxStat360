@@ -215,7 +215,7 @@ export default function Dashboard(){
     // Remove any blank records (no revenue AND no W-2) that may have been saved previously
     // Keep any record that has real data — biz-based OR flat personal-return format
     const cleanRecs = recs.filter(r => {
-      if (r.biz) return parseFloat(r.biz?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0
+      if (r.biz) return parseFloat(r.biz?.pnl?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0
       // flat personal-return records from TaxReturn page — keep if has any income
       return parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
     })
@@ -385,7 +385,7 @@ export default function Dashboard(){
     // Use savedRecordId if set; otherwise find the most recent record with real data
     let existingId=savedRecordId
     if(!existingId){
-      const firstReal=freshRecs.find(r=>parseFloat(r.biz?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
+      const firstReal=freshRecs.find(r=>parseFloat(r.biz?.pnl?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
       if(firstReal) existingId=firstReal.id
     }
     const record={
@@ -592,7 +592,7 @@ export default function Dashboard(){
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
                       <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'—'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?N:'#94A3B8'}}>{rec.biz?.grossRevenue&&parseFloat(rec.biz.grossRevenue)>0?'$'+parseFloat(rec.biz.grossRevenue).toLocaleString():'No data'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:rec.biz?.pnl?.grossRevenue&&parseFloat(rec.biz.pnl.grossRevenue)>0?N:'#94A3B8'}}>{rec.biz?.pnl?.grossRevenue&&parseFloat(rec.biz.pnl.grossRevenue)>0?'$'+parseFloat(rec.biz.pnl.grossRevenue).toLocaleString():'No data'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{(rec.f1040?.filingStatus||rec.filingStatus||'—').toUpperCase()}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||rec.biz?.quarterly||0).toLocaleString()}</strong></span>
