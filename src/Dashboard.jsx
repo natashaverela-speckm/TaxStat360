@@ -4,6 +4,7 @@ import { calcTaxReturn } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State } from './utils/sessionState.js'
+import { parseMoney } from './utils/parseMoney.js'
 
 
 // ── Info Tooltip Component ──
@@ -416,7 +417,23 @@ export default function Dashboard(){
     setSavedRecordId(rec.id)
 
     // ── Restore business state in Dashboard (for inline view) ──────────────
-    if(rec.biz) setBiz(prev => ({...prev, ...rec.biz}))
+    // Saved record's biz is entity-shape (name/type/own/pnl). Dashboard's biz
+    // is flat-shape (entityType/ownershipPct/grossRevenue/operatingExpenses).
+    // Translate explicitly. Fields not captured at save time (cogs, depreciation,
+    // advertising, otherDeductions, ccorpDividends) stay at their useState
+    // defaults, consistent with the "RESET action" contract documented above.
+    if(rec.biz) {
+      const savedPnl = rec.biz.pnl || {}
+      setBiz(prev => ({
+        ...prev,
+        entityType: rec.biz.type || prev.entityType,
+        ownershipPct: rec.biz.own || prev.ownershipPct,
+        year: rec.taxYear || prev.year,
+        grossRevenue: savedPnl.grossRevenue != null ? String(savedPnl.grossRevenue) : '',
+        operatingExpenses: savedPnl.totalExpenses != null ? String(savedPnl.totalExpenses) : '',
+        officerSalary: savedPnl.officerSalary != null ? String(savedPnl.officerSalary) : '',
+      }))
+    }
 
     // ── Build the f1040 object from either new or old record format ─────────
     // saved1040 always uses canonical contract field names (estPaid, useItemized,
@@ -444,9 +461,43 @@ export default function Dashboard(){
     setSaved(false)
 
     // ── Pass record data into the Step 1→2 flow via sessionStorage ──────────
-    // so the full TaxReturn page loads with all saved values pre-filled
-    const bizData = rec.biz || {}
-    const k1Income = rec.k1Income || rec.k1 || 0
+    // so the full TaxReturn page loads with all saved values pre-filled.
+    // saveRecord persists the full entities array (rec.entities) — use it
+    // directly rather than reconstructing a single entity from rec.biz, so
+    // multi-entity records and advanced K-1 box values restore correctly.
+    // Map each raw entity to the flattened k1Data shape that TaxReturn reads
+    // (e.netProfit, e.k1, e.box11_12, etc.) — same mapping CalculateTaxInner
+    // does in proceed().
+    const sourceEntities = Array.isArray(rec.entities) && rec.entities.length > 0
+      ? rec.entities
+      : (rec.biz ? [rec.biz] : [])
+    const restoredEntities = sourceEntities.filter(e => e && e.pnl).map(e => {
+      const pnl = e.pnl || {}
+      // Formula matches CalculateTaxInner.proceed() exactly (parseInt for own,
+      // parseMoney for box deductions). Decimal ownership percentages (e.g.
+      // 33.33% partners) are intentionally truncated to match the originally-
+      // saved k1 — drift here would silently change tax numbers on restore.
+      // The || 100 fallback when e.own is missing is a small improvement over
+      // CTI's bare parseInt (which would produce NaN).
+      const ownPct = parseInt(e.own) || 100
+      const k1 = Math.round((pnl.netProfit || 0) * (ownPct / 100))
+        - parseMoney(e.box11_12)
+        - parseMoney(e.box12_13)
+      return {
+        name: e.name,
+        type: e.type,
+        own: e.own,
+        netProfit: pnl.netProfit || 0,
+        k1,
+        box17K: parseMoney(e.box17K),
+        box11_12: parseMoney(e.box11_12),
+        box12_13: parseMoney(e.box12_13),
+        box17V_wages: parseMoney(e.box17V_wages),
+        box17V_ubia: parseMoney(e.box17V_ubia),
+        box17V_sstb: !!e.box17V_sstb,
+      }
+    })
+    const k1TotalRestored = restoredEntities.reduce((s, e) => s + (e.k1 || 0), 0)
     // writeStep1State writes ts360_entities, ts360_k1, AND ts360_isCoopPatron
     // atomically. Resetting isCoopPatron to false here is intentional and tax-
     // significant: Dashboard never captures the co-op patron flag from saved
@@ -455,14 +506,8 @@ export default function Dashboard(){
     // session — flipping AI Analysis from Form 8995 to Form 8995-A on the
     // wrong taxpayer. Defaulting to false on record load is the safe choice.
     writeStep1State({
-      entities: [{
-        name: bizData.entityType || rec.entityType || 'Business',
-        type: bizData.entityType || rec.entityType || 'S Corporation',
-        own: bizData.ownershipPct || '100',
-        netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
-        k1: k1Income,
-      }],
-      k1Total: k1Income,
+      entities: restoredEntities,
+      k1Total: k1TotalRestored,
       isCoopPatron: false,
     })
     writePersonalContext({
@@ -473,7 +518,7 @@ export default function Dashboard(){
       useItemized: !f1040Restored.useStandardDed,                                  // ← legacy UI → contract (inverted)
       itemizedAmt: parseFloat(f1040Restored.itemizedDed) || 0,                     // ← legacy UI → contract
     })
-    writeTaxYear(bizData.year || rec.taxYear || 2025)
+    writeTaxYear(rec.taxYear || 2025)
 
     // Navigate to Personal Tax Return (Step 2) with all data loaded
     nav('/tax-return')
