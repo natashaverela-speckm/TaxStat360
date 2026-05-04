@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
-import { writePersonalContext, readPersonalContext, writeTaxYear } from './utils/sessionState.js'
+import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State } from './utils/sessionState.js'
 
 
 // ── Info Tooltip Component ──
@@ -447,14 +447,24 @@ export default function Dashboard(){
     // so the full TaxReturn page loads with all saved values pre-filled
     const bizData = rec.biz || {}
     const k1Income = rec.k1Income || rec.k1 || 0
-    sessionStorage.setItem('ts360_k1', String(k1Income))
-    sessionStorage.setItem('ts360_entities', JSON.stringify([{
-      name: bizData.entityType || rec.entityType || 'Business',
-      type: bizData.entityType || rec.entityType || 'S Corporation',
-      own: bizData.ownershipPct || '100',
-      netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
-      k1: k1Income,
-    }]))
+    // writeStep1State writes ts360_entities, ts360_k1, AND ts360_isCoopPatron
+    // atomically. Resetting isCoopPatron to false here is intentional and tax-
+    // significant: Dashboard never captures the co-op patron flag from saved
+    // records (it's a Step-1-only field), so without an explicit reset the
+    // flag would retain whatever value was set by the last CalculateTaxInner
+    // session — flipping AI Analysis from Form 8995 to Form 8995-A on the
+    // wrong taxpayer. Defaulting to false on record load is the safe choice.
+    writeStep1State({
+      entities: [{
+        name: bizData.entityType || rec.entityType || 'Business',
+        type: bizData.entityType || rec.entityType || 'S Corporation',
+        own: bizData.ownershipPct || '100',
+        netProfit: parseFloat(bizData.grossRevenue||0) - parseFloat(bizData.operatingExpenses||0),
+        k1: k1Income,
+      }],
+      k1Total: k1Income,
+      isCoopPatron: false,
+    })
     writePersonalContext({
       filingStatus: f1040Restored.filingStatus,
       w2Income: parseFloat(f1040Restored.w2Income) || 0,
@@ -504,11 +514,18 @@ export default function Dashboard(){
         {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
-              // Navigate to full Tax Return page with k1 data
-              sessionStorage.setItem('ts360_k1', String(calc?.k1||0))
-              sessionStorage.setItem('ts360_entities', JSON.stringify(
-                [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}]
-              ))
+              // Navigate to full Tax Return page with k1 data.
+              // writeStep1State writes ts360_entities, ts360_k1, AND
+              // ts360_isCoopPatron atomically. isCoopPatron: false reset is
+              // intentional — same reasoning as loadRecord above. Dashboard
+              // never captures the co-op patron flag, so defaulting to false
+              // prevents a stale flag from a prior session bleeding into AI
+              // Analysis and triggering Form 8995-A on the wrong taxpayer.
+              writeStep1State({
+                entities: [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}],
+                k1Total: calc?.k1 || 0,
+                isCoopPatron: false,
+              })
               writePersonalContext({
                 ...readPersonalContext(),                                            // preserve fields already in session
                 filingStatus: f1040.filingStatus || 'single',

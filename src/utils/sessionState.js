@@ -14,7 +14,7 @@
 // writeTaxYear — called by Dashboard and TaxReturn
 //
 // Readers:
-// readStep1State — called by TaxReturn, AIAnalysis
+// readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
 // readPersonalContext — called by TaxReturn on mount, AIAnalysis
 // readTaxYear — called by TaxReturn, EntityCompareModal
 
@@ -253,4 +253,58 @@ export function writeTaxYear(year) {
 
 export function readTaxYear() {
   return parseInt(sessionStorage.getItem('ts360_taxyear') || '2025') || 2025
+}
+
+// ─── Coercion helper for saved-record data ────────────────────────────────
+// Saved records (from localStorage ts360_records_*) are produced by Dashboard's
+// UI forms which store every numeric field as a string. Passing those strings
+// directly to writePersonalContext violates the "callers coerce at the
+// boundary" contract — the writer accepts numbers, not numeric strings, and
+// downstream tax math may behave differently for '' vs 0.
+//
+// normalizeF1040(rec) takes a possibly-stringly-typed f1040 object and returns
+// a copy with every numeric field coerced via parseFloat or parseInt. Boolean
+// fields are coerced to true booleans. String and array fields pass through.
+//
+// Usage: writePersonalContext(normalizeF1040(rec.f1040 || {}))
+//
+// Field list mirrors writePersonalContext's accepted parameters. Adding a new
+// field to the contract means adding it here too — track them together.
+export function normalizeF1040(rec = {}) {
+  return {
+    filingStatus: rec.filingStatus || 'single',
+    taxYear: parseInt(rec.taxYear) || 2025,
+    dependents: parseInt(rec.dependents) || 0,
+    w2Income: parseFloat(rec.w2Income) || 0,
+    w2Withheld: parseFloat(rec.w2Withheld) || 0,
+    rentalIncome: parseFloat(rec.rentalIncome) || 0,
+    rentalExpenses: parseFloat(rec.rentalExpenses) || 0,
+    capitalGains: parseFloat(rec.capitalGains) || 0,
+    interest: parseFloat(rec.interest) || 0,
+    dividends: parseFloat(rec.dividends) || 0,
+    qualifiedDividends: parseFloat(rec.qualifiedDividends ?? rec.qualDividends) || 0, // ← legacy alias: qualDividends was the saved-record field name in older data
+    form4797: parseFloat(rec.form4797) || 0,
+    manualK1s: Array.isArray(rec.manualK1s) ? rec.manualK1s : [],
+    isREP: !!rec.isREP,
+    // Renamed-field migration: if the saved record was written before the
+    // PR #136 contract migration, it contains useStandardDed / itemizedDed /
+    // estimatedPayments instead of the canonical names. Read the canonical
+    // name first, fall back to the legacy name to preserve user choice.
+    useItemized: rec.useItemized !== undefined
+      ? !!rec.useItemized
+      : (rec.useStandardDed !== undefined ? !rec.useStandardDed : false),
+    itemizedAmt: parseFloat(rec.itemizedAmt ?? rec.itemizedDed) || 0,
+    saltAmount: parseFloat(rec.saltAmount) || 0,
+    hasISO: !!rec.hasISO,
+    isoBargainElement: parseFloat(rec.isoBargainElement) || 0,
+    estPaid: parseFloat(rec.estPaid ?? rec.estimatedPayments) || 0,
+    priorYearQBILoss: parseFloat(rec.priorYearQBILoss) || 0,
+    socialSecurity: parseFloat(rec.socialSecurity) || 0,
+    iraDistributions: parseFloat(rec.iraDistributions) || 0,
+    selfEmpHealthIns: parseFloat(rec.selfEmpHealthIns) || 0,
+    hsaDeduction: parseFloat(rec.hsaDeduction) || 0,
+    studentLoanInt: parseFloat(rec.studentLoanInt) || 0,
+    selfEmpRetirement: parseFloat(rec.selfEmpRetirement) || 0,
+    nolCarryforward: parseFloat(rec.nolCarryforward) || 0,
+  }
 }
