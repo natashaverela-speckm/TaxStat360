@@ -8,14 +8,26 @@
 // - Readers always return a valid default if the key is missing or malformed.
 // - Never write different shapes for the same key from different call sites.
 //
+// Two related entity-list keys:
+//   ts360_entities      — flat k1Data shape: { name, type, own, netProfit, k1, box11_12, ... }
+//                         consumed by TaxReturn for tax-math (per-entity K-1 income)
+//   ts360_entities_raw  — raw entity shape:  { name, type, own, ein, formationDate, pnl: {...}, connectedId, isManual }
+//                         consumed by CalculateTaxInner on mount for entity-management UI
+//
+// Both keys are written together by writeStep1State and Dashboard.loadRecord
+// so the two pages stay in sync. The split exists because the two consumers
+// genuinely need different shapes — flat for math, nested for editable UI.
+//
 // Writers:
 // writeStep1State — called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
 // writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
 // writeTaxYear — called by Dashboard and TaxReturn
 // writeIsCoopPatron — called by CalculateTaxInner (checkbox sync)
+// clearStep1State — called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
 //
 // Readers:
 // readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
+// readStep1StateRaw — called by CalculateTaxInner (useState initializer for entities)
 // readPersonalContext — called by TaxReturn on mount, AIAnalysis
 // readTaxYear — called by TaxReturn, EntityCompareModal
 // readIsCoopPatron — called by CalculateTaxInner (useState initializer)
@@ -24,10 +36,18 @@
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
 // Read by: TaxReturn, AIAnalysis
 
-export function writeStep1State({ entities = [], k1Total = 0, isCoopPatron = false } = {}) {
+export function writeStep1State({ entities = [], entitiesRaw = null, k1Total = 0, isCoopPatron = false } = {}) {
   sessionStorage.setItem('ts360_entities', JSON.stringify(entities))
   sessionStorage.setItem('ts360_k1', String(k1Total))
   sessionStorage.setItem('ts360_isCoopPatron', String(isCoopPatron))
+  // entitiesRaw is optional. When null (the default), leave ts360_entities_raw
+  // untouched — preserves backward compatibility for callers that only know
+  // about the flat shape. When provided (Dashboard.loadRecord, eventually
+  // CalculateTaxInner.proceed), write the raw entity-shape array so
+  // CalculateTaxInner can restore on mount with the full pnl breakdown.
+  if (entitiesRaw !== null) {
+    sessionStorage.setItem('ts360_entities_raw', JSON.stringify(entitiesRaw))
+  }
 }
 
 export function readStep1State() {
@@ -36,6 +56,37 @@ export function readStep1State() {
   const k1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0') || 0
   const isCoopPatron = sessionStorage.getItem('ts360_isCoopPatron') === 'true'
   return { entities, k1Total, isCoopPatron }
+}
+
+/**
+ * Reader for ts360_entities_raw — the raw entity-shape array CalculateTaxInner
+ * needs to restore its useState on mount. Returns an empty array if the key
+ * is missing or malformed; callers should fall back to their default entity.
+ */
+export function readStep1StateRaw() {
+  try {
+    const raw = sessionStorage.getItem('ts360_entities_raw')
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Clear all Step 1 sessionStorage keys atomically. Called when the user starts
+ * a fresh calculation (Dashboard "+ New Calculation" buttons) so a previously-
+ * loaded record's entity data doesn't bleed into the new session.
+ *
+ * Does NOT clear ts360_f1040 or ts360_taxyear — those are Step 2 keys with
+ * their own reset semantics owned by TaxReturn / Dashboard's loadRecord.
+ */
+export function clearStep1State() {
+  sessionStorage.removeItem('ts360_entities')
+  sessionStorage.removeItem('ts360_entities_raw')
+  sessionStorage.removeItem('ts360_k1')
+  sessionStorage.removeItem('ts360_isCoopPatron')
 }
 
 // ─── Personal 1040 context (filing status, year, income, deductions, payments) ─
