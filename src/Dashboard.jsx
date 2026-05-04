@@ -4,6 +4,7 @@ import { calcTaxReturn } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State } from './utils/sessionState.js'
+import { parseMoney } from './utils/parseMoney.js'
 
 
 // ── Info Tooltip Component ──
@@ -470,23 +471,29 @@ export default function Dashboard(){
     const sourceEntities = Array.isArray(rec.entities) && rec.entities.length > 0
       ? rec.entities
       : (rec.biz ? [rec.biz] : [])
-    const restoredEntities = sourceEntities.map(e => {
+    const restoredEntities = sourceEntities.filter(e => e && e.pnl).map(e => {
       const pnl = e.pnl || {}
-      const ownPct = parseFloat(e.own) || 100
+      // Formula matches CalculateTaxInner.proceed() exactly (parseInt for own,
+      // parseMoney for box deductions). Decimal ownership percentages (e.g.
+      // 33.33% partners) are intentionally truncated to match the originally-
+      // saved k1 — drift here would silently change tax numbers on restore.
+      // The || 100 fallback when e.own is missing is a small improvement over
+      // CTI's bare parseInt (which would produce NaN).
+      const ownPct = parseInt(e.own) || 100
       const k1 = Math.round((pnl.netProfit || 0) * (ownPct / 100))
-        - (parseFloat(e.box11_12) || 0)
-        - (parseFloat(e.box12_13) || 0)
+        - parseMoney(e.box11_12)
+        - parseMoney(e.box12_13)
       return {
         name: e.name,
         type: e.type,
         own: e.own,
         netProfit: pnl.netProfit || 0,
         k1,
-        box17K: parseFloat(e.box17K) || 0,
-        box11_12: parseFloat(e.box11_12) || 0,
-        box12_13: parseFloat(e.box12_13) || 0,
-        box17V_wages: parseFloat(e.box17V_wages) || 0,
-        box17V_ubia: parseFloat(e.box17V_ubia) || 0,
+        box17K: parseMoney(e.box17K),
+        box11_12: parseMoney(e.box11_12),
+        box12_13: parseMoney(e.box12_13),
+        box17V_wages: parseMoney(e.box17V_wages),
+        box17V_ubia: parseMoney(e.box17V_ubia),
         box17V_sstb: !!e.box17V_sstb,
       }
     })
