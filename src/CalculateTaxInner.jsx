@@ -312,7 +312,7 @@ export default function CalculateTax(){
     const recs = JSON.parse(localStorage.getItem('ts360_records') || '[]')
     const snap = {
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
-      taxTotal: String(readStep1State().k1Total),
+      taxTotal: String(k1Total),
       biz: entities && entities[0] ? {...entities[0]} : null,
       // #113: persist full entities array (not just biz=entities[0]) so AIAnalysis.getRecord's
       // saved-record fallback can pass entityQbiData to calcQBI — preserves SSTB / Box 17V wages / UBIA.
