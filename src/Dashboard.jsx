@@ -507,6 +507,7 @@ export default function Dashboard(){
     // wrong taxpayer. Defaulting to false on record load is the safe choice.
     writeStep1State({
       entities: restoredEntities,
+      entitiesRaw: sourceEntities,
       k1Total: k1TotalRestored,
       isCoopPatron: false,
     })
