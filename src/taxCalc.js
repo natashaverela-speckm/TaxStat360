@@ -542,8 +542,10 @@ function calcTaxReturn(input) {
   // ── Net Investment Income Tax (3.8%) — IRC §1411 ──
   // NII = net investment income: dividends, interest, rental income (if passive), LTCG
   // For REP: rental income is NOT passive → excluded from NII
+  // divInc is Box 1a (ordinary dividends, INCLUDES qualified per Form 1099-DIV);
+  // qualDiv (Box 1b) is a subset of divInc — do NOT add it again or qualified dividends are double-counted.
   const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
-  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + Math.max(0, qualDiv) + rentalNII)
+  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + rentalNII)
   const niit = calcNIIT(nii, agi, taxYear, status)
 
   // ── Child Tax Credit (IRC §24) ──
