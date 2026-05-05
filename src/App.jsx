@@ -33,8 +33,14 @@ function OAuthCallback() {
 // Wraps protected routes. Unauthenticated users are redirected to /login with the
 // originally-requested location captured in state.from so the login handler can
 // redirect them back after they sign in.
+//
+// Auth presence is signaled by ts360_session — set by Onboarding LoginScreen and
+// SignupScreen on successful auth, cleared by every sign-out handler. ts360_user
+// was previously also checked here as an OR fallback but was never written by any
+// code path (audited 2026-05-05); removed to reduce confusion about the canonical
+// auth key.
 function RequireAuth({ children }) {
-  const isLoggedIn = localStorage.getItem('ts360_user') || localStorage.getItem('ts360_session')
+  const isLoggedIn = localStorage.getItem('ts360_session')
   const location = useLocation()
   if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
   return children
