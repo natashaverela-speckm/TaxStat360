@@ -13,9 +13,9 @@ const INTS=INTEGRATIONS
 const COLORS=['#2563EB','#16a34a','#A855F7','#F59E0B','#EC4899','#06B6D4']
 const TEMPLATES=[
   {label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
-  {label:'Real Estate LLC',icon:'🏠',type:'Partnership / Multi-Member LLC',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
+  {label:'Real Estate LLC',icon:'🏠',type:'Partnership / MMLLC — Passive',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
   {label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
-  {label:'Multi-Member LLC',icon:'🤝',type:'Partnership / Multi-Member LLC',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
+  {label:'Multi-Member LLC',icon:'🤝',type:'Partnership / MMLLC — Passive',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
   {label:'C Corporation',icon:'🏦',type:'C Corporation',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
   {label:'Blank Entity',icon:'➕',type:'S Corporation',own:'100',defaults:{},desc:'Start from scratch'},
 ]
@@ -95,6 +95,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
           <select value={ent.type} onChange={v=>{const newType=v.target.value;const losingOfficer=['S Corporation','C Corporation'].includes(ent.type)&&!['S Corporation','C Corporation'].includes(newType);if(losingOfficer)setManOfficerSal('');onUpdate(idx,{...ent,type:newType,pnl:losingOfficer&&ent.pnl?{...ent.pnl,officerSalary:0}:ent.pnl})}} style={{padding:'4px 8px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,color:color,cursor:'pointer',background:'#fff'}}>
             {ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
+          <InfoTip text="Active vs Passive Partnership Members — Active: Pick this if you're a general partner OR a member who materially participates in the business. Material participation generally means 500+ hours per year of involvement (per IRS §469(h) tests). Active members owe self-employment tax (15.3%) on their K-1 share. Passive: Pick this if you're a limited partner OR a passive investor (no day-to-day involvement). Passive members don't owe self-employment tax on partnership income, per §1402(a)(13). This is the typical case for real estate LP investments. Not sure? Most real estate investors holding rental property through an LP/LLC are Passive. Most members actively running an operating business (consulting LLC, services partnership, etc.) are Active. If unsure, consult your tax advisor."/>
           <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,color:'#fff',cursor:'pointer'}}>{showDetails?'▲ Details':'▼ Details'}</button>
           {canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer'}}>Remove</button>}
         </div>
@@ -172,7 +173,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
                   <div style={{fontSize:26,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:2}}>{fmt(ent.pnl.netProfit)} x {ent.own}%</div>
                 </div>
-                <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',maxWidth:160,textAlign:'right',lineHeight:1.4}}>{k1>=0?(ent.type==='Sole Proprietor / Single-Member LLC'?'Flows to Schedule C — subject to SE tax':ent.type==='Partnership / Multi-Member LLC'?'Flows to Schedule E — subject to SE tax':'Flows to Schedule E on your personal 1040'):'Loss may offset other income on personal return'}</div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',maxWidth:160,textAlign:'right',lineHeight:1.4}}>{k1>=0?(ent.type==='Sole Proprietor / Single-Member LLC'?'Flows to Schedule C — subject to SE tax':ent.type==='Partnership / MMLLC — Active'?'Flows to Schedule E — subject to SE tax':ent.type==='Partnership / MMLLC — Passive'?'Flows to Schedule E — NOT subject to SE tax (passive / limited partner)':'Flows to Schedule E on your personal 1040'):'Loss may offset other income on personal return'}</div>
               </div>
             </div>
             {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses}/>}
