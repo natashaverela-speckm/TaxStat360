@@ -317,13 +317,18 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   // Applied per-entity so mixed SSTB + non-SSTB filers correctly exclude only the SSTB portion.
   const sstbApplicablePct = Math.max(0, 1 - phasePercent);
 
-  // SSTB entities' contribution to qbiIncome (for proration in adjQBI)
+  // SSTB entities' contribution to qbiIncome (for proration in adjQBI).
+  // e.k1 in entityQbiData is already constructed by CalculateTaxInner.proceed() as:
+  //   Math.round(netProfit × own%) − box11_12 − box12_13
+  // so it's the entity's ownership-adjusted, §179-and-other-deduction-net K-1 share.
+  // Use it directly — multiplying by ownership again or subtracting boxes again
+  // would double-apply both adjustments. Falls back to e.netProfit only when k1
+  // is unset (legacy data path); netProfit is NOT ownership-adjusted, but that
+  // path is reserved for users who haven't entered K-1 box data.
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s;
-    const k1Income = (parseFloat(e.k1 ?? e.netProfit) || 0) * ((parseInt(e.own) || 100) / 100);
-    const sec179 = parseFloat(e.box11_12) || 0;
-    const otherDed = parseFloat(e.box12_13) || 0;
-    return s + Math.max(0, k1Income - sec179 - otherDed);
+    const k1Income = parseFloat(e.k1 ?? e.netProfit) || 0;
+    return s + Math.max(0, k1Income);
   }, 0);
 
   // Reduce aggregate QBI by SSTB exclusion: non-SSTB QBI kept in full; SSTB QBI scaled by sstbApplicablePct.
