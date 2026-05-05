@@ -582,6 +582,77 @@ describe('calcTaxReturn Partnership Active vs Passive SE tax (§1402(a)(13))', (
 })
 
 // =============================================================================
+// F-01 NIIT regression guard — qualDiv must not double-count
+// PR #146: divInc (Box 1a) already includes qualDiv (Box 1b). The NIIT base
+// sum must NOT add qualDiv again. Bug previously inflated NIIT by 3.8% × qualDiv
+// for any filer above the NIIT AGI threshold.
+// =============================================================================
+describe('calcTaxReturn NIIT — F-01 qualDiv no-double-count guard', () => {
+  it('NIIT is unchanged when qualDiv is set vs unset (with same divInc and AGI)', () => {
+    // AGI > $200k single threshold so NIIT fires
+    // qualDiv is a subset of divInc — adding it to the NII base would double-count.
+    const baseline = calcTaxReturn({
+      ...BASE, w2: 250000, divInc: 10000, qualDiv: 0,
+    })
+    const withQualDiv = calcTaxReturn({
+      ...BASE, w2: 250000, divInc: 10000, qualDiv: 4000,
+    })
+    expect(baseline.niit).toBeGreaterThan(0)
+    expect(withQualDiv.niit).toBe(baseline.niit)
+  })
+
+  it('NIIT scales with divInc but NOT additionally with qualDiv', () => {
+    // Doubling divInc should change niit; varying qualDiv (same divInc) should not.
+    const lowDiv = calcTaxReturn({
+      ...BASE, w2: 250000, divInc: 5000, qualDiv: 5000,
+    })
+    const highDiv = calcTaxReturn({
+      ...BASE, w2: 250000, divInc: 10000, qualDiv: 5000,
+    })
+    expect(highDiv.niit).toBeGreaterThan(lowDiv.niit)
+  })
+})
+
+// =============================================================================
+// F-03 SSTB regression guard — ownership must not be re-applied to e.k1
+// PR #147: SSTB block in calcQBI must use e.k1 directly. e.k1 is already
+// ownership-adjusted by the UI layer. Re-multiplying by own% caused double-
+// reduction of the SSTB exclusion base, inflating the deduction.
+// =============================================================================
+describe('calcQBI SSTB — F-03 no double-ownership guard', () => {
+  it('SSTB deduction depends on e.k1, not on own% (same k1 + different own% = same result)', () => {
+    // Two entity setups with identical pre-computed e.k1=25000 but different own%.
+    // SSTB exclusion math uses e.k1 directly, so both must produce the same deduction.
+    // If a regression re-applied own% to e.k1, own:50 case would silently halve sstbEntityQBI.
+    const entityOwn50 = [{
+      box17V_sstb: true, netProfit: 50000, own: 50, k1: 25000,
+      box11_12: 0, box12_13: 0, box17V_wages: 15000, box17V_ubia: 0,
+    }]
+    const entityOwn100 = [{
+      box17V_sstb: true, netProfit: 25000, own: 100, k1: 25000,
+      box11_12: 0, box12_13: 0, box17V_wages: 15000, box17V_ubia: 0,
+    }]
+    const r50  = calcQBI(25000, 220000, 0, { status: 'single', taxYear: 2025, entityQbiData: entityOwn50 })
+    const r100 = calcQBI(25000, 220000, 0, { status: 'single', taxYear: 2025, entityQbiData: entityOwn100 })
+    expect(r50.deduction).toBe(r100.deduction)
+  })
+
+  it('SSTB partial-ownership produces correct mid-phase-in deduction (not inflated by double-reduction)', () => {
+    // Pinned numeric assertion: own:50 k1:25000 SSTB at TI:220000 (mid phase-in 2025 single)
+    // Correct path: sstbEntityQBI=25000 → adjQBI≈13637 → ded=2730
+    // Regressed path (double-ownership): sstbEntityQBI=12500 → adjQBI≈19318 → ded≈3864
+    // The 1100+ delta makes a regression numerically obvious.
+    const entities = [{
+      box17V_sstb: true, netProfit: 50000, own: 50, k1: 25000,
+      box11_12: 0, box12_13: 0, box17V_wages: 15000, box17V_ubia: 0,
+    }]
+    const r = calcQBI(25000, 220000, 0, { status: 'single', taxYear: 2025, entityQbiData: entities })
+    expect(r.deduction).toBe(2730)
+    expect(r.deduction).toBeLessThan(3000)
+  })
+})
+
+// =============================================================================
 // Itemized deductions with SALT → AMT addback (IRC §56(b)(1)(A)(ii))
 // =============================================================================
 describe('calcTaxReturn itemized SALT → AMT addback', () => {
