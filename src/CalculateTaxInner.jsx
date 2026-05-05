@@ -8,7 +8,7 @@ import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw } from './utils/sessionState.js'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
-function InfoTip({ text, below }) { const [s, ss] = React.useState(false); return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',[below?'top':'bottom']:'120%',left:'50%',transform:'translateX(-50%)',background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
+function InfoTip({ text, below }) { const [s, ss] = React.useState(false); const popupPos = below ? {top:'120%',right:0} : {bottom:'120%',left:'50%',transform:'translateX(-50%)'}; return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',...popupPos,background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const INTS=INTEGRATIONS
 const COLORS=['#2563EB','#16a34a','#A855F7','#F59E0B','#EC4899','#06B6D4']
 const TEMPLATES=[
@@ -23,7 +23,7 @@ const TEMPLATES=[
 function exportEntitiesToCSV(entities){
   const rows=[['Name','Entity Type','EIN','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
   entities.forEach(ent=>{
-    const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):''
+    const k1=ent.pnl?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):''
     rows.push([ent.name,ent.type,ent.ein||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
   })
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n')
@@ -78,7 +78,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
   function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API_BASE_URL+'/auth/'+pid+'/connect'}}
   function applyManual(){const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
-  const k1=ent.pnl?Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100)):0
+  const k1=ent.pnl?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):0
 
   return(
     <div style={{border:'2px solid '+color,borderRadius:14,overflow:'hidden',marginBottom:16}}>
@@ -305,8 +305,8 @@ export default function CalculateTax(){
   function onDrop(idx){if(dragIdx===null||dragIdx===idx)return;setEntities(prev=>{const next=[...prev];const[moved]=next.splice(dragIdx,1);next.splice(idx,0,moved);return next});setDragIdx(null);setDragOverIdx(null)}
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
-  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
-  const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*(parseInt(e.own)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
+  const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
+  const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*((parseInt(e.own)||100)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
@@ -333,7 +333,7 @@ export default function CalculateTax(){
     localStorage.setItem('ts360_records', JSON.stringify(recs.slice(0,20)))
   }
 
-  const entityCards = entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*(parseInt(ent.own)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
+  const entityCards = entities.filter(ent=>ent.pnl).map((ent,i)=>{const k1=Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100));const color=COLORS[entities.indexOf(ent)%COLORS.length];return(
           <div key={i} style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'14px 16px',borderTop:'3px solid '+color}}>
             <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:4}}>{ent.name}</div>
             <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:8}}>{ent.type} · {ent.own}% ownership</div>
