@@ -58,6 +58,7 @@ function SignupScreen(){
       const data=await reg.json()
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email)
+      localStorage.setItem('ts360_session',data.access_token)
       localStorage.setItem('plan',plan)
       localStorage.setItem('billing',billing)
       // Create Stripe subscription for recurring billing
@@ -66,14 +67,12 @@ function SignupScreen(){
       }catch(e){ console.warn('Subscribe call failed:',e) }
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
-      try{const fd=new FormData();fd.append('EMAIL',email);fd.append('u','f8bbe8c960a3c7bae19433b3e');fd.append('id','f546bd92ac');fd.append('f_id','00cc07e9f0');fd.append('b_f8bbe8c960a3c7bae19433b3e_f546bd92ac','');await fetch('https://themoneynista.us4.list-manage.com/subscribe/post?u=f8bbe8c960a3c7bae19433b3e&id=f546bd92ac&f_id=00cc07e9f0',{method:'POST',mode:'no-cors',body:fd})}catch(e){}
-      
-      // Subscribe to Mailchimp audience
+      // Subscribe to Mailchimp audience (taxstat360.us4 — canonical list)
       try {
         const mcData = new URLSearchParams()
-        mcData.append('EMAIL', r.email)
-        mcData.append('FNAME', r.name ? r.name.split(' ')[0] : '')
-        mcData.append('LNAME', r.name ? r.name.split(' ').slice(1).join(' ') : '')
+        mcData.append('EMAIL', email)
+        mcData.append('FNAME', name ? name.split(' ')[0] : '')
+        mcData.append('LNAME', name ? name.split(' ').slice(1).join(' ') : '')
         mcData.append('tags', 'TaxStat360 Signup')
         await fetch('https://taxstat360.us4.list-manage.com/subscribe/post?u=c09d008a62d6587f7f0b7e6888c354e8&id=f546bd92ac&f_id=00e0e0e1f0', {
           method: 'POST', mode: 'no-cors',
@@ -133,6 +132,11 @@ function VerifyEmailScreen(){
 
 function LoginScreen(){
   const nav=useNavigate()
+  const location=useLocation()
+  // F-04: if RequireAuth redirected the user here, location.state.from carries the URL they
+  // were trying to reach. Send them back there after login. Falls back to /dashboard for
+  // direct logins (user clicked Sign In link, no protected URL was attempted).
+  const redirectTo=location.state?.from?.pathname || '/dashboard'
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
   const [loading,setLoading]=useState(false)
@@ -144,7 +148,7 @@ function LoginScreen(){
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
-      nav('/dashboard')
+      nav(redirectTo,{replace:true})
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
   }
