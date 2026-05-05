@@ -306,7 +306,7 @@ describe('calcQBI SSTB phase-in', () => {
 
   it('SSTB partial-ownership: own% scales k1Income for proration', () => {
     // 50% own × $50k netProfit = $25k k1Income; mid phase-in (TI $220k → 45.4%)
-    const entities = [{ box17V_sstb: true, netProfit: 50000, own: 50, box11_12: 0, box12_13: 0, box17V_wages: 15000, box17V_ubia: 0 }]
+    const entities = [{ box17V_sstb: true, netProfit: 50000, own: 50, k1: 25000, box11_12: 0, box12_13: 0, box17V_wages: 15000, box17V_ubia: 0 }]
     const r = calcQBI(25000, 220000, 0, { status: 'single', taxYear: 2025, entityQbiData: entities })
     expect(r.deduction).toBe(2730)
     expect(r.limitApplied).toBe('qbi')
@@ -316,7 +316,7 @@ describe('calcQBI SSTB phase-in', () => {
   it('SSTB sec179 (box11_12) reduces k1 income for proration', () => {
     // $50k netProfit × 100% own − $10k sec179 = $40k sstbEntityQBI
     // 50% phase-in → adjQBI = $50k − $40k × 0.5 = $30k → scaledQbi = $6k
-    const entities = [{ box17V_sstb: true, netProfit: 50000, own: 100, box11_12: 10000, box12_13: 0, box17V_wages: 30000, box17V_ubia: 0 }]
+    const entities = [{ box17V_sstb: true, netProfit: 50000, own: 100, k1: 40000, box11_12: 10000, box12_13: 0, box17V_wages: 30000, box17V_ubia: 0 }]
     const r = calcQBI(50000, 222300, 0, { status: 'single', taxYear: 2025, entityQbiData: entities })
     expect(r.deduction).toBe(6000)
     expect(r.limitApplied).toBe('qbi')
