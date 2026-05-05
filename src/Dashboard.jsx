@@ -521,8 +521,11 @@ export default function Dashboard(){
     })
     writeTaxYear(rec.taxYear || 2025)
 
-    // Navigate to Personal Tax Return (Step 2) with all data loaded
-    nav('/tax-return')
+    // Navigate to Calculate Tax (Step 1) so the user can review/confirm the
+    // restored business entity before proceeding. They can click "Continue to
+    // Personal Tax Return" to advance to Step 2 once they've verified Step 1
+    // looks right. The Step 2 data is already in sessionStorage waiting for them.
+    nav('/calculate-tax/')
   }
 
 
