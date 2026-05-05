@@ -529,6 +529,59 @@ describe('calcTaxReturn multi-entity portfolio', () => {
 })
 
 // =============================================================================
+// Partnership Active vs Passive SE tax — IRC §1402(a)(13)
+// Regression guard for F-02 (PR #148): limited partners' distributive shares are
+// excluded from SE income. Only the "Active" variant generates SE tax.
+// =============================================================================
+describe('calcTaxReturn Partnership Active vs Passive SE tax (§1402(a)(13))', () => {
+  it('Active partnership: generates SE tax', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 50000,
+      entities: [{ type: 'Partnership / MMLLC — Active', k1: 50000, own: 100 }],
+    })
+    expect(r.seNetIncome).toBe(50000)
+    expect(r.seTax).toBeGreaterThan(0)
+  })
+
+  it('Passive partnership: zero SE tax', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 75000,
+      entities: [{ type: 'Partnership / MMLLC — Passive', k1: 75000, own: 100 }],
+    })
+    expect(r.seNetIncome).toBe(0)
+    expect(r.seTax).toBe(0)
+  })
+
+  it('mixed Active + Passive: SE tax computed only on Active share', () => {
+    // $50k Active + $75k Passive → seNetIncome = $50k (Active only)
+    const mixed = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 125000,
+      entities: [
+        { type: 'Partnership / MMLLC — Active',  k1: 50000, own: 100 },
+        { type: 'Partnership / MMLLC — Passive', k1: 75000, own: 100 },
+      ],
+    })
+    const activeOnly = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 50000,
+      entities: [{ type: 'Partnership / MMLLC — Active', k1: 50000, own: 100 }],
+    })
+    expect(mixed.seNetIncome).toBe(50000)
+    expect(mixed.seTax).toBe(activeOnly.seTax)
+  })
+
+  it('legacy partnership type string falls through as non-SE-subject (passive default)', () => {
+    // Pre-PR records may carry the legacy 'Partnership / Multi-Member LLC' string.
+    // The legacy mapper treats them as Passive (no SE tax) — conservative default.
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 100000,
+      entities: [{ type: 'Partnership / Multi-Member LLC', k1: 100000, own: 100 }],
+    })
+    expect(r.seNetIncome).toBe(0)
+    expect(r.seTax).toBe(0)
+  })
+})
+
+// =============================================================================
 // Itemized deductions with SALT → AMT addback (IRC §56(b)(1)(A)(ii))
 // =============================================================================
 describe('calcTaxReturn itemized SALT → AMT addback', () => {
