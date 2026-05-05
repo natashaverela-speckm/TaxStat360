@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import Privacy from './Privacy'
 import Terms from './Terms'
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
 import CalculateTaxInner from './CalculateTaxInner'
@@ -10,7 +10,6 @@ import AIAnalysis from './AIAnalysis'
 import Dashboard from './Dashboard'
 import Settings from './Settings'
 import Upgrade from './Upgrade'
-
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
@@ -30,14 +29,16 @@ function OAuthCallback() {
     </div>
   )
 }
-
 // ─── Auth Guard ───────────────────────────────────────────────────────────────
+// Wraps protected routes. Unauthenticated users are redirected to /login with the
+// originally-requested location captured in state.from so the login handler can
+// redirect them back after they sign in.
 function RequireAuth({ children }) {
   const isLoggedIn = localStorage.getItem('ts360_user') || localStorage.getItem('ts360_session')
-  if (!isLoggedIn) return <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
   return children
 }
-
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -50,26 +51,23 @@ export default function App() {
         <Route path="/signin" element={<Onboarding screen="login" />} />
         <Route path="/login" element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
-
         {/* Onboarding flow */}
         <Route path="/onboarding/entity" element={<Onboarding screen="entity" />} />
         <Route path="/onboarding/business" element={<Onboarding screen="business" />} />
         <Route path="/onboarding/import" element={<Onboarding screen="import" />} />
-
         {/* OAuth callback */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
-
         {/* Protected app routes */}
-                <Route path="/calculate-tax" element={<CalculateTaxInner />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/tax-return" element={<TaxReturn />} />
-        <Route path="/ai-analysis" element={<AIAnalysis />} />
-
-        {/* Fallback */}
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/upgrade" element={<Upgrade />} />
+        <Route path="/calculate-tax" element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
+        <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="/tax-return" element={<RequireAuth><TaxReturn /></RequireAuth>} />
+        <Route path="/ai-analysis" element={<RequireAuth><AIAnalysis /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+        <Route path="/upgrade" element={<RequireAuth><Upgrade /></RequireAuth>} />
+        {/* Public legal */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
