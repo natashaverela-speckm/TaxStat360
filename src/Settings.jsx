@@ -49,7 +49,11 @@ export default function Settings() {
     // Try ts360_email first, then decode from JWT token, then scan localStorage keys
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
-      // Decode JWT payload to get email if not stored separately
+      // Decode JWT payload to get email if not stored separately.
+      // Both 'token' and 'ts360_session' are written by Onboarding (signup + login)
+      // and hold the same JWT access_token. 'token' is the canonical API bearer
+      // (used in Authorization headers below); 'ts360_session' is the auth-presence
+      // signal read by App.jsx RequireAuth. Reading either as fallback is safe.
       const token = localStorage.getItem('token') || localStorage.getItem('ts360_session') || ''
       if (token) {
         try {
@@ -74,7 +78,11 @@ export default function Settings() {
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
-    // Approximate member since from session
+    // Approximate member since from session.
+    // ts360_session_start is intentionally read but is not currently written by any
+    // code path — the '—' fallback always renders today. Hook left in place for a
+    // future feature where signup/login would set localStorage.ts360_session_start =
+    // Date.now() so this displays a real account-creation date.
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
