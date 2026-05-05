@@ -463,7 +463,15 @@ function calcTaxReturn(input) {
   const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome - Math.max(0, nv(nolCarryforward))
 
   // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
-  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / Multi-Member LLC']
+  //
+  // Per IRC §1402(a)(13), limited partners' distributive shares are excluded from SE income.
+  // The Active partnership variant ("Partnership / MMLLC — Active") covers general partners
+  // and members who materially participate; the Passive variant is excluded from SE tax.
+  //
+  // Legacy mapper: pre-split saved records have the bare 'Partnership / Multi-Member LLC'
+  // string. We treat those as Passive (no SE tax) — the conservative, user-protective default.
+  // Pre-launch with no real users, so this is essentially defensive coding.
+  const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / MMLLC — Active']
   const seNetIncome = entities.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     return sum + Math.max(0, parseFloat(e.k1) || 0)

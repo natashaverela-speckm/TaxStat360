@@ -260,7 +260,7 @@ export default function TaxReturn() {
   const iraIncome = ytdScale(iraDistributions)
   // Entity-mix classifiers for display labels
   const SCHED_C_TYPES = ['Sole Proprietor / Single-Member LLC']
-  const K1_TYPES = ['Partnership / Multi-Member LLC', 'S Corporation', 'C Corporation']
+  const K1_TYPES = ['Partnership / MMLLC — Active', 'Partnership / MMLLC — Passive', 'S Corporation', 'C Corporation']
   const hasSchedC = entities.some(e => SCHED_C_TYPES.includes(e?.type))
   const hasK1 = entities.some(e => K1_TYPES.includes(e?.type))
 
@@ -392,7 +392,8 @@ export default function TaxReturn() {
                     style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, background: '#fff' }}
                   >
                     <option value="S Corporation">S Corp</option>
-                    <option value="Partnership / Multi-Member LLC">Partnership/LLC</option>
+                    <option value="Partnership / MMLLC — Active">Partnership/LLC (Active)</option>
+                    <option value="Partnership / MMLLC — Passive">Partnership/LLC (Passive)</option>
                     <option value="C Corporation">C Corp</option>
                   </select>
                   <MoneyInput
