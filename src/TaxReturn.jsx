@@ -176,7 +176,7 @@ export default function TaxReturn() {
   // F-06: officer salary contributes to §179(b)(3) active business income alongside k1 and W-2.
   // Mirrors the totalOfficerSalary aggregation in the calc-layer w2 below — keeps the display
   // figure consistent with what the actual cap calculation uses.
-  const totalOfficerSalaryForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.pnl?.officerSalary)||0), 0)
+  const totalOfficerSalaryForDisplay = entities.reduce((s,e)=>s+(parseFloat(e?.pnl?.officerSalary)||0), 0)
   const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0) + totalOfficerSalaryForDisplay)
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
@@ -248,7 +248,7 @@ export default function TaxReturn() {
   // K-1 distribution income. Previously users had to manually copy this from Step 1 to Step 2 and could
   // easily forget. The Step 2 W-2 input now means "additional W-2 wages from non-corporate jobs" — see
   // the relabeled UI below. NOT ytd-scaled (Step 1 entities follow the annual-figure convention).
-  const totalOfficerSalary = entities.reduce((s, e) => s + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+  const totalOfficerSalary = entities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
 
   const w2 = ytdScale(w2Income) + totalOfficerSalary
   const rentalNet = isREP ? (ytdScale(rentalIncome) - ytdScale(rentalExpenses)) : Math.max(0, ytdScale(rentalIncome) - ytdScale(rentalExpenses))
@@ -290,7 +290,7 @@ export default function TaxReturn() {
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
   const sCorpEntitiesForRc = entities.filter(e => /s.?corp/i.test(e?.type || ''))
   const sCorpProfit = sCorpEntitiesForRc.reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
-  const sCorpOfficerSalary = sCorpEntitiesForRc.reduce((sum, e) => sum + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+  const sCorpOfficerSalary = sCorpEntitiesForRc.reduce((sum, e) => sum + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
   const rcRiskRatio = sCorpProfit > 0 ? sCorpOfficerSalary / sCorpProfit : null
   const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (sCorpOfficerSalary === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
     ? { sCorpProfit, w2Wages: sCorpOfficerSalary, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: sCorpOfficerSalary === 0 ? 'high' : 'medium' }
