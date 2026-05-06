@@ -614,6 +614,54 @@ describe('calcTaxReturn NIIT — F-01 qualDiv no-double-count guard', () => {
 })
 
 // =============================================================================
+// F-01-followup-A regression guard — stGain must be included in NIIT base
+// IRC §1411(c)(1): net gain from property disposition is NII. Short-term capital
+// gains are gain from disposition and are subject to NIIT just like long-term
+// gains. Pre-fix: stGain was missing from the NII sum, silently under-computing
+// NIIT for filers with short-term gains above the NIIT AGI threshold.
+// =============================================================================
+describe('calcTaxReturn NIIT — F-01-followup-A stGain in NII base', () => {
+  it('stGain generates NIIT when AGI exceeds threshold', () => {
+    // $200k W-2 + $50k stGain → AGI $250k > $200k single threshold
+    // NII = max(0, $50k stGain + $0 ltGain) = $50k
+    // NIIT = 3.8% × min($50k NII, $50k excess AGI) = $1,900
+    const r = calcTaxReturn({ ...BASE, w2: 200000, stGain: 50000 })
+    expect(r.niit).toBeGreaterThan(0)
+    expect(r.niit).toBe(Math.round(Math.min(50000, 50000) * 0.038))
+  })
+
+  it('stGain loss nets against ltGain in single capital gain pool (§1222 netting)', () => {
+    // Key regression guard for the combined-clamp fix.
+    // ltGain $80k + stGain -$30k → combined NII gain = max(0, $80k-$30k) = $50k.
+    // Separate clamps would produce $80k + $0 = $80k (overstatement).
+    // $200k W-2 + combined $50k NII → excess AGI $50k → NIIT = 3.8% × $50k = $1,900
+    const r = calcTaxReturn({ ...BASE, w2: 200000, ltGain: 80000, stGain: -30000 })
+    expect(r.niit).toBe(Math.round(0.038 * 50000)) // 1900, not 3040
+  })
+
+  it('negative stGain does not reduce NII below zero (floor applies to combined pool)', () => {
+    // $250k W-2 + -$30k stGain, ltGain $0 → combined gain = max(0, -$30k) = $0
+    // NII from gains = $0; no other NII in BASE → NIIT same as no gain at all
+    const withLoss    = calcTaxReturn({ ...BASE, w2: 250000, stGain: -30000 })
+    const withoutGain = calcTaxReturn({ ...BASE, w2: 250000, stGain: 0 })
+    expect(withLoss.niit).toBe(withoutGain.niit)
+  })
+
+  it('no NIIT when AGI is below the $200k single threshold', () => {
+    // $100k W-2 + $50k stGain → AGI $150k < $200k threshold → NIIT = 0
+    const r = calcTaxReturn({ ...BASE, w2: 100000, stGain: 50000 })
+    expect(r.niit).toBe(0)
+  })
+
+  it('NIIT is capped by NII when AGI barely exceeds threshold', () => {
+    // $201k W-2 + $50k stGain → AGI $251k, excess = $51k, NII = $50k
+    // NIIT = 3.8% × min($50k NII, $51k excess) = $1,900 — NII is the binding constraint
+    const r = calcTaxReturn({ ...BASE, w2: 201000, stGain: 50000 })
+    expect(r.niit).toBe(Math.round(0.038 * 50000)) // 1900 — capped by NII not excess
+  })
+})
+
+// =============================================================================
 // F-03 SSTB regression guard — ownership must not be re-applied to e.k1
 // PR #147: SSTB block in calcQBI must use e.k1 directly. e.k1 is already
 // ownership-adjusted by the UI layer. Re-multiplying by own% caused double-
