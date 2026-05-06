@@ -559,17 +559,23 @@ function calcTaxReturn(input) {
   const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
   const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
 
-  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi) and §1.199A-1(d)(2)(iii)(A).
+  // Compute taxableBeforeQBI BEFORE sstbApplicablePct — the per-entity nonSEk1 reduce
+  // needs it to scale SSTB items by the applicable percentage. Must come before qbiBasis.
+  const taxableBeforeQBI = Math.max(0, agi - deduction)
+
+  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi) and §1.199A-1(d)(2)(iii)(B).
   // Computed per-entity to correctly apply the SSTB exclusion:
   //   - Non-SSTB entities: full K-1 contribution (positive or negative).
-  //   - SSTB entities: K-1 scaled by sstbApplicablePct per §199A(d)(3).
+  //   - SSTB entities: K-1 scaled by sstbApplicablePct per §199A(d)(3)(A).
   //     Above the phase-out, SSTB items are not "qualified items" and must not
-  //     carry forward as QBI loss carryforward — Treas. Reg. §1.199A-1(d)(2)(iii)(A).
+  //     carry forward as QBI loss carryforward — Treas. Reg. §1.199A-1(d)(2)(iii)(B).
   //
   // sstbApplicablePct mirrors the same computation inside calcQBI:
   //   100% at or below threshold, 0% at threshold+phaseInRange, linear between.
-  const qbiThreshold  = (QBI_THRESHOLDS[taxYear]  || QBI_THRESHOLDS[2025])[status]  || 197300
-  const qbiPhaseRange = (QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025])[status] || 50000
+  const _sstbThresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+  const _sstbPhaseIn    = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
+  const qbiThreshold  = _sstbThresholds[status] || _sstbThresholds.single
+  const qbiPhaseRange = _sstbPhaseIn[status]    || _sstbPhaseIn.single
   const sstbApplicablePct = taxableBeforeQBI <= qbiThreshold
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
@@ -587,7 +593,7 @@ function calcTaxReturn(input) {
   // in the current year and therefore do not reduce the QBI basis. REP users are
   // unaffected (palAdjustedRental === rentalNet when isREP=true).
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO
-  const taxableBeforeQBI = Math.max(0, agi - deduction)
+  // (taxableBeforeQBI declared above — moved to resolve TDZ before sstbApplicablePct block)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, { status, taxYear, entityQbiData: entities })
