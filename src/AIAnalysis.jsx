@@ -408,6 +408,13 @@ function TaxOptimization({ rec }) {
   // with multiple S-Corps, b.officerSalary only reflected the primary entity.
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   const totalOfficerSalary = sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
+  // sCorpK1: S-Corp-only K-1 income — used for FICA savings gate and formula.
+  // Using aggregate k1 (all entity types) would inflate savings by including partnership
+  // K-1 that was never SE-taxed, e.g. $80k S-Corp + $20k Partnership K-1 with $50k salary:
+  //   Wrong: ($100k-$50k) × 15.3% = $7,650 | Correct: ($80k-$50k) × 15.3% = $4,590
+  // Note: 0.0765 × 2 = 15.3% is accurate below the SS wage base (~$168k in 2025).
+  // Above the SS wage base, only 2.9% Medicare applies — acceptable heuristic simplification.
+  const sCorpK1 = sCorpEntities.reduce((s, e) => s + Math.max(0, parseFloat(e?.pnl?.netProfit) || 0), 0)
   const k1 = parseFloat(rec.k1Income) || 0
   // F-06: total W-2 includes officer salary aggregated from entities — see getTotalW2 helper.
   const w2 = getTotalW2(rec)
@@ -457,8 +464,8 @@ function TaxOptimization({ rec }) {
   })
 
   // Reasonable salary optimization for S-Corps (per-entity aggregated post-F-06)
-  if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && k1 > 50000) {
-    const seTaxSaved = Math.round((k1 - totalOfficerSalary) * 0.0765 * 2) // employer+employee FICA avoided on distributions
+  if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && sCorpK1 > 50000) {
+    const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * 0.0765 * 2) // employer+employee FICA on distributions
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
