@@ -250,7 +250,11 @@ export default function TaxReturn() {
   const divInc = ytdScale(dividends)       // ordinary dividends only (1040 Line 3b)
   // Form 4797 Part II ordinary gain/(loss): net §1231 loss + §1245 recapture (per Form 4797 Line 18b)
   // Net §1231 GAIN goes to LTCG (already captured in ltCapGains); this field is for net loss / ordinary recapture
-  const f4797Inc = ytdScale(form4797)
+  // F-05: aggregate K-1 Box 17K (Section 1231 gain) from entities. The manually-entered Form 4797
+  // field is ytd-scaled (user types directly into Step 2); Box 17K is NOT scaled because Step 1
+  // entities follow the annual-figure convention (k1Total flows in unscaled).
+  const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
+  const f4797Inc = ytdScale(form4797) + totalBox17K
   const qualDiv = ytdScale(qualifiedDividends) // subset of divInc — used only for LTCG rate calc
 
   // Total gross income — k1Total flows from Step 1 (negative = loss, reduces income)
@@ -569,9 +573,9 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 3b — do not include interest</div>
               </div>
               <div>
-                <label style={lbl}>Form 4797 Ordinary Gain/(Loss) <InfoTip text="Form 4797 Part II Line 18b — net §1231 loss and/or §1245 ordinary recapture. Enter as a negative number for losses. Net §1231 GAIN is treated as long-term capital gain — enter that in the Long-Term Capital Gains field above instead. Common for real estate investors selling rental property at a loss, equipment dispositions, and §1231 transactions."/></label>
+                <label style={lbl}>Form 4797 Ordinary Gain/(Loss) <InfoTip text="Form 4797 Part II Line 18b — net §1231 loss and/or §1245 ordinary recapture. Enter as a negative number for losses. Net §1231 GAIN is treated as long-term capital gain — enter that in the Long-Term Capital Gains field above instead. K-1 Box 17K (Section 1231 gain) from Step 1 entities is automatically added — do NOT re-enter it here. Common for real estate investors selling rental property at a loss, equipment dispositions, and §1231 transactions."/></label>
                 <MoneyInput value={form4797} onChange={setForm4797} placeholder="0" style={inp} />
-                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 4 — flows from Form 4797 Part II</div>
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 4 — flows from Form 4797 Part II + K-1 Box 17K aggregated from Step 1</div>
               </div>
             </div>
             <WhatGoesHere items={[
