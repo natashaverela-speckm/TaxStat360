@@ -560,8 +560,11 @@ function calcTaxReturn(input) {
   const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
 
   // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi): reduce SE-subject income by halfSE AND SE health insurance
-  // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged
-  const nonSEk1 = Math.max(0, k1Total - seNetIncome)
+  // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged.
+  // nonSEk1 allows negative values (negative K-1 = negative QBI per §199A(c)(2)) — the
+  // prior Math.max(0,...) silently dropped negative QBI, preventing proper carryforward tracking.
+  // seNetIncome is always >= 0 (sum of positive SE-entity k1 values), so this is safe.
+  const nonSEk1 = k1Total - seNetIncome
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
   // QBI rental basis uses palAdjustedRental: suspended PAL losses are not deductible
   // in the current year and therefore do not reduce the QBI basis. REP users are
@@ -574,6 +577,11 @@ function calcTaxReturn(input) {
   const qbi = _qbiResult.deduction
   const qbiLimitApplied = _qbiResult.limitApplied
   const qbiCaps = _qbiResult.caps
+  // §199A(c)(2) negative QBI carryforward — if net QBI is negative this year,
+  // the negative amount carries forward to reduce next year's QBI deduction basis.
+  // User should enter this as priorYearQBILoss in the following year.
+  // Positive value = loss to carry forward (matches priorYearQBILoss input convention).
+  const qbiCarryforward = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
 
   // ── Split income into ordinary vs preferential for accurate tax calculation ──
   // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
@@ -669,6 +677,7 @@ function calcTaxReturn(input) {
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     priorQBILossCO,
+    qbiCarryforward,          // §199A(c)(2): negative QBI to carry forward — enter as priorYearQBILoss next year
     ebl,                  // §461(l) excess business loss — becomes §172 NOL carryforward to next year
     palSuspendedRental,   // §469 suspended rental loss — carries forward to offset future passive income
   }
