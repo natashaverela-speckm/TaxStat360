@@ -857,6 +857,29 @@ describe('calcTaxReturn §469 PAL — rental loss gating for non-REP investors',
     expect(r.grossIncome).toBe(120000)
     expect(r.palSuspendedRental).toBe(0)
   })
+
+  it('MFS: $0 allowance by default (§469(i)(5)(B) lived-with-spouse rule)', () => {
+    // MFS filers who lived with spouse at any point get no §469(i) allowance.
+    // Without a mfsLivedApart input, TaxStat360 defaults to the conservative $0 rule.
+    const r = calcTaxReturn({ ...BASE, w2: 80000, rentalNet: -30000, isREP: false, status: 'mfs' })
+    expect(r.palAdjustedRental).toBeUndefined() // internal — not in return shape
+    expect(r.palSuspendedRental).toBe(30000)    // full $30k suspended
+    expect(r.grossIncome).toBe(80000)            // rental loss fully disallowed
+  })
+
+  it('PAL phase-out boundary: AGI exactly $100k gets full $25k allowance', () => {
+    // At exactly $100k preRentalAGI, phase-out hasn't started → full $25k
+    const r = calcTaxReturn({ ...BASE, w2: 100000, rentalNet: -30000, isREP: false })
+    expect(r.palSuspendedRental).toBe(5000)     // $30k loss, $25k allowed, $5k suspended
+    expect(r.grossIncome).toBe(75000)            // 100000 - 25000
+  })
+
+  it('PAL phase-out boundary: AGI exactly $150k gets $0 allowance', () => {
+    // At exactly $150k preRentalAGI, phase-out complete → $0 allowance
+    const r = calcTaxReturn({ ...BASE, w2: 150000, rentalNet: -20000, isREP: false })
+    expect(r.palSuspendedRental).toBe(20000)    // full $20k suspended
+    expect(r.grossIncome).toBe(150000)           // rental loss fully disallowed
+  })
 })
 
 // =============================================================================
@@ -914,6 +937,21 @@ describe('calcTaxReturn §461(l) — excess business loss limitation', () => {
     // MFJ filer with $700k K-1 loss → ebl = 700000 - 626000 = 74000
     const r = calcTaxReturn({ ...BASE, w2: 800000, k1Total: -700000, status: 'mfj', isREP: false })
     expect(r.ebl).toBe(74000)
+  })
+
+  it('combined PAL + EBL: both limitations apply in a realistic mixed scenario', () => {
+    // Non-REP investor, mid AGI ($120k W-2), large K-1 loss + rental loss.
+    // Step 1 — §469 PAL: preRentalAGI ≈ 120000 + (-400000) = -280000 → below $100k
+    //   But wait: preRentalAGI = w2 + k1Total + ... = 120000 + (-400000) = -280000
+    //   specialAllowance = max(0, 25000 - max(0, (-280000 - 100000) × 0.5)) = $25k (fully available)
+    //   palAdjustedRental = max(-50000, -25000) = -25000; suspended = $25k
+    // Step 2 — §461(l) EBL: eblBiz = -400000 + 0 + (-25000) = -425000
+    //   ebl = max(0, 425000 - 313000) = $112k carryforward
+    //   grossIncome = 120000 + (-400000) + (-25000) + 112000 = -193000
+    const r = calcTaxReturn({ ...BASE, w2: 120000, k1Total: -400000, rentalNet: -50000, isREP: false })
+    expect(r.palSuspendedRental).toBe(25000)   // $25k of rental suspended by §469
+    expect(r.ebl).toBe(112000)                 // $112k EBL carryforward
+    expect(r.grossIncome).toBe(-193000)        // net after both limitations
   })
 
   it('business gain offsets business loss before threshold check', () => {
