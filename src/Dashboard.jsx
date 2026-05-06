@@ -222,6 +222,14 @@ export default function Dashboard(){
     })
     if (cleanRecs.length !== recs.length) {
       // Persist the cleaned list immediately
+      const filteredOut = recs.filter(r => !cleanRecs.find(c => c.id === r.id))
+      console.warn(
+        '[Dashboard] auto-filtered',
+        recs.length - cleanRecs.length,
+        'blank record(s) from localStorage on mount. IDs:',
+        filteredOut.map(r => r.id),
+        '— A record is considered "blank" if it has no grossRevenue, no w2Income, and no k1 income/k1Total. If a user reports missing records, check whether those IDs were filtered here.',
+      )
       localStorage.setItem(key, JSON.stringify(cleanRecs))
       localStorage.setItem('ts360_records', JSON.stringify(cleanRecs))
     }
