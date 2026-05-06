@@ -22,6 +22,8 @@ const TAX_TABLES = {
     ltcg: { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    // §461(l) excess business loss thresholds — Rev. Proc. 2023-34 §3.13 (2024)
+    ebl: { single:305000, mfj:610000, mfs:305000, hoh:305000, qss:610000 },
   },
   2025: {
     std:      { single:15750, mfj:31500, mfs:15750, hoh:23625, qss:31500 },
@@ -36,6 +38,8 @@ const TAX_TABLES = {
     ltcg: { single:[48350,533400], mfj:[96700,600050], mfs:[48350,300000], hoh:[64750,566700], qss:[96700,600050] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    // §461(l) excess business loss thresholds — Rev. Proc. 2024-40 §3.14 (2025)
+    ebl: { single:313000, mfj:626000, mfs:313000, hoh:313000, qss:626000 },
   },
   2026: {
     std:      { single:16100, mfj:32200, mfs:16100, hoh:24150, qss:32200 },
@@ -50,6 +54,8 @@ const TAX_TABLES = {
     ltcg: { single:[50400,557050], mfj:[100800,626350], mfs:[50400,313175], hoh:[67650,591800], qss:[100800,626350] },
     niit: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     addlMed:  { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
+    // §461(l) excess business loss thresholds — estimated 2026 (update when Rev. Proc. 2025-xx publishes)
+    ebl: { single:320000, mfj:640000, mfs:320000, hoh:320000, qss:640000 },
   },
 }
 // ── AMT Tables — Form 6251 — IRC §55-59 ──
@@ -459,8 +465,40 @@ function calcTaxReturn(input) {
   // QBI loss carryforward — reduces qbiBasis only, NOT AGI; not YTD-scaled (annual amount)
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
+  // ── §469 Passive Activity Loss (PAL) Limitation ─────────────────────────────
+  // For non-REP investors, rental losses may only offset passive income.
+  // §469(i) allows up to $25k of rental losses for active participants,
+  // subject to AGI phase-out ($100k–$150k; not inflation-indexed per §469(i)(3)(A)).
+  // TaxStat360 assumption: non-REP users are treated as active participants (not
+  // merely passive) — conservative relative to full passive-only treatment.
+  // Suspended losses are tracked as palSuspendedRental for planning display.
+  let palAdjustedRental = rentalNet   // default: full deductibility (REP path)
+  let palSuspendedRental = 0          // rental loss deferred to future year
+  if (!isREP && rentalNet < 0) {
+    // Pre-rental AGI approximation (avoids circular dependency with grossIncome)
+    const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + taxableSS + iraIncome
+    // §469(i)(3): $25k allowance phased out 50¢/$ over $100k; eliminated at $150k
+    const specialAllowance = Math.max(0, 25000 - Math.max(0, (preRentalAGI - 100000) * 0.5))
+    // Allowed rental loss limited to the special allowance
+    palAdjustedRental = Math.max(rentalNet, -specialAllowance)
+    palSuspendedRental = Math.round(palAdjustedRental - rentalNet) // positive = suspended loss
+  }
+
+  // ── §461(l) Excess Business Loss (EBL) Limitation ───────────────────────────
+  // IRC §461(l)(1) (TCJA §11012, extended by OBBBA §70104) limits noncorporate
+  // taxpayers' aggregate business losses to the threshold amount. Excess becomes
+  // a §172 NOL carryforward to the next tax year.
+  // "Business" for §461(l): K-1 + §1231 (f4797Inc) + REP rental.
+  // W-2 wages are NOT business income — Prop. Reg. §1.461(l)-1(c)(1)(iii).
+  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? ((['mfj','qss'].includes(status)) ? 626000 : 313000)
+  // Net business position using PAL-adjusted rental (apply §469 before §461(l))
+  const eblBiz = k1Total + f4797Inc + (isREP ? rentalNet : palAdjustedRental)
+  const eblNetLoss = Math.max(0, -eblBiz)         // positive = net business loss
+  const ebl = Math.max(0, eblNetLoss - eblThreshold)  // excess = NOL carryforward
+
   // Total gross income (Schedule 1 Line 8a NOL carryforward subtracted; not YTD-scaled)
-  const grossIncome = w2 + k1Total + rentalNet + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome - Math.max(0, nv(nolCarryforward))
+  // ebl is added back to partially un-do the business loss (disallowed portion)
+  const grossIncome = w2 + k1Total + palAdjustedRental + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl - Math.max(0, nv(nolCarryforward))
 
   // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
   //
@@ -507,7 +545,10 @@ function calcTaxReturn(input) {
   // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged
   const nonSEk1 = Math.max(0, k1Total - seNetIncome)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, rentalNet) - priorQBILossCO
+  // QBI rental basis uses palAdjustedRental: suspended PAL losses are not deductible
+  // in the current year and therefore do not reduce the QBI basis. REP users are
+  // unaffected (palAdjustedRental === rentalNet when isREP=true).
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO
   const taxableBeforeQBI = Math.max(0, agi - deduction)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
@@ -610,6 +651,8 @@ function calcTaxReturn(input) {
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     priorQBILossCO,
+    ebl,                  // §461(l) excess business loss — becomes §172 NOL carryforward to next year
+    palSuspendedRental,   // §469 suspended rental loss — carries forward to offset future passive income
   }
 }
 
