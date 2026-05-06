@@ -138,6 +138,7 @@ export default function TaxReturn() {
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
+  const [isActiveParticipant, setIsActiveParticipant] = React.useState(true)
   const [rentalIncome, setRentalIncome] = React.useState(0)
   const [rentalExpenses, setRentalExpenses] = React.useState(0)
   const [capitalGains, setCapitalGains] = React.useState(0) // short-term (ordinary rates)
@@ -236,7 +237,7 @@ export default function TaxReturn() {
       writePersonalContext(liveF1040)
       writeTaxYear(taxYear)
     } catch(e) { /* sessionStorage may be unavailable in private browsing */ }
-  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward, taxYear])
+  }, [status, w2Income, w2Withheld, rentalIncome, rentalExpenses, capitalGains, ltCapGains, unrecap1250, collectiblesGain, interest, dividends, form4797, manualK1s, isREP, isActiveParticipant, useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid, dependents, priorYearQBILoss, qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward, taxYear])
 
   // Core calculations
   // YTD annualization: scale YTD inputs to full-year projections
@@ -321,6 +322,7 @@ export default function TaxReturn() {
     useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement,
     isREP,
+    isActiveParticipant,
     unrecap1250, collectiblesGain,
     w2Withheld, estPaid,
     ytdFactor,
@@ -536,14 +538,25 @@ export default function TaxReturn() {
                 <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
                 Real Estate Professional
               </label>
+            {!isREP && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N, marginTop: 6 }}>
+                <input type="checkbox" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
+                Active Participant <InfoTip text="Active participation (§469(i)(6)) means you make management decisions — approving tenants, setting rents, approving repairs. This is a low bar that most hands-on landlords meet. Uncheck if you are a PASSIVE investor only (e.g. limited partner in a real estate syndication with no management rights). Passive investors cannot use the $25,000 rental loss allowance — losses are fully suspended until the property is sold." />
+              </label>
+            )}
             {isREP ? (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
                 ✓ REP status: rental losses fully deductible against all income (subject to §461(l) excess business loss limit). Higher-income REPs should also consider §163(j) business interest limit and the §469(c)(7)(A) aggregation election if owning multiple rentals. Maintain contemporaneous time logs — IRS challenges to REP status frequently turn on documentation.
               </div>
             ) : null}
-            {!isREP && (
+            {!isREP && isActiveParticipant && (
               <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
                 ⚠ Without REP status, passive rental losses are limited to $25,000 (phased out above $100K AGI). To qualify under §469(c)(7): >750 hours/year in real property trades, >50% of personal services in real property trades, AND material participation in each rental — or aggregate via §469(c)(7)(A) election. For MFJ, only one spouse needs to meet the >750-hour and >50% tests separately (§469(c)(7)(B)).
+              </div>
+            )}
+            {!isREP && !isActiveParticipant && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#991b1b' }}>
+                ✗ Passive investor: rental losses are fully suspended under §469. They can only offset passive income from other sources. Suspended losses carry forward indefinitely and are released when the property is sold in a fully taxable transaction (§469(g)).
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
