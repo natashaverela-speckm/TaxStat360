@@ -135,7 +135,7 @@ export default function TaxReturn() {
   const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
-  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || ''); const [w2WasAutoPopulated] = React.useState(false)
+  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState(0)
@@ -173,7 +173,11 @@ export default function TaxReturn() {
   // §179 income limit display values (mirrors the cap math in the useEffect below for render-scope use)
   const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
   const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
-  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0))
+  // F-06: officer salary contributes to §179(b)(3) active business income alongside k1 and W-2.
+  // Mirrors the totalOfficerSalary aggregation in the calc-layer w2 below — keeps the display
+  // figure consistent with what the actual cap calculation uses.
+  const totalOfficerSalaryForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.pnl?.officerSalary)||0), 0)
+  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0) + totalOfficerSalaryForDisplay)
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
   const totalBox12_13ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
@@ -239,7 +243,14 @@ export default function TaxReturn() {
   const ytdFactor = ytdMode && ytdMonth > 0 ? 12 / ytdMonth : 1
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
 
-  const w2 = ytdScale(w2Income)
+  // F-06: aggregate Step 1 officer salary from S-Corp/C-Corp entities into the W-2 used for the tax calc.
+  // Officer salary is W-2 income paid to the owner-employee by the corporation (Box 1 of their W-2), NOT
+  // K-1 distribution income. Previously users had to manually copy this from Step 1 to Step 2 and could
+  // easily forget. The Step 2 W-2 input now means "additional W-2 wages from non-corporate jobs" — see
+  // the relabeled UI below. NOT ytd-scaled (Step 1 entities follow the annual-figure convention).
+  const totalOfficerSalary = entities.reduce((s, e) => s + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+
+  const w2 = ytdScale(w2Income) + totalOfficerSalary
   const rentalNet = isREP ? (ytdScale(rentalIncome) - ytdScale(rentalExpenses)) : Math.max(0, ytdScale(rentalIncome) - ytdScale(rentalExpenses))
   const stGain = ytdScale(capitalGains)    // short-term: taxed at ordinary income rates
   const ltGain = ytdScale(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
@@ -270,15 +281,19 @@ export default function TaxReturn() {
 
   // PR-E (Issue #36): S-Corp reasonable compensation soft-warning.
   // Mirrors the AIAnalysis Risk Scan check: when an S-Corp entity has positive K-1 income but
-  // owner compensation (W-2 wages used as a proxy here) is below 40% of S-Corp profit, surface
-  // a soft warning. The IRS scrutinizes this pattern aggressively (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r).
+  // S-Corp owner compensation is below 40% of S-Corp profit, surface a soft warning.
+  // The IRS scrutinizes this pattern aggressively (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r).
   // Threshold of 40% catches the gray zone — the conservative end of the 30–60% rule-of-thumb range.
   // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
+  // F-06: officer-comp portion of the ratio is scoped to S-CORP officer salaries only. Pre-fix
+  // used total w2 (incl. C-Corp officer salary) — a C-Corp salary could mask an S-Corp deficiency.
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
-  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
-  const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
-  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
-    ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: w2 === 0 ? 'high' : 'medium' }
+  const sCorpEntitiesForRc = entities.filter(e => /s.?corp/i.test(e?.type || ''))
+  const sCorpProfit = sCorpEntitiesForRc.reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
+  const sCorpOfficerSalary = sCorpEntitiesForRc.reduce((sum, e) => sum + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+  const rcRiskRatio = sCorpProfit > 0 ? sCorpOfficerSalary / sCorpProfit : null
+  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (sCorpOfficerSalary === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
+    ? { sCorpProfit, w2Wages: sCorpOfficerSalary, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: sCorpOfficerSalary === 0 ? 'high' : 'medium' }
     : null
   const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
     : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
@@ -491,16 +506,21 @@ export default function TaxReturn() {
 
           {/* W-2 & Withholding */}
           <CollapsibleSection title="W-2 INCOME & WITHHOLDING">
+            {totalOfficerSalary > 0 && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#166534' }}>
+                ✓ <strong>Officer salary from Step 1: {fmt(totalOfficerSalary)}</strong> auto-included as W-2 income. This is your S-Corp / C-Corp salary (W-2 Box 1) — already added to your tax calculation below. Enter only ADDITIONAL W-2 wages from other jobs in the field below.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
-                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />{w2WasAutoPopulated && <div style={{fontSize:11,fontStyle:'italic',color:'#6B7280',marginTop:4,lineHeight:1.4}}>Pre-filled from your business's officer/owner W-2 wages in Step 1. Add additional W-2 income (from another job) on top of this if applicable.</div>}
+                <label style={lbl}>Additional W-2 Wages (other jobs) <InfoTip text="W-2 wages from jobs OTHER than your S-Corp / C-Corp. Officer salary you entered on Step 1 is already auto-included — do NOT re-enter it here. Use this field for a day job or any other employer's W-2 Box 1. Find on each W-2 Box 1, or last paystub Gross Earnings YTD."/></label>
+                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />
                 <WhatGoesHere items={[
-                  'W-2 Box 1 (Wages, tips, other compensation) from every employer',
-                  'If you have multiple jobs, add all W-2 Box 1 amounts together',
+                  'W-2 Box 1 (Wages, tips, other compensation) from non-corporate jobs',
+                  'If you have multiple non-corporate jobs, add their W-2 Box 1 amounts together',
                   'Your last paystub → Gross Earnings YTD is a good estimate during the year',
                   'Do NOT include 401(k) contributions — those already reduce Box 1',
-                  'Do NOT include your S-Corp officer salary if already entered in Step 1 — it flows via K-1',
+                  'Do NOT include S-Corp / C-Corp officer salary here — it is auto-aggregated from Step 1',
                 ]} />
               </div>
               <div>
