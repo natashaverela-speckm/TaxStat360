@@ -403,7 +403,11 @@ function TaxOptimization({ rec }) {
   const revenue = parseFloat(b.grossRevenue) || 0
   const opExp = parseFloat(b.operatingExpenses) || 0
   const dep = parseFloat(b.depreciation) || 0
-  const officerSal = parseFloat(b.officerSalary) || 0
+  // F-06-followup / TaxOptimization: aggregate officer salary from rec.entities (S-Corp/C-Corp)
+  // rather than the legacy b.officerSalary (single-entity biz shape). For multi-entity users
+  // with multiple S-Corps, b.officerSalary only reflected the primary entity.
+  const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
+  const totalOfficerSalary = sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
   const k1 = parseFloat(rec.k1Income) || 0
   // F-06: total W-2 includes officer salary aggregated from entities — see getTotalW2 helper.
   const w2 = getTotalW2(rec)
@@ -452,9 +456,9 @@ function TaxOptimization({ rec }) {
     howTo: 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C or as an S-Corp expense.'
   })
 
-  // Reasonable salary optimization for S-Corps
-  if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 50000) {
-    const seTaxSaved = Math.round((k1 - officerSal) * 0.0765 * 2) // employer+employee FICA avoided on distributions
+  // Reasonable salary optimization for S-Corps (per-entity aggregated post-F-06)
+  if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && k1 > 50000) {
+    const seTaxSaved = Math.round((k1 - totalOfficerSalary) * 0.0765 * 2) // employer+employee FICA avoided on distributions
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
@@ -841,7 +845,7 @@ function SimulatorModal({ onClose, rec }) {
     const dep   = base.depreciation      + (d.depreciation      || 0)
     const adv   = base.advertising       + (d.advertising       || 0)
     const other = base.otherDeductions   + (d.otherDeductions   || 0)
-    const w2    = base.w2Income          + (d.w2Income          || 0)
+    const w2    = base.w2Income          + (d.w2Income          || 0) + (d.officerSalary || 0)
 
     // Entity level
     const grossProfit = rev - cogs
