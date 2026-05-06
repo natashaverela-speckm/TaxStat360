@@ -343,6 +343,9 @@ export default function TaxReturn() {
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     priorQBILossCO,
+    qbiCarryforward,
+    ebl,
+    palSuspendedRental,
   } = r
 
   const inp = { width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', outline: 'none' }
@@ -541,7 +544,7 @@ export default function TaxReturn() {
             {!isREP && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: N, marginTop: 6 }}>
                 <input type="checkbox" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} style={{ width: 14, height: 14, accentColor: B }} />
-                Active Participant <InfoTip text="Active participation (§469(i)(6)) means you make management decisions — approving tenants, setting rents, approving repairs. This is a low bar that most hands-on landlords meet. Uncheck if you are a PASSIVE investor only (e.g. limited partner in a real estate syndication with no management rights). Passive investors cannot use the $25,000 rental loss allowance — losses are fully suspended until the property is sold." />
+                Active Participant <InfoTip text="Active participation (§469(i)(6)) requires two things: (1) you own at least 10% of the rental property, AND (2) you make management decisions — approving tenants, setting rents, approving repairs. This is a low bar that most direct landlords meet. Uncheck if you are a PASSIVE investor only (e.g. limited partner in a real estate syndication, or you own less than 10% with no management role). Passive investors cannot use the $25,000 rental loss allowance — losses are fully suspended until the property is sold." />
               </label>
             )}
             {isREP ? (
@@ -789,6 +792,45 @@ export default function TaxReturn() {
                     {qbiLimitApplied === 'min400' ? '§199A(i) OBBBA minimum applied' : `Limited by ${qbiLimitApplied === 'qbi' ? '20% of QBI' : qbiLimitApplied === 'wage' ? 'wage/UBIA cap' : 'income cap'}${qbiCaps && qbiCaps.qbi > qbi ? ` (−${fmt(Math.round(qbiCaps.qbi - qbi))})` : ''}`}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* QBI Loss Carryforward — shown when current year has net negative QBI */}
+            {qbiCarryforward > 0 && (
+              <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 7, padding: '8px 10px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#FCD34D' }}>§199A QBI Loss Carryforward</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FCD34D' }}>{fmt(qbiCarryforward)}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                  Net negative QBI this year — carries forward to reduce next year's §199A deduction. Enter <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{fmt(qbiCarryforward)}</strong> in "Prior Year QBI Loss Carryforward" next year.
+                </div>
+              </div>
+            )}
+
+            {/* §461(l) EBL NOL Carryforward */}
+            {ebl > 0 && (
+              <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 7, padding: '8px 10px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#FCD34D' }}>§461(l) Excess Business Loss → NOL</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FCD34D' }}>{fmt(ebl)}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                  Business losses exceeded the {taxYear} limit. This {fmt(ebl)} becomes a §172 NOL carryforward — enter it as "Prior-Year NOL Carryforward" next year (subject to 80% taxable income cap).
+                </div>
+              </div>
+            )}
+
+            {/* §469 PAL Suspended Rental Loss */}
+            {palSuspendedRental > 0 && (
+              <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 7, padding: '8px 10px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#FCD34D' }}>§469 Suspended Rental Loss</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FCD34D' }}>{fmt(palSuspendedRental)}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                  Passive rental loss not deductible this year. Carries forward to offset future passive income or releases fully when the property is sold (§469(g)).
+                </div>
               </div>
             )}
 
