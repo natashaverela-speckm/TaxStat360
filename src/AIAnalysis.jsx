@@ -18,6 +18,23 @@ const isPassthroughEntity = (t) => /partnership|llc|s.?corp|sole/i.test(t || '')
 const isSCorpEntity      = (t) => /s.?corp/i.test(t || '')
 const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
 
+// F-06: returns the user's TOTAL W-2 wages (additional W-2 from non-S-Corp jobs +
+// aggregated officer salary across all S-Corp/C-Corp entities). Post-F-06, saved
+// f.w2Income carries 'additional only' semantics — the per-entity officer salary
+// lives in rec.entities[i].pnl.officerSalary. Mirrors the existing pattern where
+// f.form4797 is aggregated with rec.entities[i].box17K in getRecord.
+function getTotalW2(rec) {
+  if (!rec) return 0
+  const f = rec.f1040 || {}
+  const additionalW2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
+  const entities = Array.isArray(rec.entities) ? rec.entities : []
+  const totalOfficerSalary = entities.reduce(
+    (s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0),
+    0,
+  )
+  return additionalW2 + totalOfficerSalary
+}
+
 function Logo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -89,7 +106,8 @@ function getRecord(liveState) {
     const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
     const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
     const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
-    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(f1040.w2Income)||0))
+    const totalOfficerSalary = entities.reduce((s,e)=>s+(parseFloat(e.pnl?.officerSalary)||0), 0)
+    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(f1040.w2Income)||0) + totalOfficerSalary)
     const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
     const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
     const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
@@ -166,7 +184,7 @@ function completeness(rec) {
   if (parseFloat(b.grossRevenue) > 0) s += 15
   if (b.entityType) s += 10
   if (f.filingStatus) s += 10
-  if (parseFloat(f.w2Income) > 0) s += 10
+  if (parseFloat(f.w2Income) > 0 || getTotalW2(rec) > 0) s += 10
   if (parseFloat(b.officerSalary) > 0) s += 5
   if (parseFloat(b.operatingExpenses) > 0) s += 5
   if (parseFloat(b.depreciation) > 0) s += 5
@@ -181,7 +199,9 @@ function RiskScan({ rec }) {
   const revenue = parseFloat(b.grossRevenue) || 0
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
-  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
+  // F-06: total W-2 = additional W-2 (f.w2Income) + aggregated officer salary across entities.
+  // Post-F-06 saved f.w2Income carries 'additional only' semantics — see getTotalW2 helper.
+  const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
   const dep = parseFloat(b.depreciation) || 0
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
@@ -206,14 +226,38 @@ function RiskScan({ rec }) {
 
   const findings = []
 
-  // ── S-Corp salary check ──────────────────────────────────────────────────────
-  // PR-E (Issue #36): tolerant entity-type match — historical data has 'S Corporation'
-  // (canonical, with space) and 'S-Corporation' (legacy, with hyphen) variants.
-  // ownerComp falls back to W-2 wages when officerSalary isn't tracked (synthesized
-  // records from the calculator flow always have officerSalary empty).
-  const isSCorpEntity = /s.?corp/i.test(b.entityType || '')
-  const ownerComp = officerSal > 0 ? officerSal : w2
-  if (isSCorpEntity) {
+  // ── S-Corp salary check (F-06: per-entity precision) ─────────────────────────
+  // Scan each S-Corp entity in rec.entities and check its own officer salary against its
+  // own profit. Pre-F-06 used b.officerSalary (single-entity legacy shape) OR total w2
+  // as a proxy, which produced false negatives when a user's day-job W-2 masked a low
+  // S-Corp salary. With Strategy C aggregation in TaxReturn.jsx, per-entity comp is
+  // available on rec.entities[i].pnl.officerSalary. Tolerant entity-type match handles
+  // 'S Corporation' (canonical) and legacy 'S-Corporation' variants.
+  // Fallback: if rec.entities is empty (legacy saved record before multi-entity support),
+  // fall back to the old single-entity logic using b.officerSalary + b.entityType + k1.
+  const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
+  if (sCorpEntities.length > 0) {
+    sCorpEntities.forEach(e => {
+      const entityName = e.name || 'S-Corp'
+      const eK1 = Math.round((parseFloat(e.netProfit) || 0) * (parseInt(e.own) || 100) / 100)
+      const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
+      if (eOfficerSal === 0 && eK1 > 20000) {
+        findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
+          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
+          action: `Set ${entityName}'s officer salary on Step 1 to at least 35–40% of its net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.` })
+      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.4) {
+        findings.push({ level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
+          detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/eK1)*100).toFixed(1)}% ratio). The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
+          action: `Consider increasing ${entityName}'s officer salary to at least ${fmt(Math.round(eK1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
+      } else if (eOfficerSal > 0) {
+        findings.push({ level: 'good', icon: '✅', title: `Officer Salary Recorded — ${entityName}`,
+          detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
+          action: null })
+      }
+    })
+  } else if (isSCorpEntity(b.entityType)) {
+    // Legacy single-entity fallback for older saved records pre-multi-entity support.
+    const ownerComp = officerSal > 0 ? officerSal : w2
     if (ownerComp === 0 && k1 > 20000) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
@@ -357,7 +401,8 @@ function TaxOptimization({ rec }) {
   const dep = parseFloat(b.depreciation) || 0
   const officerSal = parseFloat(b.officerSalary) || 0
   const k1 = parseFloat(rec.k1Income) || 0
-  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
+  // F-06: total W-2 includes officer salary aggregated from entities — see getTotalW2 helper.
+  const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
   const year = parseInt(b.year) || 2025
   const isPassthrough = isPassthroughEntity(b.entityType)
@@ -480,7 +525,8 @@ function TaxOptimization({ rec }) {
 function IRSCompliance({ rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
-  const w2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
+  // F-06: total W-2 includes officer salary aggregated from entities — see getTotalW2 helper.
+  const w2 = getTotalW2(rec)
   const rental = false // future
   const entity = b.entityType || 'Unknown'
   const year = parseInt(b.year) || 2025
@@ -705,7 +751,7 @@ function ReportModal({ onClose, rec }) {
               ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
               ['K-1 Income to Personal Return', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
-              ['W-2 Income', f.w2Income ? '$' + parseFloat(f.w2Income).toLocaleString() : ''],
+              ['W-2 Income', getTotalW2(rec) > 0 ? '$' + getTotalW2(rec).toLocaleString() : ''],
               ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
@@ -751,7 +797,7 @@ function SimulatorModal({ onClose, rec }) {
     depreciation:      parseFloat(b.depreciation)       || 0,
     advertising:       parseFloat(b.advertising)        || 0,
     otherDeductions:   parseFloat(b.otherDeductions)    || 0,
-    w2Income:          parseFloat(f.w2Income)            || 0,
+    w2Income:          getTotalW2(rec)                       || 0,
     estPaid:           parseFloat(f.estPaid)  || 0,
   }
 
