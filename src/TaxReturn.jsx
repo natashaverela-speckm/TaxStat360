@@ -829,7 +829,7 @@ export default function TaxReturn() {
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#FCD34D' }}>{fmt(palSuspendedRental)}</span>
                 </div>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
-                  Passive rental loss not deductible this year. Carries forward to offset future passive income or releases fully when the property is sold (§469(g)).
+                  Passive rental loss not deductible this year. Carries forward to offset future passive income; released upon a fully taxable disposition of your entire interest in the activity to an unrelated party (§469(g)).
                 </div>
               </div>
             )}
