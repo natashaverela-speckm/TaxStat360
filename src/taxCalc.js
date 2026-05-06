@@ -565,10 +565,13 @@ function calcTaxReturn(input) {
   // divInc is Box 1a (ordinary dividends, INCLUDES qualified per Form 1099-DIV);
   // qualDiv (Box 1b) is a subset of divInc — do NOT add it again or qualified dividends are double-counted.
   const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
-  // F-01-followup-A: stGain added to NII base. IRC §1411(c)(1) includes net gain from
-  // property disposition — short-term capital gains are NII just like long-term gains.
-  // Math.max(0, stGain) treats losses as zero (conservative, matches ltGain treatment).
-  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain) + Math.max(0, stGain) + rentalNII)
+  // F-01-followup-A: stGain added to NII base. IRC §1411(c)(1)(C) and Treas. Reg.
+  // §1.1411-4(d)(4)(ii) include net gain from property disposition in NII using §1222
+  // netting mechanics — stGain losses net against ltGain in a single combined capital
+  // gain pool before the floor-at-zero applies. Combined clamp: Math.max(0, ltGain+stGain).
+  // Note: capital losses cannot reduce other NII buckets (interest, dividends, rental) —
+  // the outer Math.max(0, ...) correctly blocks cross-bucket netting.
+  const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain + stGain) + rentalNII)
   const niit = calcNIIT(nii, agi, taxYear, status)
 
   // ── Child Tax Credit (IRC §24) ──
