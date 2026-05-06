@@ -213,12 +213,22 @@ export default function Dashboard(){
     // Clear connected badge — re-verified below via live fetch
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
-    // Remove any blank records (no revenue AND no W-2) that may have been saved previously
-    // Keep any record that has real data — biz-based OR flat personal-return format
+    // Remove blank records (no real data) that have been sitting for more than 30 days.
+    // Records saved within the last 30 days are kept even if blank — the user may still
+    // be filling them in. Records with real data are always kept regardless of age.
+    // r.id is Date.now() at save time, giving a reliable creation timestamp.
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
     const cleanRecs = recs.filter(r => {
-      if (r.biz) return parseFloat(r.biz?.pnl?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0 || parseFloat(r.k1Income) > 0
-      // flat personal-return records from TaxReturn page — keep if has any income
-      return parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
+      const hasData = r.biz
+        // biz-format records (from Dashboard): check revenue, W-2, rental, and k1
+        ? parseFloat(r.biz?.pnl?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0
+          || parseFloat(r.f1040?.rentalIncome) > 0 || parseFloat(r.k1Income) > 0
+        // flat personal-return records (from TaxReturn page)
+        : parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
+      if (hasData) return true
+      // No real data — keep if created within 30 days (grace period for partial saves)
+      const ageMs = Date.now() - (r.id || 0)
+      return ageMs < THIRTY_DAYS_MS
     })
     if (cleanRecs.length !== recs.length) {
       // Persist the cleaned list immediately
@@ -228,7 +238,7 @@ export default function Dashboard(){
         recs.length - cleanRecs.length,
         'blank record(s) from localStorage on mount. IDs:',
         filteredOut.map(r => r.id),
-        '— A record is considered "blank" if it has no grossRevenue, no w2Income, and no k1 income/k1Total. If a user reports missing records, check whether those IDs were filtered here.',
+        '— Records are kept for 30 days even without data (grace period for partial saves). After 30 days, blank records (no grossRevenue, w2Income, rentalIncome, or k1 income) are purged. If a user reports missing records, check whether those IDs were filtered here and when they were created (r.id = Date.now() at save time).',
       )
       localStorage.setItem(key, JSON.stringify(cleanRecs))
       localStorage.setItem('ts360_records', JSON.stringify(cleanRecs))
