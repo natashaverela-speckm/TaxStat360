@@ -255,7 +255,7 @@ export default function Dashboard(){
       // Only auto-navigate to form if explicitly requested (e.g. "Update Data" button)
       if(sessionStorage.getItem('ts360_goto_form')==='1'){
         sessionStorage.removeItem('ts360_goto_form')
-        navigate('/calculate-tax/')
+        navigate('/calculate-tax')
       }
     }
     const params=new URLSearchParams(window.location.search)
@@ -525,7 +525,7 @@ export default function Dashboard(){
     // restored business entity before proceeding. They can click "Continue to
     // Personal Tax Return" to advance to Step 2 once they've verified Step 1
     // looks right. The Step 2 data is already in sessionStorage waiting for them.
-    nav('/calculate-tax/')
+    nav('/calculate-tax')
   }
 
 
@@ -614,7 +614,7 @@ export default function Dashboard(){
               setSaved(false)
               setLoadedRecord(null)
               clearStep1State()
-              navigate('/calculate-tax/')
+              navigate('/calculate-tax')
             }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
           {records.length===0?(
@@ -629,7 +629,7 @@ export default function Dashboard(){
               setSaved(false)
               setLoadedRecord(null)
               clearStep1State()
-              navigate('/calculate-tax/')
+              navigate('/calculate-tax')
             }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
           ):(
@@ -681,7 +681,7 @@ export default function Dashboard(){
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
-          <button onClick={()=>navigate('/calculate-tax/')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
+          <button onClick={()=>navigate('/calculate-tax')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
         </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
