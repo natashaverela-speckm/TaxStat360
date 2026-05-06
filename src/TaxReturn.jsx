@@ -135,7 +135,7 @@ export default function TaxReturn() {
   const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   // PR-G (Issue #29): Prior-year NOL carryforward (Schedule 1 Line 8a)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
-  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || ''); const [w2WasAutoPopulated] = React.useState(false)
+  const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [rentalIncome, setRentalIncome] = React.useState(0)
@@ -239,7 +239,14 @@ export default function TaxReturn() {
   const ytdFactor = ytdMode && ytdMonth > 0 ? 12 / ytdMonth : 1
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
 
-  const w2 = ytdScale(w2Income)
+  // F-06: aggregate Step 1 officer salary from S-Corp/C-Corp entities into the W-2 used for the tax calc.
+  // Officer salary is W-2 income paid to the owner-employee by the corporation (Box 1 of their W-2), NOT
+  // K-1 distribution income. Previously users had to manually copy this from Step 1 to Step 2 and could
+  // easily forget. The Step 2 W-2 input now means "additional W-2 wages from non-corporate jobs" — see
+  // the relabeled UI below. NOT ytd-scaled (Step 1 entities follow the annual-figure convention).
+  const totalOfficerSalary = entities.reduce((s, e) => s + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+
+  const w2 = ytdScale(w2Income) + totalOfficerSalary
   const rentalNet = isREP ? (ytdScale(rentalIncome) - ytdScale(rentalExpenses)) : Math.max(0, ytdScale(rentalIncome) - ytdScale(rentalExpenses))
   const stGain = ytdScale(capitalGains)    // short-term: taxed at ordinary income rates
   const ltGain = ytdScale(ltCapGains)      // long-term: taxed at preferential 0/15/20% rates
@@ -491,16 +498,21 @@ export default function TaxReturn() {
 
           {/* W-2 & Withholding */}
           <CollapsibleSection title="W-2 INCOME & WITHHOLDING">
+            {totalOfficerSalary > 0 && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#166534' }}>
+                ✓ <strong>Officer salary from Step 1: {fmt(totalOfficerSalary)}</strong> auto-included as W-2 income. This is your S-Corp / C-Corp salary (W-2 Box 1) — already added to your tax calculation below. Enter only ADDITIONAL W-2 wages from other jobs in the field below.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>W-2 Wages (all jobs) <InfoTip text="Your total W-2 wages from all employers. Find on W-2 Box 1, or your last paystub under Gross Earnings YTD. Include all jobs."/></label>
-                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />{w2WasAutoPopulated && <div style={{fontSize:11,fontStyle:'italic',color:'#6B7280',marginTop:4,lineHeight:1.4}}>Pre-filled from your business's officer/owner W-2 wages in Step 1. Add additional W-2 income (from another job) on top of this if applicable.</div>}
+                <label style={lbl}>Additional W-2 Wages (other jobs) <InfoTip text="W-2 wages from jobs OTHER than your S-Corp / C-Corp. Officer salary you entered on Step 1 is already auto-included — do NOT re-enter it here. Use this field for a day job or any other employer's W-2 Box 1. Find on each W-2 Box 1, or last paystub Gross Earnings YTD."/></label>
+                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" style={inp} />
                 <WhatGoesHere items={[
-                  'W-2 Box 1 (Wages, tips, other compensation) from every employer',
-                  'If you have multiple jobs, add all W-2 Box 1 amounts together',
+                  'W-2 Box 1 (Wages, tips, other compensation) from non-corporate jobs',
+                  'If you have multiple non-corporate jobs, add their W-2 Box 1 amounts together',
                   'Your last paystub → Gross Earnings YTD is a good estimate during the year',
                   'Do NOT include 401(k) contributions — those already reduce Box 1',
-                  'Do NOT include your S-Corp officer salary if already entered in Step 1 — it flows via K-1',
+                  'Do NOT include S-Corp / C-Corp officer salary here — it is auto-aggregated from Step 1',
                 ]} />
               </div>
               <div>
