@@ -110,7 +110,7 @@ function getRecord(liveState) {
     const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
     const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
     const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
-    const totalOfficerSalary = entities.reduce((s,e)=>s+(parseFloat(e.pnl?.officerSalary)||0), 0)
+    const totalOfficerSalary = entities.reduce((s,e)=>s+(parseFloat(e?.pnl?.officerSalary)||0), 0)
     const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(f1040.w2Income)||0) + totalOfficerSalary)
     const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
     const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
