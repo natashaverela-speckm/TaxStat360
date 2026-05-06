@@ -1017,3 +1017,57 @@ describe('calcTaxReturn §199A QBI carryforward output', () => {
     expect(r.qbi).toBe(0)
   })
 })
+
+// =============================================================================
+// SSTB QBI carryforward exclusion — Treas. Reg. §1.199A-1(d)(2)(iii)(A)
+// Above the phase-out threshold, SSTB items are not "qualified items" and
+// must not carry forward as QBI loss. sstbApplicablePct gates their contribution.
+// =============================================================================
+describe('calcTaxReturn §199A SSTB loss — qbiCarryforward exclusion above phase-out', () => {
+  // Helper: create an SSTB entity
+  const sstbEntity = (k1) => ({
+    type: 'S Corporation', k1, netProfit: k1, own: 100,
+    box17V_sstb: true, box17V_wages: 0, box17V_ubia: 0,
+  })
+  const nonSSTBEntity = (k1) => ({
+    type: 'S Corporation', k1, netProfit: k1, own: 100,
+    box17V_sstb: false, box17V_wages: 0, box17V_ubia: 0,
+  })
+
+  it('below threshold: SSTB loss fully carries forward as QBI loss', () => {
+    // TI < $197,300 → sstbApplicablePct = 1 → full SSTB loss in qbiBasis
+    const r = calcTaxReturn({
+      ...BASE, w2: 150000, k1Total: -100000,
+      entities: [sstbEntity(-100000)], taxYear: 2025,
+    })
+    expect(r.qbiCarryforward).toBe(100000)
+  })
+
+  it('fully above phase-out: SSTB loss excluded from qbiCarryforward', () => {
+    // TI > $247,300 ($197,300 + $50,000) → sstbApplicablePct = 0 → SSTB loss excluded
+    const r = calcTaxReturn({
+      ...BASE, w2: 350000, k1Total: -100000,
+      entities: [sstbEntity(-100000)], taxYear: 2025,
+    })
+    expect(r.qbiCarryforward).toBe(0)   // SSTB loss not a qualified item above phase-out
+  })
+
+  it('non-SSTB loss above threshold: still carries forward (not gated by sstbApplicablePct)', () => {
+    // S-Corp above threshold but NOT SSTB → full loss carries forward regardless
+    const r = calcTaxReturn({
+      ...BASE, w2: 350000, k1Total: -100000,
+      entities: [nonSSTBEntity(-100000)], taxYear: 2025,
+    })
+    expect(r.qbiCarryforward).toBe(100000)
+  })
+
+  it('mixed: SSTB loss phased out + non-SSTB gain → no carryforward', () => {
+    // Above threshold: SSTB -$100k excluded, non-SSTB +$50k included → net +$50k, no carryforward
+    const r = calcTaxReturn({
+      ...BASE, w2: 350000, k1Total: -50000,  // net: -100k + 50k
+      entities: [sstbEntity(-100000), nonSSTBEntity(50000)], taxYear: 2025,
+    })
+    expect(r.qbiCarryforward).toBe(0)   // net qbiBasis positive → no carryforward
+    // nonSEk1 = -100k × 0 + 50k × 1 = 50k → qbiBasis > 0
+  })
+})
