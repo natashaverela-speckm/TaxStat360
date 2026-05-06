@@ -173,7 +173,11 @@ export default function TaxReturn() {
   // §179 income limit display values (mirrors the cap math in the useEffect below for render-scope use)
   const k1ActiveForDisplay = entities.reduce((s,e)=>s+Math.round((parseMoney(e.netProfit)||0)*(parseInt(e.own)||100)/100), 0)
   const totalSec179ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box11_12)||0), 0)
-  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0))
+  // F-06: officer salary contributes to §179(b)(3) active business income alongside k1 and W-2.
+  // Mirrors the totalOfficerSalary aggregation in the calc-layer w2 below — keeps the display
+  // figure consistent with what the actual cap calculation uses.
+  const totalOfficerSalaryForDisplay = entities.reduce((s,e)=>s+(parseFloat(e.pnl?.officerSalary)||0), 0)
+  const activeBizIncomeForDisplay = Math.max(0, k1ActiveForDisplay + (parseMoney(w2Income)||0) + totalOfficerSalaryForDisplay)
   const sec179AllowedForDisplay = Math.min(totalSec179ForDisplay, activeBizIncomeForDisplay)
   const sec179DisallowedForDisplay = Math.max(0, totalSec179ForDisplay - activeBizIncomeForDisplay)
   const totalBox12_13ForDisplay = entities.reduce((s,e)=>s+(parseMoney(e.box12_13)||0), 0)
@@ -277,15 +281,19 @@ export default function TaxReturn() {
 
   // PR-E (Issue #36): S-Corp reasonable compensation soft-warning.
   // Mirrors the AIAnalysis Risk Scan check: when an S-Corp entity has positive K-1 income but
-  // owner compensation (W-2 wages used as a proxy here) is below 40% of S-Corp profit, surface
-  // a soft warning. The IRS scrutinizes this pattern aggressively (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r).
+  // S-Corp owner compensation is below 40% of S-Corp profit, surface a soft warning.
+  // The IRS scrutinizes this pattern aggressively (IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r).
   // Threshold of 40% catches the gray zone — the conservative end of the 30–60% rule-of-thumb range.
   // Tolerant entity-type match — handles 'S Corporation' (canonical) and legacy 'S-Corporation'.
+  // F-06: officer-comp portion of the ratio is scoped to S-CORP officer salaries only. Pre-fix
+  // used total w2 (incl. C-Corp officer salary) — a C-Corp salary could mask an S-Corp deficiency.
   const hasSCorpEntity = entities.some(e => /s.?corp/i.test(e?.type || ''))
-  const sCorpProfit = entities.filter(e => /s.?corp/i.test(e?.type || '')).reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
-  const rcRiskRatio = sCorpProfit > 0 ? w2 / sCorpProfit : null
-  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (w2 === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
-    ? { sCorpProfit, w2Wages: w2, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: w2 === 0 ? 'high' : 'medium' }
+  const sCorpEntitiesForRc = entities.filter(e => /s.?corp/i.test(e?.type || ''))
+  const sCorpProfit = sCorpEntitiesForRc.reduce((sum, e) => sum + Math.max(0, parseMoney(e.netProfit) || 0), 0)
+  const sCorpOfficerSalary = sCorpEntitiesForRc.reduce((sum, e) => sum + (parseFloat(e.pnl?.officerSalary) || 0), 0)
+  const rcRiskRatio = sCorpProfit > 0 ? sCorpOfficerSalary / sCorpProfit : null
+  const rcRisk = (hasSCorpEntity && sCorpProfit > 20000 && (sCorpOfficerSalary === 0 || (rcRiskRatio !== null && rcRiskRatio < 0.4)))
+    ? { sCorpProfit, w2Wages: sCorpOfficerSalary, ratio: rcRiskRatio, targetW2: sCorpProfit * 0.40, severity: sCorpOfficerSalary === 0 ? 'high' : 'medium' }
     : null
   const incomeSectionLabel = hasSchedC && hasK1 ? 'BUSINESS INCOME FROM STEP 1'
     : hasSchedC ? 'SCHEDULE C NET PROFIT FROM STEP 1'
