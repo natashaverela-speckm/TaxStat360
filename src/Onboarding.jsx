@@ -169,15 +169,20 @@ function LoginScreen(){
 function EntityScreen(){
   const nav=useNavigate()
   const [selected,setSelected]=useState('')
-  const types=['S-Corporation','Multi-Member LLC','Partnership','Sole Proprietor','C-Corporation','Other']
+  // F-02-followup-A: sync labels with constants.js ENTITY_TYPES terminology.
+  // Active/Passive partnership distinction is deferred to Step 1 (CalculateTaxInner)
+  // where the full IRC §1402(a)(13) material-participation context is presented.
+  // 'Other' covers trusts, REITs, and edge cases we surface but don't yet calculate.
+  const types=['Sole Proprietor / Single-Member LLC','Partnership / MMLLC','S Corporation','C Corporation','Other']
   return(<Page>
     <LOGO/>
     <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
     <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
     <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
-      {types.map(t=>(<button key={t} type="button" onClick={()=>setSelected(t)} style={{padding:'14px 10px',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff'}}>{t}</button>))}
+    <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
+      {types.map(t=>(<button key={t} type="button" onClick={()=>setSelected(t)} style={{padding:'14px 14px',textAlign:'left',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff'}}>{t}</button>))}
     </div>
+    <p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details — this affects whether self-employment tax applies.</p>
     <button onClick={()=>{if(selected){localStorage.setItem('entityType',selected);nav('/onboarding/business')}}} disabled={!selected} style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}>Continue →</button>
   </Page>)
 }
