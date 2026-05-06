@@ -810,3 +810,117 @@ describe('calcTaxReturn output shape', () => {
     expect(() => calcTaxReturn({ ...BASE, w2: 0 })).not.toThrow()
   })
 })
+
+// =============================================================================
+// §469 PAL regression guard — rental losses gated for non-REP investors
+// Non-REP users may only deduct rental losses up to the §469(i) special
+// allowance ($25k, phased out $100k–$150k AGI). REP users retain full
+// deductibility. isREP flag governs both the income-tax PAL gate and the
+// NIIT rental exclusion.
+// =============================================================================
+describe('calcTaxReturn §469 PAL — rental loss gating for non-REP investors', () => {
+  it('REP: full rental loss deductible against ordinary income', () => {
+    // isREP=true — existing behavior preserved, no PAL limitation
+    const r = calcTaxReturn({ ...BASE, w2: 150000, rentalNet: -30000, isREP: true })
+    // grossIncome = 150000 + (-30000) + 0 ebl = 120000
+    expect(r.grossIncome).toBe(120000)
+    expect(r.palSuspendedRental).toBe(0)
+  })
+
+  it('non-REP high AGI ($200k): rental loss fully suspended (above $150k phase-out)', () => {
+    // Pre-rental AGI $200k → specialAllowance = 0 → palAdjustedRental = 0
+    const r = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: -50000, isREP: false })
+    expect(r.grossIncome).toBe(200000)          // rental loss fully suspended
+    expect(r.palSuspendedRental).toBe(50000)    // full $50k suspended
+  })
+
+  it('non-REP low AGI ($80k): $25k special allowance fully available', () => {
+    // Pre-rental AGI $80k < $100k phase-out start → full $25k allowance
+    // rentalNet = -30k; allowed = -25k; suspended = $5k
+    const r = calcTaxReturn({ ...BASE, w2: 80000, rentalNet: -30000, isREP: false })
+    expect(r.grossIncome).toBe(55000)            // 80000 + (-25000)
+    expect(r.palSuspendedRental).toBe(5000)      // $5k of $30k suspended
+  })
+
+  it('non-REP mid AGI ($120k): $25k allowance prorated to $15k', () => {
+    // Pre-rental AGI $120k → specialAllowance = 25000 - (20000 × 0.5) = $15k
+    // rentalNet = -20k; all $20k is within the $15k allowance... wait:
+    // palAdjustedRental = max(-20000, -15000) = -15000; suspended = $5k
+    const r = calcTaxReturn({ ...BASE, w2: 120000, rentalNet: -20000, isREP: false })
+    expect(r.grossIncome).toBe(105000)           // 120000 + (-15000)
+    expect(r.palSuspendedRental).toBe(5000)      // $5k suspended
+  })
+
+  it('non-REP: rental income (positive) is unaffected by PAL gating', () => {
+    // PAL only gates losses; rental income always flows through
+    const r = calcTaxReturn({ ...BASE, w2: 100000, rentalNet: 20000, isREP: false })
+    expect(r.grossIncome).toBe(120000)
+    expect(r.palSuspendedRental).toBe(0)
+  })
+})
+
+// =============================================================================
+// §461(l) EBL regression guard — excess business loss limitation
+// IRC §461(l)(1) caps noncorporate business losses at the annual threshold.
+// Excess becomes a §172 NOL carryforward. W-2 is NOT business income.
+// Thresholds: $313k single / $626k MFJ for 2025 (Rev. Proc. 2024-40).
+// =============================================================================
+describe('calcTaxReturn §461(l) — excess business loss limitation', () => {
+  it('business loss below threshold: no EBL, full loss allowed', () => {
+    // K-1 loss $200k < $313k threshold → ebl = 0, no adjustment
+    const r = calcTaxReturn({ ...BASE, w2: 300000, k1Total: -200000, isREP: false })
+    expect(r.ebl).toBe(0)
+    expect(r.grossIncome).toBe(100000)   // 300000 + (-200000) + 0
+  })
+
+  it('business loss above threshold: excess becomes EBL carryforward', () => {
+    // K-1 loss $400k > $313k threshold → ebl = $87k carryforward
+    const r = calcTaxReturn({ ...BASE, w2: 500000, k1Total: -400000, isREP: false })
+    expect(r.ebl).toBe(87000)            // 400000 - 313000
+    // grossIncome: 500000 + (-400000) + 87000 = 187000 (loss capped at $313k)
+    expect(r.grossIncome).toBe(187000)
+  })
+
+  it('W-2 income is NOT counted as business income in EBL computation', () => {
+    // Only K-1 is business; $400k W-2 does not expand the allowed loss
+    const withHighW2 = calcTaxReturn({ ...BASE, w2: 1000000, k1Total: -400000, isREP: false })
+    const withLowW2  = calcTaxReturn({ ...BASE, w2: 100000,  k1Total: -400000, isREP: false })
+    // ebl should be identical regardless of W-2 level
+    expect(withHighW2.ebl).toBe(withLowW2.ebl)
+    expect(withHighW2.ebl).toBe(87000)
+  })
+
+  it('REP rental losses count toward EBL business bucket', () => {
+    // REP: K-1 -$200k + rental -$200k = -$400k net biz > $313k threshold
+    const r = calcTaxReturn({ ...BASE, w2: 500000, k1Total: -200000, rentalNet: -200000, isREP: true })
+    expect(r.ebl).toBe(87000)            // 400000 - 313000
+  })
+
+  it('Pass 5 scenario: S-Corp -$343k + REP rental -$85k → EBL $115k', () => {
+    // Exact scenario from Pass 5 audit. Opus flagged this as potentially wrong on the filed return.
+    // k1Total = -343443, rentalNet = -84599, isREP = true, single, 2025
+    // eblBiz = -343443 + 0 + (-84599) = -428042
+    // ebl = 428042 - 313000 = 115042
+    const r = calcTaxReturn({
+      ...BASE,
+      w2: 287500, k1Total: -343443, rentalNet: -84599,
+      ltGain: 113072, isREP: true, taxYear: 2025,
+    })
+    expect(r.ebl).toBe(115042)
+    expect(r.palSuspendedRental).toBe(0)  // isREP=true, no PAL gate
+  })
+
+  it('MFJ: higher threshold ($626k) applies', () => {
+    // MFJ filer with $700k K-1 loss → ebl = 700000 - 626000 = 74000
+    const r = calcTaxReturn({ ...BASE, w2: 800000, k1Total: -700000, status: 'mfj', isREP: false })
+    expect(r.ebl).toBe(74000)
+  })
+
+  it('business gain offsets business loss before threshold check', () => {
+    // K-1 -$400k but §1231 gain $150k → net biz loss $250k < $313k threshold
+    const r = calcTaxReturn({ ...BASE, w2: 300000, k1Total: -400000, f4797Inc: 150000, isREP: false })
+    expect(r.ebl).toBe(0)               // net biz loss $250k < threshold
+    // grossIncome: 300000 + (-400000) + 150000 + 0 ebl = 50000
+    expect(r.grossIncome).toBe(50000)
+  })
+})
