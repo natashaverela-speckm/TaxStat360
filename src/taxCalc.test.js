@@ -962,3 +962,22 @@ describe('calcTaxReturn §461(l) — excess business loss limitation', () => {
     expect(r.grossIncome).toBe(50000)
   })
 })
+
+// =============================================================================
+// §469(i)(6) active participation flag — passive investor gets $0 allowance
+// =============================================================================
+describe('calcTaxReturn §469(i) — isActiveParticipant flag', () => {
+  it('passive investor (isActiveParticipant=false): rental losses fully suspended', () => {
+    // Limited partner / syndication investor — no management rights → $0 allowance
+    const r = calcTaxReturn({ ...BASE, w2: 80000, rentalNet: -30000, isREP: false, isActiveParticipant: false })
+    expect(r.palSuspendedRental).toBe(30000)  // full loss suspended
+    expect(r.grossIncome).toBe(80000)          // rental loss fully disallowed
+  })
+
+  it('active participant (default): $25k allowance applies normally', () => {
+    // Default isActiveParticipant=true — existing behavior preserved
+    const r = calcTaxReturn({ ...BASE, w2: 80000, rentalNet: -30000, isREP: false })
+    expect(r.palSuspendedRental).toBe(5000)   // $5k suspended, $25k allowed
+    expect(r.grossIncome).toBe(55000)          // 80000 - 25000
+  })
+})
