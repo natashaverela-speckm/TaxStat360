@@ -469,16 +469,24 @@ function calcTaxReturn(input) {
   // For non-REP investors, rental losses may only offset passive income.
   // §469(i) allows up to $25k of rental losses for active participants,
   // subject to AGI phase-out ($100k–$150k; not inflation-indexed per §469(i)(3)(A)).
-  // TaxStat360 assumption: non-REP users are treated as active participants (not
+  // MFS exception: §469(i)(5)(B) — MFS filers who lived with spouse at any point
+  // during the year get $0 allowance (no deduction). Without a mfsLivedApart input,
+  // the conservative §469(i)(5)(B) rule applies by default for all MFS filers.
+  // TaxStat360 assumption: non-MFS users are treated as active participants (not
   // merely passive) — conservative relative to full passive-only treatment.
   // Suspended losses are tracked as palSuspendedRental for planning display.
   let palAdjustedRental = rentalNet   // default: full deductibility (REP path)
   let palSuspendedRental = 0          // rental loss deferred to future year
   if (!isREP && rentalNet < 0) {
     // Pre-rental AGI approximation (avoids circular dependency with grossIncome)
-    const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + taxableSS + iraIncome
-    // §469(i)(3): $25k allowance phased out 50¢/$ over $100k; eliminated at $150k
-    const specialAllowance = Math.max(0, 25000 - Math.max(0, (preRentalAGI - 100000) * 0.5))
+    const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
+    // §469(i)(5)(A)/(B): MFS filers — default to $0 allowance (lived-with-spouse rule)
+    // If a future mfsLivedApart input is added, branch here to $12,500 / $50k–$75k.
+    const isMFS = status === 'mfs'
+    const baseAllowance = isMFS ? 0 : 25000
+    const phaseStart    = isMFS ? 0 : 100000
+    // §469(i)(3): allowance phased out 50¢/$ over phase-out start; eliminated at start+$50k
+    const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
     // Allowed rental loss limited to the special allowance
     palAdjustedRental = Math.max(rentalNet, -specialAllowance)
     palSuspendedRental = Math.round(palAdjustedRental - rentalNet) // positive = suspended loss
