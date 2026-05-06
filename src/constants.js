@@ -46,3 +46,20 @@ export const INTEGRATIONS = [
   { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'WV' },
   { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
+
+// Ownership percentage fallback convention
+// Throughout the codebase, entity ownership is parsed as:
+//   (parseInt(e.own) || 100) / 100
+// This pattern defaults to 100% for any missing or invalid value (NaN from '', undefined,
+// null, or non-numeric input), which is the correct behavior for the most common user
+// scenario (sole owner = 100% automatically when the field is blank).
+//
+// Known limitation: explicit '0' ownership is also treated as 100% because 0 is falsy
+// in JavaScript and triggers the || fallback. This is an accepted trade-off — a 0%
+// ownership stake (silent partner with no income allocation) is not a realistic scenario
+// for TaxStat360's target users (business owners and real estate investors who are
+// active majority owners). If 0% ownership becomes a real use case, replace the
+// || fallback with Number.isFinite() at all 11 call sites across 4 files:
+//   CalculateTaxInner.jsx (5 sites), TaxReturn.jsx (1), AIAnalysis.jsx (2), taxCalc.js (1)
+// and add 3 sites from the officer salary reduce calls that use the same pattern.
+// Tracked as F-07-followup-A in the audit followup list.
