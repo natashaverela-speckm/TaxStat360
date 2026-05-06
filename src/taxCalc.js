@@ -478,8 +478,16 @@ function calcTaxReturn(input) {
   let palAdjustedRental = rentalNet   // default: full deductibility (REP path)
   let palSuspendedRental = 0          // rental loss deferred to future year
   if (!isREP && rentalNet < 0) {
-    // Pre-rental AGI approximation (avoids circular dependency with grossIncome)
+    // Pre-rental MAGI approximation (§469(i)(3)(A)) — avoids circular dependency with grossIncome.
+    // Subtracts above-the-line deductions computable at this point. halfSE is excluded:
+    // SE tax depends on seNetIncome (k1-based), not rentalNet, so the circular error is
+    // limited to the rare SE-income + rental-loss case and is directionally conservative.
+    // taxableSS excluded per §469(i)(3)(F)(iv) — Congress carved SS out of this MAGI.
     const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
+      - Math.min(ytdScale(studentLoanInt), 2500)   // §221 student loan interest deduction
+      - ytdScale(hsaDeduction)                      // §223 HSA deduction
+      - ytdScale(selfEmpRetirement)                 // §404 SE retirement plan deduction
+      - ytdScale(selfEmpHealthIns)                  // §162(l) SE health insurance deduction
     // §469(i)(5)(A)/(B): MFS filers — default to $0 allowance (lived-with-spouse rule)
     // If a future mfsLivedApart input is added, branch here to $12,500 / $50k–$75k.
     const isMFS = status === 'mfs'
