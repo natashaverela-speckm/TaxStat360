@@ -26,6 +26,10 @@ const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
 function getTotalW2(rec) {
   if (!rec) return 0
   const f = rec.f1040 || {}
+  // f.w2Income is a UI-string from saved records — may carry commas (e.g. '50,000')
+  // because Dashboard saves the user's typed input verbatim. Entity values like
+  // e.pnl.officerSalary come from the structured data layer (no commas) — bare
+  // parseFloat is sufficient there. The asymmetry is intentional, not a bug.
   const additionalW2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const entities = Array.isArray(rec.entities) ? rec.entities : []
   const totalOfficerSalary = entities.reduce(
@@ -184,7 +188,7 @@ function completeness(rec) {
   if (parseFloat(b.grossRevenue) > 0) s += 15
   if (b.entityType) s += 10
   if (f.filingStatus) s += 10
-  if (parseFloat(f.w2Income) > 0 || getTotalW2(rec) > 0) s += 10
+  if (getTotalW2(rec) > 0) s += 10
   if (parseFloat(b.officerSalary) > 0) s += 5
   if (parseFloat(b.operatingExpenses) > 0) s += 5
   if (parseFloat(b.depreciation) > 0) s += 5
@@ -726,6 +730,7 @@ function Modal({ onClose, children }) {
 function ReportModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
+  const totalW2 = getTotalW2(rec)
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   return (
     <Modal onClose={onClose}>
@@ -751,7 +756,7 @@ function ReportModal({ onClose, rec }) {
               ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
               ['K-1 Income to Personal Return', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
-              ['W-2 Income', getTotalW2(rec) > 0 ? '$' + getTotalW2(rec).toLocaleString() : ''],
+              ['W-2 Income', totalW2 > 0 ? '$' + totalW2.toLocaleString() : ''],
               ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
@@ -981,7 +986,7 @@ function SimulatorModal({ onClose, rec }) {
             <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
               <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>YOUR PERSONAL 1040</div>
               {row('K-1 Income',        baseline.k1,         scenario.k1)}
-              {row('W-2 Wages',         baseline.w2,         scenario.w2)}
+              {row('W-2 Wages (total)', baseline.w2,         scenario.w2)}
               {row('QBI Deduction (20%)', baseline.qbi,      scenario.qbi,      true)}
               {row('Standard Deduction', stdDed,             stdDed)}
               {row('Taxable Income',    baseline.taxableInc, scenario.taxableInc)}
