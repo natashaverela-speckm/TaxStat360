@@ -454,6 +454,7 @@ function calcTaxReturn(input) {
     useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement,
     isREP,
+    isActiveParticipant = true,  // §469(i)(6): active participant in rental activity (lower bar than material participation)
     unrecap1250, collectiblesGain,
     w2Withheld, estPaid,
     ytdFactor = 1,
@@ -489,9 +490,10 @@ function calcTaxReturn(input) {
       - ytdScale(selfEmpRetirement)                 // §404 SE retirement plan deduction
       - ytdScale(selfEmpHealthIns)                  // §162(l) SE health insurance deduction
     // §469(i)(5)(A)/(B): MFS filers — default to $0 allowance (lived-with-spouse rule)
-    // If a future mfsLivedApart input is added, branch here to $12,500 / $50k–$75k.
+    // §469(i)(6): active participant required for the $25k allowance — passive investors
+    // (limited partners, syndication investors) get $0 regardless of AGI.
     const isMFS = status === 'mfs'
-    const baseAllowance = isMFS ? 0 : 25000
+    const baseAllowance = (isMFS || !isActiveParticipant) ? 0 : 25000
     const phaseStart    = isMFS ? 0 : 100000
     // §469(i)(3): allowance phased out 50¢/$ over phase-out start; eliminated at start+$50k
     const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
