@@ -559,12 +559,29 @@ function calcTaxReturn(input) {
   const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
   const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
 
-  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi): reduce SE-subject income by halfSE AND SE health insurance
-  // S-Corp K-1 is NOT SE-subject, so its portion passes through unchanged.
-  // nonSEk1 allows negative values (negative K-1 = negative QBI per §199A(c)(2)) — the
-  // prior Math.max(0,...) silently dropped negative QBI, preventing proper carryforward tracking.
-  // seNetIncome is always >= 0 (sum of positive SE-entity k1 values), so this is safe.
-  const nonSEk1 = k1Total - seNetIncome
+  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi) and §1.199A-1(d)(2)(iii)(A).
+  // Computed per-entity to correctly apply the SSTB exclusion:
+  //   - Non-SSTB entities: full K-1 contribution (positive or negative).
+  //   - SSTB entities: K-1 scaled by sstbApplicablePct per §199A(d)(3).
+  //     Above the phase-out, SSTB items are not "qualified items" and must not
+  //     carry forward as QBI loss carryforward — Treas. Reg. §1.199A-1(d)(2)(iii)(A).
+  //
+  // sstbApplicablePct mirrors the same computation inside calcQBI:
+  //   100% at or below threshold, 0% at threshold+phaseInRange, linear between.
+  const qbiThreshold  = (QBI_THRESHOLDS[taxYear]  || QBI_THRESHOLDS[2025])[status]  || 197300
+  const qbiPhaseRange = (QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025])[status] || 50000
+  const sstbApplicablePct = taxableBeforeQBI <= qbiThreshold
+    ? 1
+    : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
+
+  // Per-entity nonSEk1: non-SE entities at full K-1; SSTB scaled by sstbApplicablePct.
+  // SE-subject entities are excluded here (they flow through seK1AfterAdjustments below).
+  const nonSEk1 = entities.reduce((sum, e) => {
+    if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum   // SE entities handled separately
+    const k1 = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseInt(e.own) || 100) / 100))
+    const scale = e.box17V_sstb ? sstbApplicablePct : 1
+    return sum + k1 * scale
+  }, 0)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
   // QBI rental basis uses palAdjustedRental: suspended PAL losses are not deductible
   // in the current year and therefore do not reduce the QBI basis. REP users are
