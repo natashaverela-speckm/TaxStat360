@@ -981,3 +981,39 @@ describe('calcTaxReturn §469(i) — isActiveParticipant flag', () => {
     expect(r.grossIncome).toBe(55000)          // 80000 - 25000
   })
 })
+
+// =============================================================================
+// §199A(c)(2) QBI carryforward output
+// When net QBI is negative, the engine should output the negative amount as
+// qbiCarryforward for the user to enter as priorYearQBILoss next year.
+// =============================================================================
+describe('calcTaxReturn §199A QBI carryforward output', () => {
+  it('negative QBI (S-Corp loss): outputs correct carryforward amount', () => {
+    // K-1 loss -$200k → qbiBasis = -200k → qbiCarryforward = 200k
+    const r = calcTaxReturn({ ...BASE, w2: 300000, k1Total: -200000 })
+    expect(r.qbiCarryforward).toBe(200000)
+    expect(r.qbi).toBe(0)   // no deduction when QBI is negative
+  })
+
+  it('positive QBI: no carryforward', () => {
+    const r = calcTaxReturn({ ...BASE, w2: 100000, k1Total: 80000 })
+    expect(r.qbiCarryforward).toBe(0)
+    expect(r.qbi).toBeGreaterThan(0)
+  })
+
+  it('prior year carryforward consumed by current year positive QBI: no new carryforward', () => {
+    // Prior carryforward $50k, current K-1 +$80k → net qbiBasis = 80k - 50k = 30k (positive)
+    const r = calcTaxReturn({ ...BASE, w2: 100000, k1Total: 80000, priorYearQBILoss: 50000 })
+    expect(r.qbiCarryforward).toBe(0)
+    expect(r.priorQBILossCO).toBe(50000)
+  })
+
+  it('Pass 5 scenario: S-Corp -$343k → qbiCarryforward = $343k', () => {
+    // With the nonSEk1 fix, negative K-1 flows through to qbiBasis correctly.
+    // qbiBasis = nonSEk1 + 0 + max(0, -84599) - 0 = -343443 + 0 = -343443
+    // qbiCarryforward = abs(-343443) = 343443
+    const r = calcTaxReturn({ ...BASE, w2: 287500, k1Total: -343443, rentalNet: -84599, isREP: true, taxYear: 2025 })
+    expect(r.qbiCarryforward).toBe(343443)
+    expect(r.qbi).toBe(0)
+  })
+})
