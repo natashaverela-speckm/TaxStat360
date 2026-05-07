@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+// M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
+// All client→server traffic now routes through the same origin consistently.
+const API = 'https://app.taxstat360.com'
 
 const PLANS = {
   starter:      { label:'Starter',      price:{ monthly:79,  annual:66  }, color:'#64748B' },
@@ -17,7 +19,7 @@ const FEATURES = [
   { label:'InfoTip field guidance',                starter:true,  professional:true, enterprise:true  },
   { label:'Prior year loss carryforward',          starter:true,  professional:true, enterprise:true  },
   { label:'AI Risk & Compliance Planner',          starter:false, professional:true, enterprise:true  },
-  { label:'Risk alert engine',           starter:false, professional:true, enterprise:true  },
+  { label:'Risk alert engine',                     starter:false, professional:true, enterprise:true  },
   { label:'Officer compensation analysis',         starter:false, professional:true, enterprise:true  },
   { label:'QuickBooks / Xero / Wave import',       starter:false, professional:true, enterprise:true  },
   { label:'Multiple business entities',            starter:false, professional:false, enterprise:true },
@@ -56,20 +58,17 @@ export default function Upgrade() {
   const [success, setSuccess] = useState(false)
   const [showCard, setShowCard] = useState(false)
 
-  // Stripe refs for card input
   const stripeRef = useRef(null)
   const cardRef = useRef(null)
   const mountedRef = useRef(false)
 
   useEffect(() => {
     const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
-    // Normalize legacy plan names to current names
     const planMap = { 'basic': 'starter', 'pro': 'professional', 'expert': 'enterprise', 'elite': 'enterprise', 'essential': 'enterprise' }
     const plan = planMap[raw] || (PLANS[raw] ? raw : 'starter')
     const em = localStorage.getItem('ts360_email') || ''
     setCurrentPlan(plan)
     setEmail(em)
-    // Load Stripe.js
     if (!window.Stripe) {
       const s = document.createElement('script')
       s.src = 'https://js.stripe.com/v3/'
@@ -115,21 +114,29 @@ export default function Upgrade() {
       }).then(r => r.json())
       if (!si.client_secret) throw new Error('Could not initialize payment')
 
-      // Confirm card
+      // Confirm card via Stripe.js (card data never touches our servers)
       const { setupIntent, error } = await stripeRef.current.confirmCardSetup(si.client_secret, {
         payment_method: { card: cardRef.current, billing_details: { email } }
       })
       if (error) throw new Error(error.message)
 
-      // Subscribe/upgrade
+      // B2: Check /stripe/subscribe response before updating local plan state.
+      // Previously the response was discarded — if the API returned 402/500, the user
+      // saw "You're upgraded!" but no subscription was created, resulting in silent
+      // revenue loss. Now we verify the subscription is active before celebrating.
       const token = localStorage.getItem('token')
-      await fetch(API + '/stripe/subscribe', {
+      const subRes = await fetch(API + '/stripe/subscribe', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email, plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        body: JSON.stringify({ plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        // Note: email removed from body — backend should identify user from JWT, not request body
       })
+      if (!subRes.ok) {
+        const subData = await subRes.json().catch(() => ({}))
+        throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
+      }
 
-      // Update local state
+      // Only update local plan after confirmed server-side subscription
       localStorage.setItem('plan', selectedPlan)
       setSuccess(true)
     } catch(e) {
@@ -149,6 +156,13 @@ export default function Upgrade() {
     </div>
   )
 
+  const signOutKeys = () => {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('ts360_') || ['token','plan','billing','userName'].includes(k))
+      .forEach(k => localStorage.removeItem(k))
+    nav('/')
+  }
+
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
       {/* Nav */}
@@ -156,7 +170,7 @@ export default function Upgrade() {
         <div onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}><LOGO/></div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>← Back to Settings</button>
-          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Sign Out</button>
+          <button onClick={signOutKeys} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Sign Out</button>
         </div>
       </nav>
 
@@ -193,7 +207,6 @@ export default function Upgrade() {
               }}>
                 {plan.popular && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:B,color:'#fff',fontSize:11,fontWeight:700,padding:'4px 14px',borderRadius:20}}>MOST POPULAR</div>}
                 {isCurrent && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'#64748B',color:'#fff',fontSize:11,fontWeight:700,padding:'4px 14px',borderRadius:20}}>CURRENT PLAN</div>}
-
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:13,fontWeight:700,color:plan.color,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>{plan.label}</div>
                   <div style={{display:'flex',alignItems:'baseline',gap:4}}>
@@ -202,7 +215,6 @@ export default function Upgrade() {
                   </div>
                   {billing==='annual' && <div style={{fontSize:12,color:'#059669',marginTop:2}}>Billed annually · Save ${(plan.price.monthly-plan.price.annual)*12}/yr</div>}
                 </div>
-
                 {isCurrent ? (
                   <button disabled style={{width:'100%',padding:'10px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'not-allowed'}}>Current Plan</button>
                 ) : canUpgrade ? (
@@ -241,7 +253,7 @@ export default function Upgrade() {
           ))}
         </div>
 
-        {/* Card input — shown when a plan is selected */}
+        {/* Card input */}
         {showCard && selectedPlan && (
           <div style={{background:'#fff',border:`2px solid ${B}`,borderRadius:14,padding:28,maxWidth:520,margin:'0 auto'}}>
             <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:4}}>
@@ -250,21 +262,18 @@ export default function Upgrade() {
             <div style={{fontSize:13,color:SL,marginBottom:20}}>
               {billing==='annual'?'Billed annually':'Billed monthly'} · Cancel anytime · No hidden fees
             </div>
-
             <div style={{marginBottom:16}}>
               <label style={{fontSize:12,fontWeight:600,color:SL,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:8}}>Card Details</label>
               <div id="card-element" style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:8,background:'#FAFAFA'}}/>
             </div>
-
             {err && <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',marginBottom:14}}>{err}</div>}
-
             <button onClick={handleUpgrade} disabled={loading} style={{
               width:'100%',padding:'13px',background:loading?'#94A3B8':B,color:'#fff',
               border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:loading?'not-allowed':'pointer'
             }}>
               {loading ? 'Processing...' : `Upgrade Now — $${PLANS[selectedPlan]?.price[billing]}/mo`}
             </button>
-            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>🔒 Secured by Stripe · Card required · Cancel anytime</div>
+            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>🔒 Secured by Stripe · Cancel anytime</div>
           </div>
         )}
       </div>
