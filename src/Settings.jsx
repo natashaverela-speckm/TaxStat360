@@ -3,7 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { signOut } from './utils/signOut'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
+<<<<<<< fix/security-pass6-frontend
+// M3: Canonical API URL — matches Onboarding.jsx. Settings was previously using
+// the raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod).
+// Consolidated to the branded URL so all client→server traffic routes consistently
+// through the same origin (CloudFront / WAF rules apply uniformly).
+=======
 // M3: Canonical API URL — matches Onboarding.jsx.
+>>>>>>> master
 const API = 'https://app.taxstat360.com'
 
 function LOGO() {
@@ -33,6 +40,19 @@ function NavBtn({label, onClick, active}) {
 
 // B1: signOut clears ALL ts360_* localStorage keys (not just a hardcoded allowlist).
 // The previous version left ts360_records_{email} keys (actual tax data) in place,
+<<<<<<< fix/security-pass6-frontend
+// meaning a user on a shared computer would leave their financial records accessible
+// to the next person. The pattern-based clear also handles any future ts360_* keys
+// added without needing to update the signOut function.
+function signOut(nav) {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('ts360_') || ['token','plan','billing','userName'].includes(k))
+    .forEach(k => localStorage.removeItem(k))
+  nav('/')
+}
+
+=======
+>>>>>>> master
 export default function Settings() {
   const nav = useNavigate()
   const [email, setEmail] = useState('')
@@ -107,18 +127,29 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
+<<<<<<< fix/security-pass6-frontend
+      // Security best practice: always show the same "sent" message regardless of
+      // whether the email exists, to prevent account enumeration. The catch block
+      // correctly falls through to the same success UX on network error — this is
+      // intentional for the password-reset flow (different from handleEmailChange).
+=======
       // SECURITY: do not change this to show different UI on success vs failure.
       // Always showing "sent" regardless of API response prevents account enumeration
       // (OWASP ASVS 2.10.2 / CWE-204) — an attacker could otherwise probe which
       // email addresses have accounts by observing different responses.
       // The catch block falling through to the same success UX is intentional.
       // If the endpoint is broken, users won't receive an email; the UX must not differ.
+>>>>>>> master
       await fetch(`${API}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       })
+<<<<<<< fix/security-pass6-frontend
+    } catch(e) { /* intentional — show success regardless per anti-enumeration best practice */ }
+=======
     } catch(e) { /* intentional — see security comment above */ }
+>>>>>>> master
     setPwSent(true)
     setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
     setLoading(false)
