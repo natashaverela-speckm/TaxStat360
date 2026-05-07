@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-const API = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+// M3: Canonical API URL — matches Onboarding.jsx. Settings was previously using
+// the raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod).
+// Consolidated to the branded URL so all client→server traffic routes consistently
+// through the same origin (CloudFront / WAF rules apply uniformly).
+const API = 'https://app.taxstat360.com'
 
 function LOGO() {
   return (
@@ -29,8 +33,15 @@ function NavBtn({label, onClick, active}) {
   )
 }
 
+// B1: signOut clears ALL ts360_* localStorage keys (not just a hardcoded allowlist).
+// The previous version left ts360_records_{email} keys (actual tax data) in place,
+// meaning a user on a shared computer would leave their financial records accessible
+// to the next person. The pattern-based clear also handles any future ts360_* keys
+// added without needing to update the signOut function.
 function signOut(nav) {
-  ['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k))
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('ts360_') || ['token','plan','billing','userName'].includes(k))
+    .forEach(k => localStorage.removeItem(k))
   nav('/')
 }
 
@@ -46,14 +57,8 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    // Try ts360_email first, then decode from JWT token, then scan localStorage keys
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
-      // Decode JWT payload to get email if not stored separately.
-      // Both 'token' and 'ts360_session' are written by Onboarding (signup + login)
-      // and hold the same JWT access_token. 'token' is the canonical API bearer
-      // (used in Authorization headers below); 'ts360_session' is the auth-presence
-      // signal read by App.jsx RequireAuth. Reading either as fallback is safe.
       const token = localStorage.getItem('token') || localStorage.getItem('ts360_session') || ''
       if (token) {
         try {
@@ -64,7 +69,6 @@ export default function Settings() {
       }
     }
     if (!storedEmail) {
-      // Scan localStorage for ts360_records_{email} pattern as last resort
       for (const key of Object.keys(localStorage)) {
         const match = key.match(/^ts360_records_(.+@.+)$/)
         if (match && match[1] !== 'default') {
@@ -78,11 +82,6 @@ export default function Settings() {
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
-    // Approximate member since from session.
-    // ts360_session_start is intentionally read but is not currently written by any
-    // code path — the '—' fallback always renders today. Hook left in place for a
-    // future feature where signup/login would set localStorage.ts360_session_start =
-    // Date.now() so this displays a real account-creation date.
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
@@ -99,16 +98,19 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ new_email: emailInput })
       })
+      // M2: Actually check res.ok before showing success. Email change is an
+      // authenticated action — the user is logged in, so we can give real feedback
+      // on failure rather than silently showing success. (Unlike password reset where
+      // security best practice is to always show "sent" to prevent enumeration.)
       if (res.ok) {
         setEmailSent(true)
         setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
       } else {
-        setMsg('Could not send confirmation email. Please try again.')
+        const data = await res.json().catch(() => ({}))
+        setMsg(data.detail || 'Could not send confirmation email. Please try again.')
       }
     } catch {
-      // If endpoint doesn't exist yet, show the UX as if it worked
-      setEmailSent(true)
-      setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
+      setMsg('Network error — please check your connection and try again.')
     }
     setLoading(false)
   }
@@ -117,17 +119,18 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      const res = await fetch(`${API}/auth/forgot-password`, {
+      // Security best practice: always show the same "sent" message regardless of
+      // whether the email exists, to prevent account enumeration. The catch block
+      // correctly falls through to the same success UX on network error — this is
+      // intentional for the password-reset flow (different from handleEmailChange).
+      await fetch(`${API}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       })
-      setPwSent(true)
-      setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
-    } catch {
-      setPwSent(true)
-      setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
-    }
+    } catch(e) { /* intentional — show success regardless per anti-enumeration best practice */ }
+    setPwSent(true)
+    setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
     setLoading(false)
   }
 
@@ -191,7 +194,7 @@ export default function Settings() {
                 {emailSent ? '✓ Sent' : 'Send confirmation'}
               </button>
             </div>
-            {emailSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>✓ {msg}</div>}
+            {msg && !pwSent && <div style={{fontSize:13,color:emailSent?'#059669':'#DC2626',marginTop:8}}>{emailSent?'✓ ':''}{msg}</div>}
           </div>
 
           {/* Change Password */}
@@ -236,10 +239,10 @@ export default function Settings() {
             <div>
               <div style={{fontSize:14,fontWeight:600,color:N}}>Sign out of all devices</div>
               <div style={{fontSize:13,color:SL,marginTop:3}}>Removes your session from this browser.</div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',marginTop:8,borderTop:'1px solid #fee2e2'}}>
-            <div><div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div><div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div></div>
-            <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>Request Deletion</a>
-          </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',marginTop:8,borderTop:'1px solid #fee2e2'}}>
+                <div><div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div><div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div></div>
+                <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>Request Deletion</a>
+              </div>
             </div>
             <button onClick={()=>signOut(nav)} style={{padding:'9px 18px',background:'#fff',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
               Sign Out
