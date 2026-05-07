@@ -834,6 +834,25 @@ export default function TaxReturn() {
               </div>
             )}
 
+            {/* Basis / at-risk soft warning — shown when any entity has a loss */}
+            {k1Total < 0 && (() => {
+              const hasSCorp = entities.some(e => /s.?corp/i.test(e?.type || ''))
+              const hasPartnership = entities.some(e => /partnership|mmllc/i.test(e?.type || ''))
+              const formRef = hasSCorp && hasPartnership
+                ? 'Form 7203 (S-Corp) and §704(d) (Partnership)'
+                : hasSCorp ? 'Form 7203' : '§704(d) outside basis'
+              return (
+                <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 7, padding: '8px 10px', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#FCD34D', marginBottom: 3 }}>
+                    ⚠ Basis Check Required — {formRef}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                    A {fmt(Math.abs(k1Total))} loss is deducted here. This tool does not track stock, debt, or outside basis — the loss is only deductible to the extent you have sufficient basis. Confirm your allowable loss on {formRef} before filing. Losses in excess of basis are suspended, not lost.
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Income Tax (ordinary + preferential) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
