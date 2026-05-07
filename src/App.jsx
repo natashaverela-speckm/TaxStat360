@@ -22,6 +22,14 @@ function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
   const location = useLocation()
   useEffect(() => {
+<<<<<<< fix/security-pass6-frontend
+    // M1: Reject any provider not in the allowlist before touching localStorage
+    if (!OAUTH_PROVIDERS.has(provider.toLowerCase())) {
+      window.location.href = '/calculate-tax'
+      return
+    }
+    const name = provider.charAt(0).toUpperCase() + provider.slice(1)
+=======
     // M1: Reject any provider not in the allowlist before touching localStorage.
     // Normalize to lowercase for both the check AND the key writes — prevents
     // ts360_QuickBooks_connected vs ts360_quickbooks_connected mismatch if the
@@ -32,6 +40,7 @@ function OAuthCallback() {
       return
     }
     const name = p.charAt(0).toUpperCase() + p.slice(1)
+>>>>>>> master
     localStorage.setItem('ts360_connected_app', name)
     localStorage.setItem(`ts360_${p}_connected`, 'true')
     window.location.href = '/calculate-tax'

@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/signOut'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
+<<<<<<< fix/security-pass6-frontend
+// M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
+// All client→server traffic now routes through the same origin consistently.
+=======
 // M3: Canonical API URL — consolidated from raw API Gateway URL.
+>>>>>>> master
 const API = 'https://app.taxstat360.com'
 
 const PLANS = {
@@ -121,18 +126,29 @@ export default function Upgrade() {
       if (error) throw new Error(error.message)
 
       // B2: Check /stripe/subscribe response before updating local plan state.
+<<<<<<< fix/security-pass6-frontend
+      // Previously the response was discarded — if the API returned 402/500, the user
+      // saw "You're upgraded!" but no subscription was created, resulting in silent
+      // revenue loss. Now we verify the subscription is active before celebrating.
+=======
       // Email kept in body as safe fallback pending backend verification —
       // TODO: once backend confirms it reads identity from JWT (not body), remove email.
       // The subRes.ok check is the core fix regardless of email presence.
+>>>>>>> master
       const token = localStorage.getItem('token')
       const subRes = await fetch(API + '/stripe/subscribe', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email, plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        body: JSON.stringify({ plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        // Note: email removed from body — backend should identify user from JWT, not request body
       })
       if (!subRes.ok) {
         const subData = await subRes.json().catch(() => ({}))
+<<<<<<< fix/security-pass6-frontend
+        throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
+=======
         throw new Error(subData.detail || 'Subscription activation failed. Please contact support.')
+>>>>>>> master
       }
 
       // Only update local plan after confirmed server-side subscription
@@ -155,7 +171,16 @@ export default function Upgrade() {
     </div>
   )
 
+<<<<<<< fix/security-pass6-frontend
+  const signOutKeys = () => {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('ts360_') || ['token','plan','billing','userName'].includes(k))
+      .forEach(k => localStorage.removeItem(k))
+    nav('/')
+  }
+=======
   const signOutKeys = () => sharedSignOut(nav)
+>>>>>>> master
 
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
