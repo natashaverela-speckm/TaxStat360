@@ -45,7 +45,8 @@ function SignupScreen(){
   async function submit(e){
     e.preventDefault()
     if(pass!==conf){setErr('Passwords do not match.');return}
-    if(pass.length<8){setErr('Password must be at least 8 characters.');return}
+    // Compliance: password minimum bumped to 12 to match reset-password page
+    if(pass.length<12){setErr('Password must be at least 12 characters.');return}
     if(!stripeReady){setErr('Card input still loading, please wait...');return}
     setLoading(true);setErr('')
     try{
@@ -97,7 +98,7 @@ function SignupScreen(){
         <Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0} autoComplete="email"/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-        <Field label="Password" val={pass} set={setPass} type="password" ph="Min. 8 chars" mb={0} autoComplete="new-password"/>
+        <Field label="Password" val={pass} set={setPass} type="password" ph="Min. 12 chars" mb={0} autoComplete="new-password"/>
         <Field label="Confirm Password" val={conf} set={setConf} type="password" ph="Repeat password" mb={0} autoComplete="new-password"/>
       </div>
       <div style={{marginBottom:12}}>
@@ -106,6 +107,13 @@ function SignupScreen(){
         {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
       </div>
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+      {/* Compliance: ToS + Privacy agreement required by Stripe before card collection */}
+      <p style={{fontSize:11,color:'#64748b',textAlign:'center',margin:'0 0 10px',lineHeight:1.5}}>
+        By creating an account you agree to our{' '}
+        <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Terms of Service</a>
+        {' '}and{' '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
+      </p>
       <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Processing...':'Start Free Trial →'}</button>
       <p style={{fontSize:11,color:'#94a3b8',textAlign:'center',margin:'0 0 8px',lineHeight:1.4}}>🔒 Card for identity verification only. <b>Not charged</b> until after 7-day trial. Cancel anytime.</p>
       <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <span onClick={()=>nav('/')} style={{color:SL,cursor:'pointer'}}>← Home</span></p>
@@ -133,9 +141,6 @@ function VerifyEmailScreen(){
 function LoginScreen(){
   const nav=useNavigate()
   const location=useLocation()
-  // F-04: if RequireAuth redirected the user here, location.state.from carries the URL they
-  // were trying to reach. Send them back there after login. Falls back to /dashboard for
-  // direct logins (user clicked Sign In link, no protected URL was attempted).
   const redirectTo=location.state?.from?.pathname || '/dashboard'
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
@@ -161,7 +166,8 @@ function LoginScreen(){
       <Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
       <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Signing in...':'Sign In →'}</button>
-      <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
+      <p style={{textAlign:'center',fontSize:12,color:SL,margin:'0 0 8px'}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
+      <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
     </form>
   </Page>)
 }
@@ -169,10 +175,6 @@ function LoginScreen(){
 function EntityScreen(){
   const nav=useNavigate()
   const [selected,setSelected]=useState('')
-  // F-02-followup-A: sync labels with constants.js ENTITY_TYPES terminology.
-  // Active/Passive partnership distinction is deferred to Step 1 (CalculateTaxInner)
-  // where the full IRC §1402(a)(13) material-participation context is presented.
-  // 'Other' covers trusts, REITs, and edge cases we surface but don't yet calculate.
   const types=['Sole Proprietor / Single-Member LLC','Partnership / MMLLC','S Corporation','C Corporation','Other']
   return(<Page>
     <LOGO/>
@@ -195,7 +197,6 @@ function BusinessScreen(){
   const addrRef=useRef(null)
 
   useEffect(()=>{
-    // Load Google Places autocomplete
     if(window.google&&window.google.maps){
       initAutocomplete()
     } else {
