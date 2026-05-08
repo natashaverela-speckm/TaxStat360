@@ -36,13 +36,18 @@ export default function ResetPassword() {
   useEffect(() => {
     if (!token || !email) {
       setError('Invalid reset link. Please request a new password reset.')
+    } else {
+      // SECURITY: scrub token and email from URL immediately after reading
+      // to prevent them appearing in browser history and Referer headers
+      window.history.replaceState(null, '', '/reset-password')
     }
   }, [token, email])
 
   const handleSubmit = async () => {
     setError('')
     if (!password) return setError('Please enter a new password.')
-    if (password.length < 8) return setError('Password must be at least 8 characters.')
+    if (password.length < 12) return setError('Password must be at least 12 characters.')
+    if (password.length > 128) return setError('Password must be under 128 characters.')
     if (password !== confirm) return setError('Passwords do not match.')
 
     setLoading(true)
@@ -54,7 +59,8 @@ export default function ResetPassword() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.detail || 'Reset failed. The link may have expired.')
+        const detail = data.detail
+        setError(typeof detail === 'string' ? detail : 'Reset failed. The link may have expired.')
       } else {
         setSuccess(true)
       }
@@ -97,7 +103,7 @@ export default function ResetPassword() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
+                placeholder="At least 12 characters"
                 style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
