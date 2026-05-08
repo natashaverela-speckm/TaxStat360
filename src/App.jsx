@@ -11,6 +11,7 @@ import Dashboard from './Dashboard'
 import Settings from './Settings'
 import Upgrade from './Upgrade'
 import ResetPassword from './ResetPassword'
+import ForgotPassword from './ForgotPassword'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -94,6 +95,7 @@ export default function App() {
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
         {/* Password reset — public, linked from email */}
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* Public legal */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms"   element={<Terms />} />
