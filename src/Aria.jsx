@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 
-const ARIA_URL = 'https://lwotbjnqomcuf2rejtaeituze40zvtgy.lambda-url.us-east-1.on.aws/'
+// SECURITY: Use API Gateway endpoint (enforces auth + plan check) instead of
+// direct Lambda URL (which bypasses all security middleware).
+// The API Gateway endpoint requires a Bearer token and enforces Professional plan.
+const ARIA_URL = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/aria'
 const N = '#0D1B3E'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
@@ -11,6 +14,7 @@ export default function Aria() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [welcomed, setWelcomed] = useState(false)
+  const [planError, setPlanError] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -28,10 +32,37 @@ export default function Aria() {
     setInput('')
     setMsgs(m => [...m, { role: 'user', text: userMsg }])
     setLoading(true)
+    setPlanError(false)
     try {
-      const r = await fetch(ARIA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg }) })
+      const token = localStorage.getItem('token') || localStorage.getItem('ts360_session') || ''
+      // Build conversation history in Anthropic messages format
+      const history = msgs.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+      const messages = [...history, { role: 'user', content: userMsg }]
+
+      const r = await fetch(ARIA_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ messages })
+      })
+
+      if (r.status === 401) {
+        setMsgs(m => [...m, { role: 'assistant', text: 'Please sign in to use Aria.' }])
+        setLoading(false)
+        return
+      }
+
+      if (r.status === 403) {
+        setPlanError(true)
+        setMsgs(m => [...m, { role: 'assistant', text: 'Aria is available on Professional and Essential plans. Upgrade to unlock AI tax strategy.' }])
+        setLoading(false)
+        return
+      }
+
       const d = await r.json()
-      setMsgs(m => [...m, { role: 'assistant', text: d.response || d.message || 'Sorry, I had trouble responding.' }])
+      setMsgs(m => [...m, { role: 'assistant', text: d.reply || d.response || d.message || 'Sorry, I had trouble responding.' }])
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Connection error. Please try again.' }])
     }
@@ -58,6 +89,11 @@ export default function Aria() {
               </div>
             ))}
             {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#94a3b8' }}>Aria is thinking...</div></div>}
+            {planError && (
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1E40AF', textAlign: 'center' }}>
+                <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional →</a>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
           <div style={{ padding: '10px 12px', borderTop: '1px solid #e8edf5', display: 'flex', gap: 8, background: '#fff' }}>
@@ -69,8 +105,7 @@ export default function Aria() {
       <button onClick={() => setOpen(o => !o)} style={{ position: 'fixed', bottom: 28, right: 28, width: 56, height: 56, borderRadius: '50%', background: N, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(13,27,62,0.35)', zIndex: 9999 }}>
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
           <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
-          <path d="M24 1L24.7 4.3L28 5L24.7 5.7L24 9L23.3 5.7L20 5L23.3 4.3Z" fill="#F5C842" opacity="0.85"/>
-          <path d="M5 18L5.5 20.5L8 21L5.5 21.5L5 24L4.5 21.5L2 21L4.5 20.5Z" fill="#F5C842" opacity="0.7"/>
+          <path d="M24 1L24.7 4.3L28 5L24.7 5.7L24 9L23.3 5.7L20 5L23.3 4.3Z" fill="#F5C842" opacity="0.7"/>
         </svg>
       </button>
     </>
