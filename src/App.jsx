@@ -10,6 +10,7 @@ import AIAnalysis from './AIAnalysis'
 import Dashboard from './Dashboard'
 import Settings from './Settings'
 import Upgrade from './Upgrade'
+import ResetPassword from './ResetPassword'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -22,14 +23,6 @@ function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
   const location = useLocation()
   useEffect(() => {
-<<<<<<< fix/security-pass6-frontend
-    // M1: Reject any provider not in the allowlist before touching localStorage
-    if (!OAUTH_PROVIDERS.has(provider.toLowerCase())) {
-      window.location.href = '/calculate-tax'
-      return
-    }
-    const name = provider.charAt(0).toUpperCase() + provider.slice(1)
-=======
     // M1: Reject any provider not in the allowlist before touching localStorage.
     // Normalize to lowercase for both the check AND the key writes — prevents
     // ts360_QuickBooks_connected vs ts360_quickbooks_connected mismatch if the
@@ -40,7 +33,6 @@ function OAuthCallback() {
       return
     }
     const name = p.charAt(0).toUpperCase() + p.slice(1)
->>>>>>> master
     localStorage.setItem('ts360_connected_app', name)
     localStorage.setItem(`ts360_${p}_connected`, 'true')
     window.location.href = '/calculate-tax'
@@ -100,6 +92,8 @@ export default function App() {
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
         <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
+        {/* Password reset — public, linked from email */}
+        <Route path="/reset-password" element={<ResetPassword />} />
         {/* Public legal */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms"   element={<Terms />} />
