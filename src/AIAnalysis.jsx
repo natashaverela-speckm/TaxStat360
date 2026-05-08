@@ -197,27 +197,27 @@ function completeness(rec) {
   return Math.min(s, 98)
 }
 
-// ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
-function RiskScan({ rec }) {
-  if (!rec) return <NoData />
-  const b = rec.biz || {}, f = rec.f1040 || {}
-  const revenue = parseFloat(b.grossRevenue) || 0
-  const officerSal = parseFloat(b.officerSalary) || 0
-  const k1 = parseFloat(rec.k1Income) || 0
-  // F-06: total W-2 = additional W-2 (f.w2Income) + aggregated officer salary across entities.
-  // Post-F-06 saved f.w2Income carries 'additional only' semantics — see getTotalW2 helper.
-  const w2 = getTotalW2(rec)
-  const estPay = parseFloat(f.estPaid) || 0
-  const dep = parseFloat(b.depreciation) || 0
-  const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
-  const isREP = !!(b.isREP || f.isREP || rec.isREP)
-  const totalIncome = k1 + w2
-  const year = parseInt(b.year) || 2025
-  const filing = f.filingStatus || 'single'
-  const today = new Date()
-  // Quarterly estimated tax deadlines (month/day)
-  const qDeadlines = [
-    {month:4,day:15,label:'April 15'},
+200: // ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
+201: function RiskScan({ rec }) {
+202:   if (!rec) return <NoData />
+203:   const b = rec.biz || {}, f = rec.f1040 || {}
+204:   const revenue = parseFloat(b.grossRevenue) || 0
+205:   const officerSal = parseFloat(b.officerSalary) || 0
+206:   const k1 = parseFloat(rec.k1Income) || 0
+207:   // F-06: total W-2 = additional W-2 (f.w2Income) + aggregated officer salary across entities.
+208:   // Post-F-06 saved f.w2Income carries 'additional only' semantics — see getTotalW2 helper.
+209:   const w2 = getTotalW2(rec)
+210:   const estPay = parseFloat(f.estPaid) || 0
+211:   const dep = parseFloat(b.depreciation) || 0
+212:   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
+213:   const isREP = !!(b.isREP || f.isREP || rec.isREP)
+214:   const totalIncome = k1 + w2
+215:   const year = parseInt(b.year) || 2025
+216:   const filing = f.filingStatus || 'single'
+217:   const today = new Date()
+218:   // Quarterly estimated tax deadlines (month/day)
+219:   const qDeadlines = [
+220:     {month:4,day:15,label:'April 15'},
     {month:6,day:16,label:'June 16'},
     {month:9,day:15,label:'September 15'},
     {month:1,day:15,label:'January 15',nextYear:true}
@@ -292,52 +292,52 @@ action: `Estimated quarterly payment: approx. ${fmt(Math.round(roughTax / 4))}. 
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
-      action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
-  }
-
-  // ── QBI deduction ────────────────────────────────────────────────────────────
-  if (isPassthroughEntity(b.entityType) && k1 > 10000) {
-    const _year = parseInt(b.year) || 2025
-    const _filing = f.filingStatus || 'single'
-    const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
-    const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
-    const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
-    const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
-    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the \u00A7199A(b)(2) wage/UBIA limit \u2014 increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
-                       : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
-                       : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
-                       : ''
-    findings.push({ level: 'good', icon: '\u2705', title: `QBI Deduction Applied \u2014 ${fmt(qbi)} Saved`,
-      detail: `The Qualified Business Income deduction (IRC \u00A7199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
-      action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.` })
-  }
-
-  // ── C-Corp double tax ────────────────────────────────────────────────────────
+ 295:       action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
+296:   }
+297: 
+298:   // ── QBI deduction ────────────────────────────────────────────────────────────
+299:   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
+300:     const _year = parseInt(b.year) || 2025
+301:     const _filing = f.filingStatus || 'single'
+302:     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
+303:     const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
+304:     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
+305:     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
+306:     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
+307:                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
+308:                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
+309:                        : ''
+310:     findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
+311:       detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
+312:       action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.` })
+313:   }
+314: 
+315:   // ── C-Corp double tax ────────────────────────────────────────────────────────
   if (isCCorpEntity(b.entityType) && revenue > 0) {
     findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
       detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
       action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
-  }
-
-  // ── Large tax liability — advertising & Section 179 ──────────────────────────
-  // Pre-#199A rough estimate: AGI − std deduction → progressive bracket walk.
-  // Marginal rate used below for Section 179 capacity heuristic.
-  const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
-const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
-  ? calcQBI(k1, _taxableBeforeQBI_rough, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
-  : { deduction: 0 }
-const _taxable = Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
-const roughTax = calcFederalTax(_taxable, year, filing)
-const _marginalRate = getMarginalRate(_taxable, year, filing)
-  if (roughTax > 10000) {
-    findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
-      detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
-      action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
-    findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
-      detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $2.5M in 2025 under the One Big Beautiful Bill Act (OBBBA), with phase-out beginning above $4M of qualifying purchases. Bonus depreciation was restored to 100% for property acquired and placed in service after January 19, 2025 (applies to both new and used property).',
-      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / _marginalRate), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
-  }
-
+  320:   }
+321: 
+322:   // ── Large tax liability — advertising & Section 179 ──────────────────────────
+323:   // Pre-#199A rough estimate: AGI − std deduction → progressive bracket walk.
+324:   // Marginal rate used below for Section 179 capacity heuristic.
+325:   const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
+326: const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
+327:   ? calcQBI(k1, _taxableBeforeQBI_rough, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
+328:   : { deduction: 0 }
+329: const _taxable = Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
+330: const roughTax = calcFederalTax(_taxable, year, filing)
+331: const _marginalRate = getMarginalRate(_taxable, year, filing)
+332:   if (roughTax > 10000) {
+333:     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
+334:       detail: `With an estimated tax liability of ${fmt(roughTax)}+, …`,
+335:       action: 'Increase advertising, marketing, or business development spend before year-end. …' })
+336:     findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
+337:       detail: 'Section 179 lets you deduct …',
+338:       action: `Qualifying purchases include … up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / _marginalRate), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 …` })
+339:   }
+340:
   // ── Real Estate Professional (REP) ──────────────────────────────────────────
   if (rentalIncome > 0 || isREP) {
     if (isREP) {
