@@ -282,7 +282,7 @@ function RiskScan({ rec }) {
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
-      action: `Estimated quarterly payment: approx. ${fmt(Math.round(k1 * 0.25 / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
+      action: `Estimated quarterly payment: approx. ${fmt(Math.round(roughTax / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
       detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`,
@@ -323,9 +323,13 @@ function RiskScan({ rec }) {
   // ── Large tax liability — advertising & Section 179 ──────────────────────────
   // Pre-#199A rough estimate: AGI − std deduction → progressive bracket walk.
   // Marginal rate used below for Section 179 capacity heuristic.
-  const _taxable = Math.max(0, totalIncome - getStdDed(year, filing))
-  const roughTax = calcFederalTax(_taxable, year, filing)
-  const _marginalRate = getMarginalRate(_taxable, year, filing)
+  const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
+const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
+  ? calcQBI(k1, _taxableBeforeQBI_rough, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
+  : { deduction: 0 }
+const _taxable = Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
+const roughTax = calcFederalTax(_taxable, year, filing)
+const _marginalRate = getMarginalRate(_taxable, year, filing)
   if (roughTax > 10000) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
@@ -427,9 +431,12 @@ function TaxOptimization({ rec }) {
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
   const agi = Math.max(0, k1 + w2)
-  const taxable = Math.max(0, agi - stdDed)
-  const marginalRate = getMarginalRate(taxable, year, filing)
-
+const _taxableBeforeQBI_opt = Math.max(0, agi - stdDed)
+const { deduction: _qbiOpt } = isPassthroughEntity(b.entityType) && k1 > 0
+  ? calcQBI(k1, _taxableBeforeQBI_opt, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
+  : { deduction: 0 }
+const taxable = Math.max(0, _taxableBeforeQBI_opt - _qbiOpt)
+const marginalRate = getMarginalRate(taxable, year, filing)
   const opportunities = []
 
   // SEP-IRA
