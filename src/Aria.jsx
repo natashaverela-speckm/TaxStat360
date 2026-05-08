@@ -1,22 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-const ARIA_URL = 'https://lwotbjnqomcuf2rejtaeituze40zvtgy.lambda-url.us-east-1.on.aws/'
+// SECURITY: Use API Gateway endpoint (enforces auth + plan check) instead of
+// direct Lambda URL (which bypasses all security middleware).
+const ARIA_URL = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/aria'
 const N = '#0D1B3E'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
 
+// Max conversation turns to send to API — prevents unbounded cost growth
+const MAX_HISTORY_TURNS = 20
+
 export default function Aria() {
+  const nav = useNavigate()
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [welcomed, setWelcomed] = useState(false)
+  const [planError, setPlanError] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
   useEffect(() => {
     if (open && !welcomed) {
-      setTimeout(() => { setMsgs([{ role: 'assistant', text: WELCOME }]); setWelcomed(true) }, 300)
+      // intro:true marks the welcome as a display-only message — excluded from API history
+      setTimeout(() => { setMsgs([{ role: 'assistant', text: WELCOME, intro: true }]); setWelcomed(true) }, 300)
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 400)
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -28,10 +37,49 @@ export default function Aria() {
     setInput('')
     setMsgs(m => [...m, { role: 'user', text: userMsg }])
     setLoading(true)
+    setPlanError(false)
     try {
-      const r = await fetch(ARIA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg }) })
+      // SECURITY: use ts360_session as the canonical auth key (namespaced, matches ts360_* convention)
+      const token = localStorage.getItem('ts360_session') || ''
+
+      // Build conversation history — exclude intro welcome message and cap at MAX_HISTORY_TURNS
+      const history = msgs
+        .filter(m => !m.intro)
+        .slice(-MAX_HISTORY_TURNS)
+        .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+      const messages = [...history, { role: 'user', content: userMsg }]
+
+      const r = await fetch(ARIA_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ messages })
+      })
+
+      if (r.status === 401) {
+        // Clear stale tokens and prompt user to sign in
+        localStorage.removeItem('ts360_session')
+        localStorage.removeItem('token')
+        setMsgs(m => [...m, {
+          role: 'assistant',
+          text: 'Your session has expired.',
+          action: { label: 'Sign in →', href: '/login' }
+        }])
+        setLoading(false)
+        return
+      }
+
+      if (r.status === 403) {
+        setPlanError(true)
+        setMsgs(m => [...m, { role: 'assistant', text: 'Aria is available on the Professional plan and above. Upgrade to unlock AI tax strategy.' }])
+        setLoading(false)
+        return
+      }
+
       const d = await r.json()
-      setMsgs(m => [...m, { role: 'assistant', text: d.response || d.message || 'Sorry, I had trouble responding.' }])
+      setMsgs(m => [...m, { role: 'assistant', text: d.reply || d.response || d.message || 'Sorry, I had trouble responding.' }])
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Connection error. Please try again.' }])
     }
@@ -54,15 +102,35 @@ export default function Aria() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {msgs.map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{ background: m.role === 'user' ? N : '#F8FAFC', color: m.role === 'user' ? '#fff' : '#0D1B3E', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '10px 14px', fontSize: 13, maxWidth: '85%', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: m.role === 'user' ? 'none' : '1px solid #E2E8F0' }}>{m.text}</div>
+                <div style={{ background: m.role === 'user' ? N : '#F8FAFC', color: m.role === 'user' ? '#fff' : '#0D1B3E', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '10px 14px', fontSize: 13, maxWidth: '85%', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: m.role === 'user' ? 'none' : '1px solid #E2E8F0' }}>
+                  {m.text}
+                  {m.action && (
+                    <div style={{ marginTop: 8 }}>
+                      <a href={m.action.href} style={{ color: '#2563EB', fontWeight: 700, fontSize: 12 }}>{m.action.label}</a>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#94a3b8' }}>Aria is thinking...</div></div>}
+            {planError && (
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1E40AF', textAlign: 'center' }}>
+                <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional →</a>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
           <div style={{ padding: '10px 12px', borderTop: '1px solid #e8edf5', display: 'flex', gap: 8, background: '#fff' }}>
-            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask Aria anything about your taxes..." style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: '#f8fafc' }} />
-            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              placeholder="Ask Aria anything about your taxes..."
+              disabled={loading}
+              style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: loading ? '#f1f5f9' : '#f8fafc' }}
+            />
+            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
           </div>
         </div>
       )}
