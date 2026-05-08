@@ -39,11 +39,11 @@ export default function Landing() {
   const handleContact = async (e) => {
     e.preventDefault()
     const _emailRgx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!name || !name.trim()) { setError('Please enter your full name.'); return }
-    if (!email || !_emailRgx.test(email.trim())) { setError('Please enter a valid email address.'); return }
-    if (!message || !message.trim()) { setError('Please describe how we can help.'); return }
-    setError('')
-    setContactSending(true); setContactErr('')
+    if (!contactName || !contactName.trim()) { setContactErr('Please enter your full name.'); return }
+    if (!contactEmail || !_emailRgx.test(contactEmail.trim())) { setContactErr('Please enter a valid email address.'); return }
+    if (!contactMsg || !contactMsg.trim()) { setContactErr('Please describe how we can help.'); return }
+    setContactErr('')
+    setContactSending(true)
     try {
       const res = await fetch('https://api.web3forms.com/submit', {
         method: 'POST', headers: {'Content-Type':'application/json'},
@@ -152,7 +152,7 @@ export default function Landing() {
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
             { q: 'Do I need a CPA or accountant to use TaxStat360?', a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
-            { q: 'How accurate are the tax calculations?', a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are highly accurate for planning purposes. For your actual filed return, we recommend reviewing with a tax professional.' },
+            { q: 'How accurate are the tax calculations?', a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?', a: 'We currently integrate with QuickBooks Online, Xero, Wave, and FreshBooks. We pull your profit and loss data directly so you never have to manually enter numbers. More integrations are coming soon.' },
             { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
             { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
@@ -182,7 +182,7 @@ export default function Landing() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
             { name:'Starter', price:'$79', annualPrice:'$66', annualTotal:'$790', highlight:false, desc:'Know exactly what you owe — every month, not just in April.', features:['Year-round tax liability calculator','K-1 income (S-Corps, partnerships, LLCs)','Schedule C (sole props & SMLLCs)','Quarterly estimated payments','Personal tax return (W-2 + business income)','1 accounting software integration'] },
-            { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Red Flag Detector','Unlimited accounting integrations','Priority support'] },
+            { name:'Professional', price:'$149', annualPrice:'$124', annualTotal:'$1,490', highlight:true, desc:'AI that catches problems before they become expensive mistakes.', features:['Everything in Starter plus:','Risk Alert Engine','What-If Tax Scenario Simulator','One-Click CPA Export Pack','Explainable AI: Why This Number?','Audit Risk Indicators','Unlimited accounting integrations','Priority support'] },
             { name:'Enterprise', price:'$299', annualPrice:'$249', annualTotal:'$2,990', highlight:false, desc:'Built for owners running multiple businesses or entities.', features:['Everything in Professional plus:','Multi-entity consolidated tax view','AI-Generated Position Documentation','Risk Tolerance Profiling','CPA Collaboration Portal','Dedicated onboarding & setup call'] },
           ].map((p,i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
@@ -262,6 +262,8 @@ export default function Landing() {
             <a href="/terms" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
             <a href="#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
+          {/* Compliance: "not tax advice" disclaimer — required for tax/financial SaaS */}
+          <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.</p>
           <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
         </div>
       </footer>
