@@ -883,7 +883,7 @@ export default function TaxReturn() {
             )}
             {/* AMT — Always shown (even at $0) per Issue #44 design — "yes, we checked" reassurance */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>AMT (Form 6251) <span style={{ fontSize: 10, opacity: 0.5 }}>AMT estimate (Form 6251)</span>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>AMT estimate (Form 6251)</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: amt > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amt)}</span>
             </div>
             {/* Preferential tax breakdown */}
