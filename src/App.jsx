@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import Privacy from './Privacy'
 import Terms from './Terms'
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, Link } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
 import CalculateTaxInner from './CalculateTaxInner'
@@ -49,6 +49,38 @@ function OAuthCallback() {
   )
 }
 
+// ─── Persistent Authenticated Footer ─────────────────────────────────────────
+// Renders on every protected route via RequireAuth. Satisfies the requirement
+// for persistent ToS and Privacy Policy links inside the authenticated app.
+// Fixed at the bottom so it persists across all page scroll positions without
+// requiring changes to individual page layouts.
+// z-index 50 keeps it below the sticky nav bars (z-index 100) on each page.
+function AuthFooter() {
+  const year = new Date().getFullYear()
+  const link = { color: '#64748B', textDecoration: 'none', fontWeight: 600 }
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0,
+      height: 34,
+      background: '#fff',
+      borderTop: '1px solid #E2E8F0',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      gap: 24,
+      fontSize: 11,
+      color: '#94A3B8',
+      zIndex: 50,
+      fontFamily: 'Inter, system-ui, sans-serif',
+    }}>
+      <span>© {year} TaxStat360</span>
+      <span style={{ color: '#E2E8F0' }}>|</span>
+      <Link to="/terms" style={link}>Terms of Service</Link>
+      <Link to="/privacy" style={link}>Privacy Policy</Link>
+      <span style={{ color: '#E2E8F0' }}>|</span>
+      <span>For planning purposes only — not professional tax advice</span>
+    </div>
+  )
+}
+
 // ─── Auth Guard ───────────────────────────────────────────────────────────────
 // Wraps protected routes. Unauthenticated users are redirected to /login with the
 // originally-requested location captured in state.from so the login handler can
@@ -59,11 +91,18 @@ function OAuthCallback() {
 // was previously also checked here as an OR fallback but was never written by any
 // code path (audited 2026-05-05); removed to reduce confusion about the canonical
 // auth key.
+// AuthFooter is rendered here so it automatically covers every protected route
+// without requiring changes to individual page components.
 function RequireAuth({ children }) {
   const isLoggedIn = localStorage.getItem('ts360_session')
   const location = useLocation()
   if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
-  return children
+  return (
+    <>
+      {children}
+      <AuthFooter />
+    </>
+  )
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
