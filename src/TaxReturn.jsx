@@ -113,7 +113,11 @@ export default function TaxReturn() {
 
   // Load K-1 data passed from Step 1
   // Manual K-1s: entered directly on personal return Step 1 (in addition to Dashboard.jsx-managed entities)
-  const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s)
+  // FIX (line 118 TypeError): readPersonalContext().manualK1s is undefined when the
+  // session was written by an older code path that didn't include manualK1s (e.g. a
+  // record loaded from Dashboard before manual K-1s were introduced). The || []
+  // fallback ensures manualK1s is always an array so .reduce() on line 118 never throws.
+  const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s || [])
   const { entities, k1Total: dashboardK1Total } = readStep1State()
   const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
