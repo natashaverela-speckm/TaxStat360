@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
 import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
+import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readTaxYear } from './utils/sessionState.js'
 
@@ -385,7 +386,14 @@ export default function TaxReturn() {
         {/* LEFT — Inputs */}
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 4 }}>Personal Tax Return</h1>
-          <p style={{ color: SL, fontSize: 14, marginBottom: 24 }}>Enter your personal info to calculate your total federal tax liability.</p>
+          <p style={{ color: SL, fontSize: 14, marginBottom: 16 }}>Enter your personal info to calculate your total federal tax liability.</p>
+
+          {/* FIX: Dismissible disclaimer banner — required before users enter any income data.
+              Uses the existing DismissibleNotice component (already in production via AIAnalysis.jsx).
+              storageKey is unique to this page so dismissal state is tracked independently. */}
+          <DismissibleNotice storageKey="tx360.taxReturnDisclaimer.dismissed">
+            TaxStat360 calculates <strong>federal tax estimates</strong> based on the information you enter. Results are for <strong>planning purposes only</strong> and do not constitute professional tax advice. Your actual liability may differ based on your complete financial situation. Consult a licensed CPA or tax professional before filing.
+          </DismissibleNotice>
 
           {/* K-1 Summary from Step 1 */}
           {(entities.length > 0 || manualK1s.length > 0) && (
@@ -995,11 +1003,12 @@ export default function TaxReturn() {
           </div>
 
           {/* Quarterly Schedule */}
+          {/* FIX (Q2 deadline): corrected 'Jun 16' → 'Jun 15' per IRC §6654(c)(2) */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
             {[
               ['Q1', 'Apr 15', totalTax / 4],
-              ['Q2', 'Jun 16', totalTax / 4],
+              ['Q2', 'Jun 15', totalTax / 4],
               ['Q3', 'Sep 15', totalTax / 4],
               ['Q4', 'Jan 15 \'26', totalTax / 4],
             ].map(([q, due, amt]) => (
