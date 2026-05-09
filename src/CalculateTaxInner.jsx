@@ -306,7 +306,12 @@ export default function CalculateTax(){
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
   const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
-  const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,k1:Math.round(e.pnl.netProfit*((parseInt(e.own)||100)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
+  // FIX (Owner W-2 aggregation): preserve pnl.officerSalary in the flattened k1Data
+  // shape. Previously the flatten dropped officerSalary, so TaxReturn.jsx's
+  // totalOfficerSalary aggregation always summed to 0 — Owner W-2 from S-Corp/C-Corp
+  // entities was missing from personal W-2 wages, Form 8959 Medicare wages, and
+  // §179 active business income.
+  const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,pnl:{officerSalary:parseFloat(e.pnl.officerSalary)||0},k1:Math.round(e.pnl.netProfit*((parseInt(e.own)||100)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
   function proceed(){
