@@ -2,6 +2,7 @@ import React from 'react'
 import EntityCompareModal from './EntityCompareModal'
 import { useNavigate } from 'react-router-dom'
 import MoneyInput from './components/MoneyInput.jsx'
+import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
 
 import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
@@ -368,7 +369,16 @@ export default function CalculateTax(){
         </nav>
         <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 20px'}}>
           <h1 style={{fontSize:26,fontWeight:800,color:N,textAlign:'center',marginBottom:4}}>Entity Calculator</h1>
-          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:28}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN & formation date.</p>
+          <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:16}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN & formation date.</p>
+
+          {/* FIX: Dismissible disclaimer banner — required at Step 1 before any business
+              income is entered. The handoff doc flagged /calculate-tax Step 1 as missing
+              a disclaimer entirely. Uses the existing DismissibleNotice component with a
+              unique storageKey so dismissal tracks independently from other pages. */}
+          <DismissibleNotice storageKey="tx360.calculateTaxDisclaimer.dismissed">
+            TaxStat360 calculates <strong>federal tax estimates</strong> for planning purposes only. Results are not professional tax advice and do not account for state taxes, AMT in all cases, or your complete financial picture. Consult a licensed CPA or tax professional before making any filing or financial decisions.
+          </DismissibleNotice>
+
           {entities.map((ent,idx)=>(
             <div key={idx} draggable onDragStart={()=>onDragStart(idx)} onDragOver={e=>onDragOver(e,idx)} onDrop={()=>onDrop(idx)} onDragEnd={onDragEnd}
               style={{opacity:dragIdx===idx?0.4:1,outline:dragOverIdx===idx&&dragIdx!==idx?'2px dashed '+B:'none',borderRadius:14,transition:'opacity 0.15s'}}>
