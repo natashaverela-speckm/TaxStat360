@@ -40,6 +40,15 @@ function getTotalW2(rec) {
   return additionalW2 + totalOfficerSalary
 }
 
+// FIX (S-Corp field divergence): resolves both e.netProfit (legacy field written by
+// some older Dashboard paths) and e.pnl?.netProfit (structured data layer field) so
+// that all entity-level profit reads are consistent regardless of which code path
+// originally saved the record. Previously RiskScan read e.netProfit while
+// TaxOptimization read e.pnl?.netProfit — causing silent divergence on S-Corp records.
+function getEntityNetProfit(e) {
+  return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
+}
+
 function Logo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -196,7 +205,19 @@ function RiskScan({ rec }) {
   const dep = parseFloat(b.depreciation) || 0
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
-  const totalIncome = k1 + w2
+
+  // FIX (Incomplete AGI): totalIncome previously only summed k1 + w2, omitting
+  // capital gains, interest, dividends, net rental income, and other income.
+  // All of these are included in AGI and affect the taxable income base used
+  // for roughTax, QBI limitation, and marginal rate. They are now included.
+  const rentalExpenses = parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0
+  const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
+  const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
+  const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  const rentalNet = Math.max(0, rentalIncome - rentalExpenses)
+  const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
+  const totalIncome = k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
+
   const year = parseInt(b.year) || 2025
   const filing = f.filingStatus || 'single'
   // FIX: roughTax declared here — before the estimated-payments finding that uses roughTax / 4
@@ -209,9 +230,12 @@ function RiskScan({ rec }) {
   const roughTax = calcFederalTax(_taxable, year, filing)
   const _marginalRate = getMarginalRate(_taxable, year, filing)
   const today = new Date()
+
+  // FIX (Q2 deadline): Q2 estimated tax deadline is June 15 per IRC §6654(c)(2).
+  // June 16 was incorrect and would show users the wrong due date.
   const qDeadlines = [
     {month:4,day:15,label:'April 15'},
-    {month:6,day:16,label:'June 16'},
+    {month:6,day:15,label:'June 15'},
     {month:9,day:15,label:'September 15'},
     {month:1,day:15,label:'January 15',nextYear:true}
   ]
@@ -228,7 +252,9 @@ function RiskScan({ rec }) {
   if (sCorpEntities.length > 0) {
     sCorpEntities.forEach(e => {
       const entityName = e.name || 'S-Corp'
-      const eK1 = Math.round((parseFloat(e.netProfit) || 0) * (parseInt(e.own) || 100) / 100)
+      // FIX (S-Corp field divergence): use getEntityNetProfit() which resolves both
+      // e.netProfit (legacy) and e.pnl?.netProfit (structured) consistently.
+      const eK1 = Math.round(getEntityNetProfit(e) * (parseInt(e.own) || 100) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
         findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
@@ -265,7 +291,8 @@ function RiskScan({ rec }) {
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
-      action: `Estimated quarterly payment: approx. ${fmt(Math.round(roughTax / 4))}. Due dates: April 15, June 16, September 15, January 15.` })
+      // FIX (Q2 deadline): corrected June 16 → June 15
+      action: `Estimated quarterly payment: approx. ${fmt(Math.round(roughTax / 4))}. Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
       detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`,
@@ -384,7 +411,7 @@ function TaxOptimization({ rec }) {
   const dep = parseFloat(b.depreciation) || 0
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   const totalOfficerSalary = sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
-  const sCorpK1 = sCorpEntities.reduce((s, e) => s + Math.max(0, parseFloat(e?.pnl?.netProfit) || 0), 0)
+  const sCorpK1 = sCorpEntities.reduce((s, e) => s + Math.max(0, getEntityNetProfit(e)), 0)
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
@@ -392,8 +419,18 @@ function TaxOptimization({ rec }) {
   const isPassthrough = isPassthroughEntity(b.entityType)
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
-  // FIX: apply QBI before getMarginalRate — matches TaxReturn.jsx calculation
-  const agi = Math.max(0, k1 + w2)
+
+  // FIX (Incomplete AGI): agi previously only summed k1 + w2, omitting capital gains,
+  // interest, dividends, net rental income, and other income. All these items are
+  // included in AGI and affect the taxable income base used for marginalRate and QBI
+  // limitation calculations. They are now included so optimization estimates are accurate.
+  const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
+  const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
+  const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  const rentalNet = Math.max(0, (parseFloat(String(f.rentalIncome || '').replace(/,/g, '')) || parseFloat(String(b.rentalIncome || '').replace(/,/g, '')) || 0) - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
+  const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
+  const agi = Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
+
   const _taxableBeforeQBI_opt = Math.max(0, agi - stdDed)
   const { deduction: _qbiOpt } = isPassthroughEntity(b.entityType) && k1 > 0
     ? calcQBI(k1, _taxableBeforeQBI_opt, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
@@ -403,13 +440,16 @@ function TaxOptimization({ rec }) {
 
   const opportunities = []
 
-  const maxSEP = Math.min(69000, Math.round((k1 + w2) * 0.25))
+  // FIX (SEP-IRA limit): The 2025 SEP-IRA / Solo 401(k) annual addition limit is
+  // $70,000 (IRC §415(c)(1)(A), indexed for 2025). The prior hardcoded value of
+  // $69,000 was the 2024 limit and would understate the maximum deduction by $1,000.
+  const maxSEP = Math.min(70000, Math.round((k1 + w2) * 0.25))
   if (maxSEP > 0 && isPassthrough) {
     const taxSaved = Math.round(maxSEP * marginalRate)
     opportunities.push({
       icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
       saving: taxSaved,
-      detail: `You can contribute up to ${fmt(maxSEP)} (25% of net self-employment income, max $69,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`,
+      detail: `You can contribute up to ${fmt(maxSEP)} (25% of net self-employment income, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`,
       howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max SEP-IRA contribution saves approx. ${fmt(taxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions.`
     })
   }
@@ -560,7 +600,8 @@ function IRSCompliance({ rec }) {
   }
 
   if (parseFloat(f.estPaid) > 0) {
-    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 16 | Q3: Sep 15 | Q4: Jan 15' })
+    // FIX (Q2 deadline): corrected Jun 16 → Jun 15 per IRC §6654(c)(2)
+    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
   schedules.push({ form: 'Schedule 1', title: 'Additional Income and Adjustments', status: 'required', detail: 'Reports K-1 income, rental income, capital gains, NOL carryforward, and above-the-line deductions. Flows to Form 1040 Lines 8 and 10.', deadline: 'Filed with Form 1040' })
@@ -600,9 +641,23 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 4562', title: 'Depreciation and Amortization', status: 'required', detail: 'Reports depreciation deductions for business assets and rental property.', deadline: 'Filed with Form 1040' })
   }
 
+  // FIX (NIIT trigger): Previously triggered Form 8960 whenever k1 + w2 exceeded the
+  // NIIT threshold, which produced false positives for active business owners with no
+  // investment income. NIIT under IRC §1411 applies only when BOTH conditions are met:
+  // (1) MAGI exceeds the filing-status threshold, AND (2) the taxpayer has net
+  // investment income (interest, dividends, capital gains, net non-REP rental income).
+  // Active trade or business income (K-1, W-2) is excluded from net investment income
+  // per IRC §1411(c)(1)(A)(ii) and Treas. Reg. §1.1411-4(g). The trigger now correctly
+  // checks for the presence of investment income before surfacing this form.
+  const _niitInterest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
+  const _niitDividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  const _niitCapGains = _stGain + _ltGain
+  const _niitRentalNet = _isREP ? 0 : Math.max(0, _rentalIncomeSch - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
+  const _netInvestmentIncome = _niitInterest + _niitDividends + _niitCapGains + _niitRentalNet
+  const _niitMagi = k1 + w2 + _netInvestmentIncome
   const _niitThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
-  if ((k1 + w2) > _niitThreshold) {
-    schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', detail: 'MAGI exceeds the NIIT threshold for the selected filing status. Applies 3.8% to net investment income.', deadline: 'Filed with Form 1040' })
+  if (_niitMagi > _niitThreshold && _netInvestmentIncome > 0) {
+    schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold. Note: active K-1 and W-2 income are excluded from net investment income per IRC §1411(c)(1)(A)(ii).`, deadline: 'Filed with Form 1040' })
   }
 
   const totalIncome = k1 + w2
@@ -620,7 +675,8 @@ function IRSCompliance({ rec }) {
     { date: `Jan 31, ${year + 1}`, event: 'W-2s issued by employers' },
     { date: `Mar 15, ${year + 1}`, event: `Form 1120-S / 1065 due (S-Corps & Partnerships)` },
     { date: `Apr 15, ${year + 1}`, event: 'Form 1040 personal return due / Q1 estimated payment' },
-    { date: `Jun 16, ${year + 1}`, event: 'Q2 estimated tax payment due' },
+    // FIX (Q2 deadline): corrected Jun 16 → Jun 15 per IRC §6654(c)(2)
+    { date: `Jun 15, ${year + 1}`, event: 'Q2 estimated tax payment due' },
     { date: `Sep 15, ${year + 1}`, event: 'Q3 estimated tax payment due' },
     { date: `Jan 15, ${year + 2}`, event: 'Q4 estimated tax payment due' },
   ]
@@ -760,7 +816,8 @@ function SimulatorModal({ onClose, rec }) {
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      sep:     { otherDeductions: Math.min(69000, Math.round((base.grossRevenue - base.cogs - base.operatingExpenses - base.officerSalary) * ownerPct * 0.25)) },
+      // FIX (SEP-IRA limit): updated from $69,000 (2024 limit) to $70,000 (2025 limit)
+      sep:     { otherDeductions: Math.min(70000, Math.round((base.grossRevenue - base.cogs - base.operatingExpenses - base.officerSalary) * ownerPct * 0.25)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},
