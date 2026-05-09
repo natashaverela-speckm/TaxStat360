@@ -47,6 +47,11 @@ export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
 
+  // Security & privacy state
+  const [idleTimeout, setIdleTimeout] = useState('0')
+  const [loginHistory, setLoginHistory] = useState([])
+  const [exportDone, setExportDone] = useState(false)
+
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
@@ -76,6 +81,13 @@ export default function Settings() {
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
+
+    // Load security preferences and login history
+    setIdleTimeout(localStorage.getItem('ts360_idle_timeout_mins') || '0')
+    try {
+      const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
+      setLoginHistory(history)
+    } catch(e) { setLoginHistory([]) }
   }, [])
 
   const handleEmailChange = async () => {
@@ -89,10 +101,7 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ new_email: emailInput })
       })
-      // M2: Actually check res.ok before showing success. Email change is an
-      // authenticated action — the user is logged in, so we can give real feedback
-      // on failure rather than silently showing success. (Unlike password reset where
-      // security best practice is to always show "sent" to prevent enumeration.)
+      // M2: Actually check res.ok before showing success.
       if (res.ok) {
         setEmailSent(true)
         setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
@@ -112,10 +121,7 @@ export default function Settings() {
     try {
       // SECURITY: do not change this to show different UI on success vs failure.
       // Always showing "sent" regardless of API response prevents account enumeration
-      // (OWASP ASVS 2.10.2 / CWE-204) — an attacker could otherwise probe which
-      // email addresses have accounts by observing different responses.
-      // The catch block falling through to the same success UX is intentional.
-      // If the endpoint is broken, users won't receive an email; the UX must not differ.
+      // (OWASP ASVS 2.10.2 / CWE-204). The catch block is intentional.
       await fetch(`${API}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -131,10 +137,51 @@ export default function Settings() {
     window.open('https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00', '_blank')
   }
 
+  // FIX (CCPA data export): Collects all ts360_* keys from localStorage and
+  // triggers a JSON download. Required for CCPA compliance — users have the right
+  // to receive a copy of all personal data the app holds on their device.
+  const handleDataExport = () => {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      exportedBy: email,
+      notice: 'This file contains all TaxStat360 data stored on this device for your account. Tax records, session preferences, and account metadata are included.',
+      data: {}
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.startsWith('ts360_') || key === 'plan' || key === 'userName')) {
+        try { exportData.data[key] = JSON.parse(localStorage.getItem(key)) }
+        catch { exportData.data[key] = localStorage.getItem(key) }
+      }
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `taxstat360-data-export-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setExportDone(true)
+    setTimeout(() => setExportDone(false), 4000)
+  }
+
+  // FIX (idle timeout preference): Stores the user's chosen idle timeout in
+  // localStorage. The actual enforcement (event listeners + timer) runs in
+  // App.jsx's RequireAuth wrapper so it covers all authenticated pages.
+  const handleIdleTimeoutChange = (val) => {
+    setIdleTimeout(val)
+    localStorage.setItem('ts360_idle_timeout_mins', val)
+  }
+
   const card = {
     background:'#fff', border:'1px solid #E2E8F0', borderRadius:14,
     padding:'24px 28px', marginBottom:20
   }
+
+  const sessionStart = localStorage.getItem('ts360_session_start')
+  const sessionDisplay = sessionStart
+    ? new Date(parseInt(sessionStart)).toLocaleString()
+    : 'Unknown'
 
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
@@ -150,7 +197,7 @@ export default function Settings() {
         </div>
       </nav>
 
-      <div style={{maxWidth:680,margin:'0 auto',padding:'40px 20px'}}>
+      <div style={{maxWidth:680,margin:'0 auto',padding:'40px 20px 80px 20px'}}>
         <h1 style={{fontSize:24,fontWeight:800,color:N,marginBottom:4}}>Account Settings</h1>
         <p style={{color:SL,fontSize:14,marginBottom:32}}>Manage your profile, password, and subscription.</p>
 
@@ -225,21 +272,126 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Danger Zone */}
+        {/* FIX (security section): Adds idle timeout preference and login history.
+            Idle timeout preference is stored in localStorage and enforced by
+            App.jsx's RequireAuth. Login history is written by RequireAuth on each
+            authenticated session (once per calendar day, max 10 entries). */}
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:20,textTransform:'uppercase'}}>Security</div>
+
+          {/* Idle timeout */}
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Idle session timeout</div>
+            <div style={{fontSize:13,color:SL,marginBottom:12}}>Automatically sign you out after a period of inactivity. Applies across all pages.</div>
+            <select
+              value={idleTimeout}
+              onChange={e => handleIdleTimeoutChange(e.target.value)}
+              style={{padding:'9px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',outline:'none',cursor:'pointer'}}
+            >
+              <option value="0">Never</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+            </select>
+            {idleTimeout !== '0' && (
+              <div style={{fontSize:12,color:'#059669',marginTop:8}}>
+                ✓ You will be signed out after {idleTimeout} minutes of inactivity.
+              </div>
+            )}
+          </div>
+
+          {/* Current session */}
+          <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20,marginBottom:24}}>
+            <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>Current session</div>
+            <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'12px 16px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:N}}>This browser</div>
+                  <div style={{fontSize:12,color:SL,marginTop:2}}>Session started: {sessionDisplay}</div>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',background:'#F0FDF4',color:'#059669',borderRadius:20}}>Active</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Login history */}
+          <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20}}>
+            <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>Login history</div>
+            {loginHistory.length === 0 ? (
+              <div style={{fontSize:13,color:SL,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'14px 16px'}}>
+                No login history recorded yet. History is captured from this point forward — up to 10 sessions.
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {loginHistory.slice(0,10).map((entry, i) => (
+                  <div key={i} style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <div style={{fontSize:13,color:N,fontWeight: i===0?600:400}}>
+                        {new Date(entry.timestamp).toLocaleString()}
+                        {i===0&&<span style={{marginLeft:8,fontSize:11,fontWeight:700,color:'#059669'}}>Current</span>}
+                      </div>
+                      {entry.userAgent && (
+                        <div style={{fontSize:11,color:'#94A3B8',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {entry.userAgent}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* FIX (CCPA data export): Users have the right to download all personal
+            data the application holds on their device. Collects all ts360_*
+            localStorage keys and triggers a JSON file download. */}
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Privacy & Data</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Download my data</div>
+              <div style={{fontSize:13,color:SL,lineHeight:1.5}}>
+                Export a copy of all your TaxStat360 data stored on this device — tax records, session history, and account metadata — as a JSON file. You can request this at any time under CCPA and similar privacy laws.
+              </div>
+            </div>
+            <button
+              onClick={handleDataExport}
+              style={{flexShrink:0,padding:'9px 18px',background:exportDone?'#059669':'#fff',color:exportDone?'#fff':N,border:`1px solid ${exportDone?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
+            >
+              {exportDone ? '✓ Downloaded' : '⬇ Export data'}
+            </button>
+          </div>
+        </div>
+
+        {/* Danger Zone — FIX: "Sign out of all devices" label contradicted its own
+            description ("Removes your session from this browser"). Since TaxStat360
+            has no multi-device session management, the button is scoped to this
+            browser only. Label updated to match the description. */}
         <div style={{...card, border:'1px solid #FCA5A5'}}>
           <div style={{fontSize:11,fontWeight:700,color:'#DC2626',letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Danger zone</div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+
+          {/* Sign out — this browser only */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
             <div>
-              <div style={{fontSize:14,fontWeight:600,color:N}}>Sign out of all devices</div>
+              <div style={{fontSize:14,fontWeight:600,color:N}}>Sign out</div>
               <div style={{fontSize:13,color:SL,marginTop:3}}>Removes your session from this browser.</div>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',marginTop:8,borderTop:'1px solid #fee2e2'}}>
-                <div><div style={{fontWeight:600,color:'#1f2937',fontSize:15}}>Delete Account</div><div style={{fontSize:13,color:'#6b7280',marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div></div>
-                <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'8px 18px',background:'white',border:'1.5px solid #dc2626',borderRadius:7,color:'#dc2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>Request Deletion</a>
-              </div>
             </div>
             <button onClick={()=>signOut(nav)} style={{padding:'9px 18px',background:'#fff',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
               Sign Out
             </button>
+          </div>
+
+          {/* Delete account */}
+          <div style={{borderTop:'1px solid #FEE2E2',paddingTop:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:N}}>Delete account</div>
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div>
+            </div>
+            <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'9px 18px',background:'#fff',border:'1.5px solid #DC2626',borderRadius:8,color:'#DC2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>
+              Request deletion
+            </a>
           </div>
         </div>
       </div>
