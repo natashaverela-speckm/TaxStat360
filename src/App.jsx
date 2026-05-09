@@ -15,19 +15,12 @@ import ForgotPassword from './ForgotPassword'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
-// OAuthCallback receives a :provider param from the URL. Without an allowlist,
-// an attacker could craft /integrations/anything/callback to set arbitrary
-// ts360_{anything}_connected keys in localStorage.
 const OAUTH_PROVIDERS = new Set(['quickbooks', 'xero', 'wave', 'freshbooks'])
 
 function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
   const location = useLocation()
   useEffect(() => {
-    // M1: Reject any provider not in the allowlist before touching localStorage.
-    // Normalize to lowercase for both the check AND the key writes — prevents
-    // ts360_QuickBooks_connected vs ts360_quickbooks_connected mismatch if the
-    // callback URL arrives with mixed case.
     const p = provider.toLowerCase()
     if (!OAUTH_PROVIDERS.has(p)) {
       window.location.href = '/calculate-tax'
@@ -50,11 +43,7 @@ function OAuthCallback() {
 }
 
 // ─── Persistent Authenticated Footer ─────────────────────────────────────────
-// Renders on every protected route via RequireAuth. Satisfies the requirement
-// for persistent ToS and Privacy Policy links inside the authenticated app.
-// Fixed at the bottom so it persists across all page scroll positions without
-// requiring changes to individual page layouts.
-// z-index 50 keeps it below the sticky nav bars (z-index 100) on each page.
+// Renders on every protected route via RequireAuth.
 function AuthFooter() {
   const year = new Date().getFullYear()
   const link = { color: '#64748B', textDecoration: 'none', fontWeight: 600 }
@@ -82,20 +71,66 @@ function AuthFooter() {
 }
 
 // ─── Auth Guard ───────────────────────────────────────────────────────────────
-// Wraps protected routes. Unauthenticated users are redirected to /login with the
-// originally-requested location captured in state.from so the login handler can
-// redirect them back after they sign in.
-//
-// Auth presence is signaled by ts360_session — set by Onboarding LoginScreen and
-// SignupScreen on successful auth, cleared by every sign-out handler. ts360_user
-// was previously also checked here as an OR fallback but was never written by any
-// code path (audited 2026-05-05); removed to reduce confusion about the canonical
-// auth key.
-// AuthFooter is rendered here so it automatically covers every protected route
-// without requiring changes to individual page components.
+// Wraps all protected routes. Handles:
+// 1. Auth check — redirects unauthenticated users to /login
+// 2. Login history — records one entry per calendar day (max 10) to
+//    ts360_login_history in localStorage, read by Settings.jsx
+// 3. Idle timeout — enforces the timeout preference set in Settings.jsx
+//    (ts360_idle_timeout_mins). On expiry, clears auth tokens and redirects
+//    to /login. Tax records are preserved — only session keys are cleared.
+// 4. AuthFooter — persistent ToS/Privacy footer on all authenticated pages
 function RequireAuth({ children }) {
   const isLoggedIn = localStorage.getItem('ts360_session')
   const location = useLocation()
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+
+    // ── Login history ────────────────────────────────────────────────────────
+    // Record one entry per calendar day so Settings.jsx can display recent
+    // sessions. Uses Date.toDateString() for day-level deduplication.
+    try {
+      const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
+      const today = new Date().toDateString()
+      const lastEntry = history[0]
+      if (!lastEntry || new Date(lastEntry.timestamp).toDateString() !== today) {
+        history.unshift({
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+        })
+        localStorage.setItem('ts360_login_history', JSON.stringify(history.slice(0, 10)))
+      }
+    } catch(e) { /* localStorage may be unavailable in private browsing */ }
+
+    // ── Idle timeout ─────────────────────────────────────────────────────────
+    // Read preference set in Settings.jsx. 0 = disabled (default).
+    // Only auth tokens are cleared on expiry — tax records are preserved.
+    const timeoutMins = parseInt(localStorage.getItem('ts360_idle_timeout_mins') || '0')
+    if (!timeoutMins) return
+
+    let timer
+    const AUTH_KEYS = [
+      'token', 'ts360_session', 'ts360_session_start', 'ts360_email',
+      'plan', 'userName', 'ts360_connected_app',
+    ]
+    const handleExpiry = () => {
+      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+      window.location.href = '/login'
+    }
+    const resetTimer = () => {
+      clearTimeout(timer)
+      timer = setTimeout(handleExpiry, timeoutMins * 60 * 1000)
+    }
+    const EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
+    EVENTS.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
+    resetTimer()
+
+    return () => {
+      clearTimeout(timer)
+      EVENTS.forEach(e => window.removeEventListener(e, resetTimer))
+    }
+  }, [isLoggedIn])
+
   if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
   return (
     <>
@@ -117,9 +152,7 @@ export default function App() {
         <Route path="/signin" element={<Onboarding screen="login" />} />
         <Route path="/login" element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
-        {/* Onboarding flow — B3: wrapped in RequireAuth (users always have a token
-            by this point; legitimate traffic is unaffected; prevents unauthenticated
-            access to /user/business-info POST endpoint via BusinessScreen) */}
+        {/* Onboarding flow — B3: wrapped in RequireAuth */}
         <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
@@ -132,7 +165,7 @@ export default function App() {
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
         <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
-        {/* Password reset — public, linked from email */}
+        {/* Password reset — public */}
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* Public legal */}
