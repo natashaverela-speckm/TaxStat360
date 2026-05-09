@@ -154,7 +154,10 @@ function buildRecs(biz,calc){
   if(qbi>0) recs.push({type:'success',title:'QBI Deduction Applied - '+fmt(qbi)+' Saved',msg:'You qualify for the 20% Section 199A deduction, reducing your taxable income by '+fmt(qbi)+'.'})
   if(dep===0&&grossRev>50000) recs.push({type:'info',title:'Review Depreciation Deductions',msg:'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Section 179.'})
   if(adv/grossRev<0.02&&grossRev>100000) recs.push({type:'info',title:'Consider Increasing Advertising Deductions',msg:'Your advertising expenses are low. Legitimate marketing and promotional costs are fully deductible.'})
-  if(parseFloat(effRate)>28) recs.push({type:'warning',title:'High Effective Tax Rate ('+pct(effRate)+')',msg:'Consider maximizing retirement contributions: SEP-IRA (up to $66,000) or Solo 401k (up to $69,000).'})
+  // FIX (retirement contribution limits): updated from stale 2023/2024 limits to the
+  // 2025 annual addition limit of $70,000 per IRC §415(c)(1)(A) (indexed). The prior
+  // text showed $66,000 (2023 SEP-IRA limit) and $69,000 (2024 Solo 401k limit).
+  if(parseFloat(effRate)>28) recs.push({type:'warning',title:'High Effective Tax Rate ('+pct(effRate)+')',msg:'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) (up to $70,000) for 2025.'})
   if(recs.length===0) recs.push({type:'success',title:'Your Tax Structure Looks Healthy',msg:'No significant issues detected. Keep monitoring quarterly and update as financials change.'})
   return recs
 }
