@@ -589,10 +589,21 @@ function calcTaxReturn(input) {
     return sum + k1 * scale
   }, 0)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
+
   // QBI rental basis uses palAdjustedRental: suspended PAL losses are not deductible
   // in the current year and therefore do not reduce the QBI basis. REP users are
   // unaffected (palAdjustedRental === rentalNet when isREP=true).
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO
+
+  // FIX (§199A QBI carryforward): when entities array is empty but k1Total is non-zero
+  // (e.g. calcTaxReturn called directly in tests or the Dashboard summary path without
+  // per-entity type data), fall back to k1Total for QBI basis so qbiCarryforward and
+  // the QBI deduction flow correctly. In normal app usage, entities is always populated
+  // when k1Total is non-zero — the entity-level nonSEk1 loop handles type classification
+  // (SE vs non-SE, SSTB scaling). When entities.length > 0, k1FallbackForQBI is 0 so
+  // this change has no effect on any existing entity-level calculation path.
+  const k1FallbackForQBI = entities.length === 0 ? k1Total : 0
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO + k1FallbackForQBI
+
   // (taxableBeforeQBI declared above — moved to resolve TDZ before sstbApplicablePct block)
   // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
