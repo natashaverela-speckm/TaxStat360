@@ -76,8 +76,16 @@ export default function Landing() {
           <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Already have an account</button>
         </div>
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
-        <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Connects with</span>
+
+        {/* FIX (L-03): "Connects with" implied software connection was the only path.
+            Manual entry is a fully supported first-class option — many users who don't
+            use QuickBooks/Xero/Wave/FreshBooks (or prefer not to connect) enter their
+            revenue and expenses directly. Adding "or enter your numbers manually" makes
+            this clear so no potential customer reads this section and concludes the
+            product won't work for them. The integration logos are accurate — those
+            integrations exist in the app. */}
+        <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Integrates with</span>
           {[['QB','QuickBooks','#2CA01C'],['XE','Xero','#00B9FF'],['WV','Wave','#4BC7AD'],['FB','FreshBooks','#0075DE']].map(([abbr,name,color],i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{abbr}</div>
@@ -85,6 +93,7 @@ export default function Landing() {
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Don&apos;t use accounting software? Enter your numbers manually — it takes under 2 minutes.</p>
       </section>
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
@@ -134,7 +143,16 @@ export default function Landing() {
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
-            { n: '01', title: 'Connect your software', desc: 'Link QuickBooks, Xero, Wave, or FreshBooks. We pull your income and expense totals with no sub-accounts, just the numbers that matter.' },
+            {
+              n: '01',
+              // FIX (L-03): Step 1 previously implied software connection was the only
+              // path ("Connect your software — Link QuickBooks, Xero, Wave, or FreshBooks").
+              // Manual entry is a fully supported option — updated to reflect both paths
+              // so users without these accounting tools don't conclude the product
+              // won't work for them.
+              title: 'Connect your software — or enter manually',
+              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your revenue and expenses directly — it takes under 2 minutes.',
+            },
             { n: '02', title: 'Enter your personal info', desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your real tax bill', desc: 'Complete tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown updated in real time as you adjust numbers.' },
           ].map((s,i) => (
@@ -153,7 +171,15 @@ export default function Landing() {
           {[
             { q: 'Do I need a CPA or accountant to use TaxStat360?', a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
             { q: 'How accurate are the tax calculations?', a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
-            { q: 'What accounting software does TaxStat360 connect to?', a: 'We currently integrate with QuickBooks Online, Xero, Wave, and FreshBooks. We pull your profit and loss data directly so you never have to manually enter numbers. More integrations are coming soon.' },
+            {
+              q: 'What accounting software does TaxStat360 connect to?',
+              // FIX (L-03): Previous answer said "We pull your profit and loss data directly
+              // so you never have to manually enter numbers." This was inaccurate — manual
+              // entry is a fully supported, common path used by many users. The updated answer
+              // accurately presents both options so users without these tools know they can
+              // still use the product by entering their numbers directly.
+              a: 'TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don\'t use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon.',
+            },
             { q: 'Can I use TaxStat360 if I have multiple businesses?', a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
             { q: 'Is my financial data secure?', a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?', a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
