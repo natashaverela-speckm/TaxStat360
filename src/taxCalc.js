@@ -270,19 +270,9 @@ function _applyMinQBI(result, activeQbiForFloor, taxYear) {
 }
 
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
-  // Returns { deduction, limitApplied, caps } where:
-  //   deduction    — the actual QBI deduction (rounded)
-  //   limitApplied — 'qbi' | 'wage' | 'income' | 'min400' | 'none'
-  //   caps         — { qbi, wage, income, min400? } actual values of each cap
-  //                  (wage may be null if not above threshold or no Box 17V data;
-  //                   min400 only present when §199A(i) applies for taxYear ≥ 2026)
   const { status = 'single', taxYear = 2025, entityQbiData = [], activeQbi } = opts;
 
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) {
-    // §199A(i) floor still applies if qbiIncome > 0 but TI ≤ 0 — caller's active
-    // QBI passes the $1,000 gate even when the regular calc returns 0. The floor
-    // overrides the TI cap because §199A(a) is carved out by "except as provided
-    // in subsection (i)".
     return _applyMinQBI(
       { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } },
       activeQbi !== undefined ? activeQbi : qbiIncome,
@@ -294,11 +284,9 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * 0.20;
   const qbiComponent = qbiIncome * 0.20;
 
-  // §199A(e)(2) threshold check
   const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025];
   const threshold = thresholds[status] || thresholds.single;
 
-  // Below threshold: simple 20% of QBI capped by income limitation
   if (taxableBeforeQBI <= threshold) {
     const ded = Math.min(qbiComponent, incomeLimitation);
     const limitApplied = qbiComponent <= incomeLimitation ? 'qbi' : 'income';
@@ -313,29 +301,12 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     );
   }
 
-  // Above threshold: §199A(b)(2) wage/UBIA limit, §199A(b)(3)(B) phase-in, §199A(d)(3) SSTB applicable percentage
   const phaseInForYear = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025];
   const phaseInRange = phaseInForYear[status] || phaseInForYear.single;
   const excessOverThreshold = taxableBeforeQBI - threshold;
   const phasePercent = Math.min(1, excessOverThreshold / phaseInRange);
-
-  // §199A(d)(3) SSTB applicable percentage: 100% at threshold, 0% at threshold+phaseInRange.
-  // Applied per-entity so mixed SSTB + non-SSTB filers correctly exclude only the SSTB portion.
   const sstbApplicablePct = Math.max(0, 1 - phasePercent);
 
-  // SSTB entities' contribution to qbiIncome (for proration in adjQBI).
-  // e.k1 in entityQbiData is constructed by CalculateTaxInner.proceed() as:
-  //   Math.round(netProfit × own%) − box11_12 − box12_13
-  // so it's the entity's ownership-adjusted, §179-and-other-deduction-net K-1 share.
-  // Use it directly — multiplying by ownership again or subtracting boxes again
-  // would double-apply both adjustments.
-  //
-  // Fallback path: AI Analysis can pass raw saved-record entities (which have
-  // netProfit and own but no k1 field — see #113). For that path, derive a
-  // best-effort k1Income from netProfit × own% so SSTB proration stays
-  // approximately correct. Box deductions are not subtracted in this fallback
-  // (the raw record stores them but we accept the small SSTB exclusion
-  // understatement rather than introducing yet another shape divergence).
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s;
     const k1Income = parseFloat(
@@ -344,17 +315,10 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     return s + Math.max(0, k1Income);
   }, 0);
 
-  // Reduce aggregate QBI by SSTB exclusion: non-SSTB QBI kept in full; SSTB QBI scaled by sstbApplicablePct.
   const adjQBI = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct));
   const scaledQbiComponent = adjQBI * 0.20;
-
-  // §199A(i) active-QBI default for above-threshold branches: use SSTB-adjusted adjQBI rather
-  // than raw qbiIncome, so a fully-phased-out SSTB (adjQBI=0) doesn't trigger the floor.
-  // Caller can override with opts.activeQbi if they have better information (e.g., explicit
-  // material-participation flagging per entity).
   const activeQbiForFloor = activeQbi !== undefined ? activeQbi : adjQBI;
 
-  // Wages / UBIA: scale only the SSTB-attributed portion by sstbApplicablePct
   const totalWages = entityQbiData.reduce((s, e) => {
     const w = parseFloat(e.box17V_wages) || 0;
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w);
@@ -364,8 +328,6 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     return s + (e.box17V_sstb ? u * sstbApplicablePct : u);
   }, 0);
 
-  // Backward-compat: if no Box 17V wage/UBIA data entered, fall back to (scaled) simple 20%.
-  // Users above threshold should enter wages/UBIA from K-1 Box 17V (S-corp) / Box 20Z (partnership) for accurate calc.
   if (totalWages === 0 && totalUBIA === 0) {
     const ded = Math.min(scaledQbiComponent, incomeLimitation);
     const limitApplied = scaledQbiComponent <= incomeLimitation ? 'qbi' : 'income';
@@ -380,11 +342,8 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     );
   }
 
-  // Wage/UBIA limit per §199A(b)(2): greater of 50% wages OR 25% wages + 2.5% UBIA
   const wageLimit = Math.max(totalWages * 0.50, totalWages * 0.25 + totalUBIA * 0.025);
 
-  // §199A(b)(3)(B) phase-in: linear between threshold and threshold+phaseInRange.
-  // At threshold: no reduction (simple 20% applies). At threshold+range: full wage limit applies.
   let limitedAmount;
   let wageBindingActive;
   if (excessOverThreshold >= phaseInRange) {
@@ -420,28 +379,10 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     taxYear
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // calcTaxReturn — top-level pure orchestrator (Issue #59 PR-H2)
 // ─────────────────────────────────────────────────────────────────────────────
-// Pure function: takes a config object of pre-scaled income inputs + raw
-// adjustment/payment strings + ytdFactor for internal scaling, returns a result
-// object with all derived calc values.
-//
-// Contract: this function is PURE. No React, no state, no side effects.
-// Same input → same output, always. Safe to call multiple times for scenario
-// comparisons (Issue #45 — Scenario Compare v1).
-//
-// Input shape:
-//   Filing context: taxYear, status, dependents
-//   Entities: entities[]
-//   Pre-YTD-scaled income: w2, k1Total, rentalNet, stGain, ltGain, intInc,
-//     divInc, qualDiv, f4797Inc, taxableSS, iraIncome
-//   Raw strings (orchestrator nv()s + ytdScales as appropriate):
-//     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement, nolCarryforward,
-//     priorYearQBILoss, itemizedAmt, saltAmount, isoBargainElement,
-//     unrecap1250, collectiblesGain, w2Withheld, estPaid
-//   Booleans: useItemized, hasISO, isREP
-//   YTD scaling: ytdFactor (1 = no scaling; e.g. 12/3 = scale Q1 to full year)
 function calcTaxReturn(input) {
   const {
     taxYear, status, dependents,
@@ -454,124 +395,69 @@ function calcTaxReturn(input) {
     useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement,
     isREP,
-    isActiveParticipant = true,  // §469(i)(6): active participant in rental activity (lower bar than material participation)
+    isActiveParticipant = true,
     unrecap1250, collectiblesGain,
     w2Withheld, estPaid,
     ytdFactor = 1,
   } = input
 
-  // Internal helper: matches the component's ytdScale closure
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
-
-  // QBI loss carryforward — reduces qbiBasis only, NOT AGI; not YTD-scaled (annual amount)
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
   // ── §469 Passive Activity Loss (PAL) Limitation ─────────────────────────────
-  // For non-REP investors, rental losses may only offset passive income.
-  // §469(i) allows up to $25k of rental losses for active participants,
-  // subject to AGI phase-out ($100k–$150k; not inflation-indexed per §469(i)(3)(A)).
-  // MFS exception: §469(i)(5)(B) — MFS filers who lived with spouse at any point
-  // during the year get $0 allowance (no deduction). Without a mfsLivedApart input,
-  // the conservative §469(i)(5)(B) rule applies by default for all MFS filers.
-  // TaxStat360 assumption: non-MFS users are treated as active participants (not
-  // merely passive) — conservative relative to full passive-only treatment.
-  // Suspended losses are tracked as palSuspendedRental for planning display.
-  let palAdjustedRental = rentalNet   // default: full deductibility (REP path)
-  let palSuspendedRental = 0          // rental loss deferred to future year
+  let palAdjustedRental = rentalNet
+  let palSuspendedRental = 0
   if (!isREP && rentalNet < 0) {
-    // Pre-rental MAGI approximation (§469(i)(3)(A)) — avoids circular dependency with grossIncome.
-    // Subtracts above-the-line deductions computable at this point. halfSE is excluded:
-    // SE tax depends on seNetIncome (k1-based), not rentalNet, so the circular error is
-    // limited to the rare SE-income + rental-loss case and is directionally conservative.
-    // taxableSS excluded per §469(i)(3)(F)(iv) — Congress carved SS out of this MAGI.
     const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
-      - Math.min(ytdScale(studentLoanInt), 2500)   // §221 student loan interest deduction
-      - ytdScale(hsaDeduction)                      // §223 HSA deduction
-      - ytdScale(selfEmpRetirement)                 // §404 SE retirement plan deduction
-      - ytdScale(selfEmpHealthIns)                  // §162(l) SE health insurance deduction
-    // §469(i)(5)(A)/(B): MFS filers — default to $0 allowance (lived-with-spouse rule)
-    // §469(i)(6): active participant required for the $25k allowance — passive investors
-    // (limited partners, syndication investors) get $0 regardless of AGI.
+      - Math.min(ytdScale(studentLoanInt), 2500)
+      - ytdScale(hsaDeduction)
+      - ytdScale(selfEmpRetirement)
+      - ytdScale(selfEmpHealthIns)
     const isMFS = status === 'mfs'
     const baseAllowance = (isMFS || !isActiveParticipant) ? 0 : 25000
     const phaseStart    = isMFS ? 0 : 100000
-    // §469(i)(3): allowance phased out 50¢/$ over phase-out start; eliminated at start+$50k
     const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
-    // Allowed rental loss limited to the special allowance
     palAdjustedRental = Math.max(rentalNet, -specialAllowance)
-    palSuspendedRental = Math.round(palAdjustedRental - rentalNet) // positive = suspended loss
+    palSuspendedRental = Math.round(palAdjustedRental - rentalNet)
   }
 
   // ── §461(l) Excess Business Loss (EBL) Limitation ───────────────────────────
-  // IRC §461(l)(1) (TCJA §11012, extended by OBBBA §70104) limits noncorporate
-  // taxpayers' aggregate business losses to the threshold amount. Excess becomes
-  // a §172 NOL carryforward to the next tax year.
-  // "Business" for §461(l): K-1 + §1231 (f4797Inc) + REP rental.
-  // W-2 wages are NOT business income — Prop. Reg. §1.461(l)-1(c)(1)(iii).
   const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? ((['mfj','qss'].includes(status)) ? 626000 : 313000)
-  // Net business position using PAL-adjusted rental (apply §469 before §461(l))
   const eblBiz = k1Total + f4797Inc + (isREP ? rentalNet : palAdjustedRental)
-  const eblNetLoss = Math.max(0, -eblBiz)         // positive = net business loss
-  const ebl = Math.max(0, eblNetLoss - eblThreshold)  // excess = NOL carryforward
+  const eblNetLoss = Math.max(0, -eblBiz)
+  const ebl = Math.max(0, eblNetLoss - eblThreshold)
 
-  // Total gross income (Schedule 1 Line 8a NOL carryforward subtracted; not YTD-scaled)
-  // ebl is added back to partially un-do the business loss (disallowed portion)
   const grossIncome = w2 + k1Total + palAdjustedRental + stGain + ltGain + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl - Math.max(0, nv(nolCarryforward))
 
-  // SE tax computed BEFORE adjustments because halfSE is an above-the-line deduction (Schedule 1 Line 15)
-  //
-  // Per IRC §1402(a)(13), limited partners' distributive shares are excluded from SE income.
-  // The Active partnership variant ("Partnership / MMLLC — Active") covers general partners
-  // and members who materially participate; the Passive variant is excluded from SE tax.
-  //
-  // Legacy mapper: pre-split saved records have the bare 'Partnership / Multi-Member LLC'
-  // string. We treat those as Passive (no SE tax) — the conservative, user-protective default.
-  // Pre-launch with no real users, so this is essentially defensive coding.
   const SE_SUBJECT_TYPES = ['Sole Proprietor / Single-Member LLC', 'Partnership / MMLLC — Active']
   const seNetIncome = entities.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     return sum + Math.max(0, parseFloat(e.k1) || 0)
   }, 0)
 
-  // SE tax: 12.4% SS (capped at wage base) + 2.9% Medicare (uncapped), on 92.35% of SE earnings
-  // SS wage base parameterized via TAX_TABLES per year (2024: $168,600, 2025: $176,100, 2026: $184,500 per SSA)
   const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
   const seEarningsSubject = seNetIncome * 0.9235
   const ssPortion = Math.min(seEarningsSubject, ssWageBase) * 0.124
   const medicarePortion = seEarningsSubject * 0.029
   const seTax = Math.round(ssPortion + medicarePortion)
-  const halfSE = Math.round(seTax / 2) // deductible half of SE tax (Schedule 1 Line 15, reduces AGI; also reduces QBI basis per Reg §1.199A-3(b)(1)(vi))
+  const halfSE = Math.round(seTax / 2)
 
-  // Above-the-line deductions (Schedule 1, Part II) — halfSE is included here so it reduces AGI
   const selfEmpHealthDed = ytdScale(selfEmpHealthIns)
   const hsaDed = ytdScale(hsaDeduction)
-  const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500) // capped at $2,500
+  const studentLoanDed = Math.min(ytdScale(studentLoanInt), 2500)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
   const agi = grossIncome - adjustments
 
-  // Deductions
   const stdDed = getStdDed(taxYear, status)
   const itemized = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
-  // Additional capital gain types
-  const unrec1250 = Math.max(0, nv(unrecap1250))      // Unrecaptured Sec 1250 gain — max 25%
-  const collectibles = Math.max(0, nv(collectiblesGain)) // Collectibles — max 28%
+  const unrec1250 = Math.max(0, nv(unrecap1250))
+  const collectibles = Math.max(0, nv(collectiblesGain))
 
-  // Compute taxableBeforeQBI BEFORE sstbApplicablePct — the per-entity nonSEk1 reduce
-  // needs it to scale SSTB items by the applicable percentage. Must come before qbiBasis.
   const taxableBeforeQBI = Math.max(0, agi - deduction)
 
-  // QBI basis per Treas. Reg. §1.199A-3(b)(1)(vi) and §1.199A-1(d)(2)(iii)(B).
-  // Computed per-entity to correctly apply the SSTB exclusion:
-  //   - Non-SSTB entities: full K-1 contribution (positive or negative).
-  //   - SSTB entities: K-1 scaled by sstbApplicablePct per §199A(d)(3)(A).
-  //     Above the phase-out, SSTB items are not "qualified items" and must not
-  //     carry forward as QBI loss carryforward — Treas. Reg. §1.199A-1(d)(2)(iii)(B).
-  //
-  // sstbApplicablePct mirrors the same computation inside calcQBI:
-  //   100% at or below threshold, 0% at threshold+phaseInRange, linear between.
   const _sstbThresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
   const _sstbPhaseIn    = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
   const qbiThreshold  = _sstbThresholds[status] || _sstbThresholds.single
@@ -580,58 +466,31 @@ function calcTaxReturn(input) {
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
 
-  // Per-entity nonSEk1: non-SE entities at full K-1; SSTB scaled by sstbApplicablePct.
-  // SE-subject entities are excluded here (they flow through seK1AfterAdjustments below).
   const nonSEk1 = entities.reduce((sum, e) => {
-    if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum   // SE entities handled separately
+    if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
     const k1 = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseInt(e.own) || 100) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
 
-  // QBI rental basis uses palAdjustedRental: suspended PAL losses are not deductible
-  // in the current year and therefore do not reduce the QBI basis. REP users are
-  // unaffected (palAdjustedRental === rentalNet when isREP=true).
-
-  // FIX (§199A QBI carryforward): when entities array is empty but k1Total is non-zero
-  // (e.g. calcTaxReturn called directly in tests or the Dashboard summary path without
-  // per-entity type data), fall back to k1Total for QBI basis so qbiCarryforward and
-  // the QBI deduction flow correctly. In normal app usage, entities is always populated
-  // when k1Total is non-zero — the entity-level nonSEk1 loop handles type classification
-  // (SE vs non-SE, SSTB scaling). When entities.length > 0, k1FallbackForQBI is 0 so
-  // this change has no effect on any existing entity-level calculation path.
   const k1FallbackForQBI = entities.length === 0 ? k1Total : 0
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO + k1FallbackForQBI
 
-  // (taxableBeforeQBI declared above — moved to resolve TDZ before sstbApplicablePct block)
-  // LTCG + qualified dividends excluded from QBI income limitation base per IRC §199A(e)(1)
   const prefIncome = ltGain + qualDiv
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, { status, taxYear, entityQbiData: entities })
   const qbi = _qbiResult.deduction
   const qbiLimitApplied = _qbiResult.limitApplied
   const qbiCaps = _qbiResult.caps
-  // §199A(c)(2) negative QBI carryforward — if net QBI is negative this year,
-  // the negative amount carries forward to reduce next year's QBI deduction basis.
-  // User should enter this as priorYearQBILoss in the following year.
-  // Positive value = loss to carry forward (matches priorYearQBILoss input convention).
   const qbiCarryforward = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
 
-  // ── Split income into ordinary vs preferential for accurate tax calculation ──
-  // Ordinary taxable income = everything EXCEPT LTCG, qualified dividends, 1250, collectibles
-  // These are already included in grossIncome → taxableBeforeQBI, so we subtract them out
   const totalPrefIncome = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
   const taxableAfterQBI = Math.max(0, taxableBeforeQBI - qbi)
-  // Ordinary income is whatever remains after removing preferential income (floor at 0)
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
-  // Total taxable income (for display)
   const taxableIncome = taxableAfterQBI
 
-  // ── Federal income tax on ORDINARY income only (brackets) ──
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
 
-  // ── Preferential tax via QDCGTW (IRC §1(h)) ──
-  // LTCG + qualified dividends at 0/15/20%; Sec 1250 at max 25%; Collectibles at max 28%
   const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
     ltcg: Math.min(Math.max(0, ltGain), taxableAfterQBI),
     qualDiv: Math.min(Math.max(0, qualDiv), taxableAfterQBI),
@@ -641,7 +500,6 @@ function calcTaxReturn(input) {
 
   const fedTax = ordFedTax + prefTax
 
-  // ── Marginal rate on ordinary income ──
   const brackets = getBrackets(taxYear, status)
   let marginalRate = 0
   if (ordinaryTaxableIncome > 0) {
@@ -651,48 +509,30 @@ function calcTaxReturn(input) {
       prev = cap
     }
   } else if (totalPrefIncome > 0) {
-    // Show LTCG rate when only preferential income exists
     const [t0, t15] = getLTCGThresholds(taxYear, status)
     marginalRate = totalPrefIncome > t15 ? 0.20 : totalPrefIncome > t0 ? 0.15 : 0
   }
 
-  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ──
   const addlMedThreshold = getAddlMedicareThreshold(taxYear, status)
-  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * 0.009) // Form 8959 unified threshold on combined W-2 + SE
+  const additionalMedicare = Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * 0.009)
 
-  // ── Net Investment Income Tax (3.8%) — IRC §1411 ──
-  // NII = net investment income: dividends, interest, rental income (if passive), LTCG
-  // For REP: rental income is NOT passive → excluded from NII
-  // divInc is Box 1a (ordinary dividends, INCLUDES qualified per Form 1099-DIV);
-  // qualDiv (Box 1b) is a subset of divInc — do NOT add it again or qualified dividends are double-counted.
   const rentalNII = isREP ? 0 : Math.max(0, rentalNet)
-  // F-01-followup-A: stGain added to NII base. IRC §1411(c)(1)(C) and Treas. Reg.
-  // §1.1411-4(d)(4)(ii) include net gain from property disposition in NII using §1222
-  // netting mechanics — stGain losses net against ltGain in a single combined capital
-  // gain pool before the floor-at-zero applies. Combined clamp: Math.max(0, ltGain+stGain).
-  // Note: capital losses cannot reduce other NII buckets (interest, dividends, rental) —
-  // the outer Math.max(0, ...) correctly blocks cross-bucket netting.
   const nii = Math.max(0, intInc + divInc + Math.max(0, ltGain + stGain) + rentalNII)
   const niit = calcNIIT(nii, agi, taxYear, status)
 
-  // ── Child Tax Credit (IRC §24) ──
   const numDependents = parseInt(dependents) || 0
   const childCredit = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
 
-  // ── Total Tax ──
   const amt = calcAMT({ taxableIncome, qbi, saltAmount: nv(saltAmount), isoBargainElement: hasISO ? nv(isoBargainElement) : 0, ltGain, qualDiv, regularTax: fedTax, status, taxYear, useItemized, itemized, stdDed })
   const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niit + amt - childCredit)
 
-  // Effective rate on earned income
   const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, k1Total))) : 0
 
-  // Payments
   const withheld = nv(w2Withheld)
   const estimated = nv(estPaid)
   const totalPayments = withheld + estimated
   const balance = totalTax - totalPayments
 
-  // Quarterly estimate recommendation (remaining quarters)
   const quarterlyRecommended = balance > 0 ? Math.round(balance / 4) : 0
 
   return {
@@ -711,12 +551,39 @@ function calcTaxReturn(input) {
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     priorQBILossCO,
-    qbiCarryforward,          // §199A(c)(2): negative QBI to carry forward — enter as priorYearQBILoss next year
-    ebl,                  // §461(l) excess business loss — becomes §172 NOL carryforward to next year
-    palSuspendedRental,   // §469 suspended rental loss — carries forward to offset future passive income
+    qbiCarryforward,
+    ebl,
+    palSuspendedRental,
   }
 }
 
+// ── Planning heuristics — IRC-grounded rate constants ────────────────────────
+// FIX (C-05): These constants were previously hardcoded in multiple components.
+// Centralizing here means a single Rev. Proc. update propagates everywhere.
+
+// SEP-IRA / Solo 401(k) annual addition limit — IRC §415(c)(1)(A), inflation-indexed.
+// S-Corp owners base contributions on officer W-2 salary (×SEP_SCORP_RATE).
+// Sole props base on net SE earnings after half-SE deduction (×SEP_SOLEPROP_RATE).
+// 2024: $66,000 (Rev. Proc. 2023-34); 2025: $70,000 (Rev. Proc. 2024-40);
+// 2026: $70,000 (estimated — update when Rev. Proc. 2025-xx publishes).
+const SEP_IRA_LIMITS = { 2024: 66000, 2025: 70000, 2026: 70000 }
+
+// S-Corp owner SEP-IRA / Solo 401(k) contribution rate — 25% of officer W-2 salary
+// per IRC §402(h) and §415(c). K-1 distributions do NOT qualify as the base.
+// IRS Pub. 560 worksheet confirms this. Excess contributions trigger §4973 excise tax.
+const SEP_SCORP_RATE = 0.25
+
+// Sole prop / general partner SEP-IRA rate — simplified as ~20% of net profit.
+// Exact derivation: 0.25 / 1.25 = 0.20, accounting for the half-SE tax deduction
+// that reduces the contribution base. (IRS Pub. 560 Worksheet 1.)
+const SEP_SOLEPROP_RATE = 0.20
+
+// Reasonable compensation ratios — IRC §3121(a); Rev. Rul. 74-44; Watson v. Comm'r (8th Cir. 2012).
+// IRS benchmarks S-Corp owner-operator salary at 30–60% of net profit.
+// MIN_PCT: minimum defensible floor used in planning alerts.
+// TARGET_PCT: conservative IRS audit benchmark (40% threshold that triggers scrutiny review).
+const REASONABLE_COMP_MIN_PCT    = 0.35
+const REASONABLE_COMP_TARGET_PCT = 0.40
 
 export {
   TAX_TABLES,
@@ -738,4 +605,10 @@ export {
   QBI_PHASE_IN_RANGE,
   nv,
   calcTaxReturn,
+  // FIX (C-05): planning heuristic constants — previously hardcoded in components
+  SEP_IRA_LIMITS,
+  SEP_SCORP_RATE,
+  SEP_SOLEPROP_RATE,
+  REASONABLE_COMP_MIN_PCT,
+  REASONABLE_COMP_TARGET_PCT,
 }
