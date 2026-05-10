@@ -81,6 +81,28 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
   function applyManual(){const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
   const k1=ent.pnl?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):0
 
+  // FIX (L-01): "Net Profit (Loss)" is Schedule C / sole-proprietor language. The correct
+  // term for S-Corp income is "Ordinary Business Income (Loss)" — this appears on Form 1120-S
+  // Line 21 and flows to K-1 Box 1 (IRC §1366). For partnerships the term is "Distributive
+  // Share". Using "Net Profit (Loss)" for an S-Corp owner comparing this label against their
+  // actual tax forms creates confusion and undermines trust in the accuracy of the tool.
+  const netIncomeLabel = ['S Corporation', 'C Corporation'].includes(ent.type)
+    ? 'Ordinary Business Income (Loss)'
+    : ent.type === 'Sole Proprietor / Single-Member LLC'
+      ? 'Net Profit (Loss)'
+      : 'Distributive Share (Loss)'
+
+  // FIX (L-02): "K-1 Distributive Share" is partnership terminology (IRC §704).
+  // S-Corp shareholders receive a "pro-rata share" under IRC §1366, not a distributive
+  // share. A tax-savvy user comparing this label to their actual K-1 (Form 1120-S,
+  // Schedule K-1) will notice the mismatch. Sole proprietors don't have a K-1 at all —
+  // their income flows directly from Schedule C, which is already labelled correctly.
+  const k1ShareLabel = ent.type === 'Sole Proprietor / Single-Member LLC'
+    ? 'SCHEDULE C NET PROFIT'
+    : ent.type === 'S Corporation'
+      ? 'K-1 PRO-RATA SHARE'
+      : 'K-1 DISTRIBUTIVE SHARE'
+
   return(
     <div style={{border:'2px solid '+color,borderRadius:14,overflow:'hidden',marginBottom:16}}>
       <div style={{background:color,padding:'12px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -153,7 +175,16 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
               </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
-              {[['Revenue',fmt(ent.pnl.grossRevenue),G],['Expenses',fmt(ent.pnl.totalExpenses),R],['Net Profit (Loss)',fmt(ent.pnl.netProfit),ent.pnl.netProfit>=0?G:R]].map(([l,v,c])=>(
+              {/* FIX (L-01 + L-02): netIncomeLabel and k1ShareLabel are now computed above
+                  EntityCard's return, using entity type to select the correct IRC terminology.
+                  - S-Corp / C-Corp: "Ordinary Business Income (Loss)" (Form 1120-S Line 21)
+                  - Sole Prop / SMLLC: "Net Profit (Loss)" (Schedule C — correct here)
+                  - Partnership / MMLLC: "Distributive Share (Loss)" (IRC §704)
+                  K-1 share header:
+                  - S-Corp: "K-1 PRO-RATA SHARE" (IRC §1366 — not "distributive")
+                  - Partnership: "K-1 DISTRIBUTIVE SHARE" (IRC §704 — correct here)
+                  - Sole Prop: "SCHEDULE C NET PROFIT" (no K-1 exists) */}
+              {[['Revenue',fmt(ent.pnl.grossRevenue),G],['Expenses',fmt(ent.pnl.totalExpenses),R],[netIncomeLabel,fmt(ent.pnl.netProfit),ent.pnl.netProfit>=0?G:R]].map(([l,v,c])=>(
                 <div key={l} style={{background:'#F8FAFC',borderRadius:8,padding:'10px 14px',textAlign:'center',border:'1px solid #F1F5F9'}}>
                   <div style={{fontSize:10,color:SL,marginBottom:2}}>{l}</div>
                   <div style={{fontSize:17,fontWeight:800,color:c}}>{v}</div>
@@ -170,7 +201,7 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
               </div>
               <div style={{background:color,borderRadius:10,padding:'12px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',color:'#fff'}}>
                 <div>
-                  <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginBottom:2}}>{ent.type==='Sole Proprietor / Single-Member LLC'?'SCHEDULE C NET PROFIT':'K-1 DISTRIBUTIVE SHARE'}</div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',marginBottom:2}}>{k1ShareLabel}</div>
                   <div style={{fontSize:26,fontWeight:800,color:k1>=0?'#4ADE80':'#F87171'}}>{fmt(k1)}</div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginTop:2}}>{fmt(ent.pnl.netProfit)} x {ent.own}%</div>
                 </div>
@@ -244,11 +275,6 @@ function ImportModal({onImport,onClose}){
 
 export default function CalculateTax(){
   const nav=useNavigate()
-  // Initialize entities from sessionStorage if a record was loaded via Dashboard
-  // (Dashboard.loadRecord writes the raw entity-shape array to ts360_entities_raw
-  // for exactly this restore path). Otherwise fall back to the default single
-  // empty entity. Using the function form of useState so the storage read only
-  // happens once at mount, not on every render.
   const[entities,setEntities]=React.useState(()=>{
     const raw=readStep1StateRaw()
     return raw.length>0?raw:[{name:'Business 1',type:'S Corporation',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}]
@@ -258,8 +284,6 @@ export default function CalculateTax(){
   const[dragIdx,setDragIdx]=React.useState(null)
   const[dragOverIdx,setDragOverIdx]=React.useState(null)
   const[compareIdx,setCompareIdx]=React.useState(null)
-  // #112: co-op patron flag persists in sessionStorage as ts360_isCoopPatron and is read by
-  // AIAnalysis.getRecord() into rec.f1040.isCoopPatron (drives Form 8995 vs 8995-A selection).
   const[isCoopPatron,setIsCoopPatron]=React.useState(readIsCoopPatron)
   React.useEffect(()=>{writeIsCoopPatron(isCoopPatron)},[isCoopPatron])
 
@@ -268,13 +292,11 @@ export default function CalculateTax(){
     const mp={qb_token:'quickbooks',xero_token:'xero',wave_token:'wave',fb_token:'freshbooks'}
     const xeroRefresh=p.get('xero_refresh');if(xeroRefresh)localStorage.setItem('ts360_xero_refresh',xeroRefresh)
     const entityIdx=parseInt(sessionStorage.getItem('ts360_connecting_entity')||'0')
-    // Check for OAuth callback tokens in URL first
     let foundInUrl=false
     for(const[k,pid] of Object.entries(mp)){
       const tok=p.get(k)
       if(tok){foundInUrl=true;localStorage.setItem('ts360_'+pid+'_connected','true');localStorage.setItem('ts360_'+pid+'_token',tok);const ex={quickbooks:p.get('realm'),xero:p.get('tenant'),freshbooks:p.get('account')};if(ex[pid])localStorage.setItem('ts360_'+pid+'_extra',ex[pid]);window.history.replaceState({},'','/calculate-tax');fetchEntityPnL(entityIdx,pid,tok,ex[pid]);break}
     }
-    // If no URL token, auto-load any already-connected integrations into entity 0
     if(!foundInUrl){
       const pids=['quickbooks','xero','wave','freshbooks']
       for(const pid of pids){
@@ -307,11 +329,6 @@ export default function CalculateTax(){
   function onDragEnd(){setDragIdx(null);setDragOverIdx(null)}
 
   const k1Total=entities.reduce((sum,ent)=>ent.pnl?sum+Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100))-(parseMoney(ent.box11_12))-(parseMoney(ent.box12_13)):sum,0)
-  // FIX (Owner W-2 aggregation): preserve pnl.officerSalary in the flattened k1Data
-  // shape. Previously the flatten dropped officerSalary, so TaxReturn.jsx's
-  // totalOfficerSalary aggregation always summed to 0 — Owner W-2 from S-Corp/C-Corp
-  // entities was missing from personal W-2 wages, Form 8959 Medicare wages, and
-  // §179 active business income.
   const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,pnl:{officerSalary:parseFloat(e.pnl.officerSalary)||0},k1:Math.round(e.pnl.netProfit*((parseInt(e.own)||100)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
@@ -330,8 +347,6 @@ export default function CalculateTax(){
       date: new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),
       taxTotal: String(k1Total),
       biz: entities && entities[0] ? {...entities[0]} : null,
-      // #113: persist full entities array (not just biz=entities[0]) so AIAnalysis.getRecord's
-      // saved-record fallback can pass entityQbiData to calcQBI — preserves SSTB / Box 17V wages / UBIA.
       entities: Array.isArray(entities) ? entities.map(e => ({...e})) : [],
       f1040: {filingStatus:'single',w2Income:'',otherIncome:'',extraDeductions:'',retirement:''}
     }
@@ -371,10 +386,6 @@ export default function CalculateTax(){
           <h1 style={{fontSize:26,fontWeight:800,color:N,textAlign:'center',marginBottom:4}}>Entity Calculator</h1>
           <p style={{textAlign:'center',color:SL,fontSize:14,marginBottom:16}}>Add all your business entities. Drag ⠿ to reorder. Click ▼ Details to add EIN & formation date.</p>
 
-          {/* FIX: Dismissible disclaimer banner — required at Step 1 before any business
-              income is entered. The handoff doc flagged /calculate-tax Step 1 as missing
-              a disclaimer entirely. Uses the existing DismissibleNotice component with a
-              unique storageKey so dismissal tracks independently from other pages. */}
           <DismissibleNotice storageKey="tx360.calculateTaxDisclaimer.dismissed">
             TaxStat360 calculates <strong>federal tax estimates</strong> for planning purposes only. Results are not professional tax advice and do not account for state taxes, AMT in all cases, or your complete financial picture. Consult a licensed CPA or tax professional before making any filing or financial decisions.
           </DismissibleNotice>
@@ -389,7 +400,6 @@ export default function CalculateTax(){
             <button onClick={()=>setShowTemplates(true)} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:18}}>🗂</span> Add from Template</button>
             <button onClick={()=>setEntities(prev=>[...prev,{name:'Business '+(prev.length+1),type:'S Corporation',own:'100',ein:'',formationDate:'',pnl:null,connectedId:null,isManual:false}])} style={{padding:'14px',background:'#fff',border:'2px dashed #CBD5E1',borderRadius:12,fontSize:14,fontWeight:700,color:SL,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{fontSize:20,lineHeight:1}}>+</span> Add Entity</button>
           </div>
-          {/* #112: co-op patron flag — drives Form 8995 vs 8995-A in IRSCompliance */}
           <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'14px 18px',marginBottom:24}}>
             <label style={{display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer'}}>
               <input type="checkbox" checked={isCoopPatron} onChange={e=>setIsCoopPatron(e.target.checked)} style={{marginTop:3,cursor:'pointer'}}/>
