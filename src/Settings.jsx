@@ -52,6 +52,16 @@ export default function Settings() {
   const [loginHistory, setLoginHistory] = useState([])
   const [exportDone, setExportDone] = useState(false)
 
+  // MFA/2FA state
+  // mfaStep: 'idle' | 'setup' | 'verify' | 'success' | 'disable'
+  const [mfaEnabled, setMfaEnabled] = useState(false)
+  const [mfaStep, setMfaStep] = useState('idle')
+  const [mfaSetupData, setMfaSetupData] = useState(null)   // { secret, qr_code_url, backup_codes }
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaLoading, setMfaLoading] = useState(false)
+  const [mfaError, setMfaError] = useState('')
+  const [mfaBackupCodes, setMfaBackupCodes] = useState([])
+
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
@@ -88,6 +98,26 @@ export default function Settings() {
       const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
+
+    // Load MFA status from backend
+    // Fallback to localStorage cache if request fails (avoids flicker on repeated visits)
+    const token = localStorage.getItem('token')
+    if (token) {
+      fetch(`${API}/auth/mfa/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && typeof data.enabled === 'boolean') {
+            setMfaEnabled(data.enabled)
+            localStorage.setItem('ts360_mfa_enabled', data.enabled ? '1' : '0')
+          }
+        })
+        .catch(() => {
+          // Fallback to cached value if backend unreachable
+          setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
+        })
+    }
   }, [])
 
   const handleEmailChange = async () => {
@@ -171,6 +201,102 @@ export default function Settings() {
   const handleIdleTimeoutChange = (val) => {
     setIdleTimeout(val)
     localStorage.setItem('ts360_idle_timeout_mins', val)
+  }
+
+  // ── MFA/2FA handlers ────────────────────────────────────────────────────────
+  // Implements TOTP (Time-based One-Time Password) via authenticator app.
+  // Recommended by IRS Publication 4557 — Safeguarding Taxpayer Data — for any
+  // software that handles PII or tax-related data on behalf of taxpayers.
+  // API endpoints: POST /auth/mfa/setup | POST /auth/mfa/verify | POST /auth/mfa/disable
+
+  const handleMfaSetup = async () => {
+    setMfaLoading(true)
+    setMfaError('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API}/auth/mfa/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Could not initialize MFA setup. Please try again.')
+      }
+      const data = await res.json()
+      // Expected response: { secret, qr_code_url, backup_codes }
+      // qr_code_url: data URI (data:image/png;base64,...) or otpauth:// URL for QR display
+      setMfaSetupData(data)
+      setMfaStep('setup')
+    } catch(e) {
+      setMfaError(e.message || 'MFA setup failed. Please try again.')
+    }
+    setMfaLoading(false)
+  }
+
+  const handleMfaVerify = async () => {
+    if (!mfaCode || mfaCode.length !== 6) {
+      setMfaError('Enter the 6-digit code from your authenticator app.')
+      return
+    }
+    setMfaLoading(true)
+    setMfaError('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API}/auth/mfa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: mfaCode })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Invalid code. Please check your authenticator app and try again.')
+      }
+      const data = await res.json()
+      setMfaEnabled(true)
+      localStorage.setItem('ts360_mfa_enabled', '1')
+      setMfaBackupCodes(data.backup_codes || mfaSetupData?.backup_codes || [])
+      setMfaStep('success')
+      setMfaCode('')
+    } catch(e) {
+      setMfaError(e.message || 'Verification failed. Please try again.')
+    }
+    setMfaLoading(false)
+  }
+
+  const handleMfaDisable = async () => {
+    if (!mfaCode || mfaCode.length !== 6) {
+      setMfaError('Enter your current 6-digit authenticator code to confirm.')
+      return
+    }
+    setMfaLoading(true)
+    setMfaError('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API}/auth/mfa/disable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: mfaCode })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Invalid code. MFA was not disabled.')
+      }
+      setMfaEnabled(false)
+      localStorage.setItem('ts360_mfa_enabled', '0')
+      setMfaStep('idle')
+      setMfaCode('')
+      setMfaSetupData(null)
+    } catch(e) {
+      setMfaError(e.message || 'Could not disable MFA. Please try again.')
+    }
+    setMfaLoading(false)
+  }
+
+  const resetMfaFlow = () => {
+    setMfaStep('idle')
+    setMfaCode('')
+    setMfaError('')
+    setMfaSetupData(null)
   }
 
   const card = {
@@ -272,12 +398,175 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* FIX (security section): Adds idle timeout preference and login history.
-            Idle timeout preference is stored in localStorage and enforced by
-            App.jsx's RequireAuth. Login history is written by RequireAuth on each
-            authenticated session (once per calendar day, max 10 entries). */}
+        {/* Security section */}
         <div style={card}>
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:20,textTransform:'uppercase'}}>Security</div>
+
+          {/* ── MFA/2FA — IRS Pub 4557 recommended ────────────────────────────
+              Two-factor authentication via TOTP authenticator app (Google Authenticator,
+              Authy, 1Password, etc.). IRS Publication 4557 "Safeguarding Taxpayer Data"
+              recommends MFA for all software that stores or processes taxpayer PII. */}
+          <div style={{marginBottom:24,paddingBottom:24,borderBottom:'1px solid #F1F5F9'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:3,display:'flex',alignItems:'center',gap:8}}>
+                  Two-Factor Authentication (2FA)
+                  <span style={{
+                    fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,
+                    background: mfaEnabled ? '#F0FDF4' : '#FEF9E7',
+                    color: mfaEnabled ? '#059669' : '#D97706',
+                    border: `1px solid ${mfaEnabled ? '#86EFAC' : '#FCD34D'}`
+                  }}>
+                    {mfaEnabled ? '✓ Enabled' : 'Not enabled'}
+                  </span>
+                </div>
+                <div style={{fontSize:13,color:SL,lineHeight:1.5,maxWidth:440}}>
+                  Adds a second layer of protection using an authenticator app.
+                  Required by IRS Publication 4557 for tax software handling taxpayer data.
+                </div>
+              </div>
+              {mfaStep === 'idle' && (
+                mfaEnabled ? (
+                  <button
+                    onClick={() => { setMfaStep('disable'); setMfaError(''); setMfaCode('') }}
+                    style={{flexShrink:0,padding:'8px 16px',background:'#fff',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+                  >
+                    Disable
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleMfaSetup}
+                    disabled={mfaLoading}
+                    style={{flexShrink:0,padding:'8px 16px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',opacity:mfaLoading?0.6:1}}
+                  >
+                    {mfaLoading ? 'Setting up…' : 'Enable 2FA'}
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Error */}
+            {mfaError && (
+              <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',marginTop:12}}>
+                {mfaError}
+              </div>
+            )}
+
+            {/* Setup step — show QR code and manual secret */}
+            {mfaStep === 'setup' && mfaSetupData && (
+              <div style={{marginTop:14,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'20px 20px'}}>
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Step 1 — Scan this QR code</div>
+                <div style={{fontSize:13,color:SL,marginBottom:16,lineHeight:1.5}}>
+                  Open <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app. Tap "+" and scan the QR code below.
+                </div>
+                {mfaSetupData.qr_code_url && (
+                  <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
+                    <img
+                      src={mfaSetupData.qr_code_url}
+                      alt="MFA QR code — scan with your authenticator app"
+                      style={{width:180,height:180,border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',padding:8}}
+                    />
+                  </div>
+                )}
+                {mfaSetupData.secret && (
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:SL,marginBottom:6}}>Can't scan? Enter this key manually in your app:</div>
+                    <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:7,padding:'10px 14px',fontFamily:'monospace',fontSize:14,fontWeight:600,color:N,letterSpacing:'0.1em',userSelect:'all'}}>
+                      {mfaSetupData.secret}
+                    </div>
+                  </div>
+                )}
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:8}}>Step 2 — Enter the 6-digit code</div>
+                <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}
+                    placeholder="000000"
+                    style={{width:140,padding:'10px 14px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:18,fontWeight:600,color:N,letterSpacing:'0.2em',textAlign:'center',fontFamily:'monospace',outline:'none'}}
+                    onKeyDown={e => e.key === 'Enter' && handleMfaVerify()}
+                  />
+                  <button
+                    onClick={handleMfaVerify}
+                    disabled={mfaLoading || mfaCode.length !== 6}
+                    style={{padding:'10px 20px',background:mfaCode.length===6?'#059669':'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
+                  >
+                    {mfaLoading ? 'Verifying…' : 'Verify & Enable'}
+                  </button>
+                  <button onClick={resetMfaFlow} style={{padding:'10px 14px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Success step — show backup codes */}
+            {mfaStep === 'success' && (
+              <div style={{marginTop:14,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'20px'}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#059669',marginBottom:8}}>✓ Two-factor authentication is now active</div>
+                {mfaBackupCodes.length > 0 && (
+                  <>
+                    <div style={{fontSize:13,color:'#166534',marginBottom:12,lineHeight:1.5}}>
+                      <strong>Save these backup codes.</strong> If you lose access to your authenticator app, use one of these codes to sign in. Each code can only be used once.
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:14}}>
+                      {mfaBackupCodes.map((code, i) => (
+                        <div key={i} style={{background:'#fff',border:'1px solid #86EFAC',borderRadius:6,padding:'8px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:N,letterSpacing:'0.1em',textAlign:'center'}}>
+                          {code}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const text = mfaBackupCodes.join('\n')
+                        navigator.clipboard?.writeText(text)
+                      }}
+                      style={{padding:'7px 16px',background:'#fff',color:'#059669',border:'1px solid #86EFAC',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer',marginRight:8}}
+                    >
+                      Copy codes
+                    </button>
+                  </>
+                )}
+                <button onClick={resetMfaFlow} style={{padding:'7px 16px',background:'#059669',color:'#fff',border:'none',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>
+                  Done
+                </button>
+              </div>
+            )}
+
+            {/* Disable step — confirm with TOTP code */}
+            {mfaStep === 'disable' && (
+              <div style={{marginTop:14,background:'#FEF9E7',border:'1px solid #FCD34D',borderRadius:10,padding:'20px'}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#92400E',marginBottom:8}}>Disable two-factor authentication</div>
+                <div style={{fontSize:13,color:'#92400E',marginBottom:14,lineHeight:1.5}}>
+                  Enter the current 6-digit code from your authenticator app to confirm. This will remove 2FA from your account.
+                </div>
+                <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}
+                    placeholder="000000"
+                    style={{width:140,padding:'10px 14px',border:'1.5px solid #FCD34D',borderRadius:8,fontSize:18,fontWeight:600,color:N,letterSpacing:'0.2em',textAlign:'center',fontFamily:'monospace',outline:'none'}}
+                    onKeyDown={e => e.key === 'Enter' && handleMfaDisable()}
+                  />
+                  <button
+                    onClick={handleMfaDisable}
+                    disabled={mfaLoading || mfaCode.length !== 6}
+                    style={{padding:'10px 20px',background:mfaCode.length===6?'#DC2626':'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
+                  >
+                    {mfaLoading ? 'Disabling…' : 'Disable 2FA'}
+                  </button>
+                  <button onClick={resetMfaFlow} style={{padding:'10px 14px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Idle timeout */}
           <div style={{marginBottom:24}}>
@@ -344,9 +633,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* FIX (CCPA data export): Users have the right to download all personal
-            data the application holds on their device. Collects all ts360_*
-            localStorage keys and triggers a JSON file download. */}
+        {/* Privacy & Data */}
         <div style={card}>
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Privacy & Data</div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20}}>
@@ -365,10 +652,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Danger Zone — FIX: "Sign out of all devices" label contradicted its own
-            description ("Removes your session from this browser"). Since TaxStat360
-            has no multi-device session management, the button is scoped to this
-            browser only. Label updated to match the description. */}
+        {/* Danger Zone */}
         <div style={{...card, border:'1px solid #FCA5A5'}}>
           <div style={{fontSize:11,fontWeight:700,color:'#DC2626',letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Danger zone</div>
 
