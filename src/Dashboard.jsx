@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn } from './taxCalc'
+import { calcTaxReturn, REASONABLE_COMP_MIN_PCT } from './taxCalc'
 import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
@@ -111,7 +111,7 @@ function calcDashboard(biz, f1040) {
       refund: Math.max(0, estPay - r.totalTax),
       effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
       quarterly: r.quarterlyRecommended,
-      recSal: Math.round(Math.max(0, k1) * 0.35),
+      recSal: Math.round(Math.max(0, k1) * REASONABLE_COMP_MIN_PCT),
       stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: true,
     }
   }
@@ -135,7 +135,7 @@ function calcDashboard(biz, f1040) {
     refund:  Math.max(0, estPay - r.totalTax),
     effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
     quarterly: r.quarterlyRecommended,
-    recSal: isSC ? Math.round(Math.max(0, k1) * 0.35) : 0,
+    recSal: isSC ? Math.round(Math.max(0, k1) * REASONABLE_COMP_MIN_PCT) : 0,
     stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
   }
 }
