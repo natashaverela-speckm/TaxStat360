@@ -16,9 +16,9 @@
  * Mocking:
  *   - calcTaxReturn: vi.fn() spy — capture call arguments
  *   - readStep1State: control entities (box17K, pnl.officerSalary)
- *   - readPersonalContext / writeTaxYear / writePersonalContext: no-ops
+ *   - readPersonalContext: control personal context (w2Income, filingStatus, etc.)
+ *   - writeTaxYear / writePersonalContext: no-ops
  *   - MoneyInput / FederalScopeBanner: lightweight stubs
- *   - localStorage: jsdom provides it; ts360_f1040 set directly per test
  *
  * @see src/TaxReturn.jsx — production file under test
  * @see src/taxCalc.js — tax engine (not under test here)
@@ -59,11 +59,16 @@ vi.mock('./taxCalc', () => ({
 }))
 
 vi.mock('./utils/sessionState.js', () => ({
+  // FIX: readPersonalContext default returns {} — tests that need a specific
+  // w2Income or other field must call readPersonalContext.mockReturnValue()
+  // directly. Do NOT use localStorage.setItem('ts360_f1040', ...) — that key
+  // is ignored by this mock and has no effect on component state.
   readPersonalContext: vi.fn(() => ({})),
   writePersonalContext: vi.fn(),
   writeTaxYear: vi.fn(),
   readStep1State: vi.fn(() => ({ entities: [], k1Total: 0, isCoopPatron: false })),
   readTaxYear: vi.fn(() => 2025),
+  readStep1StateRaw: vi.fn(() => []),
   writeStep1State: vi.fn(),
   clearStep1State: vi.fn(),
   normalizeF1040: vi.fn(x => x),
@@ -86,10 +91,14 @@ vi.mock('./components/FederalScopeBanner.jsx', () => ({
   default: () => null,
 }))
 
+vi.mock('./components/DismissibleNotice', () => ({
+  default: ({ children }) => <div data-testid="dismissible-notice">{children}</div>,
+}))
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 import TaxReturn from './TaxReturn'
 import { calcTaxReturn } from './taxCalc'
-import { readStep1State } from './utils/sessionState.js'
+import { readStep1State, readPersonalContext } from './utils/sessionState.js'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 function renderTaxReturn() {
@@ -189,7 +198,6 @@ describe('TaxReturn — F-06: officer salary aggregation into w2 total', () => {
       k1Total: 80000,
       isCoopPatron: false,
     })
-    localStorage.setItem('ts360_f1040', JSON.stringify({ w2Income: 0 }))
 
     renderTaxReturn()
 
@@ -206,8 +214,10 @@ describe('TaxReturn — F-06: officer salary aggregation into w2 total', () => {
       k1Total: 80000,
       isCoopPatron: false,
     })
-    // User also has a $40k day job W-2 entered on Step 2
-    localStorage.setItem('ts360_f1040', JSON.stringify({ w2Income: 40000 }))
+    // FIX: readPersonalContext is mocked — localStorage.setItem('ts360_f1040', ...)
+    // has no effect on component state. Use mockReturnValue to supply w2Income
+    // so the component's useState initializer receives it via savedF1040.w2Income.
+    readPersonalContext.mockReturnValue({ w2Income: 40000 })
 
     renderTaxReturn()
 
