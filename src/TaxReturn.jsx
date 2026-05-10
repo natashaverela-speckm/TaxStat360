@@ -5,7 +5,7 @@ import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readTaxYear } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -1075,6 +1075,16 @@ export default function TaxReturn() {
                   nolCarryforward: parseFloat(nolCarryforward) || 0,
                 }
 
+                // FIX (entity restore bug): read the raw entity objects (with full pnl data)
+                // from sessionStorage and persist them into the saved record. Previously the
+                // save handler never wrote rec.entities, so Dashboard.loadRecord found nothing
+                // to restore — falling back to rec.biz which has no pnl key, causing the entity
+                // to silently revert to a blank Sole Proprietor default on reload.
+                // readStep1StateRaw() returns the full entity shape (name/type/own/pnl/box fields)
+                // written by CalculateTaxInner.proceed() — matches what Dashboard.loadRecord
+                // expects at rec.entities[i].pnl.netProfit.
+                const entitiesRaw = readStep1StateRaw()
+
                 // Find the first real Dashboard record (has biz object) and update its f1040
                 // Find any Dashboard-format record (has biz object) — prefer ones with data
                 const realIdx = existing.findIndex(r => r.biz && (parseMoney(r.biz.grossRevenue) > 0 || parseMoney(r.k1Income) > 0)) >= 0
@@ -1083,9 +1093,11 @@ export default function TaxReturn() {
 
                 let updated
                 if (realIdx >= 0) {
-                  // Update the existing Dashboard record's f1040 in-place
+                  // Update the existing Dashboard record's f1040 in-place.
+                  // Also refresh entities so a record originally saved without them (before
+                  // this fix) gets the correct entity data on the next save from TaxReturn.
                   updated = existing.map((r, i) => i === realIdx
-                    ? { ...r, f1040: f1040Updated, k1Income: Math.round(k1Total), savedAt: new Date().toLocaleString() }
+                    ? { ...r, f1040: f1040Updated, k1Income: Math.round(k1Total), savedAt: new Date().toLocaleString(), entities: entitiesRaw.length > 0 ? entitiesRaw : r.entities }
                     : r
                   )
                 } else {
@@ -1101,6 +1113,7 @@ export default function TaxReturn() {
                       officerSalary: '',
                       ownershipPct: entities.length > 0 ? entities[0].own : '100',
                     },
+                    entities: entitiesRaw,
                     f1040: f1040Updated,
                     k1Income: Math.round(k1Total),
                     quarterly: quarterlyRecommended,
