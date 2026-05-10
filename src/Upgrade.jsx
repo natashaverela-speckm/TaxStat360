@@ -6,6 +6,10 @@ const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 // M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
 const API = 'https://app.taxstat360.com'
 
+// Stripe billing portal — handles cancellations, downgrades, and payment updates.
+// FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
+const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
+
 const PLANS = {
   starter:      { label:'Starter',      price:{ monthly:79,  annual:66  }, color:'#64748B' },
   professional: { label:'Professional', price:{ monthly:149, annual:124 }, color:B,        popular:true },
@@ -57,6 +61,8 @@ export default function Upgrade() {
   const [err, setErr] = useState('')
   const [success, setSuccess] = useState(false)
   const [showCard, setShowCard] = useState(false)
+  // FIX (FTC): cancel confirmation state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   const stripeRef = useRef(null)
   const cardRef = useRef(null)
@@ -78,6 +84,8 @@ export default function Upgrade() {
 
   const planOrder = ['starter','professional','enterprise']
   const isUpgrade = (plan) => planOrder.indexOf(plan) > planOrder.indexOf(currentPlan)
+  const isDowngrade = (plan) => planOrder.indexOf(plan) < planOrder.indexOf(currentPlan)
+  const isPaid = currentPlan !== 'starter'
 
   const mountCard = () => {
     if (mountedRef.current) return
@@ -141,6 +149,14 @@ export default function Upgrade() {
     setLoading(false)
   }
 
+  // FIX (FTC Click-to-Cancel): routes to Stripe billing portal which handles
+  // cancellations, downgrades, and payment method updates. Required by FTC
+  // Click-to-Cancel rule (16 CFR §425) — users must be able to cancel as
+  // easily as they signed up, via the same channel (online → online).
+  const handleManageSubscription = () => {
+    window.open(STRIPE_PORTAL_URL, '_blank')
+  }
+
   if (success) return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center',maxWidth:400,padding:40}}>
@@ -166,10 +182,72 @@ export default function Upgrade() {
       </nav>
 
       <div style={{maxWidth:960,margin:'0 auto',padding:'40px 20px'}}>
+
+        {/* FIX (FTC): Manage Subscription section — visible to all paid (non-starter) users.
+            FTC Click-to-Cancel (16 CFR §425) requires cancellation to be immediately available
+            via the same channel as sign-up (online). This section surfaces the cancel path
+            prominently and without friction, as required. */}
+        {isPaid && (
+          <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',marginBottom:28,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:16}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:700,color:N,marginBottom:4}}>
+                Current plan: <span style={{color:B}}>{PLANS[currentPlan]?.label}</span>
+              </div>
+              <div style={{fontSize:13,color:SL,lineHeight:1.5}}>
+                Manage billing, update your payment method, downgrade, or cancel your subscription at any time.
+                {' '}If you cancel, you keep access until the end of your current billing period.
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10,flexShrink:0}}>
+              <button
+                onClick={handleManageSubscription}
+                style={{padding:'9px 18px',background:'#fff',color:N,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+              >
+                Manage Billing →
+              </button>
+              {/* FIX (FTC): Cancel Plan button — prominent, no extra friction, direct path.
+                  FTC requires cancellation be as simple as sign-up. One click here opens
+                  Stripe's cancel flow in the billing portal. */}
+              {!showCancelConfirm ? (
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  style={{padding:'9px 18px',background:'#FEF2F2',color:'#DC2626',border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+                >
+                  Cancel Plan
+                </button>
+              ) : (
+                <div style={{display:'flex',alignItems:'center',gap:8,background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:8,padding:'6px 12px'}}>
+                  <span style={{fontSize:13,color:'#DC2626',fontWeight:500}}>Are you sure?</span>
+                  <button
+                    onClick={handleManageSubscription}
+                    style={{padding:'5px 12px',background:'#DC2626',color:'#fff',border:'none',borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer'}}
+                  >
+                    Yes, cancel
+                  </button>
+                  <button
+                    onClick={() => setShowCancelConfirm(false)}
+                    style={{padding:'5px 10px',background:'transparent',color:SL,border:'none',borderRadius:6,fontWeight:600,fontSize:12,cursor:'pointer'}}
+                  >
+                    Keep plan
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{textAlign:'center',marginBottom:36}}>
-          <h1 style={{fontSize:28,fontWeight:800,color:N,marginBottom:8}}>Upgrade Your Plan</h1>
-          <p style={{color:SL,fontSize:15}}>You're currently on <strong>{PLANS[currentPlan]?.label || 'Starter'}</strong>. Choose a plan below to unlock more features.</p>
+          <h1 style={{fontSize:28,fontWeight:800,color:N,marginBottom:8}}>
+            {isPaid ? 'Change Your Plan' : 'Upgrade Your Plan'}
+          </h1>
+          <p style={{color:SL,fontSize:15}}>
+            You're currently on <strong>{PLANS[currentPlan]?.label || 'Starter'}</strong>.
+            {isPaid
+              ? ' To downgrade or cancel, use "Manage Billing" above.'
+              : ' Choose a plan below to unlock more features.'
+            }
+          </p>
 
           {/* Billing toggle */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginTop:20}}>
@@ -188,12 +266,12 @@ export default function Upgrade() {
           {Object.entries(PLANS).map(([key, plan]) => {
             const isCurrent = key === currentPlan
             const canUpgrade = isUpgrade(key)
+            const canDowngrade = isDowngrade(key)
             const isSelected = selectedPlan === key
             return (
               <div key={key} style={{
                 background:'#fff', border:`2px solid ${isSelected?B:isCurrent?'#94A3B8':'#E2E8F0'}`,
                 borderRadius:16, padding:24, position:'relative',
-                opacity: !canUpgrade && !isCurrent ? 0.5 : 1,
                 boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.15)' : 'none'
               }}>
                 {plan.popular && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:B,color:'#fff',fontSize:11,fontWeight:700,padding:'4px 14px',borderRadius:20}}>MOST POPULAR</div>}
@@ -216,12 +294,26 @@ export default function Upgrade() {
                   }}>
                     {isSelected ? '✓ Selected' : `Upgrade to ${plan.label} →`}
                   </button>
-                ) : (
-                  <button disabled style={{width:'100%',padding:'10px',background:'#F1F5F9',color:'#94A3B8',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'not-allowed'}}>Lower tier</button>
-                )}
+                ) : canDowngrade ? (
+                  // FIX (FTC): downgrade path — routes to Stripe billing portal.
+                  // Previously disabled as "Lower tier" with no action.
+                  <button
+                    onClick={handleManageSubscription}
+                    style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+                  >
+                    Downgrade →
+                  </button>
+                ) : null}
               </div>
             )
           })}
+        </div>
+
+        {/* FTC disclosure — required: clear statement of cancellation terms */}
+        <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'14px 20px',marginBottom:24,fontSize:12,color:SL,lineHeight:1.6,textAlign:'center'}}>
+          You may cancel or downgrade your subscription at any time using the "Cancel Plan" or "Manage Billing" buttons above.
+          Upon cancellation, you retain access to your current plan until the end of the billing period. No refunds are issued for partial periods.
+          To cancel, click "Cancel Plan" → confirm → you will be redirected to our secure billing portal.
         </div>
 
         {/* Feature comparison */}
