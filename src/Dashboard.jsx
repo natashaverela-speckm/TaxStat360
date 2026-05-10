@@ -154,9 +154,6 @@ function buildRecs(biz,calc){
   if(qbi>0) recs.push({type:'success',title:'QBI Deduction Applied - '+fmt(qbi)+' Saved',msg:'You qualify for the 20% Section 199A deduction, reducing your taxable income by '+fmt(qbi)+'.'})
   if(dep===0&&grossRev>50000) recs.push({type:'info',title:'Review Depreciation Deductions',msg:'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Section 179.'})
   if(adv/grossRev<0.02&&grossRev>100000) recs.push({type:'info',title:'Consider Increasing Advertising Deductions',msg:'Your advertising expenses are low. Legitimate marketing and promotional costs are fully deductible.'})
-  // FIX (retirement contribution limits): updated from stale 2023/2024 limits to the
-  // 2025 annual addition limit of $70,000 per IRC §415(c)(1)(A) (indexed). The prior
-  // text showed $66,000 (2023 SEP-IRA limit) and $69,000 (2024 Solo 401k limit).
   if(parseFloat(effRate)>28) recs.push({type:'warning',title:'High Effective Tax Rate ('+pct(effRate)+')',msg:'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) (up to $70,000) for 2025.'})
   if(recs.length===0) recs.push({type:'success',title:'Your Tax Structure Looks Healthy',msg:'No significant issues detected. Keep monitoring quarterly and update as financials change.'})
   return recs
@@ -220,13 +217,21 @@ export default function Dashboard(){
     // Records saved within the last 30 days are kept even if blank — the user may still
     // be filling them in. Records with real data are always kept regardless of age.
     // r.id is Date.now() at save time, giving a reliable creation timestamp.
+    //
+    // FIX (F-02 / cleanRecs): Dashboard saves revenue as rec.biz.grossRevenue (flat).
+    // TaxReturn saves revenue as rec.biz.pnl.grossRevenue (nested). Both paths must be
+    // checked or Dashboard-saved records are always classified as "no data" and
+    // auto-deleted after 30 days even when $250K of revenue is present.
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
     const cleanRecs = recs.filter(r => {
       const hasData = r.biz
-        // biz-format records (from Dashboard): check revenue, W-2, rental, and k1
-        ? parseFloat(r.biz?.pnl?.grossRevenue) > 0 || parseFloat(r.f1040?.w2Income) > 0
-          || parseFloat(r.f1040?.rentalIncome) > 0 || parseFloat(r.k1Income) > 0
-        // flat personal-return records (from TaxReturn page)
+        // biz-format records: check both the nested pnl path (TaxReturn saves) and
+        // the flat path (Dashboard saves). Also check w2Income, rentalIncome, k1Income.
+        ? parseFloat(r.biz?.pnl?.grossRevenue || r.biz?.grossRevenue) > 0
+          || parseFloat(r.f1040?.w2Income) > 0
+          || parseFloat(r.f1040?.rentalIncome) > 0
+          || parseFloat(r.k1Income) > 0
+        // flat personal-return records (from TaxReturn page pre-entity-restore)
         : parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
       if (hasData) return true
       // No real data — keep if created within 30 days (grace period for partial saves)
@@ -407,13 +412,27 @@ export default function Dashboard(){
     // Use savedRecordId if set; otherwise find the most recent record with real data
     let existingId=savedRecordId
     if(!existingId){
-      const firstReal=freshRecs.find(r=>parseFloat(r.biz?.pnl?.grossRevenue)>0||parseFloat(r.f1040?.w2Income)>0)
+      // FIX (F-02 / handleSave): also check rec.biz.grossRevenue (flat path used by
+      // Dashboard saves). The original only checked rec.biz?.pnl?.grossRevenue which
+      // is always absent on Dashboard-saved records, so existingId was never found and
+      // a duplicate record was created instead of updating the existing one.
+      const firstReal=freshRecs.find(r=>
+        parseFloat(r.biz?.pnl?.grossRevenue || r.biz?.grossRevenue) > 0
+        || parseFloat(r.f1040?.w2Income) > 0
+      )
       if(firstReal) existingId=firstReal.id
     }
     const record={
       id:existingId||Date.now(),
       savedAt:new Date().toLocaleString(),
-      biz:{...biz},f1040:{...f1040},connectedApp,k1Income:calc?.k1||0
+      biz:{...biz},
+      f1040:{...f1040},
+      connectedApp,
+      k1Income:calc?.k1||0,
+      // FIX (F-02 / quarterly): quarterly was not saved in the record object, causing
+      // the record card to always show Quarterly: $0 for Dashboard-saved records.
+      // calc.quarterly is the quarterlyRecommended value from calcTaxReturn.
+      quarterly:calc?.quarterly||0,
     }
     const updated=existingId
       ? freshRecs.map(r=>r.id===existingId?record:r)
@@ -438,29 +457,38 @@ export default function Dashboard(){
     setSavedRecordId(rec.id)
 
     // ── Restore business state in Dashboard (for inline view) ──────────────
-    // Saved record's biz is entity-shape (name/type/own/pnl). Dashboard's biz
-    // is flat-shape (entityType/ownershipPct/grossRevenue/operatingExpenses).
-    // Translate explicitly. Fields not captured at save time (cogs, depreciation,
-    // advertising, otherDeductions, ccorpDividends) stay at their useState
-    // defaults, consistent with the "RESET action" contract documented above.
+    // FIX (F-02 / loadRecord field mapping): Dashboard saves use flat biz field names
+    // (entityType, ownershipPct, grossRevenue, year). TaxReturn/entity saves use
+    // different names (type, own, pnl.grossRevenue, pnl.totalExpenses, taxYear).
+    // Both must be resolved or Dashboard-saved records restore blank after "Load & Continue".
+    //
+    // Field resolution: check TaxReturn/entity field first, fall back to Dashboard flat field.
     if(rec.biz) {
       const savedPnl = rec.biz.pnl || {}
       setBiz(prev => ({
         ...prev,
-        entityType: rec.biz.type || prev.entityType,
-        ownershipPct: rec.biz.own || prev.ownershipPct,
-        year: rec.taxYear || prev.year,
-        grossRevenue: savedPnl.grossRevenue != null ? String(savedPnl.grossRevenue) : '',
-        operatingExpenses: savedPnl.totalExpenses != null ? String(savedPnl.totalExpenses) : '',
-        officerSalary: savedPnl.officerSalary != null ? String(savedPnl.officerSalary) : '',
+        // entityType: TaxReturn saves as rec.biz.type; Dashboard saves as rec.biz.entityType
+        entityType: rec.biz.type || rec.biz.entityType || prev.entityType,
+        // ownershipPct: TaxReturn entities use rec.biz.own; Dashboard uses rec.biz.ownershipPct
+        ownershipPct: rec.biz.own || rec.biz.ownershipPct || prev.ownershipPct,
+        // year: TaxReturn saves as rec.taxYear; Dashboard saves as rec.biz.year
+        year: rec.taxYear || rec.biz.year || prev.year,
+        // grossRevenue: TaxReturn saves as pnl.grossRevenue; Dashboard saves as rec.biz.grossRevenue (flat)
+        grossRevenue: savedPnl.grossRevenue != null
+          ? String(savedPnl.grossRevenue)
+          : rec.biz.grossRevenue != null ? String(rec.biz.grossRevenue) : '',
+        // operatingExpenses: TaxReturn saves as pnl.totalExpenses; Dashboard saves as rec.biz.operatingExpenses
+        operatingExpenses: savedPnl.totalExpenses != null
+          ? String(savedPnl.totalExpenses)
+          : rec.biz.operatingExpenses != null ? String(rec.biz.operatingExpenses) : '',
+        // officerSalary: TaxReturn saves as pnl.officerSalary; Dashboard saves as rec.biz.officerSalary
+        officerSalary: savedPnl.officerSalary != null
+          ? String(savedPnl.officerSalary)
+          : rec.biz.officerSalary != null ? String(rec.biz.officerSalary) : '',
       }))
     }
 
     // ── Build the f1040 object from either new or old record format ─────────
-    // saved1040 always uses canonical contract field names (estPaid, useItemized,
-    // itemizedAmt) regardless of source path. f1040Restored keeps Dashboard's
-    // legacy internal names — translation back to the contract happens at the
-    // writePersonalContext call below.
     const saved1040 = rec.biz ? (rec.f1040||{}) : {
       filingStatus: rec.filingStatus || 'single',
       w2Income: rec.w2Income || '',
@@ -482,24 +510,11 @@ export default function Dashboard(){
     setSaved(false)
 
     // ── Pass record data into the Step 1→2 flow via sessionStorage ──────────
-    // so the full TaxReturn page loads with all saved values pre-filled.
-    // saveRecord persists the full entities array (rec.entities) — use it
-    // directly rather than reconstructing a single entity from rec.biz, so
-    // multi-entity records and advanced K-1 box values restore correctly.
-    // Map each raw entity to the flattened k1Data shape that TaxReturn reads
-    // (e.netProfit, e.k1, e.box11_12, etc.) — same mapping CalculateTaxInner
-    // does in proceed().
     const sourceEntities = Array.isArray(rec.entities) && rec.entities.length > 0
       ? rec.entities
       : (rec.biz ? [rec.biz] : [])
     const restoredEntities = sourceEntities.filter(e => e && e.pnl).map(e => {
       const pnl = e.pnl || {}
-      // Formula matches CalculateTaxInner.proceed() exactly (parseInt for own,
-      // parseMoney for box deductions). Decimal ownership percentages (e.g.
-      // 33.33% partners) are intentionally truncated to match the originally-
-      // saved k1 — drift here would silently change tax numbers on restore.
-      // The || 100 fallback when e.own is missing is a small improvement over
-      // CTI's bare parseInt (which would produce NaN).
       const ownPct = parseInt(e.own) || 100
       const k1 = Math.round((pnl.netProfit || 0) * (ownPct / 100))
         - parseMoney(e.box11_12)
@@ -519,13 +534,6 @@ export default function Dashboard(){
       }
     })
     const k1TotalRestored = restoredEntities.reduce((s, e) => s + (e.k1 || 0), 0)
-    // writeStep1State writes ts360_entities, ts360_k1, AND ts360_isCoopPatron
-    // atomically. Resetting isCoopPatron to false here is intentional and tax-
-    // significant: Dashboard never captures the co-op patron flag from saved
-    // records (it's a Step-1-only field), so without an explicit reset the
-    // flag would retain whatever value was set by the last CalculateTaxInner
-    // session — flipping AI Analysis from Form 8995 to Form 8995-A on the
-    // wrong taxpayer. Defaulting to false on record load is the safe choice.
     writeStep1State({
       entities: restoredEntities,
       entitiesRaw: sourceEntities,
@@ -540,20 +548,15 @@ export default function Dashboard(){
       useItemized: !f1040Restored.useStandardDed,                                  // ← legacy UI → contract (inverted)
       itemizedAmt: parseFloat(f1040Restored.itemizedDed) || 0,                     // ← legacy UI → contract
     })
-    writeTaxYear(rec.taxYear || 2025)
+    writeTaxYear(rec.taxYear || rec.biz?.year || 2025)
 
-    // Navigate to Calculate Tax (Step 1) so the user can review/confirm the
-    // restored business entity before proceeding. They can click "Continue to
-    // Personal Tax Return" to advance to Step 2 once they've verified Step 1
-    // looks right. The Step 2 data is already in sessionStorage waiting for them.
     nav('/calculate-tax')
   }
 
 
   const handleConnect=(integ)=>{
-    // ts360_connected_app not stored — verified on next load
     setConnectedApp(integ.name)
-        window.location.href=API_BASE_URL+'/auth/'+integ.id+'/connect'
+    window.location.href=API_BASE_URL+'/auth/'+integ.id+'/connect'
   }
 
   const inp={width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}
@@ -584,27 +587,19 @@ export default function Dashboard(){
         {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
-              // Navigate to full Tax Return page with k1 data.
-              // writeStep1State writes ts360_entities, ts360_k1, AND
-              // ts360_isCoopPatron atomically. isCoopPatron: false reset is
-              // intentional — same reasoning as loadRecord above. Dashboard
-              // never captures the co-op patron flag, so defaulting to false
-              // prevents a stale flag from a prior session bleeding into AI
-              // Analysis and triggering Form 8995-A on the wrong taxpayer.
               writeStep1State({
                 entities: [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}],
                 k1Total: calc?.k1 || 0,
                 isCoopPatron: false,
               })
               writePersonalContext({
-                ...readPersonalContext(),                                            // preserve fields already in session
+                ...readPersonalContext(),
                 filingStatus: f1040.filingStatus || 'single',
                 w2Income: parseFloat(f1040.w2Income) || 0,
                 dependents: parseInt(f1040.dependents) || 0,
-                estPaid: parseFloat(f1040.estimatedPayments) || 0,                   // ← legacy UI → contract
-                useItemized: !f1040.useStandardDed,                                   // ← legacy UI → contract (inverted)
-                itemizedAmt: parseFloat(f1040.itemizedDed) || 0,                     // ← legacy UI → contract
-                // officerSalary removed — legacy orphan, nothing reads it
+                estPaid: parseFloat(f1040.estimatedPayments) || 0,
+                useItemized: !f1040.useStandardDed,
+                itemizedAmt: parseFloat(f1040.itemizedDed) || 0,
               })
               writeTaxYear(biz.year||2025)
               nav('/tax-return')
@@ -655,7 +650,14 @@ export default function Dashboard(){
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              {records.map((rec,i)=>(
+              {records.map((rec,i)=>{
+                // FIX (F-02 / record card): Dashboard saves revenue as rec.biz.grossRevenue
+                // (flat). TaxReturn saves it as rec.biz.pnl.grossRevenue (nested). The
+                // original code only checked the nested pnl path, so Dashboard-saved records
+                // always showed "No data" for Revenue even when $250K was entered.
+                // Now checks both paths with a consistent helper variable.
+                const displayRevenue = rec.biz?.pnl?.grossRevenue ?? rec.biz?.grossRevenue
+                return (
                 <div key={rec.id||i} style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
@@ -664,7 +666,7 @@ export default function Dashboard(){
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
                       <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'—'}</strong></span>
-                      <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:rec.biz?.pnl?.grossRevenue&&parseFloat(rec.biz.pnl.grossRevenue)>0?N:'#94A3B8'}}>{rec.biz?.pnl?.grossRevenue&&parseFloat(rec.biz.pnl.grossRevenue)>0?'$'+parseFloat(rec.biz.pnl.grossRevenue).toLocaleString():'No data'}</strong></span>
+                      <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:displayRevenue&&parseFloat(displayRevenue)>0?N:'#94A3B8'}}>{displayRevenue&&parseFloat(displayRevenue)>0?'$'+parseFloat(displayRevenue).toLocaleString():'No data'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Filing: <strong style={{color:N}}>{(rec.f1040?.filingStatus||rec.filingStatus||'—').toUpperCase()}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||rec.biz?.quarterly||0).toLocaleString()}</strong></span>
@@ -691,7 +693,8 @@ export default function Dashboard(){
                     }}>🗑</button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
