@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
+import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, SEP_IRA_LIMITS, SEP_SCORP_RATE, SEP_SOLEPROP_RATE, REASONABLE_COMP_MIN_PCT, REASONABLE_COMP_TARGET_PCT } from './taxCalc'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
@@ -262,10 +262,10 @@ function RiskScan({ rec }) {
         findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
           action: `Set ${entityName}'s officer salary on Step 1 to at least 35–40% of its net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.` })
-      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.4) {
+      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * REASONABLE_COMP_TARGET_PCT) {
         findings.push({ level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
           detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/eK1)*100).toFixed(1)}% ratio). The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
-          action: `Consider increasing ${entityName}'s officer salary to at least ${fmt(Math.round(eK1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
+          action: `Consider increasing ${entityName}'s officer salary to at least ${fmt(Math.round(eK1 * REASONABLE_COMP_MIN_PCT))} to align with IRS reasonable compensation guidelines.` })
       } else if (eOfficerSal > 0) {
         findings.push({ level: 'good', icon: '✅', title: `Officer Salary Recorded — ${entityName}`,
           detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
@@ -278,10 +278,10 @@ function RiskScan({ rec }) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.4) {
+    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * REASONABLE_COMP_TARGET_PCT) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
-        action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
+        action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * REASONABLE_COMP_MIN_PCT))} to align with IRS reasonable compensation guidelines.` })
     } else if (ownerComp > 0) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded',
         detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
@@ -445,10 +445,14 @@ function TaxOptimization({ rec }) {
   // limit and could cause an excess contribution and IRC §4973 excise tax.
   // Sole props / general partners retain the net-SE-earnings base (~20% of net
   // profit after deducting half of SE tax; simplified as 20% of k1 here).
+  // FIX (C-05): SEP-IRA rates and annual addition limit now imported from taxCalc.js
+  // instead of being hardcoded. When IRS publishes new limits, update SEP_IRA_LIMITS
+  // in taxCalc.js and every component picks up the change automatically.
   const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
   const sepBase = isSCorpOwner ? totalOfficerSalary : k1
-  const sepRate = isSCorpOwner ? 0.25 : 0.20
-  const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
+  const sepRate = isSCorpOwner ? SEP_SCORP_RATE : SEP_SOLEPROP_RATE
+  const sepLimit = SEP_IRA_LIMITS[year] || SEP_IRA_LIMITS[2025]
+  const maxSEP = Math.min(sepLimit, Math.round(sepBase * sepRate))
 
   if (isPassthrough) {
     if (isSCorpOwner && totalOfficerSalary === 0) {
@@ -457,13 +461,13 @@ function TaxOptimization({ rec }) {
         icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
         priority: 'high', saving: null,
         detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 salary — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer salary recorded, your current allowable contribution is $0.`,
-        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in 2025). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
+        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_SCORP_RATE * 100)}% of that salary (max ${fmt(sepLimit)}) to a SEP-IRA or Solo 401(k). Example: a ${fmt(Math.round(k1 * REASONABLE_COMP_TARGET_PCT))} salary would allow a ${fmt(Math.round(Math.min(sepLimit, k1 * REASONABLE_COMP_TARGET_PCT * SEP_SCORP_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepLimit, k1 * REASONABLE_COMP_TARGET_PCT * SEP_SCORP_RATE) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
       const taxSaved = Math.round(maxSEP * marginalRate)
       const sepDetail = isSCorpOwner
-        ? `You can contribute up to ${fmt(maxSEP)} (25% of your ${fmt(totalOfficerSalary)} officer W-2 salary, max $70,000) to a SEP-IRA or Solo 401(k). S-Corp K-1 distributions do not count toward this limit — only your W-2 wages from the S-Corp qualify (IRC §402(h)).`
-        : `You can contribute up to ${fmt(maxSEP)} (~20% of net self-employment income after SE tax deduction, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
+        ? `You can contribute up to ${fmt(maxSEP)} (${Math.round(SEP_SCORP_RATE * 100)}% of your ${fmt(totalOfficerSalary)} officer W-2 salary, max ${fmt(sepLimit)}) to a SEP-IRA or Solo 401(k). S-Corp K-1 distributions do not count toward this limit — only your W-2 wages from the S-Corp qualify (IRC §402(h)).`
+        : `You can contribute up to ${fmt(maxSEP)} (~${Math.round(SEP_SOLEPROP_RATE * 100)}% of net self-employment income after SE tax deduction, max ${fmt(sepLimit)}) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
       opportunities.push({
         icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
         saving: taxSaved,
@@ -827,7 +831,7 @@ function SimulatorModal({ onClose, rec }) {
       equip50: { depreciation: 50000 },
       // FIX (T-01 SEP simulator): for S-corp, SEP is based on officer salary * 0.25,
       // not net profit * 0.25. Use base.officerSalary as the contribution base.
-      sep:     { otherDeductions: Math.min(70000, Math.round(base.officerSalary > 0 ? base.officerSalary * 0.25 : netProfit * ownerPct * 0.20)) },
+      sep:     { otherDeductions: Math.min(SEP_IRA_LIMITS[taxYear] || SEP_IRA_LIMITS[2025], Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_SCORP_RATE : netProfit * ownerPct * SEP_SOLEPROP_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},
