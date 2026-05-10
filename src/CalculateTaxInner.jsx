@@ -7,7 +7,9 @@ import { parseMoney } from './utils/parseMoney.js'
 
 import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw } from './utils/sessionState.js'
+import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
+// FIX (U-02): import tax calc helpers to power the Step 1 preview estimate
+import { calcFederalTax, calcQBI, getStdDed } from './taxCalc'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 function InfoTip({ text, below }) { const [s, ss] = React.useState(false); const popupPos = below ? {top:'120%',right:0} : {bottom:'120%',left:'50%',transform:'translateX(-50%)'}; return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',...popupPos,background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const INTS=INTEGRATIONS
@@ -332,6 +334,23 @@ export default function CalculateTax(){
   const k1Data=entities.filter(e=>e.pnl).map(e=>({name:e.name,type:e.type,own:e.own,netProfit:e.pnl.netProfit,pnl:{officerSalary:parseFloat(e.pnl.officerSalary)||0},k1:Math.round(e.pnl.netProfit*((parseInt(e.own)||100)/100))-(parseMoney(e.box11_12))-(parseMoney(e.box12_13)),box17K:parseMoney(e.box17K),box11_12:parseMoney(e.box11_12),box12_13:parseMoney(e.box12_13),box17V_wages:parseMoney(e.box17V_wages),box17V_ubia:parseMoney(e.box17V_ubia),box17V_sstb:!!e.box17V_sstb}))
   const anyPnl=entities.some(e=>e.pnl)
 
+  // FIX (U-02): Compute a rough income-tax preview at Step 1 so users see a tax
+  // estimate immediately after entering business income — without having to navigate
+  // to Step 2. Uses the user's saved filing status and tax year from sessionStorage.
+  // Intentionally narrow: income tax on K-1 only, after standard deduction and QBI.
+  // Excludes SE tax, NIIT, AMT, Additional Medicare, W-2 income, other income, and
+  // any payments. The UI label makes these exclusions explicit.
+  const _previewPersonal = readPersonalContext()
+  const _previewYear = parseInt(readTaxYear()) || 2025
+  const _previewStatus = _previewPersonal.filingStatus || 'single'
+  const _previewStdDed = getStdDed(_previewYear, _previewStatus)
+  const _previewTaxableBeforeQBI = Math.max(0, k1Total - _previewStdDed)
+  const { deduction: _previewQBI } = k1Total > 0
+    ? calcQBI(k1Total, _previewTaxableBeforeQBI, 0, { status: _previewStatus, taxYear: _previewYear, entityQbiData: k1Data })
+    : { deduction: 0 }
+  const _previewTaxable = Math.max(0, _previewTaxableBeforeQBI - _previewQBI)
+  const previewFedTax = k1Total > 0 ? calcFederalTax(_previewTaxable, _previewYear, _previewStatus) : 0
+
   function proceed(){
     writeStep1State({entities:k1Data,entitiesRaw:entities,k1Total,isCoopPatron});nav('/tax-return')
   }
@@ -416,9 +435,23 @@ export default function CalculateTax(){
             {entityCards}
               </div>
               <div style={{borderTop:'1px solid rgba(255,255,255,0.12)',paddingTop:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div>
-                  <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4}}>TOTAL BUSINESS INCOME</div>
-                  <div style={{fontSize:44,fontWeight:800,color:k1Total>=0?'#4ADE80':'#F87171'}}>{fmt(k1Total)}</div>
+                <div style={{display:'flex',gap:36,alignItems:'flex-end'}}>
+                  <div>
+                    <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4}}>TOTAL BUSINESS INCOME</div>
+                    <div style={{fontSize:44,fontWeight:800,color:k1Total>=0?'#4ADE80':'#F87171'}}>{fmt(k1Total)}</div>
+                  </div>
+                  {/* FIX (U-02): Tax preview — income tax estimate based on K-1 income,
+                      standard deduction, and QBI. Users previously had to complete Step 2
+                      before seeing any tax number. This gives immediate feedback at Step 1.
+                      Only renders when previewFedTax > 0. Clearly labelled as income-tax-only
+                      so users understand it's a partial preview, not the full liability. */}
+                  {previewFedTax > 0 && (
+                    <div style={{paddingBottom:6}}>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:3,letterSpacing:'0.5px'}}>EST. INCOME TAX PREVIEW</div>
+                      <div style={{fontSize:32,fontWeight:800,color:'#F87171'}}>{fmt(previewFedTax)}</div>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:3,lineHeight:1.4}}>income tax only · complete Step 2 for full liability</div>
+                    </div>
+                  )}
                 </div>
                 <button onClick={proceed} style={{padding:'16px 40px',background:B,border:'none',borderRadius:12,fontSize:16,fontWeight:800,color:'#fff',cursor:'pointer',boxShadow:'0 4px 20px rgba(37,99,235,0.5)'}}>Continue to Personal Tax Return →</button>
               </div>
