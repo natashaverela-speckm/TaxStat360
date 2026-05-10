@@ -27,10 +27,6 @@ const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
 function getTotalW2(rec) {
   if (!rec) return 0
   const f = rec.f1040 || {}
-  // f.w2Income is a UI-string from saved records — may carry commas (e.g. '50,000')
-  // because Dashboard saves the user's typed input verbatim. Entity values like
-  // e.pnl.officerSalary come from the structured data layer (no commas) — bare
-  // parseFloat is sufficient there. The asymmetry is intentional, not a bug.
   const additionalW2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
   const entities = Array.isArray(rec.entities) ? rec.entities : []
   const totalOfficerSalary = entities.reduce(
@@ -43,8 +39,7 @@ function getTotalW2(rec) {
 // FIX (S-Corp field divergence): resolves both e.netProfit (legacy field written by
 // some older Dashboard paths) and e.pnl?.netProfit (structured data layer field) so
 // that all entity-level profit reads are consistent regardless of which code path
-// originally saved the record. Previously RiskScan read e.netProfit while
-// TaxOptimization read e.pnl?.netProfit — causing silent divergence on S-Corp records.
+// originally saved the record.
 function getEntityNetProfit(e) {
   return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
 }
@@ -193,6 +188,23 @@ function completeness(rec) {
   return Math.min(s, 98)
 }
 
+// FIX (F-03): compute which fields are genuinely absent so the completeness banner
+// shows accurate "missing:" text instead of the previous hardcoded string.
+// Checks the same fields used by completeness() so the percentage and label agree.
+function missingFields(rec) {
+  if (!rec) return ['all fields']
+  const b = rec.biz || {}, f = rec.f1040 || {}
+  const missing = []
+  // Revenue: grossRevenue on biz object OR k1Income (session-built records store
+  // net profit there when no separate grossRevenue field is present)
+  if (!(parseFloat(b.grossRevenue) > 0) && !(parseFloat(rec.k1Income) > 0)) missing.push('revenue')
+  if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
+  if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
+  if (!(parseFloat(b.operatingExpenses) > 0)) missing.push('expenses')
+  if (!(parseFloat(b.depreciation) > 0)) missing.push('depreciation')
+  return missing
+}
+
 // ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
 function RiskScan({ rec }) {
   if (!rec) return <NoData />
@@ -206,10 +218,6 @@ function RiskScan({ rec }) {
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
 
-  // FIX (Incomplete AGI): totalIncome previously only summed k1 + w2, omitting
-  // capital gains, interest, dividends, net rental income, and other income.
-  // All of these are included in AGI and affect the taxable income base used
-  // for roughTax, QBI limitation, and marginal rate. They are now included.
   const rentalExpenses = parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
   const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
@@ -220,8 +228,6 @@ function RiskScan({ rec }) {
 
   const year = parseInt(b.year) || 2025
   const filing = f.filingStatus || 'single'
-  // FIX: roughTax declared here — before the estimated-payments finding that uses roughTax / 4
-  // Applies QBI deduction to match TaxReturn.jsx calculation
   const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
   const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
     ? calcQBI(k1, _taxableBeforeQBI_rough, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
@@ -231,8 +237,6 @@ function RiskScan({ rec }) {
   const _marginalRate = getMarginalRate(_taxable, year, filing)
   const today = new Date()
 
-  // FIX (Q2 deadline): Q2 estimated tax deadline is June 15 per IRC §6654(c)(2).
-  // June 16 was incorrect and would show users the wrong due date.
   const qDeadlines = [
     {month:4,day:15,label:'April 15'},
     {month:6,day:15,label:'June 15'},
@@ -252,8 +256,6 @@ function RiskScan({ rec }) {
   if (sCorpEntities.length > 0) {
     sCorpEntities.forEach(e => {
       const entityName = e.name || 'S-Corp'
-      // FIX (S-Corp field divergence): use getEntityNetProfit() which resolves both
-      // e.netProfit (legacy) and e.pnl?.netProfit (structured) consistently.
       const eK1 = Math.round(getEntityNetProfit(e) * (parseInt(e.own) || 100) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
@@ -287,11 +289,9 @@ function RiskScan({ rec }) {
     }
   }
 
-  // ── Estimated payments ───────────────────────────────────────────────────────
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
-      // FIX (Q2 deadline): corrected June 16 → June 15
       action: `Estimated quarterly payment: approx. ${fmt(Math.round(roughTax / 4))}. Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
@@ -299,14 +299,12 @@ function RiskScan({ rec }) {
       action: null })
   }
 
-  // ── Depreciation opportunity ─────────────────────────────────────────────────
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
       action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
   }
 
-  // ── QBI deduction ────────────────────────────────────────────────────────────
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const _year = parseInt(b.year) || 2025
     const _filing = f.filingStatus || 'single'
@@ -323,14 +321,12 @@ function RiskScan({ rec }) {
       action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.` })
   }
 
-  // ── C-Corp double tax ────────────────────────────────────────────────────────
   if (isCCorpEntity(b.entityType) && revenue > 0) {
     findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
       detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
       action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
   }
 
-  // ── Large tax liability — advertising & Section 179 ──────────────────────────
   if (roughTax > 10000) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
@@ -340,7 +336,6 @@ function RiskScan({ rec }) {
       action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / _marginalRate), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
-  // ── Real Estate Professional (REP) ──────────────────────────────────────────
   if (rentalIncome > 0 || isREP) {
     if (isREP) {
       findings.push({ level: 'info', icon: '🏠', title: 'Real Estate Professional — Criteria Checklist',
@@ -353,7 +348,6 @@ function RiskScan({ rec }) {
     }
   }
 
-  // ── Next quarterly deadline ──────────────────────────────────────────────────
   findings.push({ level: 'info', icon: '📅', title: `Next Quarterly Deadline: ${deadlines[month]}`,
     detail: 'IRS Form 1040-ES quarterly estimated tax payment due date.',
     action: estPay > 0
@@ -420,10 +414,6 @@ function TaxOptimization({ rec }) {
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
 
-  // FIX (Incomplete AGI): agi previously only summed k1 + w2, omitting capital gains,
-  // interest, dividends, net rental income, and other income. All these items are
-  // included in AGI and affect the taxable income base used for marginalRate and QBI
-  // limitation calculations. They are now included so optimization estimates are accurate.
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
   const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
   const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
@@ -440,18 +430,39 @@ function TaxOptimization({ rec }) {
 
   const opportunities = []
 
-  // FIX (SEP-IRA limit): The 2025 SEP-IRA / Solo 401(k) annual addition limit is
-  // $70,000 (IRC §415(c)(1)(A), indexed for 2025). The prior hardcoded value of
-  // $69,000 was the 2024 limit and would understate the maximum deduction by $1,000.
-  const maxSEP = Math.min(70000, Math.round((k1 + w2) * 0.25))
-  if (maxSEP > 0 && isPassthrough) {
-    const taxSaved = Math.round(maxSEP * marginalRate)
-    opportunities.push({
-      icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
-      saving: taxSaved,
-      detail: `You can contribute up to ${fmt(maxSEP)} (25% of net self-employment income, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`,
-      howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max SEP-IRA contribution saves approx. ${fmt(taxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions.`
-    })
+  // FIX (T-01 — SEP-IRA S-Corp): S-Corp owner-employees may only base SEP-IRA /
+  // Solo 401(k) contributions on their W-2 officer salary, NOT K-1 distributions
+  // (IRC §402(h), §415(c); IRS Pub. 560). With $0 officer salary the allowable
+  // contribution is $0. The prior formula (k1 + w2) * 0.25 produced a non-zero
+  // limit and could cause an excess contribution and IRC §4973 excise tax.
+  // Sole props / general partners retain the net-SE-earnings base (~20% of net
+  // profit after deducting half of SE tax; simplified as 20% of k1 here).
+  const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
+  const sepBase = isSCorpOwner ? totalOfficerSalary : k1
+  const sepRate = isSCorpOwner ? 0.25 : 0.20
+  const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
+
+  if (isPassthrough) {
+    if (isSCorpOwner && totalOfficerSalary === 0) {
+      // Blocked — surface as a linked opportunity so user sees the path to unlock it
+      opportunities.push({
+        icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
+        priority: 'high', saving: null,
+        detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 salary — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer salary recorded, your current allowable contribution is $0.`,
+        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in 2025). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
+      })
+    } else if (maxSEP > 0) {
+      const taxSaved = Math.round(maxSEP * marginalRate)
+      const sepDetail = isSCorpOwner
+        ? `You can contribute up to ${fmt(maxSEP)} (25% of your ${fmt(totalOfficerSalary)} officer W-2 salary, max $70,000) to a SEP-IRA or Solo 401(k). S-Corp K-1 distributions do not count toward this limit — only your W-2 wages from the S-Corp qualify (IRC §402(h)).`
+        : `You can contribute up to ${fmt(maxSEP)} (~20% of net self-employment income after SE tax deduction, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
+      opportunities.push({
+        icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
+        saving: taxSaved,
+        detail: sepDetail,
+        howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max contribution saves approx. ${fmt(taxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions.`
+      })
+    }
   }
 
   if (revenue > 30000 && dep === 0) {
@@ -547,7 +558,7 @@ function IRSCompliance({ rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = getTotalW2(rec)
-  const rental = false // future
+  const rental = false
   const entity = b.entityType || 'Unknown'
   const year = parseInt(b.year) || 2025
   const today = new Date()
@@ -600,7 +611,6 @@ function IRSCompliance({ rec }) {
   }
 
   if (parseFloat(f.estPaid) > 0) {
-    // FIX (Q2 deadline): corrected Jun 16 → Jun 15 per IRC §6654(c)(2)
     schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
@@ -641,14 +651,6 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 4562', title: 'Depreciation and Amortization', status: 'required', detail: 'Reports depreciation deductions for business assets and rental property.', deadline: 'Filed with Form 1040' })
   }
 
-  // FIX (NIIT trigger): Previously triggered Form 8960 whenever k1 + w2 exceeded the
-  // NIIT threshold, which produced false positives for active business owners with no
-  // investment income. NIIT under IRC §1411 applies only when BOTH conditions are met:
-  // (1) MAGI exceeds the filing-status threshold, AND (2) the taxpayer has net
-  // investment income (interest, dividends, capital gains, net non-REP rental income).
-  // Active trade or business income (K-1, W-2) is excluded from net investment income
-  // per IRC §1411(c)(1)(A)(ii) and Treas. Reg. §1.1411-4(g). The trigger now correctly
-  // checks for the presence of investment income before surfacing this form.
   const _niitInterest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
   const _niitDividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
   const _niitCapGains = _stGain + _ltGain
@@ -660,7 +662,6 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold. Note: active K-1 and W-2 income are excluded from net investment income per IRC §1411(c)(1)(A)(ii).`, deadline: 'Filed with Form 1040' })
   }
 
-  const totalIncome = k1 + w2
   if (f.useItemized && (parseFloat(f.itemizedAmt)||0) > 0) {
     const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
@@ -675,7 +676,6 @@ function IRSCompliance({ rec }) {
     { date: `Jan 31, ${year + 1}`, event: 'W-2s issued by employers' },
     { date: `Mar 15, ${year + 1}`, event: `Form 1120-S / 1065 due (S-Corps & Partnerships)` },
     { date: `Apr 15, ${year + 1}`, event: 'Form 1040 personal return due / Q1 estimated payment' },
-    // FIX (Q2 deadline): corrected Jun 16 → Jun 15 per IRC §6654(c)(2)
     { date: `Jun 15, ${year + 1}`, event: 'Q2 estimated tax payment due' },
     { date: `Sep 15, ${year + 1}`, event: 'Q3 estimated tax payment due' },
     { date: `Jan 15, ${year + 2}`, event: 'Q4 estimated tax payment due' },
@@ -811,13 +811,15 @@ function SimulatorModal({ onClose, rec }) {
 
   const applyPreset = (id) => {
     setActiveScenario(id)
+    const netProfit = base.grossRevenue - base.cogs - base.operatingExpenses - base.officerSalary
     const presets = {
       adv15:   { advertising: 15000 },
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      // FIX (SEP-IRA limit): updated from $69,000 (2024 limit) to $70,000 (2025 limit)
-      sep:     { otherDeductions: Math.min(70000, Math.round((base.grossRevenue - base.cogs - base.operatingExpenses - base.officerSalary) * ownerPct * 0.25)) },
+      // FIX (T-01 SEP simulator): for S-corp, SEP is based on officer salary * 0.25,
+      // not net profit * 0.25. Use base.officerSalary as the contribution base.
+      sep:     { otherDeductions: Math.min(70000, Math.round(base.officerSalary > 0 ? base.officerSalary * 0.25 : netProfit * ownerPct * 0.20)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},
@@ -1189,8 +1191,13 @@ export default function AIAnalysis() {
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ color: N, fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>AI Risk & Tax Analysis</h1>
+          {/* FIX (F-01): rec.savedAt was undefined for records loaded from localStorage
+              without a savedAt property, rendering "saved undefined" in the subtitle.
+              Now falls back to 'current session' when savedAt is absent. */}
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>
-            {rec ? `Analyzing your ${rec.biz?.entityType || 'business'} — saved ${rec.savedAt}` : 'Save a record on the Dashboard to unlock personalized analysis'}
+            {rec
+              ? `Analyzing your ${rec.biz?.entityType || 'business'} — ${rec.savedAt ? `saved ${rec.savedAt}` : 'current session'}`
+              : 'Save a record on the Dashboard to unlock personalized analysis'}
           </p>
         </div>
 
@@ -1223,8 +1230,17 @@ export default function AIAnalysis() {
                 <div style={{ width: score + '%', height: '100%', background: 'linear-gradient(90deg,#059669,#34d399)', borderRadius: 4, transition: 'width 0.5s' }} />
               </div>
             </div>
+            {/* FIX (F-03): replaced hardcoded "missing: revenue, withholding, deductions"
+                with a dynamic list derived from the same fields that completeness() scores.
+                Revenue in particular was always shown as missing even when $250K was entered,
+                because the hardcoded string never checked the actual record state. */}
             <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
-              Fill more fields for better accuracy — missing: revenue, withholding, deductions
+              {(() => {
+                const missing = missingFields(rec)
+                return missing.length > 0
+                  ? `Fill more fields for better accuracy — missing: ${missing.slice(0, 3).join(', ')}`
+                  : 'All key fields are filled in — analysis is fully accurate.'
+              })()}
             </div>
             <button onClick={() => {
               if (rec) {
