@@ -433,6 +433,10 @@ export default function Dashboard(){
       // the record card to always show Quarterly: $0 for Dashboard-saved records.
       // calc.quarterly is the quarterlyRecommended value from calcTaxReturn.
       quarterly:calc?.quarterly||0,
+      // FIX (U-01): totalTax was never saved by Dashboard's handleSave, so the
+      // record card could not show tax liability for Dashboard-originated records.
+      // TaxReturn saves already write totalTax — this makes both paths consistent.
+      totalTax:Math.round(calc?.totalTax||0),
     }
     const updated=existingId
       ? freshRecs.map(r=>r.id===existingId?record:r)
@@ -672,6 +676,20 @@ export default function Dashboard(){
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||rec.biz?.quarterly||0).toLocaleString()}</strong></span>
                     </div>
                   </div>
+                  {/* FIX (U-01): Tax liability was invisible until the user clicked Load & Continue
+                      (Step 1) then Continue to Personal Tax Return (Step 2) — a minimum of 2 clicks
+                      after login before seeing any number. Marketing says "shows you exactly what
+                      you owe whenever you need it." This badge delivers on that promise at login
+                      with zero clicks. Only shown when totalTax > 0 so old records without it
+                      remain clean. rec.totalTax is written by TaxReturn saves and now also by
+                      Dashboard's handleSave after the U-01 fix above. */}
+                  {parseFloat(rec.totalTax)>0&&(
+                    <div style={{flexShrink:0,marginLeft:24,marginRight:8,textAlign:'center',background:'#FEF2F2',border:'1.5px solid #FECACA',borderRadius:12,padding:'10px 18px',minWidth:120}}>
+                      <div style={{fontSize:10,fontWeight:700,color:'#991B1B',letterSpacing:'0.5px',marginBottom:3}}>EST. TAX LIABILITY</div>
+                      <div style={{fontSize:22,fontWeight:800,color:'#DC2626',lineHeight:1}}>${Math.round(parseFloat(rec.totalTax)).toLocaleString()}</div>
+                      {parseFloat(rec.quarterly)>0&&<div style={{fontSize:10,color:'#991B1B',marginTop:3}}>${Math.round(parseFloat(rec.quarterly)).toLocaleString()}/qtr</div>}
+                    </div>
+                  )}
                   <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20}}>
                     <button onClick={()=>loadRecord(rec)} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
