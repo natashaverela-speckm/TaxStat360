@@ -614,6 +614,19 @@ export default function TaxReturn() {
             <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'BALANCE DUE' : 'ESTIMATED REFUND'}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
+              {/* FIX (L-04): When no payments are entered, Balance Due = Total Tax exactly,
+                  making users think the tool is showing a duplicate or is broken. The
+                  formula sub-line makes the relationship explicit at a glance:
+                  Balance Due = Total Tax − Payments Made. The zero-payments hint
+                  guides users to the fields that would reduce this number. */}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+                {fmt(totalTax)} tax − {fmt(totalPayments)} paid
+              </div>
+              {totalPayments === 0 && totalTax > 0 && (
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.4 }}>
+                  Enter W-2 withholding or estimated payments above to reduce this.
+                </div>
+              )}
               {balance > 0 && quarterlyRecommended > 0 && (
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Calculated quarterly figure: {fmt(quarterlyRecommended)}/quarter</div>
               )}
