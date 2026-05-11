@@ -4,7 +4,7 @@
 // All components currently use inline styles — these tokens keep colors consistent.
 
 // ── Brand palette ──────────────────────────────────────────────────────────────
-export const NAVY  = '#0D1B3E'  // primary text, nav background
+export const NAVY  = '#0D1B3E'  // primary text, nav background, hero sections
 export const BLUE  = '#2563EB'  // primary action, links, focus rings
 export const SLATE = '#475569'  // secondary text, labels, muted UI
 export const GREEN = '#16a34a'  // positive values, success states
@@ -16,6 +16,25 @@ export const COLOR_TEXT_SECONDARY = SLATE
 export const COLOR_ACTION         = BLUE
 export const COLOR_POSITIVE       = GREEN
 export const COLOR_NEGATIVE       = RED
+
+// ── Button tokens — FIX (C-04) ────────────────────────────────────────────────
+// Rule: BLUE for primary CTAs. NAVY is for brand/nav surfaces — NOT buttons.
+// Using NAVY on a CTA (e.g. "Load & Continue") is the inconsistency C-04 flags.
+//
+//   Primary CTA   (Continue, Save, Start Trial, Load & Continue) → BTN_PRIMARY_BG
+//   Secondary     (Sign Out, Settings, Cancel, outlined actions)  → BTN_SECONDARY_*
+//   Destructive   (Delete, Disconnect)                            → BTN_DANGER_*
+//
+// Quick migration: replace hardcoded '#0D1B3E' on action buttons with BTN_PRIMARY_BG.
+// NAVY stays correct for nav bars, hero backgrounds, and section fills.
+export const BTN_PRIMARY_BG     = BLUE         // '#2563EB'
+export const BTN_PRIMARY_TEXT   = '#FFFFFF'
+export const BTN_SECONDARY_BG   = '#FFFFFF'
+export const BTN_SECONDARY_TEXT = NAVY         // '#0D1B3E'
+export const BTN_SECONDARY_BORDER = '#E2E8F0'  // matches BORDER_DEFAULT
+export const BTN_DANGER_BG      = '#FFFFFF'
+export const BTN_DANGER_TEXT    = RED          // '#dc2626'
+export const BTN_DANGER_BORDER  = '#FECACA'    // red-200
 
 // ── Amber — warnings (audit risk banners, AMT notices, estimated tax reminders) ─
 export const AMBER_BG     = '#FEF3C7'
