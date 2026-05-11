@@ -460,12 +460,12 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
               </div>
               <div>
-                <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year. Taxed at 0%, 15%, or 20% preferential rates. Find on Schedule D Part II Line 15 or 1099-B."/></label>
+                <label style={lbl}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year — taxed at 0/15/20% preferential rates. ⚠ If you have Unrecaptured §1250 Gain below: enter Schedule D Line 15 MINUS the §1250 amount (e.g. Line 15 = $113,072 and §1250 = $66,587 → enter $46,485 here). The §1250 field below handles that portion at its own 25% rate. If you have NO §1250 gain, enter Line 15 directly."/></label>
                 <MoneyInput value={ltCapGains} onChange={setLtCapGains} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
               </div>
               <div>
-                <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales — taxed at max 25% (IRC §1(h)(1)(D)). Find on Schedule D Tax Worksheet Line 19."/></label>
+                <label style={lbl}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sales — taxed at max 25% (IRC §1(h)(1)(D)). Find on Schedule D Tax Worksheet Line 19. ⚠ This field is ADDITIVE to the LTCG field above — reduce your LTCG field by this amount so both together equal your Schedule D Line 15 total. Example: Line 15 = $113,072, §1250 = $66,587 → enter $46,485 in LTCG above and $66,587 here."/></label>
                 <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" style={inp} />
                 <div style={{ fontSize: 10, color: '#854F0B', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
               </div>
