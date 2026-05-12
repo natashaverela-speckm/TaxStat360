@@ -149,7 +149,11 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/signup" element={<Onboarding screen="signup" />} />
         <Route path="/register" element={<Onboarding screen="signup" />} />
+        {/* FIX (F1-01): /signin already existed; /sign-in is the canonical
+            URL used in marketing emails and the public nav "Sign In" button.
+            Both now resolve to the Onboarding login screen. */}
         <Route path="/signin" element={<Onboarding screen="login" />} />
+        <Route path="/sign-in" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
         {/* Onboarding flow — B3: wrapped in RequireAuth */}
@@ -166,7 +170,7 @@ export default function App() {
         <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
         {/* Password reset — public */}
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* Public legal */}
         <Route path="/privacy" element={<Privacy />} />
