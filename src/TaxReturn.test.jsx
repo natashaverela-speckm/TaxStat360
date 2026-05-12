@@ -5,7 +5,7 @@
  * These tests verify that TaxReturn.jsx correctly aggregates Step 1 entity data
  * into the values passed to calcTaxReturn:
  *
- *   F-05 (PR #154): entity.box17K  → f4797Inc  (Section 1231 gain, K-1 Box 17K)
+ *   F-05 (PR #154): entity.box17K → f4797Inc  (Section 1231 gain, K-1 Box 17K)
  *   F-06 (PR #157): entity.pnl.officerSalary → w2 (officer salary auto-included)
  *
  * Test strategy: spy on calcTaxReturn to capture what TaxReturn.jsx passes it,
@@ -59,10 +59,10 @@ vi.mock('./taxCalc', () => ({
 }))
 
 vi.mock('./utils/sessionState.js', () => ({
-  // FIX: readPersonalContext default returns {} — tests that need a specific
+  // readPersonalContext default returns {} — tests that need a specific
   // w2Income or other field must call readPersonalContext.mockReturnValue()
-  // directly. Do NOT use localStorage.setItem('ts360_f1040', ...) — that key
-  // is ignored by this mock and has no effect on component state.
+  // directly in that test. The beforeEach resets this to {} before each test
+  // so prior mockReturnValue calls do not bleed through.
   readPersonalContext: vi.fn(() => ({})),
   writePersonalContext: vi.fn(),
   writeTaxYear: vi.fn(),
@@ -115,6 +115,11 @@ describe('TaxReturn — F-05: K-1 Box 17K aggregation into f4797Inc', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    // FIX: vi.clearAllMocks() clears call history but does NOT reset mockReturnValue.
+    // Explicitly reset both mocks to their default return values before every test
+    // so no prior test's mockReturnValue bleeds through.
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
   })
 
   it('f4797Inc includes entity box17K when manually-entered form4797 is zero', () => {
@@ -187,6 +192,14 @@ describe('TaxReturn — F-06: officer salary aggregation into w2 total', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    // FIX: vi.clearAllMocks() clears call history but does NOT reset mockReturnValue.
+    // Explicitly reset both mocks to their default return values before every test
+    // so no prior test's mockReturnValue bleeds through.
+    // Without this reset, the test "w2 sums additional W-2 and officer salary"
+    // sets readPersonalContext.mockReturnValue({ w2Income: 40000 }) and that value
+    // persists into subsequent tests, causing "w2 is zero" to receive 40000.
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
   })
 
   it('w2 includes entity officer salary when additional w2Income is zero', () => {
@@ -214,9 +227,8 @@ describe('TaxReturn — F-06: officer salary aggregation into w2 total', () => {
       k1Total: 80000,
       isCoopPatron: false,
     })
-    // FIX: readPersonalContext is mocked — localStorage.setItem('ts360_f1040', ...)
-    // has no effect on component state. Use mockReturnValue to supply w2Income
-    // so the component's useState initializer receives it via savedF1040.w2Income.
+    // Supply w2Income via mockReturnValue — this is scoped to this test only.
+    // The beforeEach resets readPersonalContext back to {} before the next test.
     readPersonalContext.mockReturnValue({ w2Income: 40000 })
 
     renderTaxReturn()
