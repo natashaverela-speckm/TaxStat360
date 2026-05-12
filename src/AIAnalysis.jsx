@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
-import { signOut } from './utils/signOut'
+import { signOut } from './utils/signOut' 
 
 const N = '#0D1B3E'
 const B = '#2563EB'
