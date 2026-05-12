@@ -454,7 +454,8 @@ export default function TaxReturn() {
                 'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year in real property trades, 50%+ of personal services)',
                 'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
               ]} />
-            </CollapsibleSection>
+            </div>
+          </CollapsibleSection>
 
           {/* Other income */}
           <CollapsibleSection title="OTHER INCOME">
