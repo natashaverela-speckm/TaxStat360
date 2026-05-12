@@ -7,41 +7,11 @@ import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 const N = '#0D1B3E'
 const B = '#2563EB'
 const G = '#16a34a'
 const R = '#dc2626'
 const SL = '#475569'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function fmt(n) {
   if (n === null || n === undefined) return '$0'
@@ -49,21 +19,6 @@ function fmt(n) {
   const str = '$' + abs.toLocaleString('en-US')
   return n < 0 ? '(' + str + ')' : str
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function BracketBadge({ rate }) {
   const colors = {
@@ -84,21 +39,6 @@ function BracketBadge({ rate }) {
   )
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function InfoTip({ text }) {
   const [show, setShow] = React.useState(false)
   return (
@@ -116,21 +56,6 @@ function InfoTip({ text }) {
     </span>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function CollapsibleSection({ title, children, defaultOpen = true, badge = null }) {
   const [open, setOpen] = React.useState(defaultOpen)
@@ -152,21 +77,6 @@ function CollapsibleSection({ title, children, defaultOpen = true, badge = null 
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function WhatGoesHere({ items }) {
   const [open, setOpen] = React.useState(false)
@@ -191,76 +101,16 @@ function WhatGoesHere({ items }) {
   )
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export default function TaxReturn() {
   const nav = useNavigate()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s || [])
   const { entities, k1Total: dashboardK1Total } = readStep1State()
   const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
   const k1Total = dashboardK1Total + manualK1Total
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const savedF1040 = readPersonalContext()
   const savedTaxYear = readTaxYear()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [taxYear, setTaxYear] = React.useState(savedTaxYear)
   const [ytdMode, setYtdMode] = React.useState(false)
@@ -297,21 +147,6 @@ export default function TaxReturn() {
   const [mortgageInt, setMortgageInt] = React.useState(0)
   const [charitableGifts, setCharitableGifts] = React.useState(0)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const addManualK1 = () => setManualK1s([...manualK1s, {
     id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
     name: '',
@@ -322,40 +157,10 @@ export default function TaxReturn() {
   const updateManualK1 = (id, field, value) => setManualK1s(manualK1s.map(k => k.id === id ? { ...k, [field]: value } : k))
   const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   function ytdScale(v) {
     if (!ytdMode || ytdMonth <= 0 || ytdMonth >= 12) return v
     return Math.round(v * 12 / ytdMonth)
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Persist personal context on every field change
   React.useEffect(() => {
@@ -370,60 +175,15 @@ export default function TaxReturn() {
     writeTaxYear(taxYear)
   }, [status, w2Income, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   // ── Tax computation ──────────────────────────────────────────────────────────
   const w2 = nv(w2Income)
   const scaledK1 = ytdScale(k1Total)
   const scaledW2 = ytdScale(w2)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Aggregate officer salary across all S-Corp entities
   const totalOfficerSalary = entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '')).reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
   const scaledOfficerSal = ytdScale(totalOfficerSalary)
   const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Build inputs for calcTaxReturn
   const inputs = {
@@ -461,37 +221,7 @@ export default function TaxReturn() {
     entities,
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const result = calcTaxReturn(inputs)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const {
     totalTax = 0,
@@ -515,37 +245,7 @@ export default function TaxReturn() {
     quarterly = 0,
   } = result
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
@@ -567,60 +267,15 @@ export default function TaxReturn() {
         </div>
       </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, maxWidth: 1100, margin: '0 auto', padding: '28px 24px', alignItems: 'start' }}>
         {/* LEFT — form */}
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
           <p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Enter your personal info to calculate your total federal tax liability.</p>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           <DismissibleNotice storageKey="ts360_notice_tr_v2">
             TaxStat360 calculates <strong>federal tax estimates</strong> based on the information you enter. Results are for <strong>planning purposes only</strong> and do not constitute professional tax advice. Your actual liability may differ based on your complete financial situation. Consult a licensed CPA or tax professional before filing.
           </DismissibleNotice>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* K-1 income summary from Step 1 */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
@@ -639,21 +294,6 @@ export default function TaxReturn() {
               )
             })}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             {/* Manual K-1 entries */}
             {manualK1s.map(k => (
               <div key={k.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, marginTop: 10, alignItems: 'center' }}>
@@ -670,21 +310,6 @@ export default function TaxReturn() {
             ))}
             <button onClick={addManualK1} style={{ marginTop: 10, background: 'none', border: '1px dashed #CBD5E1', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: SL, cursor: 'pointer', fontWeight: 600 }}>+ Add K-1</button>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: N }}>Total K-1 to Schedule E</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
@@ -700,21 +325,6 @@ export default function TaxReturn() {
               </div>
             )}
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Tax year + YTD */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
@@ -748,21 +358,6 @@ export default function TaxReturn() {
             <div style={{ fontSize: 13, color: SL, marginTop: 10, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(standardDeduction)}</strong></div>
           </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* Filing status & dependents */}
           <CollapsibleSection title="FILING STATUS &amp; DEPENDENTS">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
@@ -788,21 +383,6 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* W-2 income & withholding */}
           <CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
@@ -822,21 +402,6 @@ export default function TaxReturn() {
             ]} />
           </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* Rental real estate */}
           <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
             <div style={{ paddingTop: 12 }}>
@@ -852,21 +417,6 @@ export default function TaxReturn() {
                   <InfoTip text="IRC §469(i)(6): Active participation is a lower standard than material participation — you must make management decisions (setting rents, approving tenants, approving expenses). You do NOT need to participate in day-to-day management. Active participants may deduct up to $25,000 in rental losses against non-passive income (phased out $100K–$150K AGI). Passive investors (syndications, limited partners) cannot claim this allowance." />
                 </label>
               </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
               {/* FIX (T-06): completed the passive loss phase-out range.
                   Original text only said "phased out above $100K AGI" — missing the
@@ -887,21 +437,6 @@ export default function TaxReturn() {
                 </div>
               )}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Rental Income (Sch E Part I, line 3) <InfoTip text="Rental income as reported on Schedule E Part I, Line 3 — all rent collected this year." /></label>
@@ -921,21 +456,6 @@ export default function TaxReturn() {
               ]} />
             </div>
           </CollapsibleSection>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Other income */}
           <CollapsibleSection title="OTHER INCOME">
@@ -971,21 +491,6 @@ export default function TaxReturn() {
               </div>
             </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
               <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year QBI Loss Carryforward <InfoTip text="Negative qualified business income loss carryforward from prior year — reduces this year's QBI deduction base per IRC §199A(c)(2). Enter as a positive number." /></label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -994,21 +499,6 @@ export default function TaxReturn() {
               </div>
             </div>
           </CollapsibleSection>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Incentive Stock Options */}
           <CollapsibleSection title="INCENTIVE STOCK OPTIONS (AMT)" defaultOpen={false}>
@@ -1028,21 +518,6 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* Retirement & Social Security */}
           <CollapsibleSection title="RETIREMENT &amp; SOCIAL SECURITY INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 12 }}>
@@ -1060,21 +535,6 @@ export default function TaxReturn() {
               </div>
             </div>
           </CollapsibleSection>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Above-the-line deductions */}
           <CollapsibleSection title="ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)">
@@ -1126,21 +586,6 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* Deduction method */}
           <CollapsibleSection title="DEDUCTION METHOD">
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, paddingTop: 12 }}>
@@ -1177,21 +622,6 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           {/* Estimated tax payments */}
           <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div style={{ paddingTop: 12 }}>
@@ -1201,21 +631,6 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         {/* RIGHT — Live Results */}
         <div style={{ position: 'sticky', top: 72 }}>
@@ -1227,60 +642,15 @@ export default function TaxReturn() {
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>{totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}</div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
               {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on earned income' : ''}
             </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED BALANCE DUE' : 'ESTIMATED REFUND'}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(nv(estPaid))} paid</div>
             </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -1311,40 +681,10 @@ export default function TaxReturn() {
               </div>
             </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 16, lineHeight: 1.5 }}>
               ⚠ Accuracy depends on your inputs. Please review all fields. This is an estimate — consult a tax professional for filing.
             </div>
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Income waterfall */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
@@ -1352,21 +692,6 @@ export default function TaxReturn() {
               INCOME WATERFALL ▼
             </button>
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Quarterly */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
@@ -1387,21 +712,6 @@ export default function TaxReturn() {
             ))}
             <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>Based on annual liability ÷ 4. Adjust for income earned to date.</div>
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           {/* Save & AI */}
           <button
