@@ -26,7 +26,7 @@ const TEMPLATES=[
 function exportEntitiesToCSV(entities){
 const rows=[['Name','Entity Type','EIN','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
 entities.forEach(ent=>{
-const k1=ent.pnl?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):''
+const k1=ent.pnl&&ent.type!=='C Corporation'?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):''
 rows.push([ent.name,ent.type,ent.ein||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
 })
 const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n')
@@ -81,7 +81,15 @@ const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,te
 async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
 function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API_BASE_URL+'/auth/'+pid+'/connect'}}
 function applyManual(){const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal;if(r>0||totalEx>0)onUpdate(idx,{...ent,pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},connectedId:null,isManual:true})}
-const k1=ent.pnl?Math.round(ent.pnl.netProfit*((parseInt(ent.own)||100)/100)):0
+
+// FIX (C-CORP): C-Corporations are taxed at the entity level under IRC §11.
+// Income does NOT pass through to shareholders — owners recognize income only
+// via dividends (Schedule B) or stock dispositions (Schedule D). Displaying a
+// "K-1 share" for a C-Corp and including it in k1Total is therefore incorrect
+// and would materially overstate the shareholder's personal tax liability.
+const k1 = (ent.pnl && ent.type !== 'C Corporation')
+  ? Math.round((ent.pnl.netProfit || 0) * ((parseInt(ent.own) || 100) / 100))
+  : 0
 
 // FIX (L-01): "Net Profit (Loss)" is Schedule C / sole-proprietor language. The correct
 // term for S-Corp income is "Ordinary Business Income (Loss)" — this appears on Form 1120-S
@@ -94,12 +102,14 @@ const netIncomeLabel = ['S Corporation', 'C Corporation'].includes(ent.type)
 ? 'Net Profit (Loss)'
 : 'Distributive Share (Loss)'
 
-// FIX (L-02): "K-1 Distributive Share" is partnership terminology (IRC §704).
-// S-Corp shareholders receive a "pro-rata share" under IRC §1366, not a distributive
-// share. A tax-savvy user comparing this label to their actual K-1 (Form 1120-S,
-// Schedule K-1) will notice the mismatch. Sole proprietors don't have a K-1 at all —
-// their income flows directly from Schedule C, which is already labelled correctly.
-const k1ShareLabel = ent.type === 'Sole Proprietor / Single-Member LLC'
+// FIX (L-02 + C-CORP): Labels corrected per entity type and tax treatment.
+// C-Corp: no K-1 issued; income retained at entity level, not passed to owner's 1040.
+// S-Corp: "pro-rata share" per IRC §1366, not "distributive share" (partnership term).
+// Partnership/MMLLC: "distributive share" per IRC §704.
+// Sole Prop: no K-1; flows directly from Schedule C to 1040, not via K-1.
+const k1ShareLabel = ent.type === 'C Corporation'
+? 'CORP. NET INCOME (STAYS IN ENTITY)'
+: ent.type === 'Sole Proprietor / Single-Member LLC'
 ? 'SCHEDULE C NET PROFIT'
 : ent.type === 'S Corporation'
 ? 'K-1 PRO-RATA SHARE'
@@ -241,9 +251,12 @@ return(
 <div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>OWNERSHIP</div>
 <div style={{fontSize:18,fontWeight:800,color:B}}>{parseInt(ent.own)||100}%</div>
 </div>
-<div style={{background:'#EFF6FF',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+<div style={{background: ent.type==='C Corporation'?'#F8FAFC':'#EFF6FF',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
 <div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>{k1ShareLabel}</div>
-<div style={{fontSize:18,fontWeight:800,color:B}}>{fmt(k1)}</div>
+<div style={{fontSize:18,fontWeight:800,color:ent.type==='C Corporation'?SL:B}}>
+  {ent.type==='C Corporation' ? fmt(ent.pnl.netProfit) : fmt(k1)}
+</div>
+{ent.type==='C Corporation'&&<div style={{fontSize:10,color:SL,marginTop:4}}>Taxed at entity level — does not flow to your 1040</div>}
 </div>
 </div>
 {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses} />}
@@ -276,10 +289,19 @@ export default function CalculateTax() {
     const nav = useNavigate()
 
     // FIX (F-01): computeK1Total derives total K-1 pass-through income from entities state.
-    // Mirrors the per-entity formula in EntityCard (line 84) so ts360_k1 in sessionStorage
-    // matches the displayed K-1 Pro-Rata Share and correctly flows to the personal return.
+    // Mirrors the per-entity formula in EntityCard so ts360_k1 in sessionStorage matches
+    // the displayed K-1 Pro-Rata Share and correctly flows to the personal return.
+    //
+    // FIX (C-CORP): C-Corporations are excluded from the K-1 total. C-Corp income is
+    // taxed at the entity level under IRC §11 and does not pass through to shareholders.
+    // Including C-Corp netProfit in k1Total would materially overstate the shareholder's
+    // personal federal tax liability by treating corporate retained earnings as personal
+    // pass-through income — which they are not.
     const computeK1Total = (ents) =>
-      ents.reduce((sum, e) => sum + (e.pnl ? Math.round((e.pnl.netProfit || 0) * ((parseInt(e.own) || 100) / 100)) : 0), 0)
+      ents.reduce((sum, e) => {
+        if (!e.pnl || e.type === 'C Corporation') return sum
+        return sum + Math.round((e.pnl.netProfit || 0) * ((parseInt(e.own) || 100) / 100))
+      }, 0)
 
     const [entities, setEntities] = React.useState(()=>{
       const raw = readStep1StateRaw()
@@ -294,7 +316,7 @@ export default function CalculateTax() {
 
     // FIX (F1-05): persist to session state whenever entities change
     React.useEffect(() => {
-      // FIX (F-01): include k1Total so K-1 income flows to the personal return calculation
+      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
     }, [entities, isCoopPatron])
 
@@ -347,13 +369,13 @@ export default function CalculateTax() {
 
     // FIX (F1-02): proceed() navigates to Step 2. Saves state first.
     function proceed() {
-      // FIX (F-01): include k1Total so K-1 income flows to the personal return calculation
+      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
       nav('/tax-return')
     }
 
     function saveRecord() {
-      // FIX (F-01): include k1Total so K-1 income flows to the personal return calculation
+      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
       const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
       const record = {
