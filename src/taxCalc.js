@@ -433,11 +433,12 @@ function calcTaxReturn(input) {
   let palAdjustedRental = rentalNet
   let palSuspendedRental = 0
   if (!isREP && rentalNet < 0) {
-    const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + iraIncome
-      - Math.min(ytdScale(studentLoanInt), 2500)
-      - ytdScale(hsaDeduction)
-      - ytdScale(selfEmpRetirement)
-      - ytdScale(selfEmpHealthIns)
+    const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
+      - Math.min(ytdScale(studentLoanInt), 2500)   // §221 student loan interest deduction
+      - ytdScale(hsaDeduction)                      // §223 HSA deduction
+      - ytdScale(selfEmpRetirement)                 // §404 SE retirement plan deduction
+      - ytdScale(selfEmpHealthIns)                  // §162(l) SE health insurance deduction
+      // taxableSS excluded per §469(i)(3)(F)(iv) — Congress carved SS out of this MAGI
     const isMFS = status === 'mfs'
     const baseAllowance = (isMFS || !isActiveParticipant) ? 0 : 25000
     const phaseStart    = isMFS ? 0 : 100000
