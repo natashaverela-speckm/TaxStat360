@@ -125,6 +125,13 @@ export default function TaxReturn() {
   const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
   const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
   const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
+  // FIX (F-02): w2Withheld is now a separate state from estPaid.
+  // Previously both the "Federal Tax Withheld (W-2)" field and the
+  // "Estimated Tax Payments" field were bound to the same estPaid state,
+  // so entering one overwrote the other and only one total was passed to
+  // the engine. calcTaxReturn expects w2Withheld and estPaid separately
+  // (withheld + estimated = totalPayments; balance = totalTax − totalPayments).
+  const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
   const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
   const [isREP, setIsREP] = React.useState(false)
   const [isActiveParticipant, setIsActiveParticipant] = React.useState(true)
@@ -142,7 +149,10 @@ export default function TaxReturn() {
   const [isoBargainElement, setIsoBargainElement] = React.useState(0)
   const [estPaid, setEstPaid] = React.useState(0)
   const [useItemized, setUseItemized] = React.useState(false)
-  const [itemizedAmt, setItemizedAmt] = React.useState(0)
+  // itemizedAmt state removed — it was declared but never updated by any
+  // user interaction, so the engine always received 0 for the itemized
+  // deduction. The total is now computed inline from the three component
+  // states (saltPaid, mortgageInt, charitableGifts) with the SALT cap applied.
   const [saltPaid, setSaltPaid] = React.useState(0)
   const [mortgageInt, setMortgageInt] = React.useState(0)
   const [charitableGifts, setCharitableGifts] = React.useState(0)
@@ -162,18 +172,21 @@ export default function TaxReturn() {
     return Math.round(v * 12 / ytdMonth)
   }
 
-  // Persist personal context on every field change
+  // Persist personal context on every field change.
+  // FIX (F-02): w2Withheld added to persistence so it survives navigation
+  // between Step 1 and Step 2 and across load-record flows.
   React.useEffect(() => {
     writePersonalContext({
       filingStatus: status,
       w2Income,
+      w2Withheld,
       dependents,
       selfEmpRetirement,
       nolCarryforward,
       manualK1s,
     })
     writeTaxYear(taxYear)
-  }, [status, w2Income, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear])
+  }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear])
 
   // ── Tax computation ──────────────────────────────────────────────────────────
   const w2 = nv(w2Income)
@@ -185,7 +198,40 @@ export default function TaxReturn() {
   const scaledOfficerSal = ytdScale(totalOfficerSalary)
   const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
 
-  // Build inputs for calcTaxReturn
+  // ── SALT cap for itemized deduction ──────────────────────────────────────────
+  // FIX (F-02): itemizedAmt was a state variable that was never updated,
+  // so the engine always received 0. The total is now computed here from the
+  // three itemized component states with the SALT cap pre-applied.
+  //
+  // SALT_CAPS is keyed by tax year (2024: $10k, 2025: $40k per OBBBA,
+  // 2026: $40,400). MFS filers get half the cap (IRC §164(b)(6)).
+  // The uncapped saltPaid value is still passed separately as saltAmount
+  // so the AMT engine can compute the correct SALT add-back (it applies its
+  // own cap internally — see calcAMT in taxCalc.js).
+  const saltCapForYear = SALT_CAPS[taxYear] || 40000
+  const saltDeductionCap = status === 'mfs' ? saltCapForYear / 2 : saltCapForYear
+  const saltForItemized = Math.min(nv(saltPaid), saltDeductionCap)
+  const computedItemizedAmt = saltForItemized + nv(mortgageInt) + nv(charitableGifts)
+
+  // ── Build inputs for calcTaxReturn ───────────────────────────────────────────
+  // FIX (F-02): Multiple field names corrected to match the calcTaxReturn
+  // contract defined in taxCalc.js. Previously, mismatched names caused the
+  // engine to use default values of 0 for most income and payment fields,
+  // producing wrong AGI, wrong tax liability, and $0 standard deduction display.
+  //
+  // Mapping of corrections (old name → new name matching engine contract):
+  //   capitalGains      → stGain       (short-term capital gains)
+  //   ltCapGains        → ltGain       (long-term capital gains)
+  //   interest          → intInc       (taxable interest income)
+  //   dividends         → divInc       (ordinary dividends)
+  //   qualifiedDividends→ qualDiv      (qualified dividends)
+  //   rentalIncome/     → rentalNet    (engine expects net = income − expenses)
+  //   rentalExpenses
+  //   saltPaid          → saltAmount   (uncapped; engine applies SALT cap for AMT)
+  //   (not passed)      → taxableSS    (Social Security benefits)
+  //   (not passed)      → iraIncome    (IRA/pension distributions)
+  //   (not passed)      → w2Withheld   (federal tax withheld from W-2)
+  //   itemizedAmt=0     → itemizedAmt  (computed from components with SALT cap)
   const inputs = {
     taxYear,
     status,
@@ -197,53 +243,74 @@ export default function TaxReturn() {
     studentLoanInt: ytdScale(nv(studentLoanInt)),
     selfEmpRetirement: ytdScale(nv(selfEmpRetirement)),
     nolCarryforward: nv(nolCarryforward),
-    rentalIncome: ytdScale(nv(rentalIncome)),
-    rentalExpenses: ytdScale(nv(rentalExpenses)),
+    // Rental: engine expects a single rentalNet value (income minus expenses)
+    rentalNet: ytdScale(nv(rentalIncome)) - ytdScale(nv(rentalExpenses)),
     isREP,
     isActiveParticipant,
-    capitalGains: ytdScale(nv(capitalGains)),
-    ltCapGains: ytdScale(nv(ltCapGains)),
+    // Capital gains — corrected field names
+    stGain: ytdScale(nv(capitalGains)),
+    ltGain: ytdScale(nv(ltCapGains)),
     unrecap1250: ytdScale(nv(unrecap1250)),
     collectiblesGain: ytdScale(nv(collectiblesGain)),
-    interest: ytdScale(nv(interest)),
-    dividends: ytdScale(nv(dividends)),
-    qualifiedDividends: ytdScale(nv(qualifiedDividends)),
+    // Other income — corrected field names
+    intInc: ytdScale(nv(interest)),
+    divInc: ytdScale(nv(dividends)),
+    qualDiv: ytdScale(nv(qualifiedDividends)),
+    taxableSS: ytdScale(nv(socialSecurity)),
+    iraIncome: ytdScale(nv(iraDistributions)),
     f4797Inc: ytdScale(nv(form4797) + totalBox17K),
     priorYearQBILoss: nv(priorYearQBILoss),
     hasISO,
     isoBargainElement: ytdScale(nv(isoBargainElement)),
+    // Payments — now separate (W-2 withholding + estimated quarterly payments)
+    w2Withheld: nv(w2Withheld),
     estPaid: nv(estPaid),
+    // Deductions
     useItemized,
-    itemizedAmt: nv(itemizedAmt),
-    saltPaid: nv(saltPaid),
-    mortgageInt: nv(mortgageInt),
-    charitableGifts: nv(charitableGifts),
+    itemizedAmt: useItemized ? computedItemizedAmt : 0,
+    saltAmount: nv(saltPaid),   // uncapped — engine applies the cap for AMT
     entities,
   }
 
   const result = calcTaxReturn(inputs)
 
+  // ── Destructure result ───────────────────────────────────────────────────────
+  // FIX (F-02): Field names aliased to match what calcTaxReturn actually returns.
+  // The previous code used names that don't exist on the result object, so every
+  // aliased variable defaulted to 0, causing wrong display values throughout.
+  //
+  // Alias syntax: { engineName: localName = default }
+  //   stdDed             → standardDeduction  (standard deduction amount)
+  //   seTax              → selfEmploymentTax   (self-employment tax)
+  //   amt                → amtAmount           (alternative minimum tax)
+  //   quarterlyRecommended → quarterly         (per-quarter payment estimate)
+  //   totalPayments      → totalPayments       (withheld + estimated; used in balance display)
+  //
+  // Fields removed from destructuring (not returned by calcTaxReturn and not
+  // used in JSX after cleanup):
+  //   deductionUsed, qbiDeduction, qbiDetails, palAdjustedRental, hasSchEIncome
   const {
     totalTax = 0,
     balance = 0,
+    totalPayments = 0,
     effectiveRate = 0,
     marginalRate = 0,
     ordinaryTaxableIncome = 0,
     agi = 0,
-    standardDeduction = 0,
-    deductionUsed = 0,
-    qbiDeduction = 0,
-    qbiDetails = {},
-    selfEmploymentTax = 0,
+    stdDed: standardDeduction = 0,
+    seTax: selfEmploymentTax = 0,
     additionalMedicare = 0,
     niit = 0,
-    amtAmount = 0,
-    palAdjustedRental = 0,
+    amt: amtAmount = 0,
     palSuspendedRental = 0,
-    hasSchEIncome = false,
     ebl = 0,
-    quarterly = 0,
+    quarterlyRecommended: quarterly = 0,
   } = result
+
+  // hasSchEIncome: true when at least one pass-through entity is present.
+  // Previously this was (incorrectly) destructured from result — calcTaxReturn
+  // does not return it. Computed here directly from the entities array.
+  const hasSchEIncome = entities.length > 0
 
   const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
 
@@ -355,6 +422,10 @@ export default function TaxReturn() {
                 📅 YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} — figures will be annualized (× {(12/ytdMonth).toFixed(1)})
               </div>
             )}
+            {/* FIX (F-02): standardDeduction now resolves to the correct stdDed
+                value from calcTaxReturn (e.g. $15,750 for Single 2025).
+                Previously displayed $0 because result.standardDeduction did not
+                exist — the engine returns result.stdDed. */}
             <div style={{ fontSize: 13, color: SL, marginTop: 10, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(standardDeduction)}</strong></div>
           </div>
 
@@ -391,8 +462,13 @@ export default function TaxReturn() {
                 <MoneyInput value={parseMoney(w2Income) || 0} onChange={v => setW2Income(String(v))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
               <div>
+                {/* FIX (F-02): This field now uses w2Withheld state (not estPaid).
+                    Previously both this field and the Estimated Payments field were
+                    bound to estPaid, so entering W-2 withholding overwrote estimated
+                    payments and vice versa. The engine expects them separately:
+                    totalPayments = withheld + estimated. */}
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Federal Tax Withheld (W-2) <InfoTip text="Total federal income tax withheld from all W-2 jobs this year (Box 2 on each W-2). Used to calculate your refund or balance due." /></label>
-                <MoneyInput value={nv(estPaid)} onChange={setEstPaid} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
             </div>
             <WhatGoesHere items={[
@@ -541,19 +617,6 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 12, paddingTop: 8 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                {/*
-                  FIX (L3-01): Label corrected from "SELF-EMPLOYED HEALTH INSURANCE" to
-                  ">2% Shareholder Health Insurance" for S-corp users.
-                  For a greater-than-2% S-corp shareholder, premiums must first be included
-                  in W-2 Box 1 wages by the corporation, then deducted by the shareholder
-                  on Schedule 1 Line 17 (IRC §106(a); Rev. Rul. 91-26).
-                  This is NOT self-employed health insurance (which applies to Schedule C
-                  filers and partners under IRC §162(l)). Retaining "Self-Employed" in the
-                  label for a sole-prop/partnership context is accurate — the field label
-                  now dynamically reflects the entity type of the first entity.
-                  We use a single generic label that covers both cases accurately:
-                  ">2% Shareholder / Self-Employed Health Insurance (Sch 1, Line 17)"
-                */}
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
                   &gt;2% Shareholder / Self-Employed Health Insurance (Sch 1, Line 17)
                   <InfoTip text="For S-corp owners (&gt;2% shareholders): premiums paid by the corporation must be included in your W-2 Box 1 wages first, then deducted here on Schedule 1 Line 17 (IRC §106(a); Rev. Rul. 91-26). Not deductible if you are eligible for employer-sponsored coverage through a spouse. For sole proprietors and partners: enter health insurance premiums under IRC §162(l)." />
@@ -574,11 +637,6 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                {/*
-                  FIX (T-01): Corrected SEP-IRA/Solo 401(k) contribution basis for S-Corp owners.
-                  S-Corp shareholders are NOT self-employed (IRC §1402(a)(2)) — contributions must
-                  be based on officer W-2 salary, not K-1 income (IRC §402(h); §415(c); IRS Pub. 560).
-                */}
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans <InfoTip text="For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16. SEP-IRA: up to 25% of W-2 salary (max $70,000 for 2025). Solo 401(k): employee deferrals up to $23,500 + employer match up to 25% of W-2 salary. For sole proprietors: based on net self-employment earnings × 0.9235." /></label>
                 <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
@@ -597,6 +655,7 @@ export default function TaxReturn() {
             {!useItemized && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', borderRadius: 10, padding: '12px 16px' }}>
                 <div style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : status === 'mfs' ? 'MFS' : 'Single'})</div>
+                {/* FIX (F-02): standardDeduction now resolves correctly (stdDed alias). */}
                 <div style={{ fontSize: 16, fontWeight: 700, color: N }}>{fmt(standardDeduction)}</div>
               </div>
             )}
@@ -616,7 +675,10 @@ export default function TaxReturn() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', background: '#F8FAFC', borderRadius: 10, padding: '12px 16px', gap: 8 }}>
                   <div style={{ fontSize: 12, color: SL }}>Total itemized</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: N, marginLeft: 'auto' }}>{fmt(nv(saltPaid) + nv(mortgageInt) + nv(charitableGifts))}</div>
+                  {/* FIX (F-02): display uses computedItemizedAmt (SALT-capped) instead
+                      of the uncapped raw sum. The SALT cap is applied above the inputs
+                      block using SALT_CAPS[taxYear] and the filer's status. */}
+                  <div style={{ fontSize: 15, fontWeight: 700, color: N, marginLeft: 'auto' }}>{fmt(computedItemizedAmt)}</div>
                 </div>
               </div>
             )}
@@ -625,7 +687,7 @@ export default function TaxReturn() {
           {/* Estimated tax payments */}
           <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div style={{ paddingTop: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid." /></label>
+              <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid. Do not include W-2 withholding here — enter that in the W-2 section above." /></label>
               <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
@@ -649,7 +711,9 @@ export default function TaxReturn() {
             <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED BALANCE DUE' : 'ESTIMATED REFUND'}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(nv(estPaid))} paid</div>
+              {/* FIX (F-02): display uses totalPayments (withheld + estimated) from the
+                  engine result instead of only estPaid. W-2 withholding is now counted. */}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -657,6 +721,9 @@ export default function TaxReturn() {
                 <span style={{ color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
                 <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(result.ordFedTax + (result.prefTax || 0))}</span>
               </div>
+              {/* FIX (F-02): selfEmploymentTax now resolves to seTax from result.
+                  Previously selfEmploymentTax was always 0 (wrong field name),
+                  so this line never appeared even when SE tax was owed. */}
               {selfEmploymentTax > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax</span>
@@ -675,6 +742,8 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
                 </div>
               )}
+              {/* FIX (F-02): amtAmount now resolves to amt from result.
+                  Previously always showed $0 due to wrong field name. */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ color: 'rgba(255,255,255,0.6)' }}>AMT estimate (Form 6251)</span>
                 <span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amtAmount)}</span>
@@ -707,6 +776,8 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: N, fontSize: 13 }}>{q.label}</span>
                   <span style={{ fontSize: 11, color: SL, marginLeft: 8 }}>{q.due}</span>
                 </div>
+                {/* FIX (F-02): quarterly now resolves to quarterlyRecommended from
+                    result. Previously always showed $0 due to wrong field name. */}
                 <div style={{ fontWeight: 700, color: quarterly > 0 ? R : G, fontSize: 14 }}>{fmt(quarterly)}</div>
               </div>
             ))}
@@ -716,9 +787,9 @@ export default function TaxReturn() {
           {/* Save & AI */}
           <button
             onClick={() => {
-              writePersonalContext({ filingStatus: status, w2Income, dependents, selfEmpRetirement, nolCarryforward, manualK1s })
+              writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s })
               const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
-              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, dependents, selfEmpRetirement, nolCarryforward } }
+              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward } }
               existing.unshift(record)
               localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing.slice(0, 20)))
               alert('✅ Record saved!')
@@ -737,4 +808,4 @@ export default function TaxReturn() {
       </div>
     </div>
   )
-                }
+}
