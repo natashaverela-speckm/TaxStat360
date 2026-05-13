@@ -172,10 +172,26 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
   const cheapest = result.scenarios.find(s => s.key === result.best)
   const mostExpensive = result.scenarios.reduce((a, b) => b.totalTax > a.totalTax ? b : a)
 
+  // FIX (F-05): Guard against three degenerate cases that produced a
+  // self-referential banner ("Sole Prop saves you $0/year vs Sole Prop"):
+  //
+  // 1. netProfitShare <= 0: no revenue entered yet — all entities show $0,
+  //    both cheapest and mostExpensive resolve to the same scenario (the
+  //    reduce returns scenarios[0] when all totalTax values are equal).
+  //    Show an informational placeholder instead of the green savings banner.
+  //
+  // 2. result.savings <= 0: all entities produce the same (or negative) tax
+  //    difference — no genuine savings to report.
+  //
+  // 3. cheapest.key === mostExpensive.key: degenerate reduce result where the
+  //    "best" and "most expensive" entity are the same (can occur when two or
+  //    more scenarios share an identical totalTax).
   const summaryText = (() => {
-    if (!cheapest || result.savings <= 0) return null
-    const vs = mostExpensive.label
-    return `${cheapest.label} saves you ${fmt(result.savings)}/year vs ${vs}`
+    if (netProfitShare <= 0) return null
+    if (!cheapest) return null
+    if (result.savings <= 0) return null
+    if (cheapest.key === mostExpensive.key) return null
+    return `${cheapest.label} saves you ${fmt(result.savings)}/year vs ${mostExpensive.label}`
   })()
 
   return (
@@ -254,8 +270,27 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
         </div>
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* SUMMARY BANNER */}
-          {summaryText && (
+
+          {/* SUMMARY BANNER — FIX (F-05): three rendering cases:
+              (a) no revenue entered → blue informational placeholder
+              (b) genuine savings between different entities → green savings banner
+              (c) all entities equal / degenerate → nothing shown */}
+          {netProfitShare <= 0 ? (
+            <div style={{
+              background: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              borderRadius: 10,
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 14,
+              color: '#1D4ED8',
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
+              <span>Enter your business revenue in Step 1 to see your entity comparison. All scenarios show $0 with no income entered.</span>
+            </div>
+          ) : summaryText ? (
             <div style={{
               background: SUMMARY_GREEN_BG,
               border: `1.5px solid ${SUMMARY_GREEN_BORDER}`,
@@ -271,7 +306,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               <span style={{ fontSize: 22 }}>💰</span>
               <span>{summaryText}</span>
             </div>
-          )}
+          ) : null}
 
           {/* SLIDER */}
           <div style={{
@@ -299,9 +334,15 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               <span>$0</span>
               <span>{fmt(sliderMax)}</span>
             </div>
+            {/* FIX (F-05): Replace internal dev note ("placeholder until BLS p25 lookup
+                ships") with user-facing guidance. The 30% default remains as a modeling
+                starting point; users are directed to their CPA for the actual figure. */}
             <div style={{ fontSize: 12, color: SL, marginTop: 8 }}>
-              Default of 30% of net profit share is a placeholder until BLS p25 lookup ships.
-              Drag the slider to model "what if" your reasonable comp is higher or lower.
+              Drag to model different officer salary levels for the S-Corp and C-Corp scenarios.
+              The IRS requires S-Corp owner-employees to pay themselves reasonable compensation
+              comparable to what a similarly qualified employee would earn (IRC §1.162-7;
+              Rev. Rul. 74-44). Work with your CPA to set the appropriate amount for your
+              role and industry.
             </div>
           </div>
 
