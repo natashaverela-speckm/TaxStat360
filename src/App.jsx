@@ -42,6 +42,69 @@ function OAuthCallback() {
   )
 }
 
+// ─── Auth Keys ────────────────────────────────────────────────────────────────
+// Module-level constant — single source of truth for which localStorage keys
+// belong to the auth session. Shared by isValidSession() (expiry cleanup) and
+// RequireAuth's idle-timeout handler so both always clear the same set of keys.
+//
+// Does NOT include tax record keys (ts360_records_*) or login history
+// (ts360_login_history) — those are user data that must survive a session
+// expiry so records are still available after the user re-authenticates.
+const AUTH_KEYS = [
+  'token',
+  'ts360_session',
+  'ts360_session_start',
+  'ts360_email',
+  'plan',
+  'userName',
+  'ts360_connected_app',
+]
+
+// ─── Session Hard-Cap ─────────────────────────────────────────────────────────
+// 7 days — regardless of idle-timeout preference. A tax-planning app with
+// sensitive financial data should never have an eternal browser session.
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+// ─── Session Validator ────────────────────────────────────────────────────────
+// Replaces the bare localStorage.getItem('ts360_session') check that was used
+// previously. Two-stage validation:
+//
+// Stage 1 — Token presence and minimum length:
+//   ts360_session must exist and contain at least 10 non-whitespace characters.
+//   This prevents a browser-console bypass of the form:
+//     localStorage.setItem('ts360_session', 'x')
+//   Any legitimate session token (JWT, UUID, Supabase token) will exceed this
+//   threshold by a wide margin. Adjust upward if your token format is known.
+//
+// Stage 2 — Session age (7-day hard cap):
+//   If ts360_session_start exists, compute the session age and enforce the cap.
+//   If ts360_session_start is absent (sessions created before this change
+//   landed in production), the age check is skipped — no forced logout for
+//   existing users. Onboarding.jsx writes ts360_session_start at login so all
+//   new sessions are age-gated automatically from this point forward.
+//
+//   On expiry: clears AUTH_KEYS from localStorage and returns false.
+//   Tax records (ts360_records_*) are intentionally preserved so the user
+//   can reload their data immediately after re-authenticating.
+function isValidSession() {
+  const session = localStorage.getItem('ts360_session')
+
+  // Stage 1: token must exist with meaningful content
+  if (!session || session.trim().length < 10) return false
+
+  // Stage 2: enforce 7-day hard cap if session start time is recorded
+  const start = localStorage.getItem('ts360_session_start')
+  if (start) {
+    const startMs = parseInt(start, 10)
+    if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
+      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+      return false
+    }
+  }
+
+  return true
+}
+
 // ─── Persistent Authenticated Footer ─────────────────────────────────────────
 // Renders on every protected route via RequireAuth.
 function AuthFooter() {
@@ -72,19 +135,21 @@ function AuthFooter() {
 
 // ─── Auth Guard ───────────────────────────────────────────────────────────────
 // Wraps all protected routes. Handles:
-// 1. Auth check — redirects unauthenticated users to /login
+// 1. Auth check — calls isValidSession() (token presence + length + 7-day cap)
+//    and redirects unauthenticated or expired sessions to /login, preserving
+//    the attempted URL in location.state.from for post-login redirect.
 // 2. Login history — records one entry per calendar day (max 10) to
-//    ts360_login_history in localStorage, read by Settings.jsx
+//    ts360_login_history in localStorage, read by Settings.jsx.
 // 3. Idle timeout — enforces the timeout preference set in Settings.jsx
-//    (ts360_idle_timeout_mins). On expiry, clears auth tokens and redirects
-//    to /login. Tax records are preserved — only session keys are cleared.
-// 4. AuthFooter — persistent ToS/Privacy footer on all authenticated pages
+//    (ts360_idle_timeout_mins). On expiry, clears AUTH_KEYS and redirects to
+//    /login. Tax records are preserved — only session keys are cleared.
+// 4. AuthFooter — persistent ToS/Privacy footer on all authenticated pages.
 function RequireAuth({ children }) {
-  const isLoggedIn = localStorage.getItem('ts360_session')
+  const sessionOk = isValidSession()
   const location = useLocation()
 
   useEffect(() => {
-    if (!isLoggedIn) return
+    if (!sessionOk) return
 
     // ── Login history ────────────────────────────────────────────────────────
     // Record one entry per calendar day so Settings.jsx can display recent
@@ -104,15 +169,11 @@ function RequireAuth({ children }) {
 
     // ── Idle timeout ─────────────────────────────────────────────────────────
     // Read preference set in Settings.jsx. 0 = disabled (default).
-    // Only auth tokens are cleared on expiry — tax records are preserved.
+    // Only AUTH_KEYS are cleared on expiry — tax records are preserved.
     const timeoutMins = parseInt(localStorage.getItem('ts360_idle_timeout_mins') || '0')
     if (!timeoutMins) return
 
     let timer
-    const AUTH_KEYS = [
-      'token', 'ts360_session', 'ts360_session_start', 'ts360_email',
-      'plan', 'userName', 'ts360_connected_app',
-    ]
     const handleExpiry = () => {
       AUTH_KEYS.forEach(k => localStorage.removeItem(k))
       window.location.href = '/login'
@@ -129,9 +190,9 @@ function RequireAuth({ children }) {
       clearTimeout(timer)
       EVENTS.forEach(e => window.removeEventListener(e, resetTimer))
     }
-  }, [isLoggedIn])
+  }, [sessionOk])
 
-  if (!isLoggedIn) return <Navigate to="/login" state={{ from: location }} replace />
+  if (!sessionOk) return <Navigate to="/login" state={{ from: location }} replace />
   return (
     <>
       {children}
@@ -156,7 +217,7 @@ export default function App() {
         <Route path="/sign-in" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
-        {/* Onboarding flow — B3: wrapped in RequireAuth */}
+        {/* Onboarding flow — wrapped in RequireAuth */}
         <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
