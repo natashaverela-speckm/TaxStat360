@@ -342,6 +342,16 @@ export default function TaxReturn() {
                 ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
               </div>
             )}
+            {/* FIX (Pass5-QBI-warning): when the user has S-Corp or partnership K-1 income
+                and calcQBI fell back to simple 20% (qbiCaps.wage === null), they may be
+                subject to the §199A(b)(2) W-2 wage/UBIA limit above the income threshold.
+                Surface a prompt to enter Box 17V data in Step 1 for an accurate result. */}
+            {k1Total > 0 && result.qbiCaps?.wage === null &&
+             entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
+              <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+                ⚠ Your §199A QBI deduction may be reduced by the W-2 wage/UBIA limit at higher incomes (IRC §199A(b)(2)). For an accurate result, enter Box 17V wages and UBIA from your K-1 on each entity in Step 1 (▼ Details → Advanced K-1 items).
+              </div>
+            )}
           </div>
 
           {/* Tax year + YTD */}
@@ -588,7 +598,7 @@ export default function TaxReturn() {
                 <MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carryforward from a prior year — Schedule 1 Line 8a — enter as positive, treated as reduction. NOLs from 2018+ are limited to 80% of taxable income (TCJA §172)." /></label>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carryforward from a prior year — Schedule 1 Line 8a — enter as positive, treated as a reduction. IRC §172(a)(2) (TCJA, extended by OBBBA): post-2017 NOL carryforwards are limited to 80% of taxable income before the NOL deduction. This limit is applied automatically. Pre-2018 NOLs are unlimited — if yours is pre-2018, your actual deduction may be slightly larger than shown." /></label>
                 <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
               </div>
@@ -693,6 +703,13 @@ export default function TaxReturn() {
                 <span style={{ color: 'rgba(255,255,255,0.6)' }}>AMT estimate (Form 6251)</span>
                 <span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amtAmount)}</span>
               </div>
+              {amtAmount > 0 && (
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, lineHeight: 1.4 }}>
+                  {/* FIX (Pass5-AMT-disclaimer): surface that AMT is an estimate and
+                      does not cover all Form 6251 preference items (e.g. PTEP, ACE adj). */}
+                  Estimate only — excludes some Form 6251 preference items (e.g. certain ISO exercises, ACE adjustment). Verify with a CPA.
+                </div>
+              )}
             </div>
 
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 16, lineHeight: 1.5 }}>
