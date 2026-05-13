@@ -78,10 +78,10 @@ const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 //
 // Stage 2 — Session age (7-day hard cap):
 //   If ts360_session_start exists, compute the session age and enforce the cap.
-//   If ts360_session_start is absent (sessions created before this change
-//   landed in production), the age check is skipped — no forced logout for
-//   existing users. Onboarding.jsx writes ts360_session_start at login so all
-//   new sessions are age-gated automatically from this point forward.
+//   If ts360_session_start is absent (pre-existing sessions before this
+//   change landed), the age check is skipped — no forced logout for
+//   existing users. Once Onboarding writes ts360_session_start on login,
+//   all new sessions will be age-gated automatically.
 //
 //   On expiry: clears AUTH_KEYS from localStorage and returns false.
 //   Tax records (ts360_records_*) are intentionally preserved so the user
@@ -233,9 +233,18 @@ export default function App() {
         {/* Password reset — public */}
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        {/* Public legal */}
+        {/* Public legal — canonical routes */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms"   element={<Terms />} />
+        {/* FIX (F-03): Alias redirects for common long-form legal URLs.
+            External links, bookmarks, email footers, and search engines often
+            reference /privacy-policy and /terms-of-service. Without these routes
+            the * fallback sends those visitors to the homepage instead of the
+            legal document — a UX failure and a compliance exposure for users who
+            try to read the documents they consented to at registration.
+            Navigate replace keeps browser history clean (no back-button loop). */}
+        <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
+        <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
