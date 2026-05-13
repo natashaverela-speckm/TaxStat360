@@ -253,8 +253,8 @@ export default function TaxReturn() {
   // ── Quarterly due dates ──────────────────────────────────────────────────────
   // FIX (F-04): Due dates computed from taxYear state so they update when the
   // user switches tax years and never go stale. Past quarters are visually
-  // dimmed to signal the deadline has passed — the user should have already
-  // remitted that payment. Q4 always lands in January of the following year.
+  // dimmed to signal the deadline has passed. Q4 always lands in January of
+  // the following year.
   const today = new Date()
   const QUARTER_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const quarterDefs = [
@@ -348,8 +348,16 @@ export default function TaxReturn() {
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {/* FIX (F-09): 2026 option annotated with Rev. Proc. reference so users
+                      know the figures are current-law OBBBA amounts, not estimated.
+                      The §461(l) EBL thresholds for 2026 ARE estimated (flagged in
+                      taxCalc.js) — the note below the selector makes this visible. */}
                   <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: N, outline: 'none', fontWeight: 600 }}>
-                    {[2026, 2025, 2024].map(y => <option key={y} value={y}>{y}</option>)}
+                    {[2026, 2025, 2024].map(y => (
+                      <option key={y} value={y}>
+                        {y === 2026 ? '2026 — Rev. Proc. 2025-32 (OBBBA)' : String(y)}
+                      </option>
+                    ))}
                   </select>
                   {ytdMode ? (
                     <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))} style={{ padding: '6px 8px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: N, outline: 'none' }}>
@@ -372,6 +380,18 @@ export default function TaxReturn() {
               </div>
             )}
             <div style={{ fontSize: 13, color: SL, marginTop: 10, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(standardDeduction)}</strong></div>
+            {/* FIX (F-09): Surface the EBL estimation caveat when 2026 is selected.
+                taxCalc.js already flags the 2026 EBL thresholds as estimated in a
+                code comment (§461(l) thresholds — estimated 2026, update when Rev.
+                Proc. 2025-xx publishes). This makes the caveat user-visible so users
+                know to verify EBL figures once IRS publishes final guidance. All other
+                2026 figures (std deduction, brackets, SALT cap, AMT) are per Rev.
+                Proc. 2025-32 and are current law. */}
+            {taxYear === 2026 && (
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 4, lineHeight: 1.4 }}>
+                2026 figures are per Rev. Proc. 2025-32 (OBBBA, P.L. 119-21). The §461(l) excess business loss thresholds are estimated — verify when IRS publishes final guidance.
+              </div>
+            )}
           </div>
 
           {/* Filing status & dependents */}
@@ -696,7 +716,6 @@ export default function TaxReturn() {
               const isPast = q.due < today
               const mo = QUARTER_MONTHS[q.due.getMonth()]
               const dy = q.due.getDate()
-              // Show year suffix only for Q4, which falls in the year after taxYear
               const yearSuffix = i === 3 ? " '" + String(taxYear + 1).slice(2) : ''
               const dueLabel = (isPast ? 'Past' : 'Due') + ' ' + mo + ' ' + dy + yearSuffix
               const labelColor = isPast ? '#94A3B8' : N
