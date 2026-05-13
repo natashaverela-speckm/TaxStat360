@@ -180,9 +180,11 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
         {!ent.pnl ? (
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              {/* FIX (F1-07): Section header updates contextually with mode */}
+              {/* FIX (F1-07): Section header updates contextually with mode.
+                  FIX (Pass3-L03): Manual mode label changed from "MANUAL P&L ENTRY" to
+                  "ENTER INCOME & EXPENSES" — plainer language for non-accountant users. */}
               <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px'}}>
-                {manual ? 'MANUAL P&L ENTRY' : 'CONNECT ACCOUNTING SOFTWARE'}
+                {manual ? 'ENTER INCOME & EXPENSES' : 'CONNECT ACCOUNTING SOFTWARE'}
               </div>
               <button onClick={()=>setManual(!manual)} style={{padding:'4px 12px',background:'none',border:'1px solid #E2E8F0',borderRadius:6,fontSize:11,fontWeight:700,color:SL,cursor:'pointer'}}>
                 {manual ? 'Use Software' : 'Enter Manually'}
@@ -213,7 +215,9 @@ function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
                   </div>
                 )}
               </div>
-              <button onClick={applyManual} style={{marginTop:14,width:'100%',padding:'10px',background:G,border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Apply P&L</button>
+              {/* FIX (Pass3-L04): Button label changed from "Apply P&L" to "Calculate".
+                  "Apply P&L" is accounting jargon; "Calculate" is direct and action-oriented. */}
+              <button onClick={applyManual} style={{marginTop:14,width:'100%',padding:'10px',background:G,border:'none',borderRadius:8,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Calculate</button>
             </div>}
           </div>
         ) : (
