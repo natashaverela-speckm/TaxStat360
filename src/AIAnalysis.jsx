@@ -1271,6 +1271,8 @@ export default function AIAnalysis() {
         <div onClick={() => nav('/dashboard')}><Logo /></div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/dashboard')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>📂 Dashboard</button>
+          {/* FIX (F-11): Label standardized from "Calculate Tax" to "Calculator" to match
+              the canonical label used in Settings.jsx nav and throughout the app. */}
           <button onClick={() => {
             const r = getRecord(location.state?.liveState)
             if (r) {
@@ -1287,7 +1289,7 @@ export default function AIAnalysis() {
             } else {
               nav('/calculate-tax')
             }
-          }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Calculate Tax</button>
+          }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Calculator</button>
           <button style={{ padding: '7px 16px', background: B, color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>AI Analysis</button>
           <button onClick={() => nav('/settings')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>⚙ Settings</button>
           <button onClick={() => { signOut(nav) }} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>Sign Out</button>
@@ -1393,4 +1395,4 @@ export default function AIAnalysis() {
       </div>
     </div>
   )
-                     }
+}
