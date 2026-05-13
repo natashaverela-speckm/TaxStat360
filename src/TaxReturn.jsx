@@ -146,6 +146,8 @@ export default function TaxReturn() {
   const [saltPaid, setSaltPaid] = React.useState(0)
   const [mortgageInt, setMortgageInt] = React.useState(0)
   const [charitableGifts, setCharitableGifts] = React.useState(0)
+  // FIX (U-02): state to drive the collapsible income waterfall panel
+  const [showWaterfall, setShowWaterfall] = React.useState(false)
 
   const addManualK1 = () => setManualK1s([...manualK1s, {
     id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
@@ -698,12 +700,48 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* Income waterfall */}
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
-            <button onClick={() => {}} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 18px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>
-              INCOME WATERFALL ▼
-            </button>
-          </div>
+          {/* Income Waterfall — FIX (U-02): was a stub onClick={() => {}}. Now a
+              collapsible panel showing how gross income flows down to taxable income.
+              Uses the same inputs/result values already on screen so no new calc needed. */}
+          {(() => {
+            const totalW2 = scaledW2 + scaledOfficerSal
+            const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
+              inputs.intInc + inputs.divInc + inputs.taxableSS +
+              inputs.iraIncome + inputs.f4797Inc
+            const totalGross = scaledK1 + totalW2 + totalOther
+            const aboveLine = Math.max(0, totalGross - agi)
+            const dedAmt = useItemized ? computedItemizedAmt : standardDeduction
+            const qbiDed = Math.max(0, agi - dedAmt - ordinaryTaxableIncome)
+            const wfRow = (label, amt, isTotal = false, isNeg = false) => (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: isTotal ? '2px solid #E2E8F0' : '1px solid #F8FAFC' }}>
+                <span style={{ fontSize: 12, color: isTotal ? N : SL, fontWeight: isTotal ? 700 : 400 }}>{label}</span>
+                <span style={{ fontSize: 12, fontWeight: isTotal ? 800 : 600, color: isNeg ? R : (isTotal ? N : SL) }}>
+                  {isNeg ? '(' + fmt(Math.abs(amt)) + ')' : fmt(amt)}
+                </span>
+              </div>
+            )
+            return (
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
+                <button onClick={() => setShowWaterfall(v => !v)} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 18px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>
+                  INCOME WATERFALL
+                  <span>{showWaterfall ? '▲' : '▼'}</span>
+                </button>
+                {showWaterfall && (
+                  <div style={{ padding: '4px 18px 16px', borderTop: '1px solid #F1F5F9' }}>
+                    {scaledK1 !== 0 && wfRow('K-1 / Business Income', scaledK1)}
+                    {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
+                    {totalOther !== 0 && wfRow('Other Income', totalOther)}
+                    {wfRow('= Gross Income', totalGross, true)}
+                    {aboveLine > 0 && wfRow('Above-the-line deductions', aboveLine, false, true)}
+                    {wfRow('= AGI', agi, true)}
+                    {wfRow(useItemized ? 'Itemized deduction' : 'Standard deduction', dedAmt, false, true)}
+                    {qbiDed > 0 && wfRow('QBI deduction (§199A)', qbiDed, false, true)}
+                    {wfRow('= Taxable Income', ordinaryTaxableIncome, true)}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Quarterly estimated payments */}
           {/* FIX (F-04): Due dates are computed from taxYear so they update when
@@ -752,7 +790,7 @@ export default function TaxReturn() {
             onClick={() => nav('/ai-analysis')}
             style={{ width: '100%', padding: '14px', background: B, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
           >
-            🔴 View AI Analysis &amp; Risk Report →
+            View AI Analysis &amp; Risk Report →
           </button>
         </div>
       </div>
