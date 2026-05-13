@@ -185,6 +185,10 @@ export default function Dashboard(){
   const navigate = useNavigate()
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
+  // FIX (F-08): warn the user when they click "Personal 1040" without
+  // Step 1 business data. Shown inline below the tab bar; dismissed when
+  // the user switches tabs, navigates to Step 1, or clicks the ✕ button.
+  const [showStep1Warning,setShowStep1Warning]=useState(false)
   const bSet=(k,v)=>{setSaved(false);setBiz(p=>({...p,[k]:v}))}
   const fSet=(k,v)=>{setSaved(false);setF1040(p=>({...p,[k]:v}))}
 
@@ -591,6 +595,16 @@ export default function Dashboard(){
         {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
+              // FIX (F-08): Guard against navigating to /tax-return with no business
+              // data. When calc is null (no revenue entered) the session write below
+              // would push a zero-income entity and the user would see a blank personal
+              // return with no explanation. Instead, show an inline warning banner that
+              // tells the user to complete Step 1 first and offers a direct link there.
+              if(!calc){
+                setShowStep1Warning(true)
+                return
+              }
+              setShowStep1Warning(false)
               writeStep1State({
                 entities: [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}],
                 k1Total: calc?.k1 || 0,
@@ -609,6 +623,7 @@ export default function Dashboard(){
               nav('/tax-return')
             } else {
               setActiveView(v)
+              setShowStep1Warning(false)  // clear warning when switching back to records
             }
           }} style={{
             padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
@@ -616,6 +631,21 @@ export default function Dashboard(){
           }}>{label}</button>
         ))}
       </div>
+
+      {/* FIX (F-08): Inline warning shown when the user clicks "Personal 1040"
+          without any business revenue entered. Gives a clear explanation and a
+          direct link to Step 1 so they don't land on a blank personal return. */}
+      {showStep1Warning&&(
+        <div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
+          <div style={{fontSize:13,color:'#1E40AF',lineHeight:1.5}}>
+            💡 <strong>Complete Step 1 first.</strong> Enter your business revenue in the Tax Calculator before accessing your personal return — your K-1 income needs to flow through first.
+          </div>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <button onClick={()=>{clearStep1State();setShowStep1Warning(false);nav('/calculate-tax')}} style={{padding:'6px 16px',background:'#2563EB',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>Go to Step 1 →</button>
+            <button onClick={()=>setShowStep1Warning(false)} style={{padding:'6px 12px',background:'#fff',border:'1px solid #BFDBFE',borderRadius:8,fontWeight:600,fontSize:12,cursor:'pointer',color:'#1E40AF'}}>✕</button>
+          </div>
+        </div>
+      )}
 
       {xeroLoading&&<div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',fontSize:13,fontWeight:600,color:'#1D4ED8',textAlign:'center'}}>Importing your Xero financials... please wait</div>}
 
