@@ -60,6 +60,10 @@ function SignupScreen(){
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email)
       localStorage.setItem('ts360_session',data.access_token)
+      // FIX (F-01 completion): record session start time so App.jsx isValidSession()
+      // can enforce the 7-day hard cap. Without this write the cap check is a no-op
+      // because ts360_session_start is absent and the age check is skipped.
+      localStorage.setItem('ts360_session_start', String(Date.now()))
       localStorage.setItem('plan',plan)
       localStorage.setItem('billing',billing)
       // Create Stripe subscription for recurring billing
@@ -153,6 +157,10 @@ function LoginScreen(){
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
+      // FIX (F-01 completion): record session start time so App.jsx isValidSession()
+      // can enforce the 7-day hard cap. Without this write the cap check is a no-op
+      // because ts360_session_start is absent and the age check is skipped.
+      localStorage.setItem('ts360_session_start', String(Date.now()))
       nav(redirectTo,{replace:true})
     }catch(e){setErr(e.message)}
     finally{setLoading(false)}
