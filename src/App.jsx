@@ -73,13 +73,15 @@ const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 //   ts360_session must exist and contain at least 10 non-whitespace characters.
 //   This prevents a browser-console bypass of the form:
 //     localStorage.setItem('ts360_session', 'x')
+//   Any legitimate session token (JWT, UUID, Supabase token) will exceed this
+//   threshold by a wide margin. Adjust upward if your token format is known.
 //
 // Stage 2 — Session age (7-day hard cap):
 //   If ts360_session_start exists, compute the session age and enforce the cap.
-//   ts360_session_start is written by Onboarding.jsx at login and signup so all
-//   new sessions are age-gated automatically. Sessions predating that change
-//   (no ts360_session_start key) skip the age check — no forced logout for
-//   existing users.
+//   If ts360_session_start is absent (pre-existing sessions before this
+//   change landed), the age check is skipped — no forced logout for
+//   existing users. Once Onboarding writes ts360_session_start on login,
+//   all new sessions will be age-gated automatically.
 //
 //   On expiry: clears AUTH_KEYS from localStorage and returns false.
 //   Tax records (ts360_records_*) are intentionally preserved so the user
@@ -238,8 +240,8 @@ export default function App() {
             External links, bookmarks, email footers, and search engines often
             reference /privacy-policy and /terms-of-service. Without these routes
             the * fallback sends those visitors to the homepage instead of the
-            legal document — a UX failure and a compliance exposure (users who
-            try to read the documents they consented to cannot reach them).
+            legal document — a UX failure and a compliance exposure for users who
+            try to read the documents they consented to at registration.
             Navigate replace keeps browser history clean (no back-button loop). */}
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
