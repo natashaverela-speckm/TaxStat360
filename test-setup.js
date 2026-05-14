@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom'
-
 // FIX (UX-06 CI): JSDOM defines window but does not implement window.matchMedia.
 // Any component that calls window.matchMedia() (e.g. TaxReturn's isMobile effect)
 // throws TypeError in tests, causing unrelated test suites to fail.
