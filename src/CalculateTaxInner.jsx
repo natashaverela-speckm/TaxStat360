@@ -72,9 +72,10 @@ const[manual,setManual]=React.useState(false)
 // FIX (F4-05): Initialize manual entry fields from saved pnl so that "Disconnect / re-enter data"
 // pre-populates the form instead of resetting to 0. Operating expenses stored in pnl.totalExpenses
 // INCLUDES the officer salary, so subtract it back out to populate the separate field correctly.
-const[manRev,setManRev]=React.useState(ent.pnl?.grossRevenue ?? 0)
-const[manExp,setManExp]=React.useState(ent.pnl ? ((ent.pnl.totalExpenses || 0) - (ent.pnl.officerSalary || 0)) : 0)
-const[manOfficerSal,setManOfficerSal]=React.useState(ent.pnl?.officerSalary ?? 0)
+// Lazy initializer form (() => ...) makes the one-time-only intent explicit per React best practice.
+const[manRev,setManRev]=React.useState(()=>ent.pnl?.grossRevenue ?? 0)
+const[manExp,setManExp]=React.useState(()=>ent.pnl ? ((ent.pnl.totalExpenses || 0) - (ent.pnl.officerSalary || 0)) : 0)
+const[manOfficerSal,setManOfficerSal]=React.useState(()=>ent.pnl?.officerSalary ?? 0)
 const[showDetails,setShowDetails]=React.useState(false)
 const[showAdvK1,setShowAdvK1]=React.useState(false)
 const color=COLORS[idx%COLORS.length]
