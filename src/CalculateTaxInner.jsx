@@ -314,10 +314,14 @@ export default function CalculateTax() {
     const [dragIdx, setDragIdx] = React.useState(null)
     const [compareIdx, setCompareIdx] = React.useState(null)
 
-    // FIX (F1-05): persist to session state whenever entities change
+    // FIX (F1-05): persist to session state whenever entities change.
+    // FIX (F-04): entitiesRaw: entities ensures ts360_entities_raw is always written
+    // so readStep1StateRaw() can restore the full entity shape (including pnl data) when
+    // CalculateTaxInner remounts after navigation. Previously entitiesRaw defaulted to
+    // null, leaving ts360_entities_raw empty — the useState initializer found nothing and
+    // fell back to a blank default entity, discarding everything the user had entered.
     React.useEffect(() => {
-      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
-      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
+      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
     }, [entities, isCoopPatron])
 
     React.useEffect(() => {
@@ -368,15 +372,16 @@ export default function CalculateTax() {
     function onDragEnd(){setDragIdx(null)}
 
     // FIX (F1-02): proceed() navigates to Step 2. Saves state first.
+    // FIX (F-04): entitiesRaw: entities keeps ts360_entities_raw current.
     function proceed() {
-      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
-      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
+      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
       nav('/tax-return')
     }
 
+    // FIX (F-04): entitiesRaw: entities keeps ts360_entities_raw current so that if
+    // the user navigates back to Step 1 after saving, their data is restored on remount.
     function saveRecord() {
-      // FIX (F-01 + C-CORP): k1Total excludes C-Corp entities
-      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities) })
+      writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
       const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
       const record = {
         id: Date.now(),
