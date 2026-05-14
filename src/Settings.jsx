@@ -420,9 +420,17 @@ export default function Settings() {
                     {mfaEnabled ? '✓ Enabled' : 'Not enabled'}
                   </span>
                 </div>
+                {/* FIX (B-01): "Required by IRS Publication 4557" overstated the
+                    regulatory obligation. IRS Pub 4557 "Safeguarding Taxpayer Data"
+                    strongly recommends MFA for tax software handling taxpayer PII but
+                    does not legally mandate it — "Required" implies a legal duty that
+                    does not exist and could mislead users into thinking non-compliance
+                    carries a regulatory penalty. The developer comment on the handler
+                    above already correctly says "Recommended by IRS Publication 4557";
+                    this change makes the visible UI copy consistent with that. */}
                 <div style={{fontSize:13,color:SL,lineHeight:1.5,maxWidth:440}}>
                   Adds a second layer of protection using an authenticator app.
-                  Required by IRS Publication 4557 for tax software handling taxpayer data.
+                  Strongly recommended by IRS Publication 4557 for tax software handling taxpayer data.
                 </div>
               </div>
               {mfaStep === 'idle' && (
