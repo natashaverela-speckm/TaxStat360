@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
+import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, QBI_THRESHOLDS, nv, calcTaxReturn } from './taxCalc'
 import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import DismissibleNotice from './components/DismissibleNotice'
@@ -104,9 +104,6 @@ function WhatGoesHere({ items }) {
 export default function TaxReturn() {
   const nav = useNavigate()
 
-  // FIX (UX-06): isMobile drives responsive layout. matchMedia listener updates on
-  // resize so the layout reflows correctly if the user rotates their device or resizes
-  // the browser window. SSR-safe: guarded behind typeof window check.
   const [isMobile, setIsMobile] = React.useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768
   )
@@ -161,15 +158,15 @@ export default function TaxReturn() {
   const [saltPaid, setSaltPaid] = React.useState(0)
   const [mortgageInt, setMortgageInt] = React.useState(0)
   const [charitableGifts, setCharitableGifts] = React.useState(0)
-  // FIX (U-02): state to drive the collapsible income waterfall panel
-  const [showWaterfall, setShowWaterfall] = React.useState(false)
+  // F5-04: prior year safe harbor inputs — §6654(d)(1)(B) and §6654(d)(1)(D)
+  const [priorYearTax, setPriorYearTax] = React.useState(savedF1040.priorYearTax || 0)
+  const [priorYearAGI, setPriorYearAGI] = React.useState(savedF1040.priorYearAGI || 0)
+  // F3-05: Income waterfall defaults to expanded so users see income breakdown immediately
+  const [showWaterfall, setShowWaterfall] = React.useState(true)
 
   const addManualK1 = () => setManualK1s([...manualK1s, {
     id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-    name: '',
-    type: 'S Corporation',
-    ownership: '100',
-    amount: '',
+    name: '', type: 'S Corporation', ownership: '100', amount: '',
   }])
   const updateManualK1 = (id, field, value) => setManualK1s(manualK1s.map(k => k.id === id ? { ...k, [field]: value } : k))
   const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
@@ -188,15 +185,20 @@ export default function TaxReturn() {
       selfEmpRetirement,
       nolCarryforward,
       manualK1s,
+      priorYearTax,
+      priorYearAGI,
     })
     writeTaxYear(taxYear)
-  }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear])
+  }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear, priorYearTax, priorYearAGI])
 
   // ── Tax computation ──────────────────────────────────────────────────────────
   const w2 = nv(w2Income)
   const scaledK1 = ytdScale(k1Total)
   const scaledW2 = ytdScale(w2)
 
+  // F2-01: Officer salary auto-included from each S/C-Corp entity entered in Step 1.
+  // This amount is NOT the "Additional W-2 Wages (Other Jobs)" field — it is separate.
+  // It is shown in the W-2 section so users can verify it was picked up correctly.
   const totalOfficerSalary = entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '')).reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
   const scaledOfficerSal = ytdScale(totalOfficerSalary)
   const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
@@ -240,6 +242,9 @@ export default function TaxReturn() {
     useItemized,
     itemizedAmt: useItemized ? computedItemizedAmt : 0,
     saltAmount: nv(saltPaid),
+    // F5-04: prior year safe harbor inputs
+    priorYearTax: nv(priorYearTax),
+    priorYearAGI: nv(priorYearAGI),
     entities,
   }
 
@@ -261,39 +266,38 @@ export default function TaxReturn() {
     palSuspendedRental = 0,
     ebl = 0,
     quarterlyRecommended: quarterly = 0,
+    qbiLimitApplied = 'none',   // 'qbi' | 'wage' | 'income' | 'min400' | 'none' — drives soft QBI warning
+    // F5-04: safe harbor outputs from calcTaxReturn
+    safeHarborCurrentYear = 0,
+    safeHarborPriorYear = null,
+    safeHarborMinimum = 0,
+    safeHarborBalance = 0,
+    safeHarborQuarterly = 0,
   } = result
 
-  // FIX (labels): QBI Deduction (§199A) — derived from already-available result
-  // values. taxableBeforeQBI = agi − deduction; taxableAfterQBI = ordinaryTaxableIncome.
-  // Their difference equals the §199A deduction actually applied by calcTaxReturn.
-  // Displayed in the breakdown panel so users can verify the deduction is being applied.
   const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
   const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
 
   const hasSchEIncome = entities.length > 0
-
   const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
 
   // ── Quarterly due dates ──────────────────────────────────────────────────────
-  // FIX (F-04): Due dates computed from taxYear state so they update when the
-  // user switches tax years and never go stale. Past quarters are visually
-  // dimmed to signal the deadline has passed. Q4 always lands in January of
-  // the following year.
   const today = new Date()
   const QUARTER_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const quarterDefs = [
-    { label: 'Q1', due: new Date(taxYear,     3, 15) },  // Apr 15 of tax year
-    { label: 'Q2', due: new Date(taxYear,     5, 15) },  // Jun 15 of tax year
-    { label: 'Q3', due: new Date(taxYear,     8, 15) },  // Sep 15 of tax year
-    { label: 'Q4', due: new Date(taxYear + 1, 0, 15) },  // Jan 15 of following year
+    { label: 'Q1', due: new Date(taxYear,     3, 15) },
+    { label: 'Q2', due: new Date(taxYear,     5, 15) },
+    { label: 'Q3', due: new Date(taxYear,     8, 15) },
+    { label: 'Q4', due: new Date(taxYear + 1, 0, 15) },
   ]
+
+  // F5-04: threshold for the 110% prior year multiplier (MFS = $75K, all others = $150K)
+  const priorYearHighThreshold = status === 'mfs' ? 75000 : 150000
+  const priorYearMultiplierLabel = nv(priorYearAGI) > priorYearHighThreshold ? '110%' : '100%'
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
-      {/* Header
-          FIX (UX-06): flexWrap so buttons don't overflow on narrow viewports.
-          On mobile the Step 2 badge drops below the logo on its own line,
-          and the nav buttons wrap rather than forcing horizontal scroll. */}
+      {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div onClick={() => nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -311,12 +315,7 @@ export default function TaxReturn() {
         </div>
       </div>
 
-      {/* Main grid
-          FIX (UX-06): gridTemplateColumns flips to single column on mobile.
-          The 380px right panel cannot fit on a 375px viewport — it was going
-          off-screen and forcing horizontal scroll. On mobile the results panel
-          now renders below the form at full width. padding also reduces on mobile
-          to avoid wasted margin on small screens. */}
+      {/* Main grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '1fr 380px',
@@ -381,14 +380,19 @@ export default function TaxReturn() {
                 ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
               </div>
             )}
-            {/* FIX (Pass5-QBI-warning): when the user has S-Corp or partnership K-1 income
-                and calcQBI fell back to simple 20% (qbiCaps.wage === null), they may be
-                subject to the §199A(b)(2) W-2 wage/UBIA limit above the income threshold.
-                Surface a prompt to enter Box 17V data in Step 1 for an accurate result. */}
+            {/* F2-02: QBI warning — updated to reflect officerW2 proxy behavior.
+                When wage cap IS null (no Box 17V AND no officer W-2 proxy), show the stronger warning.
+                When wage cap is non-null (officer W-2 proxy applied), show a softer informational note. */}
             {k1Total > 0 && result.qbiCaps?.wage === null &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
+              <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
+                ⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ({fmt(QBI_THRESHOLDS[taxYear]?.single || 197300)} single / {fmt(QBI_THRESHOLDS[taxYear]?.mfj || 394600)} MFJ for {taxYear}). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
+              </div>
+            )}
+            {k1Total > 0 && result.qbiCaps?.wage !== null && qbiLimitApplied === 'wage' &&
+             entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
-                ⚠ Your §199A QBI deduction may be reduced by the W-2 wage/UBIA limit at higher incomes (IRC §199A(b)(2)). For an accurate result, enter Box 17V wages and UBIA from your K-1 on each entity in Step 1 (▼ Details → Advanced K-1 items).
+                ℹ §199A W-2 wage limit applied. For maximum accuracy, confirm the Box 17V wages on your K-1 match the officer salary used here, and enter UBIA of qualified property in ▼ Details → Advanced K-1 items.
               </div>
             )}
           </div>
@@ -399,10 +403,6 @@ export default function TaxReturn() {
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  {/* FIX (F-09): 2026 option annotated with Rev. Proc. reference so users
-                      know the figures are current-law OBBBA amounts, not estimated.
-                      The §461(l) EBL thresholds for 2026 ARE estimated (flagged in
-                      taxCalc.js) — the note below the selector makes this visible. */}
                   <select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: N, outline: 'none', fontWeight: 600 }}>
                     {[2026, 2025, 2024].map(y => (
                       <option key={y} value={y}>
@@ -431,13 +431,6 @@ export default function TaxReturn() {
               </div>
             )}
             <div style={{ fontSize: 13, color: SL, marginTop: 10, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(standardDeduction)}</strong></div>
-            {/* FIX (F-09): Surface the EBL estimation caveat when 2026 is selected.
-                taxCalc.js already flags the 2026 EBL thresholds as estimated in a
-                code comment (§461(l) thresholds — estimated 2026, update when Rev.
-                Proc. 2025-xx publishes). This makes the caveat user-visible so users
-                know to verify EBL figures once IRS publishes final guidance. All other
-                2026 figures (std deduction, brackets, SALT cap, AMT) are per Rev.
-                Proc. 2025-32 and are current law. */}
             {taxYear === 2026 && (
               <div style={{ fontSize: 11, color: '#64748B', marginTop: 4, lineHeight: 1.4 }}>
                 2026 figures are per Rev. Proc. 2025-32 (OBBBA, P.L. 119-21). The §461(l) excess business loss thresholds are estimated — verify when IRS publishes final guidance.
@@ -472,9 +465,24 @@ export default function TaxReturn() {
 
           {/* W-2 income & withholding */}
           <CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
+            {/* F2-01: Officer W-2 carry-through — show which entities contributed salary.
+                This amount is automatically included from Step 1 and must NOT be re-entered here.
+                Only shown when at least one entity has an officer salary > 0. */}
+            {totalOfficerSalary > 0 && (
+              <div style={{ marginTop: 12, marginBottom: 4, padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1E40AF', letterSpacing: '0.5px', marginBottom: 6 }}>OFFICER W-2 — CARRIED FROM STEP 1 (DO NOT RE-ENTER)</div>
+                {entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '') && (parseFloat(e?.pnl?.officerSalary) || 0) > 0).map((ent, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1E40AF', marginBottom: 2 }}>
+                    <span>{ent.name || 'Business ' + (i + 1)} ({ent.type})</span>
+                    <span style={{ fontWeight: 700 }}>{fmt(parseFloat(ent.pnl?.officerSalary) || 0)}</span>
+                  </div>
+                ))}
+                {ytdMode && <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 4 }}>Annualized to {fmt(scaledOfficerSal)} in YTD mode</div>}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Additional W-2 Wages (Other Jobs) <InfoTip text="W-2 wages from a job other than your S-corp or C-corp. Do NOT include your officer salary here — that is tracked in Step 1 on each entity card." /></label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Additional W-2 Wages (Other Jobs) <InfoTip text="W-2 wages from a job other than your S-corp or C-corp. Do NOT include your officer salary here — that is tracked in Step 1 on each entity card and shown above." /></label>
                 <MoneyInput value={parseMoney(w2Income) || 0} onChange={v => setW2Income(String(v))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
               <div>
@@ -484,7 +492,7 @@ export default function TaxReturn() {
             </div>
             <WhatGoesHere items={[
               'Your W-2 Box 1 wages from jobs outside your business entity',
-              'Do NOT include your S-corp officer salary here — enter it on the entity card in Step 1',
+              'Do NOT include your S-corp officer salary here — enter it on the entity card in Step 1 (it is automatically carried through, shown above)',
               'Federal tax withheld from W-2 Box 2 — used to calculate refund or balance due',
             ]} />
           </CollapsibleSection>
@@ -557,10 +565,17 @@ export default function TaxReturn() {
                 <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 <div style={{ fontSize: 10, color: '#A855F7', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
               </div>
+              {/* Collectibles Gain input — state and calc existed but UI was missing */}
               <div>
-                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Taxable Interest <InfoTip text="Interest earned from bank accounts, bonds, CDs — 1040 Line 2b. Do NOT include interest from tax-exempt municipal bonds." /></label>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Collectibles Gain <InfoTip text="Gain from sale of coins, art, antiques, gems, stamps, or other collectibles held more than 1 year — taxed at max 28% rate (IRC §1(h)(4)). Enter as a positive number. Short-term collectibles gains are taxed at ordinary rates — enter those in the Short-Term field." /></label>
+                <MoneyInput value={collectiblesGain} onChange={setCollectiblesGain} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                <div style={{ fontSize: 10, color: '#6B7280', marginTop: 3 }}>Coins, art, antiques — max 28% rate</div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Taxable Interest <InfoTip text="Interest earned from bank accounts, bonds, CDs — 1040 Line 2b. Do NOT include tax-exempt municipal bond interest (that goes on Line 2a and is not entered here)." /></label>
                 <MoneyInput value={interest} onChange={setInterest} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 2b — do not include interest</div>
+                {/* F3-02: fixed self-contradictory "do not include interest" note */}
+                <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 2b — taxable interest only; tax-exempt interest (Line 2a) is not entered here</div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Ordinary Dividends <InfoTip text="From 1099-DIV Box 1a — a subset will qualify for preferential LTCG rates (enter qualified portion separately below)." /></label>
@@ -622,9 +637,10 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 12, paddingTop: 8 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
+                {/* F5-06: tooltip updated to cite Notice 2008-1 and clarify the required two-step W-2 process */}
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
                   &gt;2% Shareholder / Self-Employed Health Insurance (Sch 1, Line 17)
-                  <InfoTip text="For S-corp owners (&gt;2% shareholders): premiums paid by the corporation must be included in your W-2 Box 1 wages first, then deducted here on Schedule 1 Line 17 (IRC §106(a); Rev. Rul. 91-26). Not deductible if you are eligible for employer-sponsored coverage through a spouse. For sole proprietors and partners: enter health insurance premiums under IRC §162(l)." />
+                  <InfoTip text="For S-corp owners (>2% shareholders): premiums must first be included in your W-2 Box 1 wages by the S-Corp, then deducted here on Schedule 1 Line 17 (IRC §162(l); Notice 2008-1). This two-step process is mandatory — failing to include premiums in W-2 wages disqualifies the deduction. Not deductible if eligible for employer-sponsored coverage through a spouse. For sole proprietors and partners: enter premiums under IRC §162(l)." />
                 </label>
                 <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
@@ -685,21 +701,34 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* Estimated tax payments */}
+          {/* Estimated tax payments — F5-04: add prior year safe harbor inputs */}
           <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div style={{ paddingTop: 12 }}>
               <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid. Do not include W-2 withholding here — enter that in the W-2 section above." /></label>
               <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
+            {/* F5-04: prior year safe harbor inputs — §6654(d)(1)(B) and §6654(d)(1)(D) */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 6 }}>PRIOR YEAR SAFE HARBOR (OPTIONAL)</div>
+              <div style={{ fontSize: 12, color: SL, marginBottom: 10, lineHeight: 1.5 }}>
+                Enter your prior year figures to see whether paying 100%/110% of last year's tax is less than 90% of this year's. Paying the lesser amount still avoids the §6654 underpayment penalty — and for growing businesses it's often the lower payment.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year Total Tax (Form 1040, Line 24) <InfoTip text="Your total federal tax from last year's return. Used for the §6654(d)(1)(B)(ii) prior year safe harbor. If your prior year AGI exceeded $150,000 ($75,000 MFS), the safe harbor requires 110% of this amount instead of 100% — §6654(d)(1)(D)." /></label>
+                  <MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year AGI (Form 1040, Line 11) <InfoTip text="Prior year adjusted gross income. Used to determine whether the 100% or 110% safe harbor multiplier applies. Over $150,000 single/MFJ (or $75,000 MFS) → 110% of prior year tax required." /></label>
+                  <MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              </div>
+            </div>
           </CollapsibleSection>
         </div>
 
-        {/* RIGHT — Live Results
-            FIX (UX-06): position switches from sticky to static on mobile.
-            Sticky is meaningless (and broken) when the panel is stacked below
-            the form in a single-column layout — it would stick at the bottom
-            of a very long scroll, far from the inputs it describes. */}
+        {/* RIGHT — Live Results */}
         <div style={{ position: isMobile ? 'static' : 'sticky', top: 72 }}>
           <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
@@ -707,21 +736,19 @@ export default function TaxReturn() {
             <div style={{ fontSize: 48, fontWeight: 900, color: totalTax === 0 ? '#4ADE80' : '#F87171', lineHeight: 1 }}>
               {fmt(totalTax)}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>{totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}</div>
-
-            {/* FIX (labels): Changed from 'earned income' to 'total income'.
-                K-1 pass-through income is not earned income (no SE tax exposure).
-                The effective rate denominator is total gross income (all sources),
-                so 'total income' is the accurate description. */}
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+              {totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}
+            </div>
+            {/* B-03: state tax callout — users need to know their total burden is higher */}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, marginBottom: 16, lineHeight: 1.4 }}>
+              Federal only — state income tax not included. Your total tax burden will be higher.{' '}
+              <a href="https://www.taxfoundation.org/data/all/state/state-income-tax-rates/" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'underline', fontSize: 10 }}>State rates →</a>
+            </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
               {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
             </div>
 
             <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-              {/* FIX (labels): Changed from 'ESTIMATED BALANCE DUE' to 'ESTIMATED TAX OWED'.
-                  'Balance Due' implies a tax return has been filed and a payment is outstanding.
-                  For a planning tool, 'ESTIMATED TAX OWED' is the correct framing — this is
-                  what the user will owe when they file, not a filed-return balance. */}
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED TAX OWED' : 'ESTIMATED REFUND'}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
@@ -756,16 +783,9 @@ export default function TaxReturn() {
               </div>
               {amtAmount > 0 && (
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, lineHeight: 1.4 }}>
-                  {/* FIX (Pass5-AMT-disclaimer): surface that AMT is an estimate and
-                      does not cover all Form 6251 preference items (e.g. PTEP, ACE adj). */}
                   Estimate only — excludes some Form 6251 preference items (e.g. certain ISO exercises, ACE adjustment). Verify with a CPA.
                 </div>
               )}
-              {/* FIX (labels): QBI Deduction row — shows §199A deduction actually applied.
-                  Previously invisible, making it impossible for users to verify the deduction.
-                  Displayed in green (it reduces tax), only when non-zero. Amount derived from
-                  agi − appliedDeduction − ordinaryTaxableIncome, which equals the §199A
-                  deduction calcTaxReturn applied. */}
               {qbiDeduction > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
@@ -779,9 +799,7 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* Income Waterfall — FIX (U-02): was a stub onClick={() => {}}. Now a
-              collapsible panel showing how gross income flows down to taxable income.
-              Uses the same inputs/result values already on screen so no new calc needed. */}
+          {/* Income Waterfall — F3-05: default expanded; F3-06: updated K-1 label */}
           {(() => {
             const totalW2 = scaledW2 + scaledOfficerSal
             const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
@@ -807,7 +825,8 @@ export default function TaxReturn() {
                 </button>
                 {showWaterfall && (
                   <div style={{ padding: '4px 18px 16px', borderTop: '1px solid #F1F5F9' }}>
-                    {scaledK1 !== 0 && wfRow('K-1 / Business Income', scaledK1)}
+                    {/* F3-06: updated from 'K-1 / Business Income' for clarity */}
+                    {scaledK1 !== 0 && wfRow('K-1 Ordinary Business Income', scaledK1)}
                     {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
                     {totalOther !== 0 && wfRow('Other Income', totalOther)}
                     {wfRow('= Gross Income', totalGross, true)}
@@ -822,11 +841,7 @@ export default function TaxReturn() {
             )
           })()}
 
-          {/* Quarterly estimated payments */}
-          {/* FIX (F-04): Due dates are computed from taxYear so they update when
-              the user switches years and never go stale. Past quarters are dimmed
-              to signal the deadline has passed. Q4 always lands in January of
-              the following calendar year (taxYear + 1). */}
+          {/* Quarterly estimated payments — F5-04: safe harbor display; F2-07: annualized note */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
             {quarterDefs.map((q, i) => {
@@ -849,14 +864,44 @@ export default function TaxReturn() {
               )
             })}
             <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>Based on annual liability ÷ 4. Adjust for income earned to date.</div>
+
+            {/* F5-04: prior year safe harbor display — only when prior year tax was entered */}
+            {safeHarborPriorYear !== null && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 8 }}>§6654 SAFE HARBOR OPTIONS</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
+                  <span style={{ color: SL }}>90% of current year (§6654(d)(1)(B)(i))</span>
+                  <span style={{ fontWeight: 600, color: N }}>{fmt(safeHarborCurrentYear)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
+                  <span style={{ color: SL }}>{priorYearMultiplierLabel} of prior year (§6654(d)(1)(B)(ii))</span>
+                  <span style={{ fontWeight: 600, color: N }}>{fmt(safeHarborPriorYear)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#EFF6FF', borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: B }}>Safe harbor minimum ÷ 4</div>
+                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>
+                      Pay this each quarter to avoid §6654 penalty
+                      {safeHarborBalance > 0 && ` · ${fmt(safeHarborBalance)} total remaining`}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: B }}>{fmt(safeHarborQuarterly)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* F2-07: annualized income installment method note — §6654(d)(2) */}
+            <div style={{ marginTop: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
+              💡 <strong>Uneven income?</strong> The annualized income installment method (§6654(d)(2)) may allow lower payments in early quarters when income is earned unevenly. This requires calculating each quarter's actual income — consult a CPA or IRS Form 2210.
+            </div>
           </div>
 
           {/* Save & AI */}
           <button
             onClick={() => {
-              writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s })
+              writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI })
               const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
-              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward } }
+              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, priorYearTax, priorYearAGI } }
               existing.unshift(record)
               localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing.slice(0, 20)))
               alert('✅ Record saved!')
