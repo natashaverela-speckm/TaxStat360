@@ -487,6 +487,7 @@ function TaxOptimization({ rec }) {
   )
 
   const opportunities = []
+  const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
 
 
   // FIX (T-01 — SEP-IRA S-Corp): S-Corp owner-employees may only base SEP-IRA /
@@ -496,7 +497,6 @@ function TaxOptimization({ rec }) {
   // limit and could cause an excess contribution and IRC §4973 excise tax.
   // Sole props / general partners retain the net-SE-earnings base (~20% of net
   // profit after deducting half of SE tax; simplified as 20% of k1 here).
-  const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
   const sepBase = isSCorpOwner ? totalOfficerSalary : k1
   const sepRate = isSCorpOwner ? 0.25 : 0.20
   const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
@@ -538,11 +538,26 @@ function TaxOptimization({ rec }) {
   }
 
 
+  // FIX (L-02): Home office howTo text is now entity-type aware.
+  // S-Corp owners: no Schedule C available. The correct method is an accountable plan
+  // reimbursement from the S-Corp to the shareholder (IRC §62(a)(2)(A); Treas. Reg.
+  // §1.62-2). The reimbursement is deductible to the S-Corp as a business expense and
+  // excluded from the shareholder's W-2 income — superior to the pre-TCJA §67 misc.
+  // itemized deduction which is suspended through 2025 for W-2 employees (§67(g)).
+  // Partnership/MMLLC: unreimbursed partner expenses (UPE) on Schedule E Part II, or
+  // use an accountable plan at the partnership level.
+  // Sole proprietors / SMLLCs: standard Schedule C / Form 8829 route.
+  const homeOfficeHowTo = isSCorpOwner
+    ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). Do NOT use Schedule C — that form is for sole proprietors only. S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (TCJA §67(g)).'
+    : /partnership|mmllc/i.test(b.entityType || '')
+    ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Partners may deduct unreimbursed partnership expenses (UPE) directly on Schedule E Part II, or the partnership can reimburse through an accountable plan — which is deductible at the entity level and excluded from the partner\'s income.'
+    : 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).'
+
   opportunities.push({
     icon: '🏠', title: 'Home Office Deduction', priority: 'medium',
     saving: null,
     detail: 'If you use a portion of your home exclusively and regularly for business, you can deduct either $5 per sq ft (simplified, up to 300 sq ft = $1,500 max) or actual expenses proportional to office size.',
-    howTo: 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C or as an S-Corp expense.'
+    howTo: homeOfficeHowTo
   })
 
 
@@ -1390,7 +1405,7 @@ export default function AIAnalysis() {
 
 
         <div style={{ marginTop: 24, padding: '14px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
-          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making filing or financial decisions.
+          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.
         </div>
       </div>
     </div>
