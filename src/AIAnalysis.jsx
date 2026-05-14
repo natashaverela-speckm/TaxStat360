@@ -23,10 +23,7 @@ const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
 
 
 // F-06: returns the user's TOTAL W-2 wages (additional W-2 from non-S-Corp jobs +
-// aggregated officer salary across all S-Corp/C-Corp entities). Post-F-06, saved
-// f.w2Income carries 'additional only' semantics — the per-entity officer salary
-// lives in rec.entities[i].pnl.officerSalary. Mirrors the existing pattern where
-// f.form4797 is aggregated with rec.entities[i].box17K in getRecord.
+// aggregated officer salary across all S-Corp/C-Corp entities).
 function getTotalW2(rec) {
   if (!rec) return 0
   const f = rec.f1040 || {}
@@ -40,10 +37,7 @@ function getTotalW2(rec) {
 }
 
 
-// FIX (S-Corp field divergence): resolves both e.netProfit (legacy field written by
-// some older Dashboard paths) and e.pnl?.netProfit (structured data layer field) so
-// that all entity-level profit reads are consistent regardless of which code path
-// originally saved the record.
+// FIX (S-Corp field divergence): resolves both e.netProfit (legacy) and e.pnl?.netProfit
 function getEntityNetProfit(e) {
   return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
 }
@@ -200,15 +194,10 @@ function completeness(rec) {
 }
 
 
-// FIX (F-03): compute which fields are genuinely absent so the completeness banner
-// shows accurate "missing:" text instead of the previous hardcoded string.
-// Checks the same fields used by completeness() so the percentage and label agree.
 function missingFields(rec) {
   if (!rec) return ['all fields']
   const b = rec.biz || {}, f = rec.f1040 || {}
   const missing = []
-  // Revenue: grossRevenue on biz object OR k1Income (session-built records store
-  // net profit there when no separate grossRevenue field is present)
   if (!(parseFloat(b.grossRevenue) > 0) && !(parseFloat(rec.k1Income) > 0)) missing.push('revenue')
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
   if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
@@ -428,9 +417,10 @@ function RiskScan({ rec }) {
 }
 
 
-
-
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
+// Solo 401(k) employee deferral limits by tax year — Rev. Proc. 2024-40 (2025), 2023-34 (2024)
+const SOLO_401K_DEFERRAL_LIMITS = { 2024: 23000, 2025: 23500, 2026: 24000 }
+
 function TaxOptimization({ rec }) {
   if (!rec) return <NoData />
   const b = rec.biz || {}, f = rec.f1040 || {}
@@ -438,11 +428,7 @@ function TaxOptimization({ rec }) {
   const opExp = parseFloat(b.operatingExpenses) || 0
   const dep = parseFloat(b.depreciation) || 0
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
-  // FIX (T-01 follow-up): also read b.officerSalary (biz-level field used by legacy /
-  // single-entity records and the completeness scorer). Math.max avoids double-counting
-  // when both fields are populated from the same salary. Without this, records that store
-  // salary at biz level but have no pnl.officerSalary on the entity incorrectly trigger
-  // the "Set Officer Salary First" blocked-opportunity card even when salary IS present.
+  // FIX (T-01 follow-up): also read b.officerSalary (biz-level field used by legacy records)
   const totalOfficerSalary = Math.max(
     sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0),
     parseFloat(b.officerSalary) || 0
@@ -492,14 +478,15 @@ function TaxOptimization({ rec }) {
 
   // FIX (T-01 — SEP-IRA S-Corp): S-Corp owner-employees may only base SEP-IRA /
   // Solo 401(k) contributions on their W-2 officer salary, NOT K-1 distributions
-  // (IRC §402(h), §415(c); IRS Pub. 560). With $0 officer salary the allowable
-  // contribution is $0. The prior formula (k1 + w2) * 0.25 produced a non-zero
-  // limit and could cause an excess contribution and IRC §4973 excise tax.
-  // Sole props / general partners retain the net-SE-earnings base (~20% of net
-  // profit after deducting half of SE tax; simplified as 20% of k1 here).
+  // (IRC §402(h), §415(c); IRS Pub. 560).
   const sepBase = isSCorpOwner ? totalOfficerSalary : k1
   const sepRate = isSCorpOwner ? 0.25 : 0.20
   const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
+
+  // Solo 401(k) employee deferral limit for the current year
+  const solo401kDeferral = SOLO_401K_DEFERRAL_LIMITS[year] || 23500
+  const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? 0.25 : 0.20))
+  const maxSolo401k = Math.min(70000, maxSolo401kEmployer + solo401kDeferral)
 
 
   if (isPassthrough) {
@@ -512,23 +499,34 @@ function TaxOptimization({ rec }) {
         howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in 2025). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
-      const taxSaved = Math.round(maxSEP * marginalRate)
+      // F5-05: SEP-IRA card — separate from Solo 401(k)
+      const sepTaxSaved = Math.round(maxSEP * marginalRate)
       const sepDetail = isSCorpOwner
-        ? `You can contribute up to ${fmt(maxSEP)} (25% of your ${fmt(totalOfficerSalary)} officer W-2 salary, max $70,000) to a SEP-IRA or Solo 401(k). S-Corp K-1 distributions do not count toward this limit — only your W-2 wages from the S-Corp qualify (IRC §402(h)).`
+        ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is 25% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max $70,000). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
         : `You can contribute up to ${fmt(maxSEP)} (~20% of net self-employment income after SE tax deduction, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
       opportunities.push({
-        icon: '🏦', title: 'SEP-IRA or Solo 401(k)', priority: 'high',
-        saving: taxSaved,
+        icon: '🏦', title: 'SEP-IRA', priority: 'high',
+        saving: sepTaxSaved,
         detail: sepDetail,
-        howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max contribution saves approx. ${fmt(taxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions.`
+        howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max contribution saves approx. ${fmt(sepTaxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions (typically Oct 15).`
       })
+
+      // F5-05: Solo 401(k) card — show separately with higher potential contribution
+      if (isSCorpOwner) {
+        const solo401kTaxSaved = Math.round(maxSolo401k * marginalRate)
+        opportunities.push({
+          icon: '💰', title: 'Solo 401(k) — Higher Contribution than SEP-IRA',
+          priority: 'high',
+          saving: solo401kTaxSaved,
+          detail: `Unlike a SEP-IRA (employer contributions only), a Solo 401(k) has two components that stack:\n• Employee elective deferral: up to ${fmt(solo401kDeferral)} (${year} limit, pre-tax or Roth — IRC §401(k))\n• Employer profit-sharing: 25% of your officer W-2 salary = ${fmt(maxSolo401kEmployer)}\n• Combined total: ${fmt(maxSolo401k)} — vs. ${fmt(maxSEP)} under a SEP-IRA alone.\nBoth contributions flow from your S-Corp but are made separately.`,
+          howTo: `At your ${pct(marginalRate * 100)} marginal rate, the max Solo 401(k) saves approx. ${fmt(solo401kTaxSaved)} — roughly ${fmt(solo401kTaxSaved - Math.round(maxSEP * marginalRate))} more than a SEP-IRA alone. Requires a plan document established before December 31. Employee deferral comes from your W-2; employer contribution is made at the entity level. Available at Fidelity, Schwab, or Vanguard.`
+        })
+      }
     }
   }
 
 
   if (revenue > 30000 && dep === 0) {
-    const est179 = Math.round(revenue * 0.05)
-    const taxSaved = Math.round(est179 * marginalRate)
     opportunities.push({
       icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
       saving: null,
@@ -538,15 +536,7 @@ function TaxOptimization({ rec }) {
   }
 
 
-  // FIX (L-02): Home office howTo text is now entity-type aware.
-  // S-Corp owners: no Schedule C available. The correct method is an accountable plan
-  // reimbursement from the S-Corp to the shareholder (IRC §62(a)(2)(A); Treas. Reg.
-  // §1.62-2). The reimbursement is deductible to the S-Corp as a business expense and
-  // excluded from the shareholder's W-2 income — superior to the pre-TCJA §67 misc.
-  // itemized deduction which is suspended through 2025 for W-2 employees (§67(g)).
-  // Partnership/MMLLC: unreimbursed partner expenses (UPE) on Schedule E Part II, or
-  // use an accountable plan at the partnership level.
-  // Sole proprietors / SMLLCs: standard Schedule C / Form 8829 route.
+  // FIX (L-02): Home office howTo text is entity-type aware.
   const homeOfficeHowTo = isSCorpOwner
     ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). Do NOT use Schedule C — that form is for sole proprietors only. S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (TCJA §67(g)).'
     : /partnership|mmllc/i.test(b.entityType || '')
@@ -562,13 +552,17 @@ function TaxOptimization({ rec }) {
 
 
   if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && sCorpK1 > 50000) {
+    // F5-07: seTaxSaved — note this uses 15.3% which is accurate up to the SS wage base.
+    // Above the SS wage base ($176,100 for 2025), only the 2.9% Medicare rate applies,
+    // so the actual savings may be lower for high-income owners.
     const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * 0.0765 * 2)
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
-        detail: `Your S-Corp structure already saves FICA taxes on the ${fmt(k1)} distributed as K-1 (vs. a sole prop where all income is subject to SE tax). Distributions above your officer salary avoid 15.3% self-employment tax.`,
-        howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)}. Maintain documentation showing salary is reasonable for your role. Avoid setting salary too low — IRS minimum guidance is typically 35–40% of net profit.`
+        // F5-07: added SS wage base caveat
+        detail: `Your S-Corp structure saves FICA taxes on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary. The FICA rate is 15.3% on wages up to the Social Security wage base ($176,100 for 2025) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
+        howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the $176,100 SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary too low — IRS minimum guidance is typically 35–40% of net profit.`
       })
     }
   }
@@ -617,7 +611,7 @@ function TaxOptimization({ rec }) {
                     </div>
                   </div>
                 </div>
-                <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>{o.detail}</p>
+                <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{o.detail}</p>
               </div>
               <div style={{ padding: '12px 20px', background: '#F8FAFC' }}>
                 <div style={{ fontSize: 12, color: N, lineHeight: 1.6 }}>
@@ -641,7 +635,6 @@ function IRSCompliance({ rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = getTotalW2(rec)
-  const rental = false
   const entity = b.entityType || 'Unknown'
   const year = parseInt(b.year) || 2025
   const today = new Date()
@@ -655,12 +648,14 @@ function IRSCompliance({ rec }) {
 
   if (isSCorpEntity(entity)) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
-    schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(k1)} share of S-Corp income flows to your personal return via this form. Attach to Schedule E, Part II.`, deadline: `Issued with Form 1120-S` })
+    // F3-04: Corrected — the IRS does not require attaching the K-1 to the 1040.
+    // Users should keep it as supporting documentation but it is reported on, not attached to, Schedule E.
+    schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(k1)} share of S-Corp income flows to your personal return via this form. Your K-1 figures are reported on Schedule E, Part II — keep your K-1 as supporting documentation. The IRS does not require you to physically attach it to your 1040.`, deadline: `Issued with Form 1120-S` })
     schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
   }
   if (/partnership|multi.?member|mmllc/i.test(entity || '')) {
     schedules.push({ form: 'Form 1065', title: 'Partnership Return', status: 'required', detail: 'Partnership or multi-member LLC files this informational return. Issues K-1s to each partner/member.', deadline: `March 15, ${year + 1}` })
-    schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: 'Your distributive share of partnership income, deductions, and credits.', deadline: 'Issued with Form 1065' })
+    schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: 'Your distributive share of partnership income, deductions, and credits. Reported on Schedule E, Part II — keep your K-1 as supporting documentation; the IRS does not require attaching it to your 1040.', deadline: 'Issued with Form 1065' })
   }
   if (/sole|single.?member/i.test(entity || '')) {
     schedules.push({ form: 'Schedule C', title: 'Profit or Loss from Business', status: 'required', detail: 'Reports all business revenue and expenses. Net profit flows directly to Form 1040 Line 8.', deadline: 'Filed with Form 1040' })
@@ -903,7 +898,7 @@ function SimulatorModal({ onClose, rec }) {
     depreciation:      parseFloat(b.depreciation)       || 0,
     advertising:       parseFloat(b.advertising)        || 0,
     otherDeductions:   parseFloat(b.otherDeductions)    || 0,
-    w2Income:          getTotalW2(rec)                       || 0,
+    w2Income:          getTotalW2(rec)                  || 0,
     estPaid:           parseFloat(f.estPaid)  || 0,
   }
 
@@ -923,8 +918,7 @@ function SimulatorModal({ onClose, rec }) {
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      // FIX (T-01 SEP simulator): for S-corp, SEP is based on officer salary * 0.25,
-      // not net profit * 0.25. Use base.officerSalary as the contribution base.
+      // FIX (T-01 SEP simulator): for S-corp, SEP is based on officer salary * 0.25
       sep:     { otherDeductions: Math.min(70000, Math.round(base.officerSalary > 0 ? base.officerSalary * 0.25 : netProfit * ownerPct * 0.20)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
@@ -1286,8 +1280,6 @@ export default function AIAnalysis() {
         <div onClick={() => nav('/dashboard')}><Logo /></div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => nav('/dashboard')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: SL }}>📂 Dashboard</button>
-          {/* FIX (F-11): Label standardized from "Calculate Tax" to "Calculator" to match
-              the canonical label used in Settings.jsx nav and throughout the app. */}
           <button onClick={() => {
             const r = getRecord(location.state?.liveState)
             if (r) {
@@ -1315,9 +1307,6 @@ export default function AIAnalysis() {
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ color: N, fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>AI Risk & Tax Analysis</h1>
-          {/* FIX (F-01): rec.savedAt was undefined for records loaded from localStorage
-              without a savedAt property, rendering "saved undefined" in the subtitle.
-              Now falls back to 'current session' when savedAt is absent. */}
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>
             {rec
               ? `Analyzing your ${rec.biz?.entityType || 'business'} — ${rec.savedAt ? `saved ${rec.savedAt}` : 'current session'}`
@@ -1344,6 +1333,7 @@ export default function AIAnalysis() {
             }} style={{ flexShrink: 0, padding: '8px 16px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Save Now</button>
           </div>
         )}
+
         {rec && (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ flex: 1 }}>
@@ -1355,10 +1345,6 @@ export default function AIAnalysis() {
                 <div style={{ width: score + '%', height: '100%', background: 'linear-gradient(90deg,#059669,#34d399)', borderRadius: 4, transition: 'width 0.5s' }} />
               </div>
             </div>
-            {/* FIX (F-03): replaced hardcoded "missing: revenue, withholding, deductions"
-                with a dynamic list derived from the same fields that completeness() scores.
-                Revenue in particular was always shown as missing even when $250K was entered,
-                because the hardcoded string never checked the actual record state. */}
             <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
               {(() => {
                 const missing = missingFields(rec)
@@ -1378,34 +1364,35 @@ export default function AIAnalysis() {
                   k1Total: rec.k1Income || 0,
                   isCoopPatron: !!rec.f1040?.isCoopPatron,
                 })
-                nav('/tax-return')
+                nav('/calculate-tax')
               } else {
-                nav('/dashboard')
+                nav('/calculate-tax')
               }
-            }} style={{ padding: '7px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
+            }} style={{ flexShrink: 0, padding: '8px 16px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Update Data →</button>
           </div>
         )}
 
-
-        <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', borderRadius: 12, padding: 6, border: '1px solid #E2E8F0' }}>
+        {/* Tab navigation */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#fff', borderRadius: 12, padding: 6, border: '1px solid #E2E8F0' }}>
           {TABS.map((t, i) => (
-            <button key={i} onClick={() => setActiveTab(i)} style={{ flex: 1, padding: '10px 12px', background: activeTab === i ? N : 'transparent', color: activeTab === i ? '#fff' : SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center' }}>
+            <button key={i} onClick={() => setActiveTab(i)} style={{
+              flex: 1, padding: '10px 4px', border: 'none', borderRadius: 8,
+              fontWeight: activeTab === i ? 700 : 500, fontSize: 12, cursor: 'pointer',
+              background: activeTab === i ? N : 'transparent',
+              color: activeTab === i ? '#fff' : SL,
+              transition: 'all 0.15s',
+            }}>
               {t.label}
             </button>
           ))}
         </div>
 
-
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '28px' }}>
+        {/* Tab content */}
+        <div>
           {activeTab === 0 && <RiskScan rec={rec} />}
           {activeTab === 1 && <TaxOptimization rec={rec} />}
           {activeTab === 2 && <IRSCompliance rec={rec} />}
           {activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
-        </div>
-
-
-        <div style={{ marginTop: 24, padding: '14px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
-          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making filing or financial decisions.
         </div>
       </div>
     </div>
