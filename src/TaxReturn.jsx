@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, nv, calcTaxReturn } from './taxCalc'
+import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, QBI_THRESHOLDS, nv, calcTaxReturn } from './taxCalc'
 import MoneyInput from './components/MoneyInput.jsx'
 import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import DismissibleNotice from './components/DismissibleNotice'
@@ -386,10 +386,10 @@ export default function TaxReturn() {
             {k1Total > 0 && result.qbiCaps?.wage === null &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
-                ⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ($197,300 single / $394,600 MFJ for 2025). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
+                ⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ({fmt(QBI_THRESHOLDS[taxYear]?.single || 197300)} single / {fmt(QBI_THRESHOLDS[taxYear]?.mfj || 394600)} MFJ for {taxYear}). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
               </div>
             )}
-            {k1Total > 0 && result.qbiCaps?.wage !== null && result.qbiLimitApplied === 'wage' &&
+            {k1Total > 0 && result.qbiCaps?.wage !== null && qbiLimitApplied === 'wage' &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
                 ℹ §199A W-2 wage limit applied. For maximum accuracy, confirm the Box 17V wages on your K-1 match the officer salary used here, and enter UBIA of qualified property in ▼ Details → Advanced K-1 items.
@@ -901,7 +901,7 @@ export default function TaxReturn() {
             onClick={() => {
               writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI })
               const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
-              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward } }
+              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, priorYearTax, priorYearAGI } }
               existing.unshift(record)
               localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing.slice(0, 20)))
               alert('✅ Record saved!')
