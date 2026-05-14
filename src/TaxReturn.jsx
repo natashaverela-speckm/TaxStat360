@@ -266,6 +266,7 @@ export default function TaxReturn() {
     palSuspendedRental = 0,
     ebl = 0,
     quarterlyRecommended: quarterly = 0,
+    qbiLimitApplied = 'none',   // 'qbi' | 'wage' | 'income' | 'min400' | 'none' — drives soft QBI warning
     // F5-04: safe harbor outputs from calcTaxReturn
     safeHarborCurrentYear = 0,
     safeHarborPriorYear = null,
@@ -879,7 +880,10 @@ export default function TaxReturn() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#EFF6FF', borderRadius: 8 }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: B }}>Safe harbor minimum ÷ 4</div>
-                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>Pay this each quarter to avoid §6654 penalty</div>
+                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>
+                      Pay this each quarter to avoid §6654 penalty
+                      {safeHarborBalance > 0 && ` · ${fmt(safeHarborBalance)} total remaining`}
+                    </div>
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: B }}>{fmt(safeHarborQuarterly)}</div>
                 </div>
