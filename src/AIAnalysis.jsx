@@ -1405,7 +1405,7 @@ export default function AIAnalysis() {
 
 
         <div style={{ marginTop: 24, padding: '14px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
-          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.
+          ⚠️ TaxStat360 provides tax estimates and planning insights for informational purposes only. Not professional tax advice. Consult a licensed CPA or tax attorney before making filing or financial decisions.
         </div>
       </div>
     </div>
