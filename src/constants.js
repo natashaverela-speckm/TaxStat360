@@ -31,7 +31,11 @@ export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
 //   $200,000 single / $250,000 MFJ / $125,000 MFS
 // TAX_TABLES[year].additionalMedicareThreshold must store all three filing-status
 // thresholds (single, mfj, mfs) — a single value is insufficient for MFS filers.
-// Applied in calcTaxReturn.
+// Note: Unlike NIIT, this tax triggers employer withholding at $200K in wages
+// regardless of filing status. NIIT has no withholding mechanism — it flows entirely
+// through estimated payments or year-end true-up. Do not use the same code path
+// for both taxes in calcTaxReturn or clients with investment income will underestimate
+// their estimated payment obligations.
 export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009
 
 // Net Investment Income Tax (NIIT) — IRC §1411
@@ -40,6 +44,7 @@ export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009
 //   $200,000 single / $250,000 MFJ / $125,000 MFS
 // Applies to passive K-1 income, rental income, capital gains, dividends, and interest.
 // Does NOT apply to active S-Corp K-1 income where the shareholder materially participates.
+// No withholding mechanism — flows entirely through estimated payments or year-end true-up.
 // TAX_TABLES[year].niitThreshold must store all three filing-status thresholds.
 export const NIIT_RATE = 0.038  // IRC §1411
 
@@ -57,32 +62,45 @@ export const C_CORP_TAX_RATE = 0.21
 
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
-// The dollar threshold between AMT_RATE_LOW and AMT_RATE_HIGH is year-specific:
-//   TAX_TABLES[year].amtRateThreshold ($220,700 for 2025, same for single and MFJ).
+// The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
+// year-specific — see TAX_TABLES[year].amtRateThreshold (taxCalc.js).
+// Note: unlike the AMT exemption, this rate threshold is the same for single and MFJ.
 // AMT exemptions and phase-out ranges are also year-specific in TAX_TABLES[year].amt.
 export const AMT_RATE_LOW  = 0.26  // IRC §55(b)(1)(A) — 26% on AMTI up to amtRateThreshold
 export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above amtRateThreshold
 
+// ─── LONG-TERM CAPITAL GAINS & QUALIFIED DIVIDENDS — IRC §1(h) ───────────────
+// Three permanent rate tiers; income thresholds are year-specific (TAX_TABLES[year].ltcg).
+// Rates apply to net long-term capital gains and qualified dividends; stack on top of
+// ordinary income (i.e., the applicable rate depends on where LTCG falls in the stack).
+// Unrecaptured §1250 gain is taxed at a separate 25% maximum rate — see taxCalc.js.
+export const LTCG_RATE_LOW  = 0.00  // IRC §1(h)(1)(B) — 0%  tier
+export const LTCG_RATE_MID  = 0.15  // IRC §1(h)(1)(C) — 15% tier
+export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier
+
 // ─── §199A QUALIFIED BUSINESS INCOME (QBI) DEDUCTION ─────────────────────────
 // IRC §199A; Treas. Reg. §1.199A-1 through §1.199A-6
 //
-// Step 1 — Tentative deduction:
+// Step 1 — Tentative deduction per entity:
 //   QBI_DEDUCTION_RATE × qualified business income (20% of QBI)
 //
-// Step 2 — Overall taxable income cap (applies regardless of W-2 wages):
-//   Deduction cannot exceed 20% of (taxable income − net capital gains).
-//   IRC §199A(a)(2). This cap applies even when W-2 wages are high.
-//   Compute this ceiling before applying the W-2 wage limitation below.
-//
-// Step 3 — W-2 wage / UBIA limitation (applies when taxable income > threshold):
+// Step 2 — W-2 wage / UBIA limitation (applies when taxable income > threshold):
 //   Income threshold: TAX_TABLES[year].qbi.threshold
 //   - Below threshold → full Step 1 deduction; no W-2 wage test required.
 //   - Above threshold → limitation phases in proportionally over
 //     TAX_TABLES[year].qbi.phaseInRange, then applies fully.
-//   When fully phased in, deduction = LESSER of Step 1 (capped by Step 2) OR:
+//   When fully phased in, per-entity combined QBI amount = LESSER of Step 1 OR:
 //     GREATER of:
 //       W2_WAGE_LIMIT_RATE × W-2 wages paid by the business    [50% of W-2]
 //       W2_WAGE_ALT_RATE × W-2 wages + UBIA_RATE × UBIA        [25% W-2 + 2.5% UBIA]
+//   IRC §199A(b)(2); Treas. Reg. §1.199A-1(d)(2)
+//
+// Step 3 — Overall taxable income cap (final ceiling, applied after Step 2):
+//   The total deduction across all entities cannot exceed:
+//     QBI_DEDUCTION_RATE × (taxable income − net capital gains)
+//   IRC §199A(a)(2). Evaluated last:
+//     final_deduction = min(combined_QBI_amount_from_Step_2, 20% × (TI − net_cap_gains))
+//   This cap applies even when W-2 wages are high. It is the last constraint, not the first.
 //
 // Step 4 — SSTB limitation:
 //   Specified service trades or businesses (SSTBs) lose the deduction entirely
@@ -124,9 +142,10 @@ export const SEP_IRA_RATE = 0.25   // 25% of W-2 compensation — IRC §402(h)(2
 // Two distinct components that STACK (total capped at §415(c) overall limit):
 //
 //   Component 1 — Employee elective deferral (pre-tax or Roth):
-//     Standard limit:   TAX_TABLES[year].retirement.solo401kDeferral ($23,500 for 2025)
+//     Standard limit:      TAX_TABLES[year].retirement.solo401kDeferral ($23,500 for 2025)
 //     Catch-up ≥ 50 (excl. 60–63): TAX_TABLES[year].retirement.catchUp401k ($7,500 for 2025)
 //     Catch-up 60–63 (SECURE 2.0): TAX_TABLES[year].retirement.catchUp401kSuper ($11,250 for 2025)
+//     Note: super catch-up reverts to standard $7,500 at age 64.
 //     Source: employee's own compensation (reduces W-2 Box 1 if pre-tax)
 //
 //   Component 2 — Employer profit-sharing contribution:
@@ -139,8 +158,8 @@ export const SEP_IRA_RATE = 0.25   // 25% of W-2 compensation — IRC §402(h)(2
 //   At moderate W-2 salaries, Solo 401(k) allows significantly higher contributions
 //   because the employee deferral is additive (not limited by the 25% rate).
 //   Example at $80,000 W-2:
-//     SEP-IRA:             25% × $80,000 = $20,000 max
-//     Solo 401(k):         $23,500 (deferral) + $20,000 (employer) = $43,500 max
+//     SEP-IRA:               25% × $80,000 = $20,000 max
+//     Solo 401(k):           $23,500 (deferral) + $20,000 (employer) = $43,500 max
 //     Solo 401(k) age 60–63: $23,500 + $11,250 (super catch-up) + $20,000 = $54,750 max
 //   Always model both and present the higher-contribution option.
 export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation — IRC §404(a)(3)
