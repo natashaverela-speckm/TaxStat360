@@ -104,6 +104,21 @@ function WhatGoesHere({ items }) {
 export default function TaxReturn() {
   const nav = useNavigate()
 
+  // FIX (UX-06): isMobile drives responsive layout. matchMedia listener updates on
+  // resize so the layout reflows correctly if the user rotates their device or resizes
+  // the browser window. SSR-safe: guarded behind typeof window check.
+  const [isMobile, setIsMobile] = React.useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  )
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s || [])
   const { entities, k1Total: dashboardK1Total } = readStep1State()
   const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
@@ -275,16 +290,19 @@ export default function TaxReturn() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
-      {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      {/* Header
+          FIX (UX-06): flexWrap so buttons don't overflow on narrow viewports.
+          On mobile the Step 2 badge drops below the logo on its own line,
+          and the nav buttons wrap rather than forcing horizontal scroll. */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div onClick={() => nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
             <svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E" /><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3" /><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55" /><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8" /><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white" /></svg>
             <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
           </div>
           <div style={{ background: '#2563EB', color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
           <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>📂 Dashboard</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
@@ -293,7 +311,21 @@ export default function TaxReturn() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, maxWidth: 1100, margin: '0 auto', padding: '28px 24px', alignItems: 'start' }}>
+      {/* Main grid
+          FIX (UX-06): gridTemplateColumns flips to single column on mobile.
+          The 380px right panel cannot fit on a 375px viewport — it was going
+          off-screen and forcing horizontal scroll. On mobile the results panel
+          now renders below the form at full width. padding also reduces on mobile
+          to avoid wasted margin on small screens. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 380px',
+        gap: 24,
+        maxWidth: 1100,
+        margin: '0 auto',
+        padding: isMobile ? '20px 16px' : '28px 24px',
+        alignItems: 'start',
+      }}>
         {/* LEFT — form */}
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
@@ -363,10 +395,10 @@ export default function TaxReturn() {
 
           {/* Tax year + YTD */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {/* FIX (F-09): 2026 option annotated with Rev. Proc. reference so users
                       know the figures are current-law OBBBA amounts, not estimated.
                       The §461(l) EBL thresholds for 2026 ARE estimated (flagged in
@@ -460,7 +492,7 @@ export default function TaxReturn() {
           {/* Rental real estate */}
           <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
             <div style={{ paddingTop: 12 }}>
-              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SL, cursor: 'pointer' }}>
                   <input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} />
                   Real Estate Professional
@@ -509,7 +541,7 @@ export default function TaxReturn() {
 
           {/* Other income */}
           <CollapsibleSection title="OTHER INCOME">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Short-Term Capital Gains / (Losses) <InfoTip text="Assets held 1 year or less — taxed at ordinary rates. Enter net of gains and losses. Schedule D Line 7." /></label>
                 <MoneyInput value={capitalGains} onChange={setCapitalGains} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
@@ -663,8 +695,12 @@ export default function TaxReturn() {
           </CollapsibleSection>
         </div>
 
-        {/* RIGHT — Live Results */}
-        <div style={{ position: 'sticky', top: 72 }}>
+        {/* RIGHT — Live Results
+            FIX (UX-06): position switches from sticky to static on mobile.
+            Sticky is meaningless (and broken) when the panel is stacked below
+            the form in a single-column layout — it would stick at the bottom
+            of a very long scroll, far from the inputs it describes. */}
+        <div style={{ position: isMobile ? 'static' : 'sticky', top: 72 }}>
           <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
             <FederalScopeBanner />
@@ -729,8 +765,7 @@ export default function TaxReturn() {
                   Previously invisible, making it impossible for users to verify the deduction.
                   Displayed in green (it reduces tax), only when non-zero. Amount derived from
                   agi − appliedDeduction − ordinaryTaxableIncome, which equals the §199A
-                  deduction calcTaxReturn applied (the difference between taxableBeforeQBI
-                  and taxableAfterQBI in taxCalc.js). */}
+                  deduction calcTaxReturn applied. */}
               {qbiDeduction > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
