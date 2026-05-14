@@ -496,10 +496,11 @@ function calcTaxReturn(input) {
   }, 0)
 
   const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
-  // SE earnings base = net SE income × 0.9235. The 0.9235 factor derives from
-  // (1 − FICA_SS_RATE − FICA_MEDICARE_RATE) = 1 − 0.0765. It represents the
-  // economic effect of the above-the-line SE deduction reducing the tax base
-  // before the tax itself is computed — IRC §1402(a); Treas. Reg. §1.1402(a)-1.
+  // SE earnings base = net SE income × 0.9235.
+  // 0.9235 = 1 − FICA_SS_RATE − FICA_MEDICARE_RATE (per-employee-side rates: 6.2% + 1.45% = 7.65%)
+  // This factor represents the economic effect of the above-the-line SE deduction reducing
+  // the tax base before the SE tax itself is computed — IRC §1402(a); Treas. Reg. §1.1402(a)-1.
+  // Expressed with live constants so the factor stays correct if FICA rates ever change.
   const seEarningsSubject = seNetIncome * (1 - FICA_SS_RATE - FICA_MEDICARE_RATE)
   const ssPortion     = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)      // 12.4% combined
   const medicarePortion = seEarningsSubject * (FICA_MEDICARE_RATE * 2)                    // 2.9% combined
@@ -641,22 +642,25 @@ function calcTaxReturn(input) {
   // ── §6654(d)(1) Estimated Tax Safe Harbor — F5-04 ────────────────────────────
   // Two approaches; pay the LESSER to avoid the §6654 underpayment penalty:
   //   (A) Current year:  90% of current year total tax — §6654(d)(1)(A)
-  //   (B) Prior year:   100% of prior year tax (110% if prior year AGI > $150,000)
-  //                      §6654(d)(1)(B); the $150,000 threshold is NOT inflation-adjusted
+  //   (B) Prior year:   100% of prior year tax (110% if prior year AGI > threshold)
+  //                      §6654(d)(1)(B); thresholds are NOT inflation-adjusted:
+  //                        $150,000 for all filers EXCEPT MFS — §6654(d)(1)(B)(ii)(II)
+  //                        $75,000  for MFS filers           — §6654(d)(1)(B)(ii)(II)
   // Note: the prior year safe harbor is often the more actionable option for growing
   // businesses — it is fixed at the start of the year and requires no mid-year estimates
   // of current-year income. Display both approaches in the UI so users can choose.
-  const PRIOR_YEAR_HI_THRESHOLD = 150000  // §6654(d)(1)(B)(ii) — never inflation-adjusted
-  const priorYearTaxAmt    = Math.max(0, nv(priorYearTax))
-  const priorYearAGIAmt    = Math.max(0, nv(priorYearAGI))
-  const priorYearMultiplier = priorYearAGIAmt > PRIOR_YEAR_HI_THRESHOLD ? 1.10 : 1.00
-  const safeHarborCurrentYear = Math.round(totalTax * 0.90)                    // §6654(d)(1)(A) — 90% of current year
+  const priorYearTaxAmt = Math.max(0, nv(priorYearTax))
+  const priorYearAGIAmt = Math.max(0, nv(priorYearAGI))
+  // MFS filers use $75,000; all others use $150,000 — §6654(d)(1)(B)(ii)(II)
+  const agiBoundary       = status === 'mfs' ? 75000 : 150000
+  const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
+  const safeHarborCurrentYear = Math.round(totalTax * 0.90)    // §6654(d)(1)(A) — 90% of current year
   const safeHarborPriorYear   = priorYearTaxAmt > 0
-    ? Math.round(priorYearTaxAmt * priorYearMultiplier)                         // §6654(d)(1)(B) — 100%/110% of prior year
-    : null                                                                       // null = prior year tax not entered
+    ? Math.round(priorYearTaxAmt * priorYearMultiplier)          // §6654(d)(1)(B) — 100%/110% of prior year
+    : null                                                        // null = prior year tax not entered; UI shows current-year approach only
   const safeHarborMinimum  = safeHarborPriorYear !== null
-    ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)                      // lesser of the two = safe harbor amount
-    : safeHarborCurrentYear
+    ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)       // lesser of the two = safe harbor amount
+    : safeHarborCurrentYear                                       // fallback when prior year not entered
   const safeHarborBalance  = Math.max(0, safeHarborMinimum - totalPayments)
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
 
