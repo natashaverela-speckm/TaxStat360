@@ -248,6 +248,13 @@ export default function TaxReturn() {
     quarterlyRecommended: quarterly = 0,
   } = result
 
+  // FIX (labels): QBI Deduction (§199A) — derived from already-available result
+  // values. taxableBeforeQBI = agi − deduction; taxableAfterQBI = ordinaryTaxableIncome.
+  // Their difference equals the §199A deduction actually applied by calcTaxReturn.
+  // Displayed in the breakdown panel so users can verify the deduction is being applied.
+  const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
+  const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
+
   const hasSchEIncome = entities.length > 0
 
   const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
@@ -666,12 +673,20 @@ export default function TaxReturn() {
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>{totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}</div>
 
+            {/* FIX (labels): Changed from 'earned income' to 'total income'.
+                K-1 pass-through income is not earned income (no SE tax exposure).
+                The effective rate denominator is total gross income (all sources),
+                so 'total income' is the accurate description. */}
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
-              {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on earned income' : ''}
+              {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
             </div>
 
             <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED BALANCE DUE' : 'ESTIMATED REFUND'}</div>
+              {/* FIX (labels): Changed from 'ESTIMATED BALANCE DUE' to 'ESTIMATED TAX OWED'.
+                  'Balance Due' implies a tax return has been filed and a payment is outstanding.
+                  For a planning tool, 'ESTIMATED TAX OWED' is the correct framing — this is
+                  what the user will owe when they file, not a filed-return balance. */}
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED TAX OWED' : 'ESTIMATED REFUND'}</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
             </div>
@@ -708,6 +723,18 @@ export default function TaxReturn() {
                   {/* FIX (Pass5-AMT-disclaimer): surface that AMT is an estimate and
                       does not cover all Form 6251 preference items (e.g. PTEP, ACE adj). */}
                   Estimate only — excludes some Form 6251 preference items (e.g. certain ISO exercises, ACE adjustment). Verify with a CPA.
+                </div>
+              )}
+              {/* FIX (labels): QBI Deduction row — shows §199A deduction actually applied.
+                  Previously invisible, making it impossible for users to verify the deduction.
+                  Displayed in green (it reduces tax), only when non-zero. Amount derived from
+                  agi − appliedDeduction − ordinaryTaxableIncome, which equals the §199A
+                  deduction calcTaxReturn applied (the difference between taxableBeforeQBI
+                  and taxableAfterQBI in taxCalc.js). */}
+              {qbiDeduction > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
+                  <span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(qbiDeduction)})</span>
                 </div>
               )}
             </div>
