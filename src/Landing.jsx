@@ -72,8 +72,12 @@ export default function Landing() {
           Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe whenever you need it, so you can make strategic moves that preserve capital and accelerate wealth building.
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
-          <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Start Free 7-Day Trial</button>
-          <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Already have an account</button>
+          {/* FIX (F3-07): Both hero CTA buttons carried textDecoration:'underline' — a
+              hyperlink affordance that doesn't belong on button elements. Underline is
+              inconsistent with every other button on the page (nav, bottom CTA, pricing)
+              and signals a link, not an action. Removed from both buttons. */}
+          <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Start Free 7-Day Trial</button>
+          <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Already have an account</button>
         </div>
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
 
@@ -95,26 +99,57 @@ export default function Landing() {
         </div>
         <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Don&apos;t use accounting software? Enter your numbers manually — it takes under 2 minutes.</p>
       </section>
+
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ color: '#93b4d4', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
-        <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', paddingTop: '50.625%' }}>
+        {/* FIX (F2-03 — video embed): The original wrapper used the padding-top percentage
+            hack (paddingTop: '50.625%') to create a 16:9 aspect ratio. Two problems:
+            (1) 50.625% is arithmetically wrong — the correct 16:9 value is 56.25%
+                (9 ÷ 16 = 0.5625). The value 50.625% ≈ 56.25% × 0.9, likely the result
+                of someone multiplying by the maxWidth (900px) relative to an assumed
+                1000px viewport.
+            (2) Even a corrected 56.25% breaks when combined with maxWidth: 900 because
+                CSS percentage padding is computed against the *containing block's width*
+                (the parent section, which is full-viewport), not the element's own
+                max-capped width. The iframe would be 900px wide but taller or shorter
+                than 16:9 depending on viewport size.
+            Fix: replace the padding-top hack with aspectRatio: '16/9'. The browser
+            computes height from the element's own rendered width, giving a correct
+            16:9 box regardless of viewport size. paddingTop is removed entirely. */}
+        <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', aspectRatio: '16/9' }}>
           <iframe src="https://player.vimeo.com/video/1185021252?autoplay=0&title=0&byline=0&portrait=0" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen></iframe>
         </div>
       </section>
+
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
         </div>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Built by a Former IRS Revenue Agent</h2>
+        {/* FIX (B-02 — IRS agent copy): Three issues in this section's body and button.
+            (1) "developed by someone who spent years inside the IRS" — the anonymous
+                "someone" actively undermines the specific headline credential. A headline
+                that names a title ("Former IRS Revenue Agent") and a body that hides the
+                person as "someone" creates a credibility gap that skeptical prospects
+                will notice. Changed to "our founder."
+            (2) "AI-powered protection" — "protection" is a legally loaded word for a
+                tool whose footer explicitly states it is not professional tax advice. If
+                a user claims they relied on TaxStat360 for "protection" from an audit or
+                penalty, this phrasing becomes an exhibit. Changed to "AI-powered guidance."
+            (3) Button text "✓ Built on IRS Tax Code Standards" — a product claim on a
+                nav('/signup') button is not a CTA. It tells the user nothing about what
+                clicking will do and wastes the conversion moment at the end of a high-
+                trust credentialing section. Changed to action-oriented copy. */}
         <p style={{ fontSize: 13, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          TaxStat360 was developed by someone who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into AI-powered protection for your business.
+          TaxStat360 was developed by our founder, who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into AI-powered guidance for your business.
         </p>
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          &#10003; Built on IRS Tax Code Standards
+          Start Your Free 7-Day Trial →
         </button>
       </section>
+
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 id="features" style={{ scrollMarginTop: 72, fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
@@ -138,6 +173,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
+
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 id="how-it-works" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Your tax bill in 3 steps</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
@@ -164,6 +200,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
+
       <section style={{ padding: '32px 24px', background: '#F8FAFC', textAlign: 'center' }}>
         <h2 id="faq" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Frequently Asked Questions</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
@@ -196,6 +233,7 @@ export default function Landing() {
           ))}
         </div>
       </section>
+
       <section id="pricing" style={{ scrollMarginTop: 72, padding: '32px 24px', textAlign: 'center', background: '#fff' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Simple, Transparent Pricing</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Card required — no charge until after your 7-day trial. Cancel anytime.</p>
@@ -216,7 +254,10 @@ export default function Landing() {
               <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 2 }}>{isAnnual ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span></div>
               {isAnnual && <div style={{ fontSize:11, opacity:0.7, marginBottom:4 }}>billed {p.annualTotal}/yr</div>}
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
-              <button onClick={() => nav('/signup?plan='+p.name.toLowerCase()+'&billing='+billing)} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24, textDecoration: 'underline' }}>Start Free Trial</button>
+              {/* FIX (F3-07): Pricing tier buttons carried textDecoration:'underline' — same
+                  hyperlink affordance issue as the hero CTAs. Removed. All other button
+                  styles (background, border, color) are unchanged. */}
+              <button onClick={() => nav('/signup?plan='+p.name.toLowerCase()+'&billing='+billing)} style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24 }}>Start Free Trial</button>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
                 {p.features.map((f,j) => (
                   <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: p.highlight ? '#d1e0f5' : '#475569', borderTop: j === 0 ? 'none' : '1px solid ' + (p.highlight ? 'rgba(255,255,255,0.08)' : '#f1f5f9') }}>
@@ -229,12 +270,14 @@ export default function Landing() {
         </div>
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
       </section>
+
       <section style={{ padding: '36px 24px', background: N, textAlign: 'center' }}>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
         <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join business owners who manage tax liability proactively every month and keep more of what they earn.</p>
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>Start Your Free 7-Day Trial</button>
         <p style={{ color: '#64748b', fontSize: 13 }}>Credit card required &middot; No charge for 7 days &middot; Cancel anytime</p>
       </section>
+
       <section id="contact" style={{background:'#F8FAFC',padding:'80px 24px'}}>
         <div style={{maxWidth:600,margin:'0 auto'}}>
           <div style={{textAlign:'center',marginBottom:40}}>
