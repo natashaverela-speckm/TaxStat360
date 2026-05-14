@@ -419,7 +419,8 @@ function RiskScan({ rec }) {
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
 // Solo 401(k) employee deferral limits by tax year — Rev. Proc. 2024-40 (2025), 2023-34 (2024)
-const SOLO_401K_DEFERRAL_LIMITS = { 2024: 23000, 2025: 23500, 2026: 24000 }
+// 2026 figure is estimated pending IRS COLA announcement (Rev. Proc. 2025-xx, typically Nov)
+const SOLO_401K_DEFERRAL_LIMITS = { 2024: 23000, 2025: 23500, 2026: 24000 /* estimated */ }
 
 function TaxOptimization({ rec }) {
   if (!rec) return <NoData />
