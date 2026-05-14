@@ -641,11 +641,14 @@ function calcTaxReturn(input) {
 
   // ── §6654(d)(1) Estimated Tax Safe Harbor — F5-04 ────────────────────────────
   // Two approaches; pay the LESSER to avoid the §6654 underpayment penalty:
-  //   (A) Current year:  90% of current year total tax — §6654(d)(1)(A)
-  //   (B) Prior year:   100% of prior year tax (110% if prior year AGI > threshold)
-  //                      §6654(d)(1)(B); thresholds are NOT inflation-adjusted:
-  //                        $150,000 for all filers EXCEPT MFS — §6654(d)(1)(B)(ii)(II)
-  //                        $75,000  for MFS filers           — §6654(d)(1)(B)(ii)(II)
+  //   §6654(d)(1)(B)(i)   — 90% of current year total tax
+  //   §6654(d)(1)(B)(ii)  — 100% of prior year tax
+  //   §6654(d)(1)(D)      — 110% substitution when prior year AGI exceeds threshold:
+  //                           $150,000 for all filers except MFS
+  //                           $75,000  for MFS filers — §6654(d)(1)(D) by reference
+  //                           Neither amount is inflation-adjusted.
+  // §6654(d)(1)(A) defines the installment amount (25% of required annual payment) —
+  // it is NOT the cite for the 90% safe harbor option.
   // Note: the prior year safe harbor is often the more actionable option for growing
   // businesses — it is fixed at the start of the year and requires no mid-year estimates
   // of current-year income. Display both approaches in the UI so users can choose.
@@ -654,9 +657,9 @@ function calcTaxReturn(input) {
   // MFS filers use $75,000; all others use $150,000 — §6654(d)(1)(B)(ii)(II)
   const agiBoundary       = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
-  const safeHarborCurrentYear = Math.round(totalTax * 0.90)    // §6654(d)(1)(A) — 90% of current year
+  const safeHarborCurrentYear = Math.round(totalTax * 0.90)    // §6654(d)(1)(B)(i)  — 90% of current year
   const safeHarborPriorYear   = priorYearTaxAmt > 0
-    ? Math.round(priorYearTaxAmt * priorYearMultiplier)          // §6654(d)(1)(B) — 100%/110% of prior year
+    ? Math.round(priorYearTaxAmt * priorYearMultiplier)          // §6654(d)(1)(B)(ii) — 100%/110% of prior year
     : null                                                        // null = prior year tax not entered; UI shows current-year approach only
   const safeHarborMinimum  = safeHarborPriorYear !== null
     ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)       // lesser of the two = safe harbor amount
