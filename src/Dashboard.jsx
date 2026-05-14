@@ -541,9 +541,48 @@ export default function Dashboard(){
         box17V_sstb: !!e.box17V_sstb,
       }
     })
-    const k1TotalRestored = restoredEntities.reduce((s, e) => s + (e.k1 || 0), 0)
+
+    // FIX (F1-01 — root cause): Dashboard-saved records have no pnl field, so
+    // restoredEntities is always [] for them after the .filter(e => e && e.pnl) above.
+    // writeStep1State({ entities: [] }) leaves Step 1 with no entity data, and the
+    // entity type silently reverts to the Step 1 default on every "Load & Continue" click.
+    //
+    // Fix: when restoredEntities is empty and the record has flat biz data (Dashboard save
+    // schema), build a minimal shell entity from the flat fields so Step 1 receives the
+    // correct entity type, gross revenue, and K-1. The shell matches the shape that
+    // CalculateTaxInner expects: { name, type, own, netProfit, k1, box17K, … }.
+    //
+    // rec.k1Income is written by Dashboard's handleSave (see U-01 / quarterly fix above)
+    // and is the most reliable K-1 value for Dashboard-saved records. Fall back to
+    // computing netProfit from the flat P&L fields if k1Income is absent.
+    const entitiesToWrite = restoredEntities.length > 0
+      ? restoredEntities
+      : rec.biz
+        ? (() => {
+            const flatBiz = rec.biz
+            const rev  = parseFloat(flatBiz.grossRevenue)      || 0
+            const cogs = parseFloat(flatBiz.cogs)              || 0
+            const opEx = parseFloat(flatBiz.operatingExpenses) || 0
+            const sal  = parseFloat(flatBiz.officerSalary)     || 0
+            const dep  = parseFloat(flatBiz.depreciation)      || 0
+            const adv  = parseFloat(flatBiz.advertising)       || 0
+            const oth  = parseFloat(flatBiz.otherDeductions)   || 0
+            const netProfit = rev - cogs - opEx - sal - dep - adv - oth
+            return [{
+              name:     flatBiz.entityType || flatBiz.type || 'Business',
+              type:     flatBiz.entityType || flatBiz.type || 'S Corporation',
+              own:      parseInt(flatBiz.ownershipPct || flatBiz.own) || 100,
+              netProfit,
+              k1:       parseFloat(rec.k1Income) || Math.round(netProfit * ((parseInt(flatBiz.ownershipPct) || 100) / 100)),
+              box17K:   0, box11_12: 0, box12_13: 0,
+              box17V_wages: 0, box17V_ubia: 0, box17V_sstb: false,
+            }]
+          })()
+        : []
+
+    const k1TotalRestored = entitiesToWrite.reduce((s, e) => s + (e.k1 || 0), 0)
     writeStep1State({
-      entities: restoredEntities,
+      entities: entitiesToWrite,
       entitiesRaw: sourceEntities,
       k1Total: k1TotalRestored,
       isCoopPatron: false,
@@ -605,6 +644,17 @@ export default function Dashboard(){
                 return
               }
               setShowStep1Warning(false)
+              // FIX (F1-06 — tab behavior): The f1040 tab was unconditionally calling
+              // nav('/tax-return'), which meant setActiveView('f1040') was NEVER called
+              // and the entire {activeView==='f1040'&&…} render block below (inline 1040
+              // breakdown, quarterly schedule, recommendations, save CTA) was permanently
+              // dead code — the user always got bounced to a separate route instead of
+              // seeing the inline view that is clearly the intended UX.
+              //
+              // Fix: write session state for downstream sync (same as before) but switch
+              // to the inline f1040 view via setActiveView instead of navigating away.
+              // Users who want the full Step 2 TaxReturn flow can still reach it via
+              // "Load & Continue →" on any record card.
               writeStep1State({
                 entities: [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}],
                 k1Total: calc?.k1 || 0,
@@ -620,7 +670,7 @@ export default function Dashboard(){
                 itemizedAmt: parseFloat(f1040.itemizedDed) || 0,
               })
               writeTaxYear(biz.year||2025)
-              nav('/tax-return')
+              setActiveView('f1040')  // FIX (F1-06): was nav('/tax-return') — show inline view instead
             } else {
               setActiveView(v)
               setShowStep1Warning(false)  // clear warning when switching back to records
@@ -698,7 +748,14 @@ export default function Dashboard(){
                       📄 {rec.savedAt||'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-                      <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.entityType||rec.entityType||'—'}</strong></span>
+                      {/* FIX (F1-05 — revenue display): TaxReturn saves entity type as
+                          rec.biz.type; Dashboard saves it as rec.biz.entityType. The original
+                          expression only checked rec.biz?.entityType and rec.entityType, so
+                          every TaxReturn-saved record showed '—' in the Entity column even
+                          when the type (e.g. 'S Corporation') was plainly present in the
+                          record. Added rec.biz?.type as the first fallback to cover both
+                          save-path schemas. */}
+                      <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.type||rec.biz?.entityType||rec.entityType||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:displayRevenue&&parseFloat(displayRevenue)>0?N:'#94A3B8'}}>{displayRevenue&&parseFloat(displayRevenue)>0?'$'+parseFloat(displayRevenue).toLocaleString():'No data'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>W-2: <strong style={{color:N}}>{rec.f1040?.w2Income&&parseFloat(rec.f1040.w2Income)>0?'$'+parseFloat(rec.f1040.w2Income).toLocaleString():'—'}</strong></span>
