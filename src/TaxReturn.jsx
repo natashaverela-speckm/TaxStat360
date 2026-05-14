@@ -111,7 +111,7 @@ export default function TaxReturn() {
     () => typeof window !== 'undefined' && window.innerWidth < 768
   )
   React.useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
     const mq = window.matchMedia('(max-width: 767px)')
     setIsMobile(mq.matches)
     const handler = (e) => setIsMobile(e.matches)
