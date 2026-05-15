@@ -209,6 +209,45 @@ export default function TaxReturn() {
   const saltForItemized = Math.min(nv(saltPaid), saltDeductionCap)
   const computedItemizedAmt = saltForItemized + nv(mortgageInt) + nv(charitableGifts)
 
+  // ── F4-03 FIX: Normalize entity shape for calcTaxReturn / calcQBI ─────────────
+  // readStep1State() stores K-1 income and officer salary nested under e.pnl:
+  //   e.pnl.netProfit     → K-1 ordinary business income
+  //   e.pnl.officerSalary → officer W-2 salary
+  //
+  // taxCalc.js nonSEk1 reducer expects the flat property e.k1 (falls back to e.netProfit).
+  // calcQBI F5-03 W-2 wage proxy expects the flat property e.officerW2.
+  // Without this mapping both resolve to undefined → 0, collapsing qbiBasis to 0
+  // and causing calcQBI to early-exit with deduction: 0 and wage: null, which:
+  //   • Omits the §199A deduction from the displayed tax (overstates by ~$13K)
+  //   • Triggers the false-positive "no W-2 wages found" hard warning
+  //   • Inflates quarterly estimates ($17,259 vs correct ~$13,806)
+  //
+  // Display code below (K-1 summary rows, officer W-2 carry-through banner) reads
+  // e.pnl directly and is intentionally left unchanged — only the calc input is mapped.
+  // If Step 1 ever writes e.k1 / e.officerW2 directly, the undefined-guards below
+  // prevent double-mapping (e.k1 !== undefined check, parseFloat chain).
+  const entitiesForCalc = entities.map(e => {
+    // parseFloat (not parseInt) preserves fractional ownership (e.g. 33.33%).
+    // parseInt would truncate to 33%, understating K-1 income and the QBI base
+    // by ~1% per entity — material at higher income levels. Review flag: Check 1.
+    const own = (parseFloat(e.own) || 100) / 100
+    return {
+      ...e,
+      // Surface pnl.netProfit × ownership as e.k1 for nonSEk1 reducer in calcTaxReturn.
+      // Preserve any e.k1 that Step 1 may have written directly (forward-compat guard).
+      k1: e.k1 !== undefined
+        ? e.k1
+        : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own),
+      // Surface pnl.officerSalary as e.officerW2 for calcQBI §199A(b)(2) W-2 wage proxy.
+      // Use !== undefined (not ||) so an explicit e.officerW2 = 0 (Box 17V confirmed zero)
+      // is honoured and does not fall through to pnl.officerSalary. Mirrors k1 guard
+      // semantics. Review flag: Check 3.
+      officerW2: e.officerW2 !== undefined
+        ? parseFloat(e.officerW2) || 0
+        : parseFloat(e?.pnl?.officerSalary) || 0,
+    }
+  })
+
   // ── Build inputs for calcTaxReturn ───────────────────────────────────────────
   const inputs = {
     taxYear,
@@ -245,7 +284,8 @@ export default function TaxReturn() {
     // F5-04: prior year safe harbor inputs
     priorYearTax: nv(priorYearTax),
     priorYearAGI: nv(priorYearAGI),
-    entities,
+    // F4-03: use normalized entities so calcQBI receives e.k1 and e.officerW2
+    entities: entitiesForCalc,
   }
 
   const result = calcTaxReturn(inputs)
@@ -380,9 +420,10 @@ export default function TaxReturn() {
                 ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
               </div>
             )}
-            {/* F2-02: QBI warning — updated to reflect officerW2 proxy behavior.
-                When wage cap IS null (no Box 17V AND no officer W-2 proxy), show the stronger warning.
-                When wage cap is non-null (officer W-2 proxy applied), show a softer informational note. */}
+            {/* F2-02: QBI warning — fires only when wage is genuinely missing (wage: null).
+                After F4-03 fix, wage will be non-null whenever officer salary or Box 17V
+                wages are present — so this hard warning is correctly suppressed in that case.
+                The softer informational notice below handles the wage-limited (non-null) case. */}
             {k1Total > 0 && result.qbiCaps?.wage === null &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
@@ -465,9 +506,6 @@ export default function TaxReturn() {
 
           {/* W-2 income & withholding */}
           <CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
-            {/* F2-01: Officer W-2 carry-through — show which entities contributed salary.
-                This amount is automatically included from Step 1 and must NOT be re-entered here.
-                Only shown when at least one entity has an officer salary > 0. */}
             {totalOfficerSalary > 0 && (
               <div style={{ marginTop: 12, marginBottom: 4, padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#1E40AF', letterSpacing: '0.5px', marginBottom: 6 }}>OFFICER W-2 — CARRIED FROM STEP 1 (DO NOT RE-ENTER)</div>
@@ -565,7 +603,6 @@ export default function TaxReturn() {
                 <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 <div style={{ fontSize: 10, color: '#A855F7', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
               </div>
-              {/* Collectibles Gain input — state and calc existed but UI was missing */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Collectibles Gain <InfoTip text="Gain from sale of coins, art, antiques, gems, stamps, or other collectibles held more than 1 year — taxed at max 28% rate (IRC §1(h)(4)). Enter as a positive number. Short-term collectibles gains are taxed at ordinary rates — enter those in the Short-Term field." /></label>
                 <MoneyInput value={collectiblesGain} onChange={setCollectiblesGain} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
@@ -574,7 +611,6 @@ export default function TaxReturn() {
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Taxable Interest <InfoTip text="Interest earned from bank accounts, bonds, CDs — 1040 Line 2b. Do NOT include tax-exempt municipal bond interest (that goes on Line 2a and is not entered here)." /></label>
                 <MoneyInput value={interest} onChange={setInterest} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-                {/* F3-02: fixed self-contradictory "do not include interest" note */}
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 2b — taxable interest only; tax-exempt interest (Line 2a) is not entered here</div>
               </div>
               <div>
@@ -637,7 +673,6 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 12, paddingTop: 8 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                {/* F5-06: tooltip updated to cite Notice 2008-1 and clarify the required two-step W-2 process */}
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
                   &gt;2% Shareholder / Self-Employed Health Insurance (Sch 1, Line 17)
                   <InfoTip text="For S-corp owners (>2% shareholders): premiums must first be included in your W-2 Box 1 wages by the S-Corp, then deducted here on Schedule 1 Line 17 (IRC §162(l); Notice 2008-1). This two-step process is mandatory — failing to include premiums in W-2 wages disqualifies the deduction. Not deductible if eligible for employer-sponsored coverage through a spouse. For sole proprietors and partners: enter premiums under IRC §162(l)." />
@@ -701,14 +736,14 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* Estimated tax payments — F5-04: add prior year safe harbor inputs */}
+          {/* Estimated tax payments */}
           <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
             <div style={{ paddingTop: 12 }}>
               <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid. Do not include W-2 withholding here — enter that in the W-2 section above." /></label>
               <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
-            {/* F5-04: prior year safe harbor inputs — §6654(d)(1)(B) and §6654(d)(1)(D) */}
+            {/* F5-04: prior year safe harbor inputs */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 6 }}>PRIOR YEAR SAFE HARBOR (OPTIONAL)</div>
               <div style={{ fontSize: 12, color: SL, marginBottom: 10, lineHeight: 1.5 }}>
@@ -739,7 +774,6 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
               {totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}
             </div>
-            {/* B-03: state tax callout — users need to know their total burden is higher */}
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, marginBottom: 16, lineHeight: 1.4 }}>
               Federal only — state income tax not included. Your total tax burden will be higher.{' '}
               <a href="https://www.taxfoundation.org/data/all/state/state-income-tax-rates/" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'underline', fontSize: 10 }}>State rates →</a>
@@ -799,7 +833,7 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* Income Waterfall — F3-05: default expanded; F3-06: updated K-1 label */}
+          {/* Income Waterfall */}
           {(() => {
             const totalW2 = scaledW2 + scaledOfficerSal
             const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
@@ -825,7 +859,6 @@ export default function TaxReturn() {
                 </button>
                 {showWaterfall && (
                   <div style={{ padding: '4px 18px 16px', borderTop: '1px solid #F1F5F9' }}>
-                    {/* F3-06: updated from 'K-1 / Business Income' for clarity */}
                     {scaledK1 !== 0 && wfRow('K-1 Ordinary Business Income', scaledK1)}
                     {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
                     {totalOther !== 0 && wfRow('Other Income', totalOther)}
@@ -841,7 +874,7 @@ export default function TaxReturn() {
             )
           })()}
 
-          {/* Quarterly estimated payments — F5-04: safe harbor display; F2-07: annualized note */}
+          {/* Quarterly estimated payments */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
             {quarterDefs.map((q, i) => {
@@ -865,7 +898,7 @@ export default function TaxReturn() {
             })}
             <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>Based on annual liability ÷ 4. Adjust for income earned to date.</div>
 
-            {/* F5-04: prior year safe harbor display — only when prior year tax was entered */}
+            {/* F5-04: prior year safe harbor display */}
             {safeHarborPriorYear !== null && (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #E2E8F0' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 8 }}>§6654 SAFE HARBOR OPTIONS</div>
@@ -890,7 +923,7 @@ export default function TaxReturn() {
               </div>
             )}
 
-            {/* F2-07: annualized income installment method note — §6654(d)(2) */}
+            {/* F2-07: annualized income installment method note */}
             <div style={{ marginTop: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
               💡 <strong>Uneven income?</strong> The annualized income installment method (§6654(d)(2)) may allow lower payments in early quarters when income is earned unevenly. This requires calculating each quarter's actual income — consult a CPA or IRS Form 2210.
             </div>
