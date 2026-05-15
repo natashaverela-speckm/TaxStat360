@@ -227,7 +227,10 @@ export default function TaxReturn() {
   // If Step 1 ever writes e.k1 / e.officerW2 directly, the undefined-guards below
   // prevent double-mapping (e.k1 !== undefined check, parseFloat chain).
   const entitiesForCalc = entities.map(e => {
-    const own = (parseInt(e.own) || 100) / 100
+    // parseFloat (not parseInt) preserves fractional ownership (e.g. 33.33%).
+    // parseInt would truncate to 33%, understating K-1 income and the QBI base
+    // by ~1% per entity — material at higher income levels. Review flag: Check 1.
+    const own = (parseFloat(e.own) || 100) / 100
     return {
       ...e,
       // Surface pnl.netProfit × ownership as e.k1 for nonSEk1 reducer in calcTaxReturn.
@@ -236,8 +239,12 @@ export default function TaxReturn() {
         ? e.k1
         : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own),
       // Surface pnl.officerSalary as e.officerW2 for calcQBI §199A(b)(2) W-2 wage proxy.
-      // Prefer Box 17V wages when already present; fall back to officer salary from pnl.
-      officerW2: parseFloat(e.officerW2) || parseFloat(e?.pnl?.officerSalary) || 0,
+      // Use !== undefined (not ||) so an explicit e.officerW2 = 0 (Box 17V confirmed zero)
+      // is honoured and does not fall through to pnl.officerSalary. Mirrors k1 guard
+      // semantics. Review flag: Check 3.
+      officerW2: e.officerW2 !== undefined
+        ? parseFloat(e.officerW2) || 0
+        : parseFloat(e?.pnl?.officerSalary) || 0,
     }
   })
 
