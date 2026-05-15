@@ -608,9 +608,18 @@ export default function Dashboard(){
         : []
 
     const k1TotalRestored = entitiesToWrite.reduce((s, e) => s + (e.k1 || 0), 0)
+    // FIX (Issue #56 / entitiesRaw): The calculator reads from readStep1StateRaw() which
+    // returns entitiesRaw, NOT entities. Passing sourceEntities (unnormalized) as entitiesRaw
+    // meant legacy 'S-Corporation' (hyphen) types were written there, causing the calculator
+    // dropdown to silently fall back to the first option (Sole Proprietor / Single-Member LLC).
+    // Normalize each entity's type field before writing to entitiesRaw so the calculator
+    // always receives a canonical string that matches an ENTITY_TYPES option.
+    const sourceEntitiesNormalized = sourceEntities.map(e =>
+      e && e.type ? { ...e, type: normalizeEntityType(e.type) } : e
+    )
     writeStep1State({
       entities: entitiesToWrite,
-      entitiesRaw: sourceEntities,
+      entitiesRaw: sourceEntitiesNormalized,
       k1Total: k1TotalRestored,
       isCoopPatron: false,
     })
