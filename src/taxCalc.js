@@ -54,6 +54,10 @@ const TAX_TABLES = {
     addlMed: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     // §461(l) excess business loss thresholds — Rev. Proc. 2023-34 §3.13 (2024)
     ebl:     { single:305000, mfj:610000, mfs:305000, hoh:305000, qss:610000 },
+    // §24 Child Tax Credit — IRC §24(a): $2,000/child (TCJA P.L. 115-97); not inflation-adjusted for 2024.
+    // Phase-out per §24(b)(1): $50 per $1,000 (or fraction) above $200K single / $400K MFJ.
+    // Thresholds are NOT inflation-adjusted. See calcTaxReturn for full phase-out logic.
+    ctc:     { perChild: 2000 },
   },
   2025: {
     // Standard deduction per Rev. Proc. 2024-40 as amended by OBBBA P.L. 119-21 §70101
@@ -71,6 +75,9 @@ const TAX_TABLES = {
     addlMed: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     // §461(l) excess business loss thresholds — Rev. Proc. 2024-40 §3.14 (2025)
     ebl:     { single:313000, mfj:626000, mfs:313000, hoh:313000, qss:626000 },
+    // §24 Child Tax Credit — OBBBA P.L. 119-21 §70301 raised per-child credit to $2,200 for 2025.
+    // Phase-out thresholds unchanged: $200K single / $400K MFJ — NOT inflation-adjusted per OBBBA.
+    ctc:     { perChild: 2200 },
   },
   2026: {
     std:        { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
@@ -87,6 +94,9 @@ const TAX_TABLES = {
     addlMed: { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
     // §461(l) excess business loss thresholds — estimated 2026 (update when Rev. Proc. 2025-xx publishes)
     ebl:     { single:320000, mfj:640000, mfs:320000, hoh:320000, qss:640000 },
+    // §24 Child Tax Credit — $2,200 per child (same as 2025; OBBBA did not index CTC for inflation).
+    // Phase-out thresholds: $200K single / $400K MFJ — unchanged per OBBBA.
+    ctc:     { perChild: 2200 },
   },
 }
 
@@ -608,9 +618,32 @@ function calcTaxReturn(input) {
   const nii       = Math.max(0, intInc + divInc + Math.max(0, ltGain + stGain + unrec1250 + collectibles) + rentalNII)
   const niit      = calcNIIT(nii, agi, taxYear, status)
 
-  // ── Child Tax Credit — IRC §24 ───────────────────────────────────────────────
-  const numDependents = parseInt(dependents) || 0
-  const childCredit   = Math.min(numDependents * 2000, fedTax + additionalMedicare + niit)
+  // ── Child Tax Credit — IRC §24 (as amended by OBBBA P.L. 119-21 §70301) ─────
+  // Per-child amount: $2,000 (2024) | $2,200 (2025–2026) — see TAX_TABLES[year].ctc.
+  // The OBBBA raised the credit to $2,200 for 2025 and did not index it for inflation.
+  //
+  // Phase-out per §24(b)(1) — AGI above the threshold reduces the credit:
+  //   $50 reduction per $1,000 of AGI (or fraction thereof) above the threshold.
+  //   Threshold: $200,000 (single / HOH / MFS) | $400,000 (MFJ / QSS)
+  //   Thresholds are NOT inflation-adjusted per TCJA (made permanent by OBBBA).
+  //
+  // Phase-out uses AGI (not modified AGI). For most filers these are identical.
+  //
+  // Simplification: all entered dependents treated as qualifying children under 17.
+  //   — Other Dependent Credit ($500 per non-child qualifying dependent) and the
+  //     Additional Child Tax Credit (ACTC, refundable, Schedule 8812) are not
+  //     separately computed. Mixed-age families may see a slightly lower actual credit;
+  //     lower-income filers eligible for ACTC may have a higher refund than shown here.
+  const numDependents        = parseInt(dependents) || 0
+  const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
+  const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? 400000 : 200000
+  const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
+  // "or fraction thereof" means ceiling — IRC §24(b)(1)
+  const ctcReduction         = Math.ceil(ctcExcess / 1000) * 50
+  const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
+  // Non-refundable credit: cannot reduce income tax + addl Medicare + NIIT below $0.
+  // ACTC (refundable portion, §24(d)) is not separately computed here.
+  const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niit))
 
   // ── AMT — Form 6251 ──────────────────────────────────────────────────────────
   const amt = calcAMT({
@@ -679,7 +712,7 @@ function calcTaxReturn(input) {
     ordFedTax, prefTax, fedTax,
     marginalRate,
     addlMedThreshold, additionalMedicare, rentalNII, nii, niit,
-    numDependents, childCredit,
+    numDependents, childCredit, ctcRaw, ctcReduction, ctcPerChild,
     amt,
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
