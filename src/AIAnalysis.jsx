@@ -231,7 +231,6 @@ function RiskScan({ rec }) {
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
 
-
   const rentalExpenses = parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
   const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
@@ -239,7 +238,6 @@ function RiskScan({ rec }) {
   const rentalNet = Math.max(0, rentalIncome - rentalExpenses)
   const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
   const totalIncome = k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
-
 
   const year = parseInt(b.year) || 2025
   const filing = f.filingStatus || 'single'
@@ -251,7 +249,6 @@ function RiskScan({ rec }) {
   const roughTax = calcFederalTax(_taxable, year, filing)
   const _marginalRate = getMarginalRate(_taxable, year, filing)
   const today = new Date()
-
 
   const qDeadlines = [
     {month:4,day:15,label:'April 15'},
@@ -266,9 +263,7 @@ function RiskScan({ rec }) {
   const deadlines = { get month(){ return nextDeadline.label } }
   const month = 'month'
 
-
   const findings = []
-
 
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   if (sCorpEntities.length > 0) {
@@ -302,7 +297,7 @@ function RiskScan({ rec }) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    // AI-FIX-02 (fallback branch): same threshold alignment fix as entity-loop branch above.
+      // AI-FIX-02 (fallback branch): same threshold alignment fix as entity-loop branch above.
     } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
@@ -314,7 +309,6 @@ function RiskScan({ rec }) {
     }
   }
 
-
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
@@ -325,13 +319,11 @@ function RiskScan({ rec }) {
       action: null })
   }
 
-
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
       action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
   }
-
 
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const _year = parseInt(b.year) || 2025
@@ -349,13 +341,11 @@ function RiskScan({ rec }) {
       action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.` })
   }
 
-
   if (isCCorpEntity(b.entityType) && revenue > 0) {
     findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
       detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
       action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
   }
-
 
   if (roughTax > 10000) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
@@ -377,7 +367,6 @@ function RiskScan({ rec }) {
       action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(s179Offset)} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
-
   if (rentalIncome > 0 || isREP) {
     if (isREP) {
       findings.push({ level: 'info', icon: '🏠', title: 'Real Estate Professional — Criteria Checklist',
@@ -390,17 +379,14 @@ function RiskScan({ rec }) {
     }
   }
 
-
   findings.push({ level: 'info', icon: '📅', title: `Next Quarterly Deadline: ${deadlines[month]}`,
     detail: 'IRS Form 1040-ES quarterly estimated tax payment due date.',
     action: estPay > 0
       ? `Your recorded payments total ${fmt(estPay)}. Verify this covers 90% of current year tax or 100% of prior year tax to avoid penalties.`
       : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
 
-
   const levelOrder = { high: 0, medium: 1, info: 2, good: 3 }
   findings.sort((a, b) => levelOrder[a.level] - levelOrder[b.level])
-
 
   const colors = {
     high:   { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' },
@@ -408,7 +394,6 @@ function RiskScan({ rec }) {
     info:   { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' },
     good:   { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', badge: '#059669' },
   }
-
 
   return (
     <div>
@@ -468,7 +453,6 @@ function TaxOptimization({ rec }) {
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
 
-
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
   const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
   const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
@@ -476,14 +460,12 @@ function TaxOptimization({ rec }) {
   const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
   const agi = Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
 
-
   const _taxableBeforeQBI_opt = Math.max(0, agi - stdDed)
   const { deduction: _qbiOpt } = isPassthroughEntity(b.entityType) && k1 > 0
     ? calcQBI(k1, _taxableBeforeQBI_opt, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
     : { deduction: 0 }
   const taxable = Math.max(0, _taxableBeforeQBI_opt - _qbiOpt)
   const marginalRate = getMarginalRate(taxable, year, filing)
-
 
   const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
   const k1ForGuard = parseFloat(rec?.k1Income) || 0
@@ -501,7 +483,6 @@ function TaxOptimization({ rec }) {
   const opportunities = []
   const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
 
-
   // FIX (T-01 — SEP-IRA S-Corp): S-Corp owner-employees may only base SEP-IRA /
   // Solo 401(k) contributions on their W-2 officer salary, NOT K-1 distributions
   // (IRC §402(h), §415(c); IRS Pub. 560).
@@ -514,10 +495,8 @@ function TaxOptimization({ rec }) {
   const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? 0.25 : 0.20))
   const maxSolo401k = Math.min(70000, maxSolo401kEmployer + solo401kDeferral)
 
-
   if (isPassthrough) {
     if (isSCorpOwner && totalOfficerSalary === 0) {
-      // Blocked — surface as a linked opportunity so user sees the path to unlock it
       opportunities.push({
         icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
         priority: 'high', saving: null,
@@ -525,7 +504,6 @@ function TaxOptimization({ rec }) {
         howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in 2025). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
-      // F5-05: SEP-IRA card — separate from Solo 401(k)
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
       const sepDetail = isSCorpOwner
         ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is 25% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max $70,000). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
@@ -537,7 +515,6 @@ function TaxOptimization({ rec }) {
         howTo: `At your marginal rate of ${pct(marginalRate * 100)}, a max contribution saves approx. ${fmt(sepTaxSaved)} in federal tax. Open at any major brokerage (Fidelity, Schwab, Vanguard). Deadline: your tax filing date including extensions (typically Oct 15).`
       })
 
-      // F5-05: Solo 401(k) card — show separately with higher potential contribution
       if (isSCorpOwner) {
         const solo401kTaxSaved = Math.round(maxSolo401k * marginalRate)
         opportunities.push({
@@ -551,7 +528,6 @@ function TaxOptimization({ rec }) {
     }
   }
 
-
   if (revenue > 30000 && dep === 0) {
     opportunities.push({
       icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
@@ -560,7 +536,6 @@ function TaxOptimization({ rec }) {
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }
-
 
   // FIX (L-02): Home office howTo text is entity-type aware.
   const homeOfficeHowTo = isSCorpOwner
@@ -576,23 +551,18 @@ function TaxOptimization({ rec }) {
     howTo: homeOfficeHowTo
   })
 
-
   if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && sCorpK1 > 50000) {
     // F5-07: seTaxSaved — note this uses 15.3% which is accurate up to the SS wage base.
-    // Above the SS wage base ($176,100 for 2025), only the 2.9% Medicare rate applies,
-    // so the actual savings may be lower for high-income owners.
     const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * 0.0765 * 2)
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
-        // F5-07: added SS wage base caveat
         detail: `Your S-Corp structure saves FICA taxes on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary. The FICA rate is 15.3% on wages up to the Social Security wage base ($176,100 for 2025) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
         howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the $176,100 SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary too low — IRS minimum guidance is typically 35–40% of net profit.`
       })
     }
   }
-
 
   opportunities.push({
     icon: '🏥', title: 'Health Savings Account (HSA)', priority: 'medium',
@@ -600,7 +570,6 @@ function TaxOptimization({ rec }) {
     detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to $4,300 (self-only) or $8,550 (family) to an HSA in 2025. Contributions are tax-deductible and grow tax-free.`,
     howTo: `At your rate of ${pct(marginalRate * 100)}, a max HSA contribution saves approx. ${fmt(Math.round(4300 * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for medical expenses are always tax-free.`
   })
-
 
   if (isSCorpEntity(b.entityType) && revenue > 0) {
     opportunities.push({
@@ -611,9 +580,7 @@ function TaxOptimization({ rec }) {
     })
   }
 
-
   const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: G }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
-
 
   return (
     <div>
@@ -665,12 +632,9 @@ function IRSCompliance({ rec }) {
   const year = parseInt(b.year) || 2025
   const today = new Date()
 
-
   const schedules = []
 
-
   schedules.push({ form: 'Form 1040', title: 'U.S. Individual Income Tax Return', status: 'required', detail: 'Your main personal tax return. All income sources flow here — W-2, K-1, Schedule E, Schedule C.', deadline: `April 15, ${year + 1}` })
-
 
   if (isSCorpEntity(entity)) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
@@ -685,7 +649,6 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Schedule C', title: 'Profit or Loss from Business', status: 'required', detail: 'Reports all business revenue and expenses. Net profit flows directly to Form 1040 Line 8.', deadline: 'Filed with Form 1040' })
     schedules.push({ form: 'Schedule SE', title: 'Self-Employment Tax', status: 'required', detail: 'Calculates 15.3% SE tax on net self-employment income. Half is deductible on Schedule 1.', deadline: 'Filed with Form 1040' })
   }
-
 
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
@@ -712,27 +675,35 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.${_sstbNote}${_lossNote}${_coopNote}`, deadline: 'Filed with Form 1040' })
   }
 
-
   if (w2 > 0) {
     schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', detail: `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040. Federal withholding reduces your tax liability.`, deadline: 'Issued by employer Jan 31' })
   }
-
 
   if (parseFloat(f.estPaid) > 0) {
     schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
-
   schedules.push({ form: 'Schedule 1', title: 'Additional Income and Adjustments', status: 'required', detail: 'Reports K-1 income, rental income, capital gains, NOL carryforward, and above-the-line deductions. Flows to Form 1040 Lines 8 and 10.', deadline: 'Filed with Form 1040' })
-  schedules.push({ form: 'Schedule 2', title: 'Additional Taxes', status: 'required', detail: 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 23.', deadline: 'Filed with Form 1040' })
 
+  // FIX (L-3): Schedule 2 description is now entity-type-aware.
+  // SE tax does NOT apply to S-Corp K-1 income per IRC §1402(a)(2) — mentioning it
+  // in the S-Corp context is misleading. Also corrects the line number: Schedule 2
+  // additional taxes carry to Form 1040 Line 17 (not Line 23 as previously stated).
+  schedules.push({
+    form: 'Schedule 2',
+    title: 'Additional Taxes',
+    status: 'required',
+    detail: isSCorpEntity(entity)
+      ? 'Carries Additional Medicare Tax (0.9%, Form 8959) and Net Investment Income Tax (3.8%, Form 8960) to Form 1040 Line 17. Note: SE tax does NOT apply to S-Corp K-1 income — IRC §1402(a)(2).'
+      : 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 17.',
+    deadline: 'Filed with Form 1040',
+  })
 
   const _interest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
   const _dividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
   if (_interest > 1500 || _dividends > 1500) {
     schedules.push({ form: 'Schedule B', title: 'Interest and Ordinary Dividends', status: 'required', detail: `Required when interest or ordinary dividends exceed $1,500. You reported ${fmt(_interest)} in interest and ${fmt(_dividends)} in ordinary dividends.`, deadline: 'Filed with Form 1040' })
   }
-
 
   const _stGain = parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0
   const _ltGain = parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0
@@ -744,12 +715,10 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 8949', title: 'Sales and Other Dispositions of Capital Assets', status: 'required', detail: 'Lists individual capital asset sales — purchase date, sale date, basis, proceeds. Subtotals roll up to Schedule D.', deadline: 'Filed with Schedule D' })
   }
 
-
   const _form4797 = parseFloat(String(f.form4797 || '').replace(/,/g, '')) || 0
   if (_form4797 !== 0 || _unrec1250 > 0) {
     schedules.push({ form: 'Form 4797', title: 'Sales of Business Property', status: 'required', detail: `Reports ${_form4797 !== 0 ? 'ordinary gain/loss on §1231 property and §1245/§1250 recapture' : 'unrecaptured §1250 gain (depreciation recapture on real property, taxed at max 25%)'}.`, deadline: 'Filed with Form 1040' })
   }
-
 
   const _rentalIncomeSch = parseFloat(String(b.rentalIncome || f.rentalIncome || '').replace(/,/g, '')) || 0
   const _isREP = b.isREP || f.isREP || rec?.isREP
@@ -760,11 +729,9 @@ function IRSCompliance({ rec }) {
     }
   }
 
-
   if ((parseFloat(String(b.depreciation || '').replace(/,/g, '')) || 0) > 0) {
     schedules.push({ form: 'Form 4562', title: 'Depreciation and Amortization', status: 'required', detail: 'Reports depreciation deductions for business assets and rental property.', deadline: 'Filed with Form 1040' })
   }
-
 
   const _niitInterest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
   const _niitDividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
@@ -777,19 +744,19 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold. Note: active K-1 and W-2 income are excluded from net investment income per IRC §1411(c)(1)(A)(ii).`, deadline: 'Filed with Form 1040' })
   }
 
-
   if (f.useItemized && (parseFloat(f.itemizedAmt)||0) > 0) {
     const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
-
 
   const _addlMedThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
   if (w2 > _addlMedThreshold) {
     schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', detail: `With ${fmt(w2)} in wages, the 0.9% Additional Medicare Tax applies to wages above ${fmt(_addlMedThreshold)} (${f.filingStatus || 'single'} threshold).`, deadline: 'Filed with Form 1040' })
   }
 
-
+  // FIX (UX-6 / TA-2): Compare each deadline to today so past dates render
+  // with grey/strikethrough styling and upcoming dates within 60 days show
+  // a day countdown. today is already defined above (for nextDeadline calc in RiskScan).
   const upcomingDeadlines = [
     { date: `Jan 31, ${year + 1}`, event: 'W-2s issued by employers' },
     { date: `Mar 15, ${year + 1}`, event: `Form 1120-S / 1065 due (S-Corps & Partnerships)` },
@@ -797,8 +764,11 @@ function IRSCompliance({ rec }) {
     { date: `Jun 15, ${year + 1}`, event: 'Q2 estimated tax payment due' },
     { date: `Sep 15, ${year + 1}`, event: 'Q3 estimated tax payment due' },
     { date: `Jan 15, ${year + 2}`, event: 'Q4 estimated tax payment due' },
-  ]
-
+  ].map(d => ({
+    ...d,
+    isPast: new Date(d.date) < today,
+    daysAway: Math.ceil((new Date(d.date) - today) / 86400000),
+  }))
 
   return (
     <div>
@@ -821,10 +791,16 @@ function IRSCompliance({ rec }) {
       <div style={{ background: N, borderRadius: 12, padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#93C5FD', letterSpacing: '1px', marginBottom: 14 }}>KEY DEADLINES — TAX YEAR {year}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* FIX (UX-6 / TA-2): past dates render at 40% opacity with line-through + (PAST) label;
+              upcoming dates within 60 days show a day countdown */}
           {upcomingDeadlines.map((d, i) => (
-            <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', minWidth: 110, flexShrink: 0 }}>{d.date}</span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>{d.event}</span>
+            <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center', opacity: d.isPast ? 0.4 : 1 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', minWidth: 110, flexShrink: 0, textDecoration: d.isPast ? 'line-through' : 'none' }}>
+                {d.date}{d.isPast ? ' (PAST)' : ''}
+              </span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', textDecoration: d.isPast ? 'line-through' : 'none' }}>
+                {d.event}{!d.isPast && d.daysAway >= 0 && d.daysAway <= 60 ? ` — ${d.daysAway} days` : ''}
+              </span>
             </div>
           ))}
         </div>
@@ -873,7 +849,8 @@ function ReportModal({ onClose, rec }) {
               ['Gross Revenue', b.grossRevenue ? '$' + parseFloat(b.grossRevenue).toLocaleString() : ''],
               ['Operating Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
               ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
-              ['K-1 Income to Personal Return', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
+              // FIX (L-6): renamed to IRS-accurate 'K-1 Ordinary Income (Box 1)' label
+              ['K-1 Ordinary Income (Box 1)', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               ['W-2 Income', totalW2 > 0 ? '$' + totalW2.toLocaleString() : ''],
               ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
@@ -888,7 +865,8 @@ function ReportModal({ onClose, rec }) {
           <div style={{ fontWeight: 700, color: '#1D4ED8', fontSize: 13, marginBottom: 10 }}>📋 IRS Schedule Mapping</div>
           {[
             ['Schedule E (Part II)', 'K-1 income from S-Corps, Partnerships, and Trusts'],
-            ['Form 8995', 'QBI deduction — 20% of qualified business income'],
+            // FIX (L-4): add §199A income threshold and W-2 wage limitation caveat
+            ['Form 8995', 'QBI deduction — up to 20% of qualified business income. Full deduction below $197,300 single / $394,600 MFJ (2025); W-2 wage / UBIA limit applies above (IRC §199A(b)(2)).'],
             ['Form 8959', 'Additional Medicare Tax — 0.9% on wages over $200K'],
             ['Schedule A', 'Itemized deductions — mortgage, taxes, charitable'],
             ['Form 7203', 'S-Corp shareholder stock and debt basis limitations'],
@@ -913,7 +891,6 @@ function SimulatorModal({ onClose, rec }) {
   const ownerPct = parseFloat(b.ownershipPct || 100) / 100
   const entity  = b.entityType || 'Unknown'
 
-
   const base = {
     grossRevenue:      parseFloat(b.grossRevenue)      || 0,
     cogs:              parseFloat(b.cogs)               || 0,
@@ -926,13 +903,11 @@ function SimulatorModal({ onClose, rec }) {
     estPaid:           parseFloat(f.estPaid)  || 0,
   }
 
-
   const [delta, setDelta] = useState({
     grossRevenue: 0, operatingExpenses: 0, officerSalary: 0,
     depreciation: 0, advertising: 0, otherDeductions: 0, w2Income: 0,
   })
   const [activeScenario, setActiveScenario] = useState(null)
-
 
   const applyPreset = (id) => {
     setActiveScenario(id)
@@ -951,9 +926,7 @@ function SimulatorModal({ onClose, rec }) {
     setDelta({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0, ...(presets[id]||{}) })
   }
 
-
   const stdDed = getStdDed(taxYear, filing)
-
 
   const calcScenario = (d) => {
     const rev   = base.grossRevenue      + (d.grossRevenue      || 0)
@@ -980,11 +953,9 @@ function SimulatorModal({ onClose, rec }) {
     return { rev, opex, sal, dep, adv, other, netBizIncome, k1, qbi, w2, agi, taxableInc, fedTax }
   }
 
-
   const baseline = calcScenario({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0 })
   const scenario = calcScenario(delta)
   const taxSaving = baseline.fedTax - scenario.fedTax
-
 
   const fmt = n => '$' + Math.abs(Math.round(n)).toLocaleString()
   const chg = (base, scen) => {
@@ -992,7 +963,6 @@ function SimulatorModal({ onClose, rec }) {
     if (diff === 0) return null
     return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':'#059669',marginLeft:6}}>{diff>0?'↑+'+fmt(diff):'↓'+fmt(Math.abs(diff))}</span>
   }
-
 
   const presets = [
     { id:'adv15',   icon:'📢', label:'$15K Advertising',    color:'#D97706' },
@@ -1005,7 +975,6 @@ function SimulatorModal({ onClose, rec }) {
     { id:'custom',  icon:'✏️', label:'Custom',               color:'#94A3B8' },
   ]
 
-
   const row = (label, baseVal, scenVal, indent=false) => (
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #F1F5F9'}}>
       <span style={{fontSize:13,color:indent?'#64748B':'#334155',paddingLeft:indent?12:0}}>{label}</span>
@@ -1015,7 +984,6 @@ function SimulatorModal({ onClose, rec }) {
       </div>
     </div>
   )
-
 
   return (
     <Modal onClose={onClose}>
@@ -1224,7 +1192,9 @@ Respectfully submitted,` },
 function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
   const tools = [
     { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: B, action: onReport, available: true },
-    { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the exact dollar impact on your estimated tax.', btn: 'Open Simulator', color: G, action: onSimulator, available: true },
+    // FIX (L-5): changed 'exact dollar impact' → 'estimated dollar impact' to align with
+    // the planning-only positioning of TaxStat360 (estimates, not precise tax advice).
+    { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: G, action: onSimulator, available: true },
     { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: P, action: onNarrative, available: true },
   ]
   return (
@@ -1275,10 +1245,8 @@ export default function AIAnalysis() {
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
 
-
   const rec = getRecord(location.state?.liveState)
   const score = completeness(rec)
-
 
   const TABS = [
     { label: '🔍 Risk Scan', desc: 'AI findings from your data' },
@@ -1287,18 +1255,13 @@ export default function AIAnalysis() {
     { label: '🛠 Reports & Tools', desc: 'CPA export, simulator, position documentation' },
   ]
 
-
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {rec && rec._source !== 'live' && (
-        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '10px 20px', textAlign: 'center', fontSize: 13, color: '#92400E' }}>
-          ℹ Showing last saved data — <a href="#" onClick={(e) => { e.preventDefault(); nav('/tax-return'); }} style={{ color: '#92400E', textDecoration: 'underline', fontWeight: 600 }}>return to the calculator</a> to refresh with current inputs.
-        </div>
-      )}
+      {/* FIX (F-5/F-6): Yellow 'Showing last saved data' banner removed — the orange
+          _savedFallback banner below is the single saved-record indicator. */}
       {showReport && <ReportModal onClose={() => setShowReport(false)} rec={rec} />}
       {showSimulator && <SimulatorModal onClose={() => setShowSimulator(false)} rec={rec} />}
       {showNarrative && <NarrativeModal onClose={() => setShowNarrative(false)} />}
-
 
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div onClick={() => nav('/dashboard')}><Logo /></div>
@@ -1327,7 +1290,6 @@ export default function AIAnalysis() {
         </div>
       </nav>
 
-
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ color: N, fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>AI Risk & Tax Analysis</h1>
@@ -1337,7 +1299,6 @@ export default function AIAnalysis() {
               : 'Save a record on the Dashboard to unlock personalized analysis'}
           </p>
         </div>
-
 
         {rec?._savedFallback && (
           <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
