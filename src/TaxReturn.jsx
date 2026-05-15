@@ -6,6 +6,8 @@ import FederalScopeBanner from './components/FederalScopeBanner.jsx'
 import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
+// FIX (SIGN-OUT): use the shared signOut utility — preserves ts360_records_* across sign-out
+import { signOut } from './utils/signOut'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -352,7 +354,8 @@ export default function TaxReturn() {
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
           <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>📂 Dashboard</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
-          <button onClick={() => { localStorage.clear(); nav('/login') }} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Sign Out</button>
+          {/* FIX (SIGN-OUT): replaced localStorage.clear() with shared signOut utility */}
+          <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Sign Out</button>
           <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>⚙ Settings</button>
         </div>
       </div>
@@ -765,8 +768,17 @@ export default function TaxReturn() {
           </CollapsibleSection>
         </div>
 
-        {/* RIGHT — Live Results */}
-        <div style={{ position: isMobile ? 'static' : 'sticky', top: 72 }}>
+        {/* RIGHT — Live Results
+            FIX (NF-01): maxHeight + overflowY:auto allow the right column to scroll
+            independently when sidebar content is taller than the viewport. The column
+            already has position:sticky — without overflow the user cannot reach the
+            income waterfall, quarterly schedule, or save button on shorter viewports. */}
+        <div style={{
+          position: isMobile ? 'static' : 'sticky',
+          top: 72,
+          maxHeight: isMobile ? 'none' : 'calc(100vh - 90px)',
+          overflowY: isMobile ? 'visible' : 'auto',
+        }}>
           <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
             <FederalScopeBanner />
@@ -957,10 +969,40 @@ export default function TaxReturn() {
           <button
             onClick={() => {
               writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI })
-              const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
-              const record = { id: Date.now(), savedAt: new Date().toISOString(), entities, biz: { entityType: entities[0]?.type || 'Unknown', year: taxYear, ownershipPct: entities[0]?.own || '100', grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0) }, f1040: { filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, priorYearTax, priorYearAGI } }
+              const email = localStorage.getItem('ts360_email') || 'default'
+              const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
+              // FIX (U-01 / TaxReturn): include totalTax, quarterly, and k1Income so the
+              // Dashboard EST. TAX LIABILITY badge appears for Tax Return–saved records.
+              // Previously these fields were only written by Dashboard's handleSave.
+              // Also persists estPaid so records round-trip correctly through loadRecord.
+              const record = {
+                id: Date.now(),
+                savedAt: new Date().toISOString(),
+                entities,
+                biz: {
+                  entityType: entities[0]?.type || 'Unknown',
+                  year: taxYear,
+                  ownershipPct: entities[0]?.own || '100',
+                  grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0),
+                },
+                f1040: {
+                  filingStatus: status,
+                  w2Income,
+                  w2Withheld,
+                  dependents,
+                  selfEmpRetirement,
+                  nolCarryforward,
+                  priorYearTax,
+                  priorYearAGI,
+                  estPaid,
+                },
+                k1Income: k1Total,
+                totalTax: Math.round(totalTax),
+                quarterly: Math.round(quarterly),
+              }
               existing.unshift(record)
-              localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing.slice(0, 20)))
+              localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
+              localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
               alert('✅ Record saved!')
             }}
             style={{ width: '100%', padding: '14px', background: '#0D1B3E', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 10 }}
