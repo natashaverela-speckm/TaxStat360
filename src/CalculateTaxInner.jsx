@@ -10,17 +10,20 @@ import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme
 import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 // FIX (U-02): import tax calc helpers to power the Step 1 preview estimate
 import { calcFederalTax, calcQBI, getStdDed } from './taxCalc'
+// FIX (SIGN-OUT): use the shared signOut utility instead of localStorage.clear() — prevents destroying saved records on Sign Out
+import { signOut } from './utils/signOut'
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
 function InfoTip({ text, below }) { const [s, ss] = React.useState(false); const popupPos = below ? {top:'120%',right:0} : {bottom:'120%',left:'50%',transform:'translateX(-50%)'}; return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',...popupPos,background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) } const OWN_PRESETS=[100,75,50,33,25]
 const INTS=INTEGRATIONS
 const COLORS=['#2563EB','#16a34a','#A855F7','#F59E0B','#EC4899','#06B6D4']
+// FIX (UNICODE): All template icons changed from \U... (Python-style, invalid in JS) to actual emoji characters.
 const TEMPLATES=[
-{label:'S-Corp Owner',icon:'\U0001f3e2',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
-{label:'Real Estate LLC',icon:'\U0001f3e0',type:'Partnership / MMLLC — Passive',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
-{label:'Solo Consultant',icon:'\U0001f4bc',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
-{label:'Multi-Member LLC',icon:'\U0001f91d',type:'Partnership / MMLLC — Passive',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
-{label:'C Corporation',icon:'\U0001f3e6',type:'C Corporation',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
-{label:'Blank Entity',icon:'\u2795',type:'S Corporation',own:'100',defaults:{},desc:'Start from scratch'},
+{label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
+{label:'Real Estate LLC',icon:'🏠',type:'Partnership / MMLLC — Passive',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
+{label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
+{label:'Multi-Member LLC',icon:'🤝',type:'Partnership / MMLLC — Passive',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
+{label:'C Corporation',icon:'🏦',type:'C Corporation',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
+{label:'Blank Entity',icon:'➕',type:'S Corporation',own:'100',defaults:{},desc:'Start from scratch'},
 ]
 
 function exportEntitiesToCSV(entities){
@@ -53,7 +56,7 @@ const[open,setOpen]=React.useState(false)
 return(
 <div style={{marginTop:12}}>
 <button onClick={()=>setOpen(!open)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
-{open?'\u25bc':'\u25ba'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
+{open?'▼':'►'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
 </button>
 {open&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
 {Object.entries(categories).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>(
@@ -126,15 +129,30 @@ const k1ShareLabel = ent.type === 'C Corporation'
   ? 'K-1 PRO-RATA SHARE'
   : 'K-1 DISTRIBUTIVE SHARE'
 
+// FIX (L-1 audit finding): Operating Expenses label and tooltip are entity-type-aware.
+// S/C-Corp: separate officer W-2 line — parenthetical excludes officer salary.
+// Partnership/MMLLC: separate guaranteed payments treatment — parenthetical excludes guaranteed payments (IRC §707(c)).
+// Sole Prop / SMLLC: no separate compensation line — plain label.
+const opExpLabel = ['S Corporation', 'C Corporation'].includes(ent.type)
+  ? 'OPERATING EXPENSES (excl. officer W-2 salary)'
+  : /partnership|mmllc/i.test(ent.type || '')
+    ? 'OPERATING EXPENSES (excl. guaranteed payments)'
+    : 'OPERATING EXPENSES'
+const opExpTip = ['S Corporation', 'C Corporation'].includes(ent.type)
+  ? 'All business expenses except the officer W-2 salary. Enter the officer W-2 separately below. The officer salary is a deductible business expense but also appears on your personal W-2.'
+  : /partnership|mmllc/i.test(ent.type || '')
+    ? 'All business expenses except guaranteed payments to partners (IRC §707(c)). Guaranteed payments are reported on K-1 Box 4a and are deductible at the entity level.'
+    : 'All ordinary and necessary business expenses (IRC §162). Includes rent, utilities, supplies, professional fees, and other operating costs reported on Schedule C.'
+
 return(
 <div style={{border:'2px solid '+color,borderRadius:14,overflow:'hidden',marginBottom:16}}>
 <div style={{background:color,padding:'12px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
 <div style={{display:'flex',alignItems:'center',gap:12}}>
-<div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>\u2823</div>
+<div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>⠣</div>
 <div style={{width:28,height:28,borderRadius:7,background:'rgba(0,0,0,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff'}}>{idx+1}</div>
 <div>
 <div contentEditable suppressContentEditableWarning onBlur={v=>onUpdate(idx,{...ent,name:v.target.innerText.trim()||'Business '+(idx+1)})} onKeyDown={v=>{if(v.key==='Enter')v.target.blur()}} style={{background:'transparent',border:'none',outline:'none',fontSize:15,fontWeight:700,color:'#fff',width:180,fontFamily:'inherit',cursor:'text',minWidth:80}}>{ent.name}</div>
-<div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.ein?' \u00b7 EIN '+ent.ein:''}</div>
+<div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.ein?' · EIN '+ent.ein:''}</div>
 </div>
 </div>
 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',rowGap:6}}>
@@ -146,9 +164,9 @@ return(
   onClick={()=>onCompare(idx)}
   title="Compare this entity's tax treatment against another structure (e.g. S-Corp vs. LLC)"
   style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}
->\u2696 Compare</button>
-{canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.8)',background:'rgba(0,0,0,0.2)',cursor:'pointer'}}>\u2715 Remove</button>}
-<button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}>{showDetails?'\u25b2':'\u25bc'} Details</button>
+>⚖ Compare</button>
+{canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.8)',background:'rgba(0,0,0,0.2)',cursor:'pointer'}}>✕ Remove</button>}
+<button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}>{showDetails?'▲':'▼'} Details</button>
 </div>
 </div>
 {showDetails&&(
@@ -167,7 +185,7 @@ return(
 </div>
 <div style={{gridColumn:'1/-1'}}>
 <button onClick={()=>setShowAdvK1(!showAdvK1)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
-{showAdvK1?'\u25b2':'\u25bc'} Advanced K-1 items
+{showAdvK1?'▲':'▼'} Advanced K-1 items
 </button>
 </div>
 {showAdvK1&&(
@@ -177,30 +195,30 @@ return(
 <MoneyInput value={ent.box17K || 0} onChange={n => onUpdate(idx, {...ent, box17K: n})} placeholder="0" style={inp} />
 </div>
 <div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>\u00a7179 expense (K-1 Box 11 S-corp / Box 12 partnership) <InfoTip text="Your share of \u00a7179 deduction from the entity. Limited to your active business income — excess is disallowed and carried forward." /></label>
+<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 S-corp / Box 12 partnership) <InfoTip text="Your share of §179 deduction from the entity. Limited to your active business income — excess is disallowed and carried forward." /></label>
 <MoneyInput value={ent.box11_12 || 0} onChange={n => onUpdate(idx, {...ent, box11_12: n})} placeholder="0" style={inp} />
 </div>
 <div style={{gridColumn:'1/-1'}}>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>K-1 ordinary deductions (do NOT include charitable contributions, investment interest, or \u00a7199A info — those flow elsewhere) <InfoTip text="Other deductions passed through on K-1 Box 12 (S-corp) or Box 13 (partnership) that reduce ordinary income — e.g. business interest expense subject to \u00a7163(j)." /></label>
+<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>K-1 ordinary deductions (do NOT include charitable contributions, investment interest, or §199A info — those flow elsewhere) <InfoTip text="Other deductions passed through on K-1 Box 12 (S-corp) or Box 13 (partnership) that reduce ordinary income — e.g. business interest expense subject to §163(j)." /></label>
 <MoneyInput value={ent.box12_13 || 0} onChange={n => onUpdate(idx, {...ent, box12_13: n})} placeholder="0" style={inp} />
 </div>
 <div>
 {/* F2-02: label reinforces that Box 17V is needed for accurate §199A above the income threshold */}
 <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
   QBI: entity W-2 wages (S-corp K-1 Box 17V / partnership K-1 Box 20Z){' '}
-  <InfoTip text="W-2 wages paid by the entity — required for the \u00a7199A(b)(2) W-2 wage limitation when your income is above the QBI threshold ($197,300 single / $394,600 MFJ for 2025). If blank, the officer W-2 salary entered above is used as a proxy — enter Box 17V for maximum accuracy." />
+  <InfoTip text="W-2 wages paid by the entity — required for the §199A(b)(2) W-2 wage limitation when your income is above the QBI threshold ($197,300 single / $394,600 MFJ for 2025). If blank, the officer W-2 salary entered above is used as a proxy — enter Box 17V for maximum accuracy." />
 </label>
 <MoneyInput value={ent.box17V_wages || 0} onChange={n => onUpdate(idx, {...ent, box17V_wages: n})} placeholder="0" style={inp} />
 </div>
 <div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17V / partnership K-1 Box 20Z) <InfoTip text="Unadjusted basis immediately after acquisition of qualified property — used in the \u00a7199A UBIA limitation (IRC \u00a7199A(b)(2)(B)(ii))." /></label>
+<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17V / partnership K-1 Box 20Z) <InfoTip text="Unadjusted basis immediately after acquisition of qualified property — used in the §199A UBIA limitation (IRC §199A(b)(2)(B)(ii))." /></label>
 <MoneyInput value={ent.box17V_ubia || 0} onChange={n => onUpdate(idx, {...ent, box17V_ubia: n})} placeholder="0" style={inp} />
 </div>
 <div style={{gridColumn:'1/-1'}}>
 {/* FIX: renamed isSSTB → box17V_sstb to match field name expected by calcQBI in taxCalc.js */}
 <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569',fontWeight:600,cursor:'pointer'}}>
 <input type="checkbox" checked={!!ent.box17V_sstb} onChange={e=>onUpdate(idx,{...ent,box17V_sstb:e.target.checked})} />
-Specified Service Trade or Business (SSTB) <InfoTip text="SSTBs (law, health, consulting, financial services, athletics, performing arts, etc.) are subject to the \u00a7199A phase-out at high income levels. Check if the entity's primary activity is an SSTB." />
+Specified Service Trade or Business (SSTB) <InfoTip text="SSTBs (law, health, consulting, financial services, athletics, performing arts, etc.) are subject to the §199A phase-out at high income levels. Check if the entity's primary activity is an SSTB." />
 </label>
 </div>
 </div>
@@ -220,8 +238,8 @@ return(
 <div key={p.id} onClick={()=>tok?fetchPnL(p.id,tok,localStorage.getItem('ts360_'+p.id+'_extra')):connectSoftware(p.id)} style={{background:tok?p.color+'22':'#F8FAFC',border:'2px solid '+(tok?p.color:'#E2E8F0'),borderRadius:10,padding:'12px 8px',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
 <div style={{width:32,height:32,borderRadius:8,background:p.color,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 6px',fontSize:13,fontWeight:800,color:'#fff'}}>{p.abbr}</div>
 <div style={{fontSize:11,fontWeight:700,color:N}}>{p.name}</div>
-{syn===p.id&&<div style={{fontSize:10,color:SL,marginTop:3}}>Syncing\u2026</div>}
-{tok&&syn!==p.id&&<div style={{fontSize:10,color:G,marginTop:3}}>\u2713 Connected</div>}
+{syn===p.id&&<div style={{fontSize:10,color:SL,marginTop:3}}>Syncing…</div>}
+{tok&&syn!==p.id&&<div style={{fontSize:10,color:G,marginTop:3}}>✓ Connected</div>}
 </div>
 )
 })}
@@ -238,14 +256,14 @@ return(
 <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
 </div>
 <div>
-{/* F3-01: renamed from OWNER W-2 to OFFICER W-2 SALARY for consistency and accuracy */}
-<label style={lbl}>OPERATING EXPENSES (EXCL. OFFICER W-2 SALARY) <InfoTip text="All business expenses except the officer W-2 salary. Enter the officer W-2 separately below. The officer salary is a deductible S-Corp expense but also appears on your personal W-2." /></label>
+{/* FIX (L-1): label and tooltip now entity-type-aware via opExpLabel / opExpTip computed above. */}
+<label style={lbl}>{opExpLabel} <InfoTip text={opExpTip} /></label>
 <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
 </div>
 </div>
 {['S Corporation','C Corporation'].includes(ent.type)&&(
 <div style={{marginBottom:10}}>
-<label style={lbl}>OFFICER W-2 SALARY (ENTERED SEPARATELY) <InfoTip text="The W-2 wages paid to the officer/owner. This is an S-Corp deduction but also appears on your personal W-2 and flows to your 1040. Also used as the \u00a7199A W-2 wage proxy when Box 17V is not entered." /></label>
+<label style={lbl}>OFFICER W-2 SALARY (ENTERED SEPARATELY) <InfoTip text="The W-2 wages paid to the officer/owner. This is an S-Corp deduction but also appears on your personal W-2 and flows to your 1040. Also used as the §199A W-2 wage proxy when Box 17V is not entered." /></label>
 <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
 </div>
 )}
@@ -275,7 +293,7 @@ return(
 <div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>OWNERSHIP</div>
 <div style={{fontSize:18,fontWeight:800,color:B}}>{parseInt(ent.own)||100}%</div>
 {/* F1-07: nudge users to the Details panel to change ownership — parseInt fine here (display only) */}
-<div style={{fontSize:10,color:SL,marginTop:4,cursor:'pointer'}} onClick={()=>setShowDetails(true)}>\u25bc Details to change</div>
+<div style={{fontSize:10,color:SL,marginTop:4,cursor:'pointer'}} onClick={()=>setShowDetails(true)}>▼ Details to change</div>
 </div>
 <div style={{background: ent.type==='C Corporation'?'#F8FAFC':'#EFF6FF',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
 <div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>{k1ShareLabel}</div>
@@ -288,11 +306,11 @@ return(
 {/* F2-02: QBI inline prompt for S-Corp entities — directs users to enter Box 17V wages */}
 {ent.type === 'S Corporation' && (
   <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'10px 14px',marginBottom:10,fontSize:12,color:'#1E40AF',display:'flex',alignItems:'flex-start',gap:8}}>
-    <span style={{fontSize:14,flexShrink:0}}>\U0001f4a1</span>
+    <span style={{fontSize:14,flexShrink:0}}>💡</span>
     <span>
-      <strong>For accurate \u00a7199A QBI deduction:</strong> enter your K-1 Box 17V W-2 wages in{' '}
+      <strong>For accurate §199A QBI deduction:</strong> enter your K-1 Box 17V W-2 wages in{' '}
       <span style={{fontWeight:700,cursor:'pointer',textDecoration:'underline'}} onClick={()=>{setShowDetails(true);setShowAdvK1(true)}}>
-        \u25bc Details \u2192 Advanced K-1 items
+        ▼ Details → Advanced K-1 items
       </span>
       . If not entered, the officer W-2 salary above is used as a proxy.
     </span>
@@ -410,7 +428,20 @@ export default function CalculateTax() {
       nav('/tax-return')
     }
 
+    // FIX (SAVE-VALIDATION audit finding): Prevent empty 'Revenue: No data' records.
+    // Require at least one entity to have a populated P&L with revenue or expenses > 0
+    // before persisting. Without this, users can save a record with only an entity type
+    // selected, which creates confusing entries on the Dashboard and pollutes the
+    // 30-day grace-period filter logic in Dashboard.jsx.
     function saveRecord() {
+      const hasAnyData = entities.some(e => e.pnl && (
+        (parseFloat(e.pnl.grossRevenue) || 0) > 0 ||
+        (parseFloat(e.pnl.totalExpenses) || 0) > 0
+      ))
+      if (!hasAnyData) {
+        alert('Please enter revenue or expenses for at least one entity before saving a record.')
+        return
+      }
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
       const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
       const record = {
@@ -428,7 +459,7 @@ export default function CalculateTax() {
       }
       existing.unshift(record)
       localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing))
-      alert('\u2705 Record saved! View it on your Dashboard.')
+      alert('✅ Record saved! View it on your Dashboard.')
     }
 
     const hasData = entities.some(e => e.pnl)
@@ -442,11 +473,13 @@ export default function CalculateTax() {
             <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={()=>setShowImport(true)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>\U0001f4c2 Import CSV</button>
-            <button onClick={()=>nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>\U0001f4c2 Dashboard</button>
+            <button onClick={()=>setShowImport(true)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>📂 Import CSV</button>
+            <button onClick={()=>nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>📂 Dashboard</button>
             <button onClick={()=>nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>AI Analysis</button>
-            <button onClick={() => { localStorage.clear(); nav('/login') }} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>Sign Out</button>
-            <button onClick={()=>nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>\u2699 Settings</button>
+            {/* FIX (SIGN-OUT audit finding): replaced destructive localStorage.clear() with shared signOut(nav) utility.
+                Previous behavior deleted ALL user data including saved records and integration tokens. */}
+            <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>Sign Out</button>
+            <button onClick={()=>nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>⚙ Settings</button>
           </div>
         </div>
 
@@ -456,7 +489,7 @@ export default function CalculateTax() {
           </DismissibleNotice>
 
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 6, textAlign: 'center' }}>Entity Calculator</h1>
-          <p style={{ textAlign: 'center', color: SL, fontSize: 13, marginBottom: 24 }}>Add all your business entities. Drag \u2823 to reorder. Click \u25bc Details to add EIN &amp; formation date.</p>
+          <p style={{ textAlign: 'center', color: SL, fontSize: 13, marginBottom: 24 }}>Add all your business entities. Drag ⠣ to reorder. Click ▼ Details to add EIN &amp; formation date.</p>
 
           <div>
             {entities.map((ent, idx) => (
@@ -480,7 +513,7 @@ export default function CalculateTax() {
               onClick={()=>setShowTemplates(true)}
               title="Start with a pre-filled example entity (S-Corp, Partnership, Real Estate) — adds to your current setup without replacing existing entities"
               style={{ padding: '14px', borderRadius: 12, border: '2px dashed #CBD5E1', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}
-            >\U0001f5c2 Add from Template</button>
+            >🗂 Add from Template</button>
             <button onClick={()=>setEntities(prev=>[...prev, { name: 'Business ' + (prev.length + 1), type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '', pnl: null, connectedId: null, isManual: false }])} style={{ padding: '14px', borderRadius: 12, border: '2px dashed #CBD5E1', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}>+ Add Entity</button>
           </div>
 
@@ -490,7 +523,7 @@ export default function CalculateTax() {
               <input type="checkbox" checked={isCoopPatron} onChange={e => { setIsCoopPatronState(e.target.checked); writeIsCoopPatron(e.target.checked) }} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: N }}>I am a patron of an agricultural or horticultural cooperative</div>
-                <div style={{ fontSize: 12, color: SL, marginTop: 4 }}>Check this if you received Form 1099-PATR or a K-1 from an ag/hort co-op (e.g., dairy, grain, fruit/vegetable, or livestock). Per IRS Form 8995 instructions, co-op patrons file Form 8995-A regardless of taxable income. The \u00a7199A(g)(2) patron reduction (Form 8995-A Schedule D) is not currently calculated by this tool.</div>
+                <div style={{ fontSize: 12, color: SL, marginTop: 4 }}>Check this if you received Form 1099-PATR or a K-1 from an ag/hort co-op (e.g., dairy, grain, fruit/vegetable, or livestock). Per IRS Form 8995 instructions, co-op patrons file Form 8995-A regardless of taxable income. The §199A(g)(2) patron reduction (Form 8995-A Schedule D) is not currently calculated by this tool.</div>
               </div>
             </label>
           </div>
@@ -522,7 +555,7 @@ export default function CalculateTax() {
               gap: 8,
             }}
           >
-            Continue to Step 2: Personal Return \u2192
+            Continue to Step 2: Personal Return →
           </button>
           <button
             onClick={saveRecord}
@@ -538,7 +571,7 @@ export default function CalculateTax() {
               cursor: 'pointer',
             }}
           >
-            \U0001f4be Save Record
+            💾 Save Record
           </button>
         </div>
 
