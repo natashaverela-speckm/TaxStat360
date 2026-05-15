@@ -307,6 +307,8 @@ export default function TaxReturn() {
     ebl = 0,
     quarterlyRecommended: quarterly = 0,
     qbiLimitApplied = 'none',   // 'qbi' | 'wage' | 'income' | 'min400' | 'none' — drives soft QBI warning
+    childCredit = 0,            // §24 CTC after phase-out (non-refundable portion)
+    fedTax = 0,                 // ordFedTax + prefTax combined — used in tax waterfall summary
     // F5-04: safe harbor outputs from calcTaxReturn
     safeHarborCurrentYear = 0,
     safeHarborPriorYear = null,
@@ -495,7 +497,7 @@ export default function TaxReturn() {
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Qualifying Dependents
-                  <InfoTip text="Qualifying children under 17 receive the Child Tax Credit ($2,000/child for 2025). Other qualifying dependents (non-child) receive a $500 Other Dependent Credit. Enter the total number of all qualifying dependents here." />
+                  <InfoTip text="Qualifying children under 17 receive the Child Tax Credit ($2,200/child for 2025–2026 per OBBBA; $2,000 for 2024). Credit phases out at $200K AGI (single) or $400K (MFJ) — $50 reduction per $1K above the threshold. Other qualifying dependents (non-child) receive a $500 Other Dependent Credit. Enter the total number of all qualifying dependents here." />
                 </label>
                 <select value={dependents} onChange={e => setDependents(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, outline: 'none' }}>
                   {[0,1,2,3,4,5,6,7,8].map(n => <option key={n} value={String(n)}>{n} dependent{n !== 1 ? 's' : ''}</option>)}
@@ -820,6 +822,12 @@ export default function TaxReturn() {
                   Estimate only — excludes some Form 6251 preference items (e.g. certain ISO exercises, ACE adjustment). Verify with a CPA.
                 </div>
               )}
+              {childCredit > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Child Tax Credit (§24)</span>
+                  <span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(childCredit)})</span>
+                </div>
+              )}
               {qbiDeduction > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
@@ -868,6 +876,22 @@ export default function TaxReturn() {
                     {wfRow(useItemized ? 'Itemized deduction' : 'Standard deduction', dedAmt, false, true)}
                     {qbiDed > 0 && wfRow('QBI deduction (§199A)', qbiDed, false, true)}
                     {wfRow('= Taxable Income', ordinaryTaxableIncome, true)}
+                    {/* Tax computation section — extends waterfall from taxable income to total federal tax.
+                        Surfaces Addl Medicare Tax, NIIT, AMT, and Child Tax Credit as explicit line items. */}
+                    <div style={{ borderTop: '2px dashed #E2E8F0', marginTop: 6, paddingTop: 6 }}>
+                      {wfRow('Federal Income Tax', fedTax || (result.ordFedTax + (result.prefTax || 0)))}
+                      {selfEmploymentTax > 0 && wfRow('Self-Employment Tax', selfEmploymentTax)}
+                      {additionalMedicare > 0 && wfRow('Addl Medicare (0.9%)', additionalMedicare)}
+                      {niit > 0 && wfRow('NIIT (3.8%)', niit)}
+                      {amtAmount > 0 && wfRow('AMT (Form 6251)', amtAmount)}
+                      {childCredit > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #F8FAFC' }}>
+                          <span style={{ fontSize: 12, color: SL }}>Child Tax Credit (§24)</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: G }}>({fmt(childCredit)})</span>
+                        </div>
+                      )}
+                      {wfRow('= Total Federal Tax', totalTax, true)}
+                    </div>
                   </div>
                 )}
               </div>
