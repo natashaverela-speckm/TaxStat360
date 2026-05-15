@@ -88,14 +88,14 @@ function getRecord(liveState) {
     const f1040 = liveState.f1040 || readPersonalContext()
     const k1 = liveState.k1Income || 0
     const taxyear = liveState.taxYear || readTaxYear()
-    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
+    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || getEntityNetProfit(ent) > 0) {
       return {
         type: 'personal-return',
         _unsaved: true,
         _source: 'live',
         k1Income: k1,
         entities: liveState.entities || [],
-        biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(ent.netProfit || 0) },
+        biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(getEntityNetProfit(ent) > 0 ? getEntityNetProfit(ent) : 0) },
         f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
       }
     }
@@ -117,7 +117,12 @@ function getRecord(liveState) {
     const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
     const taxyear = readTaxYear()
     const ent = entities[0] || {}
-    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || ent.netProfit) {
+    // AI-FIX-01: use getEntityNetProfit (resolves e.pnl.netProfit) instead of ent.netProfit
+    // (flat property that is always undefined for current entity shape). Also populate
+    // biz.officerSalary from the entity so completeness score and Risk Scan read it correctly.
+    const entNetProfit   = getEntityNetProfit(ent)
+    const entOfficerSal  = parseFloat(ent?.pnl?.officerSalary) || 0
+    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || entNetProfit > 0) {
       return {
         id: Date.now(),
         savedAt: 'Current session (unsaved)',
@@ -129,9 +134,11 @@ function getRecord(liveState) {
           entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
           ownershipPct: ent.own || '100',
-          grossRevenue: String(ent.netProfit > 0 ? ent.netProfit : 0),
+          grossRevenue: String(entNetProfit > 0 ? entNetProfit : 0),
           operatingExpenses: '',
-          officerSalary: '',
+          // AI-FIX-01 (cont.): was hardcoded ''; now reads from pnl so RiskScan salary
+          // comparison and Section 179 income cap both have accurate entity-level data.
+          officerSalary: String(entOfficerSal),
         },
         f1040: {
           ...f1040,
@@ -220,7 +227,7 @@ function RiskScan({ rec }) {
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
-  const dep = parseFloat(b.depreciation) || 0
+  const dep = parseFloat(b.depreciation || 0) || 0
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
 
@@ -267,13 +274,19 @@ function RiskScan({ rec }) {
   if (sCorpEntities.length > 0) {
     sCorpEntities.forEach(e => {
       const entityName = e.name || 'S-Corp'
-      const eK1 = Math.round(getEntityNetProfit(e) * (parseInt(e.own) || 100) / 100)
+      const eK1 = Math.round(getEntityNetProfit(e) * (parseFloat(e.own) || 100) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
         findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
           action: `Set ${entityName}'s officer salary on Step 1 to at least 35–40% of its net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.` })
-      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.4) {
+      // AI-FIX-02: threshold was eK1 * 0.4, recommendation target was eK1 * 0.35.
+      // When salary is between 35-40% of K-1, the condition fired but the recommended amount
+      // was LESS than the current salary (e.g. $80K current, "increase to $77K" recommended).
+      // Fix: align threshold with recommendation target so warning only fires when salary
+      // is genuinely below the recommended minimum. parseFloat(e.own) replaces parseInt
+      // for fractional ownership consistency (mirrors TaxReturn.jsx F4-03 review fix).
+      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.35) {
         findings.push({ level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
           detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/eK1)*100).toFixed(1)}% ratio). The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
           action: `Consider increasing ${entityName}'s officer salary to at least ${fmt(Math.round(eK1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
@@ -289,7 +302,8 @@ function RiskScan({ rec }) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.4) {
+    // AI-FIX-02 (fallback branch): same threshold alignment fix as entity-loop branch above.
+    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)}. The IRS benchmarks "reasonable compensation" typically at 30–40% of net profit for owner-operators.`,
         action: `Consider increasing your salary to at least ${fmt(Math.round(k1 * 0.35))} to align with IRS reasonable compensation guidelines.` })
@@ -347,9 +361,20 @@ function RiskScan({ rec }) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
       action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
+
+    // AI-FIX-03: Section 179 cap was `revenue - opex - officerSal` which resolved to $0
+    // because biz.grossRevenue was '0' (ent.netProfit was undefined — same shape mismatch
+    // fixed in getRecord above). The cap is now `k1` (the entity's K-1 / ordinary business
+    // income), which is the correct §179 net-income limitation at the entity level.
+    // Also: the OBBBA raised the §179 expensing limit to $2.5M for tax years beginning in
+    // 2025 — noted in the action text for accuracy.
+    const s179Cap = Math.max(k1ForGuard, k1)
+    const s179Offset = _marginalRate > 0
+      ? Math.max(0, Math.min(Math.round(roughTax / _marginalRate), s179Cap))
+      : 0
     findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
       detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $2.5M in 2025 under the One Big Beautiful Bill Act (OBBBA), with phase-out beginning above $4M of qualifying purchases. Bonus depreciation was restored to 100% for property acquired and placed in service after January 19, 2025 (applies to both new and used property).',
-      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(Math.max(0, Math.min(Math.round(roughTax / _marginalRate), revenue - (parseFloat(b.operatingExpenses) || 0) - officerSal)))} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
+      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(s179Offset)} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
 
@@ -649,8 +674,6 @@ function IRSCompliance({ rec }) {
 
   if (isSCorpEntity(entity)) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
-    // F3-04: Corrected — the IRS does not require attaching the K-1 to the 1040.
-    // Users should keep it as supporting documentation but it is reported on, not attached to, Schedule E.
     schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(k1)} share of S-Corp income flows to your personal return via this form. Your K-1 figures are reported on Schedule E, Part II — keep your K-1 as supporting documentation. The IRS does not require you to physically attach it to your 1040.`, deadline: `Issued with Form 1120-S` })
     schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
   }
@@ -1365,35 +1388,33 @@ export default function AIAnalysis() {
                   k1Total: rec.k1Income || 0,
                   isCoopPatron: !!rec.f1040?.isCoopPatron,
                 })
-                nav('/calculate-tax')
+                nav('/tax-return')
               } else {
                 nav('/calculate-tax')
               }
-            }} style={{ flexShrink: 0, padding: '8px 16px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Update Data →</button>
+            }} style={{ flexShrink: 0, padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Update Data →</button>
           </div>
         )}
 
         {/* Tab navigation */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#fff', borderRadius: 12, padding: 6, border: '1px solid #E2E8F0' }}>
-          {TABS.map((t, i) => (
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '6px', marginBottom: 24, display: 'flex', gap: 4 }}>
+          {TABS.map((tab, i) => (
             <button key={i} onClick={() => setActiveTab(i)} style={{
-              flex: 1, padding: '10px 4px', border: 'none', borderRadius: 8,
-              fontWeight: activeTab === i ? 700 : 500, fontSize: 12, cursor: 'pointer',
-              background: activeTab === i ? N : 'transparent',
+              flex: 1, padding: '10px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: activeTab === i ? B : 'transparent',
               color: activeTab === i ? '#fff' : SL,
-              transition: 'all 0.15s',
-            }}>
-              {t.label}
-            </button>
+              fontWeight: activeTab === i ? 700 : 500,
+              fontSize: 13, transition: 'all 0.15s'
+            }}>{tab.label}</button>
           ))}
         </div>
 
-        {/* Tab content */}
-        <div>
-          {activeTab === 0 && <RiskScan rec={rec} />}
-          {activeTab === 1 && <TaxOptimization rec={rec} />}
-          {activeTab === 2 && <IRSCompliance rec={rec} />}
-          {activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: '24px' }}>
+          {!rec && <NoData />}
+          {rec && activeTab === 0 && <RiskScan rec={rec} />}
+          {rec && activeTab === 1 && <TaxOptimization rec={rec} />}
+          {rec && activeTab === 2 && <IRSCompliance rec={rec} />}
+          {rec && activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
         </div>
       </div>
     </div>
