@@ -5,6 +5,8 @@ import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_C
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
+// FIX (SIGN-OUT): use the shared signOut utility — preserves ts360_records_* across sign-out
+import { signOut } from './utils/signOut'
 
 
 // ── Info Tooltip Component ──
@@ -44,6 +46,24 @@ function InfoTip({ text })  {
 }
 
 
+// FIX (Issue #56 — entity type normalization): Legacy saved records may contain
+// 'S-Corporation' (with hyphen) or other non-canonical variants. The calculator's
+// <select> uses strict equality against ENTITY_TYPES which contains 'S Corporation'
+// (with space). A mismatch silently falls back to the first dropdown option
+// (Sole Proprietor / Single-Member LLC), causing the wrong entity type to appear
+// when loading a saved record. This normalizes all legacy variants to canonical form
+// before writing to session state so the calculator always receives a valid value.
+const normalizeEntityType = (t) => {
+  if (!t) return 'S Corporation'
+  const s = String(t).trim()
+  if (/^s.?corp/i.test(s))            return 'S Corporation'
+  if (/^c.?corp/i.test(s))            return 'C Corporation'
+  if (/sole|single.?member/i.test(s)) return 'Sole Proprietor / Single-Member LLC'
+  if (/partner.*active/i.test(s))     return 'Partnership / MMLLC — Active'
+  if (/partner.*passive/i.test(s))    return 'Partnership / MMLLC — Passive'
+  if (/partner|mmllc|multi/i.test(s)) return 'Partnership / MMLLC — Passive'
+  return s  // return as-is if no legacy match found
+}
 
 
 const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household',qss:'Qualifying Surviving Spouse'}
@@ -471,12 +491,17 @@ export default function Dashboard(){
     // Both must be resolved or Dashboard-saved records restore blank after "Load & Continue".
     //
     // Field resolution: check TaxReturn/entity field first, fall back to Dashboard flat field.
+    // FIX (Issue #56 / loadRecord): Apply normalizeEntityType() to all entity type values
+    // before writing to state. Legacy records containing 'S-Corporation' (with hyphen) caused
+    // the calculator dropdown to silently fall back to 'Sole Proprietor / Single-Member LLC'
+    // because the <select> uses strict equality against ENTITY_TYPES canonical strings.
     if(rec.biz) {
       const savedPnl = rec.biz.pnl || {}
       setBiz(prev => ({
         ...prev,
         // entityType: TaxReturn saves as rec.biz.type; Dashboard saves as rec.biz.entityType
-        entityType: rec.biz.type || rec.biz.entityType || prev.entityType,
+        // normalizeEntityType() resolves legacy hyphen variants → canonical space form
+        entityType: normalizeEntityType(rec.biz.type || rec.biz.entityType) || prev.entityType,
         // ownershipPct: TaxReturn entities use rec.biz.own; Dashboard uses rec.biz.ownershipPct
         ownershipPct: rec.biz.own || rec.biz.ownershipPct || prev.ownershipPct,
         // year: TaxReturn saves as rec.taxYear; Dashboard saves as rec.biz.year
@@ -529,7 +554,8 @@ export default function Dashboard(){
         - parseMoney(e.box12_13)
       return {
         name: e.name,
-        type: e.type,
+        // FIX (Issue #56): normalize entity type for each restored entity
+        type: normalizeEntityType(e.type),
         own: e.own,
         netProfit: pnl.netProfit || 0,
         k1,
@@ -569,8 +595,9 @@ export default function Dashboard(){
             const oth  = parseFloat(flatBiz.otherDeductions)   || 0
             const netProfit = rev - cogs - opEx - sal - dep - adv - oth
             return [{
-              name:     flatBiz.entityType || flatBiz.type || 'Business',
-              type:     flatBiz.entityType || flatBiz.type || 'S Corporation',
+              name:     normalizeEntityType(flatBiz.entityType || flatBiz.type) || 'Business',
+              // FIX (Issue #56): normalize entity type in shell entity construction
+              type:     normalizeEntityType(flatBiz.entityType || flatBiz.type),
               own:      parseInt(flatBiz.ownershipPct || flatBiz.own) || 100,
               netProfit,
               k1:       parseFloat(rec.k1Income) || Math.round(netProfit * ((parseInt(flatBiz.ownershipPct) || 100) / 100)),
@@ -617,7 +644,11 @@ export default function Dashboard(){
         <LOGO/>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          <button onClick={()=>{{['token','plan','billing','ts360_session','ts360_email','userName','ts360_connected_app','ts360_quickbooks_token','ts360_quickbooks_connected','ts360_quickbooks_extra','ts360_xero_token','ts360_xero_connected','ts360_xero_refresh','ts360_wave_token','ts360_wave_connected','ts360_freshbooks_token','ts360_freshbooks_connected'].forEach(k=>localStorage.removeItem(k));nav('/')}}} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
+          {/* FIX (CC-1): Add Calculator and AI Analysis nav links to match other authenticated pages */}
+          <button onClick={()=>nav('/calculate-tax')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>📂 Calculator</button>
+          <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>AI Analysis</button>
+          {/* FIX (SIGN-OUT): replaced inline forEach(removeItem) with shared signOut(nav) utility */}
+          <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
       </nav>
