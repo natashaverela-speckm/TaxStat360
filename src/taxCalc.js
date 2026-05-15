@@ -349,7 +349,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
     const k1Income = parseFloat(
-      e.k1 ?? Math.round(parseFloat(e.netProfit || 0) * ((parseInt(e.own) || 100) / 100))
+      e.k1 ?? Math.round(parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
     ) || 0
     return s + Math.max(0, k1Income)
   }, 0)
@@ -557,7 +557,7 @@ function calcTaxReturn(input) {
 
   const nonSEk1 = entities.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    const k1 = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseInt(e.own) || 100) / 100))
+    const k1 = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
