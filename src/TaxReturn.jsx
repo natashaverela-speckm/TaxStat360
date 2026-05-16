@@ -103,6 +103,13 @@ function WhatGoesHere({ items }) {
   )
 }
 
+// F-C03: Helper to determine whether an entity type routes to Schedule C (sole prop)
+// vs Schedule E Part II (S-Corp / Partnership K-1).
+// Schedule C types: Sole Proprietor, Single-Member LLC (SMLLC)
+// Schedule E Part II types: S-Corp, Partnership, Multi-Member LLC, C-Corp
+const isScheduleCType = (type = '') =>
+  /sole.prop|single.member|smllc/i.test(type)
+
 export default function TaxReturn() {
   const nav = useNavigate()
 
@@ -145,6 +152,14 @@ export default function TaxReturn() {
   const [isActiveParticipant, setIsActiveParticipant] = React.useState(true)
   const [rentalIncome, setRentalIncome] = React.useState(0)
   const [rentalExpenses, setRentalExpenses] = React.useState(0)
+  // F-M22: Prior year passive loss carryforward — reduces allowable rental loss this year.
+  // IRC §469 suspended losses carry forward until: (a) the property produces income,
+  // (b) the property is sold, or (c) the taxpayer qualifies as a Real Estate Professional.
+  // NOTE: This value is stored for user awareness and CPA handoff. Full integration into
+  // the PAL limitation calc (calcTaxReturn) requires a taxCalc.js update (separate PR).
+  const [priorPassiveLossCarryforward, setPriorPassiveLossCarryforward] = React.useState(
+    savedF1040.priorPassiveLossCarryforward || 0
+  )
   const [capitalGains, setCapitalGains] = React.useState(0)
   const [ltCapGains, setLtCapGains] = React.useState(0)
   const [unrecap1250, setUnrecap1250] = React.useState(0)
@@ -165,6 +180,9 @@ export default function TaxReturn() {
   const [priorYearAGI, setPriorYearAGI] = React.useState(savedF1040.priorYearAGI || 0)
   // F3-05: Income waterfall defaults to expanded so users see income breakdown immediately
   const [showWaterfall, setShowWaterfall] = React.useState(true)
+  // F-M16: Save status — drives the unsaved-changes indicator and save confirmation
+  const [saveStatus, setSaveStatus] = React.useState(null)  // null | 'saved'
+  const [isDirty, setIsDirty] = React.useState(false)
 
   const addManualK1 = () => setManualK1s([...manualK1s, {
     id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
@@ -178,6 +196,26 @@ export default function TaxReturn() {
     return Math.round(v * 12 / ytdMonth)
   }
 
+  // F-M16: Mark session as dirty whenever any input changes.
+  // Consolidated into one effect on a stable serialized snapshot to avoid
+  // listing every individual state as a dep (which would re-trigger on every
+  // unrelated re-render). Any change to any field users can edit will flip isDirty.
+  const _dirtySignal = JSON.stringify([
+    taxYear, status, w2Income, w2Withheld, dependents, selfEmpRetirement,
+    nolCarryforward, manualK1s, priorYearTax, priorYearAGI, ytdMode, ytdMonth,
+    qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns,
+    hsaDeduction, studentLoanInt, rentalIncome, rentalExpenses,
+    priorPassiveLossCarryforward, capitalGains, ltCapGains, unrecap1250,
+    collectiblesGain, priorYearQBILoss, interest, dividends, form4797,
+    hasISO, isoBargainElement, estPaid, useItemized, saltPaid, mortgageInt,
+    charitableGifts, isREP, isActiveParticipant,
+  ])
+  React.useEffect(() => {
+    setIsDirty(true)
+    setSaveStatus(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_dirtySignal])
+
   React.useEffect(() => {
     writePersonalContext({
       filingStatus: status,
@@ -189,9 +227,10 @@ export default function TaxReturn() {
       manualK1s,
       priorYearTax,
       priorYearAGI,
+      priorPassiveLossCarryforward,
     })
     writeTaxYear(taxYear)
-  }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear, priorYearTax, priorYearAGI])
+  }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear, priorYearTax, priorYearAGI, priorPassiveLossCarryforward])
 
   // ── Tax computation ──────────────────────────────────────────────────────────
   const w2 = nv(w2Income)
@@ -199,8 +238,6 @@ export default function TaxReturn() {
   const scaledW2 = ytdScale(w2)
 
   // F2-01: Officer salary auto-included from each S/C-Corp entity entered in Step 1.
-  // This amount is NOT the "Additional W-2 Wages (Other Jobs)" field — it is separate.
-  // It is shown in the W-2 section so users can verify it was picked up correctly.
   const totalOfficerSalary = entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '')).reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
   const scaledOfficerSal = ytdScale(totalOfficerSalary)
   const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
@@ -212,38 +249,13 @@ export default function TaxReturn() {
   const computedItemizedAmt = saltForItemized + nv(mortgageInt) + nv(charitableGifts)
 
   // ── F4-03 FIX: Normalize entity shape for calcTaxReturn / calcQBI ─────────────
-  // readStep1State() stores K-1 income and officer salary nested under e.pnl:
-  //   e.pnl.netProfit     → K-1 ordinary business income
-  //   e.pnl.officerSalary → officer W-2 salary
-  //
-  // taxCalc.js nonSEk1 reducer expects the flat property e.k1 (falls back to e.netProfit).
-  // calcQBI F5-03 W-2 wage proxy expects the flat property e.officerW2.
-  // Without this mapping both resolve to undefined → 0, collapsing qbiBasis to 0
-  // and causing calcQBI to early-exit with deduction: 0 and wage: null, which:
-  //   • Omits the §199A deduction from the displayed tax (overstates by ~$13K)
-  //   • Triggers the false-positive "no W-2 wages found" hard warning
-  //   • Inflates quarterly estimates ($17,259 vs correct ~$13,806)
-  //
-  // Display code below (K-1 summary rows, officer W-2 carry-through banner) reads
-  // e.pnl directly and is intentionally left unchanged — only the calc input is mapped.
-  // If Step 1 ever writes e.k1 / e.officerW2 directly, the undefined-guards below
-  // prevent double-mapping (e.k1 !== undefined check, parseFloat chain).
   const entitiesForCalc = entities.map(e => {
-    // parseFloat (not parseInt) preserves fractional ownership (e.g. 33.33%).
-    // parseInt would truncate to 33%, understating K-1 income and the QBI base
-    // by ~1% per entity — material at higher income levels. Review flag: Check 1.
     const own = (parseFloat(e.own) || 100) / 100
     return {
       ...e,
-      // Surface pnl.netProfit × ownership as e.k1 for nonSEk1 reducer in calcTaxReturn.
-      // Preserve any e.k1 that Step 1 may have written directly (forward-compat guard).
       k1: e.k1 !== undefined
         ? e.k1
         : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own),
-      // Surface pnl.officerSalary as e.officerW2 for calcQBI §199A(b)(2) W-2 wage proxy.
-      // Use !== undefined (not ||) so an explicit e.officerW2 = 0 (Box 17V confirmed zero)
-      // is honoured and does not fall through to pnl.officerSalary. Mirrors k1 guard
-      // semantics. Review flag: Check 3.
       officerW2: e.officerW2 !== undefined
         ? parseFloat(e.officerW2) || 0
         : parseFloat(e?.pnl?.officerSalary) || 0,
@@ -283,10 +295,8 @@ export default function TaxReturn() {
     useItemized,
     itemizedAmt: useItemized ? computedItemizedAmt : 0,
     saltAmount: nv(saltPaid),
-    // F5-04: prior year safe harbor inputs
     priorYearTax: nv(priorYearTax),
     priorYearAGI: nv(priorYearAGI),
-    // F4-03: use normalized entities so calcQBI receives e.k1 and e.officerW2
     entities: entitiesForCalc,
   }
 
@@ -308,20 +318,21 @@ export default function TaxReturn() {
     palSuspendedRental = 0,
     ebl = 0,
     quarterlyRecommended: quarterly = 0,
-    qbiLimitApplied = 'none',   // 'qbi' | 'wage' | 'income' | 'min400' | 'none' — drives soft QBI warning
-    childCredit = 0,            // §24 CTC after phase-out (non-refundable portion)
-    fedTax = 0,                 // ordFedTax + prefTax combined — used in tax waterfall summary
-    // F5-04: safe harbor outputs from calcTaxReturn
+    qbiLimitApplied = 'none',
+    childCredit = 0,
+    fedTax = 0,
     safeHarborCurrentYear = 0,
     safeHarborPriorYear = null,
     safeHarborMinimum = 0,
     safeHarborBalance = 0,
     safeHarborQuarterly = 0,
-    // AUDIT FIX T3: destructure qbiCarryforward so it can be displayed in the results
-    // panel. calcTaxReturn computes and returns this when qbiBasis < 0 (entity has a
-    // QBI loss this year). Users need to know the carryforward so they can enter it
-    // in "Prior Year QBI Loss" next year (IRC §199A(c)(2)).
     qbiCarryforward = 0,
+    // F-C03: per-type income split — used for waterfall and K-1 section totals
+    scheduleEK1Income = 0,   // S-Corp/Partnership K-1 → Schedule E, Part II
+    scheduleCSEIncome = 0,   // Sole Prop/SMLLC → Schedule C
+    // F-C02: aggregation disclosure fields
+    qbiAggregationApplied = false,
+    qbiAggregationDisclosure = null,
   } = result
 
   const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
@@ -329,6 +340,41 @@ export default function TaxReturn() {
 
   const hasSchEIncome = entities.length > 0
   const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
+
+  // F-C03: Compute per-type display totals from entity data (unscaled, matching
+  // the individual entity rows shown above). These are for the K-1 section footer,
+  // not the waterfall (which uses scaledK1 for ytd consistency).
+  const scheduleEDisplayTotal = entities
+    .filter(e => !isScheduleCType(e?.type))
+    .reduce((s, e) => {
+      const own = (parseInt(e.own) || 100) / 100
+      return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
+    }, 0)
+    + manualK1s
+      .filter(k => !isScheduleCType(k.type))
+      .reduce((s, k) => s + (parseMoney(k.amount) || 0), 0)
+
+  const scheduleCDisplayTotal = entities
+    .filter(e => isScheduleCType(e?.type))
+    .reduce((s, e) => {
+      const own = (parseInt(e.own) || 100) / 100
+      return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
+    }, 0)
+    + manualK1s
+      .filter(k => isScheduleCType(k.type))
+      .reduce((s, k) => s + (parseMoney(k.amount) || 0), 0)
+
+  const hasMixedEntityTypes = scheduleEDisplayTotal !== 0 && scheduleCDisplayTotal !== 0
+
+  // F-C03: For the waterfall, split scaledK1 proportionally so rows always sum
+  // to the same scaled total used in the gross income line.
+  const rawDisplayTotal = scheduleEDisplayTotal + scheduleCDisplayTotal
+  const scheduleEWaterfallAmt = rawDisplayTotal > 0
+    ? Math.round(scaledK1 * (scheduleEDisplayTotal / rawDisplayTotal))
+    : scaledK1
+  const scheduleCWaterfallAmt = rawDisplayTotal > 0
+    ? scaledK1 - scheduleEWaterfallAmt
+    : 0
 
   // ── Quarterly due dates ──────────────────────────────────────────────────────
   const today = new Date()
@@ -340,13 +386,52 @@ export default function TaxReturn() {
     { label: 'Q4', due: new Date(taxYear + 1, 0, 15) },
   ]
 
-  // F5-04: threshold for the 110% prior year multiplier (MFS = $75K, all others = $150K)
   const priorYearHighThreshold = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplierLabel = nv(priorYearAGI) > priorYearHighThreshold ? '110%' : '100%'
 
+  // F-M16: Save handler — replaces alert with inline state confirmation
+  const handleSave = () => {
+    writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI, priorPassiveLossCarryforward })
+    const email = localStorage.getItem('ts360_email') || 'default'
+    const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
+    const record = {
+      id: Date.now(),
+      savedAt: new Date().toISOString(),
+      calculatedAt: result.calculatedAt || Date.now(), // F-C05: timestamp for AI Analysis stale-data detection
+      entities,
+      biz: {
+        entityType: entities[0]?.type || 'Unknown',
+        year: taxYear,
+        ownershipPct: entities[0]?.own || '100',
+        grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0),
+      },
+      f1040: {
+        filingStatus: status,
+        w2Income,
+        w2Withheld,
+        dependents,
+        selfEmpRetirement,
+        nolCarryforward,
+        priorYearTax,
+        priorYearAGI,
+        estPaid,
+        priorPassiveLossCarryforward,
+      },
+      k1Income: k1Total,
+      totalTax: Math.round(totalTax),
+      quarterly: Math.round(quarterly),
+    }
+    existing.unshift(record)
+    localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
+    localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
+    setIsDirty(false)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus(null), 3000)
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
-      {/* Header */}
+      {/* Header — sticky so step indicator remains visible while scrolling */}
       <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div onClick={() => nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -354,12 +439,23 @@ export default function TaxReturn() {
             <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
           </div>
           <div style={{ background: '#2563EB', color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
+          {/* F-M16: Unsaved changes indicator — visible in sticky header so it's always seen */}
+          {isDirty && saveStatus !== 'saved' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#D97706', fontWeight: 600 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D97706', display: 'inline-block' }} />
+              Unsaved changes
+            </div>
+          )}
+          {saveStatus === 'saved' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
+              <span>✓</span> Saved
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
-          <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>📂 Dashboard</button>
+          <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Dashboard</button>
           <button onClick={() => nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
-          {/* FIX (SIGN-OUT): replaced localStorage.clear() with shared signOut utility */}
           <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Sign Out</button>
           <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>⚙ Settings</button>
         </div>
@@ -384,17 +480,31 @@ export default function TaxReturn() {
             TaxStat360 calculates <strong>federal tax estimates</strong> based on the information you enter. Results are for <strong>planning purposes only</strong> and do not constitute professional tax advice. Your actual liability may differ based on your complete financial situation. Consult a licensed CPA or tax professional before filing.
           </DismissibleNotice>
 
-          {/* K-1 income summary from Step 1 */}
+          {/* K-1 income summary from Step 1
+              F-C03: Each entity row now shows a schedule-form badge.
+              The footer totals are split by income type (Sch E Part II vs Sch C)
+              when both entity types are present. */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 INCOME FROM STEP 1</div>
             {entities.map((ent, i) => {
               const own = (parseInt(ent.own) || 100) / 100
               const net = ent.pnl ? Math.round(ent.pnl.netProfit * own) : 0
+              const isC = isScheduleCType(ent.type)
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: N }}>{ent.name || 'Business ' + (i + 1)}</div>
-                    <div style={{ fontSize: 11, color: SL }}>{ent.type} · {ent.own || 100}% ownership</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: SL }}>{ent.type} · {ent.own || 100}% ownership</span>
+                      {/* F-C03: Schedule form badge */}
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                        background: isC ? '#f0fdf4' : '#eff6ff',
+                        color: isC ? '#15803d' : '#1d4ed8',
+                      }}>
+                        {isC ? 'Schedule C' : 'Schedule E, Part II'}
+                      </span>
+                    </div>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: net >= 0 ? G : R }}>{fmt(net)}</div>
                 </div>
@@ -416,10 +526,50 @@ export default function TaxReturn() {
             ))}
             <button onClick={addManualK1} style={{ marginTop: 10, background: 'none', border: '1px dashed #CBD5E1', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: SL, cursor: 'pointer', fontWeight: 600 }}>+ Add K-1</button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: N }}>Total K-1 to Schedule E</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
+            {/* F-C03: Split totals — replace single "Total K-1 to Schedule E" with
+                per-form rows when both entity types are present. When only one type
+                is present, show the appropriately labeled single total.
+                This fixes the critical mislabeling: Schedule C income never flows
+                to Schedule E — it is reported directly on Schedule C (Form 1040). */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
+              {hasMixedEntityTypes ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                    <div style={{ fontSize: 12, color: SL }}>
+                      K-1 Income <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 4 }}>Schedule E, Part II</span>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: scheduleEDisplayTotal >= 0 ? G : R }}>{fmt(scheduleEDisplayTotal)}</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                    <div style={{ fontSize: 12, color: SL }}>
+                      Schedule C Net Profit <span style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 4 }}>Schedule C</span>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: scheduleCDisplayTotal >= 0 ? G : R }}>{fmt(scheduleCDisplayTotal)}</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px dashed #E2E8F0' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: N }}>Total Business Income</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
+                  </div>
+                </>
+              ) : scheduleCDisplayTotal !== 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: N }}>
+                    Schedule C Net Profit
+                    <span style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 8 }}>Schedule C</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: N }}>
+                    Total K-1 Income
+                    <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 8 }}>Schedule E, Part II</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
+                </div>
+              )}
             </div>
+
             {entities.length === 0 && manualK1s.length === 0 && (
               <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
                 ⚠ No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your business entities.
@@ -430,21 +580,11 @@ export default function TaxReturn() {
                 ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
               </div>
             )}
-            {/* AUDIT FIX T5: S Corp basis advisory warning.
-                S Corp losses are deductible only up to stock and debt basis (IRC §1366(d),
-                Form 7203). TaxStat360 is a planning tool — enforcing basis is the CPA's job.
-                This warning ensures users know the displayed loss estimate may not be fully
-                deductible without verifying basis. Shown only when entities include an S Corp
-                and total K-1 is negative (loss scenario). */}
             {k1Total < 0 && entities.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#9A3412' }}>
                 ⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
               </div>
             )}
-            {/* F2-02: QBI warning — fires only when wage is genuinely missing (wage: null).
-                After F4-03 fix, wage will be non-null whenever officer salary or Box 17V
-                wages are present — so this hard warning is correctly suppressed in that case.
-                The softer informational notice below handles the wage-limited (non-null) case. */}
             {k1Total > 0 && result.qbiCaps?.wage === null &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
@@ -455,6 +595,13 @@ export default function TaxReturn() {
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
                 ℹ §199A W-2 wage limit applied. For maximum accuracy, confirm the Box 17V wages on your K-1 match the officer salary used here, and enter UBIA of qualified property in ▼ Details → Advanced K-1 items.
+              </div>
+            )}
+            {/* F-C02: QBI aggregation disclosure — shown when the engine combined W-2
+                wages across entity types under an assumed Reg. §1.199A-4 election. */}
+            {qbiAggregationApplied && qbiAggregationDisclosure && (
+              <div style={{ marginTop: 8, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#0369a1' }}>
+                ℹ <strong>QBI Aggregation Assumed (Reg. §1.199A-4):</strong> {qbiAggregationDisclosure}
               </div>
             )}
           </div>
@@ -556,7 +703,11 @@ export default function TaxReturn() {
             ]} />
           </CollapsibleSection>
 
-          {/* Rental real estate */}
+          {/* Rental real estate
+              F-M22: Added Prior Year Passive Loss Carryforward field (§469 carryforward).
+              This is the most impactful addition for real estate investor users.
+              Full calc integration (adjusting palAdjustedRental in taxCalc.js) is a
+              separate PR — the field is stored and shown for CPA handoff in this release. */}
           <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
             <div style={{ paddingTop: 12 }}>
               <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -596,21 +747,33 @@ export default function TaxReturn() {
                   <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 </div>
               </div>
+              {/* F-M22: Prior Year Passive Loss Carryforward — §469 suspended losses
+                  from prior years that can offset this year's rental income. Enter the
+                  amount from your prior year Schedule E / Form 8582 Line 3.
+                  Note: This value is stored and shown here for planning awareness.
+                  Full PAL carryforward calculation will integrate in a subsequent release. */}
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
+                  Prior Year Passive Loss Carryforward (§469)
+                  <InfoTip text="Suspended passive losses from prior years that carry forward. These can offset rental income when the property becomes profitable, or are fully released when you sell the property. Enter the total from your prior year Form 8582, Line 3 (or Schedule E if you qualified as REP). Enter as a positive number." />
+                </label>
+                <MoneyInput value={priorPassiveLossCarryforward} onChange={setPriorPassiveLossCarryforward} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                <div style={{ fontSize: 10, color: SL, marginTop: 3, lineHeight: 1.4 }}>
+                  From prior year Form 8582, Line 3 — enter as positive number. Displayed for CPA reference; full calculation integration in progress.
+                </div>
+              </div>
               <WhatGoesHere items={[
                 'Total Rental Income: all rent collected this year — use bank deposits or last year\'s Schedule E as a reference',
                 'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
                 'Depreciation: typically cost of building ÷ 27.5 years annually',
                 'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year in real property trades, 50%+ of personal services)',
+                'Prior Year Passive Loss Carryforward: suspended losses from Form 8582 Line 3 that carry forward from prior years',
                 'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
               ]} />
             </div>
           </CollapsibleSection>
 
-          {/* Other income
-              AUDIT FIX T1/T2: Qualified Dividends has been moved from the
-              RETIREMENT & SOCIAL SECURITY INCOME section to here — it is investment
-              income (1099-DIV Box 1b), not retirement income. Placed after Ordinary
-              Dividends so the relationship between the two fields is immediately clear. */}
+          {/* Other income */}
           <CollapsibleSection title="OTHER INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
               <div>
@@ -642,9 +805,6 @@ export default function TaxReturn() {
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Ordinary Dividends <InfoTip text="From 1099-DIV Box 1a — enter the qualified portion separately below." /></label>
                 <MoneyInput value={dividends} onChange={setDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
-              {/* AUDIT FIX T1/T2: Qualified Dividends moved here from Retirement & SS section.
-                  Investment income (1099-DIV Box 1b) belongs in Other Income, adjacent to
-                  Ordinary Dividends, so users can see the relationship between the two fields. */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of ordinary dividends taxed at preferential 0/15/20% rates (IRC §1(h)). Must be ≤ the Ordinary Dividends amount entered above. The tax savings versus ordinary rates are applied automatically." /></label>
                 <MoneyInput value={qualifiedDividends} onChange={setQualifiedDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
@@ -683,9 +843,7 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* Retirement & Social Security
-              AUDIT FIX T1: Qualified Dividends removed from this section — it has been
-              moved to OTHER INCOME where it belongs (investment income, not retirement). */}
+          {/* Retirement & Social Security */}
           <CollapsibleSection title="RETIREMENT &amp; SOCIAL SECURITY INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 12 }}>
               <div>
@@ -774,31 +932,40 @@ export default function TaxReturn() {
               <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
             </div>
-            {/* F5-04: prior year safe harbor inputs */}
+            {/* F5-04 / F-M27: Prior Year Safe Harbor — visually elevated as a Strategy Tip
+                to highlight its value for growing businesses (often the more actionable
+                path for reducing quarterly payments in a high-growth year). */}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 6 }}>PRIOR YEAR SAFE HARBOR (OPTIONAL)</div>
-              <div style={{ fontSize: 12, color: SL, marginBottom: 10, lineHeight: 1.5 }}>
-                Enter your prior year figures to see whether paying 100%/110% of last year's tax is less than 90% of this year's. Paying the lesser amount still avoids the §6654 underpayment penalty — and for growing businesses it's often the lower payment.
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year Total Tax (Form 1040, Line 24) <InfoTip text="Your total federal tax from last year's return. Used for the §6654(d)(1)(B)(ii) prior year safe harbor. If your prior year AGI exceeded $150,000 ($75,000 MFS), the safe harbor requires 110% of this amount instead of 100% — §6654(d)(1)(D)." /></label>
-                  <MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+              <div style={{
+                borderLeft: '4px solid #D97706',
+                background: '#FFFBEB',
+                borderRadius: '0 10px 10px 0',
+                padding: '14px 16px',
+                marginBottom: 2,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontSize: 14 }}>💡</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Strategy Tip — Prior Year Safe Harbor (§6654)</span>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year AGI (Form 1040, Line 11) <InfoTip text="Prior year adjusted gross income. Used to determine whether the 100% or 110% safe harbor multiplier applies. Over $150,000 single/MFJ (or $75,000 MFS) → 110% of prior year tax required." /></label>
-                  <MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                <div style={{ fontSize: 12, color: '#78350f', marginBottom: 12, lineHeight: 1.6 }}>
+                  For growing businesses, paying <strong>100%/110% of last year's tax</strong> may be significantly lower than 90% of this year's liability — and it's a fixed, known target set at the start of the year. Enter your prior year figures to compare both approaches and find your minimum required payment.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#92400e', marginBottom: 4, fontWeight: 600 }}>Prior Year Total Tax (Form 1040, Line 24) <InfoTip text="Your total federal tax from last year's return. Used for the §6654(d)(1)(B)(ii) prior year safe harbor. If your prior year AGI exceeded $150,000 ($75,000 MFS), the safe harbor requires 110% of this amount instead of 100% — §6654(d)(1)(D)." /></label>
+                    <MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #FCD34D', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', background: '#fff' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#92400e', marginBottom: 4, fontWeight: 600 }}>Prior Year AGI (Form 1040, Line 11) <InfoTip text="Prior year adjusted gross income. Used to determine whether the 100% or 110% safe harbor multiplier applies. Over $150,000 single/MFJ (or $75,000 MFS) → 110% of prior year tax required." /></label>
+                    <MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #FCD34D', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', background: '#fff' }} />
+                  </div>
                 </div>
               </div>
             </div>
           </CollapsibleSection>
         </div>
 
-        {/* RIGHT — Live Results
-            FIX (NF-01): maxHeight + overflowY:auto allow the right column to scroll
-            independently when sidebar content is taller than the viewport. The column
-            already has position:sticky — without overflow the user cannot reach the
-            income waterfall, quarterly schedule, or save button on shorter viewports. */}
+        {/* RIGHT — Live Results */}
         <div style={{
           position: isMobile ? 'static' : 'sticky',
           top: 72,
@@ -828,6 +995,14 @@ export default function TaxReturn() {
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
             </div>
 
+            {/* Tax component breakdown
+                F-H06: Income Tax, SE Tax, and Additional Medicare Tax (Form 8959) are shown
+                as SEPARATE labeled rows so users understand each component independently.
+                AMT (Form 6251) is always shown — even at $0 — so users can see it was
+                calculated and distinguish it from the Additional Medicare Tax.
+                Additional Medicare Tax row is shown when > 0 (conditionally) since at $0
+                it is commonly not applicable and hiding it reduces clutter.
+                Both taxes can be $0 for different reasons and should never be confused. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
@@ -839,21 +1014,26 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
                 </div>
               )}
+              {/* F-H06: Additional Medicare Tax (IRC §3101(b)(2), Form 8959) — always shown
+                  when calculated value > 0. Threshold: $200K single / $250K MFJ / $125K MFS.
+                  This is DISTINCT from Form 6251 AMT shown below. */}
               {additionalMedicare > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Addl Medicare (0.9%)</span>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Addl Medicare Tax (0.9%) — Form 8959</span>
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(additionalMedicare)}</span>
                 </div>
               )}
               {niit > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%)</span>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%) — Form 8960</span>
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
                 </div>
               )}
+              {/* F-H06: Alternative Minimum Tax (Form 6251) — always shown even at $0
+                  to distinguish it from the Additional Medicare Tax above. */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'rgba(255,255,255,0.6)' }}>AMT estimate (Form 6251)</span>
-                <span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.4)' }}>{fmt(amtAmount)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.6)' }}>AMT — Form 6251</span>
+                <span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.3)' }}>{fmt(amtAmount)}</span>
               </div>
               {amtAmount > 0 && (
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, lineHeight: 1.4 }}>
@@ -872,10 +1052,6 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(qbiDeduction)})</span>
                 </div>
               )}
-              {/* AUDIT FIX T4: Display QBI loss carryforward when the entity has a QBI loss
-                  this year. calcTaxReturn returns qbiCarryforward > 0 when qbiBasis < 0.
-                  This is a critical planning insight — users must enter this in "Prior Year
-                  QBI Loss" next year (IRC §199A(c)(2)) or they will lose the carryforward. */}
               {qbiCarryforward > 0 && (
                 <div style={{ marginTop: 6, background: 'rgba(59,130,246,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
                   💡 QBI Loss Carryforward: {fmt(qbiCarryforward)}<br />
@@ -889,7 +1065,11 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* Income Waterfall */}
+          {/* Income Waterfall
+              F-C03: K-1 income is now split into two rows when both entity types are
+              present. Each row carries the correct schedule form label.
+              The proportional split ensures both rows always sum to scaledK1 (the
+              ytd-scaled total used in the gross income calculation). */}
           {(() => {
             const totalW2 = scaledW2 + scaledOfficerSal
             const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
@@ -915,7 +1095,18 @@ export default function TaxReturn() {
                 </button>
                 {showWaterfall && (
                   <div style={{ padding: '4px 18px 16px', borderTop: '1px solid #F1F5F9' }}>
-                    {scaledK1 !== 0 && wfRow('K-1 Ordinary Business Income', scaledK1)}
+                    {/* F-C03: Split K-1 rows when mixed entity types are present */}
+                    {hasMixedEntityTypes ? (
+                      <>
+                        {scheduleEWaterfallAmt !== 0 && wfRow('K-1 Income (Schedule E, Part II)', scheduleEWaterfallAmt)}
+                        {scheduleCWaterfallAmt !== 0 && wfRow('Schedule C Net Profit', scheduleCWaterfallAmt)}
+                      </>
+                    ) : (
+                      scaledK1 !== 0 && wfRow(
+                        scheduleCDisplayTotal !== 0 ? 'Schedule C Net Profit' : 'K-1 Income (Schedule E, Part II)',
+                        scaledK1
+                      )
+                    )}
                     {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
                     {totalOther !== 0 && wfRow('Other Income', totalOther)}
                     {wfRow('= Gross Income', totalGross, true)}
@@ -924,12 +1115,10 @@ export default function TaxReturn() {
                     {wfRow(useItemized ? 'Itemized deduction' : 'Standard deduction', dedAmt, false, true)}
                     {qbiDed > 0 && wfRow('QBI deduction (§199A)', qbiDed, false, true)}
                     {wfRow('= Taxable Income', ordinaryTaxableIncome, true)}
-                    {/* Tax computation section — extends waterfall from taxable income to total federal tax.
-                        Surfaces Addl Medicare Tax, NIIT, AMT, and Child Tax Credit as explicit line items. */}
                     <div style={{ borderTop: '2px dashed #E2E8F0', marginTop: 6, paddingTop: 6 }}>
                       {wfRow('Federal Income Tax', fedTax || (result.ordFedTax + (result.prefTax || 0)))}
                       {selfEmploymentTax > 0 && wfRow('Self-Employment Tax', selfEmploymentTax)}
-                      {additionalMedicare > 0 && wfRow('Addl Medicare (0.9%)', additionalMedicare)}
+                      {additionalMedicare > 0 && wfRow('Addl Medicare Tax (0.9%)', additionalMedicare)}
                       {niit > 0 && wfRow('NIIT (3.8%)', niit)}
                       {amtAmount > 0 && wfRow('AMT (Form 6251)', amtAmount)}
                       {childCredit > 0 && (
@@ -946,7 +1135,8 @@ export default function TaxReturn() {
             )
           })()}
 
-          {/* Quarterly estimated payments */}
+          {/* Quarterly estimated payments
+              F-L29: Past-due quarter warning when payments have not been entered. */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
             {quarterDefs.map((q, i) => {
@@ -968,6 +1158,12 @@ export default function TaxReturn() {
                 </div>
               )
             })}
+            {/* F-L29: Past-due underpayment warning */}
+            {quarterly > 0 && nv(estPaid) === 0 && quarterDefs.some(q => q.due < today) && (
+              <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#991b1b', lineHeight: 1.5 }}>
+                ⚠ One or more quarters appear past-due with no payments recorded. IRS underpayment penalties (~8% annually, §6654) may apply. Enter any payments made above to see your remaining balance.
+              </div>
+            )}
             <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>Based on annual liability ÷ 4. Adjust for income earned to date.</div>
 
             {/* F5-04: prior year safe harbor display */}
@@ -995,55 +1191,24 @@ export default function TaxReturn() {
               </div>
             )}
 
-            {/* F2-07: annualized income installment method note */}
             <div style={{ marginTop: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
               💡 <strong>Uneven income?</strong> The annualized income installment method (§6654(d)(2)) may allow lower payments in early quarters when income is earned unevenly. This requires calculating each quarter's actual income — consult a CPA or IRS Form 2210.
             </div>
           </div>
 
-          {/* Save & AI */}
+          {/* Save & AI
+              F-M16: Save uses handleSave() — no more alert; shows inline confirmation. */}
           <button
-            onClick={() => {
-              writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI })
-              const email = localStorage.getItem('ts360_email') || 'default'
-              const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
-              // FIX (U-01 / TaxReturn): include totalTax, quarterly, and k1Income so the
-              // Dashboard EST. TAX LIABILITY badge appears for Tax Return–saved records.
-              // Previously these fields were only written by Dashboard's handleSave.
-              // Also persists estPaid so records round-trip correctly through loadRecord.
-              const record = {
-                id: Date.now(),
-                savedAt: new Date().toISOString(),
-                entities,
-                biz: {
-                  entityType: entities[0]?.type || 'Unknown',
-                  year: taxYear,
-                  ownershipPct: entities[0]?.own || '100',
-                  grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0),
-                },
-                f1040: {
-                  filingStatus: status,
-                  w2Income,
-                  w2Withheld,
-                  dependents,
-                  selfEmpRetirement,
-                  nolCarryforward,
-                  priorYearTax,
-                  priorYearAGI,
-                  estPaid,
-                },
-                k1Income: k1Total,
-                totalTax: Math.round(totalTax),
-                quarterly: Math.round(quarterly),
-              }
-              existing.unshift(record)
-              localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
-              localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
-              alert('✅ Record saved!')
+            onClick={handleSave}
+            style={{
+              width: '100%', padding: '14px',
+              background: saveStatus === 'saved' ? '#15803d' : '#0D1B3E',
+              border: 'none', borderRadius: 12, color: '#fff',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 10,
+              transition: 'background 0.3s',
             }}
-            style={{ width: '100%', padding: '14px', background: '#0D1B3E', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 10 }}
           >
-            💾 Save This Record
+            {saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
           </button>
           <button
             onClick={() => nav('/ai-analysis')}
