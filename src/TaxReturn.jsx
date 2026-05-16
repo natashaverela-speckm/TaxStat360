@@ -317,6 +317,11 @@ export default function TaxReturn() {
     safeHarborMinimum = 0,
     safeHarborBalance = 0,
     safeHarborQuarterly = 0,
+    // AUDIT FIX T3: destructure qbiCarryforward so it can be displayed in the results
+    // panel. calcTaxReturn computes and returns this when qbiBasis < 0 (entity has a
+    // QBI loss this year). Users need to know the carryforward so they can enter it
+    // in "Prior Year QBI Loss" next year (IRC §199A(c)(2)).
+    qbiCarryforward = 0,
   } = result
 
   const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
@@ -423,6 +428,17 @@ export default function TaxReturn() {
             {k1Total < 0 && (
               <div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
                 ✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
+              </div>
+            )}
+            {/* AUDIT FIX T5: S Corp basis advisory warning.
+                S Corp losses are deductible only up to stock and debt basis (IRC §1366(d),
+                Form 7203). TaxStat360 is a planning tool — enforcing basis is the CPA's job.
+                This warning ensures users know the displayed loss estimate may not be fully
+                deductible without verifying basis. Shown only when entities include an S Corp
+                and total K-1 is negative (loss scenario). */}
+            {k1Total < 0 && entities.some(e => /s.?corp/i.test(e?.type || '')) && (
+              <div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#9A3412' }}>
+                ⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
               </div>
             )}
             {/* F2-02: QBI warning — fires only when wage is genuinely missing (wage: null).
@@ -590,7 +606,11 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
-          {/* Other income */}
+          {/* Other income
+              AUDIT FIX T1/T2: Qualified Dividends has been moved from the
+              RETIREMENT & SOCIAL SECURITY INCOME section to here — it is investment
+              income (1099-DIV Box 1b), not retirement income. Placed after Ordinary
+              Dividends so the relationship between the two fields is immediately clear. */}
           <CollapsibleSection title="OTHER INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
               <div>
@@ -619,8 +639,16 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 2b — taxable interest only; tax-exempt interest (Line 2a) is not entered here</div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Ordinary Dividends <InfoTip text="From 1099-DIV Box 1a — a subset will qualify for preferential LTCG rates (enter qualified portion separately below)." /></label>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Ordinary Dividends <InfoTip text="From 1099-DIV Box 1a — enter the qualified portion separately below." /></label>
                 <MoneyInput value={dividends} onChange={setDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+              </div>
+              {/* AUDIT FIX T1/T2: Qualified Dividends moved here from Retirement & SS section.
+                  Investment income (1099-DIV Box 1b) belongs in Other Income, adjacent to
+                  Ordinary Dividends, so users can see the relationship between the two fields. */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of ordinary dividends taxed at preferential 0/15/20% rates (IRC §1(h)). Must be ≤ the Ordinary Dividends amount entered above. The tax savings versus ordinary rates are applied automatically." /></label>
+                <MoneyInput value={qualifiedDividends} onChange={setQualifiedDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                <div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>1099-DIV Box 1b — taxed at 0/15/20% rates</div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Form 4797 Ordinary Gain/(Loss) <InfoTip text="Form 4797 Part II — net ordinary gain or loss from sale of business property. Schedule 1 Line 4 — flows from Form 4797 Part II + K-1 Box 17K aggregated from Step 1." /></label>
@@ -655,7 +683,9 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* Retirement & Social Security */}
+          {/* Retirement & Social Security
+              AUDIT FIX T1: Qualified Dividends removed from this section — it has been
+              moved to OTHER INCOME where it belongs (investment income, not retirement). */}
           <CollapsibleSection title="RETIREMENT &amp; SOCIAL SECURITY INCOME">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 12 }}>
               <div>
@@ -665,10 +695,6 @@ export default function TaxReturn() {
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a — traditional IRA, 401(k), or pension distributions. Do not include Roth IRA qualified distributions." /></label>
                 <MoneyInput value={iraDistributions} onChange={setIraDistributions} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of ordinary dividends taxed at LTCG rates (0/15/20%). Must be less than or equal to ordinary dividends above." /></label>
-                <MoneyInput value={qualifiedDividends} onChange={setQualifiedDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
             </div>
           </CollapsibleSection>
@@ -844,6 +870,16 @@ export default function TaxReturn() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
                   <span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(qbiDeduction)})</span>
+                </div>
+              )}
+              {/* AUDIT FIX T4: Display QBI loss carryforward when the entity has a QBI loss
+                  this year. calcTaxReturn returns qbiCarryforward > 0 when qbiBasis < 0.
+                  This is a critical planning insight — users must enter this in "Prior Year
+                  QBI Loss" next year (IRC §199A(c)(2)) or they will lose the carryforward. */}
+              {qbiCarryforward > 0 && (
+                <div style={{ marginTop: 6, background: 'rgba(59,130,246,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
+                  💡 QBI Loss Carryforward: {fmt(qbiCarryforward)}<br />
+                  Enter this in "Prior Year QBI Loss" next year to offset future QBI income (§199A(c)(2)).
                 </div>
               )}
             </div>
