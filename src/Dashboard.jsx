@@ -5,7 +5,6 @@ import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_C
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
-// FIX (SIGN-OUT): use the shared signOut utility — preserves ts360_records_* across sign-out
 import { signOut } from './utils/signOut'
 
 
@@ -98,7 +97,6 @@ function calcDashboard(biz, f1040) {
   const isSC       = biz.entityType === 'S Corporation'
   const isPassthru = PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
 
-  // Shared base input for calcTaxReturn — non-entity income fields
   const baseInput = {
     taxYear: year, status: fs, dependents: deps,
     k1Total: 0, rentalNet: 0, stGain: 0, ltGain: 0,
@@ -111,7 +109,6 @@ function calcDashboard(biz, f1040) {
     useItemized: !useStd, itemizedAmt: itemized,
   }
 
-  // ── C-Corp: entity-level 21% tax + personal tax on officer W-2 + dividends ─
   if (isCCorp) {
     const corpTax   = Math.round(Math.max(0, netBiz) * C_CORP_TAX_RATE)
     const dividends = parseFloat(biz.ccorpDividends || 0)
@@ -136,7 +133,6 @@ function calcDashboard(biz, f1040) {
     }
   }
 
-  // ── Passthrough / non-entity: K-1 flows to personal 1040 ─────────────────
   const entities = isPassthru
     ? [{ type: biz.entityType, k1, own: 100 }]
     : []
@@ -164,7 +160,6 @@ function buildRecs(biz,calc){
   const recs=[],{k1,recSal,isSC,isCCorp,quarterly,qbi,effRate,corpTax,netBiz,combinedTax}=calc
   const officerSal=parseFloat(biz.officerSalary)||0,grossRev=parseFloat(biz.grossRevenue)||0
   const dep=parseFloat(biz.depreciation)||0,adv=parseFloat(biz.advertising)||0
-  // C-Corp specific recommendations
   if(isCCorp&&corpTax>0) recs.push({type:'danger',title:'C-Corp Double Taxation',msg:'Your corporation owes '+fmt(corpTax)+' in federal corporate tax (21% flat rate on '+fmt(netBiz)+' net profit). Profits distributed as dividends are taxed again on your personal return. Consider an S-Corp election to eliminate entity-level tax.'})
   if(isCCorp&&officerSal===0&&netBiz>20000) recs.push({type:'warning',title:'No Officer Salary Recorded',msg:'C-Corp officers should pay themselves a reasonable W-2 salary. This is deductible to the corporation, reducing your corporate tax.'})
   if(isCCorp&&netBiz>0) recs.push({type:'success',title:'C-Corp Tax Planning Tip',msg:'Consider retaining profits in the corporation rather than distributing as dividends to avoid double taxation. A tax advisor can help model the optimal salary vs. retained earnings strategy.'})
@@ -187,14 +182,13 @@ export default function Dashboard(){
   const nav=useNavigate()
   const [showDisclaimer,setShowDisclaimer]=useState(()=>!localStorage.getItem('ts360_disclaimer_seen'))
   const [refreshing,setRefreshing]=useState(false)
+  // NEW-01 fix: saveError replaces alert() for the empty-data validation guard.
+  // alert() blocks the main thread and is inconsistent with the rest of the codebase.
+  // saveError is shown inline below the Save button with auto-clear after 4 seconds.
+  const [saveError,setSaveError]=useState('')
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
   const [biz,setBiz]=useState({entityType:'S Corporation',year:2025,ownershipPct:'100',grossRevenue:'',cogs:'',operatingExpenses:'',officerSalary:'',depreciation:'',advertising:'',otherDeductions:'',ccorpDividends:''})
-  // NOTE: Dashboard's f1040 UI state intentionally keeps legacy internal field names
-  // (useStandardDed, itemizedDed, estimatedPayments). These are translated to the
-  // canonical session contract (useItemized, itemizedAmt, estPaid) at every
-  // writePersonalContext() call site below. Renaming Dashboard's internal state
-  // to match the canonical contract is a deferred follow-up.
   const [f1040,setF1040]=useState({filingStatus:'single',w2Income:'',otherIncome:'',estimatedPayments:'',dependents:'',useStandardDed:true,itemizedDed:''})
   const [connectedApp,setConnectedApp]=useState(null)
   const [saved,setSaved]=useState(false)
@@ -205,19 +199,18 @@ export default function Dashboard(){
   const navigate = useNavigate()
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
-  // FIX (F-08): warn the user when they click "Personal 1040" without
-  // Step 1 business data. Shown inline below the tab bar; dismissed when
-  // the user switches tabs, navigates to Step 1, or clicks the ✕ button.
+  // FIX (F-08): warn the user when they click "Personal 1040" without Step 1 data.
   const [showStep1Warning,setShowStep1Warning]=useState(false)
+  // NEW-01 fix: delete confirmation state — replaces window.confirm() which is a
+  // browser modal that can't be styled and blocks the renderer thread.
+  const [pendingDeleteIdx,setPendingDeleteIdx]=useState(null)
   const bSet=(k,v)=>{setSaved(false);setBiz(p=>({...p,[k]:v}))}
   const fSet=(k,v)=>{setSaved(false);setF1040(p=>({...p,[k]:v}))}
 
   const [xeroLoading,setXeroLoading]=useState(false)
   useEffect(()=>{
-    // ts360_connected_app is not trusted — always verify via live token fetch below
     const email = localStorage.getItem('ts360_email') || 'default'
     const key = 'ts360_records_' + email
-    // Scan ALL ts360_records_* keys to find records regardless of email state
     const allFound = []
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
@@ -229,49 +222,27 @@ export default function Dashboard(){
       }
     }
     const recs = allFound.sort((a,b) => (b.id||0) - (a.id||0))
-    // Ensure all found records are stored under the current email key
     if (email !== 'default' && recs.length > 0) {
       localStorage.setItem(key, JSON.stringify(recs))
       localStorage.setItem('ts360_records', JSON.stringify(recs))
     }
-    // Clear connected badge — re-verified below via live fetch
     localStorage.removeItem('ts360_connected_app')
     setConnectedApp(null)
-    // Remove blank records (no real data) that have been sitting for more than 30 days.
-    // Records saved within the last 30 days are kept even if blank — the user may still
-    // be filling them in. Records with real data are always kept regardless of age.
-    // r.id is Date.now() at save time, giving a reliable creation timestamp.
-    //
-    // FIX (F-02 / cleanRecs): Dashboard saves revenue as rec.biz.grossRevenue (flat).
-    // TaxReturn saves revenue as rec.biz.pnl.grossRevenue (nested). Both paths must be
-    // checked or Dashboard-saved records are always classified as "no data" and
-    // auto-deleted after 30 days even when $250K of revenue is present.
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
     const cleanRecs = recs.filter(r => {
       const hasData = r.biz
-        // biz-format records: check both the nested pnl path (TaxReturn saves) and
-        // the flat path (Dashboard saves). Also check w2Income, rentalIncome, k1Income.
         ? parseFloat(r.biz?.pnl?.grossRevenue || r.biz?.grossRevenue) > 0
           || parseFloat(r.f1040?.w2Income) > 0
           || parseFloat(r.f1040?.rentalIncome) > 0
           || parseFloat(r.k1Income) > 0
-        // flat personal-return records (from TaxReturn page pre-entity-restore)
         : parseFloat(r.w2Income) > 0 || parseFloat(r.rentalIncome) > 0 || Math.abs(parseFloat(r.k1Total)) > 0
       if (hasData) return true
-      // No real data — keep if created within 30 days (grace period for partial saves)
       const ageMs = Date.now() - (r.id || 0)
       return ageMs < THIRTY_DAYS_MS
     })
     if (cleanRecs.length !== recs.length) {
-      // Persist the cleaned list immediately
       const filteredOut = recs.filter(r => !cleanRecs.find(c => c.id === r.id))
-      console.warn(
-        '[Dashboard] auto-filtered',
-        recs.length - cleanRecs.length,
-        'blank record(s) from localStorage on mount. IDs:',
-        filteredOut.map(r => r.id),
-        '— Records are kept for 30 days even without data (grace period for partial saves). After 30 days, blank records (no grossRevenue, w2Income, rentalIncome, or k1 income) are purged. If a user reports missing records, check whether those IDs were filtered here and when they were created (r.id = Date.now() at save time).',
-      )
+      console.warn('[Dashboard] auto-filtered', recs.length - cleanRecs.length, 'blank record(s). IDs:', filteredOut.map(r => r.id))
       localStorage.setItem(key, JSON.stringify(cleanRecs))
       localStorage.setItem('ts360_records', JSON.stringify(cleanRecs))
     }
@@ -279,8 +250,6 @@ export default function Dashboard(){
     if(cleanRecs.length>0){
       const r0=cleanRecs[0]
       if(r0.biz) setBiz(r0.biz)
-      // Support both record formats. saved1040 always uses canonical contract
-      // field names (estPaid, useItemized, itemizedAmt) regardless of source path.
       const saved1040=r0.biz ? (r0.f1040||{}) : {
         filingStatus:r0.filingStatus||'single',
         w2Income:r0.w2Income||'',
@@ -293,16 +262,14 @@ export default function Dashboard(){
         filingStatus:saved1040.filingStatus||'single',
         w2Income:saved1040.w2Income||'',
         otherIncome:saved1040.otherIncome||'',
-        estimatedPayments:saved1040.estPaid||'',                                  // ← contract → legacy UI name
+        estimatedPayments:saved1040.estPaid||'',
         dependents:saved1040.dependents||'',
-        useStandardDed:saved1040.useItemized!==undefined?!saved1040.useItemized:true, // ← contract → legacy UI name (inverted)
-        itemizedDed:saved1040.itemizedAmt||''                                     // ← contract → legacy UI name
+        useStandardDed:saved1040.useItemized!==undefined?!saved1040.useItemized:true,
+        itemizedDed:saved1040.itemizedAmt||''
       })
       setSaved(true)
-      // Bind to the first record with actual data (not a blank duplicate)
       setSavedRecordId(cleanRecs[0].id)
       setShowFin(true)
-      // Only auto-navigate to form if explicitly requested (e.g. "Update Data" button)
       if(sessionStorage.getItem('ts360_goto_form')==='1'){
         sessionStorage.removeItem('ts360_goto_form')
         navigate('/calculate-tax')
@@ -311,7 +278,6 @@ export default function Dashboard(){
     const params=new URLSearchParams(window.location.search)
     const xeroToken=params.get('xero_token')
     if(xeroToken){
-      // verified below
       setConnectedApp('Xero')
       setXeroLoading(true)
       fetch(API_BASE_URL+'/auth/xero/data?token='+xeroToken)
@@ -329,10 +295,6 @@ export default function Dashboard(){
         })
         .catch(()=>{setXeroLoading(false);window.history.replaceState({},'','/dashboard')})
     }
-
-    // ── Auto-verify integration on login ─────────────────────────────────────
-    // Always fetch data on mount — only show badge if fetch succeeds with real data
-    // If fetch fails or returns no data → clear badge and tokens automatically
     if(!xeroToken){
       const integMap={quickbooks:'QuickBooks',wave:'Wave',freshbooks:'FreshBooks'}
       let foundInteg=false
@@ -349,7 +311,6 @@ export default function Dashboard(){
             .then(r=>r.json())
             .then(data=>{
               if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
-                // ✅ Success — populate fields and show badge
                 const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
                 const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
                 setBiz(p=>({...p,grossRevenue:rev,operatingExpenses:exp}))
@@ -357,21 +318,18 @@ export default function Dashboard(){
                 setConnectedApp(label)
                 localStorage.setItem('ts360_connected_app',label)
               } else {
-                // ❌ No data or error — wipe everything, force reconnect
                 ;['token','connected','extra'].forEach(k=>localStorage.removeItem('ts360_'+pid+'_'+k))
                 localStorage.removeItem('ts360_connected_app')
                 setConnectedApp(null)
               }
             })
             .catch(()=>{
-              // ❌ Network/server error — clear badge
               localStorage.removeItem('ts360_connected_app')
               setConnectedApp(null)
             })
           break
         }
       }
-      // No integration tokens found at all — ensure badge is cleared
       if(!foundInteg){
         localStorage.removeItem('ts360_connected_app')
         setConnectedApp(null)
@@ -399,7 +357,6 @@ export default function Dashboard(){
           }
           setRefreshing(false)
         }).catch(()=>setRefreshing(false))
-        // Xero needs token refresh first
         const xeroRefresh=localStorage.getItem('ts360_xero_refresh')
         if(!tok&&xeroRefresh){
           setRefreshing(true)
@@ -425,21 +382,19 @@ export default function Dashboard(){
   const isPassthru=PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
 
   const handleSave=()=>{
+    // NEW-01: Replaced alert() with inline saveError state.
+    // alert() blocks the main thread and is inconsistent with the rest of the codebase.
     if(!parseFloat(biz.grossRevenue) && !parseFloat(biz.operatingExpenses) && !parseFloat(f1040.w2Income)){
-      alert('Please enter at least your gross revenue or W-2 income before saving a record.')
+      setSaveError('Please enter at least your gross revenue or W-2 income before saving a record.')
+      setTimeout(() => setSaveError(''), 4000)
       return
     }
+    setSaveError('')
     const email=localStorage.getItem('ts360_email')||'default'
     const key='ts360_records_'+email
-    // Always read fresh from localStorage to avoid stale state
     const freshRecs=JSON.parse(localStorage.getItem(key)||localStorage.getItem('ts360_records')||'[]')
-    // Use savedRecordId if set; otherwise find the most recent record with real data
     let existingId=savedRecordId
     if(!existingId){
-      // FIX (F-02 / handleSave): also check rec.biz.grossRevenue (flat path used by
-      // Dashboard saves). The original only checked rec.biz?.pnl?.grossRevenue which
-      // is always absent on Dashboard-saved records, so existingId was never found and
-      // a duplicate record was created instead of updating the existing one.
       const firstReal=freshRecs.find(r=>
         parseFloat(r.biz?.pnl?.grossRevenue || r.biz?.grossRevenue) > 0
         || parseFloat(r.f1040?.w2Income) > 0
@@ -453,13 +408,7 @@ export default function Dashboard(){
       f1040:{...f1040},
       connectedApp,
       k1Income:calc?.k1||0,
-      // FIX (F-02 / quarterly): quarterly was not saved in the record object, causing
-      // the record card to always show Quarterly: $0 for Dashboard-saved records.
-      // calc.quarterly is the quarterlyRecommended value from calcTaxReturn.
       quarterly:calc?.quarterly||0,
-      // FIX (U-01): totalTax was never saved by Dashboard's handleSave, so the
-      // record card could not show tax liability for Dashboard-originated records.
-      // TaxReturn saves already write totalTax — this makes both paths consistent.
       totalTax:Math.round(calc?.totalTax||0),
     }
     const updated=existingId
@@ -472,56 +421,27 @@ export default function Dashboard(){
     setSaved(true)
   }
 
-  // loadRecord restores a saved record into Dashboard state and writes it
-  // through the typed sessionState contract so TaxReturn picks it up. NOTE:
-  // this is a RESET action — fields not captured at save time (rentalIncome,
-  // rentalExpenses, NOL carryforward, ISO/AMT fields, etc.) are intentionally
-  // reset to defaults rather than preserved from the previous session, because
-  // saved records pre-dating those fields have no values for them. If you need
-  // preserve-and-merge semantics in the future, add a separate "restore over
-  // current session" action — don't change loadRecord's contract.
   const loadRecord = (rec) => {
     setLoadedRecord(rec)
     setSavedRecordId(rec.id)
-
-    // ── Restore business state in Dashboard (for inline view) ──────────────
-    // FIX (F-02 / loadRecord field mapping): Dashboard saves use flat biz field names
-    // (entityType, ownershipPct, grossRevenue, year). TaxReturn/entity saves use
-    // different names (type, own, pnl.grossRevenue, pnl.totalExpenses, taxYear).
-    // Both must be resolved or Dashboard-saved records restore blank after "Load & Continue".
-    //
-    // Field resolution: check TaxReturn/entity field first, fall back to Dashboard flat field.
-    // FIX (Issue #56 / loadRecord): Apply normalizeEntityType() to all entity type values
-    // before writing to state. Legacy records containing 'S-Corporation' (with hyphen) caused
-    // the calculator dropdown to silently fall back to 'Sole Proprietor / Single-Member LLC'
-    // because the <select> uses strict equality against ENTITY_TYPES canonical strings.
     if(rec.biz) {
       const savedPnl = rec.biz.pnl || {}
       setBiz(prev => ({
         ...prev,
-        // entityType: TaxReturn saves as rec.biz.type; Dashboard saves as rec.biz.entityType
-        // normalizeEntityType() resolves legacy hyphen variants → canonical space form
         entityType: normalizeEntityType(rec.biz.type || rec.biz.entityType) || prev.entityType,
-        // ownershipPct: TaxReturn entities use rec.biz.own; Dashboard uses rec.biz.ownershipPct
         ownershipPct: rec.biz.own || rec.biz.ownershipPct || prev.ownershipPct,
-        // year: TaxReturn saves as rec.taxYear; Dashboard saves as rec.biz.year
         year: rec.taxYear || rec.biz.year || prev.year,
-        // grossRevenue: TaxReturn saves as pnl.grossRevenue; Dashboard saves as rec.biz.grossRevenue (flat)
         grossRevenue: savedPnl.grossRevenue != null
           ? String(savedPnl.grossRevenue)
           : rec.biz.grossRevenue != null ? String(rec.biz.grossRevenue) : '',
-        // operatingExpenses: TaxReturn saves as pnl.totalExpenses; Dashboard saves as rec.biz.operatingExpenses
         operatingExpenses: savedPnl.totalExpenses != null
           ? String(savedPnl.totalExpenses)
           : rec.biz.operatingExpenses != null ? String(rec.biz.operatingExpenses) : '',
-        // officerSalary: TaxReturn saves as pnl.officerSalary; Dashboard saves as rec.biz.officerSalary
         officerSalary: savedPnl.officerSalary != null
           ? String(savedPnl.officerSalary)
           : rec.biz.officerSalary != null ? String(rec.biz.officerSalary) : '',
       }))
     }
-
-    // ── Build the f1040 object from either new or old record format ─────────
     const saved1040 = rec.biz ? (rec.f1040||{}) : {
       filingStatus: rec.filingStatus || 'single',
       w2Income: rec.w2Income || '',
@@ -534,15 +454,13 @@ export default function Dashboard(){
       filingStatus: saved1040.filingStatus || rec.filingStatus || 'single',
       w2Income: saved1040.w2Income || rec.w2Income || '',
       otherIncome: saved1040.otherIncome || rec.otherIncome || '',
-      estimatedPayments: saved1040.estPaid || rec.estPaid || '',                              // ← contract → legacy UI name
+      estimatedPayments: saved1040.estPaid || rec.estPaid || '',
       dependents: saved1040.dependents || rec.dependents || '',
-      useStandardDed: saved1040.useItemized !== undefined ? !saved1040.useItemized : true,    // ← contract → legacy UI name (inverted)
-      itemizedDed: saved1040.itemizedAmt || rec.itemizedAmt || '',                            // ← contract → legacy UI name
+      useStandardDed: saved1040.useItemized !== undefined ? !saved1040.useItemized : true,
+      itemizedDed: saved1040.itemizedAmt || rec.itemizedAmt || '',
     }
     setF1040(f1040Restored)
     setSaved(false)
-
-    // ── Pass record data into the Step 1→2 flow via sessionStorage ──────────
     const sourceEntities = Array.isArray(rec.entities) && rec.entities.length > 0
       ? rec.entities
       : (rec.biz ? [rec.biz] : [])
@@ -554,7 +472,6 @@ export default function Dashboard(){
         - parseMoney(e.box12_13)
       return {
         name: e.name,
-        // FIX (Issue #56): normalize entity type for each restored entity
         type: normalizeEntityType(e.type),
         own: e.own,
         netProfit: pnl.netProfit || 0,
@@ -567,20 +484,6 @@ export default function Dashboard(){
         box17V_sstb: !!e.box17V_sstb,
       }
     })
-
-    // FIX (F1-01 — root cause): Dashboard-saved records have no pnl field, so
-    // restoredEntities is always [] for them after the .filter(e => e && e.pnl) above.
-    // writeStep1State({ entities: [] }) leaves Step 1 with no entity data, and the
-    // entity type silently reverts to the Step 1 default on every "Load & Continue" click.
-    //
-    // Fix: when restoredEntities is empty and the record has flat biz data (Dashboard save
-    // schema), build a minimal shell entity from the flat fields so Step 1 receives the
-    // correct entity type, gross revenue, and K-1. The shell matches the shape that
-    // CalculateTaxInner expects: { name, type, own, netProfit, k1, box17K, … }.
-    //
-    // rec.k1Income is written by Dashboard's handleSave (see U-01 / quarterly fix above)
-    // and is the most reliable K-1 value for Dashboard-saved records. Fall back to
-    // computing netProfit from the flat P&L fields if k1Income is absent.
     const entitiesToWrite = restoredEntities.length > 0
       ? restoredEntities
       : rec.biz
@@ -596,7 +499,6 @@ export default function Dashboard(){
             const netProfit = rev - cogs - opEx - sal - dep - adv - oth
             return [{
               name:     normalizeEntityType(flatBiz.entityType || flatBiz.type) || 'Business',
-              // FIX (Issue #56): normalize entity type in shell entity construction
               type:     normalizeEntityType(flatBiz.entityType || flatBiz.type),
               own:      parseInt(flatBiz.ownershipPct || flatBiz.own) || 100,
               netProfit,
@@ -608,12 +510,6 @@ export default function Dashboard(){
         : []
 
     const k1TotalRestored = entitiesToWrite.reduce((s, e) => s + (e.k1 || 0), 0)
-    // FIX (Issue #56 / entitiesRaw): The calculator reads from readStep1StateRaw() which
-    // returns entitiesRaw, NOT entities. Passing sourceEntities (unnormalized) as entitiesRaw
-    // meant legacy 'S-Corporation' (hyphen) types were written there, causing the calculator
-    // dropdown to silently fall back to the first option (Sole Proprietor / Single-Member LLC).
-    // Normalize each entity's type field before writing to entitiesRaw so the calculator
-    // always receives a canonical string that matches an ENTITY_TYPES option.
     const sourceEntitiesNormalized = sourceEntities.map(e =>
       e && e.type ? { ...e, type: normalizeEntityType(e.type) } : e
     )
@@ -627,15 +523,33 @@ export default function Dashboard(){
       filingStatus: f1040Restored.filingStatus,
       w2Income: parseFloat(f1040Restored.w2Income) || 0,
       dependents: parseInt(f1040Restored.dependents) || 0,
-      estPaid: parseFloat(f1040Restored.estimatedPayments) || 0,                  // ← legacy UI → contract
-      useItemized: !f1040Restored.useStandardDed,                                  // ← legacy UI → contract (inverted)
-      itemizedAmt: parseFloat(f1040Restored.itemizedDed) || 0,                     // ← legacy UI → contract
+      estPaid: parseFloat(f1040Restored.estimatedPayments) || 0,
+      useItemized: !f1040Restored.useStandardDed,
+      itemizedAmt: parseFloat(f1040Restored.itemizedDed) || 0,
     })
     writeTaxYear(rec.taxYear || rec.biz?.year || 2025)
-
     nav('/calculate-tax')
   }
 
+  // NEW-01: deleteRecord replaces the inline window.confirm() pattern.
+  // Two-click confirmation: first click sets pendingDeleteIdx, second click deletes.
+  // Clicking anywhere else or a different delete button resets the pending state.
+  const deleteRecord = (idx) => {
+    if (pendingDeleteIdx !== idx) {
+      setPendingDeleteIdx(idx)
+      setTimeout(() => setPendingDeleteIdx(null), 4000)  // auto-cancel after 4s
+      return
+    }
+    // Confirmed — perform deletion
+    setPendingDeleteIdx(null)
+    const email=localStorage.getItem('ts360_email')||'default'
+    const key='ts360_records_'+email
+    const updated=records.filter((_,j)=>j!==idx)
+    setRecords(updated)
+    localStorage.setItem(key,JSON.stringify(updated))
+    localStorage.setItem('ts360_records',JSON.stringify(updated))
+    if(loadedRecord?.id===records[idx]?.id) setLoadedRecord(null)
+  }
 
   const handleConnect=(integ)=>{
     setConnectedApp(integ.name)
@@ -649,14 +563,23 @@ export default function Dashboard(){
 
   return(
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
+      {/* ── Nav
+          NEW-01 fix: Removed 📂 emoji from the Calculator nav button.
+          All other authenticated pages use "Calculator" with no emoji.
+          Dashboard was the only page using "📂 Calculator", creating
+          visual inconsistency. ⚙ Settings is kept to match all other pages. */}
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
-        <LOGO/>
-        <div style={{display:'flex',alignItems:'center',gap:14}}>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <LOGO/>
+          {/* Dashboard active indicator — consistent with Settings ("⚙ Settings" active)
+              and AIAnalysis ("AI Analysis" active). Shows users which page they are on. */}
+          <div style={{background:'#F1F5F9',color:'#475569',borderRadius:20,padding:'4px 14px',fontSize:12,fontWeight:700}}>Dashboard</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          {/* FIX (CC-1): Add Calculator and AI Analysis nav links to match other authenticated pages */}
-          <button onClick={()=>nav('/calculate-tax')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>📂 Calculator</button>
+          {/* NEW-01: "Calculator" — emoji removed to match all other page navs */}
+          <button onClick={()=>nav('/calculate-tax')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Calculator</button>
           <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>AI Analysis</button>
-          {/* FIX (SIGN-OUT): replaced inline forEach(removeItem) with shared signOut(nav) utility */}
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
@@ -674,27 +597,11 @@ export default function Dashboard(){
         {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
           <button key={v} onClick={()=>{
             if(v==='f1040'){
-              // FIX (F-08): Guard against navigating to /tax-return with no business
-              // data. When calc is null (no revenue entered) the session write below
-              // would push a zero-income entity and the user would see a blank personal
-              // return with no explanation. Instead, show an inline warning banner that
-              // tells the user to complete Step 1 first and offers a direct link there.
               if(!calc){
                 setShowStep1Warning(true)
                 return
               }
               setShowStep1Warning(false)
-              // FIX (F1-06 — tab behavior): The f1040 tab was unconditionally calling
-              // nav('/tax-return'), which meant setActiveView('f1040') was NEVER called
-              // and the entire {activeView==='f1040'&&…} render block below (inline 1040
-              // breakdown, quarterly schedule, recommendations, save CTA) was permanently
-              // dead code — the user always got bounced to a separate route instead of
-              // seeing the inline view that is clearly the intended UX.
-              //
-              // Fix: write session state for downstream sync (same as before) but switch
-              // to the inline f1040 view via setActiveView instead of navigating away.
-              // Users who want the full Step 2 TaxReturn flow can still reach it via
-              // "Load & Continue →" on any record card.
               writeStep1State({
                 entities: [{name:biz.entityType,type:biz.entityType,own:biz.ownershipPct,netProfit:calc?.netBiz||0,k1:calc?.k1||0}],
                 k1Total: calc?.k1 || 0,
@@ -710,10 +617,10 @@ export default function Dashboard(){
                 itemizedAmt: parseFloat(f1040.itemizedDed) || 0,
               })
               writeTaxYear(biz.year||2025)
-              setActiveView('f1040')  // FIX (F1-06): was nav('/tax-return') — show inline view instead
+              setActiveView('f1040')
             } else {
               setActiveView(v)
-              setShowStep1Warning(false)  // clear warning when switching back to records
+              setShowStep1Warning(false)
             }
           }} style={{
             padding:'12px 20px',background:'none',border:'none',cursor:'pointer',borderBottom:`2px solid ${activeView===v?B:'transparent'}`,
@@ -722,9 +629,6 @@ export default function Dashboard(){
         ))}
       </div>
 
-      {/* FIX (F-08): Inline warning shown when the user clicks "Personal 1040"
-          without any business revenue entered. Gives a clear explanation and a
-          direct link to Step 1 so they don't land on a blank personal return. */}
       {showStep1Warning&&(
         <div style={{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'12px 28px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
           <div style={{fontSize:13,color:'#1E40AF',lineHeight:1.5}}>
@@ -775,26 +679,15 @@ export default function Dashboard(){
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               {records.map((rec,i)=>{
-                // FIX (F-02 / record card): Dashboard saves revenue as rec.biz.grossRevenue
-                // (flat). TaxReturn saves it as rec.biz.pnl.grossRevenue (nested). The
-                // original code only checked the nested pnl path, so Dashboard-saved records
-                // always showed "No data" for Revenue even when $250K was entered.
-                // Now checks both paths with a consistent helper variable.
                 const displayRevenue = rec.biz?.pnl?.grossRevenue ?? rec.biz?.grossRevenue
+                const isPendingDelete = pendingDeleteIdx === i
                 return (
-                <div key={rec.id||i} style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                <div key={rec.id||i} style={{background:'#fff',border:'1px solid '+(isPendingDelete?'#FCA5A5':'#E2E8F0'),borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
                       📄 {rec.savedAt||'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-                      {/* FIX (F1-05 — revenue display): TaxReturn saves entity type as
-                          rec.biz.type; Dashboard saves it as rec.biz.entityType. The original
-                          expression only checked rec.biz?.entityType and rec.entityType, so
-                          every TaxReturn-saved record showed '—' in the Entity column even
-                          when the type (e.g. 'S Corporation') was plainly present in the
-                          record. Added rec.biz?.type as the first fallback to cover both
-                          save-path schemas. */}
                       <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.type||rec.biz?.entityType||rec.entityType||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Year: <strong style={{color:N}}>{rec.biz?.year||rec.taxYear||'—'}</strong></span>
                       <span style={{fontSize:13,color:SL}}>Revenue: <strong style={{color:displayRevenue&&parseFloat(displayRevenue)>0?N:'#94A3B8'}}>{displayRevenue&&parseFloat(displayRevenue)>0?'$'+parseFloat(displayRevenue).toLocaleString():'No data'}</strong></span>
@@ -803,13 +696,6 @@ export default function Dashboard(){
                       <span style={{fontSize:13,color:SL}}>Quarterly: <strong style={{color:N}}>${(rec.quarterly||rec.biz?.quarterly||0).toLocaleString()}</strong></span>
                     </div>
                   </div>
-                  {/* FIX (U-01): Tax liability was invisible until the user clicked Load & Continue
-                      (Step 1) then Continue to Personal Tax Return (Step 2) — a minimum of 2 clicks
-                      after login before seeing any number. Marketing says "shows you exactly what
-                      you owe whenever you need it." This badge delivers on that promise at login
-                      with zero clicks. Only shown when totalTax > 0 so old records without it
-                      remain clean. rec.totalTax is written by TaxReturn saves and now also by
-                      Dashboard's handleSave after the U-01 fix above. */}
                   {parseFloat(rec.totalTax)>0&&(
                     <div style={{flexShrink:0,marginLeft:24,marginRight:8,textAlign:'center',background:'#FEF2F2',border:'1.5px solid #FECACA',borderRadius:12,padding:'10px 18px',minWidth:120}}>
                       <div style={{fontSize:10,fontWeight:700,color:'#991B1B',letterSpacing:'0.5px',marginBottom:3}}>EST. TAX LIABILITY</div>
@@ -817,25 +703,27 @@ export default function Dashboard(){
                       {parseFloat(rec.quarterly)>0&&<div style={{fontSize:10,color:'#991B1B',marginTop:3}}>${Math.round(parseFloat(rec.quarterly)).toLocaleString()}/qtr</div>}
                     </div>
                   )}
-                  <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20}}>
+                  <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20,alignItems:'center'}}>
                     <button onClick={()=>loadRecord(rec)} style={{
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
-                    }}>Load & Continue →</button>
-                    <button onClick={()=>{
-                      if(!window.confirm('Delete this record?')) return
-                      const email=localStorage.getItem('ts360_email')||'default'
-                      const key='ts360_records_'+email
-                      const updated=records.filter((_,j)=>j!==i)
-                      setRecords(updated)
-                      localStorage.setItem(key,JSON.stringify(updated))
-                      localStorage.setItem('ts360_records',JSON.stringify(updated))
-                      if(loadedRecord?.id===rec.id) setLoadedRecord(null)
-                    }} style={{
-                      padding:'10px 14px',background:'#fff',color:'#DC2626',
-                      border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:700,
-                      fontSize:13,cursor:'pointer'
-                    }}>🗑</button>
+                    }}>Load &amp; Continue →</button>
+                    {/* NEW-01: Two-step delete — first click shows confirmation text,
+                        second click within 4 seconds deletes. No window.confirm(). */}
+                    <button
+                      onClick={() => deleteRecord(i)}
+                      style={{
+                        padding:'10px 14px',
+                        background: isPendingDelete ? '#FEF2F2' : '#fff',
+                        color: isPendingDelete ? '#DC2626' : '#DC2626',
+                        border: isPendingDelete ? '1.5px solid #DC2626' : '1.5px solid #FCA5A5',
+                        borderRadius:8,fontWeight:700,fontSize:isPendingDelete?11:13,cursor:'pointer',
+                        minWidth: isPendingDelete ? 80 : 40,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {isPendingDelete ? 'Sure?' : '🗑'}
+                    </button>
                   </div>
                 </div>
                 )
@@ -848,7 +736,6 @@ export default function Dashboard(){
       {/* ════ 1040 / PERSONAL VIEW ════ */}
       {activeView==='f1040'&&biz.entityType!=='C Corporation'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
-        {/* Back to Business button */}
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
           <button onClick={()=>navigate('/calculate-tax')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
@@ -917,7 +804,6 @@ export default function Dashboard(){
             </div>
           </div>
 
-        {/* RECOMMENDATIONS */}
         {show1040&&hasNumbers&&recs.length>0&&(<>
           <Divider/>
           <div style={{marginBottom:16}}><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Tax Strategy Recommendations</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Based on your financials and personal tax picture - specific actions you can take now.</p></div>
@@ -929,13 +815,18 @@ export default function Dashboard(){
           </div>
         </>)}
 
-        {/* Save Record CTA */}
         <div style={{marginTop:24,padding:'20px 24px',background:'#0D1B3E',borderRadius:14,textAlign:'center'}}>
           <div style={{color:'#fff',fontWeight:700,fontSize:16,marginBottom:6}}>Ready to save your tax snapshot?</div>
           <div style={{color:'#93b4d4',fontSize:13,marginBottom:16}}>Your record will include all business and personal inputs.</div>
           <button onClick={handleSave} style={{padding:'12px 40px',background:saved?'#059669':'#2563EB',color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer',transition:'background 0.3s'}}>
             {saved ? '✅ Record Saved!' : '💾 Save This Record'}
           </button>
+          {/* NEW-01: inline error replaces alert() */}
+          {saveError && (
+            <div style={{marginTop:10,padding:'8px 16px',background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,fontSize:13,color:'#991B1B'}}>
+              {saveError}
+            </div>
+          )}
           {saved && <div style={{color:'#6EE7B7',fontSize:13,marginTop:10}}>Saved! View it in 📂 My Records.</div>}
         </div>
 
