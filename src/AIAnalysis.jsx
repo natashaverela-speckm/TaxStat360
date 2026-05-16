@@ -261,6 +261,11 @@ function RiskScan({ rec }) {
   const roughTax = calcFederalTax(_taxable, year, filing)
   const _marginalRate = getMarginalRate(_taxable, year, filing)
   const today = new Date()
+  // FIX (PAST-YEAR GUIDANCE): when the user is reviewing a prior tax year (e.g. auditing
+  // a 2025 return in May 2026), action text that says "before year-end" or "before
+  // December 31" is anachronistic — those dates have already passed. isPastYear gates
+  // the past-year copy path in the depreciation, advertising, and §179 findings below.
+  const isPastYear = year < today.getFullYear()
 
   const qDeadlines = [
     {month:4,day:15,label:'April 15'},
@@ -334,7 +339,11 @@ function RiskScan({ rec }) {
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
-      action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
+      // FIX (BUG-2): was hardcoded "at the 22% bracket" / "$4,400+" regardless of the
+      // user's actual marginal rate. For a user in the 24% bracket a $20K asset saves
+      // $4,800 not $4,400 — the wrong bracket and wrong dollar figure were both shown.
+      // _marginalRate is already computed above; use it so the estimate is always accurate.
+      action: `If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
   }
 
   // AUDIT FIX A1: QBI loss carryforward informational finding.
@@ -381,7 +390,11 @@ function RiskScan({ rec }) {
   if (roughTax > 10000) {
     findings.push({ level: 'medium', icon: '📢', title: 'Advertising & Marketing — Fully Deductible (IRC §162)',
       detail: `With an estimated tax liability of ${fmt(roughTax)}+, investing in business advertising reduces your taxable income dollar-for-dollar. Advertising spend is 100% deductible as an ordinary and necessary business expense.`,
-      action: 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
+      // FIX (BUG-3): "before year-end" is anachronistic when reviewing a past tax year.
+      // isPastYear swaps in a past-tense planning note for the year+1 instead.
+      action: isPastYear
+        ? `Advertising, marketing, and business development were 100% deductible in ${year}. These deadlines have passed — document all qualifying spend and plan ahead for ${year + 1}.`
+        : 'Increase advertising, marketing, or business development spend before year-end. Digital ads, print, sponsorships, and website costs all qualify. Document all expenses with receipts and business purpose.' })
 
     // AI-FIX-03: Section 179 cap was `revenue - opex - officerSal` which resolved to $0
     // because biz.grossRevenue was '0' (ent.netProfit was undefined — same shape mismatch
@@ -395,7 +408,10 @@ function RiskScan({ rec }) {
       : 0
     findings.push({ level: 'medium', icon: '🔧', title: 'Equipment & Tools — Section 179 / Bonus Depreciation',
       detail: 'Section 179 lets you deduct the full cost of qualifying business equipment, tools, machinery, vehicles, and technology in the year of purchase — up to $2.5M in 2025 under the One Big Beautiful Bill Act (OBBBA), with phase-out beginning above $4M of qualifying purchases. Bonus depreciation was restored to 100% for property acquired and placed in service after January 19, 2025 (applies to both new and used property).',
-      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). Must be placed in service before December 31. At your income level, up to ${fmt(s179Offset)} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
+      // FIX (BUG-3): "Must be placed in service before December 31" is anachronistic for
+      // a past tax year — that deadline has already passed. isPastYear swaps in a note
+      // directing the user to plan ahead for the next year instead.
+      action: `Qualifying purchases include computers, phones, machinery, office furniture, and business vehicles (with limits). ${isPastYear ? `The December 31, ${year} in-service deadline has passed — plan §179 purchases for ${year + 1}.` : 'Must be placed in service before December 31.'} At your income level, up to ${fmt(s179Offset)} in Section 179 purchases could offset your estimated tax liability — but Section 179 cannot exceed your business's net taxable income (it can reduce income to zero, not create a loss). Bonus depreciation (100% in 2025 under OBBBA, for property placed in service after January 19, 2025) has no net-income cap. Consult a CPA to confirm eligibility and combine the two strategies correctly.` })
   }
 
   if (rentalIncome > 0 || isREP) {
