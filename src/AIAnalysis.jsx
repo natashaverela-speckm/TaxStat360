@@ -325,6 +325,25 @@ function RiskScan({ rec }) {
       action: 'If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by $4,400+ at the 22% bracket.' })
   }
 
+  // AUDIT FIX A1: QBI loss carryforward informational finding.
+  // When the entity reports a net K-1 loss (k1 < 0) and is a pass-through entity,
+  // the loss generates a §199A(c)(2) QBI loss carryforward. This is a critical
+  // planning insight — users must enter it in "Prior Year QBI Loss Carryforward"
+  // in Step 2 next year to correctly reduce their future QBI deduction base.
+  // The roughTax > 10000 gate on Advertising/Section 179 suggestions already
+  // suppresses those in loss scenarios — this finding fills the planning gap
+  // that would otherwise leave the loss year with no actionable output.
+  if (k1 < 0 && isPassthroughEntity(b.entityType)) {
+    const qbiLoss = Math.abs(k1)
+    findings.push({
+      level: 'info',
+      icon: '📋',
+      title: 'QBI Loss Generated — Track Your Carryforward',
+      detail: `Your ${fmt(qbiLoss)} business loss generates a §199A QBI loss carryforward. When your business returns to profitability, this carryforward will reduce (or eliminate) your §199A deduction base for that year — potentially increasing your future tax liability if not planned for.`,
+      action: `Next year, enter ${fmt(qbiLoss)} (as a positive number) in the "Prior Year QBI Loss Carryforward" field in Step 2. This ensures your future QBI deduction is correctly calculated per IRC §199A(c)(2). Also confirm with your CPA that your S Corp stock and debt basis is sufficient to deduct the loss in the current year (Form 7203).`,
+    })
+  }
+
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const _year = parseInt(b.year) || 2025
     const _filing = f.filingStatus || 'single'
@@ -332,7 +351,7 @@ function RiskScan({ rec }) {
     const { deduction: qbi, limitApplied: _limitApplied, caps: _caps } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
-    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA) could recapture it. `
+    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA, Box 17W) could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
@@ -1296,86 +1315,42 @@ export default function AIAnalysis() {
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>
             {rec
               ? `Analyzing your ${rec.biz?.entityType || 'business'} — ${rec.savedAt ? `saved ${rec.savedAt}` : 'current session'}`
-              : 'Save a record on the Dashboard to unlock personalized analysis'}
+              : 'Save a record on the Dashboard or complete a calculation to see your analysis.'}
           </p>
         </div>
 
-        {rec?._savedFallback && (
-          <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ fontSize: 13, color: '#92400E' }}>
-              <strong>⚠ Showing saved record —</strong> Analysis below is from a saved snapshot. Open the calculator to see analysis on your current inputs.
-            </div>
-            <button onClick={() => {
-              if (rec) {
-                const email = localStorage.getItem('ts360_email') || 'default'
-                const key = 'ts360_records_' + email
-                const record = { id: Date.now(), savedAt: new Date().toLocaleString(), type: 'personal-return', ...rec, _unsaved: undefined }
-                const existing = JSON.parse(localStorage.getItem(key) || '[]')
-                localStorage.setItem(key, JSON.stringify([record, ...existing.slice(0, 19)]))
-                localStorage.setItem('ts360_records', JSON.stringify([record, ...existing.slice(0, 19)]))
-                window.location.reload()
-              }
-            }} style={{ flexShrink: 0, padding: '8px 16px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Save Now</button>
-          </div>
-        )}
-
         {rec && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: N }}>Input Completeness</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: G }}>{score}%</span>
+              <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 6 }}>INPUT COMPLETENESS</div>
+              <div style={{ background: '#F1F5F9', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+                <div style={{ background: score >= 80 ? G : score >= 50 ? O : R, width: score + '%', height: '100%', borderRadius: 6, transition: 'width 0.4s' }} />
               </div>
-              <div style={{ height: 8, background: '#E2E8F0', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: score + '%', height: '100%', background: 'linear-gradient(90deg,#059669,#34d399)', borderRadius: 4, transition: 'width 0.5s' }} />
-              </div>
+              <div style={{ fontSize: 12, color: SL, marginTop: 4 }}>{score}% — {score < 80 ? `Fill more fields for better accuracy — missing: ${missingFields(rec).join(', ')}` : 'Good data quality'}</div>
             </div>
-            <div style={{ fontSize: 12, color: SL, flexShrink: 0 }}>
-              {(() => {
-                const missing = missingFields(rec)
-                return missing.length > 0
-                  ? `Fill more fields for better accuracy — missing: ${missing.slice(0, 3).join(', ')}`
-                  : 'All key fields are filled in — analysis is fully accurate.'
-              })()}
-            </div>
-            <button onClick={() => {
-              if (rec) {
-                writeTaxYear(rec.biz?.year || 2025)
-                writePersonalContext(normalizeF1040(rec.f1040 || {}))
-                writeStep1State({
-                  entities: isPassthroughEntity(rec.biz?.entityType)
-                    ? [{ type: rec.biz?.entityType, k1: rec.k1Income || 0 }]
-                    : [],
-                  k1Total: rec.k1Income || 0,
-                  isCoopPatron: !!rec.f1040?.isCoopPatron,
-                })
-                nav('/tax-return')
-              } else {
-                nav('/calculate-tax')
-              }
-            }} style={{ flexShrink: 0, padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Update Data →</button>
+            <button onClick={() => nav('/tax-return')} style={{ padding: '8px 16px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Update Data →</button>
           </div>
         )}
 
-        {/* Tab navigation */}
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '6px', marginBottom: 24, display: 'flex', gap: 4 }}>
-          {TABS.map((tab, i) => (
-            <button key={i} onClick={() => setActiveTab(i)} style={{
-              flex: 1, padding: '10px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: activeTab === i ? B : 'transparent',
-              color: activeTab === i ? '#fff' : SL,
-              fontWeight: activeTab === i ? 700 : 500,
-              fontSize: 13, transition: 'all 0.15s'
-            }}>{tab.label}</button>
+        {rec?._savedFallback && (
+          <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#92400E' }}>
+            📂 Showing your last saved record. <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }} onClick={() => nav('/calculate-tax')}>Run a new calculation</span> to update this analysis.
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          {TABS.map((t, i) => (
+            <button key={i} onClick={() => setActiveTab(i)} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid ' + (activeTab === i ? B : '#E2E8F0'), background: activeTab === i ? B : '#fff', color: activeTab === i ? '#fff' : SL, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}>
+              {t.label}
+            </button>
           ))}
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: '24px' }}>
-          {!rec && <NoData />}
-          {rec && activeTab === 0 && <RiskScan rec={rec} />}
-          {rec && activeTab === 1 && <TaxOptimization rec={rec} />}
-          {rec && activeTab === 2 && <IRSCompliance rec={rec} />}
-          {rec && activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
+        <div>
+          {activeTab === 0 && <RiskScan rec={rec} />}
+          {activeTab === 1 && <TaxOptimization rec={rec} />}
+          {activeTab === 2 && <IRSCompliance rec={rec} />}
+          {activeTab === 3 && <ReportsTab rec={rec} onReport={() => setShowReport(true)} onSimulator={() => setShowSimulator(true)} onNarrative={() => setShowNarrative(true)} />}
         </div>
       </div>
     </div>

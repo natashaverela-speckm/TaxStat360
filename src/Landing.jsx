@@ -79,7 +79,12 @@ export default function Landing() {
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Start Free 7-Day Trial</button>
           <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Already have an account</button>
         </div>
-        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA required</p>
+        {/* AUDIT FIX L1: "No CPA required" implied the tool replaces a CPA entirely.
+            TaxStat360 is a planning tool — users still need a CPA to file.
+            "No CPA needed to get started" is accurate: you don't need one to use the
+            tool, but it complements (not replaces) the CPA relationship.
+            FAQ answer and footer disclaimer already handle the fuller explanation. */}
+        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>No charge until after 7-day trial &middot; Cancel anytime &middot; No CPA needed to get started</p>
 
         {/* FIX (L-03): "Connects with" implied software connection was the only path.
             Manual entry is a fully supported first-class option — many users who don't
