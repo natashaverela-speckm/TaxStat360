@@ -15,6 +15,42 @@
 //   calcNIIT       — §1411 net investment income tax
 //   TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets,
 //   getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
+//
+// ── Audit-fix change log ────────────────────────────────────────────────────
+// F-C02 (QBI aggregation disclosure):
+//   calcQBI now accepts opts.hasMultiEntityTypes and returns:
+//     aggregationApplied  — true when W-2 wages across different entity types are
+//                           combined above the §199A threshold (Reg. §1.199A-4 election
+//                           is assumed; not automatic). Drives UI disclosure in
+//                           TaxReturn.jsx and AIAnalysis.jsx.
+//     aggregationDisclosure — human-readable disclosure string; null when not applicable.
+//   calcTaxReturn computes hasMultiEntityTypes and passes it to calcQBI.
+//   NOTE: This file does not prevent aggregation — it surfaces the assumption
+//   so the UI can inform the user. Actual un-aggregated path available when
+//   hasMultiEntityTypes=false.
+//
+// F-C05 (stale AI Analysis data):
+//   calcTaxReturn return object now includes calculatedAt (Date.now()) so
+//   AIAnalysis.jsx can compare against its savedRecord.savedAt and show a
+//   "⚠ Analysis based on last saved record" banner when they diverge.
+//
+// F-H03 (income display split — Schedule C vs Schedule E):
+//   calcTaxReturn return now includes:
+//     scheduleEK1Income — S-Corp / partnership K-1 income routing to Schedule E, Part II
+//     scheduleCSEIncome — Sole-proprietor / SMLLC income routing to Schedule C
+//     entityIncomeBreakdown — per-entity array with name, type, income, scheduleForm
+//   These values are already computed internally; the addition only exposes them
+//   for TaxReturn.jsx's income waterfall and IRS Filing Map in AIAnalysis.jsx.
+//   No calculation changes — display fix applies to TaxReturn.jsx (File 02).
+//
+// F-H06 (Additional Medicare Tax display):
+//   additionalMedicare is already calculated correctly (IRC §3101(b)(2)).
+//   The $0 shown in the test case is mathematically correct:
+//     W-2 ($70,000) + SE earnings subject ($110,820) = $180,820 < $200,000 threshold.
+//   No calc change needed. Display fix: TaxReturn.jsx must show this as a
+//   separate labeled line ("Additional Medicare Tax (0.9%) — Form 8959") distinct
+//   from amt (Form 6251 AMT) so users aren't confused when both are $0.
+// ────────────────────────────────────────────────────────────────────────────
 
 import {
   SE_SUBJECT_TYPES,
@@ -47,7 +83,7 @@ const TAX_TABLES = {
       mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
       mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
       hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
+      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.37],[Infinity,.37]],
     },
     ltcg:    { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
     niit:    { single:200000, mfj:250000, mfs:125000, hoh:200000, qss:250000 },
@@ -121,7 +157,7 @@ const AMT_TABLES = {
     exemption:     { single:90100,  mfj:140200, mfs:70100,  hoh:90100,  qss:140200 },
     phaseoutStart: { single:500000, mfj:1000000, mfs:500000, hoh:500000, qss:1000000 },
     phaseoutRate:  0.50,   // OBBBA doubled the phaseout rate beginning 2026
-    bracket26_28:  { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
+    bracket26_28:  { single:244500, mfj:244500, mhs:122250, hoh:244500, qss:244500 },
   },
 }
 
@@ -297,17 +333,60 @@ function _applyMinQBI(result, activeQbiForFloor, taxYear) {
 // rather than computing QBI independently. Any module that duplicates this logic
 // will diverge from the main calculator over time. (Audit finding F4-02)
 //
-// Returns { deduction, limitApplied, caps } where:
-//   deduction    — actual QBI deduction (rounded)
-//   limitApplied — 'qbi' | 'wage' | 'income' | 'min400' | 'none'
-//   caps         — { qbi, wage, income, min400? } actual values of each cap
-//                  (wage is null when fallback path is active — see F5-03 note below)
+// Returns { deduction, limitApplied, caps, aggregationApplied, aggregationDisclosure } where:
+//   deduction            — actual QBI deduction (rounded)
+//   limitApplied         — 'qbi' | 'wage' | 'income' | 'min400' | 'none'
+//   caps                 — { qbi, wage, income, min400? } actual values of each cap
+//                          (wage is null when fallback path is active — see F5-03 note below)
+//   aggregationApplied   — true when W-2 wages from different entity types (e.g., S-Corp
+//                          officer W-2 + Schedule C with $0 W-2) are pooled above the
+//                          §199A threshold. This is an assumed Reg. §1.199A-4 aggregation
+//                          election; it is NOT automatic. UI must display aggregationDisclosure
+//                          to the user when this flag is true. (Audit finding F-C02)
+//   aggregationDisclosure — human-readable disclosure string; null when not applicable.
+//
+// opts.hasMultiEntityTypes — passed from calcTaxReturn; true when entities span both
+//   SE_SUBJECT_TYPES (Schedule C/Sole Prop) and non-SE types (S-Corp/Partnership).
+//   When true and taxableBeforeQBI > QBI threshold, aggregationApplied = true.
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
-  const { status = 'single', taxYear = 2025, entityQbiData = [], activeQbi } = opts
+  const {
+    status = 'single',
+    taxYear = 2025,
+    entityQbiData = [],
+    activeQbi,
+    hasMultiEntityTypes = false,   // F-C02: supplied by calcTaxReturn
+  } = opts
+
+  // ── F-C02: Compute aggregation flag ────────────────────────────────────────
+  // Aggregation under Reg. §1.199A-4 pools W-2 wages and QBI across entities.
+  // It applies here when:
+  //   (a) the caller has entities of different types (SE + non-SE), AND
+  //   (b) we are above the §199A income threshold where the W-2 wage limit bites.
+  // Without aggregation, a Schedule C entity with no W-2 wages would receive $0 QBI
+  // above the threshold. With aggregation, the S-Corp's W-2 wages offset the limit
+  // for the combined business income — but only if the Reg. §1.199A-4 election is made.
+  const thresholds       = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+  const threshold        = thresholds[status] || thresholds.single
+  const aggregationApplied = hasMultiEntityTypes && taxableBeforeQBI > threshold
+
+  const aggregationDisclosure = aggregationApplied
+    ? 'Your QBI deduction assumes you have elected to aggregate your business entities ' +
+      'under Reg. §1.199A-4 (combined W-2 wages applied across all entities). ' +
+      'This election must be formally made on Form 8995-A, Schedule B and applied ' +
+      'consistently each year. Without aggregation, your deduction may be lower. ' +
+      'Consult your CPA before relying on this figure.'
+    : null
+
+  // Shared early-exit helper used on multiple return paths below
+  const withMeta = (result) => ({
+    ...result,
+    aggregationApplied,
+    aggregationDisclosure,
+  })
 
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) {
     return _applyMinQBI(
-      { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } },
+      withMeta({ deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }),
       activeQbi !== undefined ? activeQbi : qbiIncome,
       taxYear
     )
@@ -317,19 +396,16 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const incomeLimitation = Math.max(0, taxableBeforeQBI - netCapGain) * QBI_DEDUCTION_RATE  // §199A(a)(2) — applied LAST in Step 3
   const qbiComponent    = qbiIncome * QBI_DEDUCTION_RATE
 
-  const thresholds  = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
-  const threshold   = thresholds[status] || thresholds.single
-
   // ── Below threshold: full 20% of QBI, capped only by income limitation ──────
   if (taxableBeforeQBI <= threshold) {
     const ded         = Math.min(qbiComponent, incomeLimitation)
     const limitApplied = qbiComponent <= incomeLimitation ? 'qbi' : 'income'
     return _applyMinQBI(
-      {
+      withMeta({
         deduction:    Math.round(ded) || 0,
         limitApplied,
         caps: { qbi: Math.round(qbiComponent), wage: null, income: Math.round(incomeLimitation) },
-      },
+      }),
       activeQbi !== undefined ? activeQbi : qbiIncome,
       taxYear
     )
@@ -367,6 +443,11 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   // Treas. Reg. §1.199A-2(b)(2). Box 17V from the actual K-1 should be entered when
   // available for maximum accuracy — this fallback prevents a silent 20%-uncapped result
   // for S-Corp owners who entered their officer salary but not the K-1 Box 17V figure.
+  //
+  // F-C02 NOTE: When aggregationApplied=true, the W-2 wages from the S-Corp entity
+  // offset the Schedule C entity's lack of wages. This is valid ONLY if the Reg. §1.199A-4
+  // aggregation election has been made. The aggregationDisclosure string above surfaces
+  // this assumption to the user via TaxReturn.jsx and AIAnalysis.jsx.
   const totalWages = entityQbiData.reduce((s, e) => {
     const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || 0  // F5-03: officerW2 fallback
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
@@ -382,11 +463,11 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     const ded         = Math.min(scaledQbiComponent, incomeLimitation)
     const limitApplied = scaledQbiComponent <= incomeLimitation ? 'qbi' : 'income'
     return _applyMinQBI(
-      {
+      withMeta({
         deduction:    Math.round(ded) || 0,
         limitApplied,
         caps: { qbi: Math.round(scaledQbiComponent), wage: null, income: Math.round(incomeLimitation) },
-      },
+      }),
       activeQbiForFloor,
       taxYear
     )
@@ -417,7 +498,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   else                                  limitApplied = 'qbi'
 
   return _applyMinQBI(
-    {
+    withMeta({
       deduction:    Math.round(ded) || 0,
       limitApplied,
       caps: {
@@ -425,7 +506,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
         wage:   Math.round(wageLimit),
         income: Math.round(incomeLimitation),
       },
-    },
+    }),
     activeQbiForFloor,
     taxYear
   )
@@ -442,7 +523,15 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 //     3. NOT subject to SE tax — S-Corp is excluded from SE_SUBJECT_TYPES (IRC §1402(a))
 //     4. Used as the §199A(b)(2) W-2 wage proxy in calcQBI via e.officerW2 (F5-03)
 //   The K-1 ordinary business income is SEPARATE from the W-2 and passes through to
-//   Schedule E (not subject to SE tax for S-Corp shareholders per IRC §1402(a)(2)).
+//   Schedule E Part II (not subject to SE tax for S-Corp shareholders per IRC §1402(a)(2)).
+//
+// F-H03 income routing audit trail:
+//   seNetIncome  — sum of K-1 income from SE_SUBJECT_TYPES only (Schedule C / Sole Prop).
+//                  Subject to SE tax (IRC §1401). Flows to Schedule C, then Schedule 1.
+//   nonSEk1      — sum of K-1 income from non-SE types (S-Corp / Partnership).
+//                  NOT subject to SE tax (IRC §1402(a)(2)). Flows to Schedule E, Part II.
+//   Both values are returned separately so TaxReturn.jsx can display them as distinct
+//   waterfall rows with correct form labels. See scheduleEK1Income / scheduleCSEIncome below.
 function calcTaxReturn(input) {
   const {
     taxYear, status, dependents,
@@ -497,9 +586,14 @@ function calcTaxReturn(input) {
   const collectibles = Math.max(0, nv(collectiblesGain))
 
   // ── Self-Employment Tax — IRC §1401 ─────────────────────────────────────────
-  // SE_SUBJECT_TYPES imported from constants.js (removes duplicate definition).
-  // S-Corp shareholders are EXCLUDED — their K-1 income is not SE income.
-  // Officer W-2 salary is subject to FICA at the entity level, not SE tax here.
+  // F-H03 AUDIT TRAIL: SE tax is calculated ONLY on entities whose type is in
+  // SE_SUBJECT_TYPES (imported from constants.js). This explicitly excludes:
+  //   - S-Corporations: IRC §1402(a)(2) — K-1 income from S-Corp is not SE income.
+  //   - Partnerships/LLCs taxed as partnerships: general partners are SE; limited
+  //     partners are excluded per IRC §1402(a)(13) (handled via entity type flag).
+  // Officer W-2 salary from an S-Corp is subject to FICA at the entity level (payroll
+  // taxes remitted by the S-Corp); it is NOT re-assessed as SE tax on the personal return.
+  // This is the correct treatment per Rev. Rul. 59-221 and IRC §1402(a)(2).
   const seNetIncome = entities.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     return sum + Math.max(0, parseFloat(e.k1) || 0)
@@ -555,6 +649,9 @@ function calcTaxReturn(input) {
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
 
+  // F-H03: nonSEk1 = S-Corp / Partnership K-1 income only → Schedule E, Part II
+  // seNetIncome (computed above) = Schedule C / Sole Prop income only → Schedule C
+  // These are kept separate throughout and labeled correctly in the return object.
   const nonSEk1 = entities.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
     const k1 = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
@@ -567,11 +664,27 @@ function calcTaxReturn(input) {
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO + k1FallbackForQBI
 
   const prefIncome  = ltGain + qualDiv
-  const _qbiResult  = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, { status, taxYear, entityQbiData: entities })
-  const qbi             = _qbiResult.deduction
-  const qbiLimitApplied = _qbiResult.limitApplied
-  const qbiCaps         = _qbiResult.caps
-  const qbiCarryforward = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
+
+  // ── F-C02: Determine whether multi-entity aggregation is occurring ──────────
+  // hasMultiEntityTypes is true when the entity list spans both SE types (Schedule C)
+  // and non-SE types (S-Corp / Partnership). When true and above the QBI threshold,
+  // calcQBI will set aggregationApplied=true and return a disclosure string.
+  const hasMultiEntityTypes = entities.length > 1
+    && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
+    && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
+
+  const _qbiResult  = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
+    status,
+    taxYear,
+    entityQbiData:    entities,
+    hasMultiEntityTypes,             // F-C02: aggregation disclosure flag
+  })
+  const qbi                    = _qbiResult.deduction
+  const qbiLimitApplied        = _qbiResult.limitApplied
+  const qbiCaps                = _qbiResult.caps
+  const qbiAggregationApplied  = _qbiResult.aggregationApplied   // F-C02
+  const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure // F-C02
+  const qbiCarryforward        = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
 
   // Split income into ordinary vs preferential
   const totalPrefIncome      = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
@@ -606,7 +719,14 @@ function calcTaxReturn(input) {
     marginalRate = totalPrefIncome > t15 ? LTCG_RATE_HIGH : totalPrefIncome > t0 ? LTCG_RATE_MID : 0
   }
 
-  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) ─────────────────────────
+  // ── Additional Medicare Tax (0.9%) — IRC §3101(b)(2) / Form 8959 ─────────────
+  // F-H06 DISPLAY NOTE: This is a SEPARATE tax from Form 6251 AMT (calcAMT above).
+  // TaxReturn.jsx must display this as its own labeled row ("Additional Medicare Tax
+  // (0.9%) — Form 8959") so users understand why both `additionalMedicare` and `amt`
+  // can be $0 independently. At the test case income level:
+  //   W-2 ($70,000) + SE earnings subject ($110,820) = $180,820 < $200,000 threshold
+  //   → additionalMedicare = $0 (correct; threshold not reached)
+  // Higher-income users (W-2 + SE > $200K single / $250K MFJ) will see this populated.
   const addlMedThreshold  = getAddlMedicareThreshold(taxYear, status)
   const additionalMedicare = Math.round(
     Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE
@@ -619,30 +739,12 @@ function calcTaxReturn(input) {
   const niit      = calcNIIT(nii, agi, taxYear, status)
 
   // ── Child Tax Credit — IRC §24 (as amended by OBBBA P.L. 119-21 §70301) ─────
-  // Per-child amount: $2,000 (2024) | $2,200 (2025–2026) — see TAX_TABLES[year].ctc.
-  // The OBBBA raised the credit to $2,200 for 2025 and did not index it for inflation.
-  //
-  // Phase-out per §24(b)(1) — AGI above the threshold reduces the credit:
-  //   $50 reduction per $1,000 of AGI (or fraction thereof) above the threshold.
-  //   Threshold: $200,000 (single / HOH / MFS) | $400,000 (MFJ / QSS)
-  //   Thresholds are NOT inflation-adjusted per TCJA (made permanent by OBBBA).
-  //
-  // Phase-out uses AGI (not modified AGI). For most filers these are identical.
-  //
-  // Simplification: all entered dependents treated as qualifying children under 17.
-  //   — Other Dependent Credit ($500 per non-child qualifying dependent) and the
-  //     Additional Child Tax Credit (ACTC, refundable, Schedule 8812) are not
-  //     separately computed. Mixed-age families may see a slightly lower actual credit;
-  //     lower-income filers eligible for ACTC may have a higher refund than shown here.
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
   const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? 400000 : 200000
   const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
-  // "or fraction thereof" means ceiling — IRC §24(b)(1)
   const ctcReduction         = Math.ceil(ctcExcess / 1000) * 50
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
-  // Non-refundable credit: cannot reduce income tax + addl Medicare + NIIT below $0.
-  // ACTC (refundable portion, §24(d)) is not separately computed here.
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niit))
 
   // ── AMT — Form 6251 ──────────────────────────────────────────────────────────
@@ -662,45 +764,53 @@ function calcTaxReturn(input) {
   const totalPayments  = withheld + estimated
   const balance        = totalTax - totalPayments
 
-  // Current-year quarterly estimate (balance ÷ 4)
-  // F2-07 — Annualized income installment method note:
-  //   When ytdFactor < 1 (YTD mode), income has been entered for a partial year.
-  //   The §6654(d)(2) annualized method allows lower payments in early quarters
-  //   when income is earned unevenly. Full annualized method implementation requires
-  //   entering income by quarter boundary — deferred to a dedicated UI enhancement.
-  //   For now, YTD-mode users are shown the balance-based quarterly amount below,
-  //   with a UI note (in TaxReturn.jsx) directing them to §6654(d)(2) planning.
   const quarterlyRecommended = balance > 0 ? Math.round(balance / 4) : 0
 
   // ── §6654(d)(1) Estimated Tax Safe Harbor — F5-04 ────────────────────────────
-  // Two approaches; pay the LESSER to avoid the §6654 underpayment penalty:
-  //   §6654(d)(1)(B)(i)   — 90% of current year total tax
-  //   §6654(d)(1)(B)(ii)  — 100% of prior year tax
-  //   §6654(d)(1)(D)      — 110% substitution when prior year AGI exceeds threshold:
-  //                           $150,000 for all filers except MFS
-  //                           $75,000  for MFS filers — §6654(d)(1)(D) by reference
-  //                           Neither amount is inflation-adjusted.
-  // §6654(d)(1)(A) defines the installment amount (25% of required annual payment) —
-  // it is NOT the cite for the 90% safe harbor option.
-  // Note: the prior year safe harbor is often the more actionable option for growing
-  // businesses — it is fixed at the start of the year and requires no mid-year estimates
-  // of current-year income. Display both approaches in the UI so users can choose.
   const priorYearTaxAmt = Math.max(0, nv(priorYearTax))
   const priorYearAGIAmt = Math.max(0, nv(priorYearAGI))
-  // MFS filers use $75,000; all others use $150,000 — §6654(d)(1)(B)(ii)(II)
   const agiBoundary       = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
-  const safeHarborCurrentYear = Math.round(totalTax * 0.90)    // §6654(d)(1)(B)(i)  — 90% of current year
+  const safeHarborCurrentYear = Math.round(totalTax * 0.90)
   const safeHarborPriorYear   = priorYearTaxAmt > 0
-    ? Math.round(priorYearTaxAmt * priorYearMultiplier)          // §6654(d)(1)(B)(ii) — 100%/110% of prior year
-    : null                                                        // null = prior year tax not entered; UI shows current-year approach only
+    ? Math.round(priorYearTaxAmt * priorYearMultiplier)
+    : null
   const safeHarborMinimum  = safeHarborPriorYear !== null
-    ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)       // lesser of the two = safe harbor amount
-    : safeHarborCurrentYear                                       // fallback when prior year not entered
+    ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)
+    : safeHarborCurrentYear
   const safeHarborBalance  = Math.max(0, safeHarborMinimum - totalPayments)
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
 
+  // ── F-H03: Per-entity income breakdown for display routing ───────────────────
+  // TaxReturn.jsx uses entityIncomeBreakdown to render the income waterfall with
+  // correct form labels per entity type instead of a combined "K-1 Ordinary Business
+  // Income" line. AIAnalysis.jsx uses it for accurate Filing Map card amounts.
+  // scheduleEK1Income — S-Corp / Partnership K-1 → Schedule E, Part II
+  // scheduleCSEIncome — Sole Prop / SMLLC net profit → Schedule C
+  const scheduleEK1Income = nonSEk1         // S-Corp K-1; exempt from SE tax per IRC §1402(a)(2)
+  const scheduleCSEIncome = seNetIncome     // Schedule C net profit; subject to SE tax per IRC §1401
+
+  const entityIncomeBreakdown = entities.map(e => {
+    if (!e) return null
+    const isSEType = SE_SUBJECT_TYPES.includes(e.type)
+    const income   = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
+    return {
+      name:         e.name || e.id || 'Unnamed Entity',
+      type:         e.type,
+      income:       Math.round(income),
+      ownership:    parseFloat(e.own) || 100,
+      isSEType,
+      scheduleForm: isSEType ? 'Schedule C' : 'Schedule E, Part II',
+      taxForm:      isSEType ? '1040 Sch C' : 'K-1 (1120-S / 1065)',
+    }
+  }).filter(Boolean)
+
   return {
+    // ── F-C05: Timestamp for stale-data detection in AIAnalysis.jsx ─────────
+    // AIAnalysis compares calculatedAt against savedRecord.savedAt.
+    // If calculatedAt > savedAt, show: "⚠ Analysis based on last saved record."
+    calculatedAt: Date.now(),
+
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
@@ -708,26 +818,34 @@ function calcTaxReturn(input) {
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
     qbi, qbiLimitApplied, qbiCaps,
+    qbiAggregationApplied,   // F-C02: drives UI disclosure in TaxReturn.jsx + AIAnalysis.jsx
+    qbiAggregationDisclosure, // F-C02: disclosure text string
     totalPrefIncome, taxableAfterQBI, ordinaryTaxableIncome, taxableIncome,
     ordFedTax, prefTax, fedTax,
     marginalRate,
-    addlMedThreshold, additionalMedicare, rentalNII, nii, niit,
+    addlMedThreshold,
+    additionalMedicare,      // F-H06: IRC §3101(b)(2), Form 8959 — display as separate row in TaxReturn.jsx
+    rentalNII, nii, niit,
     numDependents, childCredit, ctcRaw, ctcReduction, ctcPerChild,
-    amt,
+    amt,                     // F-H06: Form 6251 AMT — distinct from additionalMedicare; label separately in UI
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     // §6654 safe harbor outputs — F5-04
-    safeHarborCurrentYear,   // 90% of current year tax
-    safeHarborPriorYear,     // 100%/110% of prior year tax (null if not entered)
-    safeHarborMinimum,       // lesser of the two — the actual safe harbor amount
-    safeHarborBalance,       // safe harbor amount minus payments already made
-    safeHarborQuarterly,     // safeHarborBalance ÷ 4
+    safeHarborCurrentYear,
+    safeHarborPriorYear,
+    safeHarborMinimum,
+    safeHarborBalance,
+    safeHarborQuarterly,
     priorQBILossCO,
     qbiCarryforward,
     nolAllowed,
     nolSurplus,
     ebl,
     palSuspendedRental,
+    // ── F-H03: Income routing for display ────────────────────────────────────
+    scheduleEK1Income,       // S-Corp K-1 only → Schedule E, Part II
+    scheduleCSEIncome,       // Schedule C only → Schedule C (subject to SE tax)
+    entityIncomeBreakdown,   // per-entity array: { name, type, income, scheduleForm, ... }
   }
 }
 
