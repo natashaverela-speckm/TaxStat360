@@ -48,7 +48,7 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
 
   // Security & privacy state
-  const [idleTimeout, setIdleTimeout] = useState('0')
+  const [idleTimeout, setIdleTimeout] = useState('30')
   const [loginHistory, setLoginHistory] = useState([])
   const [exportDone, setExportDone] = useState(false)
 
@@ -92,8 +92,18 @@ export default function Settings() {
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
 
-    // Load security preferences and login history
-    setIdleTimeout(localStorage.getItem('ts360_idle_timeout_mins') || '0')
+    // FIX (TIMEOUT-DEFAULT): Default idle timeout changed from 0 (Never) to 30 minutes.
+    // Previous: `localStorage.getItem('ts360_idle_timeout_mins') || '0'`
+    //   — `||` treats the stored '0' (Never) as falsy, overwriting an explicit user
+    //     choice of Never. Fixed with `??` (nullish coalescing: only falls back on null).
+    //   — New users who never visit Settings had no value written to localStorage,
+    //     so App.jsx RequireAuth read null and never enforced any timeout. Fixed by
+    //     writing '30' to localStorage on first load so enforcement is immediate.
+    // Existing users who explicitly stored any value (including '0') are unaffected.
+    const storedTimeout = localStorage.getItem('ts360_idle_timeout_mins')
+    if (storedTimeout === null) localStorage.setItem('ts360_idle_timeout_mins', '30')
+    setIdleTimeout(storedTimeout ?? '30')
+
     try {
       const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
       setLoginHistory(history)
