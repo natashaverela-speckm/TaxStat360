@@ -191,8 +191,10 @@ return(
 {showAdvK1&&(
 <div style={{gridColumn:'1/-1',display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
 <div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 disposition gain (K-1 Box 17K) <InfoTip text="Form 4797 Part II ordinary gain allocated to you — flows to Schedule 1 Line 4. Do NOT include in LTCG." /></label>
-<MoneyInput value={ent.box17K || 0} onChange={n => onUpdate(idx, {...ent, box17K: n})} placeholder="0" style={inp} />
+  {/* AUDIT FIX C2: renamed from "Section 179 disposition gain" to "Section 179 Recapture"
+      to match IRS K-1 (Form 1120-S) Box 17K label exactly. InfoTip updated accordingly. */}
+  <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 Recapture (K-1 Box 17K) <InfoTip text="Recapture of §179 deduction when the property is disposed of or business use drops below 50% (IRC §1245). Reported as ordinary income on Form 4797 Part II — flows to Schedule 1 Line 4. Do NOT include in Long-Term Capital Gains." /></label>
+  <MoneyInput value={ent.box17K || 0} onChange={n => onUpdate(idx, {...ent, box17K: n})} placeholder="0" style={inp} />
 </div>
 <div>
 <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 S-corp / Box 12 partnership) <InfoTip text="Your share of §179 deduction from the entity. Limited to your active business income — excess is disallowed and carried forward." /></label>
@@ -211,8 +213,12 @@ return(
 <MoneyInput value={ent.box17V_wages || 0} onChange={n => onUpdate(idx, {...ent, box17V_wages: n})} placeholder="0" style={inp} />
 </div>
 <div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17V / partnership K-1 Box 20Z) <InfoTip text="Unadjusted basis immediately after acquisition of qualified property — used in the §199A UBIA limitation (IRC §199A(b)(2)(B)(ii))." /></label>
-<MoneyInput value={ent.box17V_ubia || 0} onChange={n => onUpdate(idx, {...ent, box17V_ubia: n})} placeholder="0" style={inp} />
+  {/* AUDIT FIX C1: UBIA box code corrected from 17V to 17W.
+      S-corp K-1 Box 17, Code V = W-2 wages (entered above).
+      S-corp K-1 Box 17, Code W = UBIA of qualified property (this field).
+      InfoTip updated to make the distinction explicit. */}
+  <label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17W / partnership K-1 Box 20Z) <InfoTip text="Unadjusted basis immediately after acquisition of qualified property — used in the §199A(b)(2)(B)(ii) UBIA limitation. S-corp K-1 Box 17, Code W (not Code V — Code V is W-2 wages, entered in the field above)." /></label>
+  <MoneyInput value={ent.box17V_ubia || 0} onChange={n => onUpdate(idx, {...ent, box17V_ubia: n})} placeholder="0" style={inp} />
 </div>
 <div style={{gridColumn:'1/-1'}}>
 {/* FIX: renamed isSSTB → box17V_sstb to match field name expected by calcQBI in taxCalc.js */}
@@ -466,11 +472,17 @@ export default function CalculateTax() {
 
     return (
       <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 60 }}>
-        {/* Header */}
+        {/* Header
+            AUDIT FIX C3: Added "Step 1 of 2 — Business Entities" step badge alongside the
+            logo, matching the "Step 2 of 2 — Personal Return" badge style in TaxReturn.jsx.
+            The logo onClick is preserved on its inner div; the outer wrapper is non-clickable. */}
         <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div onClick={()=>nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg>
-            <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div onClick={()=>nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg>
+              <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
+            </div>
+            <div style={{ background: '#F1F5F9', color: '#475569', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 1 of 2 — Business Entities</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={()=>setShowImport(true)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>📂 Import CSV</button>
