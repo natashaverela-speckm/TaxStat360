@@ -309,8 +309,12 @@ return(
 {ent.type==='C Corporation'&&<div style={{fontSize:10,color:SL,marginTop:4}}>Taxed at entity level — does not flow to your 1040</div>}
 </div>
 </div>
-{/* F2-02: QBI inline prompt for S-Corp entities — directs users to enter Box 17V wages */}
-{ent.type === 'S Corporation' && (
+{/* F2-02: QBI inline prompt for S-Corp entities — directs users to enter Box 17V wages.
+    FIX (BUG-1): added k1 > 0 guard. When the entity has a net loss (k1 < 0) there is no
+    §199A QBI deduction — only a §199A(c)(2) carryforward handled by Step 2 and the
+    AIAnalysis Risk Scan. Showing "for accurate QBI deduction" on a loss entity is
+    misleading and contradicts the carryforward guidance shown downstream. */}
+{ent.type === 'S Corporation' && k1 > 0 && (
   <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'10px 14px',marginBottom:10,fontSize:12,color:'#1E40AF',display:'flex',alignItems:'flex-start',gap:8}}>
     <span style={{fontSize:14,flexShrink:0}}>💡</span>
     <span>
