@@ -134,8 +134,13 @@ function getRecord(liveState) {
           entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
           ownershipPct: ent.own || '100',
-          grossRevenue: String(entNetProfit > 0 ? entNetProfit : 0),
-          operatingExpenses: '',
+          // FIX (LOSS-COMPLETENESS): grossRevenue was `entNetProfit > 0 ? entNetProfit : 0`
+          // — for a loss-year entity this wrote '0', causing completeness() and missingFields()
+          // to falsely flag revenue and expenses as missing. Use actual pnl.grossRevenue and
+          // pnl.totalExpenses so the completeness score reflects real data entry regardless
+          // of whether the entity is profitable or in a loss.
+          grossRevenue: String(parseFloat(ent?.pnl?.grossRevenue) || 0),
+          operatingExpenses: String(parseFloat(ent?.pnl?.totalExpenses) || 0),
           // AI-FIX-01 (cont.): was hardcoded ''; now reads from pnl so RiskScan salary
           // comparison and Section 179 income cap both have accurate entity-level data.
           officerSalary: String(entOfficerSal),
@@ -189,12 +194,15 @@ function completeness(rec) {
   if (!rec) return 0
   let s = 30
   const b = rec.biz || {}, f = rec.f1040 || {}
-  if (parseFloat(b.grossRevenue) > 0) s += 15
+  // FIX (LOSS-COMPLETENESS): k1Income is negative in a loss year — use Math.abs so
+  // loss entities count as having revenue data, same as profitable entities.
+  const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
+  if (parseFloat(b.grossRevenue) > 0 || hasK1Data) s += 15
   if (b.entityType) s += 10
   if (f.filingStatus) s += 10
   if (getTotalW2(rec) > 0) s += 10
   if (parseFloat(b.officerSalary) > 0) s += 5
-  if (parseFloat(b.operatingExpenses) > 0) s += 5
+  if (parseFloat(b.operatingExpenses) > 0 || hasK1Data) s += 5
   if (parseFloat(b.depreciation) > 0) s += 5
   if (parseFloat(f.estPaid) > 0) s += 10
   return Math.min(s, 98)
@@ -205,10 +213,14 @@ function missingFields(rec) {
   if (!rec) return ['all fields']
   const b = rec.biz || {}, f = rec.f1040 || {}
   const missing = []
-  if (!(parseFloat(b.grossRevenue) > 0) && !(parseFloat(rec.k1Income) > 0)) missing.push('revenue')
+  // FIX (LOSS-COMPLETENESS): k1Income is negative in a loss year. Previously checking
+  // `> 0` failed for losses, falsely adding 'revenue' and 'expenses' to missing fields.
+  // Math.abs catches both profit and loss as genuine data-entry signals.
+  const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
+  if (!(parseFloat(b.grossRevenue) > 0) && !hasK1Data) missing.push('revenue')
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
   if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
-  if (!(parseFloat(b.operatingExpenses) > 0)) missing.push('expenses')
+  if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
   if (!(parseFloat(b.depreciation) > 0)) missing.push('depreciation')
   return missing
 }
