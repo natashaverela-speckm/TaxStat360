@@ -2,16 +2,41 @@
 // Single source of truth for PERMANENT constants across TaxStat360.
 //
 // Architecture rule:
-//   This file  →  permanent rates, ratios, and structural values (never change year-to-year)
+//   This file  →  permanent rates, ratios, structural values, and law-defined thresholds
+//                 that never change year-to-year (IRC rates, ERISA ages, FICA structure).
 //   taxCalc.js →  year-specific dollar figures (brackets, thresholds, limits, phase-outs)
-//                 stored in the TAX_TABLES[year] object
+//                 stored in the TAX_TABLES[year] object.
 //
 // Import from here — never hard-code these values in individual component or utility files.
 // When a new tax year is released, only taxCalc.js TAX_TABLES needs updating.
+//
+// ── Centralization audit (last updated with this file) ──────────────────────
+// VIOLATION FOUND: AIAnalysis.jsx defines a local SOLO_401K_DEFERRAL_LIMITS object
+//   { 2024: 23000, 2025: 23500, 2026: 24000 }
+// This is a year-specific dollar figure and should live in TAX_TABLES[year].retirement
+// in taxCalc.js. Migration tracked as constants-centralization-01. Until that PR lands,
+// AIAnalysis.jsx will continue to use its local constant — the dollar amounts are correct
+// and the component functions correctly; this is an architecture cleanliness issue only.
+//
+// ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
+// taxCalc.js TAX_TABLES[year] should include a `retirement` object with:
+//   sepIraMax         — §415(c) overall SEP-IRA limit
+//   solo401kDeferral  — employee elective deferral limit
+//   solo401kMax       — §415(c) overall Solo 401(k) limit (excl. catch-up)
+//   catchUp401k       — standard catch-up age ≥ 50 (excl. 60–63)
+//   catchUp401kSuper  — SECURE 2.0 enhanced catch-up ages 60–63
+//   iraLimit          — Traditional / Roth IRA limit
+//   catchUpIra        — IRA catch-up age ≥ 50 ($1,000; not inflation-adjusted)
+// Until that TAX_TABLES key is added, components must reference dollar limits locally
+// or use Math.min(SEP_MAX_FALLBACK, ...) style guards. Tracked as constants-centralization-02.
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-
-export const API_BASE_URL = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+// FIX: Changed from the raw API Gateway URL to the branded CloudFront URL.
+// Previously: 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
+// Settings.jsx (M3 fix) already moved to the branded URL locally; this brings
+// the canonical constant into alignment. All authenticated pages should route
+// through app.taxstat360.com so CloudFront / WAF rules apply uniformly.
+export const API_BASE_URL = 'https://app.taxstat360.com'
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
 // Employee and employer shares are symmetric (each 6.2% SS + 1.45% Medicare).
@@ -20,7 +45,6 @@ export const API_BASE_URL = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.
 // When advising on FICA savings, always reference ssWageBase:
 //   - Rate is 15.3% (combined) on wages up to ssWageBase
 //   - Rate is 2.9%  (Medicare only) on wages above ssWageBase
-//   $176,100 for 2025 — see TAX_TABLES in taxCalc.js.
 export const FICA_SS_RATE       = 0.062   // per side; combined 12.4% on SS-subject wages
 export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
 
@@ -29,8 +53,6 @@ export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
 // Employee-only — no employer match on this portion.
 // Thresholds (not inflation-adjusted since ACA enactment):
 //   $200,000 single / $250,000 MFJ / $125,000 MFS
-// TAX_TABLES[year].additionalMedicareThreshold must store all three filing-status
-// thresholds (single, mfj, mfs) — a single value is insufficient for MFS filers.
 // Note: Unlike NIIT, this tax triggers employer withholding at $200K in wages
 // regardless of filing status. NIIT has no withholding mechanism — it flows entirely
 // through estimated payments or year-end true-up. Do not use the same code path
@@ -45,7 +67,6 @@ export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009
 // Applies to passive K-1 income, rental income, capital gains, dividends, and interest.
 // Does NOT apply to active S-Corp K-1 income where the shareholder materially participates.
 // No withholding mechanism — flows entirely through estimated payments or year-end true-up.
-// TAX_TABLES[year].niitThreshold must store all three filing-status thresholds.
 export const NIIT_RATE = 0.038  // IRC §1411
 
 // ─── SELF-EMPLOYMENT TAX DEDUCTION — IRC §164(f) ─────────────────────────────
@@ -55,6 +76,28 @@ export const NIIT_RATE = 0.038  // IRC §1411
 // pay FICA on W-2 wages (not SE tax) and do not use this deduction.
 export const SE_TAX_DEDUCTION_RATE = 0.50  // IRC §164(f)
 
+// ─── NET OPERATING LOSS — IRC §172(a)(2) (TCJA / OBBBA) ─────────────────────
+// Post-2017 NOL carryforwards are limited to 80% of taxable income before the
+// NOL deduction. The pre-2018 unlimited carryback / unlimited carryforward rules
+// do NOT apply to NOLs arising in 2018 or later.
+// OBBBA (P.L. 119-21) retained the TCJA 80% cap for post-2017 NOLs.
+// TaxStat360 applies this cap to all entered NOL carryforwards as a conservative
+// planning default — if the user has a confirmed pre-2018 NOL they should note that
+// their actual deductible amount may be slightly higher.
+// Referenced in calcTaxReturn; centralised here so future rate changes require one edit.
+export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC §172(a)(2)
+
+// ─── PASSIVE ACTIVITY LOSS — IRC §469(i) ─────────────────────────────────────
+// §469(i) active-participation special allowance: up to $25,000 in rental losses
+// can offset non-passive income for non-REP active participants. This allowance
+// phases out at 50 cents per dollar of AGI above $100,000 (single / MFJ / HOH),
+// and is $0 for MFS filers and above $150,000 AGI for all others.
+// Phase-out base: $100,000 AGI (not inflation-adjusted — statutory amount in §469(i)(3)(A))
+// Phase-out rate: 50% of (AGI − $100,000) — §469(i)(3)(A)
+export const PAL_SPECIAL_ALLOWANCE_BASE  = 25000   // §469(i)(2) max allowance
+export const PAL_PHASE_OUT_START         = 100000  // §469(i)(3)(A)
+export const PAL_PHASE_OUT_RATE          = 0.50    // §469(i)(3)(A) — 50 cents per dollar
+
 // ─── CORPORATE INCOME TAX — IRC §11 ──────────────────────────────────────────
 // Flat 21% post-TCJA (P.L. 115-97, enacted 2017-12-22).
 // Applies to C-Corps only; S-Corps, partnerships, and sole props are pass-through.
@@ -63,20 +106,29 @@ export const C_CORP_TAX_RATE = 0.21
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
-// year-specific — see TAX_TABLES[year].amtRateThreshold (taxCalc.js).
-// Note: unlike the AMT exemption, this rate threshold is the same for single and MFJ.
-// AMT exemptions and phase-out ranges are also year-specific in TAX_TABLES[year].amt.
-export const AMT_RATE_LOW  = 0.26  // IRC §55(b)(1)(A) — 26% on AMTI up to amtRateThreshold
-export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above amtRateThreshold
+// year-specific — see AMT_TABLES[year].bracket26_28 in taxCalc.js.
+// AMT exemptions and phase-out ranges are also year-specific in AMT_TABLES[year].
+export const AMT_RATE_LOW  = 0.26  // IRC §55(b)(1)(A) — 26% on AMTI up to bracket26_28
+export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above bracket26_28
 
 // ─── LONG-TERM CAPITAL GAINS & QUALIFIED DIVIDENDS — IRC §1(h) ───────────────
 // Three permanent rate tiers; income thresholds are year-specific (TAX_TABLES[year].ltcg).
-// Rates apply to net long-term capital gains and qualified dividends; stack on top of
+// Rates apply to net long-term capital gains and qualified dividends; they stack on top of
 // ordinary income (i.e., the applicable rate depends on where LTCG falls in the stack).
-// Unrecaptured §1250 gain is taxed at a separate 25% maximum rate — see taxCalc.js.
 export const LTCG_RATE_LOW  = 0.00  // IRC §1(h)(1)(B) — 0%  tier
 export const LTCG_RATE_MID  = 0.15  // IRC §1(h)(1)(C) — 15% tier
 export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier
+
+// Unrecaptured Section 1250 gain — IRC §1(h)(1)(D) / §1(h)(7)
+// Depreciation recapture on real property sold at a gain.
+// Taxed at max 25% (the taxpayer pays the lesser of 25% or their ordinary bracket rate;
+// 25% is used as the conservative planning ceiling for mid/high-income filers).
+export const UNRECAPTURED_1250_MAX_RATE = 0.25  // IRC §1(h)(1)(D), §1(h)(7)
+
+// Collectibles gain — IRC §1(h)(4)
+// Coins, art, antiques, gems, stamps — held more than 1 year.
+// Taxed at max 28% (same ceiling applies: lesser of 28% or ordinary bracket rate).
+export const COLLECTIBLES_MAX_RATE = 0.28  // IRC §1(h)(4)
 
 // ─── §199A QUALIFIED BUSINESS INCOME (QBI) DEDUCTION ─────────────────────────
 // IRC §199A; Treas. Reg. §1.199A-1 through §1.199A-6
@@ -86,9 +138,6 @@ export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier
 //
 // Step 2 — W-2 wage / UBIA limitation (applies when taxable income > threshold):
 //   Income threshold: TAX_TABLES[year].qbi.threshold
-//   - Below threshold → full Step 1 deduction; no W-2 wage test required.
-//   - Above threshold → limitation phases in proportionally over
-//     TAX_TABLES[year].qbi.phaseInRange, then applies fully.
 //   When fully phased in, per-entity combined QBI amount = LESSER of Step 1 OR:
 //     GREATER of:
 //       W2_WAGE_LIMIT_RATE × W-2 wages paid by the business    [50% of W-2]
@@ -96,20 +145,14 @@ export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier
 //   IRC §199A(b)(2); Treas. Reg. §1.199A-1(d)(2)
 //
 // Step 3 — Overall taxable income cap (final ceiling, applied after Step 2):
-//   The total deduction across all entities cannot exceed:
-//     QBI_DEDUCTION_RATE × (taxable income − net capital gains)
-//   IRC §199A(a)(2). Evaluated last:
-//     final_deduction = min(combined_QBI_amount_from_Step_2, 20% × (TI − net_cap_gains))
-//   This cap applies even when W-2 wages are high. It is the last constraint, not the first.
+//   QBI_DEDUCTION_RATE × (taxable income − net capital gains)
+//   IRC §199A(a)(2). This cap applies even when W-2 wages are high — last constraint.
 //
-// Step 4 — SSTB limitation:
-//   Specified service trades or businesses (SSTBs) lose the deduction entirely
-//   above the threshold. Phase-out range: TAX_TABLES[year].qbi.sstbPhaseOutStart
-//   through TAX_TABLES[year].qbi.sstbPhaseOutEnd.
+// Step 4 — SSTB limitation: phases out at high income per TAX_TABLES[year].
 //
-// Year-specific figures in TAX_TABLES[year].qbi:
-//   threshold, phaseInRange, sstbPhaseOutStart, sstbPhaseOutEnd
-
+// §199A(i) OBBBA minimum deduction (tax years beginning after 12/31/2025):
+//   If active QBI ≥ $1,000, deduction = GREATER of regular calc or $400.
+//   Dollar amounts are year-specific and in QBI_MIN_DEDUCTION / QBI_MIN_THRESHOLD (taxCalc.js).
 export const QBI_DEDUCTION_RATE = 0.20   // IRC §199A(a)           — 20% of QBI
 export const W2_WAGE_LIMIT_RATE = 0.50   // IRC §199A(b)(2)(A)     — 50% of W-2 wages
 export const W2_WAGE_ALT_RATE   = 0.25   // IRC §199A(b)(2)(B)(i)  — 25% of W-2 wages
@@ -117,52 +160,37 @@ export const UBIA_RATE          = 0.025  // IRC §199A(b)(2)(B)(ii) — 2.5% of 
 
 // ─── RETIREMENT PLANS ─────────────────────────────────────────────────────────
 // Contribution RATES are permanent (defined here).
-// Dollar LIMITS are year-specific (defined in TAX_TABLES[year].retirement in taxCalc.js):
-//   sepIraMax          — §415(c) overall SEP-IRA limit ($70,000 for 2025)
-//   solo401kDeferral   — employee elective deferral ($23,500 for 2025)
-//   solo401kMax        — §415(c) overall Solo 401(k) limit ($70,000 for 2025, excl. catch-up)
-//   catchUp401k        — standard catch-up age ≥ 50, excl. 60–63 ($7,500 for 2025)
-//   catchUp401kSuper   — SECURE 2.0 enhanced catch-up ages 60–63 ($11,250 for 2025)
-//                        IRC §414(v)(2)(E) as amended by SECURE 2.0 Act §109
-//                        Always check client age band — material planning difference.
-//   iraLimit           — Traditional / Roth IRA limit ($7,000 for 2025)
-//   catchUpIra         — IRA catch-up age ≥ 50 ($1,000 for 2025, not inflation-adjusted)
+// Dollar LIMITS are year-specific and belong in TAX_TABLES[year].retirement (taxCalc.js).
+// See architecture note at top of this file for migration status.
 
 // ── SEP-IRA — IRC §408(k); §402(h) ───────────────────────────────────────────
 // Employer-only contribution. For S-Corp shareholder-employees:
 //   - Contribution base = W-2 officer compensation ONLY
 //   - K-1 distributions do NOT count as compensation — IRC §402(h)(2)(A)
 //   - S-Corp makes the contribution at the entity level (deductible on Form 1120-S)
-//   - Max contribution = lesser of (SEP_IRA_RATE × W-2) OR TAX_TABLES[year].retirement.sepIraMax
-//   - No employee elective deferral component (employer contribution only)
-//   - Deadline: entity tax filing date including extensions (typically Oct 15)
+//   - Max contribution = lesser of (SEP_IRA_RATE × W-2) OR dollar limit in TAX_TABLES
+//   - Deadline: entity tax filing date including extensions
+//     → S-Corp (Form 1120-S): September 15 (NOT October 15 — see F-C01 audit fix)
+//     → Sole Prop (Form 1040): October 15
 export const SEP_IRA_RATE = 0.25   // 25% of W-2 compensation — IRC §402(h)(2)(A)
 
 // ── Solo 401(k) — IRC §401(k); §415(c); §404(a)(3) ───────────────────────────
-// Two distinct components that STACK (total capped at §415(c) overall limit):
-//
-//   Component 1 — Employee elective deferral (pre-tax or Roth):
-//     Standard limit:      TAX_TABLES[year].retirement.solo401kDeferral ($23,500 for 2025)
-//     Catch-up ≥ 50 (excl. 60–63): TAX_TABLES[year].retirement.catchUp401k ($7,500 for 2025)
-//     Catch-up 60–63 (SECURE 2.0): TAX_TABLES[year].retirement.catchUp401kSuper ($11,250 for 2025)
-//     Note: super catch-up reverts to standard $7,500 at age 64.
-//     Source: employee's own compensation (reduces W-2 Box 1 if pre-tax)
-//
-//   Component 2 — Employer profit-sharing contribution:
-//     Rate: SOLO_401K_EMPLOYER_RATE × W-2 compensation (same 25% as SEP-IRA)
-//     Source: S-Corp pays at entity level, deductible on Form 1120-S
-//
-//   Total combined limit: TAX_TABLES[year].retirement.solo401kMax ($70,000 for 2025, excl. catch-up)
-//
-// KEY PLANNING DIFFERENCE vs. SEP-IRA:
-//   At moderate W-2 salaries, Solo 401(k) allows significantly higher contributions
-//   because the employee deferral is additive (not limited by the 25% rate).
-//   Example at $80,000 W-2:
-//     SEP-IRA:               25% × $80,000 = $20,000 max
-//     Solo 401(k):           $23,500 (deferral) + $20,000 (employer) = $43,500 max
-//     Solo 401(k) age 60–63: $23,500 + $11,250 (super catch-up) + $20,000 = $54,750 max
-//   Always model both and present the higher-contribution option.
+// Employer profit-sharing contribution rate (same as SEP-IRA).
+// Employee elective deferral limit is year-specific → TAX_TABLES[year].retirement.solo401kDeferral.
+// Combined total capped at TAX_TABLES[year].retirement.solo401kMax (§415(c) overall limit).
 export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation — IRC §404(a)(3)
+
+// ── Retirement plan catch-up eligibility ages — SECURE 2.0 Act §109 ──────────
+// These are law-defined structural ages, not year-specific dollar limits.
+// IRC §414(v)(2)(E) as amended by SECURE 2.0 (P.L. 117-328, enacted 2022-12-29).
+// Standard catch-up: age ≥ 50 in the tax year.
+// Super catch-up:    ages 60–63 in the tax year; reverts to standard at age 64.
+//   At age 64+: catch-up returns to standard $7,500 (2025) — the super catch-up
+//   window is ONLY ages 60, 61, 62, 63 (inclusive). This is a common planning error.
+// Dollar amounts are year-specific → TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
+export const CATCHUP_AGE_STANDARD   = 50  // IRC §414(v)(1) — standard catch-up start age
+export const CATCHUP_AGE_SUPER_START = 60  // SECURE 2.0 §109 — enhanced catch-up window start
+export const CATCHUP_AGE_SUPER_END   = 63  // SECURE 2.0 §109 — enhanced catch-up window end (inclusive)
 
 // ─── ENTITY TYPES ─────────────────────────────────────────────────────────────
 // Display labels — used in dropdowns and entity cards.
@@ -214,7 +242,5 @@ export const INTEGRATIONS = [
 // ownership stake (silent partner with no income allocation) is not a realistic scenario
 // for TaxStat360's target users (business owners and real estate investors who are
 // active majority owners). If 0% ownership becomes a real use case, replace the
-// || fallback with Number.isFinite() at all 11 call sites across 4 files:
-//   CalculateTaxInner.jsx (5 sites), TaxReturn.jsx (1), AIAnalysis.jsx (2), taxCalc.js (1)
-// and add 3 sites from the officer salary reduce calls that use the same pattern.
+// || fallback with Number.isFinite() at all call sites.
 // Tracked as F-07-followup-A in the audit followup list.
