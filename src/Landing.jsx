@@ -458,7 +458,7 @@ export default function Landing() {
               software. Update with the actual registered business address before launch.
               If a registered agent address is preferred, use that. */}
           <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
-            TaxStat360 LLC &middot; [Registered Business Address — update before launch] &middot; support@taxstat360.com
+            TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
           </p>
           <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
         </div>
