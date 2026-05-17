@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
-import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
+import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE, SCORP_REASONABLE_COMP_RATIO_THRESHOLD } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
@@ -69,20 +69,6 @@ const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing S
 
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
-
-// TAX-01-dash: IRS scrutiny threshold for S-Corp officer salary as a percentage
-// of total S-Corp compensation (salary + K-1 distributions).
-// The 40% figure is an industry-practice heuristic derived from IRS enforcement
-// patterns, not a statutory floor. It should be communicated as a scrutiny signal,
-// not a legal requirement.
-// Legal basis for IRS authority to recharacterize distributions as wages:
-//   Rev. Rul. 74-44 — IRS can reclassify distributions that substitute for salary.
-//   Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) — affirmed recharacterization
-//     where officer took a zero salary (extreme case; does not define the 40% ratio).
-//   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990) — established
-//     that reasonable compensation is based on services performed, supporting ratio analysis.
-// The 40% threshold is a defensible planning heuristic, not a safe harbor.
-const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40
 
 // C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
 function calcDashboard(biz, f1040) {
@@ -176,6 +162,12 @@ function calcDashboard(biz, f1040) {
   // This is a client-side guard; taxCalc.js may also surface this once updated.
   // CR-01 guard: negative salary (e.g., payroll correction entry) is clamped to 0 so it
   // cannot produce a negative ratio that incorrectly fires the alert.
+  // $20,000 de minimis floor (intentional product decision): entities with total S-Corp
+  // compensation (salary + K-1) below $20,000 are excluded from the alert. This avoids
+  // noise on newly-formed or minimal-activity S-Corps where the IRS would not realistically
+  // pursue a reasonable compensation challenge. The floor is not user-visible; it does mean
+  // a zero-salary S-Corp below $20K total comp passes silently. This trade-off is accepted.
+  // If the floor needs to be configurable, move to constants.js as SCORP_COMP_ALERT_MIN_THRESHOLD.
   const reasonableCompAlert = (() => {
     if (!isSC || sal < 0) return { triggered: false, ratio: 100, message: '' }
     const totalComp = sal + Math.max(0, k1)
@@ -719,7 +711,8 @@ export default function Dashboard(){
                   {calc.reasonableCompAlert.message}
                 </div>
                 <div style={{fontSize:12,color:'#92400E',lineHeight:1.5,background:'rgba(146,64,14,0.08)',borderRadius:6,padding:'8px 12px'}}>
-                  <strong>Recommended action:</strong> Increase your officer W-2 salary so it represents at least 40% of total S-Corp compensation (salary + distributions) before your next payroll run. This reduces audit exposure. Discuss the appropriate amount with your CPA.
+                  <strong>Recommended action:</strong> Increase your officer W-2 salary so it represents at least 40% of total S-Corp compensation (salary + distributions) before your next payroll run. This reduces audit exposure.{' '}
+                  <strong>Note:</strong> increasing salary also increases payroll tax cost — employer and employee FICA (7.65% each side on wages up to the Social Security wage base). Factor this into your cash flow before adjusting. Discuss the appropriate amount with your CPA.
                 </div>
               </div>
               <button
@@ -874,7 +867,10 @@ export default function Dashboard(){
 
                 <div style={{background:safeCalc.refund>0?'#F0FDF4':'#FEF2F2',border:'2px solid '+(safeCalc.refund>0?'#86EFAC':'#FCA5A5'),borderRadius:12,padding:16,marginTop:14}}>
                   <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
-                  <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
+                  <div style={{display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
+                    <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
+                    <div style={{fontSize:11,fontWeight:600,color:safeCalc.refund>0?'#166534':'#991B1B',opacity:0.75,fontStyle:'italic',marginBottom:2}}>federal only</div>
+                  </div>
                   <div style={{fontSize:12,color:safeCalc.refund>0?'#166534':'#991B1B',marginTop:4}}>Effective rate: {pct(safeCalc.effRate)} | Quarterly payment: {fmt(safeCalc.quarterly)}</div>
                   {safeCalc.isCCorp&&(
                     <div style={{marginTop:12,padding:'10px 12px',background:'rgba(0,0,0,0.06)',borderRadius:8,borderLeft:'3px solid #3B82F6'}}>
