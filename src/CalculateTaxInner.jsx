@@ -8,7 +8,11 @@ import { parseMoney } from './utils/parseMoney.js'
 import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
-import { calcFederalTax, calcQBI, getStdDed } from './taxCalc'
+// FIX (dead-imports): calcFederalTax, calcQBI, and getStdDed were imported but never
+// called in this file. All tax calculation happens in TaxReturn.jsx (Step 2).
+// CalculateTaxInner.jsx is Step 1 only — entity data collection and P&L entry.
+// Removed to keep the import surface accurate and avoid misleading future readers
+// into thinking this file computes income tax.
 import { signOut } from './utils/signOut'
 
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
@@ -115,7 +119,6 @@ const[manExp,setManExp]=React.useState(()=>ent.pnl ? ((ent.pnl.totalExpenses || 
 const[manOfficerSal,setManOfficerSal]=React.useState(()=>ent.pnl?.officerSalary ?? 0)
 const[showDetails,setShowDetails]=React.useState(false)
 const[showAdvK1,setShowAdvK1]=React.useState(false)
-// F-H08: name validation state — set when user attempts to save a purely numeric name
 const [nameError, setNameError] = React.useState(null)
 const color=COLORS[idx%COLORS.length]
 const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
@@ -164,15 +167,12 @@ const opExpTip = ['S Corporation', 'C Corporation'].includes(ent.type)
     ? 'All business expenses except guaranteed payments to partners (IRC §707(c)). Guaranteed payments are reported on K-1 Box 4a and are deductible at the entity level.'
     : 'All ordinary and necessary business expenses (IRC §162). Includes rent, utilities, supplies, professional fees, and other operating costs reported on Schedule C.'
 
-// F-H23: compute reasonable comp values for display
 const isCorp = ['S Corporation', 'C Corporation'].includes(ent.type)
 const displayNetProfit = ent.pnl ? (ent.pnl.netProfit || 0) : 0
 const displayOfficerSal = ent.pnl?.officerSalary || 0
 
-// F-H23: compute for manual entry form
 const manNetProfit = manRev - manExp - manOfficerSal
 
-// F-M23: officer W-2 sanity checks for manual entry
 const officerExceedsRevenue = manOfficerSal > manRev && manRev > 0
 const officerExceedsNetProfit = !officerExceedsRevenue && manOfficerSal > (manRev - manExp) && manOfficerSal > 0 && manRev > 0
 
@@ -183,10 +183,6 @@ return(
 <div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>⠣</div>
 <div style={{width:28,height:28,borderRadius:7,background:'rgba(0,0,0,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff'}}>{idx+1}</div>
 <div>
-{/* F-H08: name validation — rejects purely numeric names and names < 2 characters.
-    The contentEditable approach is preserved; validation fires on blur.
-    On error: the visible text is restored to the previous valid name, and
-    an inline error message appears below the card header. */}
 <div
   contentEditable
   suppressContentEditableWarning
@@ -194,7 +190,7 @@ return(
     const raw = v.target.innerText.trim()
     if (/^\d+$/.test(raw)) {
       setNameError('Business name cannot be purely numeric. Please use a descriptive name (e.g., "Smith Consulting LLC").')
-      v.target.innerText = ent.name  // revert display to previous valid name
+      v.target.innerText = ent.name
       return
     }
     if (raw.length < 2) {
@@ -227,7 +223,6 @@ return(
 </div>
 </div>
 
-{/* F-H08: inline name validation error — appears below the header bar */}
 {nameError && (
   <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '8px 20px', fontSize: 12, color: '#991B1B' }}>
     ⚠ {nameError}
@@ -326,7 +321,6 @@ return(
 <div style={{marginBottom:10}}>
 <label style={lbl}>OFFICER W-2 SALARY (ENTERED SEPARATELY) <InfoTip text="The W-2 wages paid to the officer/owner. This is an S-Corp deduction but also appears on your personal W-2 and flows to your 1040. Also used as the §199A W-2 wage proxy when Box 17V is not entered." /></label>
 <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
-{/* F-M23: Officer W-2 sanity checks */}
 {officerExceedsRevenue && (
   <div style={{ marginTop: 5, fontSize: 11, color: R, fontWeight: 600 }}>
     ⚠ Officer salary cannot exceed gross revenue.
@@ -337,7 +331,6 @@ return(
     ⚠ Officer salary exceeds net income — the S-Corp would show a loss after deducting all expenses including payroll taxes.
   </div>
 )}
-{/* F-H23: Reasonable comp indicator in manual entry form */}
 {!officerExceedsRevenue && manRev > 0 && (
   <ReasonableCompIndicator
     officerSalary={manOfficerSal}
@@ -382,7 +375,6 @@ return(
 </div>
 </div>
 
-{/* F-H23: Reasonable comp indicator in results view */}
 {isCorp && (
   <ReasonableCompIndicator
     officerSalary={displayOfficerSal}
@@ -405,12 +397,7 @@ return(
 )}
 {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses} />}
 
-{/* F-M15: Disconnect / re-enter label is now conditional.
-    - Manual entry ("isManual: true"): show "✏ Edit / re-enter data"
-      → user entered the numbers manually; "Disconnect" has no meaning.
-    - Connected via accounting software: show "⟳ Disconnect / reconnect software"
-      → there is an actual software connection to break.
-    Previous hard-coded "Disconnect / re-enter data" was confusing for manual users. */}
+{/* F-M15: Disconnect / re-enter label is conditional on how data was entered */}
 <div style={{textAlign:'center',marginTop:10}}>
 <button
   onClick={()=>onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}
@@ -428,10 +415,7 @@ return(
 
 function TemplatePicker({onSelect,onClose}){return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}><div style={{background:'#fff',borderRadius:16,padding:24,width:480,maxWidth:'90vw'}} onClick={e=>e.stopPropagation()}><div style={{fontSize:16,fontWeight:800,color:N,marginBottom:16}}>Choose a Template</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>{TEMPLATES.map(t=><div key={t.label} onClick={()=>{onSelect(t);onClose()}} style={{border:'2px solid #E2E8F0',borderRadius:10,padding:'14px 16px',cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=B;e.currentTarget.style.background='#EFF6FF'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#E2E8F0';e.currentTarget.style.background='#fff'}}><div style={{fontSize:22,marginBottom:6}}>{t.icon}</div><div style={{fontSize:13,fontWeight:700,color:N}}>{t.label}</div><div style={{fontSize:11,color:SL,marginTop:3}}>{t.desc}</div></div>)}</div></div></div>)}
 
-// F-L26: ImportModal now includes a "Download Template CSV" button so users know
-// exactly what column format is required before preparing their file.
-// The template contains one example S-Corp row and one Sole Prop row to illustrate
-// all supported entity types and the expected data format.
+// F-L26: ImportModal includes a "Download Template CSV" button
 function ImportModal({onImport,onClose}){
 function handleFile(f){
 if(!f)return
@@ -443,7 +427,6 @@ onClose()
 r.readAsText(f)
 }
 
-// F-L26: Generate and download a sample CSV template
 function downloadTemplate() {
   const rows = [
     ['"Name"','"Entity Type"','"EIN"','"Formation Date"','"Ownership %"','"Gross Revenue"','"Total Expenses"'],
@@ -496,11 +479,15 @@ export default function CalculateTax() {
     const [showImport, setShowImport] = React.useState(false)
     const [dragIdx, setDragIdx] = React.useState(null)
     const [compareIdx, setCompareIdx] = React.useState(null)
-    // F-M14: Co-op patron checkbox is collapsed by default — it applies to a very
-    // small subset of users (agricultural/horticultural cooperative patrons with
-    // Form 1099-PATR). Showing it prominently creates clutter for 99%+ of users.
-    // The section is discoverable via the "Advanced / Special Situations" label.
     const [showAdvancedSituations, setShowAdvancedSituations] = React.useState(false)
+
+    // FIX (alert replacement): saveRecord previously used alert() for both validation
+    // errors and success confirmation — a blocking browser dialog that breaks the UX
+    // on mobile and cannot be styled. Replaced with inline state-based messages:
+    //   saveMsg.type  — 'error' | 'success'
+    //   saveMsg.text  — displayed below the Save Record button
+    // Message auto-clears after 4 seconds for success (errors persist until user acts).
+    const [saveMsg, setSaveMsg] = React.useState(null)
 
     React.useEffect(() => {
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
@@ -564,11 +551,13 @@ export default function CalculateTax() {
         (parseFloat(e.pnl.totalExpenses) || 0) > 0
       ))
       if (!hasAnyData) {
-        alert('Please enter revenue or expenses for at least one entity before saving a record.')
+        // FIX: was alert() — now inline error message
+        setSaveMsg({ type: 'error', text: 'Please enter revenue or expenses for at least one entity before saving a record.' })
         return
       }
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
-      const existing = JSON.parse(localStorage.getItem('ts360_records_' + localStorage.getItem('ts360_email')) || '[]')
+      const email = localStorage.getItem('ts360_email') || 'default'
+      const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
       const record = {
         id: Date.now(),
         savedAt: new Date().toISOString(),
@@ -583,8 +572,10 @@ export default function CalculateTax() {
         f1040: readPersonalContext(),
       }
       existing.unshift(record)
-      localStorage.setItem('ts360_records_' + localStorage.getItem('ts360_email'), JSON.stringify(existing))
-      alert('✅ Record saved! View it on your Dashboard.')
+      localStorage.setItem('ts360_records_' + email, JSON.stringify(existing))
+      // FIX: was alert() — now inline success message that auto-clears after 4s
+      setSaveMsg({ type: 'success', text: 'Record saved! View it on your Dashboard.' })
+      setTimeout(() => setSaveMsg(null), 4000)
     }
 
     const hasData = entities.some(e => e.pnl)
@@ -642,11 +633,7 @@ export default function CalculateTax() {
             <button onClick={()=>setEntities(prev=>[...prev, { name: 'Business ' + (prev.length + 1), type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '', pnl: null, connectedId: null, isManual: false }])} style={{ padding: '14px', borderRadius: 12, border: '2px dashed #CBD5E1', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}>+ Add Entity</button>
           </div>
 
-          {/* F-M14: Agricultural Co-op checkbox moved into a collapsible "Advanced / Special
-              Situations" section, collapsed by default. It was previously displayed
-              prominently between the Add Entity buttons and the Continue button, creating
-              visual clutter for the 99%+ of users who are not agricultural co-op patrons.
-              The section is still fully accessible — users click to expand it. */}
+          {/* Advanced / Special Situations — collapsed by default (F-M14) */}
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
             <button
               onClick={() => setShowAdvancedSituations(v => !v)}
@@ -706,6 +693,18 @@ export default function CalculateTax() {
           >
             💾 Save Record
           </button>
+
+          {/* FIX: Inline save feedback — replaces alert() for both error and success states */}
+          {saveMsg && (
+            <div style={{
+              marginTop: 10, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: saveMsg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
+              border: '1px solid ' + (saveMsg.type === 'success' ? '#86EFAC' : '#FECACA'),
+              color: saveMsg.type === 'success' ? '#166534' : '#991B1B',
+            }}>
+              {saveMsg.type === 'success' ? '✅ ' : '⚠ '}{saveMsg.text}
+            </div>
+          )}
         </div>
 
         {showTemplates && <TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)} />}
