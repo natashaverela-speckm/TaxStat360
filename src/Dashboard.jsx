@@ -72,7 +72,16 @@ const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
 
 // TAX-01-dash: IRS scrutiny threshold for S-Corp officer salary as a percentage
 // of total S-Corp compensation (salary + K-1 distributions).
-// Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
+// The 40% figure is an industry-practice heuristic derived from IRS enforcement
+// patterns, not a statutory floor. It should be communicated as a scrutiny signal,
+// not a legal requirement.
+// Legal basis for IRS authority to recharacterize distributions as wages:
+//   Rev. Rul. 74-44 — IRS can reclassify distributions that substitute for salary.
+//   Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) — affirmed recharacterization
+//     where officer took a zero salary (extreme case; does not define the 40% ratio).
+//   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990) — established
+//     that reasonable compensation is based on services performed, supporting ratio analysis.
+// The 40% threshold is a defensible planning heuristic, not a safe harbor.
 const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40
 
 // C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
@@ -96,7 +105,15 @@ function calcDashboard(biz, f1040) {
   const otherInc = parseFloat(f1040.otherIncome)       || 0
   const deps     = parseFloat(f1040.dependents)        || 0
   const estPay   = parseFloat(f1040.estimatedPayments) || 0
-  const useStd   = f1040.useStandardDen !== false
+  // IMPORTANT — the f1040 state object is keyed as useStandardDed throughout this file:
+  //   useState init (line ~239):  { ..., useStandardDed: true, ... }
+  //   Standard button:            fSet('useStandardDed', true)
+  //   Itemized button:            fSet('useStandardDed', false)
+  //   Conditional input display:  !f1040.useStandardDed
+  // An earlier commit accidentally changed this read to useStandardDen (non-existent key),
+  // making useStd always true (undefined !== false → true → standard deduction locked on).
+  // This line correctly reads useStandardDed — the actual key. Ref: code-review finding CR-01.
+  const useStd   = f1040.useStandardDed !== false
   const itemized = parseFloat(f1040.itemizedDed)       || 0
 
   const isCCorp    = biz.entityType === 'C Corporation'
@@ -157,8 +174,10 @@ function calcDashboard(biz, f1040) {
   // Calculates salary as a percentage of total S-Corp compensation (W-2 + K-1 distributions).
   // Triggers a persistent alert when the ratio falls below the IRS scrutiny threshold.
   // This is a client-side guard; taxCalc.js may also surface this once updated.
+  // CR-01 guard: negative salary (e.g., payroll correction entry) is clamped to 0 so it
+  // cannot produce a negative ratio that incorrectly fires the alert.
   const reasonableCompAlert = (() => {
-    if (!isSC) return { triggered: false, ratio: 100, message: '' }
+    if (!isSC || sal < 0) return { triggered: false, ratio: 100, message: '' }
     const totalComp = sal + Math.max(0, k1)
     if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
     const ratio = totalComp > 0 ? sal / totalComp : 1
@@ -166,7 +185,7 @@ function calcDashboard(biz, f1040) {
     return {
       triggered,
       ratio: Math.round(ratio * 100),
-      message: `Officer salary (${fmt(sal)}) is ${Math.round(ratio * 100)}% of total S-Corp compensation (salary + K-1). The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44, Watson v. Commissioner.`,
+      message: `Officer salary (${fmt(sal)}) is ${Math.round(ratio * 100)}% of total S-Corp compensation (salary + K-1). The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`,
     }
   })()
 
@@ -418,8 +437,8 @@ export default function Dashboard(){
   const safeCalc=calc||{
     k1:0,w2:0,otherInc:0,seDed:0,agi:0,ded:0,qbi:0,taxableInc:0,incomeTax:0,
     selfEmpTax:0,childCredit:0,totalTax:0,effectiveRate:0,quarterly:0,balance:0,
-    refund:0,isSC:false,isPassthru:false,recSal:0,k1Net:0,seTax:0,ctc:0,
-    taxOwed:0,effRate:'0.0',stdDed:0,
+    refund:0,isSC:false,isPassthru:false,isCCorp:false,recSal:0,k1Net:0,seTax:0,ctc:0,
+    taxOwed:0,effRate:'0.0',stdDed:0,corpTax:0,divTax:0,combinedTax:0,dividends:0,
     niit: { applies: false, amount: 0, explanation: '' },
     reasonableCompAlert: { triggered: false, ratio: 100, message: '' },
   }
@@ -766,8 +785,9 @@ export default function Dashboard(){
                       <div style={{fontSize:10,fontWeight:700,color:'#991B1B',letterSpacing:'0.5px',marginBottom:3}}>EST. TAX LIABILITY</div>
                       <div style={{fontSize:22,fontWeight:800,color:'#DC2626',lineHeight:1}}>${Math.round(parseFloat(rec.totalTax)).toLocaleString()}</div>
                       {parseFloat(rec.quarterly)>0&&<div style={{fontSize:10,color:'#991B1B',marginTop:3}}>${Math.round(parseFloat(rec.quarterly)).toLocaleString()}/qtr</div>}
-                      {/* TAX-06-dash: Federal-only label on every saved record liability badge */}
-                      <div style={{fontSize:9,color:'#B91C1C',marginTop:5,fontStyle:'italic',letterSpacing:'0.03em',opacity:0.8}}>Federal only</div>
+                      {/* TAX-06-dash: Federal scope label on every saved record liability badge.
+                          fontSize 11 minimum per WCAG 1.4.4 (CR-02). Wording matches 1040 panel. */}
+                      <div style={{fontSize:11,color:'#B91C1C',marginTop:5,fontStyle:'italic',letterSpacing:'0.02em'}}>Federal income tax only</div>
                     </div>
                   )}
                   <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20,alignItems:'center'}}>
