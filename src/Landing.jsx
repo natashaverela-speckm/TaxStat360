@@ -183,60 +183,6 @@ export default function Landing() {
         </button>
       </section>
 
-      {/* ─── TESTIMONIALS / SOCIAL PROOF ──────────────────────────────────────── */}
-      {/* UX-01-stub: Testimonials section structure added per audit finding UX-01.
-          For a financial tool that asks users to connect accounting software and
-          share sensitive data, zero social proof is a significant conversion gap.
-          These are placeholder cards — replace content with real client quotes
-          before launch. Structure: name, entity type, quote, result metric.
-          Recommended: 3-5 S-Corp / real estate investor / LLC profiles.
-          Do NOT launch with placeholder text — this section should be hidden
-          (display: 'none') until real quotes are available, or removed entirely
-          and re-added when quotes are confirmed.
-          To hide until ready: add display: 'none' to the outer section style. */}
-      <section style={{ padding: '48px 24px', background: '#F8FAFC', textAlign: 'center' }}>
-        {/* CC-03: Eyebrow label standardized */}
-        <p style={EYEBROW}>What Business Owners Are Saying</p>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Real Owners. Real Results.</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 32, maxWidth: 560, margin: '0 auto 32px' }}>
-          Business owners and real estate investors use TaxStat360 to stop being surprised by their tax bill.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, maxWidth: 960, margin: '0 auto' }}>
-          {[
-            {
-              quote: '[Replace with real client quote — e.g., "TaxStat360 showed me I was leaving $18,000 in QBI deductions on the table. My CPA confirmed it in our next meeting."]',
-              name:  '[Client Name]',
-              title: '[S-Corp Owner — Industry]',
-              result: '[Result metric — e.g., "Identified $18K in missed deductions"]',
-            },
-            {
-              quote: '[Replace with real client quote — e.g., "I used to find out my tax bill in March. Now I know it every month and can plan around it. Game changer for cash flow."]',
-              name:  '[Client Name]',
-              title: '[Real Estate Investor — [City, State]]',
-              result: '[Result metric — e.g., "No more year-end surprises"]',
-            },
-            {
-              quote: '[Replace with real client quote — e.g., "I shared my TaxStat360 dashboard with my CPA and she said it was the most prepared a client had ever been. Saved 2 hours of billable time."]',
-              name:  '[Client Name]',
-              title: '[Partnership / Multi-Member LLC]',
-              result: '[Result metric — e.g., "Saved $X in CPA prep time"]',
-            },
-          ].map((t, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', textAlign: 'left', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {[...Array(5)].map((_, s) => <span key={s} style={{ color: '#F59E0B', fontSize: 16 }}>★</span>)}
-              </div>
-              <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, fontStyle: 'italic', flex: 1 }}>&ldquo;{t.quote}&rdquo;</p>
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: N, margin: '0 0 2px' }}>{t.name}</p>
-                <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>{t.title}</p>
-                <span style={{ background: '#EFF6FF', color: B, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{t.result}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ─── ENTITY FEATURES ──────────────────────────────────────────────────── */}
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
         {/* CC-03: Eyebrow label added — this section previously had none */}
