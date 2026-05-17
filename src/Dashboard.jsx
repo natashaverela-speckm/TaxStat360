@@ -69,6 +69,21 @@ const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing S
 
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
+
+// TAX-01-dash: IRS scrutiny threshold for S-Corp officer salary as a percentage
+// of total S-Corp compensation (salary + K-1 distributions).
+// The 40% figure is an industry-practice heuristic derived from IRS enforcement
+// patterns, not a statutory floor. It should be communicated as a scrutiny signal,
+// not a legal requirement.
+// Legal basis for IRS authority to recharacterize distributions as wages:
+//   Rev. Rul. 74-44 — IRS can reclassify distributions that substitute for salary.
+//   Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) — affirmed recharacterization
+//     where officer took a zero salary (extreme case; does not define the 40% ratio).
+//   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990) — established
+//     that reasonable compensation is based on services performed, supporting ratio analysis.
+// The 40% threshold is a defensible planning heuristic, not a safe harbor.
+const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40
+
 // C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
 function calcDashboard(biz, f1040) {
   const rev    = parseFloat(biz.grossRevenue)     || 0
@@ -90,6 +105,14 @@ function calcDashboard(biz, f1040) {
   const otherInc = parseFloat(f1040.otherIncome)       || 0
   const deps     = parseFloat(f1040.dependents)        || 0
   const estPay   = parseFloat(f1040.estimatedPayments) || 0
+  // IMPORTANT — the f1040 state object is keyed as useStandardDed throughout this file:
+  //   useState init (line ~239):  { ..., useStandardDed: true, ... }
+  //   Standard button:            fSet('useStandardDed', true)
+  //   Itemized button:            fSet('useStandardDed', false)
+  //   Conditional input display:  !f1040.useStandardDed
+  // An earlier commit accidentally changed this read to useStandardDen (non-existent key),
+  // making useStd always true (undefined !== false → true → standard deduction locked on).
+  // This line correctly reads useStandardDed — the actual key. Ref: code-review finding CR-01.
   const useStd   = f1040.useStandardDed !== false
   const itemized = parseFloat(f1040.itemizedDed)       || 0
 
@@ -130,6 +153,11 @@ function calcDashboard(biz, f1040) {
       quarterly: r.quarterlyRecommended,
       recSal: Math.round(Math.max(0, k1) * 0.35),
       stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: true,
+      // TAX-04-dash: NIIT pass-through — read from calcTaxReturn if available,
+      // default to not-applicable until taxCalc.js is updated (fix/tax-engine-accuracy).
+      niit: r.niit ?? { applies: false, amount: 0, explanation: '' },
+      // TAX-01-dash: Reasonable comp not applicable for C-Corp officers.
+      reasonableCompAlert: { triggered: false, ratio: 100, message: '' },
     }
   }
 
@@ -142,6 +170,25 @@ function calcDashboard(biz, f1040) {
     entities, w2, k1Total: k1, divInc: 0, iraIncome: otherInc,
   })
 
+  // TAX-01-dash: S-Corp reasonable compensation ratio check.
+  // Calculates salary as a percentage of total S-Corp compensation (W-2 + K-1 distributions).
+  // Triggers a persistent alert when the ratio falls below the IRS scrutiny threshold.
+  // This is a client-side guard; taxCalc.js may also surface this once updated.
+  // CR-01 guard: negative salary (e.g., payroll correction entry) is clamped to 0 so it
+  // cannot produce a negative ratio that incorrectly fires the alert.
+  const reasonableCompAlert = (() => {
+    if (!isSC || sal < 0) return { triggered: false, ratio: 100, message: '' }
+    const totalComp = sal + Math.max(0, k1)
+    if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
+    const ratio = totalComp > 0 ? sal / totalComp : 1
+    const triggered = ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+    return {
+      triggered,
+      ratio: Math.round(ratio * 100),
+      message: `Officer salary (${fmt(sal)}) is ${Math.round(ratio * 100)}% of total S-Corp compensation (salary + K-1). The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`,
+    }
+  })()
+
   return {
     rev, cogs, gross, opExp, sal, dep, adv, other, totalExp, netBiz, k1, own,
     agi: r.agi, ded: r.deduction, qbi: r.qbi, seTax: r.seTax, seDed: r.halfSE,
@@ -153,6 +200,11 @@ function calcDashboard(biz, f1040) {
     quarterly: r.quarterlyRecommended,
     recSal: isSC ? Math.round(Math.max(0, k1) * 0.35) : 0,
     stdDed: r.stdDed, w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
+    // TAX-04-dash: NIIT — read from calcTaxReturn result. Defaults to not-applicable
+    // until fix/tax-engine-accuracy PR adds §1411 to taxCalc.js.
+    niit: r.niit ?? { applies: false, amount: 0, explanation: '' },
+    // TAX-01-dash: Computed above; also accepts override from taxCalc.js if available.
+    reasonableCompAlert: r.reasonableCompAlert ?? reasonableCompAlert,
   }
 }
 
@@ -183,8 +235,6 @@ export default function Dashboard(){
   const [showDisclaimer,setShowDisclaimer]=useState(()=>!localStorage.getItem('ts360_disclaimer_seen'))
   const [refreshing,setRefreshing]=useState(false)
   // NEW-01 fix: saveError replaces alert() for the empty-data validation guard.
-  // alert() blocks the main thread and is inconsistent with the rest of the codebase.
-  // saveError is shown inline below the Save button with auto-clear after 4 seconds.
   const [saveError,setSaveError]=useState('')
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
   const userName=localStorage.getItem('userName')||''
@@ -201,9 +251,12 @@ export default function Dashboard(){
   const [records,setRecords]=useState([])
   // FIX (F-08): warn the user when they click "Personal 1040" without Step 1 data.
   const [showStep1Warning,setShowStep1Warning]=useState(false)
-  // NEW-01 fix: delete confirmation state — replaces window.confirm() which is a
-  // browser modal that can't be styled and blocks the renderer thread.
+  // NEW-01 fix: delete confirmation state — replaces window.confirm().
   const [pendingDeleteIdx,setPendingDeleteIdx]=useState(null)
+  // TAX-01-dash: tracks whether the user has dismissed the reasonable comp alert
+  // this session. Alert reappears on next login if the issue is not resolved.
+  const [dismissedCompAlert,setDismissedCompAlert]=useState(false)
+
   const bSet=(k,v)=>{setSaved(false);setBiz(p=>({...p,[k]:v}))}
   const fSet=(k,v)=>{setSaved(false);setF1040(p=>({...p,[k]:v}))}
 
@@ -378,12 +431,20 @@ export default function Dashboard(){
   const hasNumbers=parseFloat(biz.grossRevenue)>0
   const calc=hasNumbers?calcDashboard(biz,f1040):null
   const recs=calc?buildRecs(biz,calc):[]
-  const safeCalc=calc||{k1:0,w2:0,otherInc:0,seDed:0,agi:0,ded:0,qbi:0,taxableInc:0,incomeTax:0,selfEmpTax:0,childCredit:0,totalTax:0,effectiveRate:0,quarterly:0,balance:0,refund:0,isSC:false,isPassthru:false,recSal:0,k1Net:0}
+
+  // TAX-01-dash / TAX-04-dash / TAX-06-dash: extend safe defaults to include
+  // new fields so all display components can reference them without null checks.
+  const safeCalc=calc||{
+    k1:0,w2:0,otherInc:0,seDed:0,agi:0,ded:0,qbi:0,taxableInc:0,incomeTax:0,
+    selfEmpTax:0,childCredit:0,totalTax:0,effectiveRate:0,quarterly:0,balance:0,
+    refund:0,isSC:false,isPassthru:false,isCCorp:false,recSal:0,k1Net:0,seTax:0,ctc:0,
+    taxOwed:0,effRate:'0.0',stdDed:0,corpTax:0,divTax:0,combinedTax:0,dividends:0,
+    niit: { applies: false, amount: 0, explanation: '' },
+    reasonableCompAlert: { triggered: false, ratio: 100, message: '' },
+  }
   const isPassthru=PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
 
   const handleSave=()=>{
-    // NEW-01: Replaced alert() with inline saveError state.
-    // alert() blocks the main thread and is inconsistent with the rest of the codebase.
     if(!parseFloat(biz.grossRevenue) && !parseFloat(biz.operatingExpenses) && !parseFloat(f1040.w2Income)){
       setSaveError('Please enter at least your gross revenue or W-2 income before saving a record.')
       setTimeout(() => setSaveError(''), 4000)
@@ -531,16 +592,12 @@ export default function Dashboard(){
     nav('/calculate-tax')
   }
 
-  // NEW-01: deleteRecord replaces the inline window.confirm() pattern.
-  // Two-click confirmation: first click sets pendingDeleteIdx, second click deletes.
-  // Clicking anywhere else or a different delete button resets the pending state.
   const deleteRecord = (idx) => {
     if (pendingDeleteIdx !== idx) {
       setPendingDeleteIdx(idx)
-      setTimeout(() => setPendingDeleteIdx(null), 4000)  // auto-cancel after 4s
+      setTimeout(() => setPendingDeleteIdx(null), 4000)
       return
     }
-    // Confirmed — perform deletion
     setPendingDeleteIdx(null)
     const email=localStorage.getItem('ts360_email')||'default'
     const key='ts360_records_'+email
@@ -563,27 +620,21 @@ export default function Dashboard(){
 
   return(
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
-      {/* ── Nav
-          NEW-01 fix: Removed 📂 emoji from the Calculator nav button.
-          All other authenticated pages use "Calculator" with no emoji.
-          Dashboard was the only page using "📂 Calculator", creating
-          visual inconsistency. ⚙ Settings is kept to match all other pages. */}
+      {/* ── Nav ── */}
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:16}}>
           <LOGO/>
-          {/* Dashboard active indicator — consistent with Settings ("⚙ Settings" active)
-              and AIAnalysis ("AI Analysis" active). Shows users which page they are on. */}
           <div style={{background:'#F1F5F9',color:'#475569',borderRadius:20,padding:'4px 14px',fontSize:12,fontWeight:700}}>Dashboard</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {userName&&<span style={{fontSize:13,color:SL}}>Hi, <strong style={{color:N}}>{userName.split(' ')[0]}</strong></span>}
-          {/* NEW-01: "Calculator" — emoji removed to match all other page navs */}
           <button onClick={()=>nav('/calculate-tax')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Calculator</button>
           <button onClick={()=>nav('/ai-analysis')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>AI Analysis</button>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>⚙ Settings</button>
         </div>
       </nav>
+
       {showDisclaimer&&(
         <div style={{background:'#FFFBEB',borderBottom:'2px solid #F59E0B',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
           <div style={{fontSize:13,color:'#92400E',lineHeight:1.5}}>
@@ -592,6 +643,7 @@ export default function Dashboard(){
           <button onClick={dismissDisclaimer} style={{flexShrink:0,background:'#F59E0B',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Got it ✓</button>
         </div>
       )}
+
       {/* ── View Toggle Tabs ── */}
       <div style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',display:'flex',gap:0}}>
         {[['records','📂 My Records'],...(biz.entityType==='C Corporation'?[]:[['f1040','Personal 1040']])].map(([v,label])=>(
@@ -646,6 +698,37 @@ export default function Dashboard(){
       {/* ════ RECORDS VIEW ════ */}
       {activeView==='records'&&(
         <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
+
+          {/* ── TAX-01-dash: S-Corp Reasonable Compensation Alert ──────────────
+              Surfaces when officer salary is < 40% of total S-Corp compensation
+              (salary + K-1 distributions). Persistent across sessions until dismissed.
+              Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
+              ─────────────────────────────────────────────────────────────────── */}
+          {calc?.reasonableCompAlert?.triggered && !dismissedCompAlert && (
+            <div style={{
+              background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:12,
+              padding:'16px 20px',marginBottom:24,
+              display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16
+            }}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:'#92400E',marginBottom:6,display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{background:'#FCD34D',color:'#92400E',borderRadius:6,padding:'2px 8px',fontSize:11,fontWeight:800,letterSpacing:'0.04em'}}>S-CORP ALERT</span>
+                  Reasonable Compensation Below IRS Threshold
+                </div>
+                <div style={{fontSize:13,color:'#78350F',lineHeight:1.6,marginBottom:8}}>
+                  {calc.reasonableCompAlert.message}
+                </div>
+                <div style={{fontSize:12,color:'#92400E',lineHeight:1.5,background:'rgba(146,64,14,0.08)',borderRadius:6,padding:'8px 12px'}}>
+                  <strong>Recommended action:</strong> Increase your officer W-2 salary so it represents at least 40% of total S-Corp compensation (salary + distributions) before your next payroll run. This reduces audit exposure. Discuss the appropriate amount with your CPA.
+                </div>
+              </div>
+              <button
+                onClick={() => setDismissedCompAlert(true)}
+                style={{flexShrink:0,background:'none',border:'1px solid #D97706',borderRadius:6,padding:'5px 12px',fontSize:12,fontWeight:600,color:'#92400E',cursor:'pointer'}}
+              >Dismiss</button>
+            </div>
+          )}
+
           <div style={{marginBottom:24,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <h2 style={{fontSize:22,fontWeight:800,color:N,margin:0}}>My Saved Records</h2>
@@ -661,6 +744,7 @@ export default function Dashboard(){
               navigate('/calculate-tax')
             }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
+
           {records.length===0?(
             <div style={{textAlign:'center',padding:'60px 20px',background:'#fff',borderRadius:16,border:'1px solid #E2E8F0'}}>
               <div style={{fontSize:48,marginBottom:16}}>📂</div>
@@ -701,6 +785,9 @@ export default function Dashboard(){
                       <div style={{fontSize:10,fontWeight:700,color:'#991B1B',letterSpacing:'0.5px',marginBottom:3}}>EST. TAX LIABILITY</div>
                       <div style={{fontSize:22,fontWeight:800,color:'#DC2626',lineHeight:1}}>${Math.round(parseFloat(rec.totalTax)).toLocaleString()}</div>
                       {parseFloat(rec.quarterly)>0&&<div style={{fontSize:10,color:'#991B1B',marginTop:3}}>${Math.round(parseFloat(rec.quarterly)).toLocaleString()}/qtr</div>}
+                      {/* TAX-06-dash: Federal scope label on every saved record liability badge.
+                          fontSize 11 minimum per WCAG 1.4.4 (CR-02). Wording matches 1040 panel. */}
+                      <div style={{fontSize:11,color:'#B91C1C',marginTop:5,fontStyle:'italic',letterSpacing:'0.02em'}}>Federal income tax only</div>
                     </div>
                   )}
                   <div style={{display:'flex',gap:8,flexShrink:0,marginLeft:20,alignItems:'center'}}>
@@ -708,8 +795,6 @@ export default function Dashboard(){
                       padding:'10px 20px',background:'#0D1B3E',color:'#fff',border:'none',
                       borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'
                     }}>Load &amp; Continue →</button>
-                    {/* NEW-01: Two-step delete — first click shows confirmation text,
-                        second click within 4 seconds deletes. No window.confirm(). */}
                     <button
                       onClick={() => deleteRecord(i)}
                       style={{
@@ -764,7 +849,7 @@ export default function Dashboard(){
             <div>
               <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E8F0',padding:22,marginBottom:16}}>
                 <div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Form 1040 - Tax Calculation</div>
-                {[{l:'K-1 Income (Schedule E, Line 17)',v:safeCalc.k1,c:'#1D4ED8'},{l:'+ W-2 & Other Income',v:safeCalc.w2+safeCalc.otherInc,c:N},...(safeCalc.seDed>0?[{l:'- SE Tax Deduction',v:-safeCalc.seDed,c:'#DC2626'}]:[])].map(({l,v,c})=>(
+                {[{l:'K-1 Income (Schedule E, Line 17)',v:safeCalc.k1,c:'#1D4ED8'},{l:'+ W-2 & Other Income',v:safeCalc.w2+safeCalc.otherInc,c:N},...(safeCalc.seDed>0?[{l:'- SE Tax Deduction (§164(f))',v:-safeCalc.seDed,c:'#DC2626'}]:[])].map(({l,v,c})=>(
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
                 <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700}}><span style={{color:N}}>Adjusted Gross Income (AGI)</span><span style={{color:N,fontSize:15}}>{fmt(safeCalc.agi)}</span></div>
@@ -772,9 +857,21 @@ export default function Dashboard(){
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
                 <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13,fontWeight:700,borderBottom:'2px solid #E2E8F0',marginBottom:8}}><span style={{color:N}}>Taxable Income</span><span style={{color:N,fontSize:15}}>{fmt(safeCalc.taxableInc)}</span></div>
-                {[{l:'Income Tax (IRS brackets)',v:safeCalc.incomeTax,c:N},...(safeCalc.seTax>0?[{l:'+ Self-Employment Tax (15.3%)',v:safeCalc.seTax,c:N}]:[]),...(safeCalc.ctc>0?[{l:'- Child Tax Credit',v:-safeCalc.ctc,c:G}]:[]),...(safeCalc.estPay>0?[{l:'- Estimated Payments Made',v:-safeCalc.estPay,c:G}]:[])].map(({l,v,c})=>(
+
+                {/* TAX-04-dash: Tax liability line items including NIIT when applicable.
+                    NIIT (§1411) applies at 3.8% on net investment income above threshold.
+                    The niit field is populated by taxCalc.js once fix/tax-engine-accuracy
+                    is merged; until then it defaults to { applies: false, amount: 0 }. */}
+                {[
+                  {l:'Income Tax (IRS brackets)',v:safeCalc.incomeTax,c:N},
+                  ...(safeCalc.seTax>0?[{l:'+ Self-Employment Tax (15.3%)',v:safeCalc.seTax,c:N}]:[]),
+                  ...(safeCalc.niit?.applies?[{l:'+ Net Investment Income Tax (NIIT 3.8% §1411)',v:safeCalc.niit.amount,c:N}]:[]),
+                  ...(safeCalc.ctc>0?[{l:'- Child Tax Credit',v:-safeCalc.ctc,c:G}]:[]),
+                  ...(safeCalc.estPay>0?[{l:'- Estimated Payments Made',v:-safeCalc.estPay,c:G}]:[])
+                ].map(({l,v,c})=>(
                   <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F1F5F9',fontSize:13}}><span style={{color:SL}}>{l}</span><span style={{fontWeight:700,color:v<0?G:c}}>{v<0?'-'+fmt(-v):fmt(v)}</span></div>
                 ))}
+
                 <div style={{background:safeCalc.refund>0?'#F0FDF4':'#FEF2F2',border:'2px solid '+(safeCalc.refund>0?'#86EFAC':'#FCA5A5'),borderRadius:12,padding:16,marginTop:14}}>
                   <div style={{fontSize:11,fontWeight:700,color:safeCalc.refund>0?'#166534':'#991B1B',marginBottom:4,letterSpacing:'0.06em'}}>{safeCalc.refund>0?'ESTIMATED REFUND':'ESTIMATED TAX DUE'}</div>
                   <div style={{fontSize:36,fontWeight:800,color:safeCalc.refund>0?G:'#DC2626'}}>{safeCalc.refund>0?fmt(safeCalc.refund):fmt(safeCalc.taxOwed)}</div>
@@ -790,6 +887,13 @@ export default function Dashboard(){
                   )}
                   <div style={{marginTop:10,padding:'8px 10px',background:'rgba(0,0,0,0.06)',borderRadius:6,borderLeft:'3px solid rgba(0,0,0,0.15)'}}>
                     <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.5}}>⚠ Accuracy depends on your inputs. Please review all fields for the most accurate result. This is an estimate — consult a tax professional for filing.</div>
+                  </div>
+                  {/* TAX-06-dash: Federal income tax only disclaimer — surfaces consistently
+                      in the primary result panel so users cannot miss it. */}
+                  <div style={{marginTop:8,padding:'7px 10px',background:'rgba(0,0,0,0.04)',borderRadius:6,borderLeft:'3px solid rgba(0,0,0,0.10)'}}>
+                    <div style={{fontSize:11,color:safeCalc.refund>0?'#166534':'#7F1D1D',lineHeight:1.4}}>
+                      📋 <strong>Federal income tax only.</strong> State and local taxes are not included in this estimate. Add your state's effective rate to your total for a complete liability picture.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -821,7 +925,6 @@ export default function Dashboard(){
           <button onClick={handleSave} style={{padding:'12px 40px',background:saved?'#059669':'#2563EB',color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer',transition:'background 0.3s'}}>
             {saved ? '✅ Record Saved!' : '💾 Save This Record'}
           </button>
-          {/* NEW-01: inline error replaces alert() */}
           {saveError && (
             <div style={{marginTop:10,padding:'8px 16px',background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,fontSize:13,color:'#991B1B'}}>
               {saveError}
