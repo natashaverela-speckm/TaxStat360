@@ -23,9 +23,9 @@
 // Until that PR lands, AIAnalysis.jsx continues to use its local constant — the current
 // dollar amounts are correct and the component functions correctly.
 //
-// RESOLVED (this PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-// as a local const. Centralized here. Dashboard.jsx should be updated to import from here
-// on its next pass. Tracked as constants-centralization-03.
+// RESOLVED (fix/constants-labels PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+// as a local const. Centralized here and Dashboard.jsx updated to import it in the same PR.
+// constants-centralization-03 complete.
 //
 // ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
 // taxCalc.js TAX_TABLES[year] should include a `retirement` object with:
@@ -46,11 +46,10 @@
 // (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ — add to TAX_TABLES.)
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-// FIX: Changed from the raw API Gateway URL to the branded CloudFront URL.
-// Previously: 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod'
-// Settings.jsx (M3 fix) already moved to the branded URL locally; this brings
-// the canonical constant into alignment. All authenticated pages should route
-// through app.taxstat360.com so CloudFront / WAF rules apply uniformly.
+// Branded CloudFront URL — all components use this constant; do not hardcode the
+// raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod)
+// anywhere in the codebase. CloudFront / WAF rules apply uniformly only when
+// requests route through app.taxstat360.com.
 export const API_BASE_URL = 'https://app.taxstat360.com'
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
