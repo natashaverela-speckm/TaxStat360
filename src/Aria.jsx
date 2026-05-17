@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 
 // SECURITY: Use API Gateway endpoint (enforces auth + plan check) instead of
 // direct Lambda URL (which bypasses all security middleware).
@@ -12,7 +11,9 @@ const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here
 const MAX_HISTORY_TURNS = 20
 
 export default function Aria() {
-  const nav = useNavigate()
+  // FIX (CLEANUP): Removed unused `useNavigate` import and `nav` variable.
+  // The component uses plain <a href> tags for all navigation (login, upgrade),
+  // not programmatic nav() calls. The import was dead code from an earlier draft.
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
