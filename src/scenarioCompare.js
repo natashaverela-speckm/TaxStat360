@@ -123,7 +123,11 @@ function compareEntityScenarios(input) {
       { label: 'Federal income tax',  value: soleResult.fedTax },
       { label: 'Self-employment tax', value: soleResult.seTax },
       { label: 'Additional Medicare', value: soleResult.additionalMedicare },
-      { label: 'NIIT',                value: soleResult.niit },
+      // FIX (TAX-04): calcTaxReturn returns niit as { applies, amount, explanation }.
+      // niitAmount is the backward-compat number alias. Using .niit here produced an
+      // object in the line item value, which Math.abs() → NaN → filtered out silently,
+      // causing the NIIT line item to disappear from the comparison even when owed.
+      { label: 'NIIT',                value: soleResult.niitAmount },
       { label: 'AMT',                 value: soleResult.amt },
       { label: 'Child credit',        value: -soleResult.childCredit },
     ],
@@ -153,7 +157,8 @@ function compareEntityScenarios(input) {
       { label: 'Federal income tax',    value: sCorpResult.fedTax },
       { label: 'Employment tax (W-2)',  value: sCorpEmploymentTax },
       { label: 'Additional Medicare',   value: sCorpResult.additionalMedicare },
-      { label: 'NIIT',                  value: sCorpResult.niit },
+      // FIX (TAX-04): same fix as soleResult above — use niitAmount, not niit.
+      { label: 'NIIT',                  value: sCorpResult.niitAmount },
       { label: 'AMT',                   value: sCorpResult.amt },
       { label: 'Child credit',          value: -sCorpResult.childCredit },
     ],
@@ -187,7 +192,8 @@ function compareEntityScenarios(input) {
       { label: 'Corporate tax (21% flat)',       value: cCorpCorpTax },
       { label: 'Employment tax (W-2)',           value: cCorpEmploymentTax },
       { label: 'Additional Medicare',            value: cCorpResult.additionalMedicare },
-      { label: 'NIIT',                           value: cCorpResult.niit },
+      // FIX (TAX-04): same fix as soleResult above — use niitAmount, not niit.
+      { label: 'NIIT',                           value: cCorpResult.niitAmount },
       { label: 'AMT',                            value: cCorpResult.amt },
       { label: 'Child credit',                   value: -cCorpResult.childCredit },
     ],
