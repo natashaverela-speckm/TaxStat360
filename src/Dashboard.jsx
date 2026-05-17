@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react' // build v2
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn } from './taxCalc'
-import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE } from './constants'
+import { API_BASE_URL, PASSTHROUGH_ENTITY_TYPES, ENTITY_TYPES, INTEGRATIONS, C_CORP_TAX_RATE, SCORP_REASONABLE_COMP_RATIO_THRESHOLD } from './constants'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G } from './theme'
 import { writePersonalContext, readPersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
@@ -69,20 +69,6 @@ const FILING={single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing S
 
 const fmt = n => '$'+Math.abs(parseFloat(n)||0).toLocaleString('en-US',{maximumFractionDigits:0})
 const pct = n => (parseFloat(n)||0).toFixed(1)+'%'
-
-// TAX-01-dash: IRS scrutiny threshold for S-Corp officer salary as a percentage
-// of total S-Corp compensation (salary + K-1 distributions).
-// The 40% figure is an industry-practice heuristic derived from IRS enforcement
-// patterns, not a statutory floor. It should be communicated as a scrutiny signal,
-// not a legal requirement.
-// Legal basis for IRS authority to recharacterize distributions as wages:
-//   Rev. Rul. 74-44 — IRS can reclassify distributions that substitute for salary.
-//   Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) — affirmed recharacterization
-//     where officer took a zero salary (extreme case; does not define the 40% ratio).
-//   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990) — established
-//     that reasonable compensation is based on services performed, supporting ratio analysis.
-// The 40% threshold is a defensible planning heuristic, not a safe harbor.
-const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40
 
 // C_CORP_TAX_RATE 21% — IRC §11 post-TCJA (P.L. 115-97).
 function calcDashboard(biz, f1040) {
