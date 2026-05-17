@@ -201,6 +201,39 @@ function RequireAuth({ children }) {
   )
 }
 
+// ─── Landing Section Scroll Helper ───────────────────────────────────────────
+// FIX (F-01): /features, /pricing, and other Landing section paths previously
+// fell through to the * wildcard and redirected to / (homepage top), losing
+// the scroll position. Any link or bookmark to one of these paths — from a
+// marketing email, shared URL, or the nav bar itself — landed at the top of
+// the page with no visible indication that it had broken.
+//
+// This component renders Landing normally, then scrolls to the target section
+// after the component mounts (100ms delay gives the DOM time to paint).
+// scrollMarginTop on section headings in Landing.jsx accounts for the sticky
+// nav height so the scroll lands cleanly below the nav bar.
+//
+// Route definitions below cover all five shareable section anchors:
+//   /features      → id="features"     (entity structure cards)
+//   /pricing       → id="pricing"      (plan cards + billing toggle)
+//   /how-it-works  → id="how-it-works" (3-step process)
+//   /faq           → id="faq"          (expandable questions)
+//   /contact       → id="contact"      (contact form)
+//
+// This component is intentionally lightweight — no state, no external data.
+// If the id is missing (e.g., Landing was refactored), the page renders
+// at the top instead of breaking.
+function LandingAtSection({ sectionId }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const el = document.getElementById(sectionId)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [sectionId])
+  return <Landing />
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -208,21 +241,34 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
-        <Route path="/signup" element={<Onboarding screen="signup" />} />
+
+        {/* FIX (F-01): Landing section routes — previously fell through to *
+            wildcard and redirected to homepage top. Each renders Landing and
+            scrolls to the named section anchor after mount. */}
+        <Route path="/features"     element={<LandingAtSection sectionId="features" />} />
+        <Route path="/pricing"      element={<LandingAtSection sectionId="pricing" />} />
+        <Route path="/how-it-works" element={<LandingAtSection sectionId="how-it-works" />} />
+        <Route path="/faq"          element={<LandingAtSection sectionId="faq" />} />
+        <Route path="/contact"      element={<LandingAtSection sectionId="contact" />} />
+
+        <Route path="/signup"   element={<Onboarding screen="signup" />} />
         <Route path="/register" element={<Onboarding screen="signup" />} />
         {/* FIX (F1-01): /signin already existed; /sign-in is the canonical
             URL used in marketing emails and the public nav "Sign In" button.
             Both now resolve to the Onboarding login screen. */}
-        <Route path="/signin" element={<Onboarding screen="login" />} />
+        <Route path="/signin"  element={<Onboarding screen="login" />} />
         <Route path="/sign-in" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Onboarding screen="login" />} />
+        <Route path="/login"   element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
+
         {/* Onboarding flow — wrapped in RequireAuth */}
         <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
+
         {/* OAuth callback */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
+
         {/* Protected app routes */}
         <Route path="/calculate-tax" element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
         <Route path="/dashboard"     element={<RequireAuth><Dashboard /></RequireAuth>} />
@@ -230,9 +276,11 @@ export default function App() {
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
         <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
+
         {/* Password reset — public */}
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+
         {/* Public legal — canonical routes */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms"   element={<Terms />} />
@@ -245,7 +293,8 @@ export default function App() {
             Navigate replace keeps browser history clean (no back-button loop). */}
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
-        {/* Fallback */}
+
+        {/* Fallback — unrecognised paths go to homepage */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
