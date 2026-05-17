@@ -67,28 +67,32 @@ export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
 // 0.9% surcharge on wages and SE income above the threshold.
 // Employee-only — no employer match on this portion.
 //
-// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — IRC §3101(b)(2)):
-//   $200,000 single / $250,000 MFJ / $125,000 MFS
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — §3101(b)(2)):
+//   §3101(b)(2)(A) — joint return → $250,000
+//   §3101(b)(2)(B) — married filing separately → $125,000
+//   §3101(b)(2)(C) — any other case (single, HOH) → $200,000
 //
 // Important: employer withholding triggers at $200,000 in wages regardless of filing
 // status. The individual true-up (excess or credit) happens at filing. This differs from
-// NIIT, which has NO withholding mechanism — both taxes share the same income thresholds
+// NIIT, which has NO withholding mechanism — both taxes share the same dollar values
 // but have entirely different collection mechanics. Do not conflate them in calcTaxReturn
 // or clients with investment income will underestimate their estimated payment obligations.
-export const ADDITIONAL_MEDICARE_TAX_RATE       = 0.009   // IRC §3101(b)(2) / §1401(b)(2)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000  // IRC §3101(b)(2)(B)(iii)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ    = 250000  // IRC §3101(b)(2)(B)(i)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS    = 125000  // IRC §3101(b)(2)(B)(ii)
+export const ADDITIONAL_MEDICARE_TAX_RATE             = 0.009   // IRC §3101(b)(2) / §1401(b)(2)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ    = 250000  // IRC §3101(b)(2)(A)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS    = 125000  // IRC §3101(b)(2)(B)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000  // IRC §3101(b)(2)(C)
 
 // ─── NET INVESTMENT INCOME TAX (NIIT) — IRC §1411 ────────────────────────────
 // 3.8% on the lesser of:
 //   (a) net investment income, OR
 //   (b) the amount by which MAGI exceeds the applicable threshold.
 //
-// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — IRC §1411(b)):
-//   $200,000 single / $250,000 MFJ / $125,000 MFS
-// These share the same dollar values as the Additional Medicare Tax thresholds above
-// but the underlying IRC sections and collection mechanics are distinct — do not alias.
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — §1411(b)):
+//   §1411(b)(1) — joint return or surviving spouse → $250,000
+//   §1411(b)(2) — married filing separately → ½ of §1411(b)(1) → $125,000
+//     Note: the statute cross-references paragraph (1) rather than hardcoding $125,000.
+//     The computed value is used here. If MFJ threshold ever changes, MFS = MFJ ÷ 2.
+//   §1411(b)(3) — any other case (single, HOH, QSS) → $200,000
 //
 // Net investment income includes: passive K-1 income, rental income (for non-REPs),
 // capital gains, qualified dividends, interest income.
@@ -97,9 +101,9 @@ export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS    = 125000  // IRC §3101(b)
 //
 // No withholding mechanism — flows entirely through Form 8960 and estimated payments.
 export const NIIT_RATE              = 0.038   // IRC §1411(a)
-export const NIIT_THRESHOLD_SINGLE  = 200000  // IRC §1411(b)(1)(A) — not inflation-adjusted
-export const NIIT_THRESHOLD_MFJ     = 250000  // IRC §1411(b)(1)(B) — not inflation-adjusted
-export const NIIT_THRESHOLD_MFS     = 125000  // IRC §1411(b)(1)(C) — not inflation-adjusted
+export const NIIT_THRESHOLD_MFJ     = 250000  // IRC §1411(b)(1) — joint return / surviving spouse
+export const NIIT_THRESHOLD_MFS     = 125000  // IRC §1411(b)(2) — married filing separately (½ of MFJ)
+export const NIIT_THRESHOLD_SINGLE  = 200000  // IRC §1411(b)(3) — single, HOH, and all other filers
 
 // ─── SELF-EMPLOYMENT TAX DEDUCTION — IRC §164(f) ─────────────────────────────
 // Above-the-line deduction equal to 50% of self-employment tax paid.
