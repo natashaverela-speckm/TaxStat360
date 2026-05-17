@@ -2,10 +2,6 @@
 // Renders three scenario cards (Sole Prop / S Corp / C Corp) with a single
 // officer-salary slider that drives both S Corp and C Corp scenarios.
 //
-// Standalone component — no caller wiring this PR. PR-S3 will import this
-// from CalculateTaxInner.jsx and wire the per-entity "Compare entity types"
-// button.
-//
 // Engine contract (./scenarioCompare.js):
 //   compareEntityScenarios({ personalContext, entities, entityIdx, netProfitShare, officerSalary })
 //     → { scenarios: [sole, sCorp, cCorp], best: 'soleProp'|'sCorp'|'cCorp', savings, salary }
@@ -15,7 +11,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { compareEntityScenarios } from './scenarioCompare'
 
-// Match the design system used in CalculateTaxInner.jsx + TaxReturn.jsx
 const N = '#0D1B3E'
 const B = '#2563EB'
 const SL = '#475569'
@@ -35,9 +30,6 @@ const fmt = n => n < 0
   ? '($' + Math.abs(Math.round(n) || 0).toLocaleString('en-US') + ')'
   : '$' + Math.abs(Math.round(n) || 0).toLocaleString('en-US')
 
-// rcRisk detection — mirrors TaxReturn.jsx PR #55 logic, but parameterized on
-// the modal's slider salary (NOT the user's actual W-2). Forward-looking:
-// "if you elect S Corp at this salary, here's the audit risk."
 function detectRcRisk(netProfitShare, salary) {
   if (netProfitShare <= 20000) return null
   if (salary === 0) {
@@ -132,10 +124,8 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
     ? Math.round(entity.pnl.netProfit * (parseFloat(entity.own) / 100))
     : 0
 
-  // null → engine uses 30%-of-profit default; first render syncs slider to it.
   const [salary, setSalary] = useState(null)
 
-  // Esc to close + body scroll lock while open.
   useEffect(() => {
     if (!isOpen) return
     const onKey = e => { if (e.key === 'Escape') onClose && onClose() }
@@ -150,21 +140,66 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
 
   const result = useMemo(() => {
     if (!isOpen || !entity) return null
-    return compareEntityScenarios({
-      personalContext: personalContext || {},
-      entities: entities || [],
-      entityIdx,
-      netProfitShare,
-      officerSalary: salary,
-    })
+    try {
+      // FIX (COMPARE-PC): CalculateTaxInner passes personalContext as a lazy getter
+      // function (() => { return ctx }) rather than a plain object. This prevents
+      // recomputing the context on every CalculateTaxInner render (expensive reads
+      // from sessionState). EntityCompareModal must call it if it's a function.
+      // Without this fix, {…personalContext} spread on a function → {}, stripping
+      // all personal tax fields from calcTaxReturn and making totalTax → 0.
+      const pc = typeof personalContext === 'function' ? personalContext() : personalContext
+      return compareEntityScenarios({
+        personalContext: pc || {},
+        entities: entities || [],
+        entityIdx,
+        netProfitShare,
+        officerSalary: salary,
+      })
+    } catch (err) {
+      // Defensive: if compareEntityScenarios throws (e.g. unexpected entity shape),
+      // return null rather than crashing the modal. Console error preserved for debugging.
+      console.error('[EntityCompareModal] compareEntityScenarios error:', err)
+      return null
+    }
   }, [isOpen, entity, personalContext, entities, entityIdx, netProfitShare, salary])
 
-  // Sync slider to engine's chosen default on first render / when share changes.
   useEffect(() => {
     if (result && salary === null) setSalary(result.salary)
   }, [result, salary])
 
-  if (!isOpen || !entity || !result) return null
+  if (!isOpen || !entity) return null
+
+  // If comparison failed, show a graceful error state
+  if (!result) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Compare entity types"
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.55)',
+          zIndex: 1000, display: 'flex', alignItems: 'flex-start',
+          justifyContent: 'center', padding: '40px 16px', overflowY: 'auto',
+          fontFamily: 'Inter, system-ui, sans-serif',
+        }}
+      >
+        <div onClick={e => e.stopPropagation()} style={{
+          background: '#F8FAFC', borderRadius: 16, maxWidth: 600, width: '100%',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)', padding: 32,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: N }}>Entity Comparison</div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: SL, cursor: 'pointer' }}>×</button>
+          </div>
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '16px 20px', fontSize: 13, color: '#991B1B', lineHeight: 1.6 }}>
+            ⚠ Could not compute the entity comparison. This can occur if your entity data is incomplete.
+            Please ensure revenue and expenses are entered in Step 1, then try again.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const rcRisk = detectRcRisk(netProfitShare, salary == null ? result.salary : salary)
   const sliderValue = salary == null ? result.salary : salary
@@ -172,20 +207,6 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
   const cheapest = result.scenarios.find(s => s.key === result.best)
   const mostExpensive = result.scenarios.reduce((a, b) => b.totalTax > a.totalTax ? b : a)
 
-  // FIX (F-05): Guard against three degenerate cases that produced a
-  // self-referential banner ("Sole Prop saves you $0/year vs Sole Prop"):
-  //
-  // 1. netProfitShare <= 0: no revenue entered yet — all entities show $0,
-  //    both cheapest and mostExpensive resolve to the same scenario (the
-  //    reduce returns scenarios[0] when all totalTax values are equal).
-  //    Show an informational placeholder instead of the green savings banner.
-  //
-  // 2. result.savings <= 0: all entities produce the same (or negative) tax
-  //    difference — no genuine savings to report.
-  //
-  // 3. cheapest.key === mostExpensive.key: degenerate reduce result where the
-  //    "best" and "most expensive" entity are the same (can occur when two or
-  //    more scenarios share an identical totalTax).
   const summaryText = (() => {
     if (netProfitShare <= 0) return null
     if (!cheapest) return null
@@ -271,10 +292,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* SUMMARY BANNER — FIX (F-05): three rendering cases:
-              (a) no revenue entered → blue informational placeholder
-              (b) genuine savings between different entities → green savings banner
-              (c) all entities equal / degenerate → nothing shown */}
+          {/* SUMMARY BANNER */}
           {netProfitShare <= 0 ? (
             <div style={{
               background: '#EFF6FF',
@@ -334,9 +352,6 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               <span>$0</span>
               <span>{fmt(sliderMax)}</span>
             </div>
-            {/* FIX (F-05): Replace internal dev note ("placeholder until BLS p25 lookup
-                ships") with user-facing guidance. The 30% default remains as a modeling
-                starting point; users are directed to their CPA for the actual figure. */}
             <div style={{ fontSize: 12, color: SL, marginTop: 8 }}>
               Drag to model different officer salary levels for the S-Corp and C-Corp scenarios.
               The IRS requires S-Corp owner-employees to pay themselves reasonable compensation
@@ -416,7 +431,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
           </div>
         </div>
 
-        {/* Mobile responsive — stack scenario cards on narrow viewports */}
+        {/* Mobile responsive */}
         <style>{`
           @media (max-width: 768px) {
             .ts360-compare-grid {
