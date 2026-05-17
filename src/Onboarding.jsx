@@ -9,6 +9,64 @@ const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:8,marginBott
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
 const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>(<div style={{marginBottom:mb}}><label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)
 
+// FIX (PW-STRENGTH): Password strength scoring and visual indicator.
+// Criteria: length ≥12, uppercase letter, number, special character.
+// Shown in real-time below the password field during signup — gives users
+// concrete feedback instead of only a min-length error on submit.
+function pwStrength(pass) {
+  const checks = {
+    length:  pass.length >= 12,
+    upper:   /[A-Z]/.test(pass),
+    number:  /[0-9]/.test(pass),
+    special: /[^A-Za-z0-9]/.test(pass),
+  }
+  const score = Object.values(checks).filter(Boolean).length
+  const LEVELS = ['', 'Weak', 'Fair', 'Strong', 'Very Strong']
+  const COLORS = ['', '#dc2626', '#d97706', '#059669', '#2563EB']
+  return { score, checks, label: LEVELS[score] || '', color: COLORS[score] || '' }
+}
+
+function PasswordStrength({ pass }) {
+  if (!pass) return null
+  const { score, checks, label, color } = pwStrength(pass)
+  return (
+    <div style={{ marginTop: 6, marginBottom: 4 }}>
+      {/* Strength bar */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 5 }}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} style={{
+            flex: 1, height: 3, borderRadius: 2,
+            background: i <= score ? color : '#E2E8F0',
+            transition: 'background 0.2s',
+          }} />
+        ))}
+      </div>
+      {/* Label + criteria */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+        {label && (
+          <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+        )}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {[
+            { key: 'length',  text: '12+ chars' },
+            { key: 'upper',   text: 'A–Z' },
+            { key: 'number',  text: '0–9' },
+            { key: 'special', text: '!@#…' },
+          ].map(c => (
+            <span key={c.key} style={{
+              fontSize: 10, fontWeight: 600,
+              color: checks[c.key] ? '#059669' : '#CBD5E1',
+              display: 'flex', alignItems: 'center', gap: 2,
+            }}>
+              {checks[c.key] ? '✓' : '·'} {c.text}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SignupScreen(){
   const nav=useNavigate()
   const loc=useLocation()
@@ -45,7 +103,6 @@ function SignupScreen(){
   async function submit(e){
     e.preventDefault()
     if(pass!==conf){setErr('Passwords do not match.');return}
-    // Compliance: password minimum bumped to 12 to match reset-password page
     if(pass.length<12){setErr('Password must be at least 12 characters.');return}
     if(!stripeReady){setErr('Card input still loading, please wait...');return}
     setLoading(true);setErr('')
@@ -60,19 +117,14 @@ function SignupScreen(){
       if(!reg.ok)throw new Error(data.detail||'Registration failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email)
       localStorage.setItem('ts360_session',data.access_token)
-      // FIX (F-01 completion): record session start time so App.jsx isValidSession()
-      // can enforce the 7-day hard cap. Without this write the cap check is a no-op
-      // because ts360_session_start is absent and the age check is skipped.
       localStorage.setItem('ts360_session_start', String(Date.now()))
       localStorage.setItem('plan',plan)
       localStorage.setItem('billing',billing)
-      // Create Stripe subscription for recurring billing
       try{
         await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,billing,payment_method_id:setupIntent.payment_method})})
       }catch(e){ console.warn('Subscribe call failed:',e) }
       localStorage.setItem('userName',name)
       localStorage.setItem('pendingEmail',email)
-      // Subscribe to Mailchimp audience (taxstat360.us4 — canonical list)
       try {
         const mcData = new URLSearchParams()
         mcData.append('EMAIL', email)
@@ -101,17 +153,35 @@ function SignupScreen(){
         <Field label="Full Name" val={name} set={setName} ph="Jane Smith" mb={0} autoComplete="name"/>
         <Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0} autoComplete="email"/>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-        <Field label="Password" val={pass} set={setPass} type="password" ph="Min. 12 chars" mb={0} autoComplete="new-password"/>
+
+      {/* FIX (PW-STRENGTH): Password fields with live strength indicator.
+          Previously used the generic Field component with no feedback — users
+          only discovered weak passwords on submit. Strength bar + criteria
+          checklist guide them in real time without blocking the UX. */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
+        <div>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
+          <input
+            type="password"
+            value={pass}
+            onChange={e=>setPass(e.target.value)}
+            placeholder="Min. 12 chars"
+            autoComplete="new-password"
+            style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}
+          />
+        </div>
         <Field label="Confirm Password" val={conf} set={setConf} type="password" ph="Repeat password" mb={0} autoComplete="new-password"/>
       </div>
+      <div style={{marginBottom:12}}>
+        <PasswordStrength pass={pass} />
+      </div>
+
       <div style={{marginBottom:12}}>
         <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Card Details</label>
         <div ref={cardRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',minHeight:48,cursor:'text'}}/>
         {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
       </div>
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-      {/* Compliance: ToS + Privacy agreement required by Stripe before card collection */}
       <p style={{fontSize:11,color:'#64748b',textAlign:'center',margin:'0 0 10px',lineHeight:1.5}}>
         By creating an account you agree to our{' '}
         <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Terms of Service</a>
@@ -157,9 +227,6 @@ function LoginScreen(){
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
-      // FIX (F-01 completion): record session start time so App.jsx isValidSession()
-      // can enforce the 7-day hard cap. Without this write the cap check is a no-op
-      // because ts360_session_start is absent and the age check is skipped.
       localStorage.setItem('ts360_session_start', String(Date.now()))
       nav(redirectTo,{replace:true})
     }catch(e){setErr(e.message)}
@@ -248,13 +315,6 @@ function BusinessScreen(){
   </Page>)
 }
 
-// AUDIT FIX: 2FA nudge added as a state-based screen swap inside ImportScreen.
-// Shown after the user completes onboarding (Step 3 of 3) if they haven't already
-// enabled 2FA. No new routes or App.jsx changes required — the nudge renders in
-// place of the import content at the same URL (/onboarding/import).
-// Rationale: TaxStat360 handles sensitive financial and tax data. IRS Publication
-// 4557 "Safeguarding Taxpayer Data" strongly recommends MFA for tax software.
-// This is a soft nudge — not a gate — so users can skip it without friction.
 function ImportScreen(){
   const nav=useNavigate()
   const [showSecurityNudge, setShowSecurityNudge]=useState(false)
@@ -262,8 +322,6 @@ function ImportScreen(){
   const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
 
   function handleContinue(){
-    // Show 2FA nudge only for users who haven't already enabled it.
-    // Users with 2FA on go straight to the calculator.
     if(!mfaAlreadyEnabled){
       setShowSecurityNudge(true)
     } else {
@@ -271,7 +329,6 @@ function ImportScreen(){
     }
   }
 
-  // ── 2FA nudge card ───────────────────────────────────────────────────────────
   if(showSecurityNudge){
     return(
       <Page>
@@ -305,7 +362,6 @@ function ImportScreen(){
     )
   }
 
-  // ── Import screen (Step 3 of 3) ──────────────────────────────────────────────
   return(<Page>
     <LOGO/>
     <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
