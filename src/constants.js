@@ -15,9 +15,13 @@
 // VIOLATION FOUND: AIAnalysis.jsx defines a local SOLO_401K_DEFERRAL_LIMITS object
 //   { 2024: 23000, 2025: 23500, 2026: 24000 }
 // This is a year-specific dollar figure and should live in TAX_TABLES[year].retirement
-// in taxCalc.js. Migration tracked as constants-centralization-01. Until that PR lands,
-// AIAnalysis.jsx will continue to use its local constant — the dollar amounts are correct
-// and the component functions correctly; this is an architecture cleanliness issue only.
+// in taxCalc.js. Migration tracked as constants-centralization-01.
+// ⚠️  ACTION REQUIRED BEFORE 2026 TAX YEAR: The 2026 deferral limit ($24,000) hardcoded
+// in AIAnalysis.jsx will become stale when the IRS announces the 2026 COLA adjustment
+// (typically October). If this migration is not completed before that announcement,
+// AIAnalysis.jsx will silently display the wrong limit. Create a GitHub issue to track.
+// Until that PR lands, AIAnalysis.jsx continues to use its local constant — the current
+// dollar amounts are correct and the component functions correctly.
 //
 // RESOLVED (this PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
 // as a local const. Centralized here. Dashboard.jsx should be updated to import from here
@@ -220,6 +224,9 @@ export const QBI_DEDUCTION_RATE = 0.20   // IRC §199A(a)           — 20% of Q
 export const W2_WAGE_LIMIT_RATE = 0.50   // IRC §199A(b)(2)(A)     — 50% of W-2 wages
 export const W2_WAGE_ALT_RATE   = 0.25   // IRC §199A(b)(2)(B)(i)  — 25% of W-2 wages
 export const UBIA_RATE          = 0.025  // IRC §199A(b)(2)(B)(ii) — 2.5% of UBIA
+                                         //   UBIA = Unadjusted Basis Immediately After Acquisition
+                                         //   (the original cost basis of qualified property, not reduced
+                                         //    by depreciation — IRC §199A(b)(6)(B))
 
 // ─── RETIREMENT PLANS ─────────────────────────────────────────────────────────
 // Contribution RATES are permanent (defined here).
