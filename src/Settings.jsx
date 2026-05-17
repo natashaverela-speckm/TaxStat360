@@ -3,10 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { signOut } from './utils/signOut'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-// M3: Canonical API URL — matches Onboarding.jsx. Settings was previously using
-// the raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod).
-// Consolidated to the branded URL so all client→server traffic routes consistently
-// through the same origin (CloudFront / WAF rules apply uniformly).
 const API = 'https://app.taxstat360.com'
 
 function LOGO() {
@@ -34,8 +30,6 @@ function NavBtn({label, onClick, active}) {
   )
 }
 
-// B1: signOut clears ALL ts360_* localStorage keys (not just a hardcoded allowlist).
-// The previous version left ts360_records_{email} keys (actual tax data) in place,
 export default function Settings() {
   const nav = useNavigate()
   const [email, setEmail] = useState('')
@@ -53,14 +47,20 @@ export default function Settings() {
   const [exportDone, setExportDone] = useState(false)
 
   // MFA/2FA state
-  // mfaStep: 'idle' | 'setup' | 'verify' | 'success' | 'disable'
   const [mfaEnabled, setMfaEnabled] = useState(false)
   const [mfaStep, setMfaStep] = useState('idle')
-  const [mfaSetupData, setMfaSetupData] = useState(null)   // { secret, qr_code_url, backup_codes }
+  const [mfaSetupData, setMfaSetupData] = useState(null)
   const [mfaCode, setMfaCode] = useState('')
   const [mfaLoading, setMfaLoading] = useState(false)
   const [mfaError, setMfaError] = useState('')
   const [mfaBackupCodes, setMfaBackupCodes] = useState([])
+
+  // FIX (STATE-TAX): State effective tax rate preference — stored as ts360_state_tax_rate
+  // (percentage string). Read by TaxReturn.jsx to display an estimated state tax
+  // burden alongside the federal total. Empty string = not set = no state display.
+  const [stateTaxRate, setStateTaxRate] = useState(
+    localStorage.getItem('ts360_state_tax_rate') || ''
+  )
 
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
@@ -71,7 +71,7 @@ export default function Settings() {
           const payload = JSON.parse(atob(token.split('.')[1]))
           storedEmail = payload.email || payload.sub || ''
           if (storedEmail) localStorage.setItem('ts360_email', storedEmail)
-        } catch(e) { /* token not JWT format */ }
+        } catch(e) {}
       }
     }
     if (!storedEmail) {
@@ -92,14 +92,6 @@ export default function Settings() {
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
 
-    // FIX (TIMEOUT-DEFAULT): Default idle timeout changed from 0 (Never) to 30 minutes.
-    // Previous: `localStorage.getItem('ts360_idle_timeout_mins') || '0'`
-    //   — `||` treats the stored '0' (Never) as falsy, overwriting an explicit user
-    //     choice of Never. Fixed with `??` (nullish coalescing: only falls back on null).
-    //   — New users who never visit Settings had no value written to localStorage,
-    //     so App.jsx RequireAuth read null and never enforced any timeout. Fixed by
-    //     writing '30' to localStorage on first load so enforcement is immediate.
-    // Existing users who explicitly stored any value (including '0') are unaffected.
     const storedTimeout = localStorage.getItem('ts360_idle_timeout_mins')
     if (storedTimeout === null) localStorage.setItem('ts360_idle_timeout_mins', '30')
     setIdleTimeout(storedTimeout ?? '30')
@@ -109,8 +101,6 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    // Load MFA status from backend
-    // Fallback to localStorage cache if request fails (avoids flicker on repeated visits)
     const token = localStorage.getItem('token')
     if (token) {
       fetch(`${API}/auth/mfa/status`, {
@@ -124,7 +114,6 @@ export default function Settings() {
           }
         })
         .catch(() => {
-          // Fallback to cached value if backend unreachable
           setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
         })
     }
@@ -141,7 +130,6 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ new_email: emailInput })
       })
-      // M2: Actually check res.ok before showing success.
       if (res.ok) {
         setEmailSent(true)
         setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
@@ -159,15 +147,12 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      // SECURITY: do not change this to show different UI on success vs failure.
-      // Always showing "sent" regardless of API response prevents account enumeration
-      // (OWASP ASVS 2.10.2 / CWE-204). The catch block is intentional.
       await fetch(`${API}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       })
-    } catch(e) { /* intentional — see security comment above */ }
+    } catch(e) {}
     setPwSent(true)
     setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
     setLoading(false)
@@ -177,9 +162,6 @@ export default function Settings() {
     window.open('https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00', '_blank')
   }
 
-  // FIX (CCPA data export): Collects all ts360_* keys from localStorage and
-  // triggers a JSON download. Required for CCPA compliance — users have the right
-  // to receive a copy of all personal data the app holds on their device.
   const handleDataExport = () => {
     const exportData = {
       exportedAt: new Date().toISOString(),
@@ -205,20 +187,24 @@ export default function Settings() {
     setTimeout(() => setExportDone(false), 4000)
   }
 
-  // FIX (idle timeout preference): Stores the user's chosen idle timeout in
-  // localStorage. The actual enforcement (event listeners + timer) runs in
-  // App.jsx's RequireAuth wrapper so it covers all authenticated pages.
   const handleIdleTimeoutChange = (val) => {
     setIdleTimeout(val)
     localStorage.setItem('ts360_idle_timeout_mins', val)
   }
 
-  // ── MFA/2FA handlers ────────────────────────────────────────────────────────
-  // Implements TOTP (Time-based One-Time Password) via authenticator app.
-  // Recommended by IRS Publication 4557 — Safeguarding Taxpayer Data — for any
-  // software that handles PII or tax-related data on behalf of taxpayers.
-  // API endpoints: POST /auth/mfa/setup | POST /auth/mfa/verify | POST /auth/mfa/disable
+  // FIX (STATE-TAX): Persist state tax rate to localStorage on change.
+  // Clears the key when empty/zero so TaxReturn.jsx skips the display.
+  const handleStateTaxRateChange = (val) => {
+    const cleaned = val.replace(/[^0-9.]/g, '').slice(0, 5)
+    setStateTaxRate(cleaned)
+    if (cleaned === '' || parseFloat(cleaned) === 0) {
+      localStorage.removeItem('ts360_state_tax_rate')
+    } else {
+      localStorage.setItem('ts360_state_tax_rate', cleaned)
+    }
+  }
 
+  // ── MFA/2FA handlers ────────────────────────────────────────────────────────
   const handleMfaSetup = async () => {
     setMfaLoading(true)
     setMfaError('')
@@ -233,8 +219,6 @@ export default function Settings() {
         throw new Error(data.detail || 'Could not initialize MFA setup. Please try again.')
       }
       const data = await res.json()
-      // Expected response: { secret, qr_code_url, backup_codes }
-      // qr_code_url: data URI (data:image/png;base64,...) or otpauth:// URL for QR display
       setMfaSetupData(data)
       setMfaStep('setup')
     } catch(e) {
@@ -408,14 +392,11 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Security section */}
+        {/* Security */}
         <div style={card}>
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:20,textTransform:'uppercase'}}>Security</div>
 
-          {/* ── MFA/2FA — IRS Pub 4557 recommended ────────────────────────────
-              Two-factor authentication via TOTP authenticator app (Google Authenticator,
-              Authy, 1Password, etc.). IRS Publication 4557 "Safeguarding Taxpayer Data"
-              recommends MFA for all software that stores or processes taxpayer PII. */}
+          {/* MFA/2FA */}
           <div style={{marginBottom:24,paddingBottom:24,borderBottom:'1px solid #F1F5F9'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
               <div>
@@ -430,14 +411,6 @@ export default function Settings() {
                     {mfaEnabled ? '✓ Enabled' : 'Not enabled'}
                   </span>
                 </div>
-                {/* FIX (B-01): "Required by IRS Publication 4557" overstated the
-                    regulatory obligation. IRS Pub 4557 "Safeguarding Taxpayer Data"
-                    strongly recommends MFA for tax software handling taxpayer PII but
-                    does not legally mandate it — "Required" implies a legal duty that
-                    does not exist and could mislead users into thinking non-compliance
-                    carries a regulatory penalty. The developer comment on the handler
-                    above already correctly says "Recommended by IRS Publication 4557";
-                    this change makes the visible UI copy consistent with that. */}
                 <div style={{fontSize:13,color:SL,lineHeight:1.5,maxWidth:440}}>
                   Adds a second layer of protection using an authenticator app.
                   Strongly recommended by IRS Publication 4557 for tax software handling taxpayer data.
@@ -463,14 +436,12 @@ export default function Settings() {
               )}
             </div>
 
-            {/* Error */}
             {mfaError && (
               <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',marginTop:12}}>
                 {mfaError}
               </div>
             )}
 
-            {/* Setup step — show QR code and manual secret */}
             {mfaStep === 'setup' && mfaSetupData && (
               <div style={{marginTop:14,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'20px 20px'}}>
                 <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Step 1 — Scan this QR code</div>
@@ -520,7 +491,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Success step — show backup codes */}
             {mfaStep === 'success' && (
               <div style={{marginTop:14,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'20px'}}>
                 <div style={{fontSize:14,fontWeight:700,color:'#059669',marginBottom:8}}>✓ Two-factor authentication is now active</div>
@@ -553,7 +523,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Disable step — confirm with TOTP code */}
             {mfaStep === 'disable' && (
               <div style={{marginTop:14,background:'#FEF9E7',border:'1px solid #FCD34D',borderRadius:10,padding:'20px'}}>
                 <div style={{fontSize:13,fontWeight:600,color:'#92400E',marginBottom:8}}>Disable two-factor authentication</div>
@@ -651,6 +620,55 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Tax Preferences
+            FIX (STATE-TAX): New section — state effective tax rate preference.
+            Stores ts360_state_tax_rate (percentage) in localStorage. TaxReturn.jsx
+            reads this to display an estimated state tax burden and total tax burden
+            alongside the federal calculation. Empty = off (no state display shown).
+            Using effective rate (not marginal) keeps it simple for planning purposes. */}
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Tax Preferences</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>State effective tax rate</div>
+              <div style={{fontSize:13,color:SL,lineHeight:1.5,marginBottom:12}}>
+                Enter your state's effective income tax rate to see an estimated state tax burden alongside your federal total in the calculator. Leave blank to show federal only.
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={stateTaxRate}
+                    onChange={e => handleStateTaxRateChange(e.target.value)}
+                    placeholder="e.g. 5.0"
+                    style={{
+                      width:100, padding:'9px 32px 9px 14px',
+                      border:'1px solid #E2E8F0', borderRadius:8,
+                      fontSize:14, color:N, outline:'none', fontFamily:'inherit',
+                    }}
+                  />
+                  <span style={{position:'absolute',right:12,fontSize:13,color:SL,fontWeight:600,pointerEvents:'none'}}>%</span>
+                </div>
+                {stateTaxRate && parseFloat(stateTaxRate) > 0 && (
+                  <div style={{fontSize:12,color:'#059669',fontWeight:600}}>
+                    ✓ Showing est. state tax in calculator
+                  </div>
+                )}
+                {(!stateTaxRate || parseFloat(stateTaxRate) === 0) && (
+                  <div style={{fontSize:12,color:'#94A3B8'}}>
+                    Federal only (no state estimate)
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:11,color:'#94A3B8',marginTop:8,lineHeight:1.5}}>
+                Applied to your AGI as a planning estimate. Actual state liability varies by state-specific deductions and credits. Find your state's rates at{' '}
+                <a href="https://www.taxfoundation.org/data/all/state/state-income-tax-rates/" target="_blank" rel="noopener noreferrer" style={{color:B}}>Tax Foundation →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Privacy & Data */}
         <div style={card}>
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Privacy & Data</div>
@@ -674,7 +692,6 @@ export default function Settings() {
         <div style={{...card, border:'1px solid #FCA5A5'}}>
           <div style={{fontSize:11,fontWeight:700,color:'#DC2626',letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Danger zone</div>
 
-          {/* Sign out — this browser only */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
             <div>
               <div style={{fontSize:14,fontWeight:600,color:N}}>Sign out</div>
@@ -685,7 +702,6 @@ export default function Settings() {
             </button>
           </div>
 
-          {/* Delete account */}
           <div style={{borderTop:'1px solid #FEE2E2',paddingTop:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <div style={{fontSize:14,fontWeight:600,color:N}}>Delete account</div>
