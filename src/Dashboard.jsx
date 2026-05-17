@@ -52,8 +52,13 @@ function InfoTip({ text })  {
 // (Sole Proprietor / Single-Member LLC), causing the wrong entity type to appear
 // when loading a saved record. This normalizes all legacy variants to canonical form
 // before writing to session state so the calculator always receives a valid value.
+//
+// Returns '' (empty string) for null/undefined/empty input so callers can apply
+// their own contextual fallback (e.g., || prev.entityType, || 'Business').
+// Do NOT default to a specific entity type here — the caller has context; this
+// function does not.
 const normalizeEntityType = (t) => {
-  if (!t) return 'S Corporation'
+  if (!t) return ''
   const s = String(t).trim()
   if (/^s.?corp/i.test(s))            return 'S Corporation'
   if (/^c.?corp/i.test(s))            return 'C Corporation'
@@ -61,7 +66,7 @@ const normalizeEntityType = (t) => {
   if (/partner.*active/i.test(s))     return 'Partnership / MMLLC — Active'
   if (/partner.*passive/i.test(s))    return 'Partnership / MMLLC — Passive'
   if (/partner|mmllc|multi/i.test(s)) return 'Partnership / MMLLC — Passive'
-  return s  // return as-is if no legacy match found
+  return s  // return as-is if no legacy match found — unknown but truthy
 }
 
 
@@ -225,7 +230,6 @@ const RiskBadge=({level})=>{const s={low:{bg:'#F0FDF4',color:'#166534',label:'Lo
 export default function Dashboard(){
   const nav=useNavigate()
   const [showDisclaimer,setShowDisclaimer]=useState(()=>!localStorage.getItem('ts360_disclaimer_seen'))
-  const [refreshing,setRefreshing]=useState(false)
   // NEW-01 fix: saveError replaces alert() for the empty-data validation guard.
   const [saveError,setSaveError]=useState('')
   const dismissDisclaimer=()=>{localStorage.setItem('ts360_disclaimer_seen','1');setShowDisclaimer(false)}
@@ -236,9 +240,8 @@ export default function Dashboard(){
   const [saved,setSaved]=useState(false)
   const [savedRecordId,setSavedRecordId]=useState(null)
   const [showFin,setShowFin]=useState(true)
-  const [show1040,setShow1040]=useState(false)
   const [loadedRecord,setLoadedRecord]=useState(null)
-  const navigate = useNavigate()
+  // nav is the single navigate reference — do not add a second useNavigate() call
   const [activeView,setActiveView]=useState('records')
   const [records,setRecords]=useState([])
   // FIX (F-08): warn the user when they click "Personal 1040" without Step 1 data.
@@ -317,7 +320,7 @@ export default function Dashboard(){
       setShowFin(true)
       if(sessionStorage.getItem('ts360_goto_form')==='1'){
         sessionStorage.removeItem('ts360_goto_form')
-        navigate('/calculate-tax')
+        nav('/calculate-tax')
       }
     }
     const params=new URLSearchParams(window.location.search)
@@ -382,44 +385,6 @@ export default function Dashboard(){
     }
   },[])
 
-  const refreshData=()=>{
-    const integMap={quickbooks:'qb',wave:'wave',freshbooks:'fb'}
-    for(const [pid] of Object.entries(integMap)){
-      const tok=localStorage.getItem('ts360_'+pid+'_token')
-      const connected=localStorage.getItem('ts360_'+pid+'_connected')
-      if(tok&&connected==='true'){
-        const extra=localStorage.getItem('ts360_'+pid+'_extra')
-        let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok)
-        if(pid==='quickbooks'&&extra) url+='&realm='+encodeURIComponent(extra)
-        if(pid==='freshbooks'&&extra) url+='&account='+encodeURIComponent(extra)
-        setRefreshing(true)
-        fetch(url).then(r=>r.json()).then(data=>{
-          if(data&&!data.error&&(data.grossRevenue||data.totalRevenue)){
-            const rev=String(Math.round(parseFloat(data.grossRevenue||data.totalRevenue)||0))
-            const exp=String(Math.round(parseFloat(data.totalExpenses||data.otherDeductions)||0))
-            setBiz(p=>({...p,grossRevenue:rev,operatingExpenses:exp}))
-            setShowFin(true)
-          }
-          setRefreshing(false)
-        }).catch(()=>setRefreshing(false))
-        const xeroRefresh=localStorage.getItem('ts360_xero_refresh')
-        if(!tok&&xeroRefresh){
-          setRefreshing(true)
-          fetch(API_BASE_URL+'/auth/xero/refresh?refresh='+encodeURIComponent(xeroRefresh))
-            .then(r=>r.json()).then(d=>{
-              if(d.access_token){
-                localStorage.setItem('ts360_xero_token',d.access_token)
-                return fetch(API_BASE_URL+'/auth/xero/data?token='+encodeURIComponent(d.access_token))
-              }
-            }).then(r=>r?.json()).then(data=>{
-              if(data?.grossRevenue){setBiz(p=>({...p,grossRevenue:String(Math.round(data.grossRevenue)),operatingExpenses:String(Math.round(data.totalExpenses||0))}))}
-              setRefreshing(false)
-            }).catch(()=>setRefreshing(false))
-        }
-        break
-      }
-    }
-  }
   const hasNumbers=parseFloat(biz.grossRevenue)>0
   const calc=hasNumbers?calcDashboard(biz,f1040):null
   const recs=calc?buildRecs(biz,calc):[]
@@ -600,15 +565,9 @@ export default function Dashboard(){
     if(loadedRecord?.id===records[idx]?.id) setLoadedRecord(null)
   }
 
-  const handleConnect=(integ)=>{
-    setConnectedApp(integ.name)
-    window.location.href=API_BASE_URL+'/auth/'+integ.id+'/connect'
-  }
-
   const inp={width:'100%',padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,background:'#fff',boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}
   const lbl={display:'block',fontSize:12,fontWeight:700,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.04em'}
-  const NumInput=({k,redBorder=false})=>(<input type="number" defaultValue={biz[k]} placeholder="0" onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);bSet(k,v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} style={{...inp,borderColor:redBorder?'#FCA5A5':'#E2E8F0',background:redBorder?'#FEF2F2':'#fff'}}/>)
-  const AnalysisBadge=({label,value,risk,note})=>(<div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}><div><div style={{fontSize:12,fontWeight:700,color:SL,marginBottom:2}}>{label}</div><div style={{fontSize:18,fontWeight:800,color:N}}>{value}</div>{note&&<div style={{fontSize:11,color:SL,marginTop:2}}>{note}</div>}</div><RiskBadge level={risk}/></div>)
+  const NumInput=({k,redBorder=false})=>(<input type="number" defaultValue={biz[k]} placeholder="0" onBlur={e=>{const v=Math.max(0,parseFloat(e.target.value)||0);bSet(k,v);e.target.value=v===0?'0':v;}} onFocus={e=>e.target.select()} style={{...inp,borderColor:redBorder?'#FCA5A5':'#E2E8F0',background:redBorder?'#FEF2F2':'#fff'}}/>) 
 
   return(
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
@@ -734,7 +693,7 @@ export default function Dashboard(){
               setSaved(false)
               setLoadedRecord(null)
               clearStep1State()
-              navigate('/calculate-tax')
+              nav('/calculate-tax')
             }} style={{padding:'10px 20px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>+ New Calculation</button>
           </div>
 
@@ -750,7 +709,7 @@ export default function Dashboard(){
               setSaved(false)
               setLoadedRecord(null)
               clearStep1State()
-              navigate('/calculate-tax')
+              nav('/calculate-tax')
             }} style={{padding:'10px 24px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer'}}>Start New Calculation →</button>
             </div>
           ):(
@@ -815,7 +774,7 @@ export default function Dashboard(){
       {activeView==='f1040'&&biz.entityType!=='C Corporation'&&(
       <div style={{maxWidth:1080,margin:'0 auto',padding:'32px 20px'}}>
         <div style={{marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
-          <button onClick={()=>navigate('/calculate-tax')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
+          <button onClick={()=>nav('/calculate-tax')} style={{padding:'8px 16px',background:'#fff',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>← Back to Business</button>
           <div style={{fontSize:13,color:SL}}>Complete your personal tax information to see your full Form 1040 liability.</div>
         </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
@@ -904,7 +863,7 @@ export default function Dashboard(){
             </div>
           </div>
 
-        {show1040&&hasNumbers&&recs.length>0&&(<>
+        {hasNumbers&&recs.length>0&&(<>
           <Divider/>
           <div style={{marginBottom:16}}><h2 style={{fontSize:17,fontWeight:800,color:N,margin:0}}>Tax Strategy Recommendations</h2><p style={{color:SL,fontSize:13,margin:'4px 0 0'}}>Based on your financials and personal tax picture - specific actions you can take now.</p></div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
