@@ -3,7 +3,8 @@
 //
 // Architecture rule:
 //   This file  →  permanent rates, ratios, structural values, and law-defined thresholds
-//                 that never change year-to-year (IRC rates, ERISA ages, FICA structure).
+//                 that never change year-to-year (IRC rates, ERISA ages, FICA structure,
+//                 and statutory dollar amounts that are explicitly NOT inflation-adjusted).
 //   taxCalc.js →  year-specific dollar figures (brackets, thresholds, limits, phase-outs)
 //                 stored in the TAX_TABLES[year] object.
 //
@@ -18,6 +19,10 @@
 // AIAnalysis.jsx will continue to use its local constant — the dollar amounts are correct
 // and the component functions correctly; this is an architecture cleanliness issue only.
 //
+// RESOLVED (this PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+// as a local const. Centralized here. Dashboard.jsx should be updated to import from here
+// on its next pass. Tracked as constants-centralization-03.
+//
 // ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
 // taxCalc.js TAX_TABLES[year] should include a `retirement` object with:
 //   sepIraMax         — §415(c) overall SEP-IRA limit
@@ -29,6 +34,12 @@
 //   catchUpIra        — IRA catch-up age ≥ 50 ($1,000; not inflation-adjusted)
 // Until that TAX_TABLES key is added, components must reference dollar limits locally
 // or use Math.min(SEP_MAX_FALLBACK, ...) style guards. Tracked as constants-centralization-02.
+//
+// ── AMT exemptions and phase-out ranges ─────────────────────────────────────
+// AMT_RATE_LOW and AMT_RATE_HIGH (permanent rates) are defined in this file.
+// AMT exemption dollar amounts and phase-out ranges are inflation-adjusted annually
+// and belong in AMT_TABLES[year] in taxCalc.js — they are NOT defined here.
+// (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ — add to TAX_TABLES.)
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 // FIX: Changed from the raw API Gateway URL to the branded CloudFront URL.
@@ -48,26 +59,43 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 export const FICA_SS_RATE       = 0.062   // per side; combined 12.4% on SS-subject wages
 export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
 
-// Additional Medicare Tax — IRC §3101(b)(2) / §1401(b)(2)
+// ─── ADDITIONAL MEDICARE TAX — IRC §3101(b)(2) / §1401(b)(2) ─────────────────
 // 0.9% surcharge on wages and SE income above the threshold.
 // Employee-only — no employer match on this portion.
-// Thresholds (not inflation-adjusted since ACA enactment):
+//
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — IRC §3101(b)(2)):
 //   $200,000 single / $250,000 MFJ / $125,000 MFS
-// Note: Unlike NIIT, this tax triggers employer withholding at $200K in wages
-// regardless of filing status. NIIT has no withholding mechanism — it flows entirely
-// through estimated payments or year-end true-up. Do not use the same code path
-// for both taxes in calcTaxReturn or clients with investment income will underestimate
-// their estimated payment obligations.
-export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009
+//
+// Important: employer withholding triggers at $200,000 in wages regardless of filing
+// status. The individual true-up (excess or credit) happens at filing. This differs from
+// NIIT, which has NO withholding mechanism — both taxes share the same income thresholds
+// but have entirely different collection mechanics. Do not conflate them in calcTaxReturn
+// or clients with investment income will underestimate their estimated payment obligations.
+export const ADDITIONAL_MEDICARE_TAX_RATE       = 0.009   // IRC §3101(b)(2) / §1401(b)(2)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000  // IRC §3101(b)(2)(B)(iii)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ    = 250000  // IRC §3101(b)(2)(B)(i)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS    = 125000  // IRC §3101(b)(2)(B)(ii)
 
-// Net Investment Income Tax (NIIT) — IRC §1411
-// 3.8% on the lesser of net investment income OR the amount by which MAGI exceeds
-// the threshold. Same thresholds as Additional Medicare Tax (not inflation-adjusted):
+// ─── NET INVESTMENT INCOME TAX (NIIT) — IRC §1411 ────────────────────────────
+// 3.8% on the lesser of:
+//   (a) net investment income, OR
+//   (b) the amount by which MAGI exceeds the applicable threshold.
+//
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment — IRC §1411(b)):
 //   $200,000 single / $250,000 MFJ / $125,000 MFS
-// Applies to passive K-1 income, rental income, capital gains, dividends, and interest.
-// Does NOT apply to active S-Corp K-1 income where the shareholder materially participates.
-// No withholding mechanism — flows entirely through estimated payments or year-end true-up.
-export const NIIT_RATE = 0.038  // IRC §1411
+// These share the same dollar values as the Additional Medicare Tax thresholds above
+// but the underlying IRC sections and collection mechanics are distinct — do not alias.
+//
+// Net investment income includes: passive K-1 income, rental income (for non-REPs),
+// capital gains, qualified dividends, interest income.
+// Does NOT include: active S-Corp K-1 income where the shareholder materially participates,
+// wages, self-employment income, distributions from qualified retirement plans.
+//
+// No withholding mechanism — flows entirely through Form 8960 and estimated payments.
+export const NIIT_RATE              = 0.038   // IRC §1411(a)
+export const NIIT_THRESHOLD_SINGLE  = 200000  // IRC §1411(b)(1)(A) — not inflation-adjusted
+export const NIIT_THRESHOLD_MFJ     = 250000  // IRC §1411(b)(1)(B) — not inflation-adjusted
+export const NIIT_THRESHOLD_MFS     = 125000  // IRC §1411(b)(1)(C) — not inflation-adjusted
 
 // ─── SELF-EMPLOYMENT TAX DEDUCTION — IRC §164(f) ─────────────────────────────
 // Above-the-line deduction equal to 50% of self-employment tax paid.
@@ -90,13 +118,45 @@ export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC §172(a)(2)
 // ─── PASSIVE ACTIVITY LOSS — IRC §469(i) ─────────────────────────────────────
 // §469(i) active-participation special allowance: up to $25,000 in rental losses
 // can offset non-passive income for non-REP active participants. This allowance
-// phases out at 50 cents per dollar of AGI above $100,000 (single / MFJ / HOH),
-// and is $0 for MFS filers and above $150,000 AGI for all others.
-// Phase-out base: $100,000 AGI (not inflation-adjusted — statutory amount in §469(i)(3)(A))
-// Phase-out rate: 50% of (AGI − $100,000) — §469(i)(3)(A)
-export const PAL_SPECIAL_ALLOWANCE_BASE  = 25000   // §469(i)(2) max allowance
-export const PAL_PHASE_OUT_START         = 100000  // §469(i)(3)(A)
-export const PAL_PHASE_OUT_RATE          = 0.50    // §469(i)(3)(A) — 50 cents per dollar
+// phases out at 50 cents per dollar of AGI above $100,000, and is $0 for MFS filers
+// and above $150,000 AGI for all other filing statuses.
+//
+// Phase-out mechanics (§469(i)(3)(A)):
+//   Reduction = PAL_PHASE_OUT_RATE × max(0, AGI − PAL_PHASE_OUT_START)
+//   Allowance = max(0, PAL_SPECIAL_ALLOWANCE_BASE − Reduction)
+//   Allowance is fully eliminated when AGI ≥ PAL_PHASE_OUT_END.
+//
+// Thresholds: NOT inflation-adjusted — these are statutory dollar amounts in §469(i)(3)(A).
+// MFS filers: $0 allowance regardless of AGI — §469(i)(4).
+//
+// Usage: REP (Real Estate Professional) status bypasses §469(i) entirely —
+//   REPs deduct unlimited rental losses against ordinary income if they materially
+//   participate (§469(c)(7)). PAL_* constants only apply to non-REP active participants.
+export const PAL_SPECIAL_ALLOWANCE_BASE = 25000   // §469(i)(2) — max allowance
+export const PAL_PHASE_OUT_START        = 100000  // §469(i)(3)(A) — phase-out begins here
+export const PAL_PHASE_OUT_END          = 150000  // §469(i)(3)(A) — allowance = $0 at this AGI
+export const PAL_PHASE_OUT_RATE         = 0.50    // §469(i)(3)(A) — 50 cents per dollar of excess
+
+// ─── S-CORP REASONABLE COMPENSATION — IRC §3121; Rev. Rul. 74-44 ─────────────
+// The IRS requires S-Corp shareholder-employees to receive reasonable compensation
+// (W-2 salary) for services rendered before taking K-1 distributions.
+// TaxStat360 uses a 40% ratio as a planning heuristic: if officer salary is less than
+// 40% of total S-Corp compensation (salary + K-1 distributions), an alert is surfaced.
+//
+// IMPORTANT — this is a scrutiny signal, NOT a safe harbor or statutory floor:
+//   Rev. Rul. 74-44:  IRS authority to recharacterize distributions as wages.
+//   Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012): affirmed recharacterization
+//     where officer took $24K salary on ~$200K total compensation (12% ratio — extreme case).
+//   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990): established
+//     that reasonable compensation is based on services performed, supporting ratio analysis.
+//
+// The 40% figure is an industry-practice heuristic derived from IRS enforcement patterns.
+// It is not found in any statute or regulation. "Reasonable compensation" is a facts-and-
+// circumstances determination — a salary could be reasonable at 35% or unreasonable at 55%.
+// This constant drives a planning alert only; users should confirm with their CPA.
+//
+// Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
+export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // IRS scrutiny heuristic; see above
 
 // ─── CORPORATE INCOME TAX — IRC §11 ──────────────────────────────────────────
 // Flat 21% post-TCJA (P.L. 115-97, enacted 2017-12-22).
@@ -107,7 +167,10 @@ export const C_CORP_TAX_RATE = 0.21
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
 // year-specific — see AMT_TABLES[year].bracket26_28 in taxCalc.js.
-// AMT exemptions and phase-out ranges are also year-specific in AMT_TABLES[year].
+// AMT exemptions and phase-out ranges are inflation-adjusted annually and belong
+// in TAX_TABLES[year] in taxCalc.js — they are NOT defined here.
+//   (2024 reference values: exemption $85,700 single / $133,300 MFJ;
+//    phase-out start $609,350 single / $1,218,700 MFJ — add to TAX_TABLES.)
 export const AMT_RATE_LOW  = 0.26  // IRC §55(b)(1)(A) — 26% on AMTI up to bracket26_28
 export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above bracket26_28
 
@@ -188,7 +251,7 @@ export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation — IRC 
 //   At age 64+: catch-up returns to standard $7,500 (2025) — the super catch-up
 //   window is ONLY ages 60, 61, 62, 63 (inclusive). This is a common planning error.
 // Dollar amounts are year-specific → TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
-export const CATCHUP_AGE_STANDARD   = 50  // IRC §414(v)(1) — standard catch-up start age
+export const CATCHUP_AGE_STANDARD    = 50  // IRC §414(v)(1) — standard catch-up start age
 export const CATCHUP_AGE_SUPER_START = 60  // SECURE 2.0 §109 — enhanced catch-up window start
 export const CATCHUP_AGE_SUPER_END   = 63  // SECURE 2.0 §109 — enhanced catch-up window end (inclusive)
 
@@ -223,12 +286,28 @@ export const SE_SUBJECT_TYPES = [
 ]
 
 // ─── ACCOUNTING SOFTWARE INTEGRATIONS ─────────────────────────────────────────
+// abbr values are displayed as badge text on integration logo tiles (Landing.jsx, Onboarding.jsx).
+// LBL-01 fix: Xero corrected from 'XE' → 'X' (XE is the currency converter XE.com, not Xero).
+//             Wave corrected from 'WV' → 'W' (WV is non-standard; Wave's own mark uses 'W').
 export const INTEGRATIONS = [
   { id: 'quickbooks', name: 'QuickBooks', color: '#2CA01C', bg: '#F0FBF0', abbr: 'QB' },
-  { id: 'xero',       name: 'Xero',       color: '#13B5EA', bg: '#EFF9FF', abbr: 'XE' },
-  { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'WV' },
+  { id: 'xero',       name: 'Xero',       color: '#13B5EA', bg: '#EFF9FF', abbr: 'X'  },
+  { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'W'  },
   { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
+
+// ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
+// Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
+// Annual pricing = monthly × ANNUAL_BILLING_MONTHS (10 months billed, 2 months free).
+// Upgrade.jsx must reference these constants; no hardcoded pricing values in components.
+//
+// To change pricing: update these constants only. Upgrade.jsx and Landing.jsx will
+// reflect the change automatically on next build.
+export const PRICE_STARTER_MONTHLY      = 79   // USD/month
+export const PRICE_PROFESSIONAL_MONTHLY = 149  // USD/month
+export const PRICE_ENTERPRISE_MONTHLY   = 299  // USD/month
+export const ANNUAL_BILLING_MONTHS      = 10   // months charged on annual plan (2 months free)
+export const ANNUAL_DISCOUNT_LABEL      = 'Save 2 months'  // display copy — update if discount changes
 
 // ─── OWNERSHIP PERCENTAGE FALLBACK ────────────────────────────────────────────
 // Throughout the codebase, entity ownership is parsed as:
