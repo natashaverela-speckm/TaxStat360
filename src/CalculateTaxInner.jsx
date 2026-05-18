@@ -73,12 +73,14 @@ return(
 }
 
 // ── F-H23: Reasonable Compensation Indicator ──────────────────────────────────
-// Shown when entity type is S-Corp or C-Corp and officer salary + net profit
-// are both present. IRS benchmarks "reasonable compensation" at 35–40% of net
-// profit for owner-operators (Rev. Rul. 74-44; IRC §162).
-// Level:  'none'   — no salary entered (only shown if k1 > $20K)
+// TC-03: Reframed from "IRS benchmark" to practitioner recommendation.
+// Tax practitioners commonly recommend a salary-to-total-compensation ratio of
+// 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008
+// (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is
+// no published safe harbor percentage. Rev. Rul. 74-44; IRC §162.
+// Level:  'none'   — no salary entered (only shown if netProfit > $20K)
 //         'low'    — salary < 35% of net profit (and net profit > $30K)
-//         'ok'     — salary ≥ 35% of net profit
+//         'ok'     — salary >= 35% of net profit
 function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
   const isCorp = ['S Corporation', 'C Corporation'].includes(entityType)
   if (!isCorp || netProfit <= 0) return null
@@ -90,21 +92,21 @@ function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
   if (salary === 0 && netProfit > 20000) {
     return (
       <div style={{ marginTop: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#991B1B' }}>
-        ⚠ <strong>No officer salary set.</strong> IRS requires S-Corp owner-operators to pay a reasonable W-2 salary — one of the top audit triggers. Suggested minimum: {fmt(minTarget)} (35% of net profit).
+        ⚠ <strong>No officer salary set.</strong> Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as an S-Corp audit risk. The IRS uses a facts-and-circumstances test — there is no safe harbor, but a suggested starting point is {fmt(minTarget)} (35% of net profit). Consult your CPA.
       </div>
     )
   }
   if (salary > 0 && netProfit > 30000 && ratio < 0.35) {
     return (
       <div style={{ marginTop: 8, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-        ⚠ <strong>Officer salary ({(ratio * 100).toFixed(1)}% of net profit) may be too low.</strong> IRS guidance suggests ≥ 35–40%. Consider increasing to at least {fmt(minTarget)}.
+        ⚠ <strong>Officer salary ({(ratio * 100).toFixed(1)}% of net profit) may be below practitioner guidelines.</strong> Tax practitioners commonly recommend 35–45% based on Watson v. Commissioner. The IRS applies a facts-and-circumstances test — consider discussing with your CPA whether {fmt(minTarget)} or higher is appropriate.
       </div>
     )
   }
   if (salary > 0 && ratio >= 0.35) {
     return (
       <div style={{ marginTop: 8, background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 7, padding: '7px 12px', fontSize: 12, color: '#166534' }}>
-        ✓ Officer salary is {(ratio * 100).toFixed(1)}% of net profit — within the IRS 35–40% reasonable compensation range.
+        ✓ Officer salary is {(ratio * 100).toFixed(1)}% of net profit — within the practitioner-recommended 35–45% range (Watson v. Commissioner).
       </div>
     )
   }
