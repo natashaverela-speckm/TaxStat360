@@ -10,9 +10,6 @@ const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F0F4FF',di
 const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>(<div style={{marginBottom:mb}}><label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)
 
 // FIX (PW-STRENGTH): Password strength scoring and visual indicator.
-// Criteria: length ≥12, uppercase letter, number, special character.
-// Shown in real-time below the password field during signup — gives users
-// concrete feedback instead of only a min-length error on submit.
 function pwStrength(pass) {
   const checks = {
     length:  pass.length >= 12,
@@ -31,7 +28,6 @@ function PasswordStrength({ pass }) {
   const { score, checks, label, color } = pwStrength(pass)
   return (
     <div style={{ marginTop: 6, marginBottom: 4 }}>
-      {/* Strength bar */}
       <div style={{ display: 'flex', gap: 3, marginBottom: 5 }}>
         {[1, 2, 3, 4].map(i => (
           <div key={i} style={{
@@ -41,7 +37,6 @@ function PasswordStrength({ pass }) {
           }} />
         ))}
       </div>
-      {/* Label + criteria */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
         {label && (
           <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
@@ -148,16 +143,37 @@ function SignupScreen(){
       <div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
       <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
     </div>
+
+    {/* UX-02: Two-step progress indicator — shows users what's coming before they
+        start filling fields, reducing form abandonment anxiety. Step 1 is active
+        (account info: name, email, password). Step 2 is upcoming (card). */}
+    <div style={{display:'flex',alignItems:'center',marginBottom:20,padding:'12px 16px',background:'#F8FAFC',borderRadius:10,border:'1px solid #E2E8F0'}}>
+      {/* Step 1 — active */}
+      <div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
+        <div style={{width:26,height:26,borderRadius:'50%',background:B,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>1</div>
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:B,lineHeight:1.2}}>Account Info</div>
+          <div style={{fontSize:10,color:'#94A3B8',lineHeight:1.2}}>Name, email, password</div>
+        </div>
+      </div>
+      {/* Connector */}
+      <div style={{flex:'0 0 28px',height:2,background:'#E2E8F0',margin:'0 6px'}}/>
+      {/* Step 2 — upcoming */}
+      <div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
+        <div style={{width:26,height:26,borderRadius:'50%',background:'#E2E8F0',color:'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:'#94A3B8',lineHeight:1.2}}>Trial Setup</div>
+          <div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card verification</div>
+        </div>
+      </div>
+    </div>
+
     <form onSubmit={submit}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         <Field label="Full Name" val={name} set={setName} ph="Jane Smith" mb={0} autoComplete="name"/>
         <Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0} autoComplete="email"/>
       </div>
 
-      {/* FIX (PW-STRENGTH): Password fields with live strength indicator.
-          Previously used the generic Field component with no feedback — users
-          only discovered weak passwords on submit. Strength bar + criteria
-          checklist guide them in real time without blocking the UX. */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
         <div>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
@@ -176,11 +192,26 @@ function SignupScreen(){
         <PasswordStrength pass={pass} />
       </div>
 
+      {/* UX-01: Trust message moved to BEFORE the card field so users see it
+          before entering card details — not buried after the submit button.
+          Displayed as a green notice to draw the eye and build confidence. */}
+      <div style={{
+        display:'flex',alignItems:'flex-start',gap:10,
+        background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,
+        padding:'10px 14px',marginBottom:12,
+      }}>
+        <span style={{fontSize:16,flexShrink:0,lineHeight:1.4}}>🔒</span>
+        <p style={{fontSize:12,color:'#166534',margin:0,lineHeight:1.5}}>
+          <strong>Card for identity verification only.</strong> You will <strong>not be charged</strong> until after your 7-day free trial ends. Cancel anytime.
+        </p>
+      </div>
+
       <div style={{marginBottom:12}}>
         <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Card Details</label>
         <div ref={cardRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',minHeight:48,cursor:'text'}}/>
         {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
       </div>
+
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
       <p style={{fontSize:11,color:'#64748b',textAlign:'center',margin:'0 0 10px',lineHeight:1.5}}>
         By creating an account you agree to our{' '}
@@ -188,8 +219,7 @@ function SignupScreen(){
         {' '}and{' '}
         <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
       </p>
-      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Processing...':'Start Free Trial →'}</button>
-      <p style={{fontSize:11,color:'#94a3b8',textAlign:'center',margin:'0 0 8px',lineHeight:1.4}}>🔒 Card for identity verification only. <b>Not charged</b> until after 7-day trial. Cancel anytime.</p>
+      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
       <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <span onClick={()=>nav('/')} style={{color:SL,cursor:'pointer'}}>← Home</span></p>
     </form>
   </Page>)
