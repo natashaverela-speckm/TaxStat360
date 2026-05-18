@@ -144,6 +144,47 @@ function SignupScreen(){
       <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
     </div>
 
+    {/* CC-05: Plan selector — shown inline on signup so users without a plan-specific
+        URL can pick their tier. Each pricing page "Start Free Trial" button should
+        link to /signup?plan=starter, /signup?plan=professional, or /signup?plan=enterprise
+        to skip this selector. When a ?plan= param is present it defaults correctly. */}
+    <div style={{marginBottom:16}}>
+      <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Your Plan</label>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        {[
+          {id:'starter',     name:'Starter',      price:'$79/mo', annual:'$66/mo'},
+          {id:'professional',name:'Professional',  price:'$149/mo',annual:'$124/mo'},
+          {id:'enterprise',  name:'Enterprise',    price:'$299/mo',annual:'$249/mo'},
+        ].map(p => {
+          const selected = plan === p.id
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => window.history.replaceState({}, '', `?plan=${p.id}&billing=${billing}`)}
+              style={{
+                padding:'10px 8px', border: `2px solid ${selected ? B : '#E2E8F0'}`,
+                borderRadius:9, cursor:'pointer', textAlign:'center',
+                background: selected ? '#EFF6FF' : '#fff', transition:'all 0.15s',
+              }}
+            >
+              <div style={{fontSize:12,fontWeight:700,color:selected?B:N}}>{p.name}</div>
+              <div style={{fontSize:11,color:SL,marginTop:2}}>{billing==='annual'?p.annual:p.price}</div>
+            </button>
+          )
+        })}
+      </div>
+      <div style={{textAlign:'center',marginTop:6}}>
+        <button
+          type="button"
+          onClick={() => window.history.replaceState({}, '', `?plan=${plan}&billing=${billing==='annual'?'monthly':'annual'}`)}
+          style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',textDecoration:'underline'}}
+        >
+          {billing==='annual' ? 'Switch to monthly billing' : 'Switch to annual billing (save ~17%)'}
+        </button>
+      </div>
+    </div>
+
     {/* UX-02: Two-step progress indicator — shows users what's coming before they
         start filling fields, reducing form abandonment anxiety. Step 1 is active
         (account info: name, email, password). Step 2 is upcoming (card). */}
