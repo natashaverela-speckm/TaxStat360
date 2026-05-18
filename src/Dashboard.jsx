@@ -116,10 +116,14 @@ function calcDashboard(biz, f1040) {
     if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
     const ratio = totalComp > 0 ? sal / totalComp : 1
     const triggered = ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+    // L-02: Store sal and distributions explicitly so the JSX can render
+    // the formula Salary ÷ (Salary + Distributions) with real numbers.
     return {
       triggered,
       ratio: Math.round(ratio * 100),
-      message: `Officer salary (${fmt(sal)}) is ${Math.round(ratio * 100)}% of total S-Corp compensation (salary + K-1). The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`,
+      sal: Math.round(sal),
+      distributions: Math.round(Math.max(0, k1)),
+      message: `Officer salary is ${Math.round(ratio * 100)}% of total S-Corp compensation. The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`,
     }
   })()
 
@@ -707,8 +711,35 @@ export default function Dashboard() {
           personal return in Step 2 via the Calculator (TaxReturn.jsx). */}
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
 
-        {/* S-Corp Reasonable Compensation Alert */}
-        {safeCalc.reasonableCompAlert?.triggered && !dismissedCompAlert && (
+        {/* L-06: Only show S-Corp Alert when revenue data exists but salary = $0.
+            When no revenue data is entered at all, show an onboarding prompt instead.
+            This prevents the alert from appearing on brand-new empty accounts. */}
+        {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
+          <div style={{
+            background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12,
+            padding: '20px 24px', marginBottom: 24,
+            display: 'flex', alignItems: 'flex-start', gap: 16,
+          }}>
+            <div style={{ fontSize: 28, flexShrink: 0 }}>📊</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>
+                Ready to see your tax analysis?
+              </div>
+              <div style={{ fontSize: 13, color: '#3B82F6', lineHeight: 1.6, marginBottom: 12 }}>
+                Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business income and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
+              </div>
+              <button
+                onClick={startNewCalc}
+                style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              >
+                Go to Calculator →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* S-Corp Reasonable Compensation Alert — only renders when hasNumbers and salary is below threshold */}
+        {hasNumbers && safeCalc.reasonableCompAlert?.triggered && !dismissedCompAlert && (
           <div style={{
             background: '#FEF3C7', border: '1.5px solid #FCD34D', borderRadius: 12,
             padding: '16px 20px', marginBottom: 24,
@@ -719,6 +750,29 @@ export default function Dashboard() {
                 <span style={{ background: '#FCD34D', color: '#92400E', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>S-CORP ALERT</span>
                 Reasonable Compensation Below IRS Threshold
               </div>
+
+              {/* L-02: Show the formula explicitly so users understand what the percentage means */}
+              <div style={{ fontSize: 13, color: '#92400E', marginBottom: 10, fontWeight: 600 }}>
+                Formula: Salary ÷ (Salary + Distributions)
+              </div>
+              <div style={{
+                background: 'rgba(146,64,14,0.06)', borderRadius: 8, padding: '10px 14px',
+                marginBottom: 10, fontFamily: 'monospace, monospace', fontSize: 14,
+              }}>
+                <span style={{ color: '#78350F' }}>
+                  {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
+                  {' ÷ ('}
+                  {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
+                  {' + '}
+                  {fmt(safeCalc.reasonableCompAlert.distributions ?? 0)}
+                  {') = '}
+                </span>
+                <strong style={{ color: '#DC2626', fontSize: 15 }}>
+                  {safeCalc.reasonableCompAlert.ratio ?? 0}%
+                </strong>
+                <span style={{ color: '#92400E', fontSize: 12 }}> (threshold: ≥40%)</span>
+              </div>
+
               <div style={{ fontSize: 13, color: '#78350F', lineHeight: 1.6, marginBottom: 8 }}>
                 {safeCalc.reasonableCompAlert.message}
               </div>
