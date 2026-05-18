@@ -271,6 +271,13 @@ export default function App() {
 
         {/* Protected app routes */}
         <Route path="/calculate-tax" element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
+
+        {/* FIX (F-02): /calculator is the natural URL users type or bookmark.
+            Previously fell through to the * wildcard and silently redirected
+            to the homepage. Now renders Step 1 (Entity Calculator) directly.
+            RequireAuth handles unauthenticated access — redirects to /login. */}
+        <Route path="/calculator"    element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
+
         <Route path="/dashboard"     element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/tax-return"    element={<RequireAuth><TaxReturn /></RequireAuth>} />
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
