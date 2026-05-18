@@ -882,6 +882,13 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>Enter prior year QBI loss as positive number. Reduces this year's QBI deduction base; does not affect AGI.</div>
               </div>
             </div>
+            <WhatGoesHere items={[
+              'Short- and long-term capital gains/losses from Form 1099-B (Schedule D)',
+              'Interest income from Form 1099-INT Box 1; qualified dividends from Form 1099-DIV Box 1b',
+              'Form 4797 gain/loss from sale of business property — flows to Schedule 1 Line 4',
+              'Unrecaptured §1250 gain and collectibles gain from Schedule D worksheets',
+              'Prior year QBI loss carryforward from your prior year Form 8995 Line 3',
+            ]} />
           </CollapsibleSection>
 
           {/* ISO */}
@@ -914,6 +921,12 @@ export default function TaxReturn() {
                 <MoneyInput value={iraDistributions} onChange={setIraDistributions} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
               </div>
             </div>
+            <WhatGoesHere items={[
+              'Social Security: enter the gross benefit amount from SSA-1099 Box 5 — do not pre-calculate the taxable portion',
+              'IRA / Pension: enter the taxable amount from Form 1099-R Box 2a for traditional IRA, 401(k), or pension distributions',
+              'Do NOT include Roth IRA qualified distributions here — those are tax-free and do not appear on your return',
+              'Required Minimum Distributions (RMDs) count as IRA/pension distributions',
+            ]} />
           </CollapsibleSection>
 
           {/* Above-the-line deductions */}
@@ -965,7 +978,7 @@ export default function TaxReturn() {
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, paddingTop: 12 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
                 <input type="checkbox" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} style={{ width: 16, height: 16 }} />
-                Use itemized deductions
+                Use itemized deductions <InfoTip text="Only itemize if your total itemized deductions (SALT + mortgage interest + charitable gifts) exceed the standard deduction for your filing status ($15,750 single / $31,500 MFJ for 2025). Most taxpayers take the standard deduction. The calculator will use whichever is larger." />
               </label>
             </div>
             {!useItemized && (
