@@ -634,12 +634,21 @@ export default function TaxReturn() {
                 ⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
               </div>
             )}
-            {k1Total > 0 && result.qbiCaps?.wage === null &&
-             entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
-              <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
-                ⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ({fmt(QBI_THRESHOLDS[taxYear]?.single || 197300)} single / {fmt(QBI_THRESHOLDS[taxYear]?.mfj || 394600)} MFJ for {taxYear}). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
-              </div>
-            )}
+            {/* TC-01 fix: qbiCaps.wage is null both when (a) income is BELOW the threshold
+                (wage limit doesn't apply at all — correct behavior, no warning needed) AND
+                when (b) income is ABOVE threshold but no W-2 wages were found (warning needed).
+                The !hasWages guard below ensures we only warn in scenario (b). */}
+            {(() => {
+              const hasWages = entities.some(e =>
+                parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary)
+              )
+              return k1Total > 0 && result.qbiCaps?.wage === null && !hasWages &&
+                entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
+                <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
+                  ⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ({fmt(QBI_THRESHOLDS[taxYear]?.single || 197300)} single / {fmt(QBI_THRESHOLDS[taxYear]?.mfj || 394600)} MFJ for {taxYear}). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
+                </div>
+              )
+            })()}
             {k1Total > 0 && result.qbiCaps?.wage !== null && qbiLimitApplied === 'wage' &&
              entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
               <div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
