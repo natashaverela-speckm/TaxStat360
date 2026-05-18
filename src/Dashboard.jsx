@@ -846,7 +846,8 @@ export default function Dashboard() {
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      📄 {rec.name || rec.savedAt || 'Saved Record'}
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
+                      {rec.name || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)' ? new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
                       {/* UX-04: Active record indicator */}
                       {isActive && (
                         <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
@@ -868,27 +869,44 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {totalTax > 0 && (
-                    <div style={{
-                      flexShrink: 0, marginLeft: 20, marginRight: 8,
-                      textAlign: 'center', background: '#FEF2F2',
-                      border: '1.5px solid #FECACA', borderRadius: 12,
-                      padding: '10px 18px', minWidth: 120,
-                    }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', letterSpacing: '0.5px', marginBottom: 3 }}>EST. TAX LIABILITY</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: R, lineHeight: 1 }}>
-                        ${Math.round(totalTax).toLocaleString()}
-                      </div>
-                      {quarterly > 0 && (
-                        <div style={{ fontSize: 10, color: '#991B1B', marginTop: 3 }}>
-                          ${Math.round(quarterly).toLocaleString()}/qtr
+                  {totalTax > 0 && (() => {
+                    // ADD-03: Delta indicator — compare this record's tax to the next
+                    // most recent record (index i+1) to show trend. Only shown on the
+                    // most recent record (i === 0) so the delta is always "vs last time".
+                    const prevRec = i === 0 ? records[1] : null
+                    const prevTax = prevRec ? parseFloat(prevRec.totalTax) || 0 : 0
+                    const delta = totalTax - prevTax
+                    const showDelta = i === 0 && prevTax > 0 && Math.abs(delta) >= 100
+                    return (
+                      <div style={{
+                        flexShrink: 0, marginLeft: 20, marginRight: 8,
+                        textAlign: 'center', background: '#FEF2F2',
+                        border: '1.5px solid #FECACA', borderRadius: 12,
+                        padding: '10px 18px', minWidth: 120,
+                      }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', letterSpacing: '0.5px', marginBottom: 3 }}>EST. TAX LIABILITY</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: R, lineHeight: 1 }}>
+                          ${Math.round(totalTax).toLocaleString()}
                         </div>
-                      )}
-                      <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 5, fontStyle: 'italic' }}>
-                        Federal income tax only
+                        {quarterly > 0 && (
+                          <div style={{ fontSize: 10, color: '#991B1B', marginTop: 3 }}>
+                            ${Math.round(quarterly).toLocaleString()}/qtr
+                          </div>
+                        )}
+                        {showDelta && (
+                          <div style={{
+                            marginTop: 5, fontSize: 11, fontWeight: 700,
+                            color: delta > 0 ? '#DC2626' : '#16A34A',
+                          }}>
+                            {delta > 0 ? '▲' : '▼'} ${Math.abs(Math.round(delta)).toLocaleString()} vs prior
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#B91C1C', marginTop: showDelta ? 2 : 5, fontStyle: 'italic' }}>
+                          Federal income tax only
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
 
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 20, alignItems: 'center' }}>
                     <button
