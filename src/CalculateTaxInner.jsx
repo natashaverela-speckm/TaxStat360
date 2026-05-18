@@ -332,9 +332,16 @@ return(
 </select>
 <button
   onClick={()=>onCompare(idx)}
-  title="Compare this entity's tax treatment against another structure (e.g. S-Corp vs. LLC)"
-  style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}
->⚖ Compare</button>
+  title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor. See side-by-side entity, self-employment, and QBI tax differences."
+  style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}
+>
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="6" height="15" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+    <rect x="9.5" y="0.5" width="6" height="15" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+    <line x1="3.5" y1="4" x2="3.5" y2="12" stroke="currentColor" strokeWidth="1.2"/>
+    <line x1="12.5" y1="4" x2="12.5" y2="12" stroke="currentColor" strokeWidth="1.2"/>
+  </svg>
+  Compare</button>
 {canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.8)',background:'rgba(0,0,0,0.2)',cursor:'pointer'}}>✕ Remove</button>}
 <button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}>{showDetails?'▲':'▼'} Details</button>
 </div>
@@ -730,7 +737,7 @@ export default function CalculateTax() {
               <svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg>
               <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
             </div>
-            <div style={{ background: '#F1F5F9', color: '#475569', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 1 of 2 — Business Entities</div>
+            <div style={{ background: '#F1F5F9', color: '#475569', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 1 of 2 — Business Entities &amp; Income</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={()=>setShowImport(true)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>📂 Import CSV</button>
@@ -746,7 +753,7 @@ export default function CalculateTax() {
             TaxStat360 calculates <strong>federal tax estimates</strong> for planning purposes only. Results are not professional tax advice and do not account for state taxes, AMT in all cases, or your complete financial picture. Consult a licensed CPA or tax professional before making any filing or financial decisions.
           </DismissibleNotice>
 
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 6, textAlign: 'center' }}>Entity Calculator</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 6, textAlign: 'center' }}>Step 1: Business Entities &amp; Income</h1>
           <p style={{ textAlign: 'center', color: SL, fontSize: 13, marginBottom: 24 }}>Add all your business entities. Drag ⠣ to reorder. Click ▼ Details to add EIN &amp; formation date.</p>
 
           <div>
