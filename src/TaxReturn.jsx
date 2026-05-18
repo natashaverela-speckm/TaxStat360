@@ -932,9 +932,21 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans <InfoTip text="For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16. SEP-IRA: up to 25% of W-2 salary (max $70,000 for 2025). Solo 401(k): employee deferrals up to $23,500 + employer match up to 25% of W-2 salary. For sole proprietors: based on net self-employment earnings × 0.9235." /></label>
+                <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans <InfoTip text={`For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16.\n\nSEP-IRA: up to 25% of W-2 salary (IRS max $70,000 for 2025). Requires $280,000 in W-2 compensation to reach the $70,000 limit.\n\nSolo 401(k) employee deferrals: up to $23,500 for 2025, plus employer match up to 25% of W-2 salary.\n• Age 50–59 and 64+: Add $7,500 catch-up ($31,000 total employee deferral).\n• Age 60–63: Add $11,250 catch-up ($34,750 total) per SECURE 2.0 Act (P.L. 117-328, §109).\n\nFor sole proprietors: based on net self-employment earnings × 0.9235.`} /></label>
                 <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
+                {/* TC-04: Show actual SEP-IRA max based on officer salary so users don't expect $70K when their real limit is lower */}
+                {scaledOfficerSal > 0 && (() => {
+                  const sepActualMax = Math.min(70000, Math.round(scaledOfficerSal * 0.25))
+                  return (
+                    <div style={{ fontSize: 11, color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 10px', marginTop: 6 }}>
+                      <strong>At your {fmt(scaledOfficerSal)} officer salary:</strong> SEP-IRA max = <strong>{fmt(sepActualMax)}</strong> (25% × salary).
+                      {sepActualMax < 70000 && (
+                        <span style={{ color: '#1E40AF' }}> The $70,000 IRS maximum requires $280,000 in W-2 compensation.</span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           </CollapsibleSection>
