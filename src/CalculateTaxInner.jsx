@@ -111,6 +111,121 @@ function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
   return null
 }
 
+// ── F-03: Auto-name generator ─────────────────────────────────────────────────
+// Builds a human-readable record name from entity type, tax year, and revenue.
+// Used as the pre-filled default in the NameRecordModal so users can accept
+// it with one click or customize it before saving.
+//
+// Format: "{TypeShort} — {Year} — {Revenue}"
+// Examples:
+//   "S-Corp — 2025 — $250K Revenue"
+//   "Partnership — 2025 — $1.2M Revenue"
+//   "Sole Prop — 2025"  (no revenue entered yet)
+function generateRecordName(entities, taxYear) {
+  const primary = entities[0]
+  const entityType = primary?.type || 'S Corporation'
+  const typeShort = {
+    'S Corporation':                     'S-Corp',
+    'C Corporation':                     'C-Corp',
+    'Sole Proprietor / Single-Member LLC': 'Sole Prop',
+    'Partnership / MMLLC — Active':      'Partnership (Active)',
+    'Partnership / MMLLC — Passive':     'Partnership (Passive)',
+  }[entityType] || entityType
+
+  const year = taxYear || new Date().getFullYear()
+  const revenue = parseFloat(primary?.pnl?.grossRevenue) || 0
+
+  let revenueStr = ''
+  if (revenue >= 1_000_000) {
+    revenueStr = '$' + (revenue / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M Revenue'
+  } else if (revenue >= 1_000) {
+    revenueStr = '$' + Math.round(revenue / 1_000) + 'K Revenue'
+  } else if (revenue > 0) {
+    revenueStr = '$' + Math.round(revenue) + ' Revenue'
+  }
+
+  return [typeShort, String(year), revenueStr].filter(Boolean).join(' — ')
+}
+
+// ── F-03: Name Record Modal ───────────────────────────────────────────────────
+// Shown when the user clicks "Save Record" and data is present.
+// Pre-filled with the auto-generated name from generateRecordName().
+// User can accept the default, edit it, or cancel.
+// Pressing Enter submits; clicking the backdrop cancels.
+function NameRecordModal({ defaultName, onConfirm, onCancel }) {
+  const [name, setName] = React.useState(defaultName)
+  const trimmed = name.trim()
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: '#fff', borderRadius: 16, padding: 28,
+          width: 440, maxWidth: '90vw',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3E', marginBottom: 6 }}>
+          Name this record
+        </div>
+        <div style={{ fontSize: 13, color: '#475569', marginBottom: 16, lineHeight: 1.5 }}>
+          Give this calculation a name so you can find it on your Dashboard.
+          The name below was generated from your inputs — edit it or keep it as-is.
+        </div>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && trimmed) onConfirm(trimmed) }}
+          autoFocus
+          maxLength={80}
+          placeholder="e.g. S-Corp — 2025 — $250K Revenue"
+          style={{
+            width: '100%', padding: '10px 14px',
+            border: '1.5px solid #2563EB', borderRadius: 8,
+            fontSize: 14, color: '#0D1B3E',
+            boxSizing: 'border-box', outline: 'none',
+            fontFamily: 'inherit', marginBottom: 6,
+          }}
+        />
+        <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 16, textAlign: 'right' }}>
+          {name.length}/80
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: '11px', borderRadius: 8,
+              border: '1px solid #E2E8F0', background: '#fff',
+              fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (trimmed) onConfirm(trimmed) }}
+            disabled={!trimmed}
+            style={{
+              flex: 2, padding: '11px', borderRadius: 8, border: 'none',
+              background: trimmed ? '#2563EB' : '#CBD5E1',
+              color: '#fff', fontSize: 13, fontWeight: 700,
+              cursor: trimmed ? 'pointer' : 'not-allowed',
+              transition: 'background 0.15s',
+            }}
+          >
+            💾 Save Record →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
 const[syn,setSyn]=React.useState(null)
 const[manual,setManual]=React.useState(false)
@@ -489,6 +604,13 @@ export default function CalculateTax() {
     // Message auto-clears after 4 seconds for success (errors persist until user acts).
     const [saveMsg, setSaveMsg] = React.useState(null)
 
+    // F-03: Name modal state.
+    // showNameModal — controls whether the NameRecordModal is visible.
+    // pendingRecordName — the auto-generated name pre-filled into the modal input.
+    // Both are set together inside saveRecord() once data validation passes.
+    const [showNameModal, setShowNameModal] = React.useState(false)
+    const [pendingRecordName, setPendingRecordName] = React.useState('')
+
     React.useEffect(() => {
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
     }, [entities, isCoopPatron])
@@ -545,21 +667,39 @@ export default function CalculateTax() {
       nav('/tax-return')
     }
 
+    // F-03: saveRecord — validation only.
+    // When data is present, generates an auto-name and opens the NameRecordModal.
+    // The actual write to localStorage happens in confirmSave() after the user
+    // accepts or edits the name. This prevents nameless records (the original bug)
+    // without blocking the save flow — the modal is one click to confirm.
     function saveRecord() {
       const hasAnyData = entities.some(e => e.pnl && (
         (parseFloat(e.pnl.grossRevenue) || 0) > 0 ||
         (parseFloat(e.pnl.totalExpenses) || 0) > 0
       ))
       if (!hasAnyData) {
-        // FIX: was alert() — now inline error message
         setSaveMsg({ type: 'error', text: 'Please enter revenue or expenses for at least one entity before saving a record.' })
         return
       }
+      // Clear any previous error, generate the auto-name, and show the modal.
+      setSaveMsg(null)
+      const autoName = generateRecordName(entities, readTaxYear())
+      setPendingRecordName(autoName)
+      setShowNameModal(true)
+    }
+
+    // F-03: confirmSave — called by NameRecordModal with the final record name.
+    // Builds the record object (now with a `name` field), writes to localStorage,
+    // and shows the inline success message. Matches the original save logic exactly
+    // except for the added `name` property.
+    function confirmSave(name) {
+      setShowNameModal(false)
       writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
       const email = localStorage.getItem('ts360_email') || 'default'
       const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
       const record = {
         id: Date.now(),
+        name,                          // F-03: human-readable name chosen/confirmed by user
         savedAt: new Date().toISOString(),
         entities,
         isCoopPatron,
@@ -573,7 +713,6 @@ export default function CalculateTax() {
       }
       existing.unshift(record)
       localStorage.setItem('ts360_records_' + email, JSON.stringify(existing))
-      // FIX: was alert() — now inline success message that auto-clears after 4s
       setSaveMsg({ type: 'success', text: 'Record saved! View it on your Dashboard.' })
       setTimeout(() => setSaveMsg(null), 4000)
     }
@@ -694,7 +833,7 @@ export default function CalculateTax() {
             💾 Save Record
           </button>
 
-          {/* FIX: Inline save feedback — replaces alert() for both error and success states */}
+          {/* Inline save feedback — replaces alert() for both error and success states */}
           {saveMsg && (
             <div style={{
               marginTop: 10, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
@@ -709,6 +848,18 @@ export default function CalculateTax() {
 
         {showTemplates && <TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)} />}
         {showImport && <ImportModal onImport={handleImport} onClose={()=>setShowImport(false)} />}
+
+        {/* F-03: Name Record Modal — shown after data validation passes in saveRecord().
+            Receives the auto-generated name as the default. confirmSave() writes the
+            record to localStorage with the user's final name choice. */}
+        {showNameModal && (
+          <NameRecordModal
+            defaultName={pendingRecordName}
+            onConfirm={confirmSave}
+            onCancel={() => setShowNameModal(false)}
+          />
+        )}
+
         <EntityCompareModal
           isOpen={compareIdx !== null}
           onClose={() => setCompareIdx(null)}
