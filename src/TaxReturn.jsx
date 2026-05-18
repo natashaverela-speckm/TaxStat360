@@ -1089,7 +1089,11 @@ export default function TaxReturn() {
               inputs.intInc + inputs.divInc + inputs.taxableSS +
               inputs.iraIncome + inputs.f4797Inc
             const totalGross = scaledK1 + totalW2 + totalOther
-            const aboveLine = Math.max(0, totalGross - agi)
+            // F-04 FIX: palCarryforwardApplied is shown as its own waterfall row below.
+            // aboveLine must net it out first, otherwise the same $X appears twice —
+            // once as the §469 row and once absorbed into "Above-the-line deductions".
+            // Without this subtraction: totalGross - §469CF - aboveLine ≠ AGI visually.
+            const aboveLine = Math.max(0, totalGross - (palCarryforwardApplied || 0) - agi)
             const dedAmt = useItemized ? computedItemizedAmt : standardDeduction
             const qbiDed = Math.max(0, agi - dedAmt - ordinaryTaxableIncome)
             const wfRow = (label, amt, isTotal = false, isNeg = false) => (
