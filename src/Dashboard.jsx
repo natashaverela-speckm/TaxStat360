@@ -139,7 +139,17 @@ function calcDashboard(biz, f1040) {
     recSal: isSC ? Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD) : 0,
     w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
     niit: r.niit ?? { applies: false, amount: 0 },
-    reasonableCompAlert: r.reasonableCompAlert ?? reasonableCompAlert,
+    // L-02 fix: merge sal and distributions into the alert regardless of which source wins.
+    // r.reasonableCompAlert from calcTaxReturn has triggered/ratio/message but no sal/distributions,
+    // so the JSX formula block would read undefined and display $0 for both.
+    reasonableCompAlert: (() => {
+      const alertData = r.reasonableCompAlert ?? reasonableCompAlert
+      return {
+        ...alertData,
+        sal: Math.round(sal),
+        distributions: Math.round(Math.max(0, k1)),
+      }
+    })(),
   }
 }
 
