@@ -339,6 +339,14 @@ export default function TaxReturn() {
     scheduleCSEIncome = 0,
     qbiAggregationApplied = false,
     qbiAggregationDisclosure = null,
+    // TC-09: Employee-side FICA on W-2 salary
+    employeeFICA = 0,
+    totalW2ForFICA = 0,
+    // TC-10: FICA savings from S-Corp structure
+    ficaSavings = 0,
+    ssWageBase: ficaSSWageBase = 176100,
+    ssWageBaseRoom = 0,
+    k1Distributions = 0,
   } = result
 
   // FIX (STATE-TAX): Read user's state effective tax rate from Settings preference.
@@ -1102,6 +1110,18 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
                 </div>
               )}
+              {/* TC-09: Employee FICA on W-2 salary — always shown for S-Corp owners with a salary,
+                  so users understand their full payroll tax picture. The matching employer FICA
+                  (equal amount) is already deducted as an S-Corp business expense and is reflected
+                  in the reduced K-1 — it is NOT double-counted here. */}
+              {employeeFICA > 0 && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>Employee FICA (Payroll Taxes) <InfoTip text={`Social Security (6.2%) + Medicare (1.45%) on your $${totalW2ForFICA.toLocaleString()} W-2 salary. The matching employer FICA paid by your S-Corp is already deducted as a business expense — reflected in your K-1 income, not shown here separately.`} below /></span>
+                    <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(employeeFICA)}</span>
+                  </div>
+                </div>
+              )}
               {/* L-05: Additional Medicare Tax always shown so users know it's being considered */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ color: additionalMedicare > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)' }}>Additional Medicare Tax (Form 8959)</span>
@@ -1165,6 +1185,19 @@ export default function TaxReturn() {
                   <span style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 700 }}>Est. Total Burden</span>
                   <span style={{ fontWeight: 900, color: '#F87171' }}>{fmt(totalTax + estStateTax)}</span>
                 </div>
+                {/* TC-10: FICA savings from S-Corp structure — shown when there are S-Corp distributions
+                    and the owner has meaningful savings vs. sole-prop SE tax on the same income. */}
+                {ficaSavings > 0 && k1Distributions > 0 && (
+                  <div style={{ marginTop: 10, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions are not subject to FICA. As a sole proprietor, this income would have incurred SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}. Savings = SS avoided on ${fmt(Math.min(k1Distributions, ssWageBaseRoom))} + Medicare (2.9%) avoided on ${fmt(k1Distributions)}.`} below /></span>
+                      <span style={{ fontWeight: 700, color: '#4ADE80' }}>↓ {fmt(ficaSavings)}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
+                      vs. sole-prop SE tax on same distributions
+                    </div>
+                  </div>
+                )}
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 6, lineHeight: 1.4 }}>
                   State rate set in Settings → Tax Preferences. Planning estimate only — actual state liability varies by deductions and credits.
                 </div>
