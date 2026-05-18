@@ -727,7 +727,7 @@ export default function TaxReturn() {
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Qualifying Dependents
-                  <InfoTip text="Qualifying children under 17 receive the Child Tax Credit ($2,200/child for 2025–2026 per OBBBA; $2,000 for 2024). Credit phases out at $200K AGI (single) or $400K (MFJ) — $50 reduction per $1K above the threshold. Other qualifying dependents (non-child) receive a $500 Other Dependent Credit. Enter the total number of all qualifying dependents here." />
+                  <InfoTip text="Qualifying children UNDER AGE 17 receive the Child Tax Credit ($2,200/child for 2025–2026 per OBBBA; $2,000 for 2024). Children 17+ and other qualifying dependents receive a $500 Other Dependent Credit instead. Credit phases out at $200K AGI (single) or $400K (MFJ). Enter the total number of all qualifying dependents here. Rules for who qualifies vary — see IRS Publication 501 (Dependents, Standard Deduction, and Filing Information)." />
                 </label>
                 <select value={dependents} onChange={e => setDependents(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, outline: 'none' }}>
                   {[0,1,2,3,4,5,6,7,8].map(n => <option key={n} value={String(n)}>{n} dependent{n !== 1 ? 's' : ''}</option>)}
