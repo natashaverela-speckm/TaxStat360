@@ -720,8 +720,11 @@ export default function Dashboard(){
                 return (
                 <div key={rec.id||i} style={{background:'#fff',border:'1px solid '+(isPendingDelete?'#FCA5A5':'#E2E8F0'),borderRadius:14,padding:'20px 24px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                   <div style={{flex:1}}>
+                    {/* F-03: Display rec.name if set (new records from CalculateTaxInner),
+                        fall back to rec.savedAt for legacy records saved before this change,
+                        then 'Saved Record' as a final safety net. No data migration needed. */}
                     <div style={{fontWeight:700,fontSize:15,color:N,marginBottom:6}}>
-                      📄 {rec.savedAt||'Saved Record'}
+                      📄 {rec.name || rec.savedAt || 'Saved Record'}
                     </div>
                     <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
                       <span style={{fontSize:13,color:SL}}>Entity: <strong style={{color:N}}>{rec.biz?.type||rec.biz?.entityType||rec.entityType||'—'}</strong></span>
