@@ -1293,6 +1293,11 @@ export default function AIAnalysis() {
     ? entityTypes.join(' + ')
     : entityTypes[0] || 'Business'
 
+  // F-05: isUnsaved — true when getRecord() returned session state that has not
+  // been saved as a record. The _unsaved flag is set by getRecord() for all
+  // session-state paths. Used to show the save prompt banner below.
+  const isUnsaved = !!(rec?._unsaved)
+
   // F-C05b: Stale data detection — compares the session's last calculated timestamp
   // (written by TaxReturn.jsx handleSave as calculatedAt) against when the record
   // was saved (savedAt). When calculatedAt > savedAt, the user has changed inputs
@@ -1324,12 +1329,33 @@ export default function AIAnalysis() {
         <h2 style={{ fontSize: 28, fontWeight: 800, color: N, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
           AI Risk &amp; Tax Analysis
         </h2>
-        {/* F-H09: subtitle reflects all entity types */}
+        {/* F-H09 / F-05: subtitle reflects all entity types and data state */}
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', lineHeight: 1.5 }}>
-          Analyzing your {entitySubtitle} — {rec?.savedAt || 'No data loaded'}
+          Analyzing your {entitySubtitle}
+          {rec
+            ? isUnsaved
+              ? ' — unsaved session data'
+              : ` — ${rec.name || savedAt || 'saved record'}`
+            : ' — No data loaded'}
         </p>
 
-        {/* F-C05b: Stale data banner */}
+        {/* F-05: Unsaved data notice — shown when the analysis is based on session
+            state that has not been saved as a record. Prompts the user to save in
+            Step 2 so the figures are preserved and the analysis stays current.
+            Distinct from the isStale banner (which fires for saved records whose
+            session has diverged) — this fires only for fully unsaved sessions. */}
+        {isUnsaved && rec && (
+          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
+              💡 <strong>Analysis based on your current unsaved session.</strong> Save your record in Step 2 to preserve these figures and keep your analysis locked in.
+            </div>
+            <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: B, border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+              Save in Step 2 →
+            </button>
+          </div>
+        )}
+
+        {/* F-C05b: Stale data banner — saved record exists but session has changed */}
         {isStale && (
           <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
