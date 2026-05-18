@@ -123,7 +123,7 @@ function calcDashboard(biz, f1040) {
       ratio: Math.round(ratio * 100),
       sal: Math.round(sal),
       distributions: Math.round(Math.max(0, k1)),
-      message: `Officer salary is ${Math.round(ratio * 100)}% of total S-Corp compensation. The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`,
+      message: `Officer salary is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
     }
   })()
 
@@ -758,7 +758,7 @@ export default function Dashboard() {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#92400E', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ background: '#FCD34D', color: '#92400E', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>S-CORP ALERT</span>
-                Reasonable Compensation Below IRS Threshold
+                Reasonable Compensation Below Practitioner Guideline
               </div>
 
               {/* L-02: Show the formula explicitly so users understand what the percentage means */}
@@ -787,7 +787,8 @@ export default function Dashboard() {
                 {safeCalc.reasonableCompAlert.message}
               </div>
               <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5, background: 'rgba(146,64,14,0.08)', borderRadius: 6, padding: '8px 12px' }}>
-                <strong>Recommended action:</strong> Increase your officer W-2 salary so it represents at least 40% of total S-Corp compensation (salary + distributions). Discuss the appropriate amount with your CPA.
+                <strong>Recommended action:</strong> Consider increasing your officer W-2 salary to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
+                <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
             </div>
             <button
