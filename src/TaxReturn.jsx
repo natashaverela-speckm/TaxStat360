@@ -287,6 +287,11 @@ export default function TaxReturn() {
     priorYearTax: nv(priorYearTax),
     priorYearAGI: nv(priorYearAGI),
     entities: entitiesForCalc,
+    // F-04: Wire prior year §469 passive loss carryforward into the engine.
+    // taxCalc.js applies this to offset rental income when the property is profitable
+    // this year (IRC §469(b)). Previously collected from the user but never sent here —
+    // the field note said "full calculation integration in progress." Now integrated.
+    priorPassiveLossCarryforward: nv(priorPassiveLossCarryforward),
   }
 
   const result = calcTaxReturn(inputs)
@@ -308,6 +313,8 @@ export default function TaxReturn() {
     niitAmount: niit = 0,
     amt: amtAmount = 0,
     palSuspendedRental = 0,
+    // F-04: Amount of prior §469 carryforward applied to offset rental income this year.
+    palCarryforwardApplied = 0,
     ebl = 0,
     quarterlyRecommended: quarterly = 0,
     qbiLimitApplied = 'none',
@@ -379,8 +386,17 @@ export default function TaxReturn() {
   const priorYearHighThreshold = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplierLabel = nv(priorYearAGI) > priorYearHighThreshold ? '110%' : '100%'
 
-  const handleSave = () => {
-    writePersonalContext({ filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, priorYearTax, priorYearAGI, priorPassiveLossCarryforward, isREP, isActiveParticipant })
+  // ── F-05: handleSave now accepts opts.thenNavigate ────────────────────────────
+  // When opts.thenNavigate is provided (e.g. '/ai-analysis'), the save completes
+  // synchronously and then nav() is called — no status banner is shown because
+  // the user is leaving the page. This powers the "Save & Analyze →" button
+  // without duplicating the save logic.
+  const handleSave = (opts = {}) => {
+    writePersonalContext({
+      filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement,
+      nolCarryforward, manualK1s, priorYearTax, priorYearAGI,
+      priorPassiveLossCarryforward, isREP, isActiveParticipant,
+    })
     const email = localStorage.getItem('ts360_email') || 'default'
     const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
     const record = {
@@ -416,8 +432,14 @@ export default function TaxReturn() {
     localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
     localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
     setIsDirty(false)
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus(null), 3000)
+
+    if (opts.thenNavigate) {
+      // Navigate immediately — no status banner needed since we're leaving the page
+      nav(opts.thenNavigate)
+    } else {
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus(null), 3000)
+    }
   }
 
   return (
@@ -722,22 +744,34 @@ export default function TaxReturn() {
                   <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
                 </div>
               </div>
+
+              {/* F-04: Prior Year Passive Loss Carryforward — now fully integrated */}
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
                 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
                   Prior Year Passive Loss Carryforward (§469)
-                  <InfoTip text="Suspended passive losses from prior years that carry forward. These can offset rental income when the property becomes profitable, or are fully released when you sell the property. Enter the total from your prior year Form 8582, Line 3 (or Schedule E if you qualified as REP). Enter as a positive number." />
+                  <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). When your rental is profitable this year, this carryforward offsets rental income dollar-for-dollar before other income — reducing taxable income by that amount (IRC §469(b)). When rental generates a loss, the carryforward pools with the current-year suspended loss and carries forward again. Released in full when you sell the property. Enter as a positive number." />
                 </label>
                 <MoneyInput value={priorPassiveLossCarryforward} onChange={setPriorPassiveLossCarryforward} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+                {/* F-04: Dynamic note replaces the previous "in progress" placeholder */}
                 <div style={{ fontSize: 10, color: SL, marginTop: 3, lineHeight: 1.4 }}>
-                  From prior year Form 8582, Line 3 — enter as positive number. Displayed for CPA reference; full calculation integration in progress.
+                  From prior year Form 8582, Line 3 — enter as a positive number.
+                  {palCarryforwardApplied > 0
+                    ? <span style={{ color: G, fontWeight: 600 }}> ✓ {fmt(palCarryforwardApplied)} applied this year to offset rental income.</span>
+                    : ' Applied to offset rental income when property is profitable; pools with current-year loss otherwise.'}
                 </div>
+                {palSuspendedRental > 0 && (
+                  <div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
+                    💡 {fmt(palSuspendedRental)} of this year's rental loss is suspended under §469 and will carry forward to next year.
+                  </div>
+                )}
               </div>
+
               <WhatGoesHere items={[
                 'Total Rental Income: all rent collected this year — use bank deposits or last year\'s Schedule E as a reference',
                 'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
                 'Depreciation: typically cost of building ÷ 27.5 years annually',
                 'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year in real property trades, 50%+ of personal services)',
-                'Prior Year Passive Loss Carryforward: suspended losses from Form 8582 Line 3 that carry forward from prior years',
+                'Prior Year Passive Loss Carryforward: suspended losses from Form 8582 Line 3. Applied to offset rental income when profitable; released on sale of property',
                 'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
               ]} />
             </div>
@@ -1013,13 +1047,15 @@ export default function TaxReturn() {
                   Enter this in "Prior Year QBI Loss" next year to offset future QBI income (§199A(c)(2)).
                 </div>
               )}
+              {/* F-04: Show carryforward applied in results panel when > $0 */}
+              {palCarryforwardApplied > 0 && (
+                <div style={{ marginTop: 6, background: 'rgba(74,222,128,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#4ADE80', lineHeight: 1.5 }}>
+                  ✓ §469 Carryforward Applied: ({fmt(palCarryforwardApplied)}) offset rental income
+                </div>
+              )}
             </div>
 
-            {/* FIX (STATE-TAX): Estimated state tax burden section.
-                Shown only when user has set a state effective tax rate in
-                Settings → Tax Preferences. Applied to AGI as a planning estimate.
-                Enables S-Corp owners and real estate investors to see their full
-                tax burden (federal + state) rather than federal-only. */}
+            {/* FIX (STATE-TAX): Estimated state tax burden section. */}
             {estStateTax > 0 && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>EST. TOTAL TAX BURDEN</div>
@@ -1086,6 +1122,8 @@ export default function TaxReturn() {
                     {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
                     {totalOther !== 0 && wfRow('Other Income', totalOther)}
                     {wfRow('= Gross Income', totalGross, true)}
+                    {/* F-04: Show prior PAL carryforward applied in waterfall when > $0 */}
+                    {palCarryforwardApplied > 0 && wfRow('§469 Carryforward Applied', palCarryforwardApplied, false, true)}
                     {aboveLine > 0 && wfRow('Above-the-line deductions', aboveLine, false, true)}
                     {wfRow('= AGI', agi, true)}
                     {wfRow(useItemized ? 'Itemized deduction' : 'Standard deduction', dedAmt, false, true)}
@@ -1169,9 +1207,12 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* Save & AI */}
+          {/* Save buttons */}
+          {/* F-05: "Save This Record" persists the data without navigating.
+              "💾 Save & Analyze →" saves and immediately opens AI Analysis — the
+              recommended flow for getting risk findings after completing Step 2. */}
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             style={{
               width: '100%', padding: '14px',
               background: saveStatus === 'saved' ? '#15803d' : '#0D1B3E',
@@ -1182,11 +1223,18 @@ export default function TaxReturn() {
           >
             {saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
           </button>
+
+          {/* F-05: Save & Analyze — saves first, then navigates to AI Analysis */}
           <button
-            onClick={() => nav('/ai-analysis')}
-            style={{ width: '100%', padding: '14px', background: B, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+            onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
+            style={{
+              width: '100%', padding: '14px',
+              background: B,
+              border: 'none', borderRadius: 12, color: '#fff',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer',
+            }}
           >
-            View AI Analysis &amp; Risk Report →
+            💾 Save &amp; Analyze →
           </button>
         </div>
       </div>
