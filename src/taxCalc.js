@@ -460,9 +460,16 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const activeQbiForFloor  = activeQbi !== undefined ? activeQbi : adjQBI
 
   // ── §199A(b)(2) W-2 wage and UBIA limitation ──────────────────────────────
-  // F5-03 FIX: If no Box 17V wages entered, use officerW2 as proxy.
+  // TC-01: W-2 wage proxy chain — Box 17V wages first (most accurate), then
+  // officerW2 (legacy field from older saves), then pnl.officerSalary (current
+  // S-Corp entities from CalculateTaxInner.jsx). Without the pnl fallback, S-Corp
+  // owners who enter officer salary in Step 1 but don't fill Box 17V would get
+  // totalWages = 0, bypassing the limitation and overstating the QBI deduction.
   const totalWages = entityQbiData.reduce((s, e) => {
-    const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || 0
+    const w = parseFloat(e.box17V_wages)
+      || parseFloat(e.officerW2)
+      || parseFloat(e.pnl?.officerSalary)
+      || 0
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
   }, 0)
   const totalUBIA = entityQbiData.reduce((s, e) => {
@@ -813,7 +820,7 @@ function calcTaxReturn(input) {
       triggered,
       ratio:   Math.round(ratio * 100),
       message: triggered
-        ? `Officer salary ($${Math.round(sal).toLocaleString()}) is ${Math.round(ratio * 100)}% of total S-Corp compensation (salary + K-1). The IRS scrutinizes ratios below 40%. Ref: Rev. Rul. 74-44; Watson v. Commissioner, 668 F.3d 1008.`
+        ? `Officer salary ($${Math.round(sal).toLocaleString()}) is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`
         : '',
     }
   })()
