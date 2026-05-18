@@ -176,6 +176,15 @@ export default function TaxReturn() {
   const [showWaterfall, setShowWaterfall] = React.useState(true)
   const [saveStatus, setSaveStatus] = React.useState(null)
   const [isDirty, setIsDirty] = React.useState(false)
+  // UX-03: unsaved navigation guard
+  const [showUnsavedModal, setShowUnsavedModal] = React.useState(false)
+  const [pendingNavPath, setPendingNavPath] = React.useState(null)
+  // UX-04: active record context (set by Dashboard when a record is loaded)
+  const activeRecordName = React.useMemo(
+    () => sessionStorage.getItem('ts360_active_record_name') || null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
 
   const addManualK1 = () => setManualK1s([...manualK1s, {
     id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
@@ -391,6 +400,37 @@ export default function TaxReturn() {
   // synchronously and then nav() is called — no status banner is shown because
   // the user is leaving the page. This powers the "Save & Analyze →" button
   // without duplicating the save logic.
+  // UX-03: Browser/tab close guard — standard browser dialog fires when isDirty
+  React.useEffect(() => {
+    if (!isDirty) return
+    const handler = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // UX-03: In-app navigation guard — intercepts header button clicks when isDirty.
+  // Shows a 3-option modal: Stay on Page | Leave Without Saving | Save & Leave.
+  const handleNavSafe = React.useCallback((path) => {
+    if (isDirty) {
+      setPendingNavPath(path)
+      setShowUnsavedModal(true)
+    } else {
+      nav(path)
+    }
+  }, [isDirty, nav])
+
+  const confirmLeave = () => {
+    setShowUnsavedModal(false)
+    nav(pendingNavPath)
+    setPendingNavPath(null)
+  }
+
+  const saveAndLeave = () => {
+    handleSave({ thenNavigate: pendingNavPath })
+    setShowUnsavedModal(false)
+    setPendingNavPath(null)
+  }
+
   const handleSave = (opts = {}) => {
     writePersonalContext({
       filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement,
@@ -452,6 +492,12 @@ export default function TaxReturn() {
             <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
           </div>
           <div style={{ background: '#2563EB', color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
+          {/* UX-04: Show which record is being edited so the user has context across views */}
+          {activeRecordName && (
+            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: '#94A3B8' }}>Editing:</span> {activeRecordName}
+            </div>
+          )}
           {isDirty && saveStatus !== 'saved' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#D97706', fontWeight: 600 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D97706', display: 'inline-block' }} />
@@ -465,9 +511,9 @@ export default function TaxReturn() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
-          <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Dashboard</button>
-          <button onClick={() => nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
+          <button onClick={() => handleNavSafe('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
+          <button onClick={() => handleNavSafe('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Dashboard</button>
+          <button onClick={() => handleNavSafe('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
           <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Sign Out</button>
           <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>⚙ Settings</button>
         </div>
@@ -1242,6 +1288,61 @@ export default function TaxReturn() {
           </button>
         </div>
       </div>
+
+      {/* UX-03: Unsaved changes modal — fires when isDirty and user clicks a nav button.
+          Three options: Stay (default), Leave without saving, Save & Leave. */}
+      {showUnsavedModal && (
+        <div
+          onClick={() => setShowUnsavedModal(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 16,
+              padding: '28px 28px',
+              maxWidth: 440, width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 8 }}>
+              Unsaved Changes
+            </div>
+            <div style={{ fontSize: 14, color: SL, marginBottom: 24, lineHeight: 1.6 }}>
+              You have unsaved changes on this page. If you leave now, your changes will be lost.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={saveAndLeave}
+                style={{ padding: '12px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                💾 Save &amp; Leave
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setShowUnsavedModal(false)}
+                  style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}
+                >
+                  Stay on Page
+                </button>
+                <button
+                  onClick={confirmLeave}
+                  style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Leave Without Saving
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
