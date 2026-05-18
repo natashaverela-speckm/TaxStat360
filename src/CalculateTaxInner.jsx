@@ -464,7 +464,7 @@ return(
 )}
 </div>
 )}
-<button onClick={applyManual} style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:G,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Calculate</button>
+<button onClick={applyManual} style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:N,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Calculate</button>
 </div>
 )}
 </div>
