@@ -1335,19 +1335,25 @@ export default function AIAnalysis() {
           {rec
             ? isUnsaved
               ? ' — unsaved session data'
-              : ` — ${rec.name || savedAt || 'saved record'}`
+              : (() => {
+                  // ADD-01: Show human-readable record name. Fall back to formatted date
+                  // if no name exists (pre-F03 records saved from TaxReturn.jsx without
+                  // the NameRecordModal). Never show raw ISO timestamps to users.
+                  const displayName = rec.name
+                    || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
+                        ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : null)
+                    || 'saved record'
+                  return ` — ${displayName}`
+                })()
             : ' — No data loaded'}
         </p>
 
-        {/* F-05: Unsaved data notice — shown when the analysis is based on session
-            state that has not been saved as a record. Prompts the user to save in
-            Step 2 so the figures are preserved and the analysis stays current.
-            Distinct from the isStale banner (which fires for saved records whose
-            session has diverged) — this fires only for fully unsaved sessions. */}
+        {/* F-05: Unsaved data notice */}
         {isUnsaved && rec && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
-              💡 <strong>Analysis based on your current unsaved session.</strong> Save your record in Step 2 to preserve these figures and keep your analysis locked in.
+              <strong>Showing analysis for your current unsaved session.</strong> To update the analysis with a saved record, complete Step 2 and save your calculation first.
             </div>
             <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: B, border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
               Save in Step 2 →
@@ -1356,16 +1362,20 @@ export default function AIAnalysis() {
         )}
 
         {/* F-C05b: Stale data banner — saved record exists but session has changed */}
-        {isStale && (
-          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
-              ⚠ <strong>Analysis based on your last saved record.</strong> Your current session has unsaved changes — some figures (quarterly amounts, tax liability) may not match your latest calculator inputs.
+        {isStale && (() => {
+          const recDisplayName = rec?.name
+            || (rec?.savedAt ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'your last saved record')
+          return (
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+                <strong>Showing analysis for "{recDisplayName}".</strong> Your current session has unsaved changes — to update the analysis, save your current calculation first.
+              </div>
+              <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: '#D97706', border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+                Update &amp; Save →
+              </button>
             </div>
-            <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: '#D97706', border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
-              Update Data →
-            </button>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ── Input completeness ── */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
@@ -1396,10 +1406,10 @@ export default function AIAnalysis() {
         {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#F1F5F9', borderRadius: 10, padding: 4 }}>
           {[
-            { id: 'risk',     label: '🔍 Risk Scan' },
-            { id: 'optimize', label: '💡 Tax Optimization' },
-            { id: 'irs',      label: '📋 IRS Filing Map' },
-            { id: 'reports',  label: '🛠 Reports & Tools' },
+            { id: 'risk',     label: 'Risk Scan' },
+            { id: 'optimize', label: 'Tax Optimization' },
+            { id: 'irs',      label: 'IRS Filing Map' },
+            { id: 'reports',  label: 'Reports & Tools' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: '9px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
