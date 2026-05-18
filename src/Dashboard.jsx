@@ -410,6 +410,10 @@ export default function Dashboard() {
   const [records, setRecords] = useState([])
   const [loadedRecord, setLoadedRecord] = useState(null)
   const [savedRecordId, setSavedRecordId] = useState(null)
+  // UX-04: Which record is currently loaded into the Calculator
+  const [activeRecordId, setActiveRecordId] = useState(() =>
+    sessionStorage.getItem('ts360_active_record_id') || null
+  )
   const [connectedApp, setConnectedApp] = useState(null)
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
@@ -606,6 +610,12 @@ export default function Dashboard() {
       w2Withheld: parseFloat(saved1040.w2Withheld) || 0,
     })
     writeTaxYear(rec.taxYear || rec.biz?.year || 2025)
+    // UX-04: Store the active record context so Calculator and Tax Return can
+    // display which record the user is currently editing across all views.
+    const activeName = rec.name || rec.savedAt || 'Saved Record'
+    sessionStorage.setItem('ts360_active_record_name', activeName)
+    sessionStorage.setItem('ts360_active_record_id', String(rec.id || ''))
+    setActiveRecordId(String(rec.id || ''))
     nav('/calculate-tax')
   }
 
@@ -758,16 +768,26 @@ export default function Dashboard() {
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
               const totalTax       = parseFloat(rec.totalTax) || 0
 
+              const isActive = activeRecordId && String(rec.id) === activeRecordId
+
               return (
                 <div key={rec.id || i} style={{
-                  background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14,
+                  background: '#fff',
+                  border: isActive ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                  borderRadius: 14,
                   padding: '20px 24px',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  boxShadow: isActive ? '0 0 0 3px rgba(37,99,235,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                       📄 {rec.name || rec.savedAt || 'Saved Record'}
+                      {/* UX-04: Active record indicator */}
+                      {isActive && (
+                        <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
+                          ACTIVE IN CALCULATOR
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
