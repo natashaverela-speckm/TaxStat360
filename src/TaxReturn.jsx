@@ -540,7 +540,7 @@ export default function TaxReturn() {
 
           {/* K-1 income summary */}
           <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 INCOME FROM STEP 1</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 Income — Schedule E, Part II</div>
             {entities.map((ent, i) => {
               const own = (parseInt(ent.own) || 100) / 100
               const net = ent.pnl ? Math.round(ent.pnl.netProfit * own) : 0
@@ -723,7 +723,7 @@ export default function TaxReturn() {
           <CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
             {totalOfficerSalary > 0 && (
               <div style={{ marginTop: 12, marginBottom: 4, padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#1E40AF', letterSpacing: '0.5px', marginBottom: 6 }}>OFFICER W-2 — CARRIED FROM STEP 1 (DO NOT RE-ENTER)</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8', marginBottom: 6 }}>Officer W-2 Salary — auto-filled from Step 1 (do not re-enter)</div>
                 {entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '') && (parseFloat(e?.pnl?.officerSalary) || 0) > 0).map((ent, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1E40AF', marginBottom: 2 }}>
                     <span>{ent.name || 'Business ' + (i + 1)} ({ent.type})</span>
@@ -1036,11 +1036,25 @@ export default function TaxReturn() {
               {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
             </div>
 
-            <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'ESTIMATED TAX OWED' : 'ESTIMATED REFUND'}</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
-            </div>
+            {/* L-04: Dynamic "Remaining Tax Owed" box.
+                When totalPayments === 0 (no estimated payments or withholding entered),
+                the label is de-emphasized and prompts the user to make payments.
+                When totalPayments > 0 the full prominent "Remaining Tax Owed" style shows. */}
+            {totalPayments === 0 && balance > 0 ? (
+              <div style={{ background: 'rgba(100,116,139,0.12)', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 12, padding: '14px 18px', marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4, letterSpacing: '0.5px' }}>FULL LIABILITY — NO PAYMENTS RECORDED</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'rgba(248,113,113,0.55)', lineHeight: 1 }}>{fmt(balance)}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6, lineHeight: 1.4 }}>
+                  Enter estimated payments below to see your remaining balance.
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'REMAINING TAX OWED' : 'ESTIMATED REFUND'}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
+              </div>
+            )}
 
             {/* Tax component breakdown */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1054,20 +1068,20 @@ export default function TaxReturn() {
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
                 </div>
               )}
-              {additionalMedicare > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Addl Medicare Tax (0.9%) — Form 8959</span>
-                  <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(additionalMedicare)}</span>
-                </div>
-              )}
+              {/* L-05: Additional Medicare Tax always shown so users know it's being considered */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: additionalMedicare > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)' }}>Additional Medicare Tax (Form 8959)</span>
+                <span style={{ fontWeight: 700, color: additionalMedicare > 0 ? '#F87171' : 'rgba(255,255,255,0.3)' }}>{fmt(additionalMedicare)}</span>
+              </div>
               {niit > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%) — Form 8960</span>
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
                 </div>
               )}
+              {/* L-05: Spell out AMT fully so users understand what form it references */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'rgba(255,255,255,0.6)' }}>AMT — Form 6251</span>
+                <span style={{ color: 'rgba(255,255,255,0.6)' }}>Alternative Minimum Tax (Form 6251)</span>
                 <span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.3)' }}>{fmt(amtAmount)}</span>
               </div>
               {amtAmount > 0 && (
