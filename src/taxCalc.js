@@ -17,6 +17,18 @@
 //   getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
 //
 // ── Audit-fix change log ────────────────────────────────────────────────────
+// F-04 (§469 prior passive loss carryforward):
+//   calcTaxReturn now accepts priorPassiveLossCarryforward (Form 8582, Line 3).
+//   When the rental is PROFITABLE this year, the carryforward offsets rental
+//   income dollar-for-dollar before the §469 special allowance logic runs
+//   (IRC §469(b) — suspended losses release against passive income of the same
+//   activity). When the rental still generates a net loss after applying the
+//   carryforward, the existing $25,000 special allowance computation applies.
+//   When the rental is a loss year, no carryforward is usable (no passive income
+//   to absorb it) — it continues to suspend along with the current-year loss.
+//   palCarryforwardApplied is returned so TaxReturn.jsx can display the amount
+//   applied and update the field note from "in progress" to the actual result.
+//
 // F-C02 (QBI aggregation disclosure):
 //   calcQBI now accepts opts.hasMultiEntityTypes and returns:
 //     aggregationApplied  — true when W-2 wages across different entity types are
@@ -529,6 +541,14 @@ function calcTaxReturn(input) {
     ytdFactor = 1,
     priorYearTax,
     priorYearAGI,
+    // F-04: §469 prior year suspended passive loss carryforward (Form 8582, Line 3).
+    // When rental income is profitable this year, this carryforward offsets it
+    // dollar-for-dollar before the §469 special allowance computation runs (IRC §469(b)).
+    // When rental still nets to a loss after applying carryforward, the existing
+    // $25,000 special allowance applies to the adjusted net loss.
+    // When rental is a loss year (no passive income to absorb), the carryforward
+    // continues to suspend and is reported for CPA reference only.
+    priorPassiveLossCarryforward = 0,
   } = input
 
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
@@ -536,9 +556,34 @@ function calcTaxReturn(input) {
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
   // ── §469 Passive Activity Loss (PAL) Limitation ─────────────────────────────
-  let palAdjustedRental  = rentalNet
+  // F-04: Apply prior year carryforward to current-year rental income when profitable.
+  // IRC §469(b): suspended losses carry forward and are deductible against passive
+  // income in a subsequent year. When rentalNet > 0, prior suspended losses reduce
+  // the taxable rental income flowing to AGI (passive income absorbs passive losses).
+  // When rentalNet <= 0, no passive income exists to absorb the carryforward — it
+  // suspends again alongside any current-year loss. REP filers are not subject to
+  // the PAL rules per §469(c)(7); their prior carryforward is fully released
+  // (treated as fully deductible) and offsets rental income without limitation.
+  const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
+
+  // Amount of prior carryforward absorbed by current-year passive income.
+  // Non-REP: limited to current profitable rental income (no passive income → $0 applied).
+  // REP: all carryforward is released and offsets rental income up to rental income amount.
+  const palCarryforwardApplied = (!isREP && rentalNet > 0)
+    ? Math.min(priorPAL, rentalNet)
+    : (isREP && priorPAL > 0 && rentalNet > 0)
+      ? Math.min(priorPAL, rentalNet)
+      : 0
+
+  // Rental net after applying prior carryforward
+  const rentalNetAfterCF = rentalNet - palCarryforwardApplied
+
+  let palAdjustedRental  = rentalNetAfterCF
   let palSuspendedRental = 0
-  if (!isREP && rentalNet < 0) {
+
+  if (!isREP && rentalNetAfterCF < 0) {
+    // §469(i)(1)–(3): $25,000 special allowance for active participants, phased
+    // out $100K–$150K AGI. Computed on pre-rental AGI (w/o rental activity itself).
     const preRentalAGI = w2 + k1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
       - Math.min(ytdScale(studentLoanInt), 2500)
       - ytdScale(hsaDeduction)
@@ -548,8 +593,8 @@ function calcTaxReturn(input) {
     const baseAllowance = (isMFS || !isActiveParticipant) ? 0 : 25000
     const phaseStart    = isMFS ? 0 : 100000
     const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
-    palAdjustedRental  = Math.max(rentalNet, -specialAllowance)
-    palSuspendedRental = Math.round(palAdjustedRental - rentalNet)
+    palAdjustedRental  = Math.max(rentalNetAfterCF, -specialAllowance)
+    palSuspendedRental = Math.round(palAdjustedRental - rentalNetAfterCF)
   }
 
   // ── §461(l) Excess Business Loss (EBL) Limitation ───────────────────────────
@@ -824,6 +869,12 @@ function calcTaxReturn(input) {
     nolSurplus,
     ebl,
     palSuspendedRental,
+
+    // F-04: Amount of prior §469 carryforward actually applied this year.
+    // Zero when rental is not profitable or carryforward is zero.
+    // Displayed in TaxReturn.jsx field note and waterfall when > 0.
+    palCarryforwardApplied,
+
     scheduleEK1Income,
     scheduleCSEIncome,
     entityIncomeBreakdown,
