@@ -627,6 +627,33 @@ function calcTaxReturn(input) {
   // §164(f): 50% SE tax deduction — reduces AGI. Correctly included in adjustments below.
   const halfSE        = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
 
+  // ── TC-09: Employee FICA (Payroll Taxes) ─────────────────────────────────────
+  // For S-Corp owners, W-2 salary triggers employee-side FICA.
+  // Employee SS: 6.2% on wages up to SS wage base ($176,100 for 2025).
+  // Employee Medicare: 1.45% on all wages (Additional Medicare Tax handled separately).
+  // The matching EMPLOYER portion (equal to employee share) is paid by the S-Corp
+  // and already deducted as a business expense — reducing the K-1 before it reaches
+  // the personal return. This value represents only the EMPLOYEE share.
+  const totalW2ForFICA   = Math.max(0, nv(w2))
+  const empSS            = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
+  const empMedicare      = totalW2ForFICA * FICA_MEDICARE_RATE
+  const employeeFICA     = Math.round(empSS + empMedicare)
+
+  // ── TC-10: FICA Savings from S-Corp Structure ─────────────────────────────────
+  // As a sole proprietor, K-1 distributions would instead be self-employment income,
+  // subject to SE tax (15.3% / 2.9%). As an S-Corp owner, distributions bypass FICA.
+  // Savings = the FICA (employee + employer) that would have applied to distributions
+  // had they been received as W-2 wages, at the user's actual salary level vs. wage base.
+  // SS savings: only on distribution amount that fits within remaining SS wage base room.
+  // Medicare savings: 2.9% (both sides) on all distributions regardless.
+  const k1Distributions  = Math.max(0, nv(k1Total))
+  const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
+  const distSubjectToSS  = Math.min(k1Distributions, ssWageBaseRoom)
+  const ficaSavings      = Math.round(
+    distSubjectToSS * (FICA_SS_RATE * 2) +         // employee + employer SS avoided
+    k1Distributions * (FICA_MEDICARE_RATE * 2)      // employee + employer Medicare avoided
+  )
+
   // ── Above-the-line deductions ────────────────────────────────────────────────
   const selfEmpHealthDed    = ytdScale(selfEmpHealthIns)
   const hsaDed              = ytdScale(hsaDeduction)
@@ -831,6 +858,10 @@ function calcTaxReturn(input) {
 
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE,
+    // TC-09: Employee-side FICA on W-2 salary (employer match already deducted as S-Corp expense)
+    employeeFICA, totalW2ForFICA,
+    // TC-10: FICA savings from S-Corp structure vs. sole-prop SE tax on distributions
+    ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     stdDed, itemized, deduction,
     unrec1250, collectibles,
