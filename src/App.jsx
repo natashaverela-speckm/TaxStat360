@@ -339,10 +339,58 @@ function LandingAtSection({ sectionId }) {
   return <Landing />
 }
 
+// ─── L-09: Route-level page titles ───────────────────────────────────────────
+// Sets a unique document.title on every SPA navigation.
+// useSectionMeta already owns /features, /pricing, /faq — skip those so the
+// richer titles set there are not overwritten by this more generic setter.
+const ROUTE_TITLES = {
+  '/':                 'TaxStat360 — Year-Round Tax Liability Management for Business Owners',
+  '/how-it-works':     'How It Works | TaxStat360',
+  '/contact':          'Contact | TaxStat360',
+  '/login':            'Sign In | TaxStat360',
+  '/signin':           'Sign In | TaxStat360',
+  '/sign-in':          'Sign In | TaxStat360',
+  '/signup':           'Start Free Trial | TaxStat360',
+  '/register':         'Start Free Trial | TaxStat360',
+  '/verify-email':     'Verify Email | TaxStat360',
+  '/dashboard':        'Dashboard | TaxStat360',
+  '/calculate-tax':    'Tax Calculator | TaxStat360',
+  '/calculator':       'Tax Calculator | TaxStat360',
+  '/tax-return':       'Personal Return | TaxStat360',
+  '/ai-analysis':      'AI Tax Analysis | TaxStat360',
+  '/settings':         'Account Settings | TaxStat360',
+  '/upgrade':          'Upgrade Plan | TaxStat360',
+  '/reset-password':   'Reset Password | TaxStat360',
+  '/forgot-password':  'Forgot Password | TaxStat360',
+  '/privacy':          'Privacy Policy | TaxStat360',
+  '/privacy-policy':   'Privacy Policy | TaxStat360',
+  '/terms':            'Terms of Service | TaxStat360',
+  '/terms-of-service': 'Terms of Service | TaxStat360',
+}
+// Routes where useSectionMeta sets a richer title — don't overwrite
+const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
+
+function RouteTitle() {
+  const location = useLocation()
+  useEffect(() => {
+    const path = location.pathname.replace(/\/$/, '') || '/'
+    if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
+    if (path.startsWith('/onboarding')) {
+      document.title = 'Set Up Your Account | TaxStat360'
+      return
+    }
+    if (path.startsWith('/integrations')) return // callback — no title needed
+    const title = ROUTE_TITLES[path]
+    if (title) document.title = title
+  }, [location.pathname])
+  return null
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteTitle />
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
