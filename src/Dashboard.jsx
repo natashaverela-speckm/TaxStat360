@@ -396,7 +396,38 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
 
 
 // ── Main Dashboard Component ──────────────────────────────────────────────────
-export default function Dashboard() {
+export default 
+// Federal-scope disclosure banner — surfaces calcTaxReturn.federalOnly = true to the user.
+// Dismisses permanently via localStorage ('ts360_fed_banner_dismissed').
+// Positioned at top of dashboard above the record list.
+function FederalDisclosureBanner() {
+  const key = 'ts360_fed_banner_dismissed'
+  const [visible, setVisible] = React.useState(() => {
+    try { return localStorage.getItem(key) !== '1' } catch { return true }
+  })
+  if (!visible) return null
+  const dismiss = () => {
+    try { localStorage.setItem(key, '1') } catch {}
+    setVisible(false)
+  }
+  return (
+    <div style={{
+      background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10,
+      padding: '10px 16px', marginBottom: 16, display: 'flex',
+      alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 16 }}>🇺🇸</span>
+        <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 500 }}>
+          <strong>Federal estimates only.</strong> TaxStat360 calculates federal income tax liability. State income tax is not included — add your state's effective rate separately for a complete picture.
+        </span>
+      </div>
+      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">×</button>
+    </div>
+  )
+}
+
+function Dashboard() {
   const nav = useNavigate()
 
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem('ts360_disclaimer_seen'))
@@ -829,6 +860,7 @@ export default function Dashboard() {
         {/* Records header */}
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
+            <FederalDisclosureBanner />
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>
             <p style={{ color: SL, fontSize: 13, margin: '4px 0 0' }}>Click any record to load it into the Tax Calculator.</p>
           </div>
