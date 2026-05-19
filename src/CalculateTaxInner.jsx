@@ -367,11 +367,11 @@ return(
 </div>
 <div>
 <label style={lbl}>Formation Date</label>
-<input type="date" value={ent.formationDate||''} onChange={v=>onUpdate(idx,{...ent,formationDate:v.target.value})} style={inp} />
+<input type="date" aria-label="Business formation date" value={ent.formationDate||''} onChange={v=>onUpdate(idx,{...ent,formationDate:v.target.value})} style={inp} />
 </div>
 <div>
 <label style={lbl}>Ownership %</label>
-<input type="number" value={ent.own||'100'} min="1" max="100" step="0.01" onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,background:'#EFF6FF',fontWeight:700,color:B}} />
+<input type="number" aria-label="Ownership percentage" value={ent.own||'100'} min="1" max="100" step="0.01" onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,background:'#EFF6FF',fontWeight:700,color:B}} />
 </div>
 <div style={{gridColumn:'1/-1'}}>
 <button onClick={()=>setShowAdvK1(!showAdvK1)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
