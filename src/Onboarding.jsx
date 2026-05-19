@@ -266,6 +266,25 @@ function SignupScreen(){
       </p>
       <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
       <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <span onClick={()=>nav('/')} style={{color:SL,cursor:'pointer'}}>← Home</span></p>
+
+      {/* ISSUE-04: Trust signals — added below the submit button so users see
+          key reassurance at the final decision point before clicking Start Free Trial.
+          Three signals: IRS credential (expertise), encryption (security),
+          and CPA compatibility (not replacing their advisor). */}
+      <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:14}}>🏛️</span>
+          <span style={{fontSize:11,color:SL,fontWeight:600}}>Built by a Former IRS Revenue Agent</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:14}}>🔐</span>
+          <span style={{fontSize:11,color:SL,fontWeight:600}}>256-bit Encryption</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:14}}>✓</span>
+          <span style={{fontSize:11,color:SL,fontWeight:600}}>CPA-Compatible Export</span>
+        </div>
+      </div>
     </form>
   </Page>)
 }
