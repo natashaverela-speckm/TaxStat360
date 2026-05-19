@@ -1328,7 +1328,7 @@ export default function AIAnalysis() {
           <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Dashboard</button>
           <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Calculator</button>
           <button style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: B, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#fff' }}>AI Analysis</button>
-          <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>⚙ Settings</button>
+          <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Settings</button>
           <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Sign Out</button>
         </div>
       </div>
