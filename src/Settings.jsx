@@ -8,7 +8,10 @@ const API = 'https://app.taxstat360.com'
 function LOGO() {
   return (
     <div style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
-      <div style={{width:32,height:32,background:N,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      {/* CC-03: Logo background updated navy→blue to match Landing.jsx nav,
+          Onboarding.jsx, and logged-in app header (CalculateTaxInner.jsx).
+          Bars were already solid white — only the background fill changes. */}
+      <div style={{width:32,height:32,background:B,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <rect x="3" y="12" width="4" height="9" fill="white" rx="1"/>
           <rect x="10" y="7" width="4" height="14" fill="white" rx="1"/>
@@ -34,6 +37,7 @@ export default function Settings() {
   const nav = useNavigate()
   const [email, setEmail] = useState('')
   const [plan, setPlan] = useState('')
+  const [billingInterval, setBillingInterval] = useState('monthly')
   const [memberSince, setMemberSince] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [pwSent, setPwSent] = useState(false)
@@ -88,6 +92,13 @@ export default function Settings() {
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
+
+    // FIX (BILLING-INTERVAL): Read billing interval from localStorage so the
+    // Subscription card shows "Annual" or "Monthly" correctly instead of the
+    // hardcoded "Billed monthly" that was previously shown for all users.
+    const storedBilling = localStorage.getItem('billing') || 'monthly'
+    setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
+
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
@@ -312,7 +323,9 @@ export default function Settings() {
           <NavBtn label="Dashboard" onClick={()=>nav('/dashboard')}/>
           <NavBtn label="Calculator" onClick={()=>nav('/calculate-tax')}/>
           <NavBtn label="AI Analysis" onClick={()=>nav('/ai-analysis')}/>
-          <NavBtn label="⚙ Settings" onClick={()=>nav('/settings')} active/>
+          {/* CC-06: Removed ⚙ gear emoji from nav button — emoji reserved for
+              decorative/illustrative use, not navigation or interactive controls. */}
+          <NavBtn label="Settings" onClick={()=>nav('/settings')} active/>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
         </div>
       </nav>
@@ -378,7 +391,10 @@ export default function Settings() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
               <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed monthly · Cancel anytime</div>
+              {/* FIX (BILLING-INTERVAL): Show actual billing interval from localStorage
+                  instead of hardcoded "Billed monthly". Reads the 'billing' key written
+                  by Onboarding.jsx on signup and by the plan picker on signup. */}
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime</div>
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
           </div>
