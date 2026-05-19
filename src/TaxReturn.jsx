@@ -449,6 +449,27 @@ export default function TaxReturn() {
     const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
     const record = {
       id: Date.now(),
+      // BUG-03: Records saved from Step 2 previously had no name field, causing
+      // Dashboard and AI Analysis to fall back to the formatted savedAt date.
+      // Auto-generate a meaningful name using entity type, tax year, and revenue —
+      // identical to the generateRecordName logic in CalculateTaxInner.jsx (F-03).
+      name: (() => {
+        const primary = entities[0]
+        const typeShort = {
+          'S Corporation':                       'S-Corp',
+          'C Corporation':                       'C-Corp',
+          'Sole Proprietor / Single-Member LLC': 'Sole Prop',
+          'Partnership / MMLLC — Active':        'Partnership (Active)',
+          'Partnership / MMLLC — Passive':       'Partnership (Passive)',
+        }[primary?.type] || (primary?.type || 'Business')
+        const revenue = parseFloat(primary?.pnl?.grossRevenue) || 0
+        const revenueStr = revenue >= 1_000_000
+          ? '$' + (revenue / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M Revenue'
+          : revenue >= 1_000
+            ? '$' + Math.round(revenue / 1_000) + 'K Revenue'
+            : revenue > 0 ? '$' + Math.round(revenue) + ' Revenue' : ''
+        return [typeShort, String(taxYear), revenueStr].filter(Boolean).join(' — ')
+      })(),
       savedAt: new Date().toISOString(),
       calculatedAt: result.calculatedAt || Date.now(),
       entities,
