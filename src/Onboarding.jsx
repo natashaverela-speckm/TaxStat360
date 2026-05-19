@@ -143,6 +143,13 @@ function SignupScreen(){
 
   return(<Page>
     <LOGO/>
+    {/* Planning-tool disclaimer */}
+    <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
+      <span style={{fontSize:15,flexShrink:0}}>📋</span>
+      <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
+        <strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a qualified tax professional before making tax decisions.
+      </span>
+    </div>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
       <div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
       <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
@@ -328,6 +335,13 @@ function LoginScreen(){
   }
   return(<Page>
     <LOGO/>
+    {/* FIX: Planning-tool disclaimer — must appear before user creates account */}
+    <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
+      <span style={{fontSize:15,flexShrink:0}}>📋</span>
+      <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
+        <strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Always consult a qualified tax professional before making tax decisions.
+      </span>
+    </div>
     <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
     <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>Sign in to your TaxStat360 account</p>
     <form onSubmit={submit}>
