@@ -128,6 +128,8 @@ function AuthFooter() {
       <Link to="/terms" style={link}>Terms of Service</Link>
       <Link to="/privacy" style={link}>Privacy Policy</Link>
       <span style={{ color: '#E2E8F0' }}>|</span>
+      <a href="mailto:support@taxstat360.com" style={link}>support@taxstat360.com</a>
+      <span style={{ color: '#E2E8F0' }}>|</span>
       <span>For planning purposes only — not professional tax advice</span>
     </div>
   )
