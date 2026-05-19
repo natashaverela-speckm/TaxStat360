@@ -578,6 +578,9 @@ export default function TaxReturn() {
                     <div style={{ fontSize: 13, fontWeight: 600, color: N }}>{ent.name || 'Business ' + (i + 1)}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, color: SL }}>{ent.type} · {ent.own || 100}% ownership</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', borderRadius: 4, padding: '1px 5px' }}>
+                        {['S Corporation','C Corporation'].includes(ent.type) ? 'Form 1120-S' : isC ? 'Schedule C' : 'Form 1065'}
+                      </span>
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
                         background: isC ? '#f0fdf4' : '#eff6ff',
