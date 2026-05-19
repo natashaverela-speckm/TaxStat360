@@ -639,7 +639,7 @@ export default function Settings() {
 
         {/* Danger Zone */}
         <div style={{...card, border:'1px solid #FCA5A5'}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#DC2626',letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Danger zone</div>
+          <div style={{fontSize:11,fontWeight:700,color:'#DC2626',letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Danger Zone</div>
 
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
             <div>
