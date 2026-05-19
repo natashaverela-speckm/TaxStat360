@@ -1,0 +1,55 @@
+customHeaders:
+  - pattern: '**/*'
+    headers:
+      # ── Prevent MIME sniffing ─────────────────────────────────────────────
+      - key: X-Content-Type-Options
+        value: nosniff
+
+      # ── Block clickjacking ────────────────────────────────────────────────
+      - key: X-Frame-Options
+        value: DENY
+
+      # ── Don't leak full URLs to third-party services ──────────────────────
+      - key: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+      # ── Disable unused browser APIs ───────────────────────────────────────
+      - key: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+
+      # ── Force HTTPS for 1 year (browser-level enforcement) ───────────────
+      - key: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+
+      # ── Content Security Policy ───────────────────────────────────────────
+      # Allows: Stripe (payments), Vimeo (landing video), Google Fonts,
+      # QuickBooks/Xero/Wave/FreshBooks APIs, Web3Forms (contact form),
+      # Mailchimp (newsletter), and app.taxstat360.com (backend API).
+      #
+      # IMPORTANT: Test first by temporarily changing the key above to:
+      #   Content-Security-Policy-Report-Only
+      # Check the browser console for any violations, fix them, then switch
+      # back to the enforcing header name below.
+      - key: Content-Security-Policy
+        value: >-
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com;
+          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+          font-src 'self' https://fonts.gstatic.com;
+          img-src 'self' data: https: blob:;
+          connect-src 'self'
+            https://app.taxstat360.com
+            wss://app.taxstat360.com
+            https://api.stripe.com
+            https://quickbooks.api.intuit.com
+            https://api.xero.com
+            https://api.wave.com
+            https://api.freshbooks.com
+            https://api.web3forms.com
+            https://taxstat360.us4.list-manage.com;
+          frame-src https://js.stripe.com https://hooks.stripe.com https://player.vimeo.com;
+          worker-src 'self' blob:;
+          object-src 'none';
+          base-uri 'self';
+          form-action 'self' https://app.taxstat360.com https://taxstat360.us4.list-manage.com;
+          upgrade-insecure-requests;
