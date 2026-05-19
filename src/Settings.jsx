@@ -59,13 +59,6 @@ export default function Settings() {
   const [mfaError, setMfaError] = useState('')
   const [mfaBackupCodes, setMfaBackupCodes] = useState([])
 
-  // FIX (STATE-TAX): State effective tax rate preference — stored as ts360_state_tax_rate
-  // (percentage string). Read by TaxReturn.jsx to display an estimated state tax
-  // burden alongside the federal total. Empty string = not set = no state display.
-  const [stateTaxRate, setStateTaxRate] = useState(
-    localStorage.getItem('ts360_state_tax_rate') || ''
-  )
-
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
@@ -203,19 +196,7 @@ export default function Settings() {
     localStorage.setItem('ts360_idle_timeout_mins', val)
   }
 
-  // FIX (STATE-TAX): Persist state tax rate to localStorage on change.
-  // Clears the key when empty/zero so TaxReturn.jsx skips the display.
-  const handleStateTaxRateChange = (val) => {
-    const cleaned = val.replace(/[^0-9.]/g, '').slice(0, 5)
-    setStateTaxRate(cleaned)
-    if (cleaned === '' || parseFloat(cleaned) === 0) {
-      localStorage.removeItem('ts360_state_tax_rate')
-    } else {
-      localStorage.setItem('ts360_state_tax_rate', cleaned)
-    }
-  }
-
-  // ── MFA/2FA handlers ────────────────────────────────────────────────────────
+  // ── MFA/ ── MFA/2FA handlers ────────────────────────────────────────────────────────
   const handleMfaSetup = async () => {
     setMfaLoading(true)
     setMfaError('')
@@ -636,54 +617,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Tax Preferences
-            FIX (STATE-TAX): New section — state effective tax rate preference.
-            Stores ts360_state_tax_rate (percentage) in localStorage. TaxReturn.jsx
-            reads this to display an estimated state tax burden and total tax burden
-            alongside the federal calculation. Empty = off (no state display shown).
-            Using effective rate (not marginal) keeps it simple for planning purposes. */}
-        <div style={card}>
-          <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Tax Preferences</div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>State effective tax rate</div>
-              <div style={{fontSize:13,color:SL,lineHeight:1.5,marginBottom:12}}>
-                Enter your state's effective income tax rate to see an estimated state tax burden alongside your federal total in the calculator. Leave blank to show federal only.
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={stateTaxRate}
-                    onChange={e => handleStateTaxRateChange(e.target.value)}
-                    placeholder="e.g. 5.0"
-                    style={{
-                      width:100, padding:'9px 32px 9px 14px',
-                      border:'1px solid #E2E8F0', borderRadius:8,
-                      fontSize:14, color:N, outline:'none', fontFamily:'inherit',
-                    }}
-                  />
-                  <span style={{position:'absolute',right:12,fontSize:13,color:SL,fontWeight:600,pointerEvents:'none'}}>%</span>
-                </div>
-                {stateTaxRate && parseFloat(stateTaxRate) > 0 && (
-                  <div style={{fontSize:12,color:'#059669',fontWeight:600}}>
-                    ✓ Showing est. state tax in calculator
-                  </div>
-                )}
-                {(!stateTaxRate || parseFloat(stateTaxRate) === 0) && (
-                  <div style={{fontSize:12,color:'#94A3B8'}}>
-                    Federal only (no state estimate)
-                  </div>
-                )}
-              </div>
-              <div style={{fontSize:11,color:'#94A3B8',marginTop:8,lineHeight:1.5}}>
-                Applied to your AGI as a planning estimate. Actual state liability varies by state-specific deductions and credits. Find your state's rates at{' '}
-                <a href="https://www.taxfoundation.org/data/all/state/state-income-tax-rates/" target="_blank" rel="noopener noreferrer" style={{color:B}}>Tax Foundation →</a>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Privacy & Data */}
         <div style={card}>
