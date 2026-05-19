@@ -350,10 +350,8 @@ export default function TaxReturn() {
   } = result
 
   // FIX (STATE-TAX): Read user's state effective tax rate from Settings preference.
-  // Applied to AGI as a planning estimate — displayed alongside federal total so
-  // S-Corp owners see their full tax burden, not just federal. Set in Settings → Tax Preferences.
-  const stateTaxRate = parseFloat(localStorage.getItem('ts360_state_tax_rate') || '0') / 100
-  const estStateTax = stateTaxRate > 0 ? Math.round(agi * stateTaxRate) : 0
+  // ADD-02: This is a federal tax planning app. No state numbers included.
+  // stateTaxRate and estStateTax removed — state estimate feature removed.
 
   const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
   const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
@@ -1107,8 +1105,7 @@ export default function TaxReturn() {
               {totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, marginBottom: 16, lineHeight: 1.4 }}>
-              Federal only — state income tax not included. Your total tax burden will be higher.{' '}
-              <a href="https://www.taxfoundation.org/data/all/state/state-income-tax-rates/" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'underline', fontSize: 10 }}>State rates →</a>
+              Federal only — state income tax not included. Your total tax burden will be higher.
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
               {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
@@ -1205,37 +1202,18 @@ export default function TaxReturn() {
               )}
             </div>
 
-            {/* FIX (STATE-TAX): Estimated state tax burden section. */}
-            {estStateTax > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>EST. TOTAL TAX BURDEN</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Federal Tax</span>
-                  <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(totalTax)}</span>
+                        {/* TC-10: FICA savings from S-Corp structure — shown when there are S-Corp distributions
+                and the owner has meaningful savings vs. sole-prop SE tax on the same income.
+                ADD-02: Moved out of removed state tax block — this S-Corp insight is independent
+                of state estimates and should always be visible when applicable. */}
+            {ficaSavings > 0 && k1Distributions > 0 && (
+              <div style={{ marginTop: 10, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions are not subject to FICA. As a sole proprietor, this income would have incurred SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}. Savings = SS avoided on ${fmt(Math.min(k1Distributions, ssWageBaseRoom))} + Medicare (2.9%) avoided on ${fmt(k1Distributions)}.`} below /></span>
+                  <span style={{ fontWeight: 700, color: '#4ADE80' }}>↓ {fmt(ficaSavings)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Est. State ({(stateTaxRate * 100).toFixed(1)}% of AGI)</span>
-                  <span style={{ fontWeight: 700, color: '#FBBF24' }}>{fmt(estStateTax)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 700 }}>Est. Total Burden</span>
-                  <span style={{ fontWeight: 900, color: '#F87171' }}>{fmt(totalTax + estStateTax)}</span>
-                </div>
-                {/* TC-10: FICA savings from S-Corp structure — shown when there are S-Corp distributions
-                    and the owner has meaningful savings vs. sole-prop SE tax on the same income. */}
-                {ficaSavings > 0 && k1Distributions > 0 && (
-                  <div style={{ marginTop: 10, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions are not subject to FICA. As a sole proprietor, this income would have incurred SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}. Savings = SS avoided on ${fmt(Math.min(k1Distributions, ssWageBaseRoom))} + Medicare (2.9%) avoided on ${fmt(k1Distributions)}.`} below /></span>
-                      <span style={{ fontWeight: 700, color: '#4ADE80' }}>↓ {fmt(ficaSavings)}</span>
-                    </div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
-                      vs. sole-prop SE tax on same distributions
-                    </div>
-                  </div>
-                )}
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 6, lineHeight: 1.4 }}>
-                  State rate set in Settings → Tax Preferences. Planning estimate only — actual state liability varies by deductions and credits.
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
+                  vs. sole-prop SE tax on same distributions
                 </div>
               </div>
             )}
