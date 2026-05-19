@@ -62,7 +62,6 @@ export default function Settings() {
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
-      const token = localStorage.getItem('token') || localStorage.getItem('ts360_session') || ''
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]))
@@ -105,10 +104,9 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    const token = localStorage.getItem('token')
     if (token) {
       fetch(`${API}/auth/mfa/status`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include'
       })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
@@ -128,10 +126,10 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      const token = localStorage.getItem('token')
       const res = await fetch(`${API}/auth/change-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ new_email: emailInput })
       })
       if (res.ok) {
@@ -201,10 +199,10 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const token = localStorage.getItem('token')
       const res = await fetch(`${API}/auth/mfa/setup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -227,10 +225,10 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const token = localStorage.getItem('token')
       const res = await fetch(`${API}/auth/mfa/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ code: mfaCode })
       })
       if (!res.ok) {
@@ -257,10 +255,10 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const token = localStorage.getItem('token')
       const res = await fetch(`${API}/auth/mfa/disable`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ code: mfaCode })
       })
       if (!res.ok) {
