@@ -865,7 +865,9 @@ export default function Dashboard() {
                         <span style={{ fontSize: 13, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
                       )}
                       <span style={{ fontSize: 13, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                      <span style={{ fontSize: 13, color: SL }}>Quarterly: <strong style={{ color: N }}>${Math.round(quarterly).toLocaleString()}</strong></span>
+                      <span style={{ fontSize: 13, color: SL }}>Quarterly: <strong style={{ color: quarterly > 0 ? N : '#94A3B8' }}>
+                        {quarterly > 0 ? '$' + Math.round(quarterly).toLocaleString() : 'Complete Step 2 for estimate'}
+                      </strong></span>
                     </div>
                   </div>
 
