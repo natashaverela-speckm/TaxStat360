@@ -269,6 +269,11 @@ function useSectionMeta(sectionId) {
     const origOgTitle  = document.querySelector('meta[property="og:title"]')?.content || ''
     const origOgDesc   = document.querySelector('meta[property="og:description"]')?.content || ''
     const origOgUrl    = document.querySelector('meta[property="og:url"]')?.content || ''
+    const origOgImage  = document.querySelector('meta[property="og:image"]')?.content || ''
+    const origTwCard   = document.querySelector('meta[name="twitter:card"]')?.content || ''
+    const origTwTitle  = document.querySelector('meta[name="twitter:title"]')?.content || ''
+    const origTwDesc   = document.querySelector('meta[name="twitter:description"]')?.content || ''
+    const origTwImage  = document.querySelector('meta[name="twitter:image"]')?.content || ''
 
     // Set page title
     document.title = meta.title
@@ -292,6 +297,19 @@ function useSectionMeta(sectionId) {
     setOg('og:title',       meta.ogTitle)
     setOg('og:description', meta.ogDescription)
     setOg('og:url',         meta.canonical)
+    // SEO-03: og:image and Twitter card tags — use the shared social preview image
+    // Place /social-preview.png (1200×630px) in /public/ before deploying.
+    const OG_IMAGE = 'https://www.taxstat360.com/social-preview.png'
+    setOg('og:image', OG_IMAGE)
+    const setMeta = (name, val) => {
+      let el = document.querySelector(`meta[name="${name}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute('name', name); document.head.appendChild(el) }
+      el.content = val
+    }
+    setMeta('twitter:card',        'summary_large_image')
+    setMeta('twitter:title',       meta.ogTitle)
+    setMeta('twitter:description', meta.ogDescription)
+    setMeta('twitter:image',       OG_IMAGE)
 
     return () => {
       document.title = origTitle
@@ -300,6 +318,11 @@ function useSectionMeta(sectionId) {
       setOg('og:title',       origOgTitle)
       setOg('og:description', origOgDesc)
       setOg('og:url',         origOgUrl)
+      setOg('og:image',       origOgImage)
+      setMeta('twitter:card',        origTwCard)
+      setMeta('twitter:title',       origTwTitle)
+      setMeta('twitter:description', origTwDesc)
+      setMeta('twitter:image',       origTwImage)
     }
   }, [sectionId])
 }
