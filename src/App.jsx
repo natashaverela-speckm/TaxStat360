@@ -299,9 +299,10 @@ function useSectionMeta(sectionId) {
     setOg('og:title',       meta.ogTitle)
     setOg('og:description', meta.ogDescription)
     setOg('og:url',         meta.canonical)
-    // SEO-03: og:image and Twitter card tags — use the shared social preview image
-    // Place /social-preview.png (1200×630px) in /public/ before deploying.
-    const OG_IMAGE = 'https://www.taxstat360.com/social-preview.png'
+    // SEO-03: og:image and Twitter card tags — uses og-image.png which is live at HTTP 200.
+    // Note: social-preview.png was the intended final asset (1200×630px branded image)
+    // but currently returns 404. Using og-image.png until social-preview.png is created.
+    const OG_IMAGE = 'https://www.taxstat360.com/og-image.png'
     setOg('og:image', OG_IMAGE)
     const setMeta = (name, val) => {
       let el = document.querySelector(`meta[name="${name}"]`)
