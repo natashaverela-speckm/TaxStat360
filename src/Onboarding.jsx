@@ -66,8 +66,12 @@ function SignupScreen(){
   const nav=useNavigate()
   const loc=useLocation()
   const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
-  const plan=['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter'
-  const billing=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()==='annual'?'annual':'monthly'
+  const billingRaw=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()
+  // CC-05: plan and billing must be React state so picker selection triggers re-render
+  // of the badge label and price display. Using history.replaceState alone does not
+  // cause React to re-render — only setState does.
+  const [plan, setPlan] = useState(['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter')
+  const [billing, setBilling] = useState(billingRaw==='annual'?'annual':'monthly')
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
@@ -161,7 +165,7 @@ function SignupScreen(){
             <button
               key={p.id}
               type="button"
-              onClick={() => window.history.replaceState({}, '', `?plan=${p.id}&billing=${billing}`)}
+              onClick={() => { setPlan(p.id); window.history.replaceState({}, '', `?plan=${p.id}&billing=${billing}`) }}
               style={{
                 padding:'10px 8px', border: `2px solid ${selected ? B : '#E2E8F0'}`,
                 borderRadius:9, cursor:'pointer', textAlign:'center',
@@ -177,7 +181,7 @@ function SignupScreen(){
       <div style={{textAlign:'center',marginTop:6}}>
         <button
           type="button"
-          onClick={() => window.history.replaceState({}, '', `?plan=${plan}&billing=${billing==='annual'?'monthly':'annual'}`)}
+          onClick={() => { const nb = billing==='annual'?'monthly':'annual'; setBilling(nb); window.history.replaceState({}, '', `?plan=${plan}&billing=${nb}`) }}
           style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',textDecoration:'underline'}}
         >
           {billing==='annual' ? 'Switch to monthly billing' : 'Switch to annual billing (save ~17%)'}
