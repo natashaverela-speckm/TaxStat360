@@ -220,10 +220,92 @@ function RequireAuth({ children }) {
 //   /faq           → id="faq"          (expandable questions)
 //   /contact       → id="contact"      (contact form)
 //
-// This component is intentionally lightweight — no state, no external data.
-// If the id is missing (e.g., Landing was refactored), the page renders
-// at the top instead of breaking.
+// F-09: Each section route that is externally linkable (/features, /pricing,
+// /faq) gets unique <title>, <meta name="description">, <link rel="canonical">,
+// and Open Graph tags so search engines index them as distinct pages.
+// Less-visited routes (/how-it-works, /contact) inherit the homepage defaults.
+
+// ── F-09: Per-route SEO metadata ─────────────────────────────────────────────
+const SECTION_META = {
+  features: {
+    title: 'Features — TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
+    description:
+      'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, FICA savings, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis. Built for S-Corp owners, partnerships, real estate investors, and sole proprietors.',
+    canonical: 'https://www.taxstat360.com/features',
+    ogTitle: 'TaxStat360 Features — Live Tax Calculator for Business Owners',
+    ogDescription:
+      'K-1 income, QBI deduction, FICA savings, quarterly estimates, and AI risk analysis — all in one place. Supports S-Corps, LLCs, partnerships, and real estate investors.',
+  },
+  pricing: {
+    title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',
+    description:
+      'TaxStat360 plans start at $79/month with a 7-day free trial. Compare Starter, Professional, and Enterprise plans — no hidden fees, cancel anytime. Includes live federal tax calculation, AI analysis, and QuickBooks/Xero integration.',
+    canonical: 'https://www.taxstat360.com/pricing',
+    ogTitle: 'TaxStat360 Pricing — Plans from $79/mo, 7-Day Free Trial',
+    ogDescription:
+      'Start free for 7 days. Starter $79/mo · Professional $149/mo · Enterprise $299/mo. Real-time federal tax calculations for S-Corp owners and business operators.',
+  },
+  faq: {
+    title: 'FAQ — TaxStat360 | Common Questions About S-Corp Tax Tracking',
+    description:
+      'Answers to common questions about TaxStat360: accuracy of tax calculations, accounting software integrations, data security, multi-entity support, and how the 7-day free trial works.',
+    canonical: 'https://www.taxstat360.com/faq',
+    ogTitle: 'TaxStat360 FAQ — Your S-Corp Tax Tracking Questions Answered',
+    ogDescription:
+      'Do I need a CPA? How accurate are the calculations? What software integrates? All your TaxStat360 questions answered.',
+  },
+}
+
+// ── F-09: Helper — write tags into <head>, restore originals on unmount ───────
+function useSectionMeta(sectionId) {
+  useEffect(() => {
+    const meta = SECTION_META[sectionId]
+    if (!meta) return
+
+    // Capture originals so we can restore on unmount (SPA navigation)
+    const origTitle    = document.title
+    const origDesc     = document.querySelector('meta[name="description"]')?.content || ''
+    const origCanon    = document.querySelector('link[rel="canonical"]')?.href || ''
+    const origOgTitle  = document.querySelector('meta[property="og:title"]')?.content || ''
+    const origOgDesc   = document.querySelector('meta[property="og:description"]')?.content || ''
+    const origOgUrl    = document.querySelector('meta[property="og:url"]')?.content || ''
+
+    // Set page title
+    document.title = meta.title
+
+    // Set or create <meta name="description">
+    let descEl = document.querySelector('meta[name="description"]')
+    if (!descEl) { descEl = document.createElement('meta'); descEl.name = 'description'; document.head.appendChild(descEl) }
+    descEl.content = meta.description
+
+    // Set or create <link rel="canonical">
+    let canonEl = document.querySelector('link[rel="canonical"]')
+    if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl) }
+    canonEl.href = meta.canonical
+
+    // OG tags
+    const setOg = (prop, val) => {
+      let el = document.querySelector(`meta[property="${prop}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el) }
+      el.content = val
+    }
+    setOg('og:title',       meta.ogTitle)
+    setOg('og:description', meta.ogDescription)
+    setOg('og:url',         meta.canonical)
+
+    return () => {
+      document.title = origTitle
+      if (descEl)  descEl.content  = origDesc
+      if (canonEl) canonEl.href    = origCanon
+      setOg('og:title',       origOgTitle)
+      setOg('og:description', origOgDesc)
+      setOg('og:url',         origOgUrl)
+    }
+  }, [sectionId])
+}
+
 function LandingAtSection({ sectionId }) {
+  useSectionMeta(sectionId)
   useEffect(() => {
     const timer = setTimeout(() => {
       const el = document.getElementById(sectionId)
