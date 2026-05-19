@@ -146,6 +146,7 @@ export default function Landing() {
             <div key={integ.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: integ.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{integ.abbr}</div>
               <span style={{ fontSize: 14, fontWeight: 600, color: N }}>{integ.name}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.03em' }}>LIVE</span>
             </div>
           ))}
         </div>
