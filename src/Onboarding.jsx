@@ -334,8 +334,10 @@ function LoginScreen(){
       <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
       <Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>
       {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Signing in...':'Sign In →'}</button>
-      <p style={{textAlign:'center',fontSize:12,color:SL,margin:'0 0 8px'}}>No account? <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer',fontWeight:600}}>Start free trial</span></p>
+      <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
+      {/* Minor UX: Signup CTA as an outlined button — visible above "Forgot password"
+          so new users who land on /login have a clear prominent path to register. */}
+      <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free trial →</button>
       <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
     </form>
   </Page>)
