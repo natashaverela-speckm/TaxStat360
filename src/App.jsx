@@ -97,7 +97,8 @@ function isValidSession() {
   if (start) {
     const startMs = parseInt(start, 10)
     if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
-      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+      fetch(`${API_BASE}/auth/logout`,{method:'POST',credentials:'include'}).catch(()=>{})
+    AUTH_KEYS.forEach(k => localStorage.removeItem(k))
       return false
     }
   }
