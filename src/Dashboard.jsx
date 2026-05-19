@@ -402,6 +402,16 @@ export default function Dashboard() {
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem('ts360_disclaimer_seen'))
   const dismissDisclaimer = () => { localStorage.setItem('ts360_disclaimer_seen', '1'); setShowDisclaimer(false) }
 
+  // CC-01: 2FA nudge — shown on Dashboard when MFA is not enabled.
+  // Dismissed per-session (sessionStorage) so it reappears each login
+  // as a gentle recurring reminder without being permanently blockable.
+  // Once the user enables 2FA, ts360_mfa_enabled='1' and it never shows again.
+  const [show2FANudge, setShow2FANudge] = useState(() =>
+    localStorage.getItem('ts360_mfa_enabled') !== '1' &&
+    !sessionStorage.getItem('ts360_2fa_nudge_dismissed')
+  )
+  const dismiss2FANudge = () => { sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1'); setShow2FANudge(false) }
+
   // F-08: Onboarding shown once per account
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
   const completeOnboarding = () => { localStorage.setItem(ONBOARDING_KEY, '1'); setShowOnboarding(false) }
@@ -707,6 +717,24 @@ export default function Dashboard() {
           </button>
         </div>
       )}
+
+        {/* CC-01: 2FA nudge banner — shown each session until MFA is enabled.
+            Reads ts360_mfa_enabled from localStorage (set by Settings.jsx after
+            successful MFA setup). Dismissed per-session via sessionStorage so
+            it reappears at next login as a recurring but non-blocking prompt. */}
+        {show2FANudge && (
+          <div style={{ background: '#EFF6FF', borderBottom: '2px solid #93C5FD', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
+              <strong>🔐 Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
+              <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>
+                Enable 2FA in Settings →
+              </button>
+            </div>
+            <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>
+              Remind me later
+            </button>
+          </div>
+        )}
 
       {/* Xero loading banner */}
       {xeroLoading && (
