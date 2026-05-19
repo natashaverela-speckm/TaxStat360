@@ -373,10 +373,35 @@ const ROUTE_TITLES = {
 // Routes where useSectionMeta sets a richer title — don't overwrite
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 
+// ─── Pass 5/6: noindex on authenticated routes ───────────────────────────────
+// robots.txt disallows these paths (advisory only). Meta noindex is the only
+// mechanism reliably enforced by crawlers — set it on every SPA navigation.
+const NOINDEX_PREFIXES = [
+  '/dashboard', '/calculate-tax', '/calculator',
+  '/tax-return', '/ai-analysis', '/settings',
+  '/onboarding', '/upgrade', '/integrations',
+]
+
+function setNoindex(shouldNoindex) {
+  let tag = document.querySelector('meta[name="robots"]')
+  if (shouldNoindex) {
+    if (!tag) {
+      tag = document.createElement('meta')
+      tag.setAttribute('name', 'robots')
+      document.head.appendChild(tag)
+    }
+    tag.setAttribute('content', 'noindex, nofollow')
+  } else {
+    if (tag) tag.setAttribute('content', 'index, follow, max-image-preview:large')
+  }
+}
+
 function RouteTitle() {
   const location = useLocation()
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, '') || '/'
+    // noindex / nofollow on all authenticated / private routes
+    setNoindex(NOINDEX_PREFIXES.some(p => path.startsWith(p)))
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
     if (path.startsWith('/onboarding')) {
       document.title = 'Set Up Your Account | TaxStat360'
