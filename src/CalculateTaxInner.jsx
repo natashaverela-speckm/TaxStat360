@@ -547,12 +547,18 @@ function TemplatePicker({onSelect,onClose}){return(<div style={{position:'fixed'
 
 // F-L26: ImportModal includes a "Download Template CSV" button
 function ImportModal({onImport,onClose}){
+const [csvErr, setCsvErr] = React.useState('')
 function handleFile(f){
 if(!f)return
 const r=new FileReader()
 r.onload=e=>{
-try{const entities=parseCSVImport(e.target.result);if(entities.length)onImport(entities)}catch(e){alert('Could not parse CSV. Please check format.')}
-onClose()
+try{
+  const entities=parseCSVImport(e.target.result)
+  if(entities.length){ setCsvErr(''); onImport(entities); onClose() }
+  else { setCsvErr('No valid entities found. Check that your CSV matches the template format.') }
+}catch(err){
+  setCsvErr('Could not parse CSV: ' + (err.message || 'Please check the file format and try again.'))
+}
 }
 r.readAsText(f)
 }
@@ -586,6 +592,11 @@ return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex
     ⬇ Download Template CSV
   </button>
   <input type="file" accept=".csv" onChange={e=>handleFile(e.target.files[0])} style={{width:'100%',marginBottom:12}} />
+  {csvErr && (
+    <div style={{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FECACA',borderRadius:7,padding:'8px 12px',fontSize:12,marginBottom:10}}>
+      {csvErr}
+    </div>
+  )}
   <button onClick={onClose} style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #E2E8F0',background:'#fff',fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>Cancel</button>
 </div></div>)
 }
