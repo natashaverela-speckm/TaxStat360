@@ -819,7 +819,10 @@ function calcTaxReturn(input) {
       ownership:    parseFloat(e.own) || 100,
       isSEType,
       scheduleForm: isSEType ? 'Schedule C' : 'Schedule E, Part II',
-      taxForm:      isSEType ? '1040 Sch C' : 'K-1 (1120-S / 1065)',
+      taxForm:      isSEType ? '1040 Sch C'
+              : (e.type === 'S Corporation' || e.type === 'C Corporation')
+                ? 'K-1 (Form 1120-S)'   // IRC §1366 — stock basis + loan basis (§1367)'
+                : 'K-1 (Form 1065)',     // IRC §705  — partner outside basis
     }
   }).filter(Boolean)
 
