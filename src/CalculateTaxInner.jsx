@@ -86,8 +86,14 @@ function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
   if (!isCorp || netProfit <= 0) return null
 
   const salary = parseFloat(officerSalary) || 0
-  const ratio = salary / netProfit
-  const minTarget = Math.round(netProfit * 0.35)
+  // BUG-02: Watson formula — ratio is salary as % of TOTAL S-Corp compensation
+  // (salary + distributions), not salary as % of net profit alone.
+  // Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
+  // Dashboard and taxCalc.js both use salary/(salary+k1) — now consistent.
+  const totalComp = salary + netProfit
+  const ratio = totalComp > 0 ? salary / totalComp : 0
+  // minTarget: salary needed to reach 35% of totalComp = 0.35/(1-0.35) * netProfit
+  const minTarget = Math.round(0.35 / 0.65 * netProfit)
 
   if (salary === 0 && netProfit > 20000) {
     return (
