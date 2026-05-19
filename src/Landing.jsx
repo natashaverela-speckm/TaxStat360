@@ -120,7 +120,7 @@ export default function Landing() {
           <span style={{ color: B }}>&#10003;</span> Get in Front of Your Largest Expense
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          Build Wealth by Managing Tax<br />Liability Year-Round.
+          Build Wealth by Managing Tax <br />Liability Year-Round.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 40px', lineHeight: 1.7 }}>
           Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe whenever you need it, so you can make strategic moves that preserve capital and accelerate wealth building.
