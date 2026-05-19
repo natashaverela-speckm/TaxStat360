@@ -925,6 +925,13 @@ export default function TaxReturn() {
             <div style={{ fontSize: 12, color: SL, marginBottom: 12, lineHeight: 1.5, paddingTop: 8 }}>
               If you exercised ISOs this year and held the shares past year-end, the bargain element is an AMT preference item (Form 6251 Line 2i) — it increases your AMTI but does not create regular taxable income.
             </div>
+            <WhatGoesHere items={[
+              'ISO exercise date and spread: find the grant price and FMV at exercise on your Form 3921 (Box 4 minus Box 3, times shares exercised)',
+              'The bargain element (FMV minus exercise price × shares) is the AMT preference item — enter the total here',
+              'AMT only applies if your total AMT income (AMTI) exceeds your exemption ($88,100 single / $137,000 MFJ for 2025)',
+              'If you sold the shares before year-end, you may not have an AMT adjustment — consult your CPA or review Form 3921',
+              'Do NOT enter ISO exercises here if you sold the shares in the same calendar year — that becomes ordinary income or capital gain instead',
+            ]} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
               <input type="checkbox" checked={hasISO} onChange={e => setHasISO(e.target.checked)} style={{ width: 16, height: 16 }} />
               I exercised ISOs and held shares past year-end
@@ -1000,6 +1007,14 @@ export default function TaxReturn() {
                 })()}
               </div>
             </div>
+            <WhatGoesHere items={[
+              '>2% S-Corp shareholder health insurance (Schedule 1 Line 17): premiums paid by or through the S-Corp for you and your family — deductible only if included as W-2 wages first',
+              'HSA contributions (Form 8889 Line 13): enter your own contributions only — employer contributions already excluded from W-2 wages are not entered here',
+              'Student loan interest (Schedule 1 Line 21): up to $2,500 on qualified student loans — phases out at $85,000 single / $175,000 MFJ (2025)',
+              'Self-employed retirement plans (Schedule 1 Line 16): SEP-IRA, SIMPLE-IRA, or Solo 401(k) employer contributions for >2% S-Corp shareholders and sole proprietors',
+              'Prior-year NOL (Schedule 1 Line 8a): enter as a positive number — post-2017 NOLs are limited to 80% of taxable income before the NOL per IRC §172(a)(2)',
+              'These deductions reduce your AGI directly, before the standard or itemized deduction is applied — making them more valuable than below-the-line itemized deductions',
+            ]} />
           </CollapsibleSection>
 
           {/* Deduction method */}
