@@ -317,7 +317,7 @@ function LoginScreen(){
   async function submit(e){
     e.preventDefault();setLoading(true);setErr('')
     try{
-      const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})})
+      const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass}),credentials:'include'})
       const data=await res.json()
       if(!res.ok)throw new Error(data.detail||'Login failed')
       localStorage.setItem('token',data.access_token);localStorage.setItem('ts360_email',email);localStorage.setItem('plan',data.plan);localStorage.setItem('ts360_session',data.access_token)
