@@ -247,8 +247,17 @@ const color=COLORS[idx%COLORS.length]
 const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
 const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.5px'}
 
-async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
-function connectSoftware(pid){sessionStorage.setItem('ts360_connecting_entity',idx);if(pid==='freshbooks'){window.location.href='https://auth.freshbooks.com/oauth/authorize?response_type=code&client_id=f5b72f6df7396ebf68e641c162c173d3ccfb815dbce44b7685b3f440d5054a01&redirect_uri='+encodeURIComponent('https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/auth/freshbooks/callback')+'&scope='+encodeURIComponent('user:profile:read user:account:read user:expenses:read user:other_income:read user:invoices:read')}else{window.location.href=API_BASE_URL+'/auth/'+pid+'/connect'}}
+async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/integrations/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
+function connectSoftware(pid){
+  // Store entity index so callback can route data to the right entity card
+  sessionStorage.setItem('ts360_connecting_entity', idx);
+  // Pass session token as OAuth state so EC2 callback can identify the user
+  const tok = localStorage.getItem('ts360_token') || '';
+  const state = encodeURIComponent('ts360|' + tok + '|' + idx);
+  // All 4 providers route through the EC2 backend /integrations/{provider}/connect
+  // which builds the correct OAuth redirect with client_id, redirect_uri and scope.
+  window.location.href = API_BASE_URL + '/integrations/' + pid + '/connect?state=' + state;
+}
 
 function applyManual(){
   const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal
@@ -670,7 +679,7 @@ export default function CalculateTax() {
 
     async function fetchEntityPnL(idx,pid,tok,extra){
       try{
-        let url=API_BASE_URL+'/auth/'+pid+'/data?token='+encodeURIComponent(tok)
+        let url=API_BASE_URL+'/integrations/'+pid+'/data?token='+encodeURIComponent(tok)
         if(pid==='quickbooks'&&extra)url+='&realm='+extra
         if(pid==='xero'&&extra)url+='&tenant='+extra
         if(pid==='freshbooks'&&extra)url+='&account='+extra
