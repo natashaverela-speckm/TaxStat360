@@ -292,7 +292,7 @@ export default function Settings() {
         <div onClick={()=>nav('/dashboard')}><LOGO/></div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <NavBtn label="Dashboard" onClick={()=>nav('/dashboard')}/>
-          <NavBtn label="Calculator" onClick={()=>nav('/calculate-tax')}/>
+          <NavBtn label="Tax Tracker" onClick={()=>nav('/calculate-tax')}/>
           <NavBtn label="AI Analysis" onClick={()=>nav('/ai-analysis')}/>
           {/* CC-06: Removed ⚙ gear emoji from nav button — emoji reserved for
               decorative/illustrative use, not navigation or interactive controls. */}
