@@ -652,7 +652,7 @@ export default function CalculateTax() {
 
     React.useEffect(() => {
       const p = new URLSearchParams(window.location.search)
-      const mp = {qb_token:'quickbooks',xero_token:'xero',wave_token:'wave',fb_token:'freshbooks'}
+      const mp = {qb_token:'quickbooks',quickbooks_token:'quickbooks',xero_token:'xero',wave_token:'wave',wave_token2:'wave',fb_token:'freshbooks',freshbooks_token:'freshbooks'}
       const xeroRefresh=p.get('xero_refresh');if(xeroRefresh)localStorage.setItem('ts360_xero_refresh',xeroRefresh)
       const entityIdx=parseInt(p.get('entity')||sessionStorage.getItem('ts360_connecting_entity'))||0
       let foundInUrl=false
