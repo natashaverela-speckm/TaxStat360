@@ -695,7 +695,14 @@ export default function CalculateTax() {
         if(pid==='xero'&&extra)url+='&tenant='+extra
         if(pid==='freshbooks'&&extra)url+='&account='+extra
         const d=await(await fetch(url)).json()
-        if(d&&!d.error)updateEntity(idx,{...entities[idx],pnl:d,connectedId:pid})
+        if(d&&!d.error){
+          if(d.revenue===0&&d.expenses===0&&d.net_profit===0){
+            localStorage.removeItem('ts360_'+pid+'_token')
+            localStorage.removeItem('ts360_'+pid+'_connected')
+          } else {
+            updateEntity(idx,{...entities[idx],pnl:d,connectedId:pid})
+          }
+        }
       }catch(ex){console.error(ex)}
     }
 
