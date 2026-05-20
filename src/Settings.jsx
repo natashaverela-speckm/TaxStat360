@@ -62,13 +62,7 @@ export default function Settings() {
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]))
-          storedEmail = payload.email || payload.sub || ''
-          if (storedEmail) localStorage.setItem('ts360_email', storedEmail)
-        } catch(e) {}
-      }
+      // token no longer stored in localStorage — email resolved from ts360_email key instead
     }
     if (!storedEmail) {
       for (const key of Object.keys(localStorage)) {
@@ -104,8 +98,7 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    if (token) {
-      fetch(`${API}/auth/mfa/status`, {
+    fetch(`${API}/auth/mfa/status`, {
         credentials: 'include'
       })
         .then(r => r.ok ? r.json() : null)
@@ -118,7 +111,6 @@ export default function Settings() {
         .catch(() => {
           setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
         })
-    }
   }, [])
 
   const handleEmailChange = async () => {
