@@ -252,7 +252,7 @@ function connectSoftware(pid){
   // Store entity index so callback can route data to the right entity card
   sessionStorage.setItem('ts360_connecting_entity', idx);
   // Pass session token as OAuth state so EC2 callback can identify the user
-  const tok = localStorage.getItem('ts360_token') || '';
+  const tok = localStorage.getItem('token') || '';
   const state = encodeURIComponent('ts360|' + tok + '|' + idx);
   // All 4 providers route through the EC2 backend /integrations/{provider}/connect
   // which builds the correct OAuth redirect with client_id, redirect_uri and scope.
@@ -662,7 +662,7 @@ export default function CalculateTax() {
         if(p.get(pid)==='connected'){
           foundInUrl=true
           localStorage.setItem('ts360_'+pid+'_connected','true')
-          const ts360tok=localStorage.getItem('ts360_token')||''
+          const ts360tok=localStorage.getItem('token')||''
           fetchEntityPnL(entityIdx,pid,ts360tok,null)
           break
         }
@@ -679,7 +679,7 @@ export default function CalculateTax() {
         const pids=['quickbooks','xero','wave','freshbooks']
         for(const pid of pids){
           if(localStorage.getItem('ts360_'+pid+'_connected')==='true'){
-            const tok=localStorage.getItem('ts360_'+pid+'_token')
+            const tok=localStorage.getItem('ts360_'+pid+'_token')||localStorage.getItem('token')||''
             const extra=localStorage.getItem('ts360_'+pid+'_extra')
             if(tok)fetchEntityPnL(entityIdx,pid,tok,extra)
             break
