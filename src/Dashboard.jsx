@@ -402,7 +402,7 @@ export default
 // Positioned at top of dashboard above the record list.
 function FederalDisclosureBanner() {
   const key = 'ts360_fed_banner_dismissed'
-  const [visible, setVisible] = React.useState(() => {
+  const [visible, setVisible] = useState(() => {
     try { return localStorage.getItem(key) !== '1' } catch { return true }
   })
   if (!visible) return null
