@@ -363,7 +363,13 @@ function EntityScreen(){
   const types=['Sole Proprietor / Single-Member LLC','Partnership / MMLLC','S Corporation','C Corporation','Other']
   return(<Page>
     <LOGO/>
-    <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span></div>
+    <div style={{marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+    <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span>
+    <span style={{fontSize:11,color:SL}}>Takes about 2 minutes</span>
+  </div>
+  <div style={{background:'#F8FAFC',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:12,color:SL,lineHeight:1.5}}>
+    <strong style={{color:N}}>3 quick steps:</strong> Choose your entity type → Connect your accounting software (or enter manually) → Review your opening tax position.
+  </div>
     <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
     <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
     <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
