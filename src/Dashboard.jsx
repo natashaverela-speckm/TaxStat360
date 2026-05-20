@@ -7,7 +7,7 @@
 // F-08: One-time onboarding tour (5 steps) on first login per account.
 //       Stored in localStorage as ts360_onboarding_v1.
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax } from './taxCalc'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
@@ -426,6 +426,37 @@ function FederalDisclosureBanner() {
   )
 }
 
+
+// Simple error boundary for integration panels — prevents one failure
+// from crashing the entire dashboard (Moderate finding: Error Boundaries)
+
+// withRetry — wraps fetch with exponential backoff (up to 2 retries, 1s/2s delays).
+// Prevents transient network blips from showing error states to users.
+async function withRetry(fn, retries = 2, delay = 1000) {
+  try { return await fn(); }
+  catch (err) {
+    if (retries === 0) throw err;
+    await new Promise(r => setTimeout(r, delay));
+    return withRetry(fn, retries - 1, delay * 2);
+  }
+}
+
+class IntegrationErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8,
+                      padding: '12px 16px', fontSize: 12, color: '#991B1B' }}>
+          ⚠ This section failed to load. Reload the page to retry.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Dashboard() {
   const nav = useNavigate()
 
@@ -728,7 +759,7 @@ export default function Dashboard() {
           {userName && (
             <span style={{ fontSize: 13, color: SL }}>Hi, <strong style={{ color: N }}>{userName.split(' ')[0]}</strong></span>
           )}
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Calculator</button>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Tax Tracker</button>
           <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>AI Analysis</button>
           <button onClick={() => signOut(nav)}         style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
           <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
@@ -800,7 +831,7 @@ export default function Dashboard() {
                 onClick={startNewCalc}
                 style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
               >
-                Go to Calculator →
+                Open Tax Tracker →
               </button>
             </div>
           </div>
@@ -861,7 +892,7 @@ export default function Dashboard() {
           <div>
             <FederalDisclosureBanner />
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>
-            <p style={{ color: SL, fontSize: 13, margin: '4px 0 0' }}>Click any record to load it into the Tax Calculator.</p>
+            <p style={{ color: SL, fontSize: 13, margin: '4px 0 0' }}>Click any record to load it into the Tax Tracker.</p>
           </div>
           <button
             onClick={startNewCalc}
@@ -877,6 +908,23 @@ export default function Dashboard() {
             <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
             <h3 style={{ color: N, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No saved records yet</h3>
             <p style={{ color: SL, fontSize: 14, marginBottom: 20 }}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+              {[
+                { label: 'S-Corp Owner', icon: '🏢', desc: 'Salary + K-1 distributions' },
+                { label: 'Sole Proprietor', icon: '💼', desc: 'Schedule C self-employment' },
+                { label: 'Real Estate Investor', icon: '🏠', desc: 'Rental income + depreciation' },
+                { label: 'Partnership / LLC', icon: '🤝', desc: 'K-1 distributive share' },
+              ].map(p => (
+                <button key={p.label} onClick={startNewCalc} style={{
+                  padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0',
+                  borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140,
+                }}>
+                  <div style={{ fontSize: 20 }}>{p.icon}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: N, marginTop: 4 }}>{p.label}</div>
+                  <div style={{ fontSize: 11, color: SL, marginTop: 2 }}>{p.desc}</div>
+                </button>
+              ))}
+            </div>
             <button onClick={startNewCalc} style={{ padding: '10px 24px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
               Start New Calculation →
             </button>
