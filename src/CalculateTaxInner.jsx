@@ -700,7 +700,8 @@ export default function CalculateTax() {
             localStorage.removeItem('ts360_'+pid+'_token')
             localStorage.removeItem('ts360_'+pid+'_connected')
           } else {
-            updateEntity(idx,{...entities[idx],pnl:d,connectedId:pid})
+            const pnl={grossRevenue:d.revenue,totalExpenses:d.expenses,netProfit:d.net_profit,categories:{}}
+            updateEntity(idx,{...entities[idx],pnl,connectedId:pid})
           }
         }
       }catch(ex){console.error(ex)}
