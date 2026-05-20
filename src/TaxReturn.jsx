@@ -148,6 +148,7 @@ export default function TaxReturn() {
   // load. Both are now read from savedF1040 (writePersonalContext below) so user
   // selections survive navigation away from TaxReturn and back.
   const [isREP, setIsREP] = React.useState(savedF1040.isREP || false)
+  const [repHours, setRepHours] = React.useState(() => parseInt(localStorage.getItem('ts360_rep_hours') || '0'))
   const [isActiveParticipant, setIsActiveParticipant] = React.useState(
     savedF1040.isActiveParticipant !== false  // undefined (new user) → true; explicit false preserved
   )
@@ -799,6 +800,48 @@ export default function TaxReturn() {
                   <InfoTip text="IRC §469(c)(7): To qualify as a Real Estate Professional, you must spend more than 750 hours per year in real property trades or businesses in which you materially participate, AND more than 50% of your total personal services must be in those real property trades. If you qualify, rental losses are NOT passive and can offset all income. You must also materially participate in each rental activity (or make the §469(c)(7)(A) aggregate election on a timely filed return)." />
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SL, cursor: 'pointer' }}>
+
+                {/* REP 750-hour tracker — IRC §469(c)(7) requires >750 hours AND >50% of
+                    all personal services in real property trades. Hours input lets users
+                    track progress against the threshold during the year. */}
+                {isREP && (
+                  <div style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.18)', borderRadius: 8, padding: '10px 14px', marginTop: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 6 }}>
+                      §469(c)(7) Hour Tracker
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 12, color: SL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Hours in real property trades YTD:
+                        <input
+                          type="number"
+                          aria-label="Real estate professional hours year-to-date"
+                          min="0"
+                          max="5000"
+                          value={repHours}
+                          onChange={e => setRepHours(Math.max(0, parseInt(e.target.value) || 0))}
+                          style={{ width: 70, padding: '3px 6px', border: '1px solid #CBD5E1', borderRadius: 5, fontSize: 12 }}
+                        />
+                      </label>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                        background: repHours >= 750 ? '#dcfce7' : repHours >= 500 ? '#fef9c3' : '#fee2e2',
+                        color: repHours >= 750 ? '#15803d' : repHours >= 500 ? '#92400e' : '#b91c1c',
+                      }}>
+                        {repHours >= 750 ? `✓ ${repHours}/750 hrs` : `${repHours}/750 hrs`}
+                      </span>
+                    </div>
+                    {repHours > 0 && repHours < 750 && (
+                      <div style={{ fontSize: 11, color: '#92400e', marginTop: 5 }}>
+                        {750 - repHours} more hours needed to meet the 750-hr threshold. Also verify &gt;50% of all personal services are in real property trades.
+                      </div>
+                    )}
+                    {repHours >= 750 && (
+                      <div style={{ fontSize: 11, color: '#15803d', marginTop: 5 }}>
+                        Hour threshold met. Confirm &gt;50% of all personal services are in real property trades and material participation applies to each rental activity (or §469(c)(7)(A) aggregate election made).
+                      </div>
+                    )}
+                  </div>
+                )}
                   <input type="checkbox" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
                   Active Participant
                   <InfoTip text="IRC §469(i)(6): Active participation is a lower standard than material participation — you must make management decisions (setting rents, approving tenants, approving expenses). You do NOT need to participate in day-to-day management. Active participants may deduct up to $25,000 in rental losses against non-passive income (phased out $100K–$150K AGI). Passive investors (syndications, limited partners) cannot claim this allowance." />
@@ -1100,7 +1143,7 @@ export default function TaxReturn() {
         }}>
           <div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
-            <FederalScopeBanner />
+            <FederalScopeBanner variant="dark" />
             <div style={{ fontSize: 48, fontWeight: 900, color: totalTax === 0 ? '#4ADE80' : '#F87171', lineHeight: 1 }}>
               {fmt(totalTax)}
             </div>
@@ -1142,7 +1185,7 @@ export default function TaxReturn() {
               </div>
               {selfEmploymentTax > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax</span>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax <InfoTip text="IRC §1401: Sole proprietors and active partners pay SE tax (15.3% on earnings up to the SS wage base of ${ssWageBase?.toLocaleString() || '184,500'}, then 2.9% above). S-Corp owners pay FICA only on their W-2 salary — K-1 distributions are exempt. 50% of SE tax is deductible from AGI (§164(f))." /></span>
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
                 </div>
               )}
@@ -1165,7 +1208,7 @@ export default function TaxReturn() {
               </div>
               {niit > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%) — Form 8960</span>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%) — Form 8960 <InfoTip text="IRC §1411: 3.8% surtax on the lesser of net investment income (interest, dividends, capital gains, net rental income) or the amount by which MAGI exceeds $200K (single) / $250K (MFJ). Real estate professionals whose rental income is non-passive are exempt on that rental income." /></span>
                   <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
                 </div>
               )}
@@ -1187,7 +1230,7 @@ export default function TaxReturn() {
               )}
               {qbiDeduction > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction (§199A)</span>
+                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction <InfoTip text="§199A: Eligible pass-through owners may deduct 20% of Qualified Business Income. Above income thresholds ($201,775 single / $403,500 MFJ for 2026), W-2 wage and UBIA property limits apply. Made permanent by the One Big Beautiful Bill Act (signed July 4, 2025)." /> (§199A)</span>
                   <span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(qbiDeduction)})</span>
                 </div>
               )}
