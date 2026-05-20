@@ -396,7 +396,6 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
 
 
 // ── Main Dashboard Component ──────────────────────────────────────────────────
-export default 
 // Federal-scope disclosure banner — surfaces calcTaxReturn.federalOnly = true to the user.
 // Dismisses permanently via localStorage ('ts360_fed_banner_dismissed').
 // Positioned at top of dashboard above the record list.
@@ -427,7 +426,7 @@ function FederalDisclosureBanner() {
   )
 }
 
-function Dashboard() {
+export default function Dashboard() {
   const nav = useNavigate()
 
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem('ts360_disclaimer_seen'))
