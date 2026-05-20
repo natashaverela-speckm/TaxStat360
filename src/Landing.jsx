@@ -335,7 +335,7 @@ export default function Landing() {
               name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790',
               highlight: false,
               desc: 'Know exactly what you owe — every month, not just in April.',
-              features: ['Year-round tax liability calculator', 'K-1 income (S-Corps, partnerships, LLCs)', 'Schedule C (sole props & SMLLCs)', 'Quarterly estimated payments', 'Personal tax return (W-2 + business income)', '1 accounting software integration'],
+              features: ['Year-round federal tax liability tracker', 'K-1 income (S-Corps, partnerships, LLCs)', 'Schedule C (sole props & SMLLCs)', 'Quarterly estimated payments', 'Personal tax return (W-2 + business income)', '1 accounting software integration'],
             },
             {
               name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490',
