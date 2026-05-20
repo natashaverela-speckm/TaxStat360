@@ -654,8 +654,19 @@ export default function CalculateTax() {
       const p = new URLSearchParams(window.location.search)
       const mp = {qb_token:'quickbooks',xero_token:'xero',wave_token:'wave',fb_token:'freshbooks'}
       const xeroRefresh=p.get('xero_refresh');if(xeroRefresh)localStorage.setItem('ts360_xero_refresh',xeroRefresh)
-      const entityIdx=parseInt(sessionStorage.getItem('ts360_connecting_entity'))||0
+      const entityIdx=parseInt(p.get('entity')||sessionStorage.getItem('ts360_connecting_entity'))||0
       let foundInUrl=false
+      // New format: ?quickbooks=connected&entity=N — token stored server-side, use ts360 session token
+      const providerList=['quickbooks','xero','wave','freshbooks']
+      for(const pid of providerList){
+        if(p.get(pid)==='connected'){
+          foundInUrl=true
+          localStorage.setItem('ts360_'+pid+'_connected','true')
+          const ts360tok=localStorage.getItem('ts360_token')||''
+          fetchEntityPnL(entityIdx,pid,ts360tok,null)
+          break
+        }
+      }
       for(const[k,pid] of Object.entries(mp)){
         const tok=p.get(k)
         if(tok){foundInUrl=true;localStorage.setItem('ts360_'+pid+'_connected','true');localStorage.setItem('ts360_'+pid+'_token',tok)
