@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 const API='https://app.taxstat360.com'
 const PK='pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e'
-const GMAPS_KEY='AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k
+const GMAPS_KEY='AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
 
 const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20}}><svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg><div style={{fontWeight:800,color:N,fontSize:17,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
