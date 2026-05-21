@@ -333,7 +333,7 @@ const domPass  = document.querySelector('input[type="password"]')?.value || ''
 const actualEmail = (email || domEmail).toLowerCase().trim()
 const actualPass  = pass || domPass
 if (!actualEmail || !actualPass) { setErr('Please enter your email and password.'); setLoading(false); return }
-const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actualEmail,password:actualPass}),credentials:'include'})
+const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actualEmail,password:actualPass})})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
 localStorage.setItem('token',data.access_token)
