@@ -539,7 +539,7 @@ return(
 {/* F-M15: Disconnect / re-enter label is conditional on how data was entered */}
 <div style={{textAlign:'center',marginTop:10}}>
 <button
-  onClick={()=>onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}
+  onClick={()=>{const pid=ent.connectedId;if(pid){localStorage.removeItem('ts360_'+pid+'_connected');localStorage.removeItem('ts360_'+pid+'_token');localStorage.removeItem('ts360_'+pid+'_extra')}onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}}
   style={{background:'none',border:'none',fontSize:12,color:SL,cursor:'pointer',textDecoration:'underline'}}
 >
   {ent.isManual ? '✏ Edit / re-enter data' : '⟳ Disconnect / reconnect software'}
@@ -662,7 +662,7 @@ export default function CalculateTax() {
         if(p.get(pid)==='connected'){
           foundInUrl=true
           localStorage.setItem('ts360_'+pid+'_connected','true')
-          const ts360tok=localStorage.getItem('token')||''
+          localStorage.setItem('ts360_'+pid+'_connected','true')    const hasTokenInUrl=Object.entries(mp).some(([k,v])=>v===pid&&p.get(k))    if(!hasTokenInUrl){const ts360tok=localStorage.getItem('token')||'';fetchEntityPnL(entityIdx,pid,ts360tok,null)}    break
           fetchEntityPnL(entityIdx,pid,ts360tok,null)
           break
         }
