@@ -6,6 +6,15 @@
 //       Replaces the prior two-click "Sure?" / pendingDeleteIdx pattern.
 // F-08: One-time onboarding tour (5 steps) on first login per account.
 //       Stored in localStorage as ts360_onboarding_v1.
+//
+// PASS4B-03: PASSTHROUGH_ENTITY_TYPES, C_CORP_TAX_RATE, and
+// SCORP_REASONABLE_COMP_RATIO_THRESHOLD were previously defined as local consts
+// despite being exported from constants.js. constants-centralization-03 marked
+// this "RESOLVED" but the local definitions were still present. Removed;
+// now imported from the single source of truth.
+//
+// PASS4B-04: "ACTIVE IN CALCULATOR" renamed to "ACTIVE IN TAX TRACKER"
+// to match the app-wide rename done 3 days ago in Settings.jsx / AIAnalysis.jsx.
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -13,6 +22,12 @@ import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax } fr
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
+// PASS4B-03: imported from constants.js — local definitions removed below.
+import {
+  PASSTHROUGH_ENTITY_TYPES,
+  C_CORP_TAX_RATE,
+  SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
+} from './constants.js'
 
 // ── Inline color constants (match rest of codebase) ──
 const N  = '#0D1B3E'
@@ -21,18 +36,6 @@ const SL = '#475569'
 const G  = '#059669'
 const R  = '#DC2626'
 const O  = '#D97706'
-
-// ── Domain constants (defined inline to avoid import coupling) ──
-const PASSTHROUGH_ENTITY_TYPES = [
-  'S Corporation',
-  'Partnership / MMLLC — Active',
-  'Partnership / MMLLC — Passive',
-  'Sole Proprietor / Single-Member LLC',
-]
-const C_CORP_TAX_RATE = 0.21   // IRC §11 post-TCJA (P.L. 115-97)
-// SCORP_REASONABLE_COMP: 40% practitioner guideline per Rev. Rul. 74-44 /
-// Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)
-const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt  = n => '$' + Math.abs(parseFloat(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -197,8 +200,6 @@ const LOGO = () => (
 
 
 // ── F-08: One-time onboarding tour ────────────────────────────────────────────
-// Triggered on first Dashboard mount. Completed/skipped state stored in
-// localStorage as ts360_onboarding_v1. To re-show: clear that key.
 const ONBOARDING_KEY = 'ts360_onboarding_v1'
 
 const ONBOARDING_STEPS = [
@@ -279,7 +280,6 @@ function OnboardingTour({ onComplete }) {
           )}
         </div>
 
-        {/* Step badge */}
         {s.badge && (
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
             <span style={{ background: B, color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700 }}>
@@ -288,7 +288,6 @@ function OnboardingTour({ onComplete }) {
           </div>
         )}
 
-        {/* Content */}
         <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 12px', textAlign: 'center' }}>
           {s.title}
         </h2>
@@ -296,12 +295,10 @@ function OnboardingTour({ onComplete }) {
           {s.body}
         </p>
 
-        {/* Step counter */}
         <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginBottom: 20, fontWeight: 600 }}>
           {step + 1} of {ONBOARDING_STEPS.length}
         </div>
 
-        {/* Navigation */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button
             onClick={onComplete}
@@ -342,8 +339,6 @@ function OnboardingTour({ onComplete }) {
 
 
 // ── F-07: Delete confirmation modal ───────────────────────────────────────────
-// Replaces the prior two-click pendingDeleteIdx pattern. Shows the record name
-// so users know exactly what they're deleting before committing.
 function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
   const displayName = rec?.name || rec?.savedAt || 'this record'
   return (
@@ -396,9 +391,6 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
 
 
 // ── Main Dashboard Component ──────────────────────────────────────────────────
-// Federal-scope disclosure banner — surfaces calcTaxReturn.federalOnly = true to the user.
-// Dismisses permanently via localStorage ('ts360_fed_banner_dismissed').
-// Positioned at top of dashboard above the record list.
 function FederalDisclosureBanner() {
   const key = 'ts360_fed_banner_dismissed'
   const [visible, setVisible] = useState(() => {
@@ -426,12 +418,6 @@ function FederalDisclosureBanner() {
   )
 }
 
-
-// Simple error boundary for integration panels — prevents one failure
-// from crashing the entire dashboard (Moderate finding: Error Boundaries)
-
-// withRetry — wraps fetch with exponential backoff (up to 2 retries, 1s/2s delays).
-// Prevents transient network blips from showing error states to users.
 async function withRetry(fn, retries = 2, delay = 1000) {
   try { return await fn(); }
   catch (err) {
@@ -463,25 +449,17 @@ export default function Dashboard() {
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem('ts360_disclaimer_seen'))
   const dismissDisclaimer = () => { localStorage.setItem('ts360_disclaimer_seen', '1'); setShowDisclaimer(false) }
 
-  // CC-01: 2FA nudge — shown on Dashboard when MFA is not enabled.
-  // Dismissed per-session (sessionStorage) so it reappears each login
-  // as a gentle recurring reminder without being permanently blockable.
-  // Once the user enables 2FA, ts360_mfa_enabled='1' and it never shows again.
   const [show2FANudge, setShow2FANudge] = useState(() =>
     localStorage.getItem('ts360_mfa_enabled') !== '1' &&
     !sessionStorage.getItem('ts360_2fa_nudge_dismissed')
   )
   const dismiss2FANudge = () => { sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1'); setShow2FANudge(false) }
 
-  // F-08: Onboarding shown once per account
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
   const completeOnboarding = () => { localStorage.setItem(ONBOARDING_KEY, '1'); setShowOnboarding(false) }
 
-  // F-07: Delete confirmation state
-  const [deleteConfirm, setDeleteConfirm] = useState(null) // { rec, idx } | null
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
 
-  // Business data — populated from most recent saved record on mount
-  // Still needed for S-Corp reasonable comp alert (calcDashboard / safeCalc)
   const [biz, setBiz] = useState({
     entityType: 'S Corporation', year: 2025, ownershipPct: '100',
     grossRevenue: '', cogs: '', operatingExpenses: '', officerSalary: '',
@@ -495,7 +473,6 @@ export default function Dashboard() {
   const [records, setRecords] = useState([])
   const [loadedRecord, setLoadedRecord] = useState(null)
   const [savedRecordId, setSavedRecordId] = useState(null)
-  // UX-04: Which record is currently loaded into the Calculator
   const [activeRecordId, setActiveRecordId] = useState(() =>
     sessionStorage.getItem('ts360_active_record_id') || null
   )
@@ -506,7 +483,6 @@ export default function Dashboard() {
   const userName = localStorage.getItem('userName') || ''
 
   useEffect(() => {
-    // Consolidate records from all per-user keys
     const email = localStorage.getItem('ts360_email') || 'default'
     const key   = 'ts360_records_' + email
     const allFound = []
@@ -526,7 +502,6 @@ export default function Dashboard() {
     }
     setRecords(recs)
 
-    // Populate biz/f1040 from most recent record (for S-Corp alert)
     if (recs.length > 0) {
       const r0 = recs[0]
       if (r0.biz) setBiz(r0.biz)
@@ -548,13 +523,11 @@ export default function Dashboard() {
       setSavedRecordId(recs[0].id)
     }
 
-    // Handle goto_form session flag (from accounting software connect flow)
     if (sessionStorage.getItem('ts360_goto_form') === '1') {
       sessionStorage.removeItem('ts360_goto_form')
       nav('/calculate-tax')
     }
 
-    // Xero token in URL
     const params = new URLSearchParams(window.location.search)
     const xeroToken = params.get('xero_token')
     if (xeroToken) {
@@ -578,7 +551,6 @@ export default function Dashboard() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // S-Corp alert derived from most-recent record's biz data
   const hasNumbers = parseFloat(biz.grossRevenue) > 0
   const calc = hasNumbers ? calcDashboard(biz, f1040) : null
   const safeCalc = calc || {
@@ -620,7 +592,6 @@ export default function Dashboard() {
     }
     setF1040(f1040Restored)
 
-    // Restore session state so Step 1 & Step 2 have correct data
     const sourceEntities = Array.isArray(rec.entities) && rec.entities.length > 0
       ? rec.entities
       : rec.biz ? [rec.biz] : []
@@ -695,8 +666,6 @@ export default function Dashboard() {
       w2Withheld: parseFloat(saved1040.w2Withheld) || 0,
     })
     writeTaxYear(rec.taxYear || rec.biz?.year || 2025)
-    // UX-04: Store the active record context so Calculator and Tax Return can
-    // display which record the user is currently editing across all views.
     const activeName = rec.name || rec.savedAt || 'Saved Record'
     sessionStorage.setItem('ts360_active_record_name', activeName)
     sessionStorage.setItem('ts360_active_record_id', String(rec.id || ''))
@@ -704,7 +673,6 @@ export default function Dashboard() {
     nav('/calculate-tax')
   }
 
-  // F-07: Show confirmation modal before deleting
   const handleDeleteClick = (rec, idx) => setDeleteConfirm({ rec, idx })
 
   const confirmDelete = () => {
@@ -730,10 +698,8 @@ export default function Dashboard() {
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', minHeight: '100vh', background: '#F8FAFC' }}>
 
-      {/* F-08: Onboarding tour — renders over everything on first login */}
       {showOnboarding && <OnboardingTour onComplete={completeOnboarding} />}
 
-      {/* F-07: Delete confirmation modal */}
       {deleteConfirm && (
         <DeleteConfirmModal
           rec={deleteConfirm.rec}
@@ -766,7 +732,6 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      {/* Disclaimer banner */}
       {showDisclaimer && (
         <div style={{ background: '#FFFBEB', borderBottom: '2px solid #F59E0B', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
@@ -779,40 +744,28 @@ export default function Dashboard() {
         </div>
       )}
 
-        {/* CC-01: 2FA nudge banner — shown each session until MFA is enabled.
-            Reads ts360_mfa_enabled from localStorage (set by Settings.jsx after
-            successful MFA setup). Dismissed per-session via sessionStorage so
-            it reappears at next login as a recurring but non-blocking prompt. */}
-        {show2FANudge && (
-          <div style={{ background: '#EFF6FF', borderBottom: '2px solid #93C5FD', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
-              <strong>🔐 Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
-              <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>
-                Enable 2FA in Settings →
-              </button>
-            </div>
-            <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>
-              Remind me later
+      {show2FANudge && (
+        <div style={{ background: '#EFF6FF', borderBottom: '2px solid #93C5FD', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
+            <strong>🔐 Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
+            <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>
+              Enable 2FA in Settings →
             </button>
           </div>
-        )}
+          <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>
+            Remind me later
+          </button>
+        </div>
+      )}
 
-      {/* Xero loading banner */}
       {xeroLoading && (
         <div style={{ background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', padding: '12px 28px', fontSize: 13, fontWeight: 600, color: '#1D4ED8', textAlign: 'center' }}>
           Importing your Xero financials… please wait
         </div>
       )}
 
-      {/* ── Main content ── */}
-      {/* F-06: No tab bar — Dashboard now shows My Records only.
-          The Personal 1040 form has been removed. Users complete their
-          personal return in Step 2 via the Calculator (TaxReturn.jsx). */}
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
 
-        {/* L-06: Only show S-Corp Alert when revenue data exists but salary = $0.
-            When no revenue data is entered at all, show an onboarding prompt instead.
-            This prevents the alert from appearing on brand-new empty accounts. */}
         {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
           <div style={{
             background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12,
@@ -837,7 +790,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* S-Corp Reasonable Compensation Alert — only renders when hasNumbers and salary is below threshold */}
         {hasNumbers && safeCalc.reasonableCompAlert?.triggered && !dismissedCompAlert && (
           <div style={{
             background: '#FEF3C7', border: '1.5px solid #FCD34D', borderRadius: 12,
@@ -850,7 +802,6 @@ export default function Dashboard() {
                 Reasonable Compensation Below Practitioner Guideline
               </div>
 
-              {/* L-02: Show the formula explicitly so users understand what the percentage means */}
               <div style={{ fontSize: 13, color: '#92400E', marginBottom: 10, fontWeight: 600 }}>
                 Formula: Salary ÷ (Salary + Distributions)
               </div>
@@ -902,7 +853,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Empty state */}
         {records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
@@ -955,10 +905,10 @@ export default function Dashboard() {
                     <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
                       {rec.name || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)' ? new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
-                      {/* UX-04: Active record indicator */}
+                      {/* PASS4B-04: renamed from "ACTIVE IN CALCULATOR" */}
                       {isActive && (
                         <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
-                          ACTIVE IN CALCULATOR
+                          ACTIVE IN TAX TRACKER
                         </span>
                       )}
                     </div>
@@ -979,9 +929,6 @@ export default function Dashboard() {
                   </div>
 
                   {totalTax > 0 && (() => {
-                    // ADD-03: Delta indicator — compare this record's tax to the next
-                    // most recent record (index i+1) to show trend. Only shown on the
-                    // most recent record (i === 0) so the delta is always "vs last time".
                     const prevRec = i === 0 ? records[1] : null
                     const prevTax = prevRec ? parseFloat(prevRec.totalTax) || 0 : 0
                     const delta = totalTax - prevTax
@@ -1025,7 +972,6 @@ export default function Dashboard() {
                       Load &amp; Continue →
                     </button>
 
-                    {/* F-07: Opens DeleteConfirmModal instead of two-click "Sure?" */}
                     <button
                       onClick={() => handleDeleteClick(rec, i)}
                       title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
