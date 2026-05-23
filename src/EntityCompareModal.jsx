@@ -7,28 +7,34 @@
 //     → { scenarios: [sole, sCorp, cCorp], best: 'soleProp'|'sCorp'|'cCorp', savings, salary }
 //
 // Each scenario: { key, label, totalTax, lineItems: [{label,value}], notes: [string] }
+//
+// CC-M01: Inline color constants replaced with imports from theme.js.
+// CC-M02: Local fmt() replaced with import from utils/formatMoney.js.
+// UX-N04: Added visible C-Corp full-dividend assumption callout near scenario cards.
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { compareEntityScenarios } from './scenarioCompare'
+// CC-M01: single source of truth for colors.
+import {
+  NAVY as N,
+  BLUE as B,
+  SLATE as SL,
+  GREEN as G,
+  RED as R,
+  AMBER_BG,
+  AMBER_BORDER,
+  AMBER_TEXT,
+  RED_BG,
+  RED_BORDER,
+  SURFACE_CARD as CARD_BG,
+  BORDER_DEFAULT as CARD_BORDER,
+} from './theme.js'
+// CC-M02: canonical currency formatter.
+import { fmt } from './utils/formatMoney.js'
 
-const N = '#0D1B3E'
-const B = '#2563EB'
-const SL = '#475569'
-const G = '#16a34a'
-const R = '#dc2626'
-const AMBER_BG = '#FEF3C7'
-const AMBER_BORDER = '#F59E0B'
-const AMBER_TEXT = '#92400E'
-const RED_BG = '#FEE2E2'
-const RED_BORDER = '#DC2626'
-const CARD_BG = '#FFFFFF'
-const CARD_BORDER = '#E2E8F0'
-const SUMMARY_GREEN_BG = '#DCFCE7'
+// Component-local tokens not in theme.js
+const SUMMARY_GREEN_BG     = '#DCFCE7'
 const SUMMARY_GREEN_BORDER = '#16A34A'
-
-const fmt = n => n < 0
-  ? '($' + Math.abs(Math.round(n) || 0).toLocaleString('en-US') + ')'
-  : '$' + Math.abs(Math.round(n) || 0).toLocaleString('en-US')
 
 function detectRcRisk(netProfitShare, salary) {
   if (netProfitShare <= 20000) return null
@@ -206,6 +212,9 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
   const sliderMax = Math.max(netProfitShare, 1)
   const cheapest = result.scenarios.find(s => s.key === result.best)
   const mostExpensive = result.scenarios.reduce((a, b) => b.totalTax > a.totalTax ? b : a)
+
+  // UX-N04: determine if C-Corp scenario is in the comparison (it always is, but guard defensively)
+  const hasCCorpScenario = result.scenarios.some(s => s.key === 'cCorp')
 
   const summaryText = (() => {
     if (netProfitShare <= 0) return null
@@ -408,6 +417,30 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               />
             ))}
           </div>
+
+          {/* UX-N04: C-Corp full-dividend assumption callout — visible near the cards.
+              The disclaimer section mentions this assumption but users miss it. This callout
+              surfaces it prominently so no one interprets the C-Corp figure at face value
+              without understanding the retained-earnings impact. */}
+          {hasCCorpScenario && netProfitShare > 0 && (
+            <div style={{
+              background: AMBER_BG,
+              border: `1px solid ${AMBER_BORDER}`,
+              borderRadius: 10,
+              padding: '12px 18px',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '22px' }}>⚠️</span>
+              <div style={{ fontSize: 12, color: AMBER_TEXT, lineHeight: 1.6 }}>
+                <strong>C-Corp scenario assumes full distribution of profits as qualified dividends.</strong>{' '}
+                If profits are retained in the corporation instead, the personal-level dividend tax is deferred — reducing the C-Corp's apparent tax cost in this comparison.
+                Retained earnings can be advantageous for reinvestment-heavy businesses, but the deferred tax becomes due when profits are eventually distributed or the company is sold.
+                Discuss retained-earnings strategy with your CPA before using this comparison to make an entity election.
+              </div>
+            </div>
+          )}
 
           {/* DISCLAIMER */}
           <div style={{
