@@ -227,7 +227,6 @@ isActiveParticipant,
 writeTaxYear(taxYear)
 }, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear, priorYearTax, priorYearAGI, priorPassiveLossCarryforward, isREP, isActiveParticipant])
 
-// ── Tax computation ──────────────────────────────────────────────────────────
 const w2 = nv(w2Income)
 const scaledK1 = ytdScale(k1Total)
 const scaledW2 = ytdScale(w2)
@@ -309,7 +308,12 @@ niitAmount: niit = 0,
 amt: amtAmount = 0,
 palSuspendedRental = 0,
 palCarryforwardApplied = 0,
+// PASS5: palCarryforwardRemaining and eblThreshold are now returned by taxCalc.js.
+// Both default to 0 for backward-compat with any cached result objects that
+// predate this version.
+palCarryforwardRemaining = 0,
 ebl = 0,
+eblThreshold = 0,
 quarterlyRecommended: quarterly = 0,
 qbiLimitApplied = 'none',
 childCredit = 0,
@@ -330,9 +334,6 @@ ficaSavings = 0,
 ssWageBase: ficaSSWageBase = 176100,
 ssWageBaseRoom = 0,
 k1Distributions = 0,
-// PASS4B-02: §1366(d) basis limitation results from taxCalc.js.
-// entityBasisResults: per-entity { name, type, k1Gross, k1Allowed, suspended }.
-// totalSuspendedLoss: aggregate dollars suspended (positive); 0 on all legacy records.
 entityBasisResults = [],
 totalSuspendedLoss = 0,
 } = result
@@ -466,7 +467,6 @@ isActiveParticipant,
 k1Income: k1Total,
 totalTax: Math.round(totalTax),
 quarterly: Math.round(quarterly),
-// PASS4B-02: Save basis limitation results so AI Analysis Risk Scan can surface them.
 totalSuspendedLoss: Math.round(totalSuspendedLoss),
 entityBasisResults,
 }
@@ -485,7 +485,6 @@ setTimeout(() => setSaveStatus(null), 3000)
 
 return (
 <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
-{/* Header */}
 <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
 <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
 <div onClick={() => nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -519,7 +518,6 @@ Unsaved changes
 </div>
 </div>
 
-{/* Main grid */}
 <div style={{
 display: 'grid',
 gridTemplateColumns: isMobile ? '1fr' : '1fr 380px',
@@ -529,7 +527,6 @@ margin: '0 auto',
 padding: isMobile ? '20px 16px' : '28px 24px',
 alignItems: 'start',
 }}>
-{/* LEFT — form */}
 <div>
 <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
 <p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Enter your personal info to calculate your total federal tax liability.</p>
@@ -538,7 +535,6 @@ alignItems: 'start',
 TaxStat360 calculates <strong>federal tax estimates</strong> based on the information you enter. Results are for <strong>planning purposes only</strong> and do not constitute professional tax advice. Your actual liability may differ based on your complete financial situation. Consult a licensed CPA or tax professional before filing.
 </DismissibleNotice>
 
-{/* K-1 income summary */}
 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
 <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 Income — Schedule E, Part II</div>
 {entities.map((ent, i) => {
@@ -637,9 +633,6 @@ Total K-1 Income
 ⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
 </div>
 )}
-{/* PASS4B-06: Suspended loss banner — shown when the §1366(d) engine has computed
-an actual suspension amount. totalSuspendedLoss is 0 on all legacy records and
-when no basis data has been entered — so this never shows by default. */}
 {totalSuspendedLoss > 0 && (
 <div style={{ marginTop: 8, background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#991B1B' }}>
 <div style={{ fontWeight: 700, marginBottom: 6 }}>
@@ -689,7 +682,6 @@ entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
 )}
 </div>
 
-{/* Tax year + YTD */}
 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
 <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
@@ -730,7 +722,6 @@ YTD Mode (annualize)
 )}
 </div>
 
-{/* Filing status & dependents */}
 <CollapsibleSection title="FILING STATUS &amp; DEPENDENTS">
 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
 <div>
@@ -755,7 +746,6 @@ Qualifying Dependents
 </div>
 </CollapsibleSection>
 
-{/* W-2 income & withholding */}
 <CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
 {totalOfficerSalary > 0 && (
 <div style={{ marginTop: 12, marginBottom: 4, padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
@@ -786,7 +776,6 @@ Qualifying Dependents
 ]} />
 </CollapsibleSection>
 
-{/* Rental real estate */}
 <CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
 <div style={{ paddingTop: 12 }}>
 <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -878,6 +867,14 @@ From prior year Form 8582, Line 3 — enter as a positive number.
 ? <span style={{ color: G, fontWeight: 600 }}> ✓ {fmt(palCarryforwardApplied)} applied this year to offset rental income.</span>
 : ' Applied to offset rental income when property is profitable; pools with current-year loss otherwise.'}
 </div>
+{/* PASS5: Show how much of the prior carryforward still needs to roll forward.
+palCarryforwardRemaining = priorPAL - palCarryforwardApplied.
+Zero when no carryforward was entered or the entire balance was absorbed. */}
+{palCarryforwardRemaining > 0 && (
+<div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
+💡 {fmt(palCarryforwardRemaining)} of your prior year carryforward remains suspended after this year — enter this amount in "Prior Year Passive Loss Carryforward" next year.
+</div>
+)}
 {palSuspendedRental > 0 && (
 <div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
 💡 {fmt(palSuspendedRental)} of this year's rental loss is suspended under §469 and will carry forward to next year.
@@ -896,7 +893,6 @@ From prior year Form 8582, Line 3 — enter as a positive number.
 </div>
 </CollapsibleSection>
 
-{/* Other income */}
 <CollapsibleSection title="OTHER INCOME">
 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
 <div>
@@ -955,7 +951,6 @@ From prior year Form 8582, Line 3 — enter as a positive number.
 ]} />
 </CollapsibleSection>
 
-{/* ISO */}
 <CollapsibleSection title="INCENTIVE STOCK OPTIONS (AMT)" defaultOpen={false}>
 <div style={{ fontSize: 12, color: SL, marginBottom: 12, lineHeight: 1.5, paddingTop: 8 }}>
 If you exercised ISOs this year and held the shares past year-end, the bargain element is an AMT preference item (Form 6251 Line 2i) — it increases your AMTI but does not create regular taxable income.
@@ -980,7 +975,6 @@ I exercised ISOs and held shares past year-end
 )}
 </CollapsibleSection>
 
-{/* Retirement & SS */}
 <CollapsibleSection title="RETIREMENT &amp; SOCIAL SECURITY INCOME">
 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 12 }}>
 <div>
@@ -1000,7 +994,6 @@ I exercised ISOs and held shares past year-end
 ]} />
 </CollapsibleSection>
 
-{/* Above-the-line deductions */}
 <CollapsibleSection title="ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)">
 <div style={{ fontSize: 12, color: SL, marginBottom: 12, paddingTop: 8 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1051,7 +1044,6 @@ return (
 ]} />
 </CollapsibleSection>
 
-{/* Deduction method */}
 <CollapsibleSection title="DEDUCTION METHOD">
 <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, paddingTop: 12 }}>
 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
@@ -1087,7 +1079,6 @@ Use itemized deductions <InfoTip text="Only itemize if your total itemized deduc
 )}
 </CollapsibleSection>
 
-{/* Estimated tax payments */}
 <CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
 <div style={{ paddingTop: 12 }}>
 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid. Do not include W-2 withholding here — enter that in the W-2 section above." /></label>
@@ -1151,7 +1142,6 @@ fontWeight: 700, fontSize: 14, cursor: 'pointer',
 
 </div>
 
-{/* RIGHT — Live Results */}
 <div style={{
 position: isMobile ? 'static' : 'sticky',
 top: 72,
@@ -1270,13 +1260,16 @@ vs. sole-prop SE tax on same distributions
 </div>
 </div>
 
-{/* Income Waterfall */}
 {(() => {
 const totalW2 = scaledW2 + scaledOfficerSal
 const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
 inputs.intInc + inputs.divInc + inputs.taxableSS +
 inputs.iraIncome + inputs.f4797Inc
-const totalGross = scaledK1 + totalW2 + totalOther
+// PASS5 EBL-FIX: Include the §461(l) excess business loss add-back so the
+// displayed "= Gross Income" matches calcTaxReturn's grossIncomeBeforeNOL.
+// When ebl > 0 the engine has already added it; omitting it here makes the
+// waterfall's gross income lower than the actual AGI, breaking reconciliation.
+const totalGross = scaledK1 + totalW2 + totalOther + ebl
 const aboveLine = Math.max(0, totalGross - (palCarryforwardApplied || 0) - agi)
 const dedAmt = useItemized ? computedItemizedAmt : standardDeduction
 const qbiDed = Math.max(0, agi - dedAmt - ordinaryTaxableIncome)
@@ -1309,6 +1302,17 @@ scaledK1
 )}
 {totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
 {totalOther !== 0 && wfRow('Other Income', totalOther)}
+{/* PASS5 EBL-FIX: Show the §461(l) denied loss as its own waterfall line.
+Without this, gross income jumps unexplained when EBL fires. */}
+{ebl > 0 && (
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #F8FAFC', background: '#FFF7ED' }}>
+<span style={{ fontSize: 12, color: '#9A3412', fontWeight: 500 }}>
+§461(l) Excess Business Loss Add-back
+<InfoTip text={`Your net business losses exceeded the §461(l) threshold of ${fmt(eblThreshold)} (2026 estimate). The denied ${fmt(ebl)} is added back to income — it converts to an NOL carryforward (§461(l)(2)). Enter it as "Prior-Year NOL Carryforward" in future years; it remains subject to the 80% taxable income cap per §172(a)(2).`} />
+</span>
+<span style={{ fontSize: 12, fontWeight: 600, color: '#9A3412' }}>{fmt(ebl)}</span>
+</div>
+)}
 {wfRow('= Gross Income', totalGross, true)}
 {palCarryforwardApplied > 0 && wfRow('§469 Carryforward Applied', palCarryforwardApplied, false, true)}
 {aboveLine > 0 && wfRow('Above-the-line deductions', aboveLine, false, true)}
@@ -1336,7 +1340,6 @@ scaledK1
 )
 })()}
 
-{/* Quarterly */}
 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
 <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
 {quarterDefs.map((q, i) => {
