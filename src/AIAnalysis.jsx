@@ -15,17 +15,12 @@ const P = '#7C3AED'
 const O = '#D97706'
 
 
-// Entity-type predicates (Issue #56) — tolerant of 'S Corporation' (canonical, with space)
-// and 'S-Corporation' (legacy, with hyphen) variants in saved or synthesized records.
 const isPassthroughEntity = (t) => /partnership|llc|s.?corp|sole/i.test(t || '')
 const isSCorpEntity      = (t) => /s.?corp/i.test(t || '')
 const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
-// F-C03/F-C04: Schedule C type predicate (mirrors TaxReturn.jsx isScheduleCType)
 const isScheduleCType    = (t) => /sole.prop|single.member|smllc/i.test(t || '')
 
 
-// F-06: returns the user's TOTAL W-2 wages (additional W-2 from non-S-Corp jobs +
-// aggregated officer salary across all S-Corp/C-Corp entities).
 function getTotalW2(rec) {
   if (!rec) return 0
   const f = rec.f1040 || {}
@@ -39,15 +34,11 @@ function getTotalW2(rec) {
 }
 
 
-// FIX (S-Corp field divergence): resolves both e.netProfit (legacy) and e.pnl?.netProfit
 function getEntityNetProfit(e) {
   return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
 }
 
 
-// F-C04: Compute per-entity-type K-1 income split from entities array.
-// Returns { sCorp: number, scheduleC: number } so IRSCompliance and the subtitle
-// can reference accurate per-form amounts instead of the combined k1Income total.
 function getEntityIncomeSplit(rec) {
   const entities = Array.isArray(rec?.entities) ? rec.entities : []
   const sCorp = entities
@@ -88,7 +79,6 @@ const fmt = n => n < 0 ? '($' + Math.abs(Math.round(n)).toLocaleString() + ')' :
 const pct = n => (parseFloat(n) || 0).toFixed(1) + '%'
 
 
-// ── Data helpers ─────────────────────────────────────────────────────────────
 function getAllRecords() {
   const found = []
   for (let i = 0; i < localStorage.length; i++) {
@@ -235,10 +225,6 @@ function missingFields(rec) {
 
 
 // ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
-// F-M18: Risk Scan now contains ONLY genuine risk flags (penalty risk, audit flags,
-// missing forms, QBI issues). Tax-saving suggestions (Advertising, Section 179) have
-// been removed — those belong exclusively in the Tax Optimization tab. This keeps the
-// signal-to-noise ratio high so users trust the Risk Scan as a true risk indicator.
 function RiskScan({ rec }) {
   if (!rec) return <NoData />
   const b = rec.biz || {}, f = rec.f1040 || {}
@@ -288,10 +274,6 @@ function RiskScan({ rec }) {
   const deadlines = { get month(){ return nextDeadline.label } }
   const month = 'month'
 
-  // F-C05b: Use rec.quarterly (from the full calcTaxReturn result saved by TaxReturn.jsx)
-  // when available — it includes SE tax, NIIT, AMT, and all credits, so it is far more
-  // accurate than roughTax (which is federal income tax only). Fall back to roughTax / 4
-  // only when the record was assembled from session state without a full calculation.
   const accurateQuarterly = (rec?.quarterly > 0) ? rec.quarterly : Math.round(roughTax / 4)
 
   const findings = []
@@ -336,7 +318,6 @@ function RiskScan({ rec }) {
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
-      // F-C05b: use accurateQuarterly (from rec.quarterly) instead of roughTax / 4
       action: `Estimated quarterly payment: approx. ${fmt(accurateQuarterly)}. Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
@@ -350,7 +331,6 @@ function RiskScan({ rec }) {
       action: `If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
   }
 
-  // QBI loss carryforward informational finding
   if (k1 < 0 && isPassthroughEntity(b.entityType)) {
     const qbiLoss = Math.abs(k1)
     findings.push({
@@ -371,8 +351,6 @@ function RiskScan({ rec }) {
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
-    // F-C02b: QBI aggregation disclosure — surfaces the Reg. §1.199A-4 assumption
-    // when multiple entity types (SE + non-SE) are combined above the income threshold.
     const _aggNote = _agg && _aggDisc ? ` ⚠ Aggregation assumed: ${_aggDisc}` : ''
     findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
       detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
@@ -384,12 +362,6 @@ function RiskScan({ rec }) {
       detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
       action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
   }
-
-  // F-M18: Advertising & Marketing finding REMOVED from Risk Scan.
-  // It is not a risk — it is a tax-saving opportunity. It is covered in Tax Optimization.
-
-  // F-M18: Section 179 / Equipment finding REMOVED from Risk Scan.
-  // It is a tax-saving strategy, not a risk alert. It is covered in Tax Optimization.
 
   if (rentalIncome > 0 || isREP) {
     if (isREP) {
@@ -403,8 +375,6 @@ function RiskScan({ rec }) {
     }
   }
 
-  // BUG-04: For prior-year tax sessions, all quarterly deadlines are past-due.
-  // Show a contextual past-due message instead of the next calendar-year deadline.
   if (isPastYear) {
     findings.push({ level: 'info', icon: '📅', title: `${year} Quarterly Deadlines — All Past Due`,
       detail: `All four ${year} quarterly estimated tax deadlines have passed (Apr 15, Jun 15, Sep 15 ${year}, Jan 15 ${year + 1}). If you missed payments, the IRS underpayment penalty (IRC §6654) applies at the current federal short-term rate + 3%.`,
@@ -417,6 +387,70 @@ function RiskScan({ rec }) {
       action: estPay > 0
         ? `Your recorded payments total ${fmt(estPay)}. Verify this covers 90% of current year tax or 100% of prior year tax to avoid penalties.`
         : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
+  }
+
+  // ── PASS4B-09: Three new Risk Scan findings ───────────────────────────────
+  // (1) §1366(d) Suspended Loss
+  // (2) REP + High W-2 Audit Risk
+  // (3) Deduction-to-Revenue Ratio (IRS DIF flag)
+  // Inserted before findings.sort() so they participate in the level-order sort.
+
+  // (1) Suspended S-Corp Loss — IRC §1366(d)
+  // rec.totalSuspendedLoss written by TaxReturn.jsx handleSave when basis engine
+  // detects suspended losses. Zero on all legacy records → no false positives.
+  const _suspendedLoss = Math.round(parseFloat(rec.totalSuspendedLoss || 0))
+  if (_suspendedLoss > 0) {
+    const _suspEntities = Array.isArray(rec.entityBasisResults)
+      ? rec.entityBasisResults.filter(r => r.suspended > 0)
+      : []
+    findings.push({
+      level: 'high',
+      icon: '🚨',
+      title: `S-Corp Loss Suspended — ${fmt(_suspendedLoss)} Not Deductible This Year (IRC §1366(d))`,
+      detail: `Your S-Corp K-1 loss exceeds your combined stock and debt basis. Under IRC §1366(d)(1), the deductible loss is limited to adjusted stock basis plus indebtedness basis. The suspended ${fmt(_suspendedLoss)} is NOT included in your current-year tax calculation — it carries forward and becomes deductible when you restore sufficient basis.` +
+        (_suspEntities.length > 0
+          ? '\n\n' + _suspEntities.map(r =>
+              `• ${r.name || r.type}: gross loss ${fmt(Math.abs(r.k1Gross))} | allowed ${fmt(Math.abs(r.k1Allowed))} | suspended ${fmt(r.suspended)}` +
+              (r.totalBasis != null ? ` (basis: ${fmt(r.totalBasis)})` : '')
+            ).join('\n')
+          : ''),
+      action: `To restore basis and unlock suspended losses: (1) Make additional capital contributions — increases stock basis per IRC §1367(a)(1)(A). (2) Loan money personally to the S-Corp — creates debt basis per §1367(b)(2)(A); must be a bona fide loan with documentation. (3) In a profitable future year suspended losses release automatically. File Form 7203 each year you have an S-Corp loss or distribution. Discuss basis restoration strategy with your CPA.`,
+    })
+  }
+
+  // (2) REP Status + High Outside W-2 Income — Audit Risk
+  // IRC §469(c)(7)(B): >50% of ALL personal services must be in real estate.
+  // Threshold: non-entity W-2 > $75K triggers the flag.
+  if (isREP) {
+    const _entitySalary = (Array.isArray(rec.entities) ? rec.entities : [])
+      .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
+    const _nonREW2 = Math.max(0, w2 - _entitySalary)
+    if (_nonREW2 > 75000) {
+      findings.push({
+        level: 'high',
+        icon: '🚨',
+        title: `REP Status With ${fmt(_nonREW2)} in Outside Employment — High Audit Risk`,
+        detail: `You have Real Estate Professional status selected alongside ${fmt(_nonREW2)} in W-2 income from non-real-estate employment. IRC §469(c)(7)(B) requires MORE THAN 50% of ALL personal services during the year to be in real property trades or businesses where you materially participate. With significant outside employment, you would need to document more real estate hours than all other work combined. The IRS actively targets this combination — it is one of the most frequently challenged positions in the pass-through entity / real estate space.`,
+        action: `If you qualify: (1) Maintain contemporaneous daily time logs for ALL activities — not a year-end reconstruction. Logs must show date, property, activity, and hours. (2) You must exceed 750 hours in real property trades/businesses AND >50% of total working time must be in real estate. (3) A §469(c)(7)(A) grouping election can simplify material participation tracking across multiple properties. If you cannot document the 50% test, uncheck REP — rental losses become passive and offset only passive income. Discuss documentation requirements with your CPA.`,
+      })
+    }
+  }
+
+  // (3) Deduction-to-Revenue Ratio > 140% — IRS DIF Audit Profile
+  // Fires when entity expenses exceed gross revenue by >40% and revenue > $10K.
+  const _totEntRev = (Array.isArray(rec.entities) ? rec.entities : [])
+    .reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
+  const _totEntExp = (Array.isArray(rec.entities) ? rec.entities : [])
+    .reduce((s, e) => s + (parseFloat(e?.pnl?.totalExpenses) || 0), 0)
+  if (_totEntRev > 10000 && _totEntExp > _totEntRev * 1.40) {
+    const _ratio = Math.round((_totEntExp / _totEntRev) * 100)
+    findings.push({
+      level: 'high',
+      icon: '🚨',
+      title: `Deductions Exceed Revenue by ${_ratio - 100}% — IRS Audit Profile`,
+      detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross revenue (${fmt(_totEntRev)}). Deductions substantially exceeding revenue place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed revenue in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
+      action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If deductions exceed revenue by >50%, discuss with your CPA before filing.`,
+    })
   }
 
   const levelOrder = { high: 0, medium: 1, info: 2, good: 3 }
@@ -462,7 +496,6 @@ function RiskScan({ rec }) {
 
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
-// Solo 401(k) employee deferral limits by tax year — Rev. Proc. 2024-40 (2025), 2023-34 (2024)
 const SOLO_401K_DEFERRAL_LIMITS = { 2024: 23000, 2025: 23500, 2026: 24000 /* estimated */ }
 
 function TaxOptimization({ rec }) {
@@ -486,7 +519,6 @@ function TaxOptimization({ rec }) {
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
 
-  // F-M20: Multi-entity subtitle — shows all entity types present, not just the first
   const entityTypes = Array.isArray(rec?.entities) && rec.entities.length > 0
     ? [...new Set(rec.entities.map(e => e?.type).filter(Boolean))]
     : [b.entityType || 'business']
@@ -543,14 +575,6 @@ function TaxOptimization({ rec }) {
         ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is 25% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max $70,000). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
         : `You can contribute up to ${fmt(maxSEP)} (~20% of net self-employment income after SE tax deduction, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
 
-      // F-C01 FIX: SEP-IRA deadline is entity-type-aware.
-      // For S-Corp employers, the deadline follows the S-Corp's return including extensions:
-      //   Form 1120-S due March 15 → extension to September 15.
-      //   The individual return extension (October 15) does NOT apply to employer
-      //   SEP-IRA contributions made by the S-Corp. Funding after September 15 but before
-      //   October 15 is TOO LATE for S-Corp SEP-IRA contributions.
-      // For sole proprietors, the deadline follows the individual return extension (October 15).
-      // Source: IRC §404(a)(6); IRS Pub. 560 (Retirement Plans for Small Business).
       const sepDeadline = isSCorpOwner
         ? 'your S-Corp\'s tax return due date including extensions — typically September 15 for S-Corporations (Form 1120-S). Note: October 15 (the individual return extension) does NOT extend the S-Corp\'s SEP-IRA funding deadline.'
         : 'your individual return due date including extensions — typically October 15.'
@@ -564,9 +588,6 @@ function TaxOptimization({ rec }) {
 
       if (isSCorpOwner) {
         const solo401kTaxSaved = Math.round(maxSolo401k * marginalRate)
-        // F-C01: Solo 401(k) plan document deadline is December 31 of the plan year.
-        // Employee deferrals must come from W-2 payroll. Employer contributions can be made
-        // up to the S-Corp's tax return due date including extensions (September 15).
         opportunities.push({
           icon: '💰', title: 'Solo 401(k) — Higher Contribution than SEP-IRA',
           priority: 'high',
@@ -634,7 +655,6 @@ function TaxOptimization({ rec }) {
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Tax-Saving Opportunities</h3>
-        {/* F-M20: subtitle now reflects all entity types when multiple are present */}
         <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {entitySubtitle} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -681,8 +701,6 @@ function IRSCompliance({ rec }) {
   const year = parseInt(b.year) || 2025
   const today = new Date()
 
-  // F-C04: Compute per-entity-type income split so the K-1 card shows only the
-  // S-Corp K-1 amount, not the combined total that includes Schedule C income.
   const { sCorp: sCorpK1Amount, scheduleC: scheduleCAmount } = getEntityIncomeSplit(rec)
   const hasScheduleC = scheduleCAmount !== 0 || isScheduleCType(entity)
   const hasSCorpK1 = sCorpK1Amount !== 0 || isSCorpEntity(entity)
@@ -693,10 +711,6 @@ function IRSCompliance({ rec }) {
 
   if (isSCorpEntity(entity) || hasSCorpK1) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
-    // F-C04: K-1 card now shows only the S-Corp K-1 amount (sCorpK1Amount), not the
-    // combined total (k1) which incorrectly included Schedule C income. The K-1 from a
-    // Form 1120-S covers only S-Corp ordinary business income per Box 1. Schedule C income
-    // is a separate form entirely and must have its own card below.
     schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(sCorpK1Amount || k1)} share of S-Corp ordinary business income (Box 1) flows to your personal return via this form. Your K-1 figures are reported on Schedule E, Part II — keep your K-1 as supporting documentation. The IRS does not require you to physically attach it to your 1040.`, deadline: `Issued with Form 1120-S` })
     schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
   }
@@ -705,9 +719,6 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: 'Your distributive share of partnership income, deductions, and credits. Reported on Schedule E, Part II — keep your K-1 as supporting documentation; the IRS does not require attaching it to your 1040.', deadline: 'Issued with Form 1065' })
   }
 
-  // F-C04: Schedule C and Schedule SE cards added for Sole Prop / SMLLC entities.
-  // Previously missing — these are required forms for any sole proprietor, and their
-  // income should NEVER appear in a K-1 (1120-S) card or Schedule E Part II summary.
   if (isScheduleCType(entity) || hasScheduleC) {
     schedules.push({
       form: 'Schedule C',
@@ -747,7 +758,6 @@ function IRSCompliance({ rec }) {
     const _sstbNote = (_useForm8995A && _hasSSTB && _taxableBeforeQBI > _qbiThreshold) ? ' SSTB activity detected at or above the income threshold — see Form 8995-A Schedule A for the §199A(d)(3) phase-in / phase-out of the QBI deduction for specified service trades or businesses.' : ''
     const _lossNote = (_useForm8995A && (_currentYearQbiLoss || _priorQbiLoss)) ? ' QBI loss detected — see Form 8995-A Schedule C for loss netting across qualified businesses and the §199A(c)(2) carryforward of negative QBI to subsequent years.' : ''
     const _coopNote = (_isCoopPatron && _useForm8995A) ? ' Co-op patron status flagged — see Form 8995-A Schedule D for the §199A(g)(2) patron reduction (lesser of 9% of QBI allocable to qualified payments or 50% of allocable W-2 wages); not currently calculated by this tool.' : ''
-    // F-C02b: note aggregation assumption on the QBI filing map card
     const _aggNote = _agg ? ' ⚠ QBI aggregation across entities assumed (Reg. §1.199A-4 election). Confirm formal election on this form.' : ''
     schedules.push({ form: _formNum, title: _formTitle, status: 'required', detail: `Your Qualified Business Income deduction of ~${fmt(_qbi)}${_limitApplied === 'wage' ? ` (limited by W-2 wage/UBIA cap; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'income' ? ` (capped by 20% of taxable income; reducing your deduction by ${fmt(_qbiGap)})` : _limitApplied === 'min400' ? ` (set to §199A(i) OBBBA minimum of ${fmt(_qbi)})` : ''} is reported here. Reduces taxable income without reducing AGI.${_sstbNote}${_lossNote}${_coopNote}${_aggNote}`, deadline: 'Filed with Form 1040' })
   }
@@ -760,12 +770,6 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
-  // F-H07: Schedule 1 description corrected. S-Corp K-1 income flows to Schedule E Part II,
-  // NOT to Schedule 1. Schedule 1 consolidates: Schedule C net profit (sole prop),
-  // above-the-line deductions (½ SE tax, retirement contributions, health insurance),
-  // rental income from Schedule E, capital gains from Schedule D, and other adjustments.
-  // The previous description ("Reports K-1 income, rental income, capital gains...")
-  // conflated Schedule 1 with Schedule E, creating an inaccurate form routing picture.
   const schedule1Detail = hasScheduleC
     ? `Schedule 1 consolidates your Schedule C net profit (${fmt(scheduleCAmount || k1)}), above-the-line deductions (½ SE tax, retirement contributions, self-employed health insurance), and any other adjustments. Part I additional income flows to Form 1040 Line 8; Part II deductions flow to Line 10.`
     : 'Schedule 1 consolidates above-the-line deductions (retirement plan contributions, self-employed health insurance, student loan interest) and other income adjustments. Part II deductions flow to Form 1040 Line 10. Note: S-Corp K-1 income flows to Schedule E Part II, not Schedule 1.'
@@ -849,16 +853,12 @@ function IRSCompliance({ rec }) {
     daysAway: Math.ceil((new Date(d.date) - today) / 86400000),
   }))
 
-  // F-M19: Grammar fix — use "an" before entity types starting with a vowel sound.
-  // "an S Corporation" / "an S-Corp" — 'S' is pronounced 'ess' (starts with vowel sound).
-  // "a Sole Proprietor" / "a Partnership" / "a C Corporation" — consonant sounds.
   const entityArticle = /^[aeiou]/i.test(entity) || /^s[\s-]/i.test(entity) ? 'an' : 'a'
 
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Your IRS Filing Map</h3>
-        {/* F-M19: "for an S Corporation" not "for a S Corporation" */}
         <p style={{ fontSize: 13, color: SL, margin: 0 }}>Forms and schedules required for {entityArticle} {entity} filing {year} taxes. Based on your saved record.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
@@ -1293,9 +1293,6 @@ export default function AIAnalysis() {
   const missing = missingFields(rec)
   const b = rec?.biz || {}
 
-  // F-H09: Dynamic subtitle — shows all entity types when multiple are present,
-  // not just the first entity. Replaces the hardcoded "S Corporation" label that
-  // appeared regardless of how many entity types the user actually had.
   const entityTypes = Array.isArray(rec?.entities) && rec.entities.length > 0
     ? [...new Set(rec.entities.map(e => e?.type).filter(Boolean))]
     : [b.entityType || 'Business']
@@ -1303,15 +1300,8 @@ export default function AIAnalysis() {
     ? entityTypes.join(' + ')
     : entityTypes[0] || 'Business'
 
-  // F-05: isUnsaved — true when getRecord() returned session state that has not
-  // been saved as a record. The _unsaved flag is set by getRecord() for all
-  // session-state paths. Used to show the save prompt banner below.
   const isUnsaved = !!(rec?._unsaved)
 
-  // F-C05b: Stale data detection — compares the session's last calculated timestamp
-  // (written by TaxReturn.jsx handleSave as calculatedAt) against when the record
-  // was saved (savedAt). When calculatedAt > savedAt, the user has changed inputs
-  // since the last save and the AI analysis figures may not match the calculator.
   const liveCalcAt = rec?.calculatedAt
   const savedAt = rec?.savedAt
   const isStale = rec && !rec._unsaved && liveCalcAt && savedAt
@@ -1339,16 +1329,12 @@ export default function AIAnalysis() {
         <h2 style={{ fontSize: 28, fontWeight: 800, color: N, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
           AI Risk &amp; Tax Analysis
         </h2>
-        {/* F-H09 / F-05: subtitle reflects all entity types and data state */}
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', lineHeight: 1.5 }}>
           Analyzing your {entitySubtitle}
           {rec
             ? isUnsaved
               ? ' — unsaved session data'
               : (() => {
-                  // ADD-01: Show human-readable record name. Fall back to formatted date
-                  // if no name exists (pre-F03 records saved from TaxReturn.jsx without
-                  // the NameRecordModal). Never show raw ISO timestamps to users.
                   const displayName = rec.name
                     || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
                         ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -1371,7 +1357,7 @@ export default function AIAnalysis() {
           </div>
         )}
 
-        {/* F-C05b: Stale data banner — saved record exists but session has changed */}
+        {/* F-C05b: Stale data banner */}
         {isStale && (() => {
           const recDisplayName = rec?.name
             || (rec?.savedAt ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'your last saved record')
