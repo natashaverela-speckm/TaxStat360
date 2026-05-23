@@ -143,14 +143,10 @@ const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarry
 const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
 const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
 const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
-// FIX (REP-PERSIST): isREP and isActiveParticipant were previously initialized from
-// useState(false/true) with no persistence — they reset to defaults on every page
-// load. Both are now read from savedF1040 (writePersonalContext below) so user
-// selections survive navigation away from TaxReturn and back.
 const [isREP, setIsREP] = React.useState(savedF1040.isREP || false)
 const [repHours, setRepHours] = React.useState(() => parseInt(localStorage.getItem('ts360_rep_hours') || '0'))
 const [isActiveParticipant, setIsActiveParticipant] = React.useState(
-savedF1040.isActiveParticipant !== false // undefined (new user) → true; explicit false preserved
+savedF1040.isActiveParticipant !== false
 )
 const [rentalIncome, setRentalIncome] = React.useState(0)
 const [rentalExpenses, setRentalExpenses] = React.useState(0)
@@ -177,10 +173,8 @@ const [priorYearAGI, setPriorYearAGI] = React.useState(savedF1040.priorYearAGI |
 const [showWaterfall, setShowWaterfall] = React.useState(true)
 const [saveStatus, setSaveStatus] = React.useState(null)
 const [isDirty, setIsDirty] = React.useState(false)
-// UX-03: unsaved navigation guard
 const [showUnsavedModal, setShowUnsavedModal] = React.useState(false)
 const [pendingNavPath, setPendingNavPath] = React.useState(null)
-// UX-04: active record context (set by Dashboard when a record is loaded)
 const activeRecordName = React.useMemo(
 () => sessionStorage.getItem('ts360_active_record_name') || null,
 // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,8 +209,6 @@ setSaveStatus(null)
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [_dirtySignal])
 
-// FIX (REP-PERSIST): isREP and isActiveParticipant added to writePersonalContext
-// so REP status survives page navigation. Also added to dependency array below.
 React.useEffect(() => {
 writePersonalContext({
 filingStatus: status,
@@ -297,10 +289,6 @@ saltAmount: nv(saltPaid),
 priorYearTax: nv(priorYearTax),
 priorYearAGI: nv(priorYearAGI),
 entities: entitiesForCalc,
-// F-04: Wire prior year §469 passive loss carryforward into the engine.
-// taxCalc.js applies this to offset rental income when the property is profitable
-// this year (IRC §469(b)). Previously collected from the user but never sent here —
-// the field note said "full calculation integration in progress." Now integrated.
 priorPassiveLossCarryforward: nv(priorPassiveLossCarryforward),
 }
 
@@ -317,13 +305,9 @@ agi = 0,
 stdDed: standardDeduction = 0,
 seTax: selfEmploymentTax = 0,
 additionalMedicare = 0,
-// FIX (TAX-04): calcTaxReturn now returns niit as an object { applies, amount, explanation }.
-// Using the backward-compat niitAmount alias (plain number) so all existing
-// niit > 0 and fmt(niit) calls below work without modification.
 niitAmount: niit = 0,
 amt: amtAmount = 0,
 palSuspendedRental = 0,
-// F-04: Amount of prior §469 carryforward applied to offset rental income this year.
 palCarryforwardApplied = 0,
 ebl = 0,
 quarterlyRecommended: quarterly = 0,
@@ -340,19 +324,18 @@ scheduleEK1Income = 0,
 scheduleCSEIncome = 0,
 qbiAggregationApplied = false,
 qbiAggregationDisclosure = null,
-// TC-09: Employee-side FICA on W-2 salary
 employeeFICA = 0,
 totalW2ForFICA = 0,
-// TC-10: FICA savings from S-Corp structure
 ficaSavings = 0,
 ssWageBase: ficaSSWageBase = 176100,
 ssWageBaseRoom = 0,
 k1Distributions = 0,
+// PASS4B-02: §1366(d) basis limitation results from taxCalc.js.
+// entityBasisResults: per-entity { name, type, k1Gross, k1Allowed, suspended }.
+// totalSuspendedLoss: aggregate dollars suspended (positive); 0 on all legacy records.
+entityBasisResults = [],
+totalSuspendedLoss = 0,
 } = result
-
-// FIX (STATE-TAX): Read user's state effective tax rate from Settings preference.
-// ADD-02: This is a federal tax planning app. No state numbers included.
-// stateTaxRate and estStateTax removed — state estimate feature removed.
 
 const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
 const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
@@ -402,12 +385,6 @@ const quarterDefs = [
 const priorYearHighThreshold = status === 'mfs' ? 75000 : 150000
 const priorYearMultiplierLabel = nv(priorYearAGI) > priorYearHighThreshold ? '110%' : '100%'
 
-// ── F-05: handleSave now accepts opts.thenNavigate ────────────────────────────
-// When opts.thenNavigate is provided (e.g. '/ai-analysis'), the save completes
-// synchronously and then nav() is called — no status banner is shown because
-// the user is leaving the page. This powers the "Save & Analyze →" button
-// without duplicating the save logic.
-// UX-03: Browser/tab close guard — standard browser dialog fires when isDirty
 React.useEffect(() => {
 if (!isDirty) return
 const handler = (e) => { e.preventDefault(); e.returnValue = '' }
@@ -415,8 +392,6 @@ window.addEventListener('beforeunload', handler)
 return () => window.removeEventListener('beforeunload', handler)
 }, [isDirty])
 
-// UX-03: In-app navigation guard — intercepts header button clicks when isDirty.
-// Shows a 3-option modal: Stay on Page | Leave Without Saving | Save & Leave.
 const handleNavSafe = React.useCallback((path) => {
 if (isDirty) {
 setPendingNavPath(path)
@@ -448,10 +423,6 @@ const email = localStorage.getItem('ts360_email') || 'default'
 const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
 const record = {
 id: Date.now(),
-// BUG-03: Records saved from Step 2 previously had no name field, causing
-// Dashboard and AI Analysis to fall back to the formatted savedAt date.
-// Auto-generate a meaningful name using entity type, tax year, and revenue —
-// identical to the generateRecordName logic in CalculateTaxInner.jsx (F-03).
 name: (() => {
 const primary = entities[0]
 const typeShort = {
@@ -495,6 +466,9 @@ isActiveParticipant,
 k1Income: k1Total,
 totalTax: Math.round(totalTax),
 quarterly: Math.round(quarterly),
+// PASS4B-02: Save basis limitation results so AI Analysis Risk Scan can surface them.
+totalSuspendedLoss: Math.round(totalSuspendedLoss),
+entityBasisResults,
 }
 existing.unshift(record)
 localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
@@ -502,7 +476,6 @@ localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
 setIsDirty(false)
 
 if (opts.thenNavigate) {
-// Navigate immediately — no status banner needed since we're leaving the page
 nav(opts.thenNavigate)
 } else {
 setSaveStatus('saved')
@@ -520,7 +493,6 @@ return (
 <span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
 </div>
 <div style={{ background: '#2563EB', color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
-{/* UX-04: Show which record is being edited so the user has context across views */}
 {activeRecordName && (
 <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
 <span style={{ color: '#94A3B8' }}>Editing:</span> {activeRecordName}
@@ -665,6 +637,34 @@ Total K-1 Income
 ⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
 </div>
 )}
+{/* PASS4B-06: Suspended loss banner — shown when the §1366(d) engine has computed
+an actual suspension amount. totalSuspendedLoss is 0 on all legacy records and
+when no basis data has been entered — so this never shows by default. */}
+{totalSuspendedLoss > 0 && (
+<div style={{ marginTop: 8, background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#991B1B' }}>
+<div style={{ fontWeight: 700, marginBottom: 6 }}>
+🚨 S-Corp Loss Suspended — {fmt(totalSuspendedLoss)} Not Deductible This Year (IRC §1366(d))
+</div>
+<div style={{ lineHeight: 1.65, marginBottom: 6 }}>
+Your K-1 loss exceeds your combined stock and debt basis. The suspended{' '}
+<strong>{fmt(totalSuspendedLoss)}</strong> is excluded from this year's tax calculation
+and carries forward — it becomes deductible when you restore sufficient basis
+(e.g., via capital contributions per IRC §1367(a)(1)(A)).
+The tax liability shown reflects only the allowable deductible portion.
+</div>
+{entityBasisResults.filter(r => r.suspended > 0).map((r, i) => (
+<div key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: '2px solid #FCA5A5', fontSize: 11 }}>
+<strong>{r.name || r.type}:</strong> gross loss {fmt(Math.abs(r.k1Gross))} ·
+allowable {fmt(Math.abs(r.k1Allowed))} ·
+suspended {fmt(r.suspended)}
+{r.totalBasis != null ? ` (basis: ${fmt(r.totalBasis)})` : ''}
+</div>
+))}
+<div style={{ marginTop: 6, color: '#7F1D1D', fontSize: 11 }}>
+File Form 7203 with your return. Discuss basis restoration strategy with your CPA.
+</div>
+</div>
+)}
 {(() => {
 const hasWages = entities.some(e =>
 parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary)
@@ -797,9 +797,6 @@ Real Estate Professional
 </label>
 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SL, cursor: 'pointer' }}>
 
-{/* REP 750-hour tracker — IRC §469(c)(7) requires >750 hours AND >50% of
-all personal services in real property trades. Hours input lets users
-track progress against the threshold during the year. */}
 {isREP && (
 <div style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.18)', borderRadius: 8, padding: '10px 14px', marginTop: 8, marginBottom: 4 }}>
 <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 6 }}>
@@ -869,14 +866,12 @@ Active Participant
 </div>
 </div>
 
-{/* F-04: Prior Year Passive Loss Carryforward — now fully integrated */}
 <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
 Prior Year Passive Loss Carryforward (§469)
 <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). When your rental is profitable this year, this carryforward offsets rental income dollar-for-dollar before other income — reducing taxable income by that amount (IRC §469(b)). When rental generates a loss, the carryforward pools with the current-year suspended loss and carries forward again. Released in full when you sell the property. Enter as a positive number." />
 </label>
 <MoneyInput value={priorPassiveLossCarryforward} onChange={setPriorPassiveLossCarryforward} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-{/* F-04: Dynamic note replaces the previous "in progress" placeholder */}
 <div style={{ fontSize: 10, color: SL, marginTop: 3, lineHeight: 1.4 }}>
 From prior year Form 8582, Line 3 — enter as a positive number.
 {palCarryforwardApplied > 0
@@ -1033,7 +1028,6 @@ I exercised ISOs and held shares past year-end
 <label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans <InfoTip text={`For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16.\n\nSEP-IRA: up to 25% of W-2 salary (IRS max $70,000 for 2025). Requires $280,000 in W-2 compensation to reach the $70,000 limit.\n\nSolo 401(k) employee deferrals: up to $23,500 for 2025, plus employer match up to 25% of W-2 salary.\n• Age 50–59 and 64+: Add $7,500 catch-up ($31,000 total employee deferral).\n• Age 60–63: Add $11,250 catch-up ($34,750 total) per SECURE 2.0 Act (P.L. 117-328, §109).\n\nFor sole proprietors: based on net self-employment earnings × 0.9235.`} /></label>
 <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
-{/* TC-04: Show actual SEP-IRA max based on officer salary so users don't expect $70K when their real limit is lower */}
 {scaledOfficerSal > 0 && (() => {
 const sepActualMax = Math.min(70000, Math.round(scaledOfficerSal * 0.25))
 return (
@@ -1129,9 +1123,6 @@ For growing businesses, paying <strong>100%/110% of last year's tax</strong> may
 </div>
 </CollapsibleSection>
 
-{/* BUG-02 FIX: Bottom save CTAs — visible on mobile and for users who scroll
-to the bottom of the left column without noticing the sticky right panel.
-Mirrors the Save buttons in the right panel exactly. */}
 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
 <button
 onClick={() => handleSave()}
@@ -1183,7 +1174,6 @@ Federal only — state income tax not included. Your total tax burden will be hi
 {effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
 </div>
 
-{/* L-04: Dynamic "Remaining Tax Owed" box. */}
 {totalPayments === 0 && balance > 0 ? (
 <div style={{ background: 'rgba(100,116,139,0.12)', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 12, padding: '14px 18px', marginBottom: 16 }}>
 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4, letterSpacing: '0.5px' }}>FULL LIABILITY — NO PAYMENTS RECORDED</div>
@@ -1200,7 +1190,6 @@ Enter estimated payments below to see your remaining balance.
 </div>
 )}
 
-{/* Tax component breakdown */}
 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
 <span style={{ color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
@@ -1405,10 +1394,6 @@ Pay this each quarter to avoid §6654 penalty
 </div>
 </div>
 
-{/* Save buttons — right sticky panel */}
-{/* F-05: "Save This Record" persists the data without navigating.
-"💾 Save & Analyze →" saves and immediately opens AI Analysis — the
-recommended flow for getting risk findings after completing Step 2. */}
 <button
 onClick={() => handleSave()}
 style={{
@@ -1422,7 +1407,6 @@ transition: 'background 0.3s',
 {saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
 </button>
 
-{/* F-05: Save & Analyze — saves first, then navigates to AI Analysis */}
 <button
 onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
 style={{
@@ -1437,8 +1421,6 @@ fontWeight: 700, fontSize: 14, cursor: 'pointer',
 </div>
 </div>
 
-{/* UX-03: Unsaved changes modal — fires when isDirty and user clicks a nav button.
-Three options: Stay (default), Leave without saving, Save & Leave. */}
 {showUnsavedModal && (
 <div
 onClick={() => setShowUnsavedModal(false)}
