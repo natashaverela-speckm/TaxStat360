@@ -11,24 +11,23 @@
 // Import from here — never hard-code these values in individual component or utility files.
 // When a new tax year is released, only taxCalc.js TAX_TABLES needs updating.
 //
-// ── Centralization audit (last updated with this file) ──────────────────────
-// VIOLATION FOUND: AIAnalysis.jsx defines a local SOLO_401K_DEFERRAL_LIMITS object
-//   { 2024: 23000, 2025: 23500, 2026: 24000 }
-// This is a year-specific dollar figure and should live in TAX_TABLES[year].retirement
-// in taxCalc.js. Migration tracked as constants-centralization-01.
-// ⚠️  ACTION REQUIRED BEFORE 2026 TAX YEAR: The 2026 deferral limit ($24,000) hardcoded
-// in AIAnalysis.jsx will become stale when the IRS announces the 2026 COLA adjustment
-// (typically October). If this migration is not completed before that announcement,
-// AIAnalysis.jsx will silently display the wrong limit. Create a GitHub issue to track.
-// Until that PR lands, AIAnalysis.jsx continues to use its local constant — the current
-// dollar amounts are correct and the component functions correctly.
+// ── Centralization audit (last updated with audit fix CC-M01/M02/M03) ────────
+// RESOLVED (constants-centralization-01): AIAnalysis.jsx previously defined a local
+//   SOLO_401K_DEFERRAL_LIMITS object { 2024: 23000, 2025: 23500, 2026: 24000 }.
+//   Migrated to TAX_TABLES[year].retirement.solo401kDeferral in taxCalc.js.
+//   AIAnalysis.jsx now reads getTable(year).retirement?.solo401kDeferral ?? 23500.
+//   The stale-2026-value risk is eliminated — update TAX_TABLES when IRS announces COLA.
 //
 // RESOLVED (fix/constants-labels PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-// as a local const. Centralized here and Dashboard.jsx updated to import it in the same PR.
-// constants-centralization-03 complete.
+//   as a local const. Centralized here and Dashboard.jsx updated to import it in the same PR.
+//   constants-centralization-03 complete.
+//
+// RESOLVED (F-M02): The 0% ownership falsy evaluation pattern was previously documented as
+//   an "accepted trade-off." It has been fixed — see entityPredicates.js ownPct() helper.
+//   All call sites in taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, and Dashboard.jsx updated.
 //
 // ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
-// taxCalc.js TAX_TABLES[year] should include a `retirement` object with:
+// taxCalc.js TAX_TABLES[year] now includes a `retirement` object with:
 //   sepIraMax         — §415(c) overall SEP-IRA limit
 //   solo401kDeferral  — employee elective deferral limit
 //   solo401kMax       — §415(c) overall Solo 401(k) limit (excl. catch-up)
@@ -36,8 +35,7 @@
 //   catchUp401kSuper  — SECURE 2.0 enhanced catch-up ages 60–63
 //   iraLimit          — Traditional / Roth IRA limit
 //   catchUpIra        — IRA catch-up age ≥ 50 ($1,000; not inflation-adjusted)
-// Until that TAX_TABLES key is added, components must reference dollar limits locally
-// or use Math.min(SEP_MAX_FALLBACK, ...) style guards. Tracked as constants-centralization-02.
+// constants-centralization-02 complete.
 //
 // ── AMT exemptions and phase-out ranges ─────────────────────────────────────
 // AMT_RATE_LOW and AMT_RATE_HIGH (permanent rates) are defined in this file.
@@ -233,8 +231,7 @@ export const UBIA_RATE          = 0.025  // IRC §199A(b)(2)(B)(ii) — 2.5% of 
 
 // ─── RETIREMENT PLANS ─────────────────────────────────────────────────────────
 // Contribution RATES are permanent (defined here).
-// Dollar LIMITS are year-specific and belong in TAX_TABLES[year].retirement (taxCalc.js).
-// See architecture note at top of this file for migration status.
+// Dollar LIMITS are year-specific and live in TAX_TABLES[year].retirement (taxCalc.js).
 
 // ── SEP-IRA — IRC §408(k); §402(h) ───────────────────────────────────────────
 // Employer-only contribution. For S-Corp shareholder-employees:
@@ -243,7 +240,7 @@ export const UBIA_RATE          = 0.025  // IRC §199A(b)(2)(B)(ii) — 2.5% of 
 //   - S-Corp makes the contribution at the entity level (deductible on Form 1120-S)
 //   - Max contribution = lesser of (SEP_IRA_RATE × W-2) OR dollar limit in TAX_TABLES
 //   - Deadline: entity tax filing date including extensions
-//     → S-Corp (Form 1120-S): September 15 (NOT October 15 — see F-C01 audit fix)
+//     → S-Corp (Form 1120-S): September 15 (NOT October 15 — see LBL-I01 audit fix)
 //     → Sole Prop (Form 1040): October 15
 export const SEP_IRA_RATE = 0.25   // 25% of W-2 compensation — IRC §402(h)(2)(A)
 
@@ -318,18 +315,3 @@ export const PRICE_PROFESSIONAL_MONTHLY = 149  // USD/month
 export const PRICE_ENTERPRISE_MONTHLY   = 299  // USD/month
 export const ANNUAL_BILLING_MONTHS      = 10   // months charged on annual plan (2 months free)
 export const ANNUAL_DISCOUNT_LABEL      = 'Save 2 months'  // display copy — update if discount changes
-
-// ─── OWNERSHIP PERCENTAGE FALLBACK ────────────────────────────────────────────
-// Throughout the codebase, entity ownership is parsed as:
-//   (parseInt(e.own) || 100) / 100
-// This pattern defaults to 100% for any missing or invalid value (NaN from '', undefined,
-// null, or non-numeric input), which is the correct behavior for the most common user
-// scenario (sole owner = 100% automatically when the field is blank).
-//
-// Known limitation: explicit '0' ownership is also treated as 100% because 0 is falsy
-// in JavaScript and triggers the || fallback. This is an accepted trade-off — a 0%
-// ownership stake (silent partner with no income allocation) is not a realistic scenario
-// for TaxStat360's target users (business owners and real estate investors who are
-// active majority owners). If 0% ownership becomes a real use case, replace the
-// || fallback with Number.isFinite() at all call sites.
-// Tracked as F-07-followup-A in the audit followup list.
