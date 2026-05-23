@@ -2,13 +2,18 @@
 // Design token constants for TaxStat360.
 // Import from here instead of hard-coding hex values in components.
 // All components currently use inline styles — these tokens keep colors consistent.
+//
+// Migration status (CC-M01): Dashboard.jsx, AIAnalysis.jsx, TaxReturn.jsx, and
+// EntityCompareModal.jsx now import from here instead of defining local consts.
 
 // ── Brand palette ──────────────────────────────────────────────────────────────
-export const NAVY  = '#0D1B3E'  // primary text, nav background, hero sections
-export const BLUE  = '#2563EB'  // primary action, links, focus rings
-export const SLATE = '#475569'  // secondary text, labels, muted UI
-export const GREEN = '#16a34a'  // positive values, success states
-export const RED   = '#dc2626'  // negative values, error states
+export const NAVY   = '#0D1B3E'  // primary text, nav background, hero sections
+export const BLUE   = '#2563EB'  // primary action, links, focus rings
+export const SLATE  = '#475569'  // secondary text, labels, muted UI
+export const GREEN  = '#16a34a'  // positive values, success states
+export const RED    = '#dc2626'  // negative values, error states
+export const ORANGE = '#D97706'  // amber/orange — warnings, dollar highlights
+export const PURPLE = '#7C3AED'  // purple — AI features, position documentation
 
 // ── Semantic aliases (use these in components, not raw hex) ────────────────────
 export const COLOR_TEXT_PRIMARY   = NAVY
@@ -41,10 +46,20 @@ export const AMBER_BG     = '#FEF3C7'
 export const AMBER_BORDER = '#F59E0B'
 export const AMBER_TEXT   = '#92400E'
 
+// ── Red / danger ──────────────────────────────────────────────────────────────
+export const RED_BG     = '#FEE2E2'
+export const RED_BORDER = '#DC2626'
+export const RED_TEXT   = '#7F1D1D'
+
 // ── Info / blue tints ─────────────────────────────────────────────────────────
 export const INFO_BG     = '#EFF6FF'
 export const INFO_BORDER = '#BFDBFE'
 export const INFO_TEXT   = '#1E40AF'
+
+// ── Success / green tints ─────────────────────────────────────────────────────
+export const SUCCESS_BG     = '#F0FDF4'
+export const SUCCESS_BORDER = '#86EFAC'
+export const SUCCESS_TEXT   = '#166534'
 
 // ── Surface / neutral ─────────────────────────────────────────────────────────
 export const SURFACE        = '#F8FAFC'  // page background
