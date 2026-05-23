@@ -8,11 +8,6 @@ import { parseMoney } from './utils/parseMoney.js'
 import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
-// FIX (dead-imports): calcFederalTax, calcQBI, and getStdDed were imported but never
-// called in this file. All tax calculation happens in TaxReturn.jsx (Step 2).
-// CalculateTaxInner.jsx is Step 1 only — entity data collection and P&L entry.
-// Removed to keep the import surface accurate and avoid misleading future readers
-// into thinking this file computes income tax.
 import { signOut } from './utils/signOut'
 
 const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
@@ -72,27 +67,13 @@ return(
 )
 }
 
-// ── F-H23: Reasonable Compensation Indicator ──────────────────────────────────
-// TC-03: Reframed from "IRS benchmark" to practitioner recommendation.
-// Tax practitioners commonly recommend a salary-to-total-compensation ratio of
-// 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008
-// (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is
-// no published safe harbor percentage. Rev. Rul. 74-44; IRC §162.
-// Level: 'none' — no salary entered (only shown if netProfit > $20K)
-// 'low' — salary < 35% of net profit (and net profit > $30K)
-// 'ok' — salary >= 35% of net profit
 function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
 const isCorp = ['S Corporation', 'C Corporation'].includes(entityType)
 if (!isCorp || netProfit <= 0) return null
 
 const salary = parseFloat(officerSalary) || 0
-// BUG-02: Watson formula — ratio is salary as % of TOTAL S-Corp compensation
-// (salary + distributions), not salary as % of net profit alone.
-// Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
-// Dashboard and taxCalc.js both use salary/(salary+k1) — now consistent.
 const totalComp = salary + netProfit
 const ratio = totalComp > 0 ? salary / totalComp : 0
-// minTarget: salary needed to reach 35% of totalComp = 0.35/(1-0.35) * netProfit
 const minTarget = Math.round(0.35 / 0.65 * netProfit)
 
 if (salary === 0 && netProfit > 20000) {
@@ -119,16 +100,6 @@ return (
 return null
 }
 
-// ── F-03: Auto-name generator ─────────────────────────────────────────────────
-// Builds a human-readable record name from entity type, tax year, and revenue.
-// Used as the pre-filled default in the NameRecordModal so users can accept
-// it with one click or customize it before saving.
-//
-// Format: "{TypeShort} — {Year} — {Revenue}"
-// Examples:
-// "S-Corp — 2025 — $250K Revenue"
-// "Partnership — 2025 — $1.2M Revenue"
-// "Sole Prop — 2025" (no revenue entered yet)
 function generateRecordName(entities, taxYear) {
 const primary = entities[0]
 const entityType = primary?.type || 'S Corporation'
@@ -155,11 +126,6 @@ revenueStr = '$' + Math.round(revenue) + ' Revenue'
 return [typeShort, String(year), revenueStr].filter(Boolean).join(' — ')
 }
 
-// ── F-03: Name Record Modal ───────────────────────────────────────────────────
-// Shown when the user clicks "Save Record" and data is present.
-// Pre-filled with the auto-generated name from generateRecordName().
-// User can accept the default, edit it, or cancel.
-// Pressing Enter submits; clicking the backdrop cancels.
 function NameRecordModal({ defaultName, onConfirm, onCancel }) {
 const [name, setName] = React.useState(defaultName)
 const trimmed = name.trim()
@@ -242,6 +208,9 @@ const[manExp,setManExp]=React.useState(()=>ent.pnl ? ((ent.pnl.totalExpenses || 
 const[manOfficerSal,setManOfficerSal]=React.useState(()=>ent.pnl?.officerSalary ?? 0)
 const[showDetails,setShowDetails]=React.useState(false)
 const[showAdvK1,setShowAdvK1]=React.useState(false)
+// PASS4B-07: §1366(d) basis section — collapsed by default to keep the card clean.
+// Only rendered for S-Corp and Partnership entities (the types subject to basis limitation).
+const[showBasis,setShowBasis]=React.useState(false)
 const [nameError, setNameError] = React.useState(null)
 const color=COLORS[idx%COLORS.length]
 const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
@@ -249,13 +218,9 @@ const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,te
 
 async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/integrations/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
 function connectSoftware(pid){
-// Store entity index so callback can route data to the right entity card
 sessionStorage.setItem('ts360_connecting_entity', idx);
-// Pass session token as OAuth state so EC2 callback can identify the user
 const tok = localStorage.getItem('token') || '';
 const state = encodeURIComponent('ts360|' + tok + '|' + idx);
-// All 4 providers route through the EC2 backend /integrations/{provider}/connect
-// which builds the correct OAuth redirect with client_id, redirect_uri and scope.
 window.location.href = API_BASE_URL + '/integrations/' + pid + '/connect?state=' + state;
 }
 
@@ -420,6 +385,88 @@ Specified Service Trade or Business (SSTB) <InfoTip text="SSTBs (law, health, co
 </div>
 </div>
 )}
+
+{/* PASS4B-08: S-Corp / Partner Basis (IRC §1366(d) / §704(d))
+Shown only for S-Corps and Partnerships — the entity types where the
+shareholder/partner basis limitation applies. C-Corps and sole props
+do not have this concept (sole props file Schedule C with no stock basis).
+stockBasis: Form 7203 Line 1 (beginning of year adjusted stock basis).
+debtBasis: Form 7203 Part II (loans from shareholder to the S-Corp).
+When entered, taxCalc.js computes the allowable deductible loss.
+Leaving both blank = legacy behavior (full loss passes through). */}
+{/s.?corp|partner/i.test(ent.type || '') && (
+<div style={{gridColumn:'1/-1', marginTop: 10}}>
+<button
+onClick={()=>setShowBasis(v=>!v)}
+style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:'#7C3AED',cursor:'pointer',
+letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}
+>
+{showBasis?'▲':'▼'} Shareholder Basis (IRC §1366(d)) — optional but important for losses
+</button>
+{showBasis && (
+<div style={{marginTop:10,padding:'14px 16px',background:'#F5F3FF',borderRadius:8,border:'1px solid #DDD6FE'}}>
+<div style={{fontSize:12,color:'#5B21B6',marginBottom:10,lineHeight:1.6}}>
+Enter your basis to activate the §1366(d) loss limitation engine. When the K-1 shows a loss
+that exceeds your combined stock + debt basis, only the allowable portion flows through to
+your personal return — the suspended remainder carries forward. Leave both fields blank to
+skip the check (losses pass through unchanged, as in prior releases).
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+<div>
+<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
+Stock basis — beginning of this tax year
+<InfoTip below text="Your adjusted stock basis at the START of this year (Form 7203 Line 1). Increases with capital contributions and S-Corp income; decreases with losses and distributions. If prior years reduced it to $0, enter 0." />
+</label>
+<MoneyInput
+value={ent.stockBasis ?? ''}
+onChange={n => onUpdate(idx, {...ent, stockBasis: n})}
+placeholder="0"
+style={{...inp, border:'1px solid #DDD6FE'}}
+/>
+</div>
+<div>
+<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
+Loans from shareholder to S-Corp (debt basis)
+<InfoTip below text="Bona fide loans YOU personally made to the S-Corp (Form 7203 Part II). NOT bank loans to the corp. If none, leave blank. Creates additional deductible loss capacity beyond stock basis." />
+</label>
+<MoneyInput
+value={ent.debtBasis ?? ''}
+onChange={n => onUpdate(idx, {...ent, debtBasis: n})}
+placeholder="0"
+style={{...inp, border:'1px solid #DDD6FE'}}
+/>
+</div>
+</div>
+{/* Live suspended-loss preview */}
+{(()=>{
+const own=(parseFloat(ent.own)||100)/100
+const k1Val=ent.k1!==undefined?parseFloat(ent.k1)||0:Math.round((parseFloat(ent.pnl?.netProfit||0))*own)
+const hasBasis=ent.stockBasis!==undefined&&ent.stockBasis!==''&&ent.stockBasis!==null
+if(k1Val>=0||!hasBasis) return null
+const sb=Math.max(0,parseFloat(ent.stockBasis)||0)
+const db=Math.max(0,parseFloat(ent.debtBasis)||0)
+const totalBasis=sb+db
+const loss=Math.abs(k1Val)
+const allowed=Math.min(loss,totalBasis)
+const suspended=loss-allowed
+if(suspended<=0) return(
+<div style={{marginTop:10,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#166534'}}>
+✓ Your {fmt(totalBasis)} combined basis covers the full {fmt(loss)} loss — fully deductible.
+</div>
+)
+return(
+<div style={{marginTop:10,background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#991B1B'}}>
+⚠ Loss {fmt(loss)} exceeds basis {fmt(totalBasis)} —
+deductible: {fmt(allowed)} · suspended: {fmt(suspended)}.
+The suspended amount carries forward (IRC §1366(d)).
+</div>
+)
+})()}
+</div>
+)}
+</div>
+)}
+
 </div>
 )}
 <div style={{padding:20,background:'#fff'}}>
@@ -536,7 +583,6 @@ entityType={ent.type}
 )}
 {ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses} />}
 
-{/* F-M15: Disconnect / re-enter label is conditional on how data was entered */}
 <div style={{textAlign:'center',marginTop:10}}>
 <button
 onClick={()=>{const pid=ent.connectedId;if(pid){localStorage.removeItem('ts360_'+pid+'_connected');localStorage.removeItem('ts360_'+pid+'_token');localStorage.removeItem('ts360_'+pid+'_extra')}onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}}
@@ -554,7 +600,6 @@ style={{background:'none',border:'none',fontSize:12,color:SL,cursor:'pointer',te
 
 function TemplatePicker({onSelect,onClose}){return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}><div style={{background:'#fff',borderRadius:16,padding:24,width:480,maxWidth:'90vw'}} onClick={e=>e.stopPropagation()}><div style={{fontSize:16,fontWeight:800,color:N,marginBottom:16}}>Choose a Template</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>{TEMPLATES.map(t=><div key={t.label} onClick={()=>{onSelect(t);onClose()}} style={{border:'2px solid #E2E8F0',borderRadius:10,padding:'14px 16px',cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=B;e.currentTarget.style.background='#EFF6FF'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#E2E8F0';e.currentTarget.style.background='#fff'}}><div style={{fontSize:22,marginBottom:6}}>{t.icon}</div><div style={{fontSize:13,fontWeight:700,color:N}}>{t.label}</div><div style={{fontSize:11,color:SL,marginTop:3}}>{t.desc}</div></div>)}</div></div></div>)}
 
-// F-L26: ImportModal includes a "Download Template CSV" button
 function ImportModal({onImport,onClose}){
 const [csvErr, setCsvErr] = React.useState('')
 function handleFile(f){
@@ -630,19 +675,7 @@ const [showImport, setShowImport] = React.useState(false)
 const [dragIdx, setDragIdx] = React.useState(null)
 const [compareIdx, setCompareIdx] = React.useState(null)
 const [showAdvancedSituations, setShowAdvancedSituations] = React.useState(false)
-
-// FIX (alert replacement): saveRecord previously used alert() for both validation
-// errors and success confirmation — a blocking browser dialog that breaks the UX
-// on mobile and cannot be styled. Replaced with inline state-based messages:
-// saveMsg.type — 'error' | 'success'
-// saveMsg.text — displayed below the Save Record button
-// Message auto-clears after 4 seconds for success (errors persist until user acts).
 const [saveMsg, setSaveMsg] = React.useState(null)
-
-// F-03: Name modal state.
-// showNameModal — controls whether the NameRecordModal is visible.
-// pendingRecordName — the auto-generated name pre-filled into the modal input.
-// Both are set together inside saveRecord() once data validation passes.
 const [showNameModal, setShowNameModal] = React.useState(false)
 const [pendingRecordName, setPendingRecordName] = React.useState('')
 
@@ -656,7 +689,6 @@ const mp = {qb_token:'quickbooks',quickbooks_token:'quickbooks',xero_token:'xero
 const xeroRefresh=p.get('xero_refresh');if(xeroRefresh)localStorage.setItem('ts360_xero_refresh',xeroRefresh)
 const entityIdx=parseInt(p.get('entity')||sessionStorage.getItem('ts360_connecting_entity'))||0
 let foundInUrl=false
-// New format: ?quickbooks=connected&entity=N — token stored server-side, use ts360 session token
 const providerList=['quickbooks','xero','wave','freshbooks']
 for(const pid of providerList){
 if(p.get(pid)==='connected'){
@@ -721,11 +753,6 @@ writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), ent
 nav('/tax-return')
 }
 
-// F-03: saveRecord — validation only.
-// When data is present, generates an auto-name and opens the NameRecordModal.
-// The actual write to localStorage happens in confirmSave() after the user
-// accepts or edits the name. This prevents nameless records (the original bug)
-// without blocking the save flow — the modal is one click to confirm.
 function saveRecord() {
 const hasAnyData = entities.some(e => e.pnl && (
 (parseFloat(e.pnl.grossRevenue) || 0) > 0 ||
@@ -735,17 +762,12 @@ if (!hasAnyData) {
 setSaveMsg({ type: 'error', text: 'Please enter revenue or expenses for at least one entity before saving a record.' })
 return
 }
-// Clear any previous error, generate the auto-name, and show the modal.
 setSaveMsg(null)
 const autoName = generateRecordName(entities, readTaxYear())
 setPendingRecordName(autoName)
 setShowNameModal(true)
 }
 
-// F-03: confirmSave — called by NameRecordModal with the final record name.
-// Builds the record object (now with a `name` field), writes to localStorage,
-// and shows the inline success message. Matches the original save logic exactly
-// except for the added `name` property.
 function confirmSave(name) {
 setShowNameModal(false)
 writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
@@ -753,7 +775,7 @@ const email = localStorage.getItem('ts360_email') || 'default'
 const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
 const record = {
 id: Date.now(),
-name, // F-03: human-readable name chosen/confirmed by user
+name,
 savedAt: new Date().toISOString(),
 entities,
 isCoopPatron,
@@ -816,7 +838,6 @@ onCompare={setCompareIdx}
 ))}
 </div>
 
-{/* Add entity actions */}
 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
 <button
 onClick={()=>setShowTemplates(true)}
@@ -826,7 +847,6 @@ style={{ padding: '14px', borderRadius: 12, border: '1px solid #CBD5E1', backgro
 <button onClick={()=>setEntities(prev=>[...prev, { name: 'Business ' + (prev.length + 1), type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '', pnl: null, connectedId: null, isManual: false }])} style={{ padding: '14px', borderRadius: 12, border: '1px solid #2563EB', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}>+ Add Entity</button>
 </div>
 
-{/* Advanced / Special Situations — collapsed by default (F-M14) */}
 <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
 <button
 onClick={() => setShowAdvancedSituations(v => !v)}
@@ -887,7 +907,6 @@ color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer',
 💾 Save Record
 </button>
 
-{/* Inline save feedback — replaces alert() for both error and success states */}
 {saveMsg && (
 <div style={{
 marginTop: 10, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
@@ -903,9 +922,6 @@ color: saveMsg.type === 'success' ? '#166534' : '#991B1B',
 {showTemplates && <TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)} />}
 {showImport && <ImportModal onImport={handleImport} onClose={()=>setShowImport(false)} />}
 
-{/* F-03: Name Record Modal — shown after data validation passes in saveRecord().
-Receives the auto-generated name as the default. confirmSave() writes the
-record to localStorage with the user's final name choice. */}
 {showNameModal && (
 <NameRecordModal
 defaultName={pendingRecordName}
