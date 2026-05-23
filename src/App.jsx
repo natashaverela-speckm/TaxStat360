@@ -12,6 +12,12 @@ import Settings from './Settings'
 import Upgrade from './Upgrade'
 import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
+import ErrorBoundary from './components/ErrorBoundary'
+// TC-N01 FIX: App.jsx was calling fetch(`${API_BASE}/auth/logout`, ...) but API_BASE was
+// never defined in this file — only API_BASE_URL is exported from constants.js.
+// This caused a ReferenceError on every session expiry, silently swallowed by .catch(()=>{}).
+// Fix: import API_BASE_URL from constants.js and use it consistently.
+import { API_BASE_URL } from './constants.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -50,6 +56,20 @@ function OAuthCallback() {
 // Does NOT include tax record keys (ts360_records_*) or login history
 // (ts360_login_history) — those are user data that must survive a session
 // expiry so records are still available after the user re-authenticates.
+//
+// AF-M01 SECURITY NOTE: ts360_session (the session token) is currently stored in
+// localStorage, which is readable by any JavaScript on the page. If a third-party
+// script or XSS vulnerability is introduced, an attacker could extract this token.
+// Recommended migration path (requires backend coordination):
+//   1. Backend: set an httpOnly, Secure, SameSite=Strict cookie on login instead of
+//      returning the token in the response body.
+//   2. Frontend: replace the ts360_session localStorage check below with a lightweight
+//      non-sensitive "logged_in" indicator (e.g. ts360_session_active: '1') that signals
+//      the session exists without exposing the actual credential.
+//   3. All API calls already use credentials:'include' (see fetch calls below), so they
+//      will automatically send the httpOnly cookie — no other fetch changes needed.
+// Until the backend supports httpOnly cookies, this implementation remains as-is.
+// Track as security-hardening milestone in the project backlog.
 const AUTH_KEYS = [
   'token',
   'ts360_session',
@@ -97,8 +117,10 @@ function isValidSession() {
   if (start) {
     const startMs = parseInt(start, 10)
     if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
-      fetch(`${API_BASE}/auth/logout`,{method:'POST',credentials:'include'}).catch(()=>{})
-    AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+      // TC-N01 FIX: was `${API_BASE}/auth/logout` — API_BASE was undefined.
+      // Now uses API_BASE_URL imported from constants.js.
+      fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
       return false
     }
   }
@@ -146,7 +168,9 @@ function AuthFooter() {
 // 3. Idle timeout — enforces the timeout preference set in Settings.jsx
 //    (ts360_idle_timeout_mins). On expiry, clears AUTH_KEYS and redirects to
 //    /login. Tax records are preserved — only session keys are cleared.
-// 4. AuthFooter — persistent ToS/Privacy footer on all authenticated pages.
+// 4. ErrorBoundary — UX-M01: wraps children so a calcTaxReturn crash or
+//    component exception shows a recovery screen instead of a blank white page.
+// 5. AuthFooter — persistent ToS/Privacy footer on all authenticated pages.
 function RequireAuth({ children }) {
   const sessionOk = isValidSession()
   const location = useLocation()
@@ -196,11 +220,14 @@ function RequireAuth({ children }) {
   }, [sessionOk])
 
   if (!sessionOk) return <Navigate to="/login" state={{ from: location }} replace />
+
+  // UX-M01: ErrorBoundary wraps all protected content. If calcTaxReturn throws
+  // or a component crashes, the user sees a recovery screen with their data safe.
   return (
-    <>
+    <ErrorBoundary>
       {children}
       <AuthFooter />
-    </>
+    </ErrorBoundary>
   )
 }
 
@@ -278,20 +305,16 @@ function useSectionMeta(sectionId) {
     const origTwDesc   = document.querySelector('meta[name="twitter:description"]')?.content || ''
     const origTwImage  = document.querySelector('meta[name="twitter:image"]')?.content || ''
 
-    // Set page title
     document.title = meta.title
 
-    // Set or create <meta name="description">
     let descEl = document.querySelector('meta[name="description"]')
     if (!descEl) { descEl = document.createElement('meta'); descEl.name = 'description'; document.head.appendChild(descEl) }
     descEl.content = meta.description
 
-    // Set or create <link rel="canonical">
     let canonEl = document.querySelector('link[rel="canonical"]')
     if (!canonEl) { canonEl = document.createElement('link'); canonEl.rel = 'canonical'; document.head.appendChild(canonEl) }
     canonEl.href = meta.canonical
 
-    // OG tags
     const setOg = (prop, val) => {
       let el = document.querySelector(`meta[property="${prop}"]`)
       if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el) }
@@ -300,9 +323,6 @@ function useSectionMeta(sectionId) {
     setOg('og:title',       meta.ogTitle)
     setOg('og:description', meta.ogDescription)
     setOg('og:url',         meta.canonical)
-    // SEO-03: og:image and Twitter card tags — uses og-image.png which is live at HTTP 200.
-    // Note: social-preview.png was the intended final asset (1200×630px branded image)
-    // but currently returns 404. Using og-image.png until social-preview.png is created.
     const OG_IMAGE = 'https://www.taxstat360.com/og-image.png'
     setOg('og:image', OG_IMAGE)
     const setMeta = (name, val) => {
@@ -344,9 +364,6 @@ function LandingAtSection({ sectionId }) {
 }
 
 // ─── L-09: Route-level page titles ───────────────────────────────────────────
-// Sets a unique document.title on every SPA navigation.
-// useSectionMeta already owns /features, /pricing, /faq — skip those so the
-// richer titles set there are not overwritten by this more generic setter.
 const ROUTE_TITLES = {
   '/':                 'TaxStat360 — Year-Round Tax Liability Management for Business Owners',
   '/how-it-works':     'How It Works | TaxStat360',
@@ -371,12 +388,9 @@ const ROUTE_TITLES = {
   '/terms':            'Terms of Service | TaxStat360',
   '/terms-of-service': 'Terms of Service | TaxStat360',
 }
-// Routes where useSectionMeta sets a richer title — don't overwrite
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 
 // ─── Pass 5/6: noindex on authenticated routes ───────────────────────────────
-// robots.txt disallows these paths (advisory only). Meta noindex is the only
-// mechanism reliably enforced by crawlers — set it on every SPA navigation.
 const NOINDEX_PREFIXES = [
   '/dashboard', '/calculate-tax', '/calculator',
   '/tax-return', '/ai-analysis', '/settings',
@@ -401,14 +415,13 @@ function RouteTitle() {
   const location = useLocation()
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, '') || '/'
-    // noindex / nofollow on all authenticated / private routes
     setNoindex(NOINDEX_PREFIXES.some(p => path.startsWith(p)))
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
     if (path.startsWith('/onboarding')) {
       document.title = 'Set Up Your Account | TaxStat360'
       return
     }
-    if (path.startsWith('/integrations')) return // callback — no title needed
+    if (path.startsWith('/integrations')) return
     const title = ROUTE_TITLES[path]
     if (title) document.title = title
   }, [location.pathname])
@@ -424,9 +437,6 @@ export default function App() {
         {/* Public */}
         <Route path="/" element={<Landing />} />
 
-        {/* FIX (F-01): Landing section routes — previously fell through to *
-            wildcard and redirected to homepage top. Each renders Landing and
-            scrolls to the named section anchor after mount. */}
         <Route path="/features"     element={<LandingAtSection sectionId="features" />} />
         <Route path="/pricing"      element={<LandingAtSection sectionId="pricing" />} />
         <Route path="/how-it-works" element={<LandingAtSection sectionId="how-it-works" />} />
@@ -435,15 +445,12 @@ export default function App() {
 
         <Route path="/signup"   element={<Onboarding screen="signup" />} />
         <Route path="/register" element={<Onboarding screen="signup" />} />
-        {/* FIX (F1-01): /signin already existed; /sign-in is the canonical
-            URL used in marketing emails and the public nav "Sign In" button.
-            Both now resolve to the Onboarding login screen. */}
-        <Route path="/signin"  element={<Onboarding screen="login" />} />
-        <Route path="/sign-in" element={<Navigate to="/login" replace />} />
-        <Route path="/login"   element={<Onboarding screen="login" />} />
+        <Route path="/signin"   element={<Onboarding screen="login" />} />
+        <Route path="/sign-in"  element={<Navigate to="/login" replace />} />
+        <Route path="/login"    element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
 
-        {/* Onboarding flow — wrapped in RequireAuth */}
+        {/* Onboarding flow — wrapped in RequireAuth (which includes ErrorBoundary) */}
         <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
@@ -451,15 +458,9 @@ export default function App() {
         {/* OAuth callback */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
-        {/* Protected app routes */}
+        {/* Protected app routes — RequireAuth wraps each in ErrorBoundary (UX-M01) */}
         <Route path="/calculate-tax" element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
-
-        {/* FIX (F-02): /calculator is the natural URL users type or bookmark.
-            Previously fell through to the * wildcard and silently redirected
-            to the homepage. Now renders Step 1 (Entity Calculator) directly.
-            RequireAuth handles unauthenticated access — redirects to /login. */}
         <Route path="/calculator"    element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
-
         <Route path="/dashboard"     element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/tax-return"    element={<RequireAuth><TaxReturn /></RequireAuth>} />
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
@@ -470,20 +471,13 @@ export default function App() {
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Public legal — canonical routes */}
+        {/* Public legal */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms"   element={<Terms />} />
-        {/* FIX (F-03): Alias redirects for common long-form legal URLs.
-            External links, bookmarks, email footers, and search engines often
-            reference /privacy-policy and /terms-of-service. Without these routes
-            the * fallback sends those visitors to the homepage instead of the
-            legal document — a UX failure and a compliance exposure for users who
-            try to read the documents they consented to at registration.
-            Navigate replace keeps browser history clean (no back-button loop). */}
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
 
-        {/* Fallback — unrecognised paths go to homepage */}
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
