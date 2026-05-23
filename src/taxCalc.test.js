@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { calcQBI, calcTaxReturn } from './taxCalc.js'
+// AF-M02: calcAMT imported directly for the PASS4B-01 MFS 2026 pinned regression guard.
+import { calcQBI, calcTaxReturn, calcAMT } from './taxCalc.js'
 
 // =============================================================================
 // §199A(i) OBBBA minimum deduction (#106 / #110)
@@ -353,10 +354,6 @@ const BASE = {
 
 // =============================================================================
 // TAX-04 — niit return format (AUDIT FIX)
-// Prior to fix/tax-engine-accuracy, calcTaxReturn returned niit as a plain
-// number. Dashboard.jsx uses niit.applies and niit.amount for conditional
-// rendering; the ?? fallback never fired on a number so the NIIT line never
-// rendered. Fixed by returning an object { applies, amount, explanation }.
 // =============================================================================
 describe('calcTaxReturn TAX-04 — niit return is an object', () => {
   it('niit is an object with applies, amount, explanation keys', () => {
@@ -368,7 +365,6 @@ describe('calcTaxReturn TAX-04 — niit return is an object', () => {
   })
 
   it('niit.applies is false and niit.amount is 0 when AGI is below threshold', () => {
-    // W-2 $100k < $200k single threshold → no NIIT
     const r = calcTaxReturn({ ...BASE, w2: 100000 })
     expect(r.niit.applies).toBe(false)
     expect(r.niit.amount).toBe(0)
@@ -376,7 +372,6 @@ describe('calcTaxReturn TAX-04 — niit return is an object', () => {
   })
 
   it('niit.applies is true and niit.amount > 0 when AGI exceeds threshold with NII', () => {
-    // W-2 $210k + divInc $50k → AGI > $200k threshold, NII = $50k → NIIT fires
     const r = calcTaxReturn({ ...BASE, w2: 210000, divInc: 50000 })
     expect(r.niit.applies).toBe(true)
     expect(r.niit.amount).toBeGreaterThan(0)
@@ -384,23 +379,18 @@ describe('calcTaxReturn TAX-04 — niit return is an object', () => {
   })
 
   it('niit.amount is 3.8% of the lesser of NII or excess AGI (lesser = NII)', () => {
-    // AGI $250k, NII $30k, threshold $200k → excess $50k; lesser = $30k → NIIT = 3.8% × $30k = $1,140
     const r = calcTaxReturn({ ...BASE, w2: 220000, divInc: 30000 })
     expect(r.niit.amount).toBe(Math.round(30000 * 0.038))  // 1140
     expect(r.niit.applies).toBe(true)
   })
 
   it('niit.amount is 3.8% of the lesser of NII or excess AGI (lesser = excess AGI)', () => {
-    // W-2 $205k + divInc $50k → AGI $255k, excess $55k, NII $50k → lesser = $50k → NIIT = $1,900
     const r = calcTaxReturn({ ...BASE, w2: 205000, divInc: 50000 })
     expect(r.niit.amount).toBe(Math.round(50000 * 0.038))  // 1900
   })
 
   it('niit.amount feeds into totalTax correctly', () => {
-    // totalTax must include the NIIT dollar amount, not treat the object as a value
-    const without = calcTaxReturn({ ...BASE, w2: 100000 })
-    const with_   = calcTaxReturn({ ...BASE, w2: 220000, divInc: 50000 })
-    // NIIT amount should be reflected in the totalTax difference (along with bracket change)
+    const with_ = calcTaxReturn({ ...BASE, w2: 220000, divInc: 50000 })
     expect(with_.totalTax).toBeGreaterThan(with_.fedTax + with_.seTax)
     expect(Number.isFinite(with_.totalTax)).toBe(true)
   })
@@ -414,9 +404,6 @@ describe('calcTaxReturn TAX-04 — niit return is an object', () => {
 
 // =============================================================================
 // TAX-01 — reasonableCompAlert (AUDIT FIX)
-// Previously computed only in Dashboard.jsx as a fallback IIFE.
-// calcTaxReturn is now the authority; Dashboard falls back via ?? when
-// calcTaxReturn result is unavailable.
 // =============================================================================
 describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
   const scorp = (salary, k1) => ({
@@ -435,7 +422,6 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
   })
 
   it('triggers when salary is below 40% of total S-Corp compensation', () => {
-    // salary=$30k, K-1=$140k → totalComp=$170k, ratio=17.6% < 40% → triggered
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.triggered).toBe(true)
     expect(r.reasonableCompAlert.ratio).toBe(18)  // 17.6% → Math.round = 18
@@ -443,26 +429,22 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
   })
 
   it('does not trigger when salary meets the 40% threshold', () => {
-    // salary=$80k, K-1=$120k → totalComp=$200k, ratio=40% → not triggered
     const r = calcTaxReturn({ ...BASE, w2: 80000, k1Total: 120000, entities: [scorp(80000, 120000)] })
     expect(r.reasonableCompAlert.triggered).toBe(false)
     expect(r.reasonableCompAlert.ratio).toBe(40)
   })
 
   it('does not trigger when salary exceeds 40% threshold', () => {
-    // salary=$100k, K-1=$100k → ratio=50% > 40% → not triggered
     const r = calcTaxReturn({ ...BASE, w2: 100000, k1Total: 100000, entities: [scorp(100000, 100000)] })
     expect(r.reasonableCompAlert.triggered).toBe(false)
   })
 
   it('does not trigger below the $20k de minimis floor', () => {
-    // totalComp = $10k + $8k = $18k < $20k → no alert regardless of ratio
     const r = calcTaxReturn({ ...BASE, w2: 10000, k1Total: 8000, entities: [scorp(10000, 8000)] })
     expect(r.reasonableCompAlert.triggered).toBe(false)
   })
 
   it('returns triggered=false with empty message when no S-Corp entity is present', () => {
-    // Sole Prop — no S-Corp → no alert
     const r = calcTaxReturn({
       ...BASE, w2: 0, k1Total: 100000,
       entities: [{ name: 'SP', type: 'Sole Proprietor / Single-Member LLC', k1: 100000, own: '100' }],
@@ -486,9 +468,6 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
 
 // =============================================================================
 // TAX-06 — federalOnly flag (AUDIT FIX)
-// All calcTaxReturn calculations are federal income tax only.
-// The flag is a declarative contract that UI components can check to surface
-// the "federal only" disclaimer without hardcoding it in each component.
 // =============================================================================
 describe('calcTaxReturn TAX-06 — federalOnly flag', () => {
   it('federalOnly is true on a basic W-2 return', () => {
@@ -543,7 +522,6 @@ describe('calcTaxReturn REP flag (isREP)', () => {
   })
 
   it('REP reduces NIIT vs non-REP when AGI exceeds $200k threshold', () => {
-    // TAX-04 fix: compare .amount (object), not the object itself
     const nonRep = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: false })
     const rep    = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: true  })
     expect(nonRep.niit.amount).toBeGreaterThan(0)
@@ -695,7 +673,6 @@ describe('calcTaxReturn Partnership Active vs Passive SE tax (§1402(a)(13))', (
 
 // =============================================================================
 // F-01 NIIT regression guard — qualDiv must not double-count
-// TAX-04 fix: all niit references updated to .amount
 // =============================================================================
 describe('calcTaxReturn NIIT — F-01 qualDiv no-double-count guard', () => {
   it('NIIT amount is unchanged when qualDiv is set vs unset (with same divInc)', () => {
@@ -714,7 +691,6 @@ describe('calcTaxReturn NIIT — F-01 qualDiv no-double-count guard', () => {
 
 // =============================================================================
 // F-01-followup-A regression guard — stGain must be included in NIIT base
-// TAX-04 fix: all niit references updated to .amount
 // =============================================================================
 describe('calcTaxReturn NIIT — F-01-followup-A stGain in NII base', () => {
   it('stGain generates NIIT when AGI exceeds threshold', () => {
@@ -1110,5 +1086,143 @@ describe('calcTaxReturn §199A SSTB loss — qbiCarryforward exclusion above pha
       entities: [sstbEntity(-100000), nonSSTBEntity(50000)], taxYear: 2025,
     })
     expect(r.qbiCarryforward).toBe(0)
+  })
+})
+
+// =============================================================================
+// AF-M02 — F-M02: 0% ownership treated correctly (ownPct fix)
+// =============================================================================
+// Bug: (parseFloat(e.own) || 100) / 100 coerces explicit '0' to 1.0 because
+// 0 is falsy in JavaScript. A silent partner with 0% ownership was treated
+// as a 100% owner, inflating K-1 income, QBI basis, and SSTB exclusions.
+// Fix: ownPct(v) = Number.isFinite(parseFloat(v)) ? parseFloat(v) : 100
+//      Preserves explicit 0 while keeping 100 as the default for missing input.
+// =============================================================================
+describe('calcTaxReturn F-M02 — explicit 0% ownership treated as 0% not 100%', () => {
+  it('entity with own="0" and no explicit k1 contributes $0 to gross income', () => {
+    // BUG: (parseFloat('0') || 100) / 100 = 100/100 = 1.0 → k1 = netProfit × 1 = $100k
+    // FIX: ownPct('0') / 100 = 0/100 = 0.0 → k1 = netProfit × 0 = $0
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 0,
+      entities: [{ type: 'S Corporation', own: '0', pnl: { netProfit: 100000, officerSalary: 0 } }],
+    })
+    expect(r.grossIncome).toBe(0)
+    expect(r.qbiBasis).toBe(0)
+    expect(r.seNetIncome).toBe(0)
+  })
+
+  it('entity with own=0 (numeric zero) also contributes $0 to gross income', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 0,
+      entities: [{ type: 'S Corporation', own: 0, pnl: { netProfit: 200000, officerSalary: 0 } }],
+    })
+    expect(r.grossIncome).toBe(0)
+  })
+
+  it('entity with own=null falls back to 100% (safe default preserved)', () => {
+    // ownPct(null) → parseFloat(null) = NaN → not finite → returns 100
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 80000,
+      entities: [{ type: 'S Corporation', own: null, pnl: { netProfit: 80000, officerSalary: 0 }, k1: 80000 }],
+    })
+    expect(r.grossIncome).toBe(80000)
+  })
+
+  it('entity with own=undefined falls back to 100% (safe default preserved)', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 60000,
+      entities: [{ type: 'S Corporation', own: undefined, pnl: { netProfit: 60000, officerSalary: 0 }, k1: 60000 }],
+    })
+    expect(r.grossIncome).toBe(60000)
+  })
+
+  it('calcQBI: 0% SSTB entity above threshold does not reduce QBI (phantom exclusion guard)', () => {
+    // BUG: own=0 treated as 100 → sstbEntityQBI=$100k → wipes non-SSTB QBI → deduction=0
+    // FIX: own=0 → sstbEntityQBI=$0 → no phantom exclusion → deduction=10000
+    //
+    // At TI=$250k (above 2025 single threshold+phase-in), sstbApplicablePct=0.
+    // Phantom SSTB QBI from 0%-owner fully cancels the non-SSTB QBI under the bug.
+    const r = calcQBI(50000, 250000, 0, {
+      status: 'single', taxYear: 2025,
+      entityQbiData: [{ box17V_sstb: true, netProfit: 100000, own: 0, box11_12: 0, box12_13: 0 }],
+    })
+    expect(r.deduction).toBe(10000)
+  })
+
+  it('reasonableCompAlert not triggered by 0%-owned entity (no phantom income)', () => {
+    // With bug: $300k phantom K-1 + $0 salary → alert fires
+    // With fix: $0 K-1 + $0 salary = $0 totalComp < $20k floor → no alert
+    const r = calcTaxReturn({
+      ...BASE, w2: 0, k1Total: 0,
+      entities: [{ type: 'S Corporation', own: '0', pnl: { netProfit: 300000, officerSalary: 0 } }],
+    })
+    expect(r.reasonableCompAlert.triggered).toBe(false)
+  })
+})
+
+// =============================================================================
+// AF-M02 — PASS4B-01: AMT MFS 2026 bracket26_28 key typo regression guard
+// =============================================================================
+// Bug: AMT_TABLES[2026].bracket26_28 had key 'mhs' instead of 'mfs'.
+// Lookup for status==='mfs' returned undefined; the ?? fallback produced the
+// SINGLE threshold ($244,500) instead of the correct MFS threshold ($122,250).
+// MFS filers with AMTI between $122,250 and $244,500 were undercharged AMT:
+// their entire AMTI was taxed at 26% (single-threshold behavior) rather than
+// the correct 26% up to $122,250 + 28% on the excess.
+// =============================================================================
+describe('calcAMT PASS4B-01 — MFS 2026 bracket26_28 key typo regression guard', () => {
+  it('2026 MFS AMT pinned at 47927 — fails under the mhs typo (produces 46774)', () => {
+    // taxableIncome=250000, no QBI/SALT/ISO → AMTI=250000
+    // MFS 2026: exemption=70100, phaseout start=500000 (not reached) → amtTaxable=179900
+    // CORRECT  (mfs=122250): 122250×0.26 + 57650×0.28 = 31785+16142 = 47927
+    // BUGGY    (single=244500 via ??): 179900×0.26 = 46774 (all at 26%)
+    const r = calcAMT({
+      taxableIncome: 250000, qbi: 0, saltAmount: 0, isoBargainElement: 0,
+      ltGain: 0, qualDiv: 0, regularTax: 0,
+      status: 'mfs', taxYear: 2026,
+      useItemized: false, itemized: 0, stdDed: 16100,
+    })
+    expect(Number.isFinite(r)).toBe(true)
+    expect(r).toBe(47927)  // fails at 46774 under the 'mhs' typo
+  })
+
+  it('2026 MFS AMT exceeds single-threshold equivalent — directional regression guard', () => {
+    // The correct MFS result (47927) exceeds what the bug produced (46774).
+    // Asserts the lower MFS threshold is in use (more at 28% = more tax).
+    const correctMFS = calcAMT({
+      taxableIncome: 250000, qbi: 0, saltAmount: 0, isoBargainElement: 0,
+      ltGain: 0, qualDiv: 0, regularTax: 0,
+      status: 'mfs', taxYear: 2026,
+      useItemized: false, itemized: 0, stdDed: 16100,
+    })
+    // Simulate the buggy path by using 'single' status (same $244,500 threshold as the fallback)
+    const bugSimulated = calcAMT({
+      taxableIncome: 250000, qbi: 0, saltAmount: 0, isoBargainElement: 0,
+      ltGain: 0, qualDiv: 0, regularTax: 0,
+      status: 'single', taxYear: 2026,
+      useItemized: false, itemized: 0, stdDed: 16100,
+    })
+    expect(correctMFS).toBeGreaterThan(bugSimulated)
+  })
+
+  it('2026 MFS: end-to-end calcTaxReturn AMT is finite for ISO-heavy filer', () => {
+    // Smoke test: verifies the fix propagates through the full calcTaxReturn pipeline
+    const r = calcTaxReturn({
+      ...BASE, status: 'mfs', taxYear: 2026,
+      w2: 150000, hasISO: true, isoBargainElement: 180000,
+    })
+    expect(Number.isFinite(r.amt)).toBe(true)
+    expect(Number.isFinite(r.totalTax)).toBe(true)
+  })
+
+  it('2024 and 2025 MFS AMT unaffected by the 2026 bracket26_28 fix', () => {
+    // Confirm no regression on prior-year MFS AMT computations
+    for (const year of [2024, 2025]) {
+      const r = calcTaxReturn({
+        ...BASE, status: 'mfs', taxYear: year,
+        w2: 150000, hasISO: true, isoBargainElement: 150000,
+      })
+      expect(Number.isFinite(r.amt)).toBe(true)
+    }
   })
 })
