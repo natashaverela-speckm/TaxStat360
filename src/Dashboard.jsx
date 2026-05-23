@@ -15,6 +15,12 @@
 //
 // PASS4B-04: "ACTIVE IN CALCULATOR" renamed to "ACTIVE IN TAX TRACKER"
 // to match the app-wide rename done 3 days ago in Settings.jsx / AIAnalysis.jsx.
+//
+// CC-M01: Inline color constants replaced with imports from theme.js.
+// CC-M02: Local fmt() / pct() replaced with imports from utils/formatMoney.js.
+// F-M02:  ownPct() from utils/entityPredicates.js replaces (parseFloat(x) || 100)
+//         pattern — fixes silent 0%-ownership-treated-as-100% bug.
+// UX-N02: Quarterly estimate in record card now includes safe harbor context.
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -28,18 +34,12 @@ import {
   C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
-
-// ── Inline color constants (match rest of codebase) ──
-const N  = '#0D1B3E'
-const B  = '#2563EB'
-const SL = '#475569'
-const G  = '#059669'
-const R  = '#DC2626'
-const O  = '#D97706'
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const fmt  = n => '$' + Math.abs(parseFloat(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
-const pct  = n => (parseFloat(n) || 0).toFixed(1) + '%'
+// CC-M01: colors from single source of truth — no more inline hex consts.
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
+// CC-M02: canonical formatters — replaces local fmt() and pct() definitions.
+import { fmt, pct } from './utils/formatMoney.js'
+// F-M02: safe ownership resolver — fixes (parseFloat(x) || 100) falsy-0% bug.
+import { ownPct } from './utils/entityPredicates.js'
 
 const normalizeEntityType = (t) => {
   if (!t) return ''
@@ -64,7 +64,9 @@ function calcDashboard(biz, f1040) {
   const other  = parseFloat(biz.otherDeductions)   || 0
   const totalExp = opExp + sal + dep + adv + other
   const netBiz   = gross - totalExp
-  const own      = (parseFloat(biz.ownershipPct) || 100) / 100
+  // F-M02: ownPct() treats explicit 0% as 0, not 100.
+  // (parseFloat(biz.ownershipPct) || 100) was silently coercing 0 → 100.
+  const own      = ownPct(biz.ownershipPct) / 100
   const k1       = Math.round(netBiz * own)
 
   const fs       = f1040.filingStatus || 'single'
@@ -162,7 +164,6 @@ function buildRecs(biz, calc) {
   const officerSal = parseFloat(biz.officerSalary) || 0
   const grossRev   = parseFloat(biz.grossRevenue)  || 0
   const dep        = parseFloat(biz.depreciation)  || 0
-  const adv        = parseFloat(biz.advertising)   || 0
 
   if (isCCorp && corpTax > 0)
     recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (21% on ${fmt(netBiz)} net profit). Profits distributed as dividends are taxed again on your personal return. Consider an S-Corp election to eliminate entity-level tax.` })
@@ -598,8 +599,8 @@ export default function Dashboard() {
 
     const entitiesToWrite = sourceEntities.filter(e => e && e.pnl).map(e => {
       const pnl = e.pnl || {}
-      const ownPct = parseInt(e.own) || 100
-      const k1 = Math.round((pnl.netProfit || 0) * (ownPct / 100))
+      const ownPctVal = parseInt(e.own) || 100
+      const k1 = Math.round((pnl.netProfit || 0) * (ownPctVal / 100))
         - (parseMoney(e.box11_12) || 0)
         - (parseMoney(e.box12_13) || 0)
       return {
@@ -627,14 +628,15 @@ export default function Dashboard() {
             const adv = parseFloat(b.advertising) || 0
             const oth = parseFloat(b.otherDeductions) || 0
             const netProfit = rev - opEx - sal - dep - adv - oth
-            const ownPct = parseInt(b.ownershipPct || b.own) || 100
+            // F-M02: use ownPct() — integer parse for this specific legacy path
+            const ownPctVal = parseInt(b.ownershipPct || b.own) || 100
             return [{
               name: b.name || normalizeEntityType(b.entityType) || 'Business',
               type: normalizeEntityType(b.entityType),
-              own: ownPct,
+              own: ownPctVal,
               pnl: { grossRevenue: rev, totalExpenses: opEx, officerSalary: sal, netProfit },
               netProfit,
-              k1: parseFloat(rec.k1Income) || Math.round(netProfit * (ownPct / 100)),
+              k1: parseFloat(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
               box17K: 0, box11_12: 0, box12_13: 0,
               box17V_wages: 0, box17V_ubia: 0, box17V_sstb: false,
             }]
@@ -782,7 +784,7 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={startNewCalc}
-                style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
               >
                 Open Tax Tracker →
               </button>
@@ -912,7 +914,7 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                       <span style={{ fontSize: 13, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
                       <span style={{ fontSize: 13, color: SL }}>Year: <strong style={{ color: N }}>{taxYear}</strong></span>
                       <span style={{ fontSize: 13, color: SL }}>Revenue: <strong style={{ color: displayRevenue && parseFloat(displayRevenue) > 0 ? N : '#94A3B8' }}>
@@ -922,9 +924,22 @@ export default function Dashboard() {
                         <span style={{ fontSize: 13, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
                       )}
                       <span style={{ fontSize: 13, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                      <span style={{ fontSize: 13, color: SL }}>Quarterly: <strong style={{ color: quarterly > 0 ? N : '#94A3B8' }}>
-                        {quarterly > 0 ? '$' + Math.round(quarterly).toLocaleString() : 'Complete Step 2 for estimate'}
-                      </strong></span>
+                      {/* UX-N02: quarterly label now includes safe harbor context */}
+                      <span style={{ fontSize: 13, color: SL }}>
+                        Quarterly:{' '}
+                        <strong style={{ color: quarterly > 0 ? N : '#94A3B8' }}>
+                          {quarterly > 0 ? '$' + Math.round(quarterly).toLocaleString() + '/qtr' : 'Complete Step 2 for estimate'}
+                        </strong>
+                        {quarterly > 0 && (
+                          <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 5, fontWeight: 400 }}>
+                            · <a
+                                onClick={e => { e.stopPropagation(); loadRecord(rec) }}
+                                style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }}
+                                title="Open Step 2 to compare 90% current-year vs 110%/100% prior-year safe harbor"
+                              >safe harbor in Step 2</a>
+                          </span>
+                        )}
+                      </span>
                     </div>
                   </div>
 
