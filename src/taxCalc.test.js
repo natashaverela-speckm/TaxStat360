@@ -980,11 +980,14 @@ describe('calcTaxReturn §461(l) — excess business loss limitation', () => {
     expect(r.ebl).toBe(74000)
   })
 
-  it('combined PAL + EBL: both limitations apply in a realistic mixed scenario', () => {
-    const r = calcTaxReturn({ ...BASE, w2: 120000, k1Total: -400000, rentalNet: -50000, isREP: false })
-    expect(r.palSuspendedRental).toBe(25000)
-    expect(r.ebl).toBe(112000)
-    expect(r.grossIncome).toBe(-193000)
+ it('combined PAL + EBL: both limitations apply in a realistic mixed scenario', () => {
+  const r = calcTaxReturn({ ...BASE, w2: 120000, k1Total: -400000, rentalNet: -50000, isREP: false })
+  expect(r.palSuspendedRental).toBe(25000)
+  // EBL-FIX: per IRC §461(l)(1)(B), passive rental losses for non-REP filers are
+  // excluded from EBL. Only k1Total (-$400k) counts → $400k − $313k threshold = $87k.
+  expect(r.ebl).toBe(87000)
+  // grossIncome = w2 ($120k) + k1 (−$400k) + PAL-allowed rental (−$25k) + EBL addback (+$87k)
+  expect(r.grossIncome).toBe(-218000)
   })
 
   it('business gain offsets business loss before threshold check', () => {
