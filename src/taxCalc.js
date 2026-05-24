@@ -17,6 +17,25 @@
 // getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
 //
 // ── Audit-fix change log ────────────────────────────────────────────────────
+// F-M02 (0% ownership falsy bug):
+// All instances of (parseFloat(e.own) || 100) / 100 replaced with ownPct(e.own) / 100.
+// The || operator treats 0 as falsy — a silent partner with explicit 0% ownership
+// was silently treated as a 100% owner, inflating K-1 income, QBI basis, and SSTB
+// exclusions. Fix: ownPct() helper uses Number.isFinite() to correctly distinguish
+// an explicit 0 from missing/invalid input.
+// Affected paths: entitiesLimited map, sstbEntityQBI reduce, nonSEk1 reduce,
+//                 entityIncomeBreakdown map, reasonableCompAlert IIFE.
+//
+// F-M03 (retirement plan limits in TAX_TABLES):
+// TAX_TABLES[year] now includes a retirement object with year-specific dollar limits:
+//   sepIraMax, solo401kDeferral, solo401kMax, catchUp401k, catchUp401kSuper,
+//   iraLimit, catchUpIra.
+// AIAnalysis.jsx was hardcoding SOLO_401K_DEFERRAL_LIMITS = {2024:23000,2025:23500,2026:24000}.
+// AIAnalysis.jsx must now read getTable(year).retirement?.solo401kDeferral ?? 23500.
+// This eliminates the stale-value risk when IRS announces annual COLA adjustments.
+// Permanent rate constants (SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, age thresholds)
+// remain in constants.js — only the year-specific dollar caps live here.
+//
 // F-04 (§469 prior passive loss carryforward):
 // calcTaxReturn now accepts priorPassiveLossCarryforward (Form 8582, Line 3).
 // When the rental is PROFITABLE this year, the carryforward offsets rental
@@ -79,7 +98,7 @@
 // • Internal calculation variable renamed to niitAmount (number).
 // • Return key niit now returns { applies, amount, explanation } object.
 // • Backward-compat alias niitAmount also returned for TaxReturn.jsx until
-// that file is updated to use result.niit.amount or result.niitAmount.
+//   that file is updated to use result.niit.amount (see F-N01 in fix/taxreturn-display).
 // TAX-06: federalOnly: true added to return. Declares that all calculations in this
 // file are federal income tax only — no state tax is computed. UI components
 // (Dashboard, TaxReturn) must surface this to the user.
@@ -100,7 +119,7 @@
 // • Does NOT flow into gross income / AGI / taxable income.
 // • Does NOT reduce the QBI basis.
 // • IS returned as entityBasisResults (per-entity detail) and totalSuspendedLoss
-// (aggregate) for display in TaxReturn.jsx and AI Risk Scan.
+//   (aggregate) for display in TaxReturn.jsx and AI Risk Scan.
 // When stockBasis/debtBasis are absent (legacy records or non-S-Corp entities),
 // losses flow through unchanged — no breaking change to existing behavior.
 //
@@ -144,6 +163,13 @@ import {
 // Numeric value coercer — safely casts form-state inputs (empty strings, undefined, numbers) to finite number, defaulting to 0.
 const nv = (v) => parseFloat(v) || 0
 
+// F-M02: Safe ownership percentage resolver.
+// (parseFloat(e.own) || 100) silently treats '0' as 100 because 0 is falsy in JS.
+// This helper uses Number.isFinite() to correctly distinguish an explicit 0 from
+// missing/invalid input. Returns 100 (default) for null / undefined / '' / NaN.
+// Returns 0 for the string '0' or numeric 0 (valid explicit zero ownership).
+const ownPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 100 }
+
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
@@ -164,6 +190,19 @@ const TAX_TABLES = {
     // Phase-out per §24(b)(1): $50 per $1,000 (or fraction) above $200K single / $400K MFJ.
     // Thresholds are NOT inflation-adjusted. See calcTaxReturn for full phase-out logic.
     ctc: { perChild: 2000 },
+    // F-M03: Retirement plan dollar limits — IRC §415(c) / §402(g) / §219.
+    // Permanent rate constants (25% SEP-IRA contribution rate, catch-up ages, etc.) live in constants.js.
+    // Sources: Rev. Proc. 2023-34 §3.10; IRS Notice 2023-75.
+    // SECURE 2.0 §109 super catch-up (ages 60-63) not effective until 2025.
+    retirement: {
+      sepIraMax:        69000, // §415(c)(1) overall SEP-IRA limit
+      solo401kDeferral: 23000, // §402(g)(1) employee elective deferral limit
+      solo401kMax:      69000, // §415(c)(1) overall Solo 401(k) limit (excl. catch-up)
+      catchUp401k:       7500, // §414(v)(2)(B)(i) standard catch-up age ≥ 50
+      catchUp401kSuper:     0, // SECURE 2.0 §109 — NOT effective until plan years after 12/31/2024
+      iraLimit:          7000, // §219(b)(5)(A) Traditional / Roth IRA limit
+      catchUpIra:        1000, // §219(b)(5)(B) — $1,000; NOT inflation-adjusted
+    },
   },
   2025: {
     // Standard deduction per Rev. Proc. 2024-40 as amended by OBBBA P.L. 119-21 §70101
@@ -184,6 +223,19 @@ const TAX_TABLES = {
     // §24 Child Tax Credit — OBBBA P.L. 119-21 §70301 raised per-child credit to $2,200 for 2025.
     // Phase-out thresholds unchanged: $200K single / $400K MFJ — NOT inflation-adjusted per OBBBA.
     ctc: { perChild: 2200 },
+    // F-M03: Sources: Rev. Proc. 2024-40 §3.10; IRS Notice 2024-80 (401k/IRA limits).
+    // SECURE 2.0 §109 super catch-up effective for plan years beginning after 12/31/2024.
+    // Super catch-up = 150% × standard catch-up ($7,500 × 1.5 = $11,250) — IRS Notice 2024-80.
+    // Applies ONLY to participants aged 60, 61, 62, or 63 in the plan year. Reverts to standard at 64.
+    retirement: {
+      sepIraMax:        70000,
+      solo401kDeferral: 23500,
+      solo401kMax:      70000,
+      catchUp401k:       7500, // standard catch-up: age ≥ 50, excluding 60-63
+      catchUp401kSuper: 11250, // SECURE 2.0 §109 — ages 60, 61, 62, 63 only
+      iraLimit:          7000,
+      catchUpIra:        1000,
+    },
   },
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
@@ -203,6 +255,20 @@ const TAX_TABLES = {
     // §24 Child Tax Credit — $2,200 per child (same as 2025; OBBBA did not index CTC for inflation).
     // Phase-out thresholds: $200K single / $400K MFJ — unchanged per OBBBA.
     ctc: { perChild: 2200 },
+    // F-M03: ⚠ ESTIMATED — update when IRS publishes Rev. Proc. 2025-xx (typically October 2025).
+    // Deferral limit ($24,000) carried from the prior AIAnalysis.jsx hardcode.
+    // SEP/overall limit ($71,000) estimated via ~1.4% COLA from 2025 $70,000.
+    // Super catch-up ($11,250) assumed unchanged pending official IRS announcement.
+    // IRA limit ($7,000) assumed unchanged — has not moved since 2024.
+    retirement: {
+      sepIraMax:        71000, // estimated; official figure in Rev. Proc. 2025-xx
+      solo401kDeferral: 24000, // estimated; matches prior AIAnalysis.jsx hardcode
+      solo401kMax:      71000, // estimated
+      catchUp401k:       7500, // assumed unchanged
+      catchUp401kSuper: 11250, // assumed unchanged; verify when IRS announces
+      iraLimit:          7000, // assumed unchanged per §219(b)(5)(A)
+      catchUpIra:        1000, // NOT inflation-adjusted per §219(b)(5)(B)
+    },
   },
 }
 
@@ -489,8 +555,9 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
+    // F-M02: ownPct() — explicit 0% ownership contributes $0 SSTB QBI, not full netProfit.
     const k1Income = parseFloat(
-      e.k1 ?? Math.round(parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
+      e.k1 ?? Math.round(parseFloat(e.netProfit || 0) * (ownPct(e.own) / 100))
     ) || 0
     return s + Math.max(0, k1Income)
   }, 0)
@@ -630,7 +697,8 @@ function calcTaxReturn(input) {
   const entitiesLimited = entities.map(e => {
     if (!e) return e
 
-    const own = (parseFloat(e.own) || 100) / 100
+    // F-M02: ownPct() correctly handles explicit 0% ownership (not treated as 100%).
+    const own = ownPct(e.own) / 100
     // Compute the entity's gross K-1 value (same logic used in seNetIncome / nonSEk1)
     const k1Gross = e.k1 !== undefined
       ? parseFloat(e.k1) || 0
@@ -845,7 +913,8 @@ function calcTaxReturn(input) {
   // nonSEk1 uses entitiesLimited — basis-limited S-Corp losses don't inflate the QBI basis.
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    const k1    = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
+    // F-M02: ownPct() — explicit 0% ownership contributes $0, not full netProfit.
+    const k1    = parseFloat(e.k1 ?? 0) || (parseFloat(e.netProfit || 0) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
@@ -973,13 +1042,14 @@ function calcTaxReturn(input) {
   const entityIncomeBreakdown = entities.map(e => {
     if (!e) return null
     const isSEType = SE_SUBJECT_TYPES.includes(e.type)
-    const own      = (parseFloat(e.own) || 100) / 100
+    // F-M02: ownPct() — explicit 0% ownership displays $0 income, not full netProfit.
+    const own      = ownPct(e.own) / 100
     const income   = parseFloat(e.k1 ?? 0) || Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
     return {
       name:         e.name || e.id || 'Unnamed Entity',
       type:         e.type,
       income:       Math.round(income),
-      ownership:    parseFloat(e.own) || 100,
+      ownership:    ownPct(e.own),
       isSEType,
       scheduleForm: isSEType ? 'Schedule C' : 'Schedule E, Part II',
       taxForm:      isSEType ? '1040 Sch C'
@@ -1001,9 +1071,10 @@ function calcTaxReturn(input) {
     if (!scorp) return { triggered: false, ratio: 100, message: '' }
     const sal = Math.max(0, parseFloat(scorp.pnl?.officerSalary ?? scorp.officerW2 ?? 0) || 0)
     if (sal < 0) return { triggered: false, ratio: 100, message: '' }
+    // F-M02: ownPct() — 0%-owned S-Corp contributes $0 K-1, not full netProfit.
     const k1Val = Math.max(0,
       parseFloat(scorp.k1 ?? 0) ||
-      Math.round((parseFloat(scorp.pnl?.netProfit || 0)) * ((parseFloat(scorp.own) || 100) / 100))
+      Math.round((parseFloat(scorp.pnl?.netProfit || 0)) * (ownPct(scorp.own) / 100))
     )
     const totalComp = sal + k1Val
     if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
@@ -1053,9 +1124,9 @@ function calcTaxReturn(input) {
         ? `3.8% on the lesser of net investment income ($${nii.toLocaleString()}) or excess MAGI above the $${getNIITThreshold(taxYear, status).toLocaleString()} threshold (IRC §1411)`
         : '',
     },
-    // Backward-compat: raw number for TaxReturn.jsx until that file is updated
-    // to reference result.niit.amount. Remove niitAmount alias once TaxReturn.jsx
-    // is updated in fix/taxreturn-display PR.
+    // F-N01: Backward-compat alias — raw number for TaxReturn.jsx.
+    // Remove this alias once TaxReturn.jsx is patched to reference result.niit.amount.
+    // Track removal in the fix/taxreturn-display PR.
     niitAmount,
 
     numDependents, childCredit, ctcRaw, ctcReduction, ctcPerChild,
