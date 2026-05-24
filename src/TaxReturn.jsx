@@ -1,1426 +1,918 @@
-import React from 'react'
+// src/TaxReturn.jsx
+// Step 2 of the TaxStat360 two-step flow: Personal Tax Return.
+// Reads entity / K-1 data from session state (written by CalculateTaxInner.jsx)
+// and adds personal income, deductions, and filing info to produce the
+// estimated federal tax liability.
+//
+// ── Change log ────────────────────────────────────────────────────────────────
+// L-02 FIX: "S-Corp FICA Savings" renamed to "SE Tax Savings on Distributions".
+//   The prior label was S-Corp-specific and implied the savings come from FICA
+//   (the employee/employer payroll tax on W-2 wages). The savings are actually
+//   the avoided self-employment (SE) tax equivalent on K-1 distributions — the
+//   same income as a sole proprietor would pay SE tax on 92.35% of at 15.3%
+//   (up to SS wage base) / 2.9% (above). Both S-Corps and actively-managed
+//   partnerships generate this savings; "FICA Savings" is a misnomer for
+//   partnerships and confusing for S-Corp owners who understand that FICA
+//   applies to wages (which they DO pay), not to distributions. InfoTip text
+//   already explains this correctly — only the label has changed.
+//
+// C-06 FIX: 2026 tax year dropdown option shortened.
+//   Old: "2026 — Rev. Proc. 2025-32 (OBBBA)"  (34 chars, overflows on mobile)
+//   New: "2026 (OBBBA)"                         (13 chars, clean)
+//   The full citation is preserved in a footnote below the dropdown.
+//
+// UX-05 FIX: Micro-text added beneath each save button to disambiguate:
+//   "💾 Save This Record" → micro-text: "Saves your work — stay on this page"
+//   "💾 Save & Analyze →" → micro-text: "Saves and goes to AI Tax Analysis"
+//   Users were unsure whether "Save & Analyze" would navigate away or open a
+//   panel. The micro-text resolves this without adding visual bulk.
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets, getLTCGThresholds, getAddlMedicareThreshold, calcFederalTax, calcPreferentialTax, calcNIIT, calcAMT, calcQBI, QBI_THRESHOLDS, nv, calcTaxReturn } from './taxCalc'
-import MoneyInput from './components/MoneyInput.jsx'
-import FederalScopeBanner from './components/FederalScopeBanner.jsx'
-import DismissibleNotice from './components/DismissibleNotice'
+import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS } from './taxCalc'
+import {
+  readPersonalContext, writePersonalContext,
+  readTaxYear, writeTaxYear,
+  readStep1State, writeStep1State,
+} from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-// CC-M01: color tokens from theme.js (removes inline N/B/G/R/SL consts)
-import { NAVY as N, BLUE as B, GREEN as G, RED as R, SLATE as SL } from './theme'
-// CC-M02: canonical currency formatter (removes local fmt())
-import { fmt } from './utils/formatMoney'
-// CC-M03: shared entity-type predicates; F-M02: ownPct() fixes falsy-0 ownership
-import { isScheduleCType, ownPct } from './utils/entityPredicates'
+import { fmt, pct } from './utils/formatMoney.js'
+import { ownPct, isSCorpEntity, isPassthroughEntity, SE_SUBJECT_TYPES } from './utils/entityPredicates.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
+import { API_BASE_URL } from './constants.js'
 
-function BracketBadge({ rate }) {
-const colors = {
-0: { bg: '#f0fdf4', color: '#15803d', label: '0%' },
-10: { bg: '#f0fdf4', color: '#15803d', label: '10%' },
-12: { bg: '#eff6ff', color: '#1d4ed8', label: '12%' },
-22: { bg: '#fefce8', color: '#854d0e', label: '22%' },
-24: { bg: '#fff7ed', color: '#9a3412', label: '24%' },
-32: { bg: '#fef2f2', color: '#b91c1c', label: '32%' },
-35: { bg: '#fef2f2', color: '#991b1b', label: '35%' },
-37: { bg: '#450a0a', color: '#fca5a5', label: '37%' },
-}
-const c = colors[Math.round(rate * 100)] || { bg: '#f1f5f9', color: N, label: Math.round(rate * 100) + '%' }
-return (
-<span style={{ background: c.bg, color: c.color, borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
-{c.label} bracket
-</span>
-)
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const nf = (v, fb = 0) => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : fb }
 
-function InfoTip({ text }) {
-const [show, setShow] = React.useState(false)
-return (
-<span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle' }}>
-<span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} onClick={()=>setShow(v=>!v)}
-style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:'50%',
-background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',border:'1px solid #93C5FD' }}>i</span>
-{show&&<span style={{ position:'absolute',bottom:'120%',left:'50%',transform:'translateX(-50%)',
-background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,
-lineHeight:1.5,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.2)',pointerEvents:'none',whiteSpace:'normal' }}>
-{text}
-<span style={{position:'absolute',top:'100%',left:'50%',transform:'translateX(-50%)',
-borderWidth:5,borderStyle:'solid',borderColor:'#1E293B transparent transparent transparent'}}/>
-</span>}
-</span>
-)
+function InfoTip({ text, wide }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}>
+      <button
+        onClick={() => setShow(s => !s)}
+        onBlur={() => setTimeout(() => setShow(false), 150)}
+        style={{ width: 15, height: 15, borderRadius: '50%', background: '#E2E8F0', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 700, color: SL, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}>
+        ?
+      </button>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+          background: N, color: '#fff', borderRadius: 8, padding: '10px 14px',
+          fontSize: 12, lineHeight: 1.65, whiteSpace: 'pre-wrap',
+          width: wide ? 360 : 290, zIndex: 300, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        }}>
+          {text}
+          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid ' + N }} />
+        </div>
+      )}
+    </span>
+  )
 }
 
-function CollapsibleSection({ title, children, defaultOpen = true, badge = null }) {
-const [open, setOpen] = React.useState(defaultOpen)
-return (
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, position: 'relative' }}>
-<button
-onClick={() => setOpen(v => !v)}
-style={{ width: '100%', background: 'none', border: 'none', padding: '14px 20px', cursor: 'pointer',
-display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-borderBottom: open ? '1px solid #F1F5F9' : 'none', borderRadius: 14 }}
->
-<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '1px' }}>{title}</div>
-{badge && <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{badge}</span>}
-</div>
-<span style={{ fontSize: 11, color: '#94A3B8', transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-</button>
-{open && <div style={{ padding: '4px 20px 20px 20px' }}>{children}</div>}
-</div>
-)
+function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx }) {
+  const [raw, setRaw] = useState('')
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) {
+      const n = nf(value)
+      setRaw(n !== 0 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (value || ''))
+    }
+  }, [value, focused])
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      value={raw}
+      disabled={disabled}
+      placeholder={placeholder || '0'}
+      onChange={e => { const v = e.target.value.replace(/[^0-9.\-]/g, ''); setRaw(v); onChange(v) }}
+      onFocus={() => { setFocused(true); setRaw(String(value || '').replace(/,/g, '')) }}
+      onBlur={() => {
+        setFocused(false)
+        const n = nf(raw)
+        if (Number.isFinite(n)) { setRaw(n.toLocaleString('en-US', { maximumFractionDigits: 0 })); onChange(String(n)) }
+      }}
+      style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: disabled ? '#F8FAFC' : '#fff', color: disabled ? '#94A3B8' : N, ...sx }}
+    />
+  )
 }
 
-function WhatGoesHere({ items }) {
-const [open, setOpen] = React.useState(false)
-return (
-<div style={{ marginTop: 10 }}>
-<button onClick={() => setOpen(v => !v)} style={{
-background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-fontSize: 12, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
-}}>
-{open ? '▲' : '▼'} What goes here?
-</button>
-{open ? (
-<div style={{ marginTop: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 14px' }}>
-<ul style={{ margin: 0, paddingLeft: 18 }}>
-{items.map((item, i) => (
-<li key={i} style={{ fontSize: 12, color: '#0369A1', lineHeight: 1.7, marginBottom: 2 }}>{item}</li>
-))}
-</ul>
-</div>
-) : null}
-</div>
-)
+function CollapsibleSection({ title, badge, children, defaultOpen = false, accent }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
+      <div onClick={() => setOpen(o => !o)} style={{ padding: '13px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: open ? (accent || '#EFF6FF') : '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: N }}>{title}</span>
+          {badge && <span style={{ fontSize: 11, fontWeight: 700, background: accent ? accent + '33' : '#EFF6FF', color: accent || B, borderRadius: 10, padding: '2px 9px', border: '1px solid ' + (accent || B) + '44' }}>{badge}</span>}
+        </div>
+        <span style={{ color: SL, fontSize: 13 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && <div style={{ padding: '16px 18px', borderTop: '1px solid #F1F5F9' }}>{children}</div>}
+    </div>
+  )
 }
 
+// ─── Main export ──────────────────────────────────────────────────────────────
 export default function TaxReturn() {
-const nav = useNavigate()
-
-const [isMobile, setIsMobile] = React.useState(
-() => typeof window !== 'undefined' && window.innerWidth < 768
-)
-React.useEffect(() => {
-if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-const mq = window.matchMedia('(max-width: 767px)')
-setIsMobile(mq.matches)
-const handler = (e) => setIsMobile(e.matches)
-mq.addEventListener('change', handler)
-return () => mq.removeEventListener('change', handler)
-}, [])
-
-const [manualK1s, setManualK1s] = React.useState(readPersonalContext().manualK1s || [])
-const { entities, k1Total: dashboardK1Total } = readStep1State()
-const manualK1Total = manualK1s.reduce((sum, k) => sum + (parseMoney(k.amount) || 0), 0)
-const k1Total = dashboardK1Total + manualK1Total
-
-const savedF1040 = readPersonalContext()
-const savedTaxYear = readTaxYear()
-
-const [taxYear, setTaxYear] = React.useState(savedTaxYear)
-const [ytdMode, setYtdMode] = React.useState(false)
-const [ytdMonth, setYtdMonth] = React.useState(new Date().getMonth() + 1)
-const [status, setStatus] = React.useState(savedF1040.filingStatus || 'single')
-const [qualifiedDividends, setQualifiedDividends] = React.useState(0)
-const [socialSecurity, setSocialSecurity] = React.useState(0)
-const [iraDistributions, setIraDistributions] = React.useState(0)
-const [selfEmpHealthIns, setSelfEmpHealthIns] = React.useState(0)
-const [hsaDeduction, setHsaDeduction] = React.useState(0)
-const [studentLoanInt, setStudentLoanInt] = React.useState(0)
-const [selfEmpRetirement, setSelfEmpRetirement] = React.useState(savedF1040.selfEmpRetirement || 0)
-const [nolCarryforward, setNolCarryforward] = React.useState(savedF1040.nolCarryforward || 0)
-const [w2Income, setW2Income] = React.useState(savedF1040.w2Income || '')
-const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
-const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
-const [isREP, setIsREP] = React.useState(savedF1040.isREP || false)
-const [repHours, setRepHours] = React.useState(() => parseInt(localStorage.getItem('ts360_rep_hours') || '0'))
-// Persist rep hours across sessions
-React.useEffect(() => {
-localStorage.setItem('ts360_rep_hours', String(repHours))
-}, [repHours])
-const [isActiveParticipant, setIsActiveParticipant] = React.useState(
-savedF1040.isActiveParticipant !== false
-)
-const [rentalIncome, setRentalIncome] = React.useState(0)
-const [rentalExpenses, setRentalExpenses] = React.useState(0)
-const [priorPassiveLossCarryforward, setPriorPassiveLossCarryforward] = React.useState(
-savedF1040.priorPassiveLossCarryforward || 0
-)
-const [capitalGains, setCapitalGains] = React.useState(0)
-const [ltCapGains, setLtCapGains] = React.useState(0)
-const [unrecap1250, setUnrecap1250] = React.useState(0)
-const [collectiblesGain, setCollectiblesGain] = React.useState(0)
-const [priorYearQBILoss, setPriorYearQBILoss] = React.useState(0)
-const [interest, setInterest] = React.useState(0)
-const [dividends, setDividends] = React.useState(0)
-const [form4797, setForm4797] = React.useState(0)
-const [hasISO, setHasISO] = React.useState(false)
-const [isoBargainElement, setIsoBargainElement] = React.useState(0)
-const [estPaid, setEstPaid] = React.useState(0)
-const [useItemized, setUseItemized] = React.useState(false)
-const [saltPaid, setSaltPaid] = React.useState(0)
-const [mortgageInt, setMortgageInt] = React.useState(0)
-const [charitableGifts, setCharitableGifts] = React.useState(0)
-const [priorYearTax, setPriorYearTax] = React.useState(savedF1040.priorYearTax || 0)
-const [priorYearAGI, setPriorYearAGI] = React.useState(savedF1040.priorYearAGI || 0)
-const [showWaterfall, setShowWaterfall] = React.useState(true)
-const [saveStatus, setSaveStatus] = React.useState(null)
-const [isDirty, setIsDirty] = React.useState(false)
-const [showUnsavedModal, setShowUnsavedModal] = React.useState(false)
-const [pendingNavPath, setPendingNavPath] = React.useState(null)
-const activeRecordName = React.useMemo(
-() => sessionStorage.getItem('ts360_active_record_name') || null,
-// eslint-disable-next-line react-hooks/exhaustive-deps
-[]
-)
-
-const addManualK1 = () => setManualK1s([...manualK1s, {
-id: 'mk1-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-name: '', type: 'S Corporation', ownership: '100', amount: '',
-}])
-const updateManualK1 = (id, field, value) => setManualK1s(manualK1s.map(k => k.id === id ? { ...k, [field]: value } : k))
-const removeManualK1 = (id) => setManualK1s(manualK1s.filter(k => k.id !== id))
-
-function ytdScale(v) {
-if (!ytdMode || ytdMonth <= 0 || ytdMonth >= 12) return v
-return Math.round(v * 12 / ytdMonth)
-}
-
-const _dirtySignal = JSON.stringify([
-taxYear, status, w2Income, w2Withheld, dependents, selfEmpRetirement,
-nolCarryforward, manualK1s, priorYearTax, priorYearAGI, ytdMode, ytdMonth,
-qualifiedDividends, socialSecurity, iraDistributions, selfEmpHealthIns,
-hsaDeduction, studentLoanInt, rentalIncome, rentalExpenses,
-priorPassiveLossCarryforward, capitalGains, ltCapGains, unrecap1250,
-collectiblesGain, priorYearQBILoss, interest, dividends, form4797,
-hasISO, isoBargainElement, estPaid, useItemized, saltPaid, mortgageInt,
-charitableGifts, isREP, isActiveParticipant,
-])
-React.useEffect(() => {
-setIsDirty(true)
-setSaveStatus(null)
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, [_dirtySignal])
-
-React.useEffect(() => {
-writePersonalContext({
-filingStatus: status,
-w2Income,
-w2Withheld,
-dependents,
-selfEmpRetirement,
-nolCarryforward,
-manualK1s,
-priorYearTax,
-priorYearAGI,
-priorPassiveLossCarryforward,
-isREP,
-isActiveParticipant,
-})
-writeTaxYear(taxYear)
-}, [status, w2Income, w2Withheld, dependents, selfEmpRetirement, nolCarryforward, manualK1s, taxYear, priorYearTax, priorYearAGI, priorPassiveLossCarryforward, isREP, isActiveParticipant])
-
-const w2 = nv(w2Income)
-const scaledK1 = ytdScale(k1Total)
-const scaledW2 = ytdScale(w2)
-
-const totalOfficerSalary = entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '')).reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
-const scaledOfficerSal = ytdScale(totalOfficerSalary)
-const totalBox17K = entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0)
-
-const saltCapForYear = SALT_CAPS[taxYear] || 40000
-const saltDeductionCap = status === 'mfs' ? saltCapForYear / 2 : saltCapForYear
-const saltForItemized = Math.min(nv(saltPaid), saltDeductionCap)
-const computedItemizedAmt = saltForItemized + nv(mortgageInt) + nv(charitableGifts)
-
-// F-M02: replaced (parseFloat(e.own) || 100) / 100 with ownPct(e.own) / 100
-const entitiesForCalc = entities.map(e => {
-const own = ownPct(e.own) / 100
-return {
-...e,
-k1: e.k1 !== undefined
-? e.k1
-: Math.round((parseFloat(e.pnl?.netProfit) || 0) * own),
-officerW2: e.officerW2 !== undefined
-? parseFloat(e.officerW2) || 0
-: parseFloat(e?.pnl?.officerSalary) || 0,
-}
-})
-
-const inputs = {
-taxYear,
-status,
-k1Total: scaledK1,
-w2: scaledW2 + scaledOfficerSal,
-dependents: parseInt(dependents) || 0,
-selfEmpHealthIns: ytdScale(nv(selfEmpHealthIns)),
-hsaDeduction: ytdScale(nv(hsaDeduction)),
-studentLoanInt: ytdScale(nv(studentLoanInt)),
-selfEmpRetirement: ytdScale(nv(selfEmpRetirement)),
-nolCarryforward: nv(nolCarryforward),
-rentalNet: ytdScale(nv(rentalIncome)) - ytdScale(nv(rentalExpenses)),
-isREP,
-isActiveParticipant,
-stGain: ytdScale(nv(capitalGains)),
-ltGain: ytdScale(nv(ltCapGains)),
-unrecap1250: ytdScale(nv(unrecap1250)),
-collectiblesGain: ytdScale(nv(collectiblesGain)),
-intInc: ytdScale(nv(interest)),
-divInc: ytdScale(nv(dividends)),
-qualDiv: ytdScale(nv(qualifiedDividends)),
-taxableSS: ytdScale(nv(socialSecurity)),
-iraIncome: ytdScale(nv(iraDistributions)),
-f4797Inc: ytdScale(nv(form4797) + totalBox17K),
-priorYearQBILoss: nv(priorYearQBILoss),
-hasISO,
-isoBargainElement: ytdScale(nv(isoBargainElement)),
-w2Withheld: nv(w2Withheld),
-estPaid: nv(estPaid),
-useItemized,
-itemizedAmt: useItemized ? computedItemizedAmt : 0,
-saltAmount: nv(saltPaid),
-priorYearTax: nv(priorYearTax),
-priorYearAGI: nv(priorYearAGI),
-entities: entitiesForCalc,
-priorPassiveLossCarryforward: nv(priorPassiveLossCarryforward),
-}
-
-const result = calcTaxReturn(inputs)
-
-const {
-totalTax = 0,
-balance = 0,
-totalPayments = 0,
-effectiveRate = 0,
-marginalRate = 0,
-ordinaryTaxableIncome = 0,
-agi = 0,
-stdDed: standardDeduction = 0,
-seTax: selfEmploymentTax = 0,
-additionalMedicare = 0,
-// F-N01: niitAmount is the canonical key returned by calcTaxReturn.
-// This alias (niit) is kept for local readability; the underlying field
-// was fixed in taxCalc.js as part of the F-N01 display-alias cleanup.
-niitAmount: niit = 0,
-amt: amtAmount = 0,
-palSuspendedRental = 0,
-palCarryforwardApplied = 0,
-palCarryforwardRemaining = 0,
-ebl = 0,
-eblThreshold = 0,
-quarterlyRecommended: quarterly = 0,
-qbiLimitApplied = 'none',
-childCredit = 0,
-fedTax = 0,
-safeHarborCurrentYear = 0,
-safeHarborPriorYear = null,
-safeHarborMinimum = 0,
-safeHarborBalance = 0,
-safeHarborQuarterly = 0,
-qbiCarryforward = 0,
-scheduleEK1Income = 0,
-scheduleCSEIncome = 0,
-qbiAggregationApplied = false,
-qbiAggregationDisclosure = null,
-employeeFICA = 0,
-totalW2ForFICA = 0,
-ficaSavings = 0,
-ssWageBase: ficaSSWageBase = 176100,
-ssWageBaseRoom = 0,
-k1Distributions = 0,
-entityBasisResults = [],
-totalSuspendedLoss = 0,
-} = result
-
-const appliedDeduction = useItemized ? computedItemizedAmt : standardDeduction
-const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
-
-const hasSchEIncome = entities.length > 0
-const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
-
-// F-M02: replaced (parseInt(e.own) || 100) / 100 with ownPct(e.own) / 100
-const scheduleEDisplayTotal = entities
-.filter(e => !isScheduleCType(e?.type))
-.reduce((s, e) => {
-const own = ownPct(e.own) / 100
-return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
-}, 0)
-+ manualK1s
-.filter(k => !isScheduleCType(k.type))
-.reduce((s, k) => s + (parseMoney(k.amount) || 0), 0)
-
-// F-M02: replaced (parseInt(e.own) || 100) / 100 with ownPct(e.own) / 100
-const scheduleCDisplayTotal = entities
-.filter(e => isScheduleCType(e?.type))
-.reduce((s, e) => {
-const own = ownPct(e.own) / 100
-return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
-}, 0)
-+ manualK1s
-.filter(k => isScheduleCType(k.type))
-.reduce((s, k) => s + (parseMoney(k.amount) || 0), 0)
-
-const hasMixedEntityTypes = scheduleEDisplayTotal !== 0 && scheduleCDisplayTotal !== 0
-
-const rawDisplayTotal = scheduleEDisplayTotal + scheduleCDisplayTotal
-const scheduleEWaterfallAmt = rawDisplayTotal > 0
-? Math.round(scaledK1 * (scheduleEDisplayTotal / rawDisplayTotal))
-: scaledK1
-const scheduleCWaterfallAmt = rawDisplayTotal > 0
-? scaledK1 - scheduleEWaterfallAmt
-: 0
-
-const today = new Date()
-const quarterDefs = [
-{ label: 'Q1', due: new Date(taxYear, 3, 15) },
-{ label: 'Q2', due: new Date(taxYear, 5, 15) },
-{ label: 'Q3', due: new Date(taxYear, 8, 15) },
-{ label: 'Q4', due: new Date(taxYear + 1, 0, 15) },
-]
-
-const priorYearHighThreshold = status === 'mfs' ? 75000 : 150000
-const priorYearMultiplierLabel = nv(priorYearAGI) > priorYearHighThreshold ? '110%' : '100%'
-
-React.useEffect(() => {
-if (!isDirty) return
-const handler = (e) => { e.preventDefault(); e.returnValue = '' }
-window.addEventListener('beforeunload', handler)
-return () => window.removeEventListener('beforeunload', handler)
-}, [isDirty])
-
-const handleNavSafe = React.useCallback((path) => {
-if (isDirty) {
-setPendingNavPath(path)
-setShowUnsavedModal(true)
-} else {
-nav(path)
-}
-}, [isDirty, nav])
-
-const confirmLeave = () => {
-setShowUnsavedModal(false)
-nav(pendingNavPath)
-setPendingNavPath(null)
-}
-
-const saveAndLeave = () => {
-handleSave({ thenNavigate: pendingNavPath })
-setShowUnsavedModal(false)
-setPendingNavPath(null)
-}
-
-const handleSave = (opts = {}) => {
-writePersonalContext({
-filingStatus: status, w2Income, w2Withheld, dependents, selfEmpRetirement,
-nolCarryforward, manualK1s, priorYearTax, priorYearAGI,
-priorPassiveLossCarryforward, isREP, isActiveParticipant,
-})
-const email = localStorage.getItem('ts360_email') || 'default'
-const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
-const record = {
-id: Date.now(),
-name: (() => {
-const primary = entities[0]
-const typeShort = {
-'S Corporation': 'S-Corp',
-'C Corporation': 'C-Corp',
-'Sole Proprietor / Single-Member LLC': 'Sole Prop',
-'Partnership / MMLLC — Active': 'Partnership (Active)',
-'Partnership / MMLLC — Passive': 'Partnership (Passive)',
-}[primary?.type] || (primary?.type || 'Business')
-const revenue = parseFloat(primary?.pnl?.grossRevenue) || 0
-const revenueStr = revenue >= 1_000_000
-? '$' + (revenue / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M Revenue'
-: revenue >= 1_000
-? '$' + Math.round(revenue / 1_000) + 'K Revenue'
-: revenue > 0 ? '$' + Math.round(revenue) + ' Revenue' : ''
-return [typeShort, String(taxYear), revenueStr].filter(Boolean).join(' — ')
-})(),
-savedAt: new Date().toISOString(),
-calculatedAt: result.calculatedAt || Date.now(),
-entities,
-biz: {
-entityType: entities[0]?.type || 'Unknown',
-year: taxYear,
-ownershipPct: entities[0]?.own || '100',
-grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0),
-},
-f1040: {
-filingStatus: status,
-w2Income,
-w2Withheld,
-dependents,
-selfEmpRetirement,
-nolCarryforward,
-priorYearTax,
-priorYearAGI,
-estPaid,
-priorPassiveLossCarryforward,
-isREP,
-isActiveParticipant,
-},
-k1Income: k1Total,
-totalTax: Math.round(totalTax),
-quarterly: Math.round(quarterly),
-totalSuspendedLoss: Math.round(totalSuspendedLoss),
-entityBasisResults,
-}
-existing.unshift(record)
-localStorage.setItem('ts360_records_' + email, JSON.stringify(existing.slice(0, 20)))
-localStorage.setItem('ts360_records', JSON.stringify(existing.slice(0, 20)))
-setIsDirty(false)
-
-if (opts.thenNavigate) {
-nav(opts.thenNavigate)
-} else {
-setSaveStatus('saved')
-setTimeout(() => setSaveStatus(null), 3000)
-}
-}
-
-return (
-<div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 120 }}>
-<div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
-<div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-<div onClick={() => nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-<svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#0D1B3E" /><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3" /><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55" /><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8" /><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white" /></svg>
-<span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
-</div>
-<div style={{ background: '#2563EB', color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
-{activeRecordName && (
-<div style={{ fontSize: 11, color: '#64748B', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
-<span style={{ color: '#94A3B8' }}>Editing:</span> {activeRecordName}
-</div>
-)}
-{isDirty && saveStatus !== 'saved' && (
-<div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#D97706', fontWeight: 600 }}>
-<span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D97706', display: 'inline-block' }} />
-Unsaved changes
-</div>
-)}
-{saveStatus === 'saved' && (
-<div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
-<span>✓</span> Saved
-</div>
-)}
-</div>
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-<button onClick={() => handleNavSafe('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>← Back to Business</button>
-<button onClick={() => handleNavSafe('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Dashboard</button>
-<button onClick={() => handleNavSafe('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>AI Analysis</button>
-<button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Sign Out</button>
-<button onClick={() => handleNavSafe('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Settings</button>
-</div>
-</div>
-
-<div style={{
-display: 'grid',
-gridTemplateColumns: isMobile ? '1fr' : '1fr 380px',
-gap: 24,
-maxWidth: 1100,
-margin: '0 auto',
-padding: isMobile ? '20px 16px' : '28px 24px',
-alignItems: 'start',
-}}>
-<div>
-<h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
-<p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Enter your personal info to calculate your total federal tax liability.</p>
-
-<DismissibleNotice storageKey="ts360_notice_tr_v2">
-TaxStat360 calculates <strong>federal tax estimates</strong> based on the information you enter. Results are for <strong>planning purposes only</strong> and do not constitute professional tax advice. Your actual liability may differ based on your complete financial situation. Consult a licensed CPA or tax professional before filing.
-</DismissibleNotice>
-
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 Income — Schedule E, Part II</div>
-{entities.map((ent, i) => {
-const own = ownPct(ent.own) / 100
-const net = ent.pnl ? Math.round(ent.pnl.netProfit * own) : 0
-const isC = isScheduleCType(ent.type)
-return (
-<div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < entities.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
-<div>
-<div style={{ fontSize: 13, fontWeight: 600, color: N }}>{ent.name || 'Business ' + (i + 1)}</div>
-<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-<span style={{ fontSize: 11, color: SL }}>{ent.type} · {ent.own || 100}% ownership</span>
-<span style={{ fontSize: 10, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', borderRadius: 4, padding: '1px 5px' }}>
-{['S Corporation','C Corporation'].includes(ent.type) ? 'Form 1120-S' : isC ? 'Schedule C' : 'Form 1065'}
-</span>
-<span style={{
-fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-background: isC ? '#f0fdf4' : '#eff6ff',
-color: isC ? '#15803d' : '#1d4ed8',
-}}>
-{isC ? 'Schedule C' : 'Schedule E, Part II'}
-</span>
-</div>
-</div>
-<div style={{ fontSize: 14, fontWeight: 700, color: net >= 0 ? G : R }}>{fmt(net)}</div>
-</div>
-)
-})}
-
-{manualK1s.map(k => (
-<div key={k.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, marginTop: 10, alignItems: 'center' }}>
-<input value={k.name} onChange={e => updateManualK1(k.id, 'name', e.target.value)} placeholder="Entity name" style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, color: N, outline: 'none' }} />
-<select value={k.type} onChange={e => updateManualK1(k.id, 'type', e.target.value)} style={{ padding: '6px 8px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, color: N, outline: 'none' }}>
-<option>S Corporation</option>
-<option>Partnership / MMLLC — Active</option>
-<option>Partnership / MMLLC — Passive</option>
-<option>Sole Proprietor / Single-Member LLC</option>
-</select>
-<MoneyInput value={parseMoney(k.amount) || 0} onChange={v => updateManualK1(k.id, 'amount', String(v))} placeholder="0" style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, color: N, outline: 'none', width: 120 }} />
-<button onClick={() => removeManualK1(k.id)} style={{ background: 'none', border: 'none', color: R, cursor: 'pointer', fontSize: 16, padding: 4 }}>✕</button>
-</div>
-))}
-<button onClick={addManualK1} style={{ marginTop: 10, background: 'none', border: '1px dashed #CBD5E1', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: SL, cursor: 'pointer', fontWeight: 600 }}>+ Add K-1</button>
-
-<div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
-{hasMixedEntityTypes ? (
-<>
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-<div style={{ fontSize: 12, color: SL }}>
-K-1 Income <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 4 }}>Schedule E, Part II</span>
-</div>
-<div style={{ fontSize: 13, fontWeight: 600, color: scheduleEDisplayTotal >= 0 ? G : R }}>{fmt(scheduleEDisplayTotal)}</div>
-</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-<div style={{ fontSize: 12, color: SL }}>
-Schedule C Net Profit <span style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 4 }}>Schedule C</span>
-</div>
-<div style={{ fontSize: 13, fontWeight: 600, color: scheduleCDisplayTotal >= 0 ? G : R }}>{fmt(scheduleCDisplayTotal)}</div>
-</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px dashed #E2E8F0' }}>
-<div style={{ fontSize: 13, fontWeight: 700, color: N }}>Total Business Income</div>
-<div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
-</div>
-</>
-) : scheduleCDisplayTotal !== 0 ? (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-<div style={{ fontSize: 13, fontWeight: 700, color: N }}>
-Schedule C Net Profit
-<span style={{ fontSize: 10, background: '#f0fdf4', color: '#15803d', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 8 }}>Schedule C</span>
-</div>
-<div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
-</div>
-) : (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-<div style={{ fontSize: 13, fontWeight: 700, color: N }}>
-Total K-1 Income
-<span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '1px 6px', fontWeight: 700, marginLeft: 8 }}>Schedule E, Part II</span>
-</div>
-<div style={{ fontSize: 16, fontWeight: 800, color: k1Total >= 0 ? G : R }}>{fmt(k1Total)}</div>
-</div>
-)}
-</div>
-
-{entities.length === 0 && manualK1s.length === 0 && (
-<div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
-⚠ No business entered. <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => nav('/calculate-tax')}>Go to Step 1</span> to add your business entities.
-</div>
-)}
-{k1Total < 0 && (
-<div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
-✓ Business loss of {fmt(Math.abs(k1Total))} is reducing your gross income on {hasSchEIncome ? 'Schedule E' : 'Schedule E (subject to passive activity and at-risk rules)'}
-</div>
-)}
-{k1Total < 0 && entities.some(e => /s.?corp/i.test(e?.type || '')) && (
-<div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#9A3412' }}>
-⚠ <strong>S Corp basis check required:</strong> S Corp losses are deductible only up to your stock and debt basis (IRC §1366(d), Form 7203). If your basis is less than the loss shown, this planning estimate may overstate the deductible amount. Confirm with your CPA before using this as a payment plan.
-</div>
-)}
-{totalSuspendedLoss > 0 && (
-<div style={{ marginTop: 8, background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#991B1B' }}>
-<div style={{ fontWeight: 700, marginBottom: 6 }}>
-🚨 S-Corp Loss Suspended — {fmt(totalSuspendedLoss)} Not Deductible This Year (IRC §1366(d))
-</div>
-<div style={{ lineHeight: 1.65, marginBottom: 6 }}>
-Your K-1 loss exceeds your combined stock and debt basis. The suspended{' '}
-<strong>{fmt(totalSuspendedLoss)}</strong> is excluded from this year's tax calculation
-and carries forward — it becomes deductible when you restore sufficient basis
-(e.g., via capital contributions per IRC §1367(a)(1)(A)).
-The tax liability shown reflects only the allowable deductible portion.
-</div>
-{entityBasisResults.filter(r => r.suspended > 0).map((r, i) => (
-<div key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: '2px solid #FCA5A5', fontSize: 11 }}>
-<strong>{r.name || r.type}:</strong> gross loss {fmt(Math.abs(r.k1Gross))} ·
-allowable {fmt(Math.abs(r.k1Allowed))} ·
-suspended {fmt(r.suspended)}
-{r.totalBasis != null ? ` (basis: ${fmt(r.totalBasis)})` : ''}
-</div>
-))}
-<div style={{ marginTop: 6, color: '#7F1D1D', fontSize: 11 }}>
-File Form 7203 with your return. Discuss basis restoration strategy with your CPA.
-</div>
-</div>
-)}
-{(() => {
-const hasWages = entities.some(e =>
-parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary)
-)
-return k1Total > 0 && result.qbiCaps?.wage === null && !hasWages &&
-entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
-<div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#991b1b', fontWeight: 500 }}>
-⚠ <strong>§199A QBI deduction may be significantly reduced:</strong> Your income may be above the W-2 wage limit threshold ({fmt(QBI_THRESHOLDS[taxYear]?.single || 197300)} single / {fmt(QBI_THRESHOLDS[taxYear]?.mfj || 394600)} MFJ for {taxYear}). No W-2 wages or officer salary were found for your entities. Enter your officer W-2 salary in Step 1 on each entity card, or enter Box 17V wages in ▼ Details → Advanced K-1 items, for an accurate §199A calculation.
-</div>
-)
-})()}
-{k1Total > 0 && result.qbiCaps?.wage !== null && qbiLimitApplied === 'wage' &&
-entities.some(e => /s.?corp|partnership|mmllc/i.test(e?.type || '')) && (
-<div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
-ℹ §199A W-2 wage limit applied. For maximum accuracy, confirm the Box 17V wages on your K-1 match the officer salary used here, and enter UBIA of qualified property in ▼ Details → Advanced K-1 items.
-</div>
-)}
-{qbiAggregationApplied && qbiAggregationDisclosure && (
-<div style={{ marginTop: 8, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#0369a1' }}>
-ℹ <strong>QBI Aggregation Assumed (Reg. §1.199A-4):</strong> {qbiAggregationDisclosure}
-</div>
-)}
-</div>
-
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX YEAR</div>
-<div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-<div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-<select value={taxYear} onChange={e => setTaxYear(parseInt(e.target.value))} style={{ padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: N, outline: 'none', fontWeight: 600 }}>
-{[2026, 2025, 2024].map(y => (
-<option key={y} value={y}>
-{y === 2026 ? '2026 — Rev. Proc. 2025-32 (OBBBA)' : String(y)}
-</option>
-))}
-</select>
-{ytdMode ? (
-<select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))} style={{ padding: '6px 8px', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: N, outline: 'none' }}>
-{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=>(
-<option key={i+1} value={i+1}>Through {m}</option>
-))}
-</select>
-) : null}
-</div>
-<label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
-<input type="checkbox" checked={ytdMode} onChange={e => setYtdMode(e.target.checked)} />
-YTD Mode (annualize)
-<InfoTip text="Year-to-date mode: enter income and expenses as of today and we'll project your full-year liability. Useful mid-year for planning. Disable to enter full-year figures directly." />
-</label>
-</div>
-</div>
-{ytdMode && (
-<div style={{ marginTop: 10, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 12, color: '#1E40AF' }}>
-📅 YTD through {['January','February','March','April','May','June','July','August','September','October','November','December'][ytdMonth-1]} — figures will be annualized (× {(12/ytdMonth).toFixed(1)})
-</div>
-)}
-<div style={{ fontSize: 13, color: SL, marginTop: 10, flexShrink: 0 }}>Std. deduction: <strong style={{ color: N }}>{fmt(standardDeduction)}</strong></div>
-{taxYear === 2026 && (
-<div style={{ fontSize: 11, color: '#64748B', marginTop: 4, lineHeight: 1.4 }}>
-2026 figures are per Rev. Proc. 2025-32 (OBBBA, P.L. 119-21). The §461(l) excess business loss thresholds are estimated — verify when IRS publishes final guidance.
-</div>
-)}
-</div>
-
-<CollapsibleSection title="FILING STATUS &amp; DEPENDENTS">
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filing Status <InfoTip text="Your IRS filing status. Single = unmarried. MFJ = married filing jointly. MFS = married filing separately. HOH = head of household (unmarried with qualifying dependent). QSS = qualifying surviving spouse (2 years after spouse's death)." /></label>
-<select value={status} onChange={e => setStatus(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, outline: 'none' }}>
-<option value="single">Single</option>
-<option value="mfj">Married Filing Jointly</option>
-<option value="mfs">Married Filing Separately</option>
-<option value="hoh">Head of Household</option>
-<option value="qss">Qualifying Surviving Spouse</option>
-</select>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-Qualifying Dependents
-<InfoTip text="Qualifying children UNDER AGE 17 receive the Child Tax Credit ($2,200/child for 2025–2026 per OBBBA; $2,000 for 2024). Children 17+ and other qualifying dependents receive a $500 Other Dependent Credit instead. Credit phases out at $200K AGI (single) or $400K (MFJ). Enter the total number of all qualifying dependents here. Rules for who qualifies vary — see IRS Publication 501 (Dependents, Standard Deduction, and Filing Information)." />
-</label>
-<select value={dependents} onChange={e => setDependents(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, outline: 'none' }}>
-{[0,1,2,3,4,5,6,7,8].map(n => <option key={n} value={String(n)}>{n} dependent{n !== 1 ? 's' : ''}</option>)}
-</select>
-</div>
-</div>
-</CollapsibleSection>
-
-<CollapsibleSection title="W-2 INCOME &amp; WITHHOLDING">
-{totalOfficerSalary > 0 && (
-<div style={{ marginTop: 12, marginBottom: 4, padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
-<div style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8', marginBottom: 6 }}>Officer W-2 Salary — auto-filled from Step 1 (do not re-enter)</div>
-{entities.filter(e => /s.?corp|c.?corp/i.test(e?.type || '') && (parseFloat(e?.pnl?.officerSalary) || 0) > 0).map((ent, i) => (
-<div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1E40AF', marginBottom: 2 }}>
-<span>{ent.name || 'Business ' + (i + 1)} ({ent.type})</span>
-<span style={{ fontWeight: 700 }}>{fmt(parseFloat(ent.pnl?.officerSalary) || 0)}</span>
-</div>
-))}
-{ytdMode && <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 4 }}>Annualized to {fmt(scaledOfficerSal)} in YTD mode</div>}
-</div>
-)}
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Additional W-2 Wages (Other Jobs) <InfoTip text="W-2 wages from a job other than your S-corp or C-corp. Do NOT include your officer salary here — that is tracked in Step 1 on each entity card and shown above." /></label>
-<MoneyInput value={parseMoney(w2Income) || 0} onChange={v => setW2Income(String(v))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: SL, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Federal Tax Withheld (W-2) <InfoTip text="Total federal income tax withheld from all W-2 jobs this year (Box 2 on each W-2). Used to calculate your refund or balance due." /></label>
-<MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-</div>
-<WhatGoesHere items={[
-'Your W-2 Box 1 wages from jobs outside your business entity',
-'Do NOT include your S-corp officer salary here — enter it on the entity card in Step 1 (it is automatically carried through, shown above)',
-'Federal tax withheld from W-2 Box 2 — used to calculate refund or balance due',
-]} />
-</CollapsibleSection>
-
-<CollapsibleSection title="RENTAL REAL ESTATE (SCHEDULE E, PART I)">
-<div style={{ paddingTop: 12 }}>
-<div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-<label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SL, cursor: 'pointer' }}>
-<input type="checkbox" checked={isREP} onChange={e => setIsREP(e.target.checked)} />
-Real Estate Professional
-<InfoTip text="IRC §469(c)(7): To qualify as a Real Estate Professional, you must spend more than 750 hours per year in real property trades or businesses in which you materially participate, AND more than 50% of your total personal services must be in those real property trades. If you qualify, rental losses are NOT passive and can offset all income. You must also materially participate in each rental activity (or make the §469(c)(7)(A) aggregate election on a timely filed return)." />
-</label>
-<label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SL, cursor: 'pointer' }}>
-
-{isREP && (
-<div style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.18)', borderRadius: 8, padding: '10px 14px', marginTop: 8, marginBottom: 4 }}>
-<div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 6 }}>
-§469(c)(7) Hour Tracker
-</div>
-<div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-<label style={{ fontSize: 12, color: SL, display: 'flex', alignItems: 'center', gap: 6 }}>
-Hours in real property trades YTD:
-<input
-type="number"
-aria-label="Real estate professional hours year-to-date"
-min="0"
-max="5000"
-value={repHours}
-onChange={e => setRepHours(Math.max(0, parseInt(e.target.value) || 0))}
-style={{ width: 70, padding: '3px 6px', border: '1px solid #CBD5E1', borderRadius: 5, fontSize: 12 }}
-/>
-</label>
-<span style={{
-fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-background: repHours >= 750 ? '#dcfce7' : repHours >= 500 ? '#fef9c3' : '#fee2e2',
-color: repHours >= 750 ? '#15803d' : repHours >= 500 ? '#92400e' : '#b91c1c',
-}}>
-{repHours >= 750 ? `✓ ${repHours}/750 hrs` : `${repHours}/750 hrs`}
-</span>
-</div>
-{repHours > 0 && repHours < 750 && (
-<div style={{ fontSize: 11, color: '#92400e', marginTop: 5 }}>
-{750 - repHours} more hours needed to meet the 750-hr threshold. Also verify &gt;50% of all personal services are in real property trades.
-</div>
-)}
-{repHours >= 750 && (
-<div style={{ fontSize: 11, color: '#15803d', marginTop: 5 }}>
-Hour threshold met. Confirm &gt;50% of all personal services are in real property trades and material participation applies to each rental activity (or §469(c)(7)(A) aggregate election made).
-</div>
-)}
-</div>
-)}
-<input type="checkbox" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
-Active Participant
-<InfoTip text="IRC §469(i)(6): Active participation is a lower standard than material participation — you must make management decisions (setting rents, approving tenants, approving expenses). You do NOT need to participate in day-to-day management. Active participants may deduct up to $25,000 in rental losses against non-passive income (phased out $100K–$150K AGI). Passive investors (syndications, limited partners) cannot claim this allowance." />
-</label>
-</div>
-{!isREP && isActiveParticipant && (
-<div style={{ marginTop: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
-⚠ Without REP status, passive rental losses are limited to $25,000 (phased out between $100K–$150K AGI, eliminated above $150K — IRC §469(i)(3)). To qualify under §469(c)(7): &gt;750 hours/year in real property trades, &gt;50% of personal services in real property trades, AND material participation in each rental — or aggregate via §469(c)(7)(A) election.
-</div>
-)}
-{isREP && (
-<div style={{ marginTop: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
-✓ REP status: rental losses fully deductible against all income (subject to §461(l) excess business loss limit and at-risk rules).
-</div>
-)}
-{!isREP && !isActiveParticipant && (
-<div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#991b1b' }}>
-✗ Passive investor: rental losses are fully suspended under §469. Suspended losses carry forward and release when you sell the property.
-</div>
-)}
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Rental Income (Sch E Part I, line 3) <InfoTip text="Rental income as reported on Schedule E Part I, Line 3 — all rent collected this year." /></label>
-<MoneyInput value={rentalIncome} onChange={setRentalIncome} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Rental Expenses incl. Depreciation (Sch E Part I, line 20) <InfoTip text="All rental expenses including depreciation — mortgage interest + property taxes + insurance + repairs + management fees + depreciation. Enter the total from Schedule E Part I, Line 20." /></label>
-<MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-</div>
-
-<div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
-Prior Year Passive Loss Carryforward (§469)
-<InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). When your rental is profitable this year, this carryforward offsets rental income dollar-for-dollar before other income — reducing taxable income by that amount (IRC §469(b)). When rental generates a loss, the carryforward pools with the current-year suspended loss and carries forward again. Released in full when you sell the property. Enter as a positive number." />
-</label>
-<MoneyInput value={priorPassiveLossCarryforward} onChange={setPriorPassiveLossCarryforward} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3, lineHeight: 1.4 }}>
-From prior year Form 8582, Line 3 — enter as a positive number.
-{palCarryforwardApplied > 0
-? <span style={{ color: G, fontWeight: 600 }}> ✓ {fmt(palCarryforwardApplied)} applied this year to offset rental income.</span>
-: ' Applied to offset rental income when property is profitable; pools with current-year loss otherwise.'}
-</div>
-{palCarryforwardRemaining > 0 && (
-<div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
-💡 {fmt(palCarryforwardRemaining)} of your prior year carryforward remains suspended after this year — enter this amount in "Prior Year Passive Loss Carryforward" next year.
-</div>
-)}
-{palSuspendedRental > 0 && (
-<div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
-💡 {fmt(palSuspendedRental)} of this year's rental loss is suspended under §469 and will carry forward to next year.
-</div>
-)}
-</div>
-
-<WhatGoesHere items={[
-'Total Rental Income: all rent collected this year — use bank deposits or last year's Schedule E as a reference',
-'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
-'Depreciation: typically cost of building ÷ 27.5 years annually',
-'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year in real property trades, 50%+ of personal services)',
-'Prior Year Passive Loss Carryforward: suspended losses from Form 8582 Line 3. Applied to offset rental income when profitable; released on sale of property',
-'Without REP: passive losses above $25,000 are suspended and carry forward until property is sold',
-]} />
-</div>
-</CollapsibleSection>
-
-<CollapsibleSection title="OTHER INCOME">
-<div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, paddingTop: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Short-Term Capital Gains / (Losses) <InfoTip text="Assets held 1 year or less — taxed at ordinary rates. Enter net of gains and losses. Schedule D Line 7." /></label>
-<MoneyInput value={capitalGains} onChange={setCapitalGains} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: '#92400e', marginTop: 3 }}>Held ≤1 yr — taxed at ordinary rates</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Long-Term Capital Gains / (Losses) <InfoTip text="Assets held MORE than 1 year — taxed at 0%, 15%, or 20% preferential rates (IRC §1(h)). Enter net LTCG from Schedule D Line 15. Do NOT include §1250 recapture here — enter that separately below." /></label>
-<MoneyInput value={ltCapGains} onChange={setLtCapGains} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>Held &gt;1 yr — taxed at 0/15/20%</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Unrecaptured Sec 1250 Gain <InfoTip text="Depreciation recapture on real property sold at a gain — taxed at max 25% rate (IRC §1(h)(1)(D)). Reported on the Unrecaptured Section 1250 Gain Worksheet in the Schedule D instructions. Enter as a positive number." /></label>
-<MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: '#A855F7', marginTop: 3 }}>Depreciation recapture — max 25% rate</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Collectibles Gain <InfoTip text="Gain from sale of coins, art, antiques, gems, stamps, or other collectibles held more than 1 year — taxed at max 28% rate (IRC §1(h)(4)). Enter as a positive number. Short-term collectibles gains are taxed at ordinary rates — enter those in the Short-Term field." /></label>
-<MoneyInput value={collectiblesGain} onChange={setCollectiblesGain} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: '#6B7280', marginTop: 3 }}>Coins, art, antiques — max 28% rate</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Taxable Interest <InfoTip text="Interest earned from bank accounts, bonds, CDs — 1040 Line 2b. Do NOT include tax-exempt municipal bond interest (that goes on Line 2a and is not entered here)." /></label>
-<MoneyInput value={interest} onChange={setInterest} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>1040 Line 2b — taxable interest only; tax-exempt interest (Line 2a) is not entered here</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Ordinary Dividends <InfoTip text="From 1099-DIV Box 1a — enter the qualified portion separately below." /></label>
-<MoneyInput value={dividends} onChange={setDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Qualified Dividends <InfoTip text="From 1099-DIV Box 1b — a subset of ordinary dividends taxed at preferential 0/15/20% rates (IRC §1(h)). Must be ≤ the Ordinary Dividends amount entered above. The tax savings versus ordinary rates are applied automatically." /></label>
-<MoneyInput value={qualifiedDividends} onChange={setQualifiedDividends} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: '#15803d', marginTop: 3 }}>1099-DIV Box 1b — taxed at 0/15/20% rates</div>
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Form 4797 Ordinary Gain/(Loss) <InfoTip text="Form 4797 Part II — net ordinary gain or loss from sale of business property. Schedule 1 Line 4 — flows from Form 4797 Part II + K-1 Box 17K aggregated from Step 1." /></label>
-<MoneyInput value={form4797} onChange={setForm4797} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 4 — flows from Form 4797 Part II + K-1 Box 17K aggregated from Step 1</div>
-</div>
-</div>
-<div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior Year QBI Loss Carryforward <InfoTip text="Negative qualified business income loss carryforward from prior year — reduces this year's QBI deduction base per IRC §199A(c)(2). Enter as a positive number." /></label>
-<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-<MoneyInput value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" style={{ width: 200, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>Enter prior year QBI loss as positive number. Reduces this year's QBI deduction base; does not affect AGI.</div>
-</div>
-</div>
-<WhatGoesHere items={[
-'Short- and long-term capital gains/losses from Form 1099-B (Schedule D)',
-'Interest income from Form 1099-INT Box 1; qualified dividends from Form 1099-DIV Box 1b',
-'Form 4797 gain/loss from sale of business property — flows to Schedule 1 Line 4',
-'Unrecaptured §1250 gain and collectibles gain from Schedule D worksheets',
-'Prior year QBI loss carryforward from your prior year Form 8995 Line 3',
-]} />
-</CollapsibleSection>
-
-<CollapsibleSection title="INCENTIVE STOCK OPTIONS (AMT)" defaultOpen={false}>
-<div style={{ fontSize: 12, color: SL, marginBottom: 12, lineHeight: 1.5, paddingTop: 8 }}>
-If you exercised ISOs this year and held the shares past year-end, the bargain element is an AMT preference item (Form 6251 Line 2i) — it increases your AMTI but does not create regular taxable income.
-</div>
-<WhatGoesHere items={[
-'ISO exercise date and spread: find the grant price and FMV at exercise on your Form 3921 (Box 4 minus Box 3, times shares exercised)',
-'The bargain element (FMV minus exercise price × shares) is the AMT preference item — enter the total here',
-'AMT only applies if your total AMT income (AMTI) exceeds your exemption ($88,100 single / $137,000 MFJ for 2025)',
-'If you sold the shares before year-end, you may not have an AMT adjustment — consult your CPA or review Form 3921',
-'Do NOT enter ISO exercises here if you sold the shares in the same calendar year — that becomes ordinary income or capital gain instead',
-]} />
-<label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
-<input type="checkbox" checked={hasISO} onChange={e => setHasISO(e.target.checked)} style={{ width: 16, height: 16 }} />
-I exercised ISOs and held shares past year-end
-</label>
-{hasISO && (
-<div style={{ marginTop: 4 }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>ISO Bargain Element <InfoTip text="(FMV at exercise) − (strike price) × shares exercised. Added to AMTI on Form 6251 Line 2i." /></label>
-<MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Form 6251 line 2i — added to AMT income</div>
-</div>
-)}
-</CollapsibleSection>
-
-<CollapsibleSection title="RETIREMENT &amp; SOCIAL SECURITY INCOME">
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, paddingTop: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Social Security Benefits <InfoTip text="Total SS/SSA-1099 Box 5 gross benefits. Up to 85% is taxable depending on combined income (IRC §86)." /></label>
-<MoneyInput value={socialSecurity} onChange={setSocialSecurity} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>IRA / Pension Distributions <InfoTip text="Taxable amount from Form 1099-R Box 2a — traditional IRA, 401(k), or pension distributions. Do not include Roth IRA qualified distributions." /></label>
-<MoneyInput value={iraDistributions} onChange={setIraDistributions} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-</div>
-<WhatGoesHere items={[
-'Social Security: enter the gross benefit amount from SSA-1099 Box 5 — do not pre-calculate the taxable portion',
-'IRA / Pension: enter the taxable amount from Form 1099-R Box 2a for traditional IRA, 401(k), or pension distributions',
-'Do NOT include Roth IRA qualified distributions here — those are tax-free and do not appear on your return',
-'Required Minimum Distributions (RMDs) count as IRA/pension distributions',
-]} />
-</CollapsibleSection>
-
-<CollapsibleSection title="ABOVE-THE-LINE DEDUCTIONS (SCHEDULE 1)">
-<div style={{ fontSize: 12, color: SL, marginBottom: 12, paddingTop: 8 }}>These reduce your AGI before the standard/itemized deduction is applied.</div>
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>
-&gt;2% Shareholder / Self-Employed Health Insurance (Sch 1, Line 17)
-<InfoTip text="For S-corp owners (>2% shareholders): premiums must first be included in your W-2 Box 1 wages by the S-Corp, then deducted here on Schedule 1 Line 17 (IRC §162(l); Notice 2008-1). This two-step process is mandatory — failing to include premiums in W-2 wages disqualifies the deduction. Not deductible if eligible for employer-sponsored coverage through a spouse. For sole proprietors and partners: enter premiums under IRC §162(l)." />
-</label>
-<MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>HSA Deduction <InfoTip text="Health Savings Account contributions — Schedule 1 Line 13. 2025 limits: $4,300 (self-only HDHP), $8,550 (family HDHP). Must have a qualifying High-Deductible Health Plan." /></label>
-<MoneyInput value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Student Loan Interest <InfoTip text="Interest paid on qualified student loans — Schedule 1 Line 21. Maximum $2,500 deduction, phased out at higher income levels." /></label>
-<MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Prior-Year NOL Carryforward <InfoTip text="Net Operating Loss carryforward from a prior year — Schedule 1 Line 8a — enter as positive, treated as a reduction. IRC §172(a)(2) (TCJA, extended by OBBBA): post-2017 NOL carryforwards are limited to 80% of taxable income before the NOL deduction. This limit is applied automatically. Pre-2018 NOLs are unlimited — if yours is pre-2018, your actual deduction may be slightly larger than shown." /></label>
-<MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
-</div>
-<div style={{ gridColumn: '1 / -1' }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans
-<InfoTip text={`For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16.\n\nSEP-IRA: up to 25% of W-2 salary (IRS max $70,000 for 2025). Requires $280,000 in W-2 compensation to reach the $70,000 limit.\n\nSolo 401(k) employee deferrals: up to $23,500 for 2025, plus employer match up to 25% of W-2 salary.\n• Age 50–59 and 64+: Add $7,500 catch-up ($31,000 total employee deferral).\n• Age 60–63: Add $11,250 catch-up ($34,750 total) per SECURE 2.0 Act (P.L. 117-328, §109).\n\nFor sole proprietors: based on net self-employment earnings × 0.9235.\n\nDEADLINES (LBL-I01): SEP-IRA and Solo 401(k) employer contributions for S-Corps are due by the S-Corp's return due date including extensions — September 15 for most S-Corps filing Form 1120-S (6-month extension from March 15). This is NOT the same as the individual return extension deadline of October 15. Missing September 15 means the contribution cannot be deducted on that year's S-Corp return.`} />
-</label>
-<MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
-{scaledOfficerSal > 0 && (() => {
-const sepActualMax = Math.min(70000, Math.round(scaledOfficerSal * 0.25))
-return (
-<div style={{ fontSize: 11, color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 10px', marginTop: 6 }}>
-<strong>At your {fmt(scaledOfficerSal)} officer salary:</strong> SEP-IRA max = <strong>{fmt(sepActualMax)}</strong> (25% × salary).
-{sepActualMax < 70000 && (
-<span style={{ color: '#1E40AF' }}> The $70,000 IRS maximum requires $280,000 in W-2 compensation.</span>
-)}
-</div>
-)
-})()}
-</div>
-</div>
-<WhatGoesHere items={[
-'>2% S-Corp shareholder health insurance (Schedule 1 Line 17): premiums paid by or through the S-Corp for you and your family — deductible only if included as W-2 wages first',
-'HSA contributions (Form 8889 Line 13): enter your own contributions only — employer contributions already excluded from W-2 wages are not entered here',
-'Student loan interest (Schedule 1 Line 21): up to $2,500 on qualified student loans — phases out at $85,000 single / $175,000 MFJ (2025)',
-'Self-employed retirement plans (Schedule 1 Line 16): SEP-IRA, SIMPLE-IRA, or Solo 401(k) employer contributions for >2% S-Corp shareholders and sole proprietors',
-'Prior-year NOL (Schedule 1 Line 8a): enter as a positive number — post-2017 NOLs are limited to 80% of taxable income before the NOL per IRC §172(a)(2)',
-'These deductions reduce your AGI directly, before the standard or itemized deduction is applied — making them more valuable than below-the-line itemized deductions',
-]} />
-</CollapsibleSection>
-
-<CollapsibleSection title="DEDUCTION METHOD">
-<div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, paddingTop: 12 }}>
-<label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: SL }}>
-<input type="checkbox" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} style={{ width: 16, height: 16 }} />
-Use itemized deductions <InfoTip text="Only itemize if your total itemized deductions (SALT + mortgage interest + charitable gifts) exceed the standard deduction for your filing status ($15,750 single / $31,500 MFJ for 2025). Most taxpayers take the standard deduction. The calculator will use whichever is larger." />
-</label>
-</div>
-{!useItemized && (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', borderRadius: 10, padding: '12px 16px' }}>
-<div style={{ fontSize: 13, color: SL }}>Standard deduction ({status === 'mfj' || status === 'qss' ? 'MFJ' : status === 'hoh' ? 'HOH' : status === 'mfs' ? 'MFS' : 'Single'})</div>
-<div style={{ fontSize: 16, fontWeight: 700, color: N }}>{fmt(standardDeduction)}</div>
-</div>
-)}
-{useItemized && (
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>State &amp; Local Taxes Paid (SALT) <InfoTip text="State income tax paid + local property taxes. SALT deduction capped at $10,000 (2024) / $40,000 (2025 OBBBA) for single and MFJ filers. MFS = half of cap." /></label>
-<MoneyInput value={saltPaid} onChange={setSaltPaid} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Mortgage Interest <InfoTip text="Deductible mortgage interest on up to $750,000 of acquisition debt (TCJA limit, §163(h))." /></label>
-<MoneyInput value={mortgageInt} onChange={setMortgageInt} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Charitable Contributions <InfoTip text="Cash and non-cash charitable gifts to qualifying organizations — Schedule A Line 16. Cash gifts generally limited to 60% of AGI." /></label>
-<MoneyInput value={charitableGifts} onChange={setCharitableGifts} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-</div>
-<div style={{ display: 'flex', alignItems: 'center', background: '#F8FAFC', borderRadius: 10, padding: '12px 16px', gap: 8 }}>
-<div style={{ fontSize: 12, color: SL }}>Total itemized</div>
-<div style={{ fontSize: 15, fontWeight: 700, color: N, marginLeft: 'auto' }}>{fmt(computedItemizedAmt)}</div>
-</div>
-</div>
-)}
-</CollapsibleSection>
-
-<CollapsibleSection title="ESTIMATED TAX PAYMENTS MADE">
-<div style={{ paddingTop: 12 }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Total Estimated Payments Paid This Year <InfoTip text="All quarterly estimated tax payments made to the IRS this year (Form 1040-ES). Sum of all four quarters paid. Do not include W-2 withholding here — enter that in the W-2 section above." /></label>
-<MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" style={{ maxWidth: 240, padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
-<div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Sum of all quarterly payments made so far</div>
-</div>
-<div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-<div style={{
-borderLeft: '4px solid #D97706',
-background: '#FFFBEB',
-borderRadius: '0 10px 10px 0',
-padding: '14px 16px',
-marginBottom: 2,
-}}>
-<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-<span style={{ fontSize: 14 }}>💡</span>
-<span style={{ fontSize: 12, fontWeight: 700, color: '#92400e', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Strategy Tip — Prior Year Safe Harbor (§6654)</span>
-</div>
-<div style={{ fontSize: 12, color: '#78350f', marginBottom: 12, lineHeight: 1.6 }}>
-For growing businesses, paying <strong>100%/110% of last year's tax</strong> may be significantly lower than 90% of this year's liability — and it's a fixed, known target set at the start of the year. Enter your prior year figures to compare both approaches and find your minimum required payment.
-</div>
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: '#92400e', marginBottom: 4, fontWeight: 600 }}>Prior Year Total Tax (Form 1040, Line 24) <InfoTip text="Your total federal tax from last year's return. Used for the §6654(d)(1)(B)(ii) prior year safe harbor. If your prior year AGI exceeded $150,000 ($75,000 MFS), the safe harbor requires 110% of this amount instead of 100% — §6654(d)(1)(D)." /></label>
-<MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #FCD34D', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', background: '#fff' }} />
-</div>
-<div>
-<label style={{ display: 'block', fontSize: 12, color: '#92400e', marginBottom: 4, fontWeight: 600 }}>Prior Year AGI (Form 1040, Line 11) <InfoTip text="Prior year adjusted gross income. Used to determine whether the 100% or 110% safe harbor multiplier applies. Over $150,000 single/MFJ (or $75,000 MFS) → 110% of prior year tax required." /></label>
-<MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #FCD34D', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', background: '#fff' }} />
-</div>
-</div>
-</div>
-</div>
-</CollapsibleSection>
-
-<div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-<button
-onClick={() => handleSave()}
-style={{
-width: '100%', padding: '14px',
-background: saveStatus === 'saved' ? '#15803d' : '#0D1B3E',
-border: 'none', borderRadius: 12, color: '#fff',
-fontWeight: 700, fontSize: 14, cursor: 'pointer',
-transition: 'background 0.3s',
-}}
->
-{saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
-</button>
-<button
-onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
-style={{
-width: '100%', padding: '14px',
-background: B,
-border: 'none', borderRadius: 12, color: '#fff',
-fontWeight: 700, fontSize: 14, cursor: 'pointer',
-}}
->
-💾 Save &amp; Analyze →
-</button>
-</div>
-
-</div>
-
-<div style={{
-position: isMobile ? 'static' : 'sticky',
-top: 72,
-maxHeight: isMobile ? 'none' : 'calc(100vh - 90px)',
-overflowY: isMobile ? 'visible' : 'auto',
-}}>
-<div style={{ background: N, borderRadius: 18, padding: 28, color: '#fff', marginBottom: 16 }}>
-<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', marginBottom: 8 }}>ESTIMATED FEDERAL TAX LIABILITY</div>
-<FederalScopeBanner variant="dark" />
-<div style={{ fontSize: 48, fontWeight: 900, color: totalTax === 0 ? '#4ADE80' : '#F87171', lineHeight: 1 }}>
-{fmt(totalTax)}
-</div>
-<div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
-{totalTax === 0 ? 'No federal income tax owed' : 'Estimated federal income tax'}
-</div>
-<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4, marginBottom: 16, lineHeight: 1.4 }}>
-Federal only — state income tax not included. Your total tax burden will be higher.
-</div>
-<div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
-{effectiveRate > 0 ? (effectiveRate * 100).toFixed(1) + '% effective rate on total income' : ''}
-</div>
-
-{totalPayments === 0 && balance > 0 ? (
-<div style={{ background: 'rgba(100,116,139,0.12)', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 12, padding: '14px 18px', marginBottom: 16 }}>
-<div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4, letterSpacing: '0.5px' }}>FULL LIABILITY — NO PAYMENTS RECORDED</div>
-<div style={{ fontSize: 24, fontWeight: 800, color: 'rgba(248,113,113,0.55)', lineHeight: 1 }}>{fmt(balance)}</div>
-<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6, lineHeight: 1.4 }}>
-Enter estimated payments below to see your remaining balance.
-</div>
-</div>
-) : (
-<div style={{ background: balance > 0 ? 'rgba(248,113,113,0.15)' : 'rgba(74,222,128,0.15)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-<div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{balance > 0 ? 'REMAINING TAX OWED' : 'ESTIMATED REFUND'}</div>
-<div style={{ fontSize: 26, fontWeight: 800, color: balance > 0 ? '#F87171' : '#4ADE80' }}>{fmt(Math.abs(balance))}</div>
-<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{fmt(totalTax)} tax − {fmt(totalPayments)} paid</div>
-</div>
-)}
-
-<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Income Tax</span>
-<span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(result.ordFedTax + (result.prefTax || 0))}</span>
-</div>
-{selfEmploymentTax > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax <InfoTip text="IRC §1401: Sole proprietors and active partners pay SE tax (15.3% on earnings up to the SS wage base, then 2.9% above). S-Corp owners pay FICA only on their W-2 salary — K-1 distributions are exempt. 50% of SE tax is deductible from AGI (§164(f))." /></span>
-<span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
-</div>
-)}
-{employeeFICA > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Employee FICA (Payroll Taxes) <InfoTip text={`Social Security (6.2%) + Medicare (1.45%) on your $${totalW2ForFICA.toLocaleString()} W-2 salary. The matching employer FICA paid by your S-Corp is already deducted as a business expense.`} /></span>
-<span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(employeeFICA)}</span>
-</div>
-)}
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: additionalMedicare > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)' }}>Additional Medicare Tax (Form 8959)</span>
-<span style={{ fontWeight: 700, color: additionalMedicare > 0 ? '#F87171' : 'rgba(255,255,255,0.3)' }}>{fmt(additionalMedicare)}</span>
-</div>
-{niit > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>NIIT (3.8%) — Form 8960 <InfoTip text="IRC §1411: 3.8% surtax on the lesser of net investment income (interest, dividends, capital gains, net rental income) or the amount by which MAGI exceeds $200K (single) / $250K (MFJ). Real estate professionals whose rental income is non-passive are exempt on that rental income." /></span>
-<span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(niit)}</span>
-</div>
-)}
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Alternative Minimum Tax (Form 6251)</span>
-<span style={{ fontWeight: 700, color: amtAmount > 0 ? '#F87171' : 'rgba(255,255,255,0.3)' }}>{fmt(amtAmount)}</span>
-</div>
-{amtAmount > 0 && (
-<div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, lineHeight: 1.4 }}>
-Estimate only — excludes some Form 6251 preference items. Verify with a CPA.
-</div>
-)}
-{childCredit > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Child Tax Credit (§24)</span>
-<span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(childCredit)})</span>
-</div>
-)}
-{qbiDeduction > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>QBI Deduction <InfoTip text="§199A: Eligible pass-through owners may deduct 20% of Qualified Business Income. Above income thresholds ($201,775 single / $403,500 MFJ for 2026), W-2 wage and UBIA property limits apply. Made permanent by the One Big Beautiful Bill Act (signed July 4, 2025)." /> (§199A)</span>
-<span style={{ fontWeight: 700, color: '#4ADE80' }}>({fmt(qbiDeduction)})</span>
-</div>
-)}
-{qbiCarryforward > 0 && (
-<div style={{ marginTop: 6, background: 'rgba(59,130,246,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
-💡 QBI Loss Carryforward: {fmt(qbiCarryforward)}<br />
-Enter this in "Prior Year QBI Loss" next year to offset future QBI income (§199A(c)(2)).
-</div>
-)}
-{palCarryforwardApplied > 0 && (
-<div style={{ marginTop: 6, background: 'rgba(74,222,128,0.1)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#4ADE80', lineHeight: 1.5 }}>
-✓ §469 Carryforward Applied: ({fmt(palCarryforwardApplied)}) offset rental income
-</div>
-)}
-</div>
-
-{ficaSavings > 0 && k1Distributions > 0 && (
-<div style={{ marginTop: 10, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 12px' }}>
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-<span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions avoid FICA. As a sole proprietor, this income would incur SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}.`} /></span>
-<span style={{ fontWeight: 700, color: '#4ADE80' }}>↓ {fmt(ficaSavings)}</span>
-</div>
-<div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
-vs. sole-prop SE tax on same distributions
-</div>
-</div>
-)}
-
-<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 16, lineHeight: 1.5 }}>
-⚠ Accuracy depends on your inputs. Please review all fields. This is an estimate — consult a tax professional for filing.
-</div>
-</div>
-
-{/* Tax waterfall card */}
-{(() => {
-const totalW2All = scaledW2 + scaledOfficerSal
-const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
-inputs.intInc + inputs.divInc + inputs.taxableSS +
-inputs.iraIncome + inputs.f4797Inc
-const totalGross = scaledK1 + totalW2All + totalOther + ebl
-const aboveLine = Math.max(0, totalGross - (palCarryforwardApplied || 0) - agi)
-const dedAmt = useItemized ? computedItemizedAmt : standardDeduction
-const qbiDed = Math.max(0, agi - dedAmt - ordinaryTaxableIncome)
-const wfRow = (label, amt, isTotal = false, isNeg = false) => (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: isTotal ? '2px solid #E2E8F0' : '1px solid #F8FAFC' }}>
-<span style={{ fontSize: 12, color: isTotal ? N : SL, fontWeight: isTotal ? 700 : 400 }}>{label}</span>
-<span style={{ fontSize: 12, fontWeight: isTotal ? 800 : 600, color: isNeg ? R : (isTotal ? N : SL) }}>
-{isNeg ? '(' + fmt(Math.abs(amt)) + ')' : fmt(amt)}
-</span>
-</div>
-)
-return (
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
-<button onClick={() => setShowWaterfall(v => !v)} style={{
-width: '100%', background: 'none', border: 'none', padding: '14px 20px', cursor: 'pointer',
-display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-borderBottom: showWaterfall ? '1px solid #F1F5F9' : 'none', borderRadius: showWaterfall ? '14px 14px 0 0' : 14,
-}}>
-<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX CALCULATION WATERFALL</div>
-<BracketBadge rate={marginalRate} />
-</div>
-<span style={{ fontSize: 11, color: '#94A3B8', display: 'inline-block', transition: 'transform 0.2s', transform: showWaterfall ? 'rotate(180deg)' : 'none' }}>▼</span>
-</button>
-{showWaterfall && (
-<div style={{ padding: '0 20px 16px' }}>
-{scaledK1 !== 0 && wfRow(incomeFooterLabel, scaledK1)}
-{totalW2All !== 0 && wfRow('W-2 Wages (all sources)', totalW2All)}
-{inputs.rentalNet !== 0 && wfRow('Net Rental Income', inputs.rentalNet)}
-{inputs.stGain !== 0 && wfRow('Short-Term Capital Gains', inputs.stGain)}
-{inputs.ltGain !== 0 && wfRow('Long-Term Capital Gains', inputs.ltGain)}
-{inputs.unrecap1250 !== 0 && wfRow('Unrecaptured §1250 Gain', inputs.unrecap1250)}
-{inputs.collectiblesGain !== 0 && wfRow('Collectibles Gain', inputs.collectiblesGain)}
-{inputs.intInc !== 0 && wfRow('Taxable Interest', inputs.intInc)}
-{inputs.divInc !== 0 && wfRow('Ordinary Dividends', inputs.divInc)}
-{inputs.taxableSS !== 0 && wfRow('Taxable Social Security', inputs.taxableSS)}
-{inputs.iraIncome !== 0 && wfRow('IRA / Pension Distributions', inputs.iraIncome)}
-{inputs.f4797Inc !== 0 && wfRow('Form 4797 Gain/(Loss)', inputs.f4797Inc)}
-{ebl > 0 && wfRow('§461(l) EBL Add-back', ebl)}
-{wfRow('= Gross Income', totalGross, true)}
-{aboveLine > 0 && wfRow('Above-the-Line Deductions', aboveLine, false, true)}
-{palCarryforwardApplied > 0 && wfRow('§469 PAL Carryforward Applied', palCarryforwardApplied, false, true)}
-{wfRow('= Adjusted Gross Income (AGI)', agi, true)}
-{wfRow(useItemized ? 'Itemized Deductions (Sch A)' : 'Standard Deduction', dedAmt, false, true)}
-{qbiDed > 0 && wfRow('QBI Deduction (§199A)', qbiDed, false, true)}
-{wfRow('= Taxable Income', ordinaryTaxableIncome, true)}
-{ebl > 0 && eblThreshold > 0 && (
-<div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#9A3412' }}>
-⚠ §461(l) EBL: {fmt(ebl)} added back to income (threshold: {fmt(eblThreshold)}). The disallowed amount carries forward as an NOL.
-</div>
-)}
-</div>
-)}
-</div>
-)
-})()}
-
-{/* Quarterly estimate card */}
-{quarterly > 0 && (
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
-<div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>QUARTERLY ESTIMATED TAX</div>
-<div style={{ padding: '16px 20px' }}>
-
-{safeHarborPriorYear !== null && nv(priorYearTax) > 0 && (
-<div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: '#78350F', letterSpacing: '0.5px', marginBottom: 8 }}>SAFE HARBOR COMPARISON (§6654)</div>
-<div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78350F' }}>
-<span>90% of current year tax</span>
-<span style={{ fontWeight: 700 }}>{fmt(safeHarborCurrentYear)}</span>
-</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78350F' }}>
-<span>{priorYearMultiplierLabel} of prior year tax ({fmt(nv(priorYearTax))})</span>
-<span style={{ fontWeight: 700 }}>{fmt(safeHarborPriorYear)}</span>
-</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: '#78350F', borderTop: '1px solid #FCD34D', paddingTop: 5 }}>
-<span>Minimum required (lower amount)</span>
-<span>{fmt(safeHarborMinimum)}</span>
-</div>
-</div>
-<div style={{ fontSize: 10, color: '#92400e', marginTop: 6, lineHeight: 1.4 }}>
-{priorYearMultiplierLabel === '110%' ? `Prior year AGI exceeded $150,000 — 110% multiplier applies per IRC §6654(d)(1)(D).` : `Prior year AGI ≤ $150,000 — 100% multiplier applies per IRC §6654(d)(1)(B)(ii).`}
-</div>
-</div>
-)}
-
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0F4FF', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-<div>
-<div style={{ fontSize: 10, color: SL, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 4 }}>
-{safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? 'SAFE HARBOR QUARTERLY PAYMENT' : 'RECOMMENDED QUARTERLY PAYMENT'}
-</div>
-<div style={{ fontSize: 26, fontWeight: 900, color: N }}>
-{fmt(safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? safeHarborQuarterly : quarterly)}
-</div>
-<div style={{ fontSize: 11, color: SL }}>per quarter · /qtr</div>
-</div>
-<div style={{ textAlign: 'right' }}>
-<div style={{ fontSize: 10, color: SL }}>
-{fmt((safeHarborPriorYear !== null && nv(priorYearTax) > 0) ? safeHarborMinimum : quarterly * 4)} / year
-</div>
-{safeHarborBalance > 0 && totalPayments > 0 && (
-<div style={{ fontSize: 11, color: R, fontWeight: 700, marginTop: 2 }}>
-{fmt(safeHarborBalance)} still needed
-</div>
-)}
-</div>
-</div>
-
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-{quarterDefs.map((q, i) => {
-const isPast = q.due < today
-const daysAway = Math.ceil((q.due - today) / 86400000)
-const qAmt = safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? safeHarborQuarterly : quarterly
-return (
-<div key={i} style={{
-background: isPast ? '#F8FAFC' : '#fff',
-border: '1px solid ' + (isPast ? '#E2E8F0' : '#BFDBFE'),
-borderRadius: 10, padding: '10px 12px', opacity: isPast ? 0.65 : 1,
-}}>
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-<span style={{ fontSize: 12, fontWeight: 700, color: N }}>{q.label}</span>
-{isPast
-? <span style={{ fontSize: 10, color: SL }}>Past</span>
-: daysAway <= 30
-? <span style={{ fontSize: 10, fontWeight: 700, color: R }}>Due in {daysAway}d</span>
-: <span style={{ fontSize: 10, color: SL }}>{daysAway}d away</span>
-}
-</div>
-<div style={{ fontSize: 10, color: SL, marginBottom: 4 }}>
-{q.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-</div>
-<div style={{ fontSize: 16, fontWeight: 800, color: isPast ? SL : N }}>{fmt(qAmt)}</div>
-</div>
-)
-})}
-</div>
-
-<div style={{ marginTop: 12, fontSize: 11, color: SL, lineHeight: 1.5 }}>
-Due dates: Apr 15 (Q1) · Jun 15 (Q2) · Sep 15 (Q3) · Jan 15 (Q4). Payments after deadline may incur underpayment penalties under IRC §6654.
-</div>
-</div>
-</div>
-)}
-
-</div>
-</div>
-
-{/* Unsaved changes modal */}
-{showUnsavedModal && (
-<div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-<div style={{ background: '#fff', borderRadius: 14, padding: '28px 32px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-<div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 8 }}>Unsaved Changes</div>
-<div style={{ fontSize: 14, color: SL, marginBottom: 24, lineHeight: 1.6 }}>You have unsaved changes. Would you like to save before leaving?</div>
-<div style={{ display: 'flex', gap: 10 }}>
-<button onClick={saveAndLeave} style={{ flex: 1, padding: '10px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Save &amp; Leave</button>
-<button onClick={confirmLeave} style={{ flex: 1, padding: '10px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Leave Without Saving</button>
-<button onClick={() => setShowUnsavedModal(false)} style={{ padding: '10px 14px', background: '#fff', color: SL, border: '1px solid #E2E8F0', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-</div>
-</div>
-</div>
-)}
-</div>
-)
+  const navigate = useNavigate()
+
+  // ── State from session ──────────────────────────────────────────────────────
+  const { entities, k1Total: sessionK1 } = readStep1State()
+  const savedCtx = readPersonalContext()
+  const [taxYear, setTaxYear] = useState(() => readTaxYear() || 2025)
+
+  // ── Personal 1040 fields ────────────────────────────────────────────────────
+  const [filingStatus, setFilingStatus] = useState(savedCtx.filingStatus || 'single')
+  const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')
+  const [w2Withheld,   setW2Withheld]   = useState(savedCtx.w2Withheld    || '')
+  const [estPaid,      setEstPaid]      = useState(savedCtx.estPaid        || '')
+  const [dependents,   setDependents]   = useState(savedCtx.dependents     || '0')
+  const [ytdMode,      setYtdMode]      = useState(!!(savedCtx.ytdMode))
+  const [ytdMonth,     setYtdMonth]     = useState(savedCtx.ytdMonth       || new Date().getMonth() + 1)
+
+  // ── Capital gains & investment income ──────────────────────────────────────
+  const [stGain,       setStGain]       = useState(savedCtx.stGain         || '')
+  const [ltGain,       setLtGain]       = useState(savedCtx.capitalGains   || savedCtx.ltGain || '')
+  const [interest,     setInterest]     = useState(savedCtx.interest       || '')
+  const [dividends,    setDividends]    = useState(savedCtx.dividends      || '')
+  const [qualDividends, setQualDividends] = useState(savedCtx.qualDividends || savedCtx.qualifiedDividends || '')
+  const [unrecap1250,  setUnrecap1250]  = useState(savedCtx.unrecap1250    || '')
+  const [collectibles, setCollectibles] = useState(savedCtx.collectiblesGain || '')
+  const [form4797,     setForm4797]     = useState(savedCtx.form4797       || '')
+
+  // ── Rental real estate ─────────────────────────────────────────────────────
+  const [rentalIncome,   setRentalIncome]   = useState(savedCtx.rentalIncome   || '')
+  const [rentalExpenses, setRentalExpenses] = useState(savedCtx.rentalExpenses || '')
+  const [isREP,          setIsREP]          = useState(!!(savedCtx.isREP))
+  const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant !== false)
+  const [priorPAL,       setPriorPAL]       = useState(savedCtx.priorPassiveLossCarryforward || '')
+
+  // ── Deductions & adjustments ───────────────────────────────────────────────
+  const [useItemized,       setUseItemized]       = useState(!!(savedCtx.useItemized))
+  const [itemizedAmt,       setItemizedAmt]       = useState(savedCtx.itemizedAmt         || '')
+  const [saltAmount,        setSaltAmount]         = useState(savedCtx.saltAmount           || '')
+  const [selfEmpHealthIns,  setSelfEmpHealthIns]   = useState(savedCtx.selfEmpHealthIns    || '')
+  const [hsaDeduction,      setHsaDeduction]       = useState(savedCtx.hsaDeduction        || '')
+  const [studentLoanInt,    setStudentLoanInt]      = useState(savedCtx.studentLoanInt      || '')
+  const [selfEmpRetirement, setSelfEmpRetirement]  = useState(savedCtx.selfEmpRetirement   || '')
+  const [nolCarryforward,   setNolCarryforward]    = useState(savedCtx.nolCarryforward     || '')
+  const [priorYearQBILoss,  setPriorYearQBILoss]   = useState(savedCtx.priorYearLosses     || '')
+  const [hasISO,            setHasISO]             = useState(!!(savedCtx.hasISO))
+  const [isoBargainElement, setIsoBargainElement]  = useState(savedCtx.isoBargainElement   || '')
+  const [priorYearTax,      setPriorYearTax]        = useState(savedCtx.priorYearTax        || '')
+  const [priorYearAGI,      setPriorYearAGI]        = useState(savedCtx.priorYearAGI        || '')
+
+  // ── Save state ─────────────────────────────────────────────────────────────
+  const [saveStatus, setSaveStatus] = useState('idle')  // idle | saving | saved
+
+  // ── YTD factor ─────────────────────────────────────────────────────────────
+  const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
+
+  // ── Build calc input ───────────────────────────────────────────────────────
+  const calcInput = useMemo(() => {
+    const entityList = Array.isArray(entities) ? entities : []
+    const additionalW2 = nf(w2Income)
+    const additionalWithheld = nf(w2Withheld)
+
+    const form4797Total = nf(form4797) + entityList.reduce((s, e) => s + (nf(e.box17K)), 0)
+
+    return {
+      taxYear,
+      status: filingStatus,
+      dependents: nf(dependents),
+      entities: entityList,
+      w2: additionalW2,
+      k1Total: sessionK1 || 0,
+      rentalNet: nf(rentalIncome) - nf(rentalExpenses),
+      stGain:    nf(stGain),
+      ltGain:    nf(ltGain),
+      intInc:    nf(interest),
+      divInc:    nf(dividends),
+      qualDiv:   nf(qualDividends),
+      f4797Inc:  form4797Total,
+      taxableSS: 0,
+      iraIncome: 0,
+      selfEmpHealthIns:  nf(selfEmpHealthIns),
+      hsaDeduction:      nf(hsaDeduction),
+      studentLoanInt:    nf(studentLoanInt),
+      selfEmpRetirement: nf(selfEmpRetirement),
+      nolCarryforward:   nf(nolCarryforward),
+      priorYearQBILoss:  nf(priorYearQBILoss),
+      saltAmount:        nf(saltAmount),
+      hasISO,
+      isoBargainElement: nf(isoBargainElement),
+      isREP,
+      isActiveParticipant,
+      unrecap1250:   nf(unrecap1250),
+      collectiblesGain: nf(collectibles),
+      w2Withheld:    additionalWithheld,
+      estPaid:       nf(estPaid),
+      ytdFactor,
+      priorYearTax:  nf(priorYearTax),
+      priorYearAGI:  nf(priorYearAGI),
+      priorPassiveLossCarryforward: nf(priorPAL),
+      useItemized:  useItemized,
+      itemizedAmt:  nf(itemizedAmt),
+    }
+  }, [
+    taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
+    sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
+    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
+    hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
+  ])
+
+  const result = useMemo(() => {
+    try { return calcTaxReturn(calcInput) }
+    catch { return null }
+  }, [calcInput])
+
+  // ── Persist personal context on change ────────────────────────────────────
+  useEffect(() => {
+    writePersonalContext({
+      filingStatus, w2Income, w2Withheld, estPaid, dependents,
+      ytdMode, ytdMonth,
+      stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
+      qualifiedDividends: qualDividends,
+      unrecap1250, collectiblesGain: collectibles, form4797,
+      rentalIncome, rentalExpenses, isREP, isActiveParticipant,
+      priorPassiveLossCarryforward: priorPAL,
+      selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+      nolCarryforward, priorYearLosses: priorYearQBILoss,
+      useItemized, itemizedAmt, saltAmount,
+      hasISO, isoBargainElement,
+      priorYearTax, priorYearAGI,
+    })
+  }, [
+    filingStatus, w2Income, w2Withheld, estPaid, dependents,
+    ytdMode, ytdMonth,
+    stGain, ltGain, interest, dividends, qualDividends,
+    unrecap1250, collectibles, form4797,
+    rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
+    hasISO, isoBargainElement, priorYearTax, priorYearAGI,
+  ])
+
+  // ── Save handler ──────────────────────────────────────────────────────────
+  const handleSave = useCallback(({ thenNavigate } = {}) => {
+    if (saveStatus === 'saving') return
+    setSaveStatus('saving')
+
+    const email = localStorage.getItem('ts360_email') || 'default'
+    const key   = 'ts360_records_' + email
+    const existing = JSON.parse(localStorage.getItem(key) || '[]')
+
+    const record = {
+      id: Date.now(),
+      savedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      taxYear,
+      entities: Array.isArray(entities) ? entities : [],
+      k1Income: sessionK1 || 0,
+      filingStatus,
+      dependents,
+      w2Income,
+      w2Withheld,
+      estPaid,
+      quarterly: result?.quarterlyRecommended || 0,
+      totalTax: result?.totalTax || 0,
+      biz: {
+        entityType: entities?.[0]?.type || 'S Corporation',
+        year: taxYear,
+        ownershipPct: entities?.[0]?.own || '100',
+        grossRevenue: String(nf(entities?.[0]?.pnl?.grossRevenue) || 0),
+        operatingExpenses: String(nf(entities?.[0]?.pnl?.totalExpenses) || 0),
+        officerSalary: String(nf(entities?.[0]?.pnl?.officerSalary) || 0),
+        depreciation: String(nf(entities?.[0]?.pnl?.depreciation) || 0),
+        pnl: entities?.[0]?.pnl || {},
+      },
+      f1040: {
+        filingStatus, w2Income, w2Withheld, estPaid, dependents,
+        ytdMode, ytdMonth,
+        stGain, capitalGains: ltGain, ltGain,
+        interest, dividends, qualDividends, qualifiedDividends: qualDividends,
+        unrecap1250, collectiblesGain: collectibles, form4797,
+        rentalIncome, rentalExpenses, isREP, isActiveParticipant,
+        priorPassiveLossCarryforward: priorPAL,
+        selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+        nolCarryforward, priorYearLosses: priorYearQBILoss,
+        useItemized, itemizedAmt, saltAmount,
+        hasISO, isoBargainElement,
+        priorYearTax, priorYearAGI,
+      },
+      quarterly: result?.quarterlyRecommended || 0,
+      totalTax: result?.totalTax || 0,
+      totalSuspendedLoss: result?.totalSuspendedLoss || 0,
+      entityBasisResults: result?.entityBasisResults || [],
+    }
+
+    const updated = [record, ...existing].slice(0, 50)
+    localStorage.setItem(key, JSON.stringify(updated))
+    localStorage.setItem('ts360_records', JSON.stringify(updated))
+
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 3000)
+
+    if (thenNavigate) {
+      sessionStorage.setItem('ts360_active_record_id', String(record.id))
+      navigate(thenNavigate, { state: { record } })
+    }
+  }, [
+    saveStatus, taxYear, entities, sessionK1, filingStatus, dependents,
+    w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
+    stGain, ltGain, interest, dividends, qualDividends,
+    unrecap1250, collectibles, form4797,
+    rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
+    hasISO, isoBargainElement, priorYearTax, priorYearAGI, result, navigate,
+  ])
+
+  const stdDed = getStdDed(taxYear, filingStatus)
+  const hasResult = !!result && result.totalTax >= 0
+
+  const entityList = Array.isArray(entities) ? entities : []
+  const hasSCorpEntity = entityList.some(e => isSCorpEntity(e?.type))
+  const hasPassthrough  = entityList.some(e => isPassthroughEntity(e?.type))
+
+  const YEARS = [2024, 2025, 2026]
+  const FS_OPTIONS = [
+    { value: 'single', label: 'Single' },
+    { value: 'mfj',    label: 'Married Filing Jointly' },
+    { value: 'mfs',    label: 'Married Filing Separately' },
+    { value: 'hoh',    label: 'Head of Household' },
+    { value: 'qss',    label: 'Qualifying Surviving Spouse' },
+  ]
+
+  const inputLbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }
+  const inpWrap  = { marginBottom: 14 }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
+
+      {/* Nav */}
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 24px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
+          <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+          <div style={{ background: '#EFF6FF', color: B, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Back to Business</button>
+          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
+          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>AI Analysis</button>
+          <button onClick={() => signOut(navigate)}         style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
+          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px 100px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
+
+        {/* ── LEFT: Input form ──────────────────────────────────────────────── */}
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
+          <p style={{ color: SL, fontSize: 13, margin: '0 0 20px' }}>
+            K-1 income from Step 1 flows automatically. Add personal income, deductions, and withholding to see your complete estimated federal tax liability.
+          </p>
+
+          {/* Year + Filing Status */}
+          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={inputLbl}>
+                  {/* C-06 FIX: 2026 dropdown option shortened.
+                      Old: "2026 — Rev. Proc. 2025-32 (OBBBA)" (overflows on mobile)
+                      New: "2026 (OBBBA)" — full citation shown in footnote below */}
+                  Tax Year
+                </label>
+                <select value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
+                  style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
+                  {YEARS.map(y => (
+                    <option key={y} value={y}>
+                      {y === 2026 ? '2026 (OBBBA)' : String(y)}
+                    </option>
+                  ))}
+                </select>
+                {taxYear === 2026 && (
+                  <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>
+                    Per Rev. Proc. 2025-32 (One Big Beautiful Budget Act, P.L. 119-21).
+                    §461(l) EBL thresholds estimated — verify when IRS publishes final guidance.
+                  </div>
+                )}
+              </div>
+              <div>
+                <label style={inputLbl}>Filing Status</label>
+                <select value={filingStatus} onChange={e => setFilingStatus(e.target.value)}
+                  style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
+                  {FS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* K-1 income summary (read-only from Step 1) */}
+          {entityList.length > 0 && (
+            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', letterSpacing: '0.5px', marginBottom: 8 }}>FROM STEP 1 — BUSINESS ENTITIES</div>
+              {entityList.map((e, i) => {
+                const pnl   = e.pnl || {}
+                const net   = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+                const own   = ownPct(e.own) / 100
+                const k1    = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: i < entityList.length - 1 ? '1px solid #BFDBFE' : 'none' }}>
+                    <span style={{ color: '#1D4ED8' }}>{e.name || e.type} ({e.own || 100}%)</span>
+                    <span style={{ fontWeight: 700, color: k1 >= 0 ? '#1D4ED8' : R }}>{fmt(k1)}</span>
+                  </div>
+                )
+              })}
+              {entityList.length > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 13, fontWeight: 700, borderTop: '1px solid #BFDBFE', marginTop: 4 }}>
+                  <span style={{ color: '#1D4ED8' }}>Total K-1</span>
+                  <span style={{ color: '#1D4ED8' }}>{fmt(sessionK1 || 0)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* W-2 income */}
+          <CollapsibleSection title="W-2 Income & Withholding" defaultOpen badge={nf(w2Income) > 0 ? fmt(nf(w2Income)) : undefined}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  W-2 Income (Additional)
+                  <InfoTip text="Enter any W-2 wages NOT from your business entity. If you're a W-2 employee at another company in addition to owning a business, enter those wages here. Officer salary from your S-Corp flows automatically from Step 1." />
+                </label>
+                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Federal Tax Withheld (W-2 Box 2)
+                  <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
+                </label>
+                <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          {/* YTD mode */}
+          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: N }}>
+                  YTD Mode
+                  <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nUseful mid-year for planning — e.g. in September, enter what you\'ve earned through September.\n\nDisable to enter full-year figures directly.'} />
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {ytdMode && (
+                  <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
+                    style={{ padding: '6px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
+                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                      <option key={i+1} value={i+1}>{m}</option>
+                    ))}
+                  </select>
+                )}
+                <div onClick={() => setYtdMode(m => !m)} style={{ width: 44, height: 24, background: ytdMode ? B : '#CBD5E1', borderRadius: 12, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                  <div style={{ position: 'absolute', top: 3, left: ytdMode ? 23 : 3, width: 18, height: 18, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                </div>
+              </div>
+            </div>
+            {ytdMode && (
+              <div style={{ marginTop: 8, fontSize: 12, color: B, fontWeight: 600 }}>
+                📅 YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]} — figures will be annualized (× {ytdFactor.toFixed(2)})
+              </div>
+            )}
+          </div>
+
+          {/* Dependents + estimated payments */}
+          <CollapsibleSection title="Dependents & Estimated Payments" defaultOpen>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Qualifying Dependents
+                  <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000–$2,200 CTC (2025–2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
+                </label>
+                <input type="number" min="0" max="20" value={dependents} onChange={e => setDependents(e.target.value)}
+                  style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Estimated Tax Payments Made
+                  <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
+                </label>
+                <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          {/* Rental real estate */}
+          <CollapsibleSection title="Rental Real Estate" badge={nf(rentalIncome) > 0 ? 'Schedule E' : undefined} accent="#7C3AED">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Rental Income</label>
+                <MoneyInput value={rentalIncome} onChange={setRentalIncome} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Rental Expenses (incl. depreciation)</label>
+                <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+              <input type="checkbox" id="rep" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ marginTop: 2 }} />
+              <label htmlFor="rep" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
+                Real Estate Professional (REP) — IRC §469(c)(7)
+                <InfoTip text={'REP status allows unlimited rental loss deductions against all income.\n\nTo qualify, BOTH of the following must be true:\n① More than 750 hours in real property trades/businesses (material participation)\n② More than 50% of ALL your personal service time is in real estate\n\n⚠ If you have a significant W-2 job, qualifying is very difficult. The IRS scrutinizes this heavily. Contemporaneous time logs are required.'} wide />
+              </label>
+            </div>
+            {!isREP && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <input type="checkbox" id="active" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
+                <label htmlFor="active" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
+                  Active Participant (§469(i) $25K allowance)
+                  <InfoTip text="If you actively participated in managing the rental (made management decisions, approved tenants, etc.) you may deduct up to $25,000 in rental losses against non-passive income. This allowance phases out at 50¢ per dollar of AGI above $100,000 and is $0 above $150,000 AGI." />
+                </label>
+              </div>
+            )}
+            {!isREP && nf(priorPAL) !== 0 && (
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Prior Year Passive Loss Carryforward (Form 8582)
+                  <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). These are released when the rental activity generates passive income. Enter the total carryforward, NOT the current-year loss." />
+                </label>
+                <MoneyInput value={priorPAL} onChange={setPriorPAL} placeholder="0" />
+              </div>
+            )}
+            {!isREP && (
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Prior Year Passive Loss Carryforward (Form 8582, if any)
+                </label>
+                <MoneyInput value={priorPAL} onChange={setPriorPAL} placeholder="0" />
+              </div>
+            )}
+          </CollapsibleSection>
+
+          {/* Capital gains & investment */}
+          <CollapsibleSection title="Capital Gains & Investment Income" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Short-Term Capital Gains (or losses)</label>
+                <MoneyInput value={stGain} onChange={setStGain} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Long-Term Capital Gains (or losses)
+                  <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income — not at ordinary rates." />
+                </label>
+                <MoneyInput value={ltGain} onChange={setLtGain} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Interest Income (Schedule B)</label>
+                <MoneyInput value={interest} onChange={setInterest} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Ordinary Dividends</label>
+                <MoneyInput value={dividends} onChange={setDividends} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Qualified Dividends (Form 1099-DIV Box 1b)
+                  <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above." />
+                </label>
+                <MoneyInput value={qualDividends} onChange={setQualDividends} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Form 4797 Gains (§1231)
+                  <InfoTip text="Ordinary gains from the sale of business property (Form 4797). This includes §1231 gains from depreciable real property and equipment used in a trade or business." />
+                </label>
+                <MoneyInput value={form4797} onChange={setForm4797} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Unrecaptured §1250 Gain
+                  <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
+                </label>
+                <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Collectibles Gain (§1(h)(4))
+                  <InfoTip text="Gain from the sale of collectibles (coins, art, antiques, gems, stamps) held more than 1 year. Taxed at max 28%." />
+                </label>
+                <MoneyInput value={collectibles} onChange={setCollectibles} placeholder="0" />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          {/* Deductions & adjustments */}
+          <CollapsibleSection title="Deductions & Above-Line Adjustments">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Self-Employed Health Insurance Premiums
+                  <InfoTip text="Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible for self-employed individuals and S-Corp shareholder-employees if the plan is established in the name of the business. Cannot exceed your net self-employment income." />
+                </label>
+                <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  HSA Deduction (Form 8889)
+                  <InfoTip text="Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
+                </label>
+                <MoneyInput value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Student Loan Interest
+                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
+                </label>
+                <MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Self-Employed Retirement Plans
+                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary (can stack with employee deferral)\n• Deadline for S-Corp: September 15 (Form 1120-S due date, NOT October 15)\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.\n• Deadline: October 15 (Form 1040 due date with extension)'} wide />
+                </label>
+                <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  NOL Carryforward (IRC §172)
+                  <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically." />
+                </label>
+                <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>
+                  Prior Year QBI Loss Carryforward
+                  <InfoTip text="If your business generated a net loss last year, that loss reduces your §199A QBI deduction base in the CURRENT year per IRC §199A(c)(2). Enter the absolute value of last year's QBI loss (as a positive number)." />
+                </label>
+                <MoneyInput value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" />
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <input type="checkbox" id="itemized" checked={useItemized} onChange={e => setUseItemized(e.target.checked)} />
+                <label htmlFor="itemized" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
+                  Use itemized deductions (Schedule A)
+                  <InfoTip text={`Standard deduction for ${taxYear}: ${fmt(stdDed)} (${FS_OPTIONS.find(f => f.value === filingStatus)?.label || filingStatus}). Only itemize if your deductible expenses exceed this amount.`} />
+                </label>
+              </div>
+              {useItemized && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={inpWrap}>
+                    <label style={inputLbl}>Total Itemized Deductions (Schedule A)</label>
+                    <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} />
+                  </div>
+                  <div style={inpWrap}>
+                    <label style={inputLbl}>
+                      SALT Amount (before cap)
+                      <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap for AMT purposes.`} />
+                    </label>
+                    <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <input type="checkbox" id="iso" checked={hasISO} onChange={e => setHasISO(e.target.checked)} />
+                <label htmlFor="iso" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
+                  Exercised ISO stock options this year
+                  <InfoTip text="Incentive Stock Option exercise bargain element — the spread between FMV and exercise price at exercise date. This is an AMT preference item (Form 6251, Line 2a). It does NOT appear in ordinary income if you hold the stock, but IS added to your AMT tax base." />
+                </label>
+              </div>
+              {hasISO && (
+                <div style={inpWrap}>
+                  <label style={inputLbl}>ISO Bargain Element (FMV − Exercise Price × Shares)</label>
+                  <MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" />
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* Safe harbor inputs */}
+          <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
+            <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
+              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (MFJ) / $75K (others), the safe harbor is 110% of prior year tax.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
+                <MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
+                <MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+        </div>
+
+        {/* ── RIGHT: Results panel ─────────────────────────────────────────── */}
+        <div style={{ position: 'sticky', top: 70 }}>
+
+          {/* Main liability card */}
+          <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>EST. FEDERAL TAX LIABILITY</div>
+            <div style={{ fontSize: 42, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>
+              {hasResult ? fmt(result.totalTax) : '—'}
+            </div>
+            {ytdMode && hasResult && (
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+                Annualized from YTD (× {ytdFactor.toFixed(2)})
+              </div>
+            )}
+            {hasResult && (
+              <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
+                Effective rate: {pct(result.effRate ?? (result.agi > 0 ? (result.totalTax / result.agi * 100).toFixed(1) : '0.0'))}
+              </div>
+            )}
+          </div>
+
+          {/* Waterfall */}
+          {hasResult && (
+            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px', marginBottom: 12, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 12 }}>Tax Waterfall</div>
+
+              {[
+                { label: 'Business K-1 Income',     value: result.scheduleEK1Income || sessionK1 || 0,     sign: 1 },
+                { label: 'Schedule C Income',        value: result.scheduleCSEIncome || 0,                  sign: 1, hide: !(result.scheduleCSEIncome > 0) },
+                { label: 'W-2 Wages',                value: nf(w2Income),                                   sign: 1, hide: nf(w2Income) === 0 },
+                { label: 'Rental Income (net)',       value: nf(rentalIncome) - nf(rentalExpenses),          sign: 1, hide: nf(rentalIncome) === 0 },
+                { label: 'Capital Gains (LT)',       value: nf(ltGain),                                     sign: 1, hide: nf(ltGain) === 0 },
+                { label: 'Capital Gains (ST)',       value: nf(stGain),                                     sign: 1, hide: nf(stGain) === 0 },
+                { label: 'Interest & Dividends',     value: nf(interest) + nf(dividends),                  sign: 1, hide: nf(interest) + nf(dividends) === 0 },
+                { label: '—', value: 0, divider: true },
+                { label: 'AGI',                      value: result.agi,                                     sign: 1, bold: true },
+                { label: 'Standard Deduction',       value: result.deduction,                               sign: -1 },
+                { label: 'SE Tax Deduction (½)',      value: result.halfSE,                                  sign: -1, hide: result.halfSE === 0 },
+                { label: 'Retirement Contributions', value: result.selfEmpRetirementDed,                    sign: -1, hide: result.selfEmpRetirementDed === 0 },
+                { label: 'Health Insurance Ded.',    value: result.selfEmpHealthDed,                        sign: -1, hide: result.selfEmpHealthDed === 0 },
+                { label: 'NOL Applied',              value: result.nolAllowed,                              sign: -1, hide: result.nolAllowed === 0 },
+                { label: '—', value: 0, divider: true },
+                { label: 'Taxable Income (before QBI)', value: result.taxableBeforeQBI,                    sign: 1 },
+                { label: '§199A QBI Deduction',      value: result.qbi,                                    sign: -1, hide: result.qbi === 0, accent: '#059669' },
+                { label: '—', value: 0, divider: true },
+                { label: 'Taxable Income (final)',   value: result.taxableAfterQBI,                        sign: 1, bold: true },
+                { label: '—', value: 0, divider: true },
+                { label: 'Federal Income Tax',       value: result.fedTax,                                 sign: 1 },
+                { label: 'SE Tax',                   value: result.seTax,                                  sign: 1, hide: result.seTax === 0 },
+                { label: 'NIIT (Form 8960)',          value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
+                { label: 'Addl. Medicare Tax (0.9%)',value: result.additionalMedicare,                      sign: 1, hide: result.additionalMedicare === 0 },
+                { label: 'AMT (Form 6251)',           value: result.amt,                                    sign: 1, hide: result.amt === 0, accent: R },
+                { label: 'Child Tax Credit',         value: result.childCredit,                            sign: -1, hide: result.childCredit === 0, accent: '#059669' },
+                { label: '—', value: 0, divider: true },
+                { label: 'Total Tax',                value: result.totalTax,                               sign: 1, bold: true },
+                { label: 'Withholding & Est. Pmts',  value: result.totalPayments,                          sign: -1, hide: result.totalPayments === 0 },
+                { label: '—', value: 0, divider: true },
+                { label: result.balance >= 0 ? 'Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
+              ].filter(r => !r.hide).map((row, i) => {
+                if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                    <span style={{ color: row.accent || SL, fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
+                    <span style={{ fontWeight: row.bold ? 700 : 500, color: row.accent || N }}>
+                      {row.sign < 0 ? '−' : ''}{fmt(Math.abs(row.value))}
+                    </span>
+                  </div>
+                )
+              })}
+
+              {/* §461(l) EBL — shown when it fires */}
+              {result.ebl > 0 && result.eblThreshold > 0 && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
+                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} added back to income
+                  (threshold: {fmt(result.eblThreshold)}).
+                  Excess business losses are limited to {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}).
+                </div>
+              )}
+
+              {/* NOL surplus */}
+              {result.nolSurplus > 0 && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8' }}>
+                  <strong>NOL carryforward:</strong> {fmt(result.nolSurplus)} remaining (80% of taxable income cap applied per IRC §172(a)(2)).
+                </div>
+              )}
+
+              {/* QBI aggregation disclosure */}
+              {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
+                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
+                  <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
+                </div>
+              )}
+
+              {/* S-Corp basis suspension */}
+              {result.totalSuspendedLoss > 0 && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
+                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SE Tax Savings panel */}
+          {hasResult && result.ficaSavings > 0 && (
+            <div style={{ background: '#0f1f3d', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
+                {/* L-02 FIX: Renamed from "S-Corp FICA Savings" to "SE Tax Savings on Distributions".
+                    Rationale: The savings represent avoided SE tax equivalent on K-1 distributions
+                    (not avoided FICA, which applies to W-2 wages — which S-Corp owners DO pay).
+                    The sole-prop comparison uses 92.35% of net earnings × SE tax rate (per
+                    IRC §1402(a)(12)), now correctly computed in taxCalc.js (T-01 fix).
+                    The label "SE Tax Savings on Distributions" is accurate for both S-Corps
+                    and actively-managed partnerships that generate this same benefit. */}
+                SE TAX SAVINGS ON DISTRIBUTIONS
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#4ADE80' }}>
+                {fmt(result.ficaSavings)}
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, lineHeight: 1.5 }}>
+                Your {fmt(result.k1Distributions || 0)} in K-1 distributions avoid self-employment tax.
+                As a sole proprietor, this income would incur SE tax on 92.35% of earnings
+                (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in avoided SE tax.
+              </div>
+            </div>
+          )}
+
+          {/* Quarterly estimates */}
+          {hasResult && result.quarterlyRecommended > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 10 }}>Quarterly Estimates</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: SL }}>Recommended per quarter</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: N }}>{fmt(result.quarterlyRecommended)}</span>
+              </div>
+              {result.safeHarborPriorYear != null && (
+                <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
+                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {nf(priorYearAGI) > (filingStatus === 'mfs' ? 75000 : 150000) ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>
+                Due: Apr 15 · Jun 15 · Sep 15 · Jan 15
+              </div>
+            </div>
+          )}
+
+          {/* Federal-only notice */}
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.5 }}>
+            🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state's effective rate separately for a complete liability picture.
+          </div>
+
+          {/* Save buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* "Save This Record" button — stays on this page */}
+            <div>
+              <button
+                onClick={() => handleSave()}
+                disabled={saveStatus === 'saving'}
+                style={{ width: '100%', padding: '12px', background: saveStatus === 'saved' ? G : B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
+              >
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
+              </button>
+              {/* UX-05 FIX: Micro-text beneath "Save This Record" button.
+                  Users unsure whether save navigates away. This clarifies it stays. */}
+              {saveStatus !== 'saved' && (
+                <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                  Saves your work — stay on this page
+                </div>
+              )}
+            </div>
+
+            {/* "Save & Analyze" button — saves then navigates to AI Analysis */}
+            <div>
+              <button
+                onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
+                disabled={saveStatus === 'saving'}
+                style={{ width: '100%', padding: '12px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
+              >
+                💾 Save &amp; Analyze →
+              </button>
+              {/* UX-05 FIX: Micro-text beneath "Save & Analyze" button.
+                  Clarifies that this button navigates away to AI Tax Analysis. */}
+              <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                Saves and goes to AI Tax Analysis
+              </div>
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
+            Estimates for planning only — not professional tax advice. Consult a licensed CPA before filing.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
