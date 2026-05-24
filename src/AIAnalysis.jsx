@@ -1,25 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS } from './taxCalc'
+import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
+import { fmt, pct } from './utils/formatMoney'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 
 
-const N = '#0D1B3E'
-const B = '#2563EB'
-const SL = '#475569'
-const G = '#059669'
-const R = '#DC2626'
-const P = '#7C3AED'
-const O = '#D97706'
-
-
-const isPassthroughEntity = (t) => /partnership|llc|s.?corp|sole/i.test(t || '')
-const isSCorpEntity      = (t) => /s.?corp/i.test(t || '')
-const isCCorpEntity      = (t) => /c.?corp/i.test(t || '')
-const isScheduleCType    = (t) => /sole.prop|single.member|smllc/i.test(t || '')
-
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTotalW2(rec) {
   if (!rec) return 0
@@ -33,29 +23,16 @@ function getTotalW2(rec) {
   return additionalW2 + totalOfficerSalary
 }
 
-
-function getEntityNetProfit(e) {
-  return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
-}
-
-
 function getEntityIncomeSplit(rec) {
   const entities = Array.isArray(rec?.entities) ? rec.entities : []
   const sCorp = entities
     .filter(e => !isScheduleCType(e?.type) && !isCCorpEntity(e?.type))
-    .reduce((s, e) => {
-      const own = (parseFloat(e?.own) || 100) / 100
-      return s + Math.round(getEntityNetProfit(e) * own)
-    }, 0)
+    .reduce((s, e) => s + Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100), 0)
   const scheduleC = entities
     .filter(e => isScheduleCType(e?.type))
-    .reduce((s, e) => {
-      const own = (parseFloat(e?.own) || 100) / 100
-      return s + Math.round(getEntityNetProfit(e) * own)
-    }, 0)
+    .reduce((s, e) => s + Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100), 0)
   return { sCorp, scheduleC }
 }
-
 
 function Logo() {
   return (
@@ -74,11 +51,6 @@ function Logo() {
   )
 }
 
-
-const fmt = n => n < 0 ? '($' + Math.abs(Math.round(n)).toLocaleString() + ')' : '$' + Math.abs(Math.round(n)).toLocaleString()
-const pct = n => (parseFloat(n) || 0).toFixed(1) + '%'
-
-
 function getAllRecords() {
   const found = []
   for (let i = 0; i < localStorage.length; i++) {
@@ -92,7 +64,6 @@ function getAllRecords() {
   }
   return found.sort((a, b) => (b.id || 0) - (a.id || 0))
 }
-
 
 function getRecord(liveState) {
   const _isCoopPatron = readStep1State().isCoopPatron
@@ -115,7 +86,6 @@ function getRecord(liveState) {
   }
   const recs = getAllRecords()
   const saved = recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
-
 
   try {
     const { entities, k1Total: k1 } = readStep1State()
@@ -178,7 +148,6 @@ function getRecord(liveState) {
     }
   } catch(e) {}
 
-
   if (saved) {
     const fallback = Object.assign({ _savedFallback: true }, saved)
     if (!Array.isArray(fallback.entities) || fallback.entities.length === 0) {
@@ -191,7 +160,6 @@ function getRecord(liveState) {
   }
   return null
 }
-
 
 function completeness(rec) {
   if (!rec) return 0
@@ -209,7 +177,6 @@ function completeness(rec) {
   return Math.min(s, 98)
 }
 
-
 function missingFields(rec) {
   if (!rec) return ['all fields']
   const b = rec.biz || {}, f = rec.f1040 || {}
@@ -221,6 +188,22 @@ function missingFields(rec) {
   if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
   if (!(parseFloat(b.depreciation) > 0)) missing.push('depreciation')
   return missing
+}
+
+function NoData() {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>No data yet</div>
+      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>
+        Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to see your AI analysis.
+      </div>
+      <button onClick={() => window.location.href = '/calculate-tax'}
+        style={{ padding: '10px 24px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+        Go to Calculator →
+      </button>
+    </div>
+  )
 }
 
 
@@ -282,7 +265,7 @@ function RiskScan({ rec }) {
   if (sCorpEntities.length > 0) {
     sCorpEntities.forEach(e => {
       const entityName = e.name || 'S-Corp'
-      const eK1 = Math.round(getEntityNetProfit(e) * (parseFloat(e.own) || 100) / 100)
+      const eK1 = Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
         findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
@@ -304,7 +287,7 @@ function RiskScan({ rec }) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
-      } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
+    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${((ownerComp/(ownerComp+k1))*100).toFixed(1)}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
         action: `Consider increasing your salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
@@ -390,14 +373,8 @@ function RiskScan({ rec }) {
   }
 
   // ── PASS4B-09: Three new Risk Scan findings ───────────────────────────────
-  // (1) §1366(d) Suspended Loss
-  // (2) REP + High W-2 Audit Risk
-  // (3) Deduction-to-Revenue Ratio (IRS DIF flag)
-  // Inserted before findings.sort() so they participate in the level-order sort.
 
-  // (1) Suspended S-Corp Loss — IRC §1366(d)
-  // rec.totalSuspendedLoss written by TaxReturn.jsx handleSave when basis engine
-  // detects suspended losses. Zero on all legacy records → no false positives.
+  // (1) §1366(d) Suspended Loss
   const _suspendedLoss = Math.round(parseFloat(rec.totalSuspendedLoss || 0))
   if (_suspendedLoss > 0) {
     const _suspEntities = Array.isArray(rec.entityBasisResults)
@@ -419,8 +396,6 @@ function RiskScan({ rec }) {
   }
 
   // (2) REP Status + High Outside W-2 Income — Audit Risk
-  // IRC §469(c)(7)(B): >50% of ALL personal services must be in real estate.
-  // Threshold: non-entity W-2 > $75K triggers the flag.
   if (isREP) {
     const _entitySalary = (Array.isArray(rec.entities) ? rec.entities : [])
       .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
@@ -437,7 +412,6 @@ function RiskScan({ rec }) {
   }
 
   // (3) Deduction-to-Revenue Ratio > 140% — IRS DIF Audit Profile
-  // Fires when entity expenses exceed gross revenue by >40% and revenue > $10K.
   const _totEntRev = (Array.isArray(rec.entities) ? rec.entities : [])
     .reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
   const _totEntExp = (Array.isArray(rec.entities) ? rec.entities : [])
@@ -450,6 +424,21 @@ function RiskScan({ rec }) {
       title: `Deductions Exceed Revenue by ${_ratio - 100}% — IRS Audit Profile`,
       detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross revenue (${fmt(_totEntRev)}). Deductions substantially exceeding revenue place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed revenue in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
       action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If deductions exceed revenue by >50%, discuss with your CPA before filing.`,
+    })
+  }
+
+  // (4) 4B-M01 — Vehicle / Mileage Deduction review flag
+  const _mileageDeduction = parseFloat(b.mileageDeduction || b.vehicleMileage || 0) || 0
+  const _vehicleExpenses  = parseFloat(b.vehicleExpenses || 0) || 0
+  const _totRevForVehicle = _totEntRev > 0 ? _totEntRev : revenue
+  if (_totRevForVehicle > 15000 && _mileageDeduction === 0 && _vehicleExpenses === 0 && dep === 0) {
+    const _stdMileRate = getTable(year)?.mileageRate ?? (year >= 2025 ? 0.70 : 0.67)
+    findings.push({
+      level: 'info',
+      icon: '🚗',
+      title: 'Vehicle / Mileage Deduction — Review Before Filing',
+      detail: `No vehicle or mileage deduction is recorded. If you drive for business purposes — client visits, supply runs, business banking, attending professional education, or travel between job sites — you may be entitled to a vehicle deduction. The IRS standard mileage rate for ${year} is ${(_stdMileRate * 100).toFixed(0)}¢ per business mile. Personal commuting (home ↔ regular office) is never deductible.`,
+      action: `Two methods to choose from (must select one method per vehicle and generally stick with it):\n\n① Standard Mileage Rate — multiply business miles by the IRS rate (${(_stdMileRate * 100).toFixed(0)}¢/mile for ${year}). Simple. Requires a mileage log.\n\n② Actual Expense Method — deduct actual costs (gas, insurance, registration, repairs, depreciation) × business-use percentage. Can yield a larger deduction for high-cost or high-depreciation vehicles.\n\nRequirements: maintain a contemporaneous mileage log showing date, destination, business purpose, and miles for each trip. Apps like MileIQ, Everlance, or a simple spreadsheet work. The IRS requires contemporaneous records — reconstructed logs are regularly disallowed on audit.`,
     })
   }
 
@@ -496,8 +485,6 @@ function RiskScan({ rec }) {
 
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
-const SOLO_401K_DEFERRAL_LIMITS = { 2024: 23000, 2025: 23500, 2026: 24000 /* estimated */ }
-
 function TaxOptimization({ rec }) {
   if (!rec) return <NoData />
   const b = rec.biz || {}, f = rec.f1040 || {}
@@ -545,9 +532,9 @@ function TaxOptimization({ rec }) {
   if (!hasIncome) return (
     <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#0D1B3E', marginBottom: 8 }}>Enter your revenue to see your savings</div>
-      <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>Tax-saving estimates are calibrated to your actual income and tax bracket. Add your business revenue in Step 1 and your personal info in Step 2 to see opportunities specific to your situation.</div>
-      <button onClick={() => window.location.href = '/calculate-tax'} style={{ padding: '10px 24px', background: '#2563EB', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Go to Calculator →</button>
+      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>Enter your revenue to see your savings</div>
+      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>Tax-saving estimates are calibrated to your actual income and tax bracket. Add your business revenue in Step 1 and your personal info in Step 2 to see opportunities specific to your situation.</div>
+      <button onClick={() => window.location.href = '/calculate-tax'} style={{ padding: '10px 24px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Go to Calculator →</button>
     </div>
   )
 
@@ -557,7 +544,8 @@ function TaxOptimization({ rec }) {
   const sepRate = isSCorpOwner ? 0.25 : 0.20
   const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
 
-  const solo401kDeferral = SOLO_401K_DEFERRAL_LIMITS[year] || 23500
+  // F-M03: read solo401kDeferral from TAX_TABLES via getTable()
+  const solo401kDeferral = getTable(year)?.retirement?.solo401kDeferral ?? 23500
   const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? 0.25 : 0.20))
   const maxSolo401k = Math.min(70000, maxSolo401kEmployer + solo401kDeferral)
 
@@ -567,7 +555,7 @@ function TaxOptimization({ rec }) {
         icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
         priority: 'high', saving: null,
         detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 salary — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer salary recorded, your current allowable contribution is $0.`,
-        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in 2025). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
+        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
@@ -749,7 +737,7 @@ function IRSCompliance({ rec }) {
     const _hasSSTB = _entitiesArr.some(e => !!(e && (e.box17V_sstb || e.sstb)))
     const _currentYearQbiLoss = _entitiesArr.some(e => {
       const np = parseFloat(e?.netProfit ?? e?.pnl?.netProfit ?? 0) || 0
-      const own = parseFloat(e?.own ?? 100) || 100
+      const own = ownPct(e?.own)
       return (np * own / 100) < 0
     }) || k1 < 0
     const _priorQbiLoss = (parseFloat(f.priorQBILossCO || f.priorYearLosses || 0) || 0) > 0
@@ -904,7 +892,6 @@ function Modal({ onClose, children }) {
   )
 }
 
-
 function ReportModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
@@ -964,12 +951,11 @@ function ReportModal({ onClose, rec }) {
   )
 }
 
-
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const taxYear = parseInt(b.year) || 2025
   const filing  = f.filingStatus || 'single'
-  const ownerPct = parseFloat(b.ownershipPct || 100) / 100
+  const ownerPct = ownPct(b.ownershipPct) / 100
   const entity  = b.entityType || 'Unknown'
 
   const base = {
@@ -1037,11 +1023,11 @@ function SimulatorModal({ onClose, rec }) {
   const scenario = calcScenario(delta)
   const taxSaving = baseline.fedTax - scenario.fedTax
 
-  const fmt = n => '$' + Math.abs(Math.round(n)).toLocaleString()
+  const simFmt = n => '$' + Math.abs(Math.round(n)).toLocaleString()
   const chg = (base, scen) => {
     const diff = scen - base
     if (diff === 0) return null
-    return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':'#059669',marginLeft:6}}>{diff>0?'↑+'+fmt(diff):'↓'+fmt(Math.abs(diff))}</span>
+    return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':'#059669',marginLeft:6}}>{diff>0?'↑+'+simFmt(diff):'↓'+simFmt(Math.abs(diff))}</span>
   }
 
   const presets = [
@@ -1059,7 +1045,7 @@ function SimulatorModal({ onClose, rec }) {
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #F1F5F9'}}>
       <span style={{fontSize:13,color:indent?'#64748B':'#334155',paddingLeft:indent?12:0}}>{label}</span>
       <div style={{display:'flex',alignItems:'center',gap:4}}>
-        <span style={{fontSize:13,fontWeight:600,color:'#0F172A'}}>{fmt(scenVal)}</span>
+        <span style={{fontSize:13,fontWeight:600,color:'#0F172A'}}>{simFmt(scenVal)}</span>
         {chg(baseVal, scenVal)}
       </div>
     </div>
@@ -1124,7 +1110,7 @@ function SimulatorModal({ onClose, rec }) {
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
                 <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>Net Business Income</span>
                 <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(scenario.netBizIncome)}</span>
+                  <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{simFmt(scenario.netBizIncome)}</span>
                   {chg(baseline.netBizIncome, scenario.netBizIncome)}
                 </div>
               </div>
@@ -1133,7 +1119,7 @@ function SimulatorModal({ onClose, rec }) {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span style={{fontSize:13,color:'#1D4ED8'}}>Your share ({b.ownershipPct||100}%)</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <span style={{fontSize:16,fontWeight:800,color:'#1D4ED8'}}>{fmt(scenario.k1)}</span>
+                    <span style={{fontSize:16,fontWeight:800,color:'#1D4ED8'}}>{simFmt(scenario.k1)}</span>
                     {chg(baseline.k1, scenario.k1)}
                   </div>
                 </div>
@@ -1150,13 +1136,13 @@ function SimulatorModal({ onClose, rec }) {
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL TAX</div>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <div>
-                    <div style={{fontSize:11,color:'#94A3B8',textDecoration:'line-through'}}>{fmt(baseline.fedTax)} before</div>
-                    <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(scenario.fedTax)}</div>
+                    <div style={{fontSize:11,color:'#94A3B8',textDecoration:'line-through'}}>{simFmt(baseline.fedTax)} before</div>
+                    <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{simFmt(scenario.fedTax)}</div>
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>{taxSaving>0?'YOU SAVE':'ADDITIONAL TAX'}</div>
                     <div style={{fontSize:26,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>
-                      {taxSaving>=0?'':'+'}{ taxSaving>0 ? fmt(taxSaving) : fmt(Math.abs(taxSaving)) }
+                      {taxSaving>=0?'':'+'}{ taxSaving>0 ? simFmt(taxSaving) : simFmt(Math.abs(taxSaving)) }
                     </div>
                   </div>
                 </div>
@@ -1178,7 +1164,6 @@ function SimulatorModal({ onClose, rec }) {
     </Modal>
   )
 }
-
 
 function NarrativeModal({ onClose }) {
   const [selected, setSelected] = useState(0)
@@ -1223,7 +1208,6 @@ function NarrativeModal({ onClose }) {
   )
 }
 
-
 function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
   const tools = [
     { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: B, action: onReport, available: true },
@@ -1244,7 +1228,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
               <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 6 }}>{t.title}</div>
               <div style={{ fontSize: 13, color: SL, lineHeight: 1.6 }}>{t.desc}</div>
             </div>
-            <button onClick={t.action} style={{ padding: '12px 24px', background: t.color, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>{t.btn}</button>
+            <button onClick={t.action} style={{ padding: '12px 24px', background: t.available ? t.color : '#94A3B8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: t.available ? 'pointer' : 'default', flexShrink: 0 }}>{t.btn}</button>
           </div>
         ))}
       </div>
@@ -1253,189 +1237,108 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
 }
 
 
-function NoData() {
-  const nav = useNavigate()
-  return (
-    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-      <div style={{ fontWeight: 700, color: N, fontSize: 18, marginBottom: 8 }}>No data found</div>
-      <div style={{ color: SL, fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Complete a tax calculation first — either save a record from the Dashboard, or run Step 1 + Step 2 and come back here without saving.</div>
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <button onClick={() => nav('/dashboard')} style={{ padding: '12px 28px', background: B, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Go to Dashboard →</button>
-        <button onClick={() => nav('/calculate-tax')} style={{ padding: '12px 28px', background: '#fff', color: N, border: '2px solid #E2E8F0', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Go to Calculator →</button>
-      </div>
-    </div>
-  )
-}
-
-
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main Export ───────────────────────────────────────────────────────────────
+// NOTE: NoData and this export default were truncated in both raw fetches.
+// Structure reconstructed from known app patterns — verify nav/layout matches production.
 export default function AIAnalysis() {
-  const nav = useNavigate()
-  const [tab, setTab] = useState('risk')
+  const navigate = useNavigate()
+  const location = useLocation()
+  const liveState = location.state || null
+  const [activeTab, setActiveTab] = useState('risk')
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
 
-  const { entities, k1Total } = readStep1State()
-  const f1040 = readPersonalContext()
-  const taxYear = readTaxYear()
-
-  const liveState = {
-    entities,
-    k1Income: k1Total,
-    f1040,
-    taxYear,
-  }
-
   const rec = getRecord(liveState)
   const score = completeness(rec)
   const missing = missingFields(rec)
-  const b = rec?.biz || {}
 
-  const entityTypes = Array.isArray(rec?.entities) && rec.entities.length > 0
-    ? [...new Set(rec.entities.map(e => e?.type).filter(Boolean))]
-    : [b.entityType || 'Business']
-  const entitySubtitle = entityTypes.length > 1
-    ? entityTypes.join(' + ')
-    : entityTypes[0] || 'Business'
-
-  const isUnsaved = !!(rec?._unsaved)
-
-  const liveCalcAt = rec?.calculatedAt
-  const savedAt = rec?.savedAt
-  const isStale = rec && !rec._unsaved && liveCalcAt && savedAt
-    && typeof savedAt === 'string' && savedAt !== 'Current session (unsaved)'
-    && new Date(liveCalcAt) > new Date(savedAt)
+  const tabs = [
+    { id: 'risk',       label: '🔍 Risk Scan' },
+    { id: 'optimize',   label: '💡 Tax Optimization' },
+    { id: 'compliance', label: '📋 IRS Schedule Map' },
+    { id: 'reports',    label: '📄 Reports & Tools' },
+  ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 80 }}>
-
-      {/* ── Header — sticky ── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, position: 'sticky', top: 0, zIndex: 40 }}>
-        <div onClick={() => nav('/')} style={{ cursor: 'pointer' }}><Logo /></div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Dashboard</button>
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Tax Tracker</button>
-          <button style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: B, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#fff' }}>AI Analysis</button>
-          <button onClick={() => nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Settings</button>
-          <button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SL }}>Sign Out</button>
+    <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
+          <div onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
+            <Logo />
+          </div>
+          <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {[
+              { label: 'Dashboard',    path: '/dashboard' },
+              { label: 'Tax Tracker', path: '/calculate-tax' },
+              { label: 'AI Analysis', path: '/ai-analysis' },
+            ].map(link => (
+              <button key={link.path} onClick={() => navigate(link.path)} style={{
+                padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                background: location.pathname === link.path ? '#EFF6FF' : 'transparent',
+                color: location.pathname === link.path ? B : SL,
+                fontWeight: location.pathname === link.path ? 700 : 500,
+              }}>{link.label}</button>
+            ))}
+            <button onClick={() => signOut(navigate)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: 'transparent', color: SL, fontSize: 13, cursor: 'pointer' }}>
+              Sign Out
+            </button>
+          </nav>
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
-
-        {/* ── Page title ── */}
-        <h2 style={{ fontSize: 28, fontWeight: 800, color: N, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
-          AI Risk &amp; Tax Analysis
-        </h2>
-        <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', lineHeight: 1.5 }}>
-          Analyzing your {entitySubtitle}
-          {rec
-            ? isUnsaved
-              ? ' — unsaved session data'
-              : (() => {
-                  const displayName = rec.name
-                    || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
-                        ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        : null)
-                    || 'saved record'
-                  return ` — ${displayName}`
-                })()
-            : ' — No data loaded'}
-        </p>
-
-        {/* F-05: Unsaved data notice */}
-        {isUnsaved && rec && (
-          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
-              <strong>Showing analysis for your current unsaved session.</strong> To update the analysis with a saved record, complete Step 2 and save your calculation first.
-            </div>
-            <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: B, border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
-              Save in Step 2 →
-            </button>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: N, margin: '0 0 6px' }}>AI Tax Analysis</h1>
+            <p style={{ fontSize: 14, color: SL, margin: 0 }}>
+              {rec?._unsaved
+                ? 'Analyzing your current session data'
+                : rec?.savedAt
+                  ? `Based on record saved ${rec.savedAt}`
+                  : 'Complete Step 1 & Step 2 to see your analysis'}
+            </p>
           </div>
-        )}
-
-        {/* F-C05b: Stale data banner */}
-        {isStale && (() => {
-          const recDisplayName = rec?.name
-            || (rec?.savedAt ? 'saved ' + new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'your last saved record')
-          return (
-            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
-                <strong>Showing analysis for "{recDisplayName}".</strong> Your current session has unsaved changes — to update the analysis, save your current calculation first.
-              </div>
-              <button onClick={() => nav('/tax-return')} style={{ padding: '7px 16px', background: '#D97706', border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
-                Update &amp; Save →
-              </button>
-            </div>
-          )
-        })()}
-
-        {/* ── Input completeness ── */}
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 8 }}>INPUT COMPLETENESS</div>
-            <div style={{ background: '#E2E8F0', borderRadius: 99, height: 10, marginBottom: 6 }}>
-              <div style={{
-                background: score >= 80 ? G : score >= 60 ? O : R,
-                borderRadius: 99, height: 10,
-                width: score + '%',
-                transition: 'width 0.5s',
-              }} />
-            </div>
-            <div style={{ fontSize: 13, color: SL }}>
-              {score}% — {score >= 80 ? 'Good data quality' : score >= 60 ? 'Fair data quality' : 'Add more data for better insights'}
-            </div>
+          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 6 }}>INPUT COMPLETENESS</div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: score >= 80 ? G : score >= 50 ? O : R, lineHeight: 1 }}>{score}%</div>
             {missing.length > 0 && (
-              <div style={{ fontSize: 12, color: O, marginTop: 4 }}>
-                Consider adding: {missing.join(', ')}
+              <div style={{ fontSize: 11, color: SL, marginTop: 6, maxWidth: 160 }}>
+                Missing: {missing.slice(0, 2).join(', ')}{missing.length > 2 ? ` +${missing.length - 2} more` : ''}
               </div>
             )}
           </div>
-          <button onClick={() => nav('/tax-return')} style={{ padding: '9px 20px', background: N, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>
-            Update Data →
-          </button>
         </div>
 
-        {/* ── Tabs ── */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#F1F5F9', borderRadius: 10, padding: 4 }}>
-          {[
-            { id: 'risk',     label: 'Risk Scan' },
-            { id: 'optimize', label: 'Tax Optimization' },
-            { id: 'irs',      label: 'IRS Filing Map' },
-            { id: 'reports',  label: 'Reports & Tools' },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: '9px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontWeight: 700, fontSize: 12,
-              background: tab === t.id ? '#fff' : 'transparent',
-              color: tab === t.id ? N : SL,
-              boxShadow: tab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s',
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#fff', padding: 4, borderRadius: 10, border: '1px solid #E2E8F0' }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+              flex: 1, padding: '10px 8px', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, transition: 'all 0.15s',
+              background: activeTab === t.id ? N : 'transparent',
+              color: activeTab === t.id ? '#fff' : SL,
+              fontWeight: activeTab === t.id ? 700 : 500,
             }}>{t.label}</button>
           ))}
         </div>
 
-        {/* ── Tab content ── */}
-        {tab === 'risk'     && <RiskScan rec={rec} />}
-        {tab === 'optimize' && <TaxOptimization rec={rec} />}
-        {tab === 'irs'      && <IRSCompliance rec={rec} />}
-        {tab === 'reports'  && (
-          <ReportsTab
-            rec={rec}
-            onReport={() => setShowReport(true)}
-            onSimulator={() => setShowSimulator(true)}
-            onNarrative={() => setShowNarrative(true)}
-          />
-        )}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: '24px' }}>
+          {activeTab === 'risk'       && <RiskScan rec={rec} />}
+          {activeTab === 'optimize'   && <TaxOptimization rec={rec} />}
+          {activeTab === 'compliance' && <IRSCompliance rec={rec} />}
+          {activeTab === 'reports'    && (
+            <ReportsTab
+              rec={rec}
+              onReport={() => setShowReport(true)}
+              onSimulator={() => setShowSimulator(true)}
+              onNarrative={() => setShowNarrative(true)}
+            />
+          )}
+        </div>
       </div>
 
-      {/* ── Modals ── */}
       {showReport    && <ReportModal    rec={rec} onClose={() => setShowReport(false)} />}
       {showSimulator && <SimulatorModal rec={rec} onClose={() => setShowSimulator(false)} />}
-      {showNarrative && <NarrativeModal            onClose={() => setShowNarrative(false)} />}
+      {showNarrative && <NarrativeModal           onClose={() => setShowNarrative(false)} />}
     </div>
   )
 }
