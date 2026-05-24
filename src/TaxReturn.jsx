@@ -7,19 +7,12 @@ import DismissibleNotice from './components/DismissibleNotice'
 import { parseMoney } from './utils/parseMoney.js'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readStep1State, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-
-const N = '#0D1B3E'
-const B = '#2563EB'
-const G = '#16a34a'
-const R = '#dc2626'
-const SL = '#475569'
-
-function fmt(n) {
-if (n === null || n === undefined) return '$0'
-const abs = Math.abs(Math.round(n))
-const str = '$' + abs.toLocaleString('en-US')
-return n < 0 ? '(' + str + ')' : str
-}
+// CC-M01: color tokens from theme.js (removes inline N/B/G/R/SL consts)
+import { NAVY as N, BLUE as B, GREEN as G, RED as R, SLATE as SL } from './theme'
+// CC-M02: canonical currency formatter (removes local fmt())
+import { fmt } from './utils/formatMoney'
+// CC-M03: shared entity-type predicates; F-M02: ownPct() fixes falsy-0 ownership
+import { isScheduleCType, ownPct } from './utils/entityPredicates'
 
 function BracketBadge({ rate }) {
 const colors = {
@@ -101,9 +94,6 @@ fontSize: 12, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'c
 </div>
 )
 }
-
-const isScheduleCType = (type = '') =>
-/sole.prop|single.member|smllc/i.test(type)
 
 export default function TaxReturn() {
 const nav = useNavigate()
@@ -240,8 +230,9 @@ const saltDeductionCap = status === 'mfs' ? saltCapForYear / 2 : saltCapForYear
 const saltForItemized = Math.min(nv(saltPaid), saltDeductionCap)
 const computedItemizedAmt = saltForItemized + nv(mortgageInt) + nv(charitableGifts)
 
+// F-M02: replaced (parseFloat(e.own) || 100) / 100 with ownPct(e.own) / 100
 const entitiesForCalc = entities.map(e => {
-const own = (parseFloat(e.own) || 100) / 100
+const own = ownPct(e.own) / 100
 return {
 ...e,
 k1: e.k1 !== undefined
@@ -304,13 +295,13 @@ agi = 0,
 stdDed: standardDeduction = 0,
 seTax: selfEmploymentTax = 0,
 additionalMedicare = 0,
+// F-N01: niitAmount is the canonical key returned by calcTaxReturn.
+// This alias (niit) is kept for local readability; the underlying field
+// was fixed in taxCalc.js as part of the F-N01 display-alias cleanup.
 niitAmount: niit = 0,
 amt: amtAmount = 0,
 palSuspendedRental = 0,
 palCarryforwardApplied = 0,
-// PASS5: palCarryforwardRemaining and eblThreshold are now returned by taxCalc.js.
-// Both default to 0 for backward-compat with any cached result objects that
-// predate this version.
 palCarryforwardRemaining = 0,
 ebl = 0,
 eblThreshold = 0,
@@ -344,20 +335,22 @@ const qbiDeduction = Math.max(0, agi - appliedDeduction - ordinaryTaxableIncome)
 const hasSchEIncome = entities.length > 0
 const incomeFooterLabel = k1Total >= 0 ? 'K-1 pass-through income' : 'K-1 pass-through loss'
 
+// F-M02: replaced (parseInt(e.own) || 100) / 100 with ownPct(e.own) / 100
 const scheduleEDisplayTotal = entities
 .filter(e => !isScheduleCType(e?.type))
 .reduce((s, e) => {
-const own = (parseInt(e.own) || 100) / 100
+const own = ownPct(e.own) / 100
 return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
 }, 0)
 + manualK1s
 .filter(k => !isScheduleCType(k.type))
 .reduce((s, k) => s + (parseMoney(k.amount) || 0), 0)
 
+// F-M02: replaced (parseInt(e.own) || 100) / 100 with ownPct(e.own) / 100
 const scheduleCDisplayTotal = entities
 .filter(e => isScheduleCType(e?.type))
 .reduce((s, e) => {
-const own = (parseInt(e.own) || 100) / 100
+const own = ownPct(e.own) / 100
 return s + (e.pnl ? Math.round(e.pnl.netProfit * own) : 0)
 }, 0)
 + manualK1s
@@ -375,7 +368,6 @@ const scheduleCWaterfallAmt = rawDisplayTotal > 0
 : 0
 
 const today = new Date()
-const QUARTER_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const quarterDefs = [
 { label: 'Q1', due: new Date(taxYear, 3, 15) },
 { label: 'Q2', due: new Date(taxYear, 5, 15) },
@@ -538,7 +530,7 @@ TaxStat360 calculates <strong>federal tax estimates</strong> based on the inform
 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, padding: 20 }}>
 <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>K-1 Income — Schedule E, Part II</div>
 {entities.map((ent, i) => {
-const own = (parseInt(ent.own) || 100) / 100
+const own = ownPct(ent.own) / 100
 const net = ent.pnl ? Math.round(ent.pnl.netProfit * own) : 0
 const isC = isScheduleCType(ent.type)
 return (
@@ -867,9 +859,6 @@ From prior year Form 8582, Line 3 — enter as a positive number.
 ? <span style={{ color: G, fontWeight: 600 }}> ✓ {fmt(palCarryforwardApplied)} applied this year to offset rental income.</span>
 : ' Applied to offset rental income when property is profitable; pools with current-year loss otherwise.'}
 </div>
-{/* PASS5: Show how much of the prior carryforward still needs to roll forward.
-palCarryforwardRemaining = priorPAL - palCarryforwardApplied.
-Zero when no carryforward was entered or the entire balance was absorbed. */}
 {palCarryforwardRemaining > 0 && (
 <div style={{ marginTop: 6, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 7, padding: '7px 11px', fontSize: 11, color: '#78350f' }}>
 💡 {fmt(palCarryforwardRemaining)} of your prior year carryforward remains suspended after this year — enter this amount in "Prior Year Passive Loss Carryforward" next year.
@@ -883,7 +872,7 @@ Zero when no carryforward was entered or the entire balance was absorbed. */}
 </div>
 
 <WhatGoesHere items={[
-'Total Rental Income: all rent collected this year — use bank deposits or last year\'s Schedule E as a reference',
+'Total Rental Income: all rent collected this year — use bank deposits or last year's Schedule E as a reference',
 'Total Rental Expenses: mortgage interest + property taxes + insurance + repairs + management fees + depreciation',
 'Depreciation: typically cost of building ÷ 27.5 years annually',
 'REP (Real Estate Professional): check if rental is your primary profession (750+ hours/year in real property trades, 50%+ of personal services)',
@@ -1018,7 +1007,9 @@ I exercised ISOs and held shares past year-end
 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 Line 8a — enter as positive, treated as reduction</div>
 </div>
 <div style={{ gridColumn: '1 / -1' }}>
-<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans <InfoTip text={`For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16.\n\nSEP-IRA: up to 25% of W-2 salary (IRS max $70,000 for 2025). Requires $280,000 in W-2 compensation to reach the $70,000 limit.\n\nSolo 401(k) employee deferrals: up to $23,500 for 2025, plus employer match up to 25% of W-2 salary.\n• Age 50–59 and 64+: Add $7,500 catch-up ($31,000 total employee deferral).\n• Age 60–63: Add $11,250 catch-up ($34,750 total) per SECURE 2.0 Act (P.L. 117-328, §109).\n\nFor sole proprietors: based on net self-employment earnings × 0.9235.`} /></label>
+<label style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 4, fontWeight: 600 }}>Self-Employed Retirement Plans
+<InfoTip text={`For S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560). Enter employer contributions on Schedule 1 Line 16.\n\nSEP-IRA: up to 25% of W-2 salary (IRS max $70,000 for 2025). Requires $280,000 in W-2 compensation to reach the $70,000 limit.\n\nSolo 401(k) employee deferrals: up to $23,500 for 2025, plus employer match up to 25% of W-2 salary.\n• Age 50–59 and 64+: Add $7,500 catch-up ($31,000 total employee deferral).\n• Age 60–63: Add $11,250 catch-up ($34,750 total) per SECURE 2.0 Act (P.L. 117-328, §109).\n\nFor sole proprietors: based on net self-employment earnings × 0.9235.\n\nDEADLINES (LBL-I01): SEP-IRA and Solo 401(k) employer contributions for S-Corps are due by the S-Corp's return due date including extensions — September 15 for most S-Corps filing Form 1120-S (6-month extension from March 15). This is NOT the same as the individual return extension deadline of October 15. Missing September 15 means the contribution cannot be deducted on that year's S-Corp return.`} />
+</label>
 <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, color: N, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
 <div style={{ fontSize: 10, color: SL, marginTop: 3 }}>Schedule 1 line 16. SEP-IRA, SIMPLE-IRA, Solo 401(k) employer contributions for sole proprietors AND &gt;2% S Corp shareholders.</div>
 {scaledOfficerSal > 0 && (() => {
@@ -1187,16 +1178,14 @@ Enter estimated payments below to see your remaining balance.
 </div>
 {selfEmploymentTax > 0 && (
 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax <InfoTip text="IRC §1401: Sole proprietors and active partners pay SE tax (15.3% on earnings up to the SS wage base of ${ssWageBase?.toLocaleString() || '184,500'}, then 2.9% above). S-Corp owners pay FICA only on their W-2 salary — K-1 distributions are exempt. 50% of SE tax is deductible from AGI (§164(f))." /></span>
+<span style={{ color: 'rgba(255,255,255,0.6)' }}>Self-Employment Tax <InfoTip text="IRC §1401: Sole proprietors and active partners pay SE tax (15.3% on earnings up to the SS wage base, then 2.9% above). S-Corp owners pay FICA only on their W-2 salary — K-1 distributions are exempt. 50% of SE tax is deductible from AGI (§164(f))." /></span>
 <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(selfEmploymentTax)}</span>
 </div>
 )}
 {employeeFICA > 0 && (
-<div>
 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-<span style={{ color: 'rgba(255,255,255,0.6)' }}>Employee FICA (Payroll Taxes) <InfoTip text={`Social Security (6.2%) + Medicare (1.45%) on your $${totalW2ForFICA.toLocaleString()} W-2 salary. The matching employer FICA paid by your S-Corp is already deducted as a business expense — reflected in your K-1 income, not shown here separately.`} below /></span>
+<span style={{ color: 'rgba(255,255,255,0.6)' }}>Employee FICA (Payroll Taxes) <InfoTip text={`Social Security (6.2%) + Medicare (1.45%) on your $${totalW2ForFICA.toLocaleString()} W-2 salary. The matching employer FICA paid by your S-Corp is already deducted as a business expense.`} /></span>
 <span style={{ fontWeight: 700, color: '#F87171' }}>{fmt(employeeFICA)}</span>
-</div>
 </div>
 )}
 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -1215,7 +1204,7 @@ Enter estimated payments below to see your remaining balance.
 </div>
 {amtAmount > 0 && (
 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, lineHeight: 1.4 }}>
-Estimate only — excludes some Form 6251 preference items (e.g. certain ISO exercises, ACE adjustment). Verify with a CPA.
+Estimate only — excludes some Form 6251 preference items. Verify with a CPA.
 </div>
 )}
 {childCredit > 0 && (
@@ -1246,7 +1235,7 @@ Enter this in "Prior Year QBI Loss" next year to offset future QBI income (§199
 {ficaSavings > 0 && k1Distributions > 0 && (
 <div style={{ marginTop: 10, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 12px' }}>
 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-<span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions are not subject to FICA. As a sole proprietor, this income would have incurred SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}. Savings = SS avoided on ${fmt(Math.min(k1Distributions, ssWageBaseRoom))} + Medicare (2.9%) avoided on ${fmt(k1Distributions)}.`} below /></span>
+<span style={{ color: '#4ADE80', fontWeight: 700 }}>S-Corp FICA Savings <InfoTip text={`Your ${fmt(k1Distributions)} in K-1 distributions avoid FICA. As a sole proprietor, this income would incur SE tax (15.3% up to the $${ficaSSWageBase.toLocaleString()} SS wage base, 2.9% above). SS room remaining after your salary: ${fmt(ssWageBaseRoom)}.`} /></span>
 <span style={{ fontWeight: 700, color: '#4ADE80' }}>↓ {fmt(ficaSavings)}</span>
 </div>
 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
@@ -1260,16 +1249,13 @@ vs. sole-prop SE tax on same distributions
 </div>
 </div>
 
+{/* Tax waterfall card */}
 {(() => {
-const totalW2 = scaledW2 + scaledOfficerSal
+const totalW2All = scaledW2 + scaledOfficerSal
 const totalOther = inputs.rentalNet + inputs.stGain + inputs.ltGain +
 inputs.intInc + inputs.divInc + inputs.taxableSS +
 inputs.iraIncome + inputs.f4797Inc
-// PASS5 EBL-FIX: Include the §461(l) excess business loss add-back so the
-// displayed "= Gross Income" matches calcTaxReturn's grossIncomeBeforeNOL.
-// When ebl > 0 the engine has already added it; omitting it here makes the
-// waterfall's gross income lower than the actual AGI, breaking reconciliation.
-const totalGross = scaledK1 + totalW2 + totalOther + ebl
+const totalGross = scaledK1 + totalW2All + totalOther + ebl
 const aboveLine = Math.max(0, totalGross - (palCarryforwardApplied || 0) - agi)
 const dedAmt = useItemized ? computedItemizedAmt : standardDeduction
 const qbiDed = Math.max(0, agi - dedAmt - ordinaryTaxableIncome)
@@ -1283,195 +1269,151 @@ const wfRow = (label, amt, isTotal = false, isNeg = false) => (
 )
 return (
 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
-<button onClick={() => setShowWaterfall(v => !v)} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 18px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>
-INCOME WATERFALL
-<span>{showWaterfall ? '▲' : '▼'}</span>
+<button onClick={() => setShowWaterfall(v => !v)} style={{
+width: '100%', background: 'none', border: 'none', padding: '14px 20px', cursor: 'pointer',
+display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+borderBottom: showWaterfall ? '1px solid #F1F5F9' : 'none', borderRadius: showWaterfall ? '14px 14px 0 0' : 14,
+}}>
+<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>TAX CALCULATION WATERFALL</div>
+<BracketBadge rate={marginalRate} />
+</div>
+<span style={{ fontSize: 11, color: '#94A3B8', display: 'inline-block', transition: 'transform 0.2s', transform: showWaterfall ? 'rotate(180deg)' : 'none' }}>▼</span>
 </button>
 {showWaterfall && (
-<div style={{ padding: '4px 18px 16px', borderTop: '1px solid #F1F5F9' }}>
-{hasMixedEntityTypes ? (
-<>
-{scheduleEWaterfallAmt !== 0 && wfRow('K-1 Income (Schedule E, Part II)', scheduleEWaterfallAmt)}
-{scheduleCWaterfallAmt !== 0 && wfRow('Schedule C Net Profit', scheduleCWaterfallAmt)}
-</>
-) : (
-scaledK1 !== 0 && wfRow(
-scheduleCDisplayTotal !== 0 ? 'Schedule C Net Profit' : 'K-1 Income (Schedule E, Part II)',
-scaledK1
-)
-)}
-{totalW2 > 0 && wfRow('W-2 Wages', totalW2)}
-{totalOther !== 0 && wfRow('Other Income', totalOther)}
-{/* PASS5 EBL-FIX: Show the §461(l) denied loss as its own waterfall line.
-Without this, gross income jumps unexplained when EBL fires. */}
-{ebl > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #F8FAFC', background: '#FFF7ED' }}>
-<span style={{ fontSize: 12, color: '#9A3412', fontWeight: 500 }}>
-§461(l) Excess Business Loss Add-back
-<InfoTip text={`Your net business losses exceeded the §461(l) threshold of ${fmt(eblThreshold)} (2026 estimate). The denied ${fmt(ebl)} is added back to income — it converts to an NOL carryforward (§461(l)(2)). Enter it as "Prior-Year NOL Carryforward" in future years; it remains subject to the 80% taxable income cap per §172(a)(2).`} />
-</span>
-<span style={{ fontSize: 12, fontWeight: 600, color: '#9A3412' }}>{fmt(ebl)}</span>
-</div>
-)}
+<div style={{ padding: '0 20px 16px' }}>
+{scaledK1 !== 0 && wfRow(incomeFooterLabel, scaledK1)}
+{totalW2All !== 0 && wfRow('W-2 Wages (all sources)', totalW2All)}
+{inputs.rentalNet !== 0 && wfRow('Net Rental Income', inputs.rentalNet)}
+{inputs.stGain !== 0 && wfRow('Short-Term Capital Gains', inputs.stGain)}
+{inputs.ltGain !== 0 && wfRow('Long-Term Capital Gains', inputs.ltGain)}
+{inputs.unrecap1250 !== 0 && wfRow('Unrecaptured §1250 Gain', inputs.unrecap1250)}
+{inputs.collectiblesGain !== 0 && wfRow('Collectibles Gain', inputs.collectiblesGain)}
+{inputs.intInc !== 0 && wfRow('Taxable Interest', inputs.intInc)}
+{inputs.divInc !== 0 && wfRow('Ordinary Dividends', inputs.divInc)}
+{inputs.taxableSS !== 0 && wfRow('Taxable Social Security', inputs.taxableSS)}
+{inputs.iraIncome !== 0 && wfRow('IRA / Pension Distributions', inputs.iraIncome)}
+{inputs.f4797Inc !== 0 && wfRow('Form 4797 Gain/(Loss)', inputs.f4797Inc)}
+{ebl > 0 && wfRow('§461(l) EBL Add-back', ebl)}
 {wfRow('= Gross Income', totalGross, true)}
-{palCarryforwardApplied > 0 && wfRow('§469 Carryforward Applied', palCarryforwardApplied, false, true)}
-{aboveLine > 0 && wfRow('Above-the-line deductions', aboveLine, false, true)}
-{wfRow('= AGI', agi, true)}
-{wfRow(useItemized ? 'Itemized deduction' : 'Standard deduction', dedAmt, false, true)}
-{qbiDed > 0 && wfRow('QBI deduction (§199A)', qbiDed, false, true)}
+{aboveLine > 0 && wfRow('Above-the-Line Deductions', aboveLine, false, true)}
+{palCarryforwardApplied > 0 && wfRow('§469 PAL Carryforward Applied', palCarryforwardApplied, false, true)}
+{wfRow('= Adjusted Gross Income (AGI)', agi, true)}
+{wfRow(useItemized ? 'Itemized Deductions (Sch A)' : 'Standard Deduction', dedAmt, false, true)}
+{qbiDed > 0 && wfRow('QBI Deduction (§199A)', qbiDed, false, true)}
 {wfRow('= Taxable Income', ordinaryTaxableIncome, true)}
-<div style={{ borderTop: '2px dashed #E2E8F0', marginTop: 6, paddingTop: 6 }}>
-{wfRow('Federal Income Tax', fedTax || (result.ordFedTax + (result.prefTax || 0)))}
-{selfEmploymentTax > 0 && wfRow('Self-Employment Tax', selfEmploymentTax)}
-{additionalMedicare > 0 && wfRow('Addl Medicare Tax (0.9%)', additionalMedicare)}
-{niit > 0 && wfRow('NIIT (3.8%)', niit)}
-{amtAmount > 0 && wfRow('AMT (Form 6251)', amtAmount)}
-{childCredit > 0 && (
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #F8FAFC' }}>
-<span style={{ fontSize: 12, color: SL }}>Child Tax Credit (§24)</span>
-<span style={{ fontSize: 12, fontWeight: 600, color: G }}>({fmt(childCredit)})</span>
+{ebl > 0 && eblThreshold > 0 && (
+<div style={{ marginTop: 8, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#9A3412' }}>
+⚠ §461(l) EBL: {fmt(ebl)} added back to income (threshold: {fmt(eblThreshold)}). The disallowed amount carries forward as an NOL.
 </div>
 )}
-{wfRow('= Total Federal Tax', totalTax, true)}
-</div>
 </div>
 )}
 </div>
 )
 })()}
 
-<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: 18, marginBottom: 16 }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>QUARTERLY ESTIMATED PAYMENTS</div>
+{/* Quarterly estimate card */}
+{quarterly > 0 && (
+<div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', marginBottom: 16, overflow: 'hidden' }}>
+<div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px' }}>QUARTERLY ESTIMATED TAX</div>
+<div style={{ padding: '16px 20px' }}>
+
+{safeHarborPriorYear !== null && nv(priorYearTax) > 0 && (
+<div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+<div style={{ fontSize: 11, fontWeight: 700, color: '#78350F', letterSpacing: '0.5px', marginBottom: 8 }}>SAFE HARBOR COMPARISON (§6654)</div>
+<div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78350F' }}>
+<span>90% of current year tax</span>
+<span style={{ fontWeight: 700 }}>{fmt(safeHarborCurrentYear)}</span>
+</div>
+<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78350F' }}>
+<span>{priorYearMultiplierLabel} of prior year tax ({fmt(nv(priorYearTax))})</span>
+<span style={{ fontWeight: 700 }}>{fmt(safeHarborPriorYear)}</span>
+</div>
+<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: '#78350F', borderTop: '1px solid #FCD34D', paddingTop: 5 }}>
+<span>Minimum required (lower amount)</span>
+<span>{fmt(safeHarborMinimum)}</span>
+</div>
+</div>
+<div style={{ fontSize: 10, color: '#92400e', marginTop: 6, lineHeight: 1.4 }}>
+{priorYearMultiplierLabel === '110%' ? `Prior year AGI exceeded $150,000 — 110% multiplier applies per IRC §6654(d)(1)(D).` : `Prior year AGI ≤ $150,000 — 100% multiplier applies per IRC §6654(d)(1)(B)(ii).`}
+</div>
+</div>
+)}
+
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0F4FF', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+<div>
+<div style={{ fontSize: 10, color: SL, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 4 }}>
+{safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? 'SAFE HARBOR QUARTERLY PAYMENT' : 'RECOMMENDED QUARTERLY PAYMENT'}
+</div>
+<div style={{ fontSize: 26, fontWeight: 900, color: N }}>
+{fmt(safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? safeHarborQuarterly : quarterly)}
+</div>
+<div style={{ fontSize: 11, color: SL }}>per quarter · /qtr</div>
+</div>
+<div style={{ textAlign: 'right' }}>
+<div style={{ fontSize: 10, color: SL }}>
+{fmt((safeHarborPriorYear !== null && nv(priorYearTax) > 0) ? safeHarborMinimum : quarterly * 4)} / year
+</div>
+{safeHarborBalance > 0 && totalPayments > 0 && (
+<div style={{ fontSize: 11, color: R, fontWeight: 700, marginTop: 2 }}>
+{fmt(safeHarborBalance)} still needed
+</div>
+)}
+</div>
+</div>
+
+<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
 {quarterDefs.map((q, i) => {
 const isPast = q.due < today
-const mo = QUARTER_MONTHS[q.due.getMonth()]
-const dy = q.due.getDate()
-const yearSuffix = i === 3 ? " '" + String(taxYear + 1).slice(2) : ''
-const dueLabel = (isPast ? 'Past' : 'Due') + ' ' + mo + ' ' + dy + yearSuffix
-const labelColor = isPast ? '#94A3B8' : N
-const subColor = isPast ? '#94A3B8' : SL
-const amtColor = isPast ? '#94A3B8' : quarterly > 0 ? R : G
+const daysAway = Math.ceil((q.due - today) / 86400000)
+const qAmt = safeHarborPriorYear !== null && nv(priorYearTax) > 0 ? safeHarborQuarterly : quarterly
 return (
-<div key={q.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-<div>
-<span style={{ fontWeight: 700, color: labelColor, fontSize: 13 }}>{q.label}</span>
-<span style={{ fontSize: 11, color: subColor, marginLeft: 8 }}>{dueLabel}</span>
+<div key={i} style={{
+background: isPast ? '#F8FAFC' : '#fff',
+border: '1px solid ' + (isPast ? '#E2E8F0' : '#BFDBFE'),
+borderRadius: 10, padding: '10px 12px', opacity: isPast ? 0.65 : 1,
+}}>
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+<span style={{ fontSize: 12, fontWeight: 700, color: N }}>{q.label}</span>
+{isPast
+? <span style={{ fontSize: 10, color: SL }}>Past</span>
+: daysAway <= 30
+? <span style={{ fontSize: 10, fontWeight: 700, color: R }}>Due in {daysAway}d</span>
+: <span style={{ fontSize: 10, color: SL }}>{daysAway}d away</span>
+}
 </div>
-<div style={{ fontWeight: 700, color: amtColor, fontSize: 14 }}>{fmt(quarterly)}</div>
+<div style={{ fontSize: 10, color: SL, marginBottom: 4 }}>
+{q.due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+</div>
+<div style={{ fontSize: 16, fontWeight: 800, color: isPast ? SL : N }}>{fmt(qAmt)}</div>
 </div>
 )
 })}
-{quarterly > 0 && nv(estPaid) === 0 && quarterDefs.some(q => q.due < today) && (
-<div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#991b1b', lineHeight: 1.5 }}>
-⚠ One or more quarters appear past-due with no payments recorded. IRS underpayment penalties (~8% annually, §6654) may apply. Enter any payments made above to see your remaining balance.
 </div>
-)}
-<div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>Based on annual liability ÷ 4. Adjust for income earned to date.</div>
 
-{safeHarborPriorYear !== null && (
-<div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #E2E8F0' }}>
-<div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 8 }}>§6654 SAFE HARBOR OPTIONS</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
-<span style={{ color: SL }}>90% of current year (§6654(d)(1)(B)(i))</span>
-<span style={{ fontWeight: 600, color: N }}>{fmt(safeHarborCurrentYear)}</span>
+<div style={{ marginTop: 12, fontSize: 11, color: SL, lineHeight: 1.5 }}>
+Due dates: Apr 15 (Q1) · Jun 15 (Q2) · Sep 15 (Q3) · Jan 15 (Q4). Payments after deadline may incur underpayment penalties under IRC §6654.
 </div>
-<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
-<span style={{ color: SL }}>{priorYearMultiplierLabel} of prior year (§6654(d)(1)(B)(ii))</span>
-<span style={{ fontWeight: 600, color: N }}>{fmt(safeHarborPriorYear)}</span>
-</div>
-<div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#EFF6FF', borderRadius: 8 }}>
-<div>
-<div style={{ fontSize: 12, fontWeight: 700, color: B }}>Safe harbor minimum ÷ 4</div>
-<div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>
-Pay this each quarter to avoid §6654 penalty
-{safeHarborBalance > 0 && ` · ${fmt(safeHarborBalance)} total remaining`}
-</div>
-</div>
-<div style={{ fontSize: 16, fontWeight: 800, color: B }}>{fmt(safeHarborQuarterly)}</div>
 </div>
 </div>
 )}
 
-<div style={{ marginTop: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
-💡 <strong>Uneven income?</strong> The annualized income installment method (§6654(d)(2)) may allow lower payments in early quarters when income is earned unevenly. This requires calculating each quarter's actual income — consult a CPA or IRS Form 2210.
 </div>
-</div>
-
-<button
-onClick={() => handleSave()}
-style={{
-width: '100%', padding: '14px',
-background: saveStatus === 'saved' ? '#15803d' : '#0D1B3E',
-border: 'none', borderRadius: 12, color: '#fff',
-fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 10,
-transition: 'background 0.3s',
-}}
->
-{saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
-</button>
-
-<button
-onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
-style={{
-width: '100%', padding: '14px',
-background: B,
-border: 'none', borderRadius: 12, color: '#fff',
-fontWeight: 700, fontSize: 14, cursor: 'pointer',
-}}
->
-💾 Save &amp; Analyze →
-</button>
 </div>
 </div>
 
+{/* Unsaved changes modal */}
 {showUnsavedModal && (
-<div
-onClick={() => setShowUnsavedModal(false)}
-style={{
-position: 'fixed', inset: 0,
-background: 'rgba(0,0,0,0.5)',
-zIndex: 1000,
-display: 'flex', alignItems: 'center', justifyContent: 'center',
-padding: 20,
-}}
->
-<div
-onClick={e => e.stopPropagation()}
-style={{
-background: '#fff', borderRadius: 16,
-padding: '28px 28px',
-maxWidth: 440, width: '100%',
-boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-fontFamily: 'Inter, system-ui, sans-serif',
-}}
->
-<div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 8 }}>
-Unsaved Changes
-</div>
-<div style={{ fontSize: 14, color: SL, marginBottom: 24, lineHeight: 1.6 }}>
-You have unsaved changes on this page. If you leave now, your changes will be lost.
-</div>
-<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-<button
-onClick={saveAndLeave}
-style={{ padding: '12px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
->
-💾 Save &amp; Leave
-</button>
+<div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+<div style={{ background: '#fff', borderRadius: 14, padding: '28px 32px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+<div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 8 }}>Unsaved Changes</div>
+<div style={{ fontSize: 14, color: SL, marginBottom: 24, lineHeight: 1.6 }}>You have unsaved changes. Would you like to save before leaving?</div>
 <div style={{ display: 'flex', gap: 10 }}>
-<button
-onClick={() => setShowUnsavedModal(false)}
-style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}
->
-Stay on Page
-</button>
-<button
-onClick={confirmLeave}
-style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
->
-Leave Without Saving
-</button>
-</div>
+<button onClick={saveAndLeave} style={{ flex: 1, padding: '10px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Save &amp; Leave</button>
+<button onClick={confirmLeave} style={{ flex: 1, padding: '10px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Leave Without Saving</button>
+<button onClick={() => setShowUnsavedModal(false)} style={{ padding: '10px 14px', background: '#fff', color: SL, border: '1px solid #E2E8F0', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
 </div>
 </div>
 </div>
