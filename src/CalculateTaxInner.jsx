@@ -349,11 +349,10 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
               </div>
             )}
+            {/* FIX: pass manNetProfit directly — it already has sal deducted.
+                manNetProfit + sal was double-counting salary → wrong ratio (23% vs ~30%). */}
             <ReasonableCompIndicator
               officerSal={sal}
-              {/* FIX: pass K-1 distributions (post-salary net profit), not pre-salary gross.
-                  manNetProfit is already after deducting sal from revenue. Passing manNetProfit+sal
-                  was double-counting salary, producing wrong ratio (23% instead of ~30%). */}
               netProfit={Math.max(0, manNetProfit)}
               isSCorp={isSCorp}
             />
@@ -532,11 +531,10 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
 
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
+            {/* FIX: netProfit = grossRevenue - totalExpenses (totalExpenses includes salary).
+                netProfit + sal was double-counting → wrong ratio. Pass netProfit directly. */}
             <ReasonableCompIndicator
               officerSal={sal}
-              {/* FIX: netProfit here = (pnl.netProfit ?? grossRevenue) - totalExpenses.
-                  For synced entities totalExpenses includes salary, so netProfit is already
-                  post-salary. Adding sal again double-counted it. */}
               netProfit={Math.max(0, netProfit)}
               isSCorp={isSC}
             />
