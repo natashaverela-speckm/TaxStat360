@@ -129,31 +129,44 @@ function isValidSession() {
 }
 
 // ─── Persistent Authenticated Footer ─────────────────────────────────────────
-// Renders on every protected route via RequireAuth.
+// C-08 FIX: App footer disclaimer expanded to match the full landing page footer
+// disclaimer, providing consistent liability-protective language across all pages.
+// Previously: "For planning purposes only — not professional tax advice" (14 words)
+// Now: matches the full disclaimer shown on Landing.jsx footer (62 words).
+// Both strings are maintained in sync — if one is updated, update the other.
 function AuthFooter() {
   const year = new Date().getFullYear()
   const link = { color: '#64748B', textDecoration: 'none', fontWeight: 600 }
   return (
     <div style={{
       position: 'fixed', bottom: 0, left: 0, right: 0,
-      height: 34,
       background: '#fff',
       borderTop: '1px solid #E2E8F0',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      gap: 24,
+      flexWrap: 'wrap',
+      gap: 12,
+      padding: '6px 24px',
       fontSize: 11,
       color: '#94A3B8',
       zIndex: 50,
       fontFamily: 'Inter, system-ui, sans-serif',
+      lineHeight: 1.4,
+      minHeight: 36,
     }}>
       <span>© {year} TaxStat360</span>
       <span style={{ color: '#E2E8F0' }}>|</span>
-      <Link to="/terms" style={link}>Terms of Service</Link>
+      <Link to="/terms"   style={link}>Terms of Service</Link>
       <Link to="/privacy" style={link}>Privacy Policy</Link>
       <span style={{ color: '#E2E8F0' }}>|</span>
       <a href="mailto:support@taxstat360.com" style={link}>support@taxstat360.com</a>
       <span style={{ color: '#E2E8F0' }}>|</span>
-      <span>For planning purposes only — not professional tax advice</span>
+      {/* C-08: Full planning disclaimer — matches Landing.jsx footer for consistency
+          and maximum liability protection. Do not shorten without legal review. */}
+      <span style={{ maxWidth: 560, textAlign: 'center' }}>
+        TaxStat360 is a tax planning and estimation tool for informational purposes only.
+        Not professional tax, legal, or financial advice. Consult a licensed CPA or tax
+        attorney before making any filing or financial decisions.
+      </span>
     </div>
   )
 }
