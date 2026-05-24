@@ -21,6 +21,11 @@
 // F-M02:  ownPct() from utils/entityPredicates.js replaces (parseFloat(x) || 100)
 //         pattern — fixes silent 0%-ownership-treated-as-100% bug.
 // UX-N02: Quarterly estimate in record card now includes safe harbor context.
+//
+// L-03 FIX: "S-CORP ALERT" badge changed to "⚠ AUDIT RISK — S-CORP" for clarity.
+// C-04 FIX: Alert card now uses red severity styling (#FEF2F2 / #FECACA / #991B1B)
+//           matching the same alert in CalculateTaxInner.jsx Step 1 entity card.
+//           Previously amber (#FEF3C7 / #FCD34D / #92400E) — inconsistent severity.
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -28,17 +33,13 @@ import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax } fr
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
-// PASS4B-03: imported from constants.js — local definitions removed below.
 import {
   PASSTHROUGH_ENTITY_TYPES,
   C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
-// CC-M01: colors from single source of truth — no more inline hex consts.
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
-// CC-M02: canonical formatters — replaces local fmt() and pct() definitions.
 import { fmt, pct } from './utils/formatMoney.js'
-// F-M02: safe ownership resolver — fixes (parseFloat(x) || 100) falsy-0% bug.
 import { ownPct } from './utils/entityPredicates.js'
 
 const normalizeEntityType = (t) => {
@@ -64,8 +65,6 @@ function calcDashboard(biz, f1040) {
   const other  = parseFloat(biz.otherDeductions)   || 0
   const totalExp = opExp + sal + dep + adv + other
   const netBiz   = gross - totalExp
-  // F-M02: ownPct() treats explicit 0% as 0, not 100.
-  // (parseFloat(biz.ownershipPct) || 100) was silently coercing 0 → 100.
   const own      = ownPct(biz.ownershipPct) / 100
   const k1       = Math.round(netBiz * own)
 
@@ -121,8 +120,6 @@ function calcDashboard(biz, f1040) {
     if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
     const ratio = totalComp > 0 ? sal / totalComp : 1
     const triggered = ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-    // L-02: Store sal and distributions explicitly so the JSX can render
-    // the formula Salary ÷ (Salary + Distributions) with real numbers.
     return {
       triggered,
       ratio: Math.round(ratio * 100),
@@ -144,9 +141,6 @@ function calcDashboard(biz, f1040) {
     recSal: isSC ? Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD) : 0,
     w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
     niit: r.niit ?? { applies: false, amount: 0 },
-    // L-02 fix: merge sal and distributions into the alert regardless of which source wins.
-    // r.reasonableCompAlert from calcTaxReturn has triggered/ratio/message but no sal/distributions,
-    // so the JSX formula block would read undefined and display $0 for both.
     reasonableCompAlert: (() => {
       const alertData = r.reasonableCompAlert ?? reasonableCompAlert
       return {
@@ -199,39 +193,15 @@ const LOGO = () => (
   </div>
 )
 
-
 // ── F-08: One-time onboarding tour ────────────────────────────────────────────
 const ONBOARDING_KEY = 'ts360_onboarding_v1'
 
 const ONBOARDING_STEPS = [
-  {
-    logo: true,
-    title: 'Welcome to TaxStat360',
-    body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.',
-  },
-  {
-    emoji: '🏢',
-    badge: 'Step 1 of 2 — Business Entities',
-    title: 'Add Your Business Entities',
-    body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.',
-  },
-  {
-    emoji: '📋',
-    badge: 'Step 2 of 2 — Personal Return',
-    title: 'Complete Your Personal Return',
-    body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, §199A QBI deduction, and quarterly estimated payments update live.',
-  },
-  {
-    emoji: '🤖',
-    title: 'AI Risk & Tax Analysis',
-    body: 'Save your calculation to unlock your AI risk scan — officer salary audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.',
-  },
-  {
-    emoji: '✅',
-    title: "You're all set!",
-    body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.",
-    isFinal: true,
-  },
+  { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
+  { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
+  { emoji: '📋', badge: 'Step 2 of 2 — Personal Return', title: 'Complete Your Personal Return', body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, §199A QBI deduction, and quarterly estimated payments update live.' },
+  { emoji: '🤖', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan — officer salary audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
+  { emoji: '✅', title: "You're all set!", body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.", isFinal: true },
 ]
 
 function OnboardingTour({ onComplete }) {
@@ -240,33 +210,13 @@ function OnboardingTour({ onComplete }) {
   const isLast = step === ONBOARDING_STEPS.length - 1
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(13,27,62,0.75)',
-      zIndex: 2000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20,
-      fontFamily: 'Inter, system-ui, sans-serif',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 20,
-        padding: '36px 32px',
-        maxWidth: 480, width: '100%',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
-      }}>
-        {/* Progress dots */}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.75)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px', maxWidth: 480, width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
           {ONBOARDING_STEPS.map((_, i) => (
-            <div key={i} style={{
-              height: 8, borderRadius: 4,
-              width: i === step ? 28 : 8,
-              background: i === step ? B : '#E2E8F0',
-              transition: 'all 0.3s',
-            }} />
+            <div key={i} style={{ height: 8, borderRadius: 4, width: i === step ? 28 : 8, background: i === step ? B : '#E2E8F0', transition: 'all 0.3s' }} />
           ))}
         </div>
-
-        {/* Icon */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           {s.logo ? (
             <svg width="60" height="60" viewBox="0 0 34 34" style={{ display: 'block', margin: '0 auto' }}>
@@ -280,56 +230,24 @@ function OnboardingTour({ onComplete }) {
             <span style={{ fontSize: 52, lineHeight: 1 }}>{s.emoji}</span>
           )}
         </div>
-
         {s.badge && (
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
-            <span style={{ background: B, color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700 }}>
-              {s.badge}
-            </span>
+            <span style={{ background: B, color: '#fff', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700 }}>{s.badge}</span>
           </div>
         )}
-
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 12px', textAlign: 'center' }}>
-          {s.title}
-        </h2>
-        <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', textAlign: 'center', lineHeight: 1.75 }}>
-          {s.body}
-        </p>
-
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginBottom: 20, fontWeight: 600 }}>
-          {step + 1} of {ONBOARDING_STEPS.length}
-        </div>
-
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 12px', textAlign: 'center' }}>{s.title}</h2>
+        <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', textAlign: 'center', lineHeight: 1.75 }}>{s.body}</p>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginBottom: 20, fontWeight: 600 }}>{step + 1} of {ONBOARDING_STEPS.length}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button
-            onClick={onComplete}
-            style={{ background: 'none', border: 'none', fontSize: 13, color: '#94A3B8', cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}
-          >
-            Skip tour
-          </button>
+          <button onClick={onComplete} style={{ background: 'none', border: 'none', fontSize: 13, color: '#94A3B8', cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>Skip tour</button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 0 && (
-              <button
-                onClick={() => setStep(step - 1)}
-                style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}
-              >
-                ← Back
-              </button>
+              <button onClick={() => setStep(step - 1)} style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>← Back</button>
             )}
             {isLast ? (
-              <button
-                onClick={onComplete}
-                style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Start Calculating →
-              </button>
+              <button onClick={onComplete} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Start Calculating →</button>
             ) : (
-              <button
-                onClick={() => setStep(step + 1)}
-                style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: N, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Next →
-              </button>
+              <button onClick={() => setStep(step + 1)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: N, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Next →</button>
             )}
           </div>
         </div>
@@ -337,77 +255,36 @@ function OnboardingTour({ onComplete }) {
     </div>
   )
 }
-
 
 // ── F-07: Delete confirmation modal ───────────────────────────────────────────
 function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
   const displayName = rec?.name || rec?.savedAt || 'this record'
   return (
-    <div
-      onClick={onCancel}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.5)',
-        zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20,
-        fontFamily: 'Inter, system-ui, sans-serif',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: '#fff', borderRadius: 16,
-          padding: '28px 28px',
-          maxWidth: 440, width: '100%',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-        }}
-      >
-        <div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 10 }}>
-          Delete Record?
-        </div>
+    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 28px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: N, marginBottom: 10 }}>Delete Record?</div>
         <div style={{ fontSize: 14, color: SL, marginBottom: 24, lineHeight: 1.65 }}>
-          Are you sure you want to delete{' '}
-          <strong style={{ color: N }}>"{displayName}"</strong>?
-          {' '}This cannot be undone.
+          Are you sure you want to delete <strong style={{ color: N }}>"{displayName}"</strong>?{' '}This cannot be undone.
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={onCancel}
-            style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: R, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
-            Delete Record
-          </button>
+          <button onClick={onCancel} style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: R, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Delete Record</button>
         </div>
       </div>
     </div>
   )
 }
 
-
-// ── Main Dashboard Component ──────────────────────────────────────────────────
+// ── Federal estimates disclosure banner ───────────────────────────────────────
 function FederalDisclosureBanner() {
   const key = 'ts360_fed_banner_dismissed'
   const [visible, setVisible] = useState(() => {
     try { return localStorage.getItem(key) !== '1' } catch { return true }
   })
   if (!visible) return null
-  const dismiss = () => {
-    try { localStorage.setItem(key, '1') } catch {}
-    setVisible(false)
-  }
+  const dismiss = () => { try { localStorage.setItem(key, '1') } catch {} setVisible(false) }
   return (
-    <div style={{
-      background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10,
-      padding: '10px 16px', marginBottom: 16, display: 'flex',
-      alignItems: 'center', justifyContent: 'space-between', gap: 12,
-    }}>
+    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 16 }}>🇺🇸</span>
         <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 500 }}>
@@ -434,8 +311,7 @@ class IntegrationErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8,
-                      padding: '12px 16px', fontSize: 12, color: '#991B1B' }}>
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '12px 16px', fontSize: 12, color: '#991B1B' }}>
           ⚠ This section failed to load. Reload the page to retry.
         </div>
       );
@@ -628,7 +504,6 @@ export default function Dashboard() {
             const adv = parseFloat(b.advertising) || 0
             const oth = parseFloat(b.otherDeductions) || 0
             const netProfit = rev - opEx - sal - dep - adv - oth
-            // F-M02: use ownPct() — integer parse for this specific legacy path
             const ownPctVal = parseInt(b.ownershipPct || b.own) || 100
             return [{
               name: b.name || normalizeEntityType(b.entityType) || 'Business',
@@ -711,17 +586,10 @@ export default function Dashboard() {
       )}
 
       {/* ── Navigation ── */}
-      <nav style={{
-        background: '#fff', borderBottom: '1px solid #E2E8F0',
-        padding: '0 28px', height: 58,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 100,
-      }}>
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 28px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <LOGO />
-          <div style={{ background: '#F1F5F9', color: SL, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
-            Dashboard
-          </div>
+          <div style={{ background: '#F1F5F9', color: SL, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Dashboard</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {userName && (
@@ -740,9 +608,7 @@ export default function Dashboard() {
             <strong>⚠ Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing.{' '}
             <a href="/terms" style={{ color: '#92400E', fontWeight: 700, textDecoration: 'underline' }}>View full disclaimer →</a>
           </div>
-          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
-            Got it ✓
-          </button>
+          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Got it ✓</button>
         </div>
       )}
 
@@ -750,13 +616,9 @@ export default function Dashboard() {
         <div style={{ background: '#EFF6FF', borderBottom: '2px solid #93C5FD', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
             <strong>🔐 Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
-            <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>
-              Enable 2FA in Settings →
-            </button>
+            <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>Enable 2FA in Settings →</button>
           </div>
-          <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>
-            Remind me later
-          </button>
+          <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>Remind me later</button>
         </div>
       )}
 
@@ -769,49 +631,47 @@ export default function Dashboard() {
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
 
         {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
-          <div style={{
-            background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12,
-            padding: '20px 24px', marginBottom: 24,
-            display: 'flex', alignItems: 'flex-start', gap: 16,
-          }}>
+          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ fontSize: 28, flexShrink: 0 }}>📊</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>
-                Ready to see your tax analysis?
-              </div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>Ready to see your tax analysis?</div>
               <div style={{ fontSize: 13, color: '#3B82F6', lineHeight: 1.6, marginBottom: 12 }}>
                 Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business income and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
               </div>
-              <button
-                onClick={startNewCalc}
-                style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-              >
-                Open Tax Tracker →
-              </button>
+              <button onClick={startNewCalc} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Open Tax Tracker →</button>
             </div>
           </div>
         )}
 
+        {/* L-03 + C-04 FIX: Reasonable compensation alert.
+            L-03: Badge changed from "S-CORP ALERT" → "⚠ AUDIT RISK — S-CORP" to convey
+                  severity and prompt action. The prior label was non-specific.
+            C-04: Card now uses red severity palette (#FEF2F2 / #FECACA / #991B1B)
+                  matching the same alert rendered in CalculateTaxInner.jsx Step 1.
+                  Previously amber (#FEF3C7 / #FCD34D / #92400E) created an inconsistent
+                  severity signal — amber reads "warning" while the Step 1 card reads "error".
+                  Since this fires only when salary IS below the 40% threshold (a genuine
+                  audit risk), red is the correct severity level in both locations. */}
         {hasNumbers && safeCalc.reasonableCompAlert?.triggered && !dismissedCompAlert && (
           <div style={{
-            background: '#FEF3C7', border: '1.5px solid #FCD34D', borderRadius: 12,
+            background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12,
             padding: '16px 20px', marginBottom: 24,
             display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
           }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#92400E', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ background: '#FCD34D', color: '#92400E', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>S-CORP ALERT</span>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>⚠ AUDIT RISK — S-CORP</span>
                 Reasonable Compensation Below Practitioner Guideline
               </div>
 
-              <div style={{ fontSize: 13, color: '#92400E', marginBottom: 10, fontWeight: 600 }}>
+              <div style={{ fontSize: 13, color: '#991B1B', marginBottom: 10, fontWeight: 600 }}>
                 Formula: Salary ÷ (Salary + Distributions)
               </div>
               <div style={{
-                background: 'rgba(146,64,14,0.06)', borderRadius: 8, padding: '10px 14px',
+                background: 'rgba(153,27,27,0.06)', borderRadius: 8, padding: '10px 14px',
                 marginBottom: 10, fontFamily: 'monospace, monospace', fontSize: 14,
               }}>
-                <span style={{ color: '#78350F' }}>
+                <span style={{ color: '#7F1D1D' }}>
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
                   {' ÷ ('}
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
@@ -822,20 +682,20 @@ export default function Dashboard() {
                 <strong style={{ color: '#DC2626', fontSize: 15 }}>
                   {safeCalc.reasonableCompAlert.ratio ?? 0}%
                 </strong>
-                <span style={{ color: '#92400E', fontSize: 12 }}> (threshold: ≥40%)</span>
+                <span style={{ color: '#991B1B', fontSize: 12 }}> (threshold: ≥40%)</span>
               </div>
 
-              <div style={{ fontSize: 13, color: '#78350F', lineHeight: 1.6, marginBottom: 8 }}>
+              <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 8 }}>
                 {safeCalc.reasonableCompAlert.message}
               </div>
-              <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5, background: 'rgba(146,64,14,0.08)', borderRadius: 6, padding: '8px 12px' }}>
+              <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
                 <strong>Recommended action:</strong> Consider increasing your officer W-2 salary to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
-                <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#92400E', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
+                <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
             </div>
             <button
               onClick={() => setDismissedCompAlert(true)}
-              style={{ flexShrink: 0, background: 'none', border: '1px solid #D97706', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}
+              style={{ flexShrink: 0, background: 'none', border: '1px solid #FECACA', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#991B1B', cursor: 'pointer' }}
             >Dismiss</button>
           </div>
         )}
@@ -847,12 +707,7 @@ export default function Dashboard() {
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>
             <p style={{ color: SL, fontSize: 13, margin: '4px 0 0' }}>Click any record to load it into the Tax Tracker.</p>
           </div>
-          <button
-            onClick={startNewCalc}
-            style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-          >
-            + New Calculation
-          </button>
+          <button onClick={startNewCalc} style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ New Calculation</button>
         </div>
 
         {records.length === 0 ? (
@@ -862,15 +717,12 @@ export default function Dashboard() {
             <p style={{ color: SL, fontSize: 14, marginBottom: 20 }}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
               {[
-                { label: 'S-Corp Owner', icon: '🏢', desc: 'Salary + K-1 distributions' },
-                { label: 'Sole Proprietor', icon: '💼', desc: 'Schedule C self-employment' },
-                { label: 'Real Estate Investor', icon: '🏠', desc: 'Rental income + depreciation' },
-                { label: 'Partnership / LLC', icon: '🤝', desc: 'K-1 distributive share' },
+                { label: 'S-Corp Owner',          icon: '🏢', desc: 'Salary + K-1 distributions' },
+                { label: 'Sole Proprietor',        icon: '💼', desc: 'Schedule C self-employment' },
+                { label: 'Real Estate Investor',   icon: '🏠', desc: 'Rental income + depreciation' },
+                { label: 'Partnership / LLC',      icon: '🤝', desc: 'K-1 distributive share' },
               ].map(p => (
-                <button key={p.label} onClick={startNewCalc} style={{
-                  padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0',
-                  borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140,
-                }}>
+                <button key={p.label} onClick={startNewCalc} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
                   <div style={{ fontSize: 20 }}>{p.icon}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: N, marginTop: 4 }}>{p.label}</div>
                   <div style={{ fontSize: 11, color: SL, marginTop: 2 }}>{p.desc}</div>
@@ -891,7 +743,6 @@ export default function Dashboard() {
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
               const totalTax       = parseFloat(rec.totalTax) || 0
-
               const isActive = activeRecordId && String(rec.id) === activeRecordId
 
               return (
@@ -907,7 +758,6 @@ export default function Dashboard() {
                     <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
                       {rec.name || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)' ? new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
-                      {/* PASS4B-04: renamed from "ACTIVE IN CALCULATOR" */}
                       {isActive && (
                         <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
                           ACTIVE IN TAX TRACKER
@@ -924,7 +774,6 @@ export default function Dashboard() {
                         <span style={{ fontSize: 13, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
                       )}
                       <span style={{ fontSize: 13, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                      {/* UX-N02: quarterly label now includes safe harbor context */}
                       <span style={{ fontSize: 13, color: SL }}>
                         Quarterly:{' '}
                         <strong style={{ color: quarterly > 0 ? N : '#94A3B8' }}>
@@ -932,11 +781,7 @@ export default function Dashboard() {
                         </strong>
                         {quarterly > 0 && (
                           <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 5, fontWeight: 400 }}>
-                            · <a
-                                onClick={e => { e.stopPropagation(); loadRecord(rec) }}
-                                style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }}
-                                title="Open Step 2 to compare 90% current-year vs 110%/100% prior-year safe harbor"
-                              >safe harbor in Step 2</a>
+                            · <a onClick={e => { e.stopPropagation(); loadRecord(rec) }} style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }} title="Open Step 2 to compare 90% current-year vs 110%/100% prior-year safe harbor">safe harbor in Step 2</a>
                           </span>
                         )}
                       </span>
@@ -949,56 +794,31 @@ export default function Dashboard() {
                     const delta = totalTax - prevTax
                     const showDelta = i === 0 && prevTax > 0 && Math.abs(delta) >= 100
                     return (
-                      <div style={{
-                        flexShrink: 0, marginLeft: 20, marginRight: 8,
-                        textAlign: 'center', background: '#FEF2F2',
-                        border: '1.5px solid #FECACA', borderRadius: 12,
-                        padding: '10px 18px', minWidth: 120,
-                      }}>
+                      <div style={{ flexShrink: 0, marginLeft: 20, marginRight: 8, textAlign: 'center', background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12, padding: '10px 18px', minWidth: 120 }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', letterSpacing: '0.5px', marginBottom: 3 }}>EST. TAX LIABILITY</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: R, lineHeight: 1 }}>
-                          ${Math.round(totalTax).toLocaleString()}
-                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: R, lineHeight: 1 }}>${Math.round(totalTax).toLocaleString()}</div>
                         {quarterly > 0 && (
-                          <div style={{ fontSize: 10, color: '#991B1B', marginTop: 3 }}>
-                            ${Math.round(quarterly).toLocaleString()}/qtr
-                          </div>
+                          <div style={{ fontSize: 10, color: '#991B1B', marginTop: 3 }}>${Math.round(quarterly).toLocaleString()}/qtr</div>
                         )}
                         {showDelta && (
-                          <div style={{
-                            marginTop: 5, fontSize: 11, fontWeight: 700,
-                            color: delta > 0 ? '#DC2626' : '#16A34A',
-                          }}>
+                          <div style={{ marginTop: 5, fontSize: 11, fontWeight: 700, color: delta > 0 ? '#DC2626' : '#16A34A' }}>
                             {delta > 0 ? '▲' : '▼'} ${Math.abs(Math.round(delta)).toLocaleString()} vs prior
                           </div>
                         )}
-                        <div style={{ fontSize: 11, color: '#B91C1C', marginTop: showDelta ? 2 : 5, fontStyle: 'italic' }}>
-                          Federal income tax only
-                        </div>
+                        <div style={{ fontSize: 11, color: '#B91C1C', marginTop: showDelta ? 2 : 5, fontStyle: 'italic' }}>Federal income tax only</div>
                       </div>
                     )
                   })()}
 
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 20, alignItems: 'center' }}>
-                    <button
-                      onClick={() => loadRecord(rec)}
-                      style={{ padding: '10px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                    >
+                    <button onClick={() => loadRecord(rec)} style={{ padding: '10px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Load &amp; Continue →
                     </button>
-
                     <button
                       onClick={() => handleDeleteClick(rec, i)}
                       title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
-                      style={{
-                        padding: '10px 14px', background: '#fff', color: R,
-                        border: '1.5px solid #FCA5A5', borderRadius: 8,
-                        fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      🗑
-                    </button>
+                      style={{ padding: '10px 14px', background: '#fff', color: R, border: '1.5px solid #FCA5A5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
+                    >🗑</button>
                   </div>
                 </div>
               )
