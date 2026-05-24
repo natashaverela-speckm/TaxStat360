@@ -372,9 +372,6 @@ function RiskScan({ rec }) {
         : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
   }
 
-  // ── PASS4B-09: Three new Risk Scan findings ───────────────────────────────
-
-  // (1) §1366(d) Suspended Loss
   const _suspendedLoss = Math.round(parseFloat(rec.totalSuspendedLoss || 0))
   if (_suspendedLoss > 0) {
     const _suspEntities = Array.isArray(rec.entityBasisResults)
@@ -395,7 +392,6 @@ function RiskScan({ rec }) {
     })
   }
 
-  // (2) REP Status + High Outside W-2 Income — Audit Risk
   if (isREP) {
     const _entitySalary = (Array.isArray(rec.entities) ? rec.entities : [])
       .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
@@ -411,7 +407,6 @@ function RiskScan({ rec }) {
     }
   }
 
-  // (3) Deduction-to-Revenue Ratio > 140% — IRS DIF Audit Profile
   const _totEntRev = (Array.isArray(rec.entities) ? rec.entities : [])
     .reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
   const _totEntExp = (Array.isArray(rec.entities) ? rec.entities : [])
@@ -427,7 +422,6 @@ function RiskScan({ rec }) {
     })
   }
 
-  // (4) 4B-M01 — Vehicle / Mileage Deduction review flag
   const _mileageDeduction = parseFloat(b.mileageDeduction || b.vehicleMileage || 0) || 0
   const _vehicleExpenses  = parseFloat(b.vehicleExpenses || 0) || 0
   const _totRevForVehicle = _totEntRev > 0 ? _totEntRev : revenue
@@ -544,7 +538,6 @@ function TaxOptimization({ rec }) {
   const sepRate = isSCorpOwner ? 0.25 : 0.20
   const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
 
-  // F-M03: read solo401kDeferral from TAX_TABLES via getTable()
   const solo401kDeferral = getTable(year)?.retirement?.solo401kDeferral ?? 23500
   const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? 0.25 : 0.20))
   const maxSolo401k = Math.min(70000, maxSolo401kEmployer + solo401kDeferral)
@@ -708,20 +701,8 @@ function IRSCompliance({ rec }) {
   }
 
   if (isScheduleCType(entity) || hasScheduleC) {
-    schedules.push({
-      form: 'Schedule C',
-      title: 'Profit or Loss from Business (Sole Proprietor)',
-      status: 'required',
-      detail: `Reports your sole proprietor / SMLLC net profit of ${fmt(scheduleCAmount || k1)} directly on Form 1040. Revenue, expenses, and net profit are calculated here — the result flows to Form 1040 Line 8 via Schedule 1.`,
-      deadline: 'Filed with Form 1040',
-    })
-    schedules.push({
-      form: 'Schedule SE',
-      title: 'Self-Employment Tax',
-      status: 'required',
-      detail: 'Calculates 15.3% SE tax on net self-employment income from Schedule C (applied to 92.35% of net profit). Half of the SE tax is deductible as an above-the-line deduction on Schedule 1, Line 15.',
-      deadline: 'Filed with Form 1040',
-    })
+    schedules.push({ form: 'Schedule C', title: 'Profit or Loss from Business (Sole Proprietor)', status: 'required', detail: `Reports your sole proprietor / SMLLC net profit of ${fmt(scheduleCAmount || k1)} directly on Form 1040. Revenue, expenses, and net profit are calculated here — the result flows to Form 1040 Line 8 via Schedule 1.`, deadline: 'Filed with Form 1040' })
+    schedules.push({ form: 'Schedule SE', title: 'Self-Employment Tax', status: 'required', detail: 'Calculates 15.3% SE tax on net self-employment income from Schedule C (applied to 92.35% of net profit). Half of the SE tax is deductible as an above-the-line deduction on Schedule 1, Line 15.', deadline: 'Filed with Form 1040' })
   }
 
   if (isPassthroughEntity(entity) && k1 > 0) {
@@ -1208,11 +1189,17 @@ function NarrativeModal({ onClose }) {
   )
 }
 
+// ── TAB 4: Reports & Tools ────────────────────────────────────────────────────
+// C-01 FIX: Standardize all three action buttons to the primary navy (N) palette.
+// Previously: Generate Report = B (blue), Open Simulator = G (green), View Templates = P (purple).
+// Three different accent colors on one page with no semantic differentiation confused
+// the hierarchy. All three are equal-priority primary actions — one color is correct.
+// Navy (N) is the app's primary action color (used on "Save This Record", nav buttons, etc.)
 function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
   const tools = [
-    { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: B, action: onReport, available: true },
-    { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: G, action: onSimulator, available: true },
-    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: P, action: onNarrative, available: true },
+    { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: N, action: onReport, available: true },
+    { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
+    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: true },
   ]
   return (
     <div>
@@ -1238,8 +1225,6 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
 
 
 // ── Main Export ───────────────────────────────────────────────────────────────
-// NOTE: NoData and this export default were truncated in both raw fetches.
-// Structure reconstructed from known app patterns — verify nav/layout matches production.
 export default function AIAnalysis() {
   const navigate = useNavigate()
   const location = useLocation()
