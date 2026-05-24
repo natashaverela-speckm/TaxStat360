@@ -160,12 +160,13 @@ function AuthFooter() {
       <span style={{ color: '#E2E8F0' }}>|</span>
       <a href="mailto:support@taxstat360.com" style={link}>support@taxstat360.com</a>
       <span style={{ color: '#E2E8F0' }}>|</span>
-      {/* C-08: Full planning disclaimer — matches Landing.jsx footer for consistency
-          and maximum liability protection. Do not shorten without legal review. */}
-      <span style={{ maxWidth: 560, textAlign: 'center' }}>
-        TaxStat360 is a tax planning and estimation tool for informational purposes only.
-        Not professional tax, legal, or financial advice. Consult a licensed CPA or tax
-        attorney before making any filing or financial decisions.
+      {/* C-08 / FIX-FOOTER: Condensed to a single line so it doesn't cover the
+          sticky action footers in CalculateTaxInner and other pages. The full disclaimer
+          appears on the Landing.jsx footer (public-facing, most legally significant).
+          This inline version retains all key legal elements in ~1 line at font-size 11. */}
+      <span>
+        For planning purposes only — not professional tax, legal, or financial advice.
+        Consult a licensed CPA or attorney before filing.
       </span>
     </div>
   )
