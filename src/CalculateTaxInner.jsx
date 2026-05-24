@@ -351,7 +351,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             )}
             <ReasonableCompIndicator
               officerSal={sal}
-              netProfit={Math.max(0, manNetProfit)}
+              netProfit={Math.max(0, manNetProfit + sal)}
               isSCorp={isSCorp}
             />
           </div>
@@ -531,7 +531,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
             <ReasonableCompIndicator
               officerSal={sal}
-              netProfit={Math.max(0, netProfit)}
+              netProfit={Math.max(0, netProfit + sal)}
               isSCorp={isSC}
             />
           )}
@@ -872,14 +872,14 @@ export default function CalculateTaxInner() {
             <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or add an entity manually using the button below." />
           </div>
           <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {INTEGRATIONS.map(integ => (
               <IntegrationTile
                 key={integ.id}
                 integ={integ}
                 connected={connectedApp.toLowerCase() === integ.id}
                 onConnect={() => {
-                  window.location.href = `${API_BASE_URL}/auth/${integ.id}`
+                  window.open(`${API_BASE_URL}/integrations/${integ.id}/connect`, '_blank')
                 }}
               />
             ))}
