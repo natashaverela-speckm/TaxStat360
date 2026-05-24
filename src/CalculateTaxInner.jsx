@@ -351,7 +351,10 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             )}
             <ReasonableCompIndicator
               officerSal={sal}
-              netProfit={Math.max(0, manNetProfit + sal)}
+              {/* FIX: pass K-1 distributions (post-salary net profit), not pre-salary gross.
+                  manNetProfit is already after deducting sal from revenue. Passing manNetProfit+sal
+                  was double-counting salary, producing wrong ratio (23% instead of ~30%). */}
+              netProfit={Math.max(0, manNetProfit)}
               isSCorp={isSCorp}
             />
           </div>
@@ -531,7 +534,10 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
             <ReasonableCompIndicator
               officerSal={sal}
-              netProfit={Math.max(0, netProfit + sal)}
+              {/* FIX: netProfit here = (pnl.netProfit ?? grossRevenue) - totalExpenses.
+                  For synced entities totalExpenses includes salary, so netProfit is already
+                  post-salary. Adding sal again double-counted it. */}
+              netProfit={Math.max(0, netProfit)}
               isSCorp={isSC}
             />
           )}
