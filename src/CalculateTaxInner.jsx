@@ -349,8 +349,6 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
               </div>
             )}
-            {/* FIX: pass manNetProfit directly — it already has sal deducted.
-                manNetProfit + sal was double-counting salary → wrong ratio (23% vs ~30%). */}
             <ReasonableCompIndicator
               officerSal={sal}
               netProfit={Math.max(0, manNetProfit)}
@@ -531,8 +529,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
 
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
-            {/* FIX: netProfit = grossRevenue - totalExpenses (totalExpenses includes salary).
-                netProfit + sal was double-counting → wrong ratio. Pass netProfit directly. */}
             <ReasonableCompIndicator
               officerSal={sal}
               netProfit={Math.max(0, netProfit)}
