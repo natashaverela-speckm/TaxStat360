@@ -1,20 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Aria from './Aria'
-// LBL-01: Import INTEGRATIONS from constants.js so badge abbreviations and
-// brand colors are maintained in one place. Previously this array was hardcoded
-// inline with non-standard abbreviations (XE, WV). Now abbr, name, and color
-// all come from the canonical source. If an integration is renamed or added,
-// only constants.js needs updating.
 import { INTEGRATIONS } from './constants'
 import './Landing.css'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
 
-// CC-03: Shared eyebrow label style — applied consistently to all section
-// eyebrow labels across the page. Previously two eyebrow labels existed with
-// different styling; other sections had no eyebrow label at all.
 const EYEBROW = {
   fontSize: 12,
   fontWeight: 700,
@@ -24,25 +16,20 @@ const EYEBROW = {
   marginBottom: 10,
 }
 
-// CC-02: Standard CTA button label used across the entire page.
-// Previously had 5+ variations: "Start Free Trial", "Start Your Free 7-Day Trial →",
-// "Start Free 7-Day Trial". One label everywhere.
 const CTA_LABEL = 'Start Free 7-Day Trial'
 
-// UX-02: Standard CTA sub-copy. Hero previously omitted the credit card requirement,
-// creating an inconsistency with lower-page CTAs that disclosed it.
-// Standardized across all placements. "No CPA needed" retained in hero only.
-const CTA_COPY_FULL    = 'Credit card required · No charge for 7 days · Cancel anytime · No CPA needed to get started'
-const CTA_COPY_SHORT   = 'Credit card required · No charge for 7 days · Cancel anytime'
+// UX-03 FIX: Reordered so benefits lead ("No charge for 7 days · Cancel anytime")
+// before the friction condition ("Credit card required"). The original order led
+// with "Credit card required" which is a deterrent that can stop users from reading
+// the reassurances that follow. Benefits first → condition second is standard
+// conversion copywriting practice. "No CPA needed" retained in hero only.
+const CTA_COPY_FULL  = 'No charge for 7 days · Cancel anytime · Credit card required · No CPA needed to get started'
+const CTA_COPY_SHORT = 'Credit card required · No charge for 7 days · Cancel anytime'
 
 function Nav({ nav }) {
   return (
     <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => nav('/')}>
-        {/* CC-03: Nav logo updated — blue fill + solid white bars to match footer logo,
-            Onboarding.jsx logo, and logged-in app header. Previously navy (#0D1B3E) with
-            opacity-varied bars (#94A3B8 / #CBD5E1 / #FFFFFF); footer already uses the
-            correct blue style. Now consistent across all marketing and app surfaces. */}
         <div style={{ width: 32, height: 32, background: B, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
         </div>
@@ -56,7 +43,6 @@ function Nav({ nav }) {
         <a href="#pricing"      style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Pricing</a>
         <a href="#faq"          style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>FAQ</a>
         <button onClick={() => nav('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
-        {/* CC-02: Nav CTA standardized from "Start Free Trial" */}
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>{CTA_LABEL}</button>
       </div>
     </nav>
@@ -73,11 +59,6 @@ export default function Landing() {
   const [contactSending, setContactSending] = useState(false)
   const [contactErr, setContactErr]       = useState('')
 
-  // F-03-a: Contact form validation and submission — already fully implemented.
-  // Required fields: Full Name (non-empty), Email (valid format), Message (non-empty).
-  // On success: sets contactSent=true and clears fields.
-  // On network failure: falls back to mailto: link so the user is never blocked.
-  // Inline error messages appear in contactErr state above the submit button.
   const handleContact = async (e) => {
     e.preventDefault()
     const _emailRgx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -127,19 +108,11 @@ export default function Landing() {
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{CTA_LABEL}</button>
-          {/* UX-04: "Already have an account" was ambiguous — not obviously a login action.
-              Changed to "Sign In to Your Account" to match the Sign In nav link and
-              the login page heading ("Welcome back / Sign in to your TaxStat360 account"). */}
           <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Sign In to Your Account</button>
         </div>
-        {/* UX-02: Credit card requirement added. Hero previously omitted this, creating
-            a bait-and-switch perception when users hit the signup form.
-            "No CPA needed" retained — it's a genuine differentiator at this position. */}
+        {/* UX-03: CTA_COPY_FULL now leads with benefits, not "Credit card required" */}
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>{CTA_COPY_FULL}</p>
 
-        {/* LBL-01: Integration badges now rendered from the INTEGRATIONS constant.
-            Previously hardcoded with non-standard abbreviations XE (Xero) and WV (Wave).
-            INTEGRATIONS provides canonical abbr, name, and brand color from one source. */}
         <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
           <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Integrates with</span>
           {INTEGRATIONS.map((integ) => (
@@ -155,13 +128,9 @@ export default function Landing() {
 
       {/* ─── VIDEO ────────────────────────────────────────────────────────────── */}
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
-        {/* CC-03: Eyebrow label standardized to EYEBROW style constant */}
         <p style={{ ...EYEBROW, color: '#93b4d4' }}>See It In Action</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
-        {/* F-06: Added title attribute for screen reader accessibility (WCAG 2.4.1).
-            autoplay=0 confirmed — video does not auto-play with audio.
-            aspectRatio fix retained from prior commit (56.25% padding-top hack removed). */}
         <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', aspectRatio: '16/9' }}>
           <iframe
             src="https://player.vimeo.com/video/1185021252?autoplay=0&title=0&byline=0&portrait=0"
@@ -182,7 +151,6 @@ export default function Landing() {
         <p style={{ fontSize: 13, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
           TaxStat360 was developed by our founder, who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into AI-powered guidance for your business.
         </p>
-        {/* CC-02: Standardized from "Start Your Free 7-Day Trial →" */}
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
           {CTA_LABEL} →
         </button>
@@ -190,27 +158,17 @@ export default function Landing() {
 
       {/* ─── ENTITY FEATURES ──────────────────────────────────────────────────── */}
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
-        {/* CC-03: Eyebrow label added — this section previously had none */}
         <p style={EYEBROW}>Built for Every Structure</p>
         <h2 id="features" style={{ scrollMarginTop: 72, fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
-            { icon: '🏢', label: 'K-1',        title: 'S-Corporations',                 desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your estimated tax liability calculated instantly.' },
+            { icon: '🏢', label: 'K-1',        title: 'S-Corporations',                    desc: 'Officer W-2 salary, K-1 generation, and distributions all flow through to see your estimated tax liability calculated instantly.' },
             { icon: '🤝', label: 'K-1',        title: 'Partnerships and Multi-Member LLCs', desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
-            { icon: '📋', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs',    desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
-            {
-              icon: '🏠', label: 'Schedule E', title: 'Real Estate Investors',
-              // LBL-03: "cost segregation all factored in" was an unverifiable marketing claim.
-              // Cost segregation studies require engineering analysis — TaxStat360 accepts
-              // user-entered depreciation from such studies but does not estimate them.
-              // Changed to "depreciation schedule factored in" which accurately describes
-              // what the app models. Confirmed in TAX-07 audit finding. If cost seg is
-              // later fully modeled, this copy can be restored.
-              desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.',
-            },
-            { icon: '💼', label: 'Combined',   title: 'W-2 Plus Business Owner',        desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
-            { icon: '🏗️', label: 'Multi',      title: 'Multiple Entities',               desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
+            { icon: '📋', label: 'Schedule C', title: 'Sole Proprietors and SMLLCs',        desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+            { icon: '🏠', label: 'Schedule E', title: 'Real Estate Investors',              desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.' },
+            { icon: '💼', label: 'Combined',   title: 'W-2 Plus Business Owner',            desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
+            { icon: '🏗️', label: 'Multi',      title: 'Multiple Entities',                  desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
           ].map((e, i) => (
             <div key={i} style={{ background: '#F8FAFC', borderRadius: 16, padding: 28, textAlign: 'left', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -226,32 +184,14 @@ export default function Landing() {
 
       {/* ─── HOW IT WORKS ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '32px 24px', textAlign: 'center', background: '#F8FAFC' }}>
-        {/* CC-03: Eyebrow label added */}
         <p style={EYEBROW}>Simple Setup</p>
         <h2 id="how-it-works" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Your estimated tax liability in 3 steps</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>From connected to calculated in under 5 minutes</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
-            {
-              n: '01',
-              title: 'Connect your software — or enter manually',
-              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your revenue and expenses directly — it takes under 2 minutes.',
-            },
-            {
-              n: '02',
-              title: 'Enter your personal info',
-              desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.',
-            },
-            {
-              n: '03',
-              // LBL-02: "See your real tax bill" implies a definitive, precise calculation.
-              // TaxStat360 produces a planning estimate, not a filed return.
-              // Changed to "See your estimated tax liability" throughout.
-              // Footer disclaimer and Terms already cover this, but the headline
-              // copy should be self-accurate.
-              title: 'See your estimated tax liability',
-              desc: 'Complete estimated tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown updated in real time as you adjust numbers.',
-            },
+            { n: '01', title: 'Connect your software — or enter manually', desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your revenue and expenses directly — it takes under 2 minutes.' },
+            { n: '02', title: 'Enter your personal info',                   desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
+            { n: '03', title: 'See your estimated tax liability',           desc: 'Complete estimated tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown updated in real time as you adjust numbers.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 15, fontWeight: 700, color: N }}>{s.n}</div>
@@ -264,46 +204,33 @@ export default function Landing() {
 
       {/* ─── FAQ ──────────────────────────────────────────────────────────────── */}
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
-        {/* CC-03: Eyebrow label added */}
         <p style={EYEBROW}>Common Questions</p>
         <h2 id="faq" style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, scrollMarginTop: 72 }}>Frequently Asked Questions</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
-            {
-              q: 'Do I need a CPA or accountant to use TaxStat360?',
-              a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.',
-            },
-            {
-              q: 'How accurate are the tax calculations?',
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.',
-            },
-            {
-              q: 'What accounting software does TaxStat360 connect to?',
-              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon.",
-            },
-            {
-              q: 'Can I use TaxStat360 if I have multiple businesses?',
-              a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.',
-            },
-            {
-              q: 'Is my financial data secure?',
-              a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.',
-            },
-            {
-              q: 'What is the 7-day free trial?',
-              a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.',
-            },
-            {
-              q: 'How current is the data I see?',
-              a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute.",
-            },
-            {
-              q: 'Does TaxStat360 replace my CPA?',
-              a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same up-to-date visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.',
-            },
+            { q: 'Do I need a CPA or accountant to use TaxStat360?',
+              a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
+            { q: 'How accurate are the tax calculations?',
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, QBI deductions, estimated quarterly payments, and K-1 passthrough income. Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+            { q: 'What accounting software does TaxStat360 connect to?',
+              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
+            { q: 'Can I use TaxStat360 if I have multiple businesses?',
+              a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
+            { q: 'Is my financial data secure?',
+              a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
+            { q: 'What is the 7-day free trial?',
+              a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
+            { q: 'How current is the data I see?',
+              a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute." },
+            { q: 'Does TaxStat360 replace my CPA?',
+              a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same up-to-date visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
-            <details key={i} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
+            // UX-09 FIX: First FAQ item is open by default (open={i === 0}).
+            // Uses the HTML <details> `open` attribute so users immediately see
+            // the answer format without having to click. Reduces perceived friction
+            // from a "wall of collapsed content." All subsequent items remain closed.
+            <details key={i} open={i === 0} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
               <summary style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {item.q}
                 <span style={{ fontSize: 13, color: '#2563EB', flexShrink: 0, marginLeft: 16 }}>+</span>
@@ -316,10 +243,8 @@ export default function Landing() {
 
       {/* ─── PRICING ──────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ scrollMarginTop: 72, padding: '32px 24px', textAlign: 'center', background: '#F8FAFC' }}>
-        {/* CC-03: Eyebrow label added */}
         <p style={EYEBROW}>Simple, Transparent Pricing</p>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Plans for Every Business</h2>
-        {/* UX-02: Sub-copy standardized — now explicitly states credit card requirement */}
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>{CTA_COPY_SHORT}</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 28 }}>
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
@@ -335,24 +260,47 @@ export default function Landing() {
               name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790',
               highlight: false,
               desc: 'Know exactly what you owe — every month, not just in April.',
-              features: ['Year-round federal tax liability tracker', 'K-1 income (S-Corps, partnerships, LLCs)', 'Schedule C (sole props & SMLLCs)', 'Quarterly estimated payments', 'Personal tax return (W-2 + business income)', '1 accounting software integration'],
+              // L-04 FIX: Changed 'K-1 income (S-Corps, partnerships, LLCs)' to
+              // 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)'.
+              // Single-Member LLCs (SMLLCs) file as Schedule C (disregarded entity),
+              // NOT via K-1. Multi-Member LLCs file as partnerships and DO generate K-1s.
+              // Schedule C (sole props & SMLLCs) is already listed as a separate feature.
+              features: [
+                'Year-round federal tax liability tracker',
+                'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
+                'Schedule C (sole props & SMLLCs)',
+                'Quarterly estimated payments',
+                'Personal tax return (W-2 + business income)',
+                '1 accounting software integration',
+              ],
             },
             {
               name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490',
               highlight: true,
               desc: 'AI that catches problems before they become expensive mistakes.',
-              // COMP-02: Added parenthetical to "One-Click CPA Export Pack" clarifying
-              // what the export contains, so users and CPAs have accurate expectations.
-              features: ['Everything in Starter plus:', 'Risk Alert Engine', 'What-If Tax Scenario Simulator', 'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)', 'Explainable AI: Why This Number?', 'Audit Risk Indicators', 'Unlimited accounting integrations', 'Priority support'],
+              features: [
+                'Everything in Starter plus:',
+                'Risk Alert Engine',
+                'What-If Tax Scenario Simulator',
+                'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
+                'Explainable AI: Why This Number?',
+                'Audit Risk Indicators',
+                'Unlimited accounting integrations',
+                'Priority support',
+              ],
             },
             {
               name: 'Enterprise', price: '$299', annualPrice: '$249', annualTotal: '$2,990',
               highlight: false,
               desc: 'Built for owners running multiple businesses or entities.',
-              // COMP-01: Added parenthetical to "AI-Generated Position Documentation"
-              // clarifying it produces planning summaries for CPA discussion, not
-              // documents for filing. Aligned with Circular 230 planning-only framing.
-              features: ['Everything in Professional plus:', 'Multi-entity consolidated tax view', 'AI-Generated Position Documentation (planning summaries for CPA discussion — not for filing)', 'Risk Tolerance Profiling', 'CPA Collaboration Portal', 'Dedicated onboarding & setup call'],
+              features: [
+                'Everything in Professional plus:',
+                'Multi-entity consolidated tax view',
+                'AI-Generated Position Documentation (planning summaries for CPA discussion — not for filing)',
+                'Risk Tolerance Profiling',
+                'CPA Collaboration Portal',
+                'Dedicated onboarding & setup call',
+              ],
             },
           ].map((p, i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
@@ -362,9 +310,6 @@ export default function Landing() {
               </div>
               {isAnnual && <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>billed {p.annualTotal}/yr</div>}
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
-              {/* CC-02: Pricing card CTAs standardized from "Start Free Trial"
-                  F-04: Plan name and billing interval passed as query params so
-                  Onboarding.jsx can pre-select the correct plan on signup. */}
               <button
                 onClick={() => nav('/signup?plan=' + p.name.toLowerCase() + '&billing=' + billing)}
                 style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24 }}
@@ -386,28 +331,18 @@ export default function Landing() {
       <section style={{ padding: '36px 24px', background: N, textAlign: 'center' }}>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
         <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join business owners who manage tax liability proactively every month and keep more of what they earn.</p>
-        {/* CC-02: Standardized from "Start Your Free 7-Day Trial" */}
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>{CTA_LABEL}</button>
-        {/* UX-02: Sub-copy already correct here — credit card disclosed */}
         <p style={{ color: '#64748b', fontSize: 13 }}>{CTA_COPY_SHORT}</p>
       </section>
 
       {/* ─── CONTACT ──────────────────────────────────────────────────────────── */}
-      {/* CC-05: id="contact" matches footer href="#contact" anchor — confirmed correct */}
       <section id="contact" style={{ background: '#F8FAFC', padding: '80px 24px' }}>
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
-            {/* CC-03: Eyebrow label standardized */}
             <p style={EYEBROW}>Get In Touch</p>
             <h2 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Contact Us</h2>
             <p style={{ color: '#475569', fontSize: 15 }}>Have a question or need help? We typically respond within one business day.</p>
           </div>
-          {/* F-03-a: Contact form validation confirmed fully implemented:
-              - Required fields: Full Name, Email (regex validated), Message (non-empty)
-              - Inline errors via contactErr state above the submit button
-              - Success state via contactSent with green confirmation card
-              - Network failure fallback to mailto: link
-              No changes needed to the form logic. */}
           {contactSent ? (
             <div style={{ background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
@@ -453,15 +388,9 @@ export default function Landing() {
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
             <a href="/privacy"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
             <a href="/terms"    style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            {/* CC-05: href="#contact" confirmed — section above has id="contact" */}
             <a href="#contact"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
-          {/* Compliance: "not tax advice" disclaimer — required for tax/financial SaaS */}
           <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.</p>
-          {/* COMP-03: Business address added per audit finding. Required for consumer trust
-              and may be required by state consumer disclosure rules for web-based financial
-              software. Update with the actual registered business address before launch.
-              If a registered agent address is preferred, use that. */}
           <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
             TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
           </p>
