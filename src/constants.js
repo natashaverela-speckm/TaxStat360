@@ -109,6 +109,19 @@ export const NIIT_THRESHOLD_SINGLE  = 200000  // IRC §1411(b)(3) — single, HO
 // pay FICA on W-2 wages (not SE tax) and do not use this deduction.
 export const SE_TAX_DEDUCTION_RATE = 0.50  // IRC §164(f)
 
+// ─── SE TAX NET EARNINGS FACTOR — IRC §1402(a)(12) ───────────────────────────
+// Self-employment tax is computed on 92.35% of net self-employment income, not 100%.
+// This reduction accounts for the employer-equivalent deduction (half of SE tax).
+// Formula: net SE income × 0.9235 = SE earnings subject to tax
+// Then: SE earnings × SE tax rate (15.3% up to SS wage base, 2.9% above) = SE tax owed.
+//
+// FICA on W-2 wages does NOT use this factor — FICA applies to 100% of wages.
+// When computing S-Corp FICA savings vs. sole-prop SE tax on the same distributions,
+// the comparison must use 0.9235 × distributions × SE rate (not distributions × FICA rate)
+// to avoid overstating the S-Corp advantage.
+// See: taxCalc.js ficaSavings calculation (TC-10 fix).
+export const SE_NET_EARNINGS_FACTOR = 0.9235  // IRC §1402(a)(12)
+
 // ─── NET OPERATING LOSS — IRC §172(a)(2) (TCJA / OBBBA) ─────────────────────
 // Post-2017 NOL carryforwards are limited to 80% of taxable income before the
 // NOL deduction. The pre-2018 unlimited carryback / unlimited carryforward rules
@@ -315,3 +328,24 @@ export const PRICE_PROFESSIONAL_MONTHLY = 149  // USD/month
 export const PRICE_ENTERPRISE_MONTHLY   = 299  // USD/month
 export const ANNUAL_BILLING_MONTHS      = 10   // months charged on annual plan (2 months free)
 export const ANNUAL_DISCOUNT_LABEL      = 'Save 2 months'  // display copy — update if discount changes
+
+// ─── IRS STANDARD MILEAGE RATES ───────────────────────────────────────────────
+// Published annually by IRS in late November / December for the following calendar year.
+// Sources: IRS Notice 2024-08 (2024 rate), IRS Notice 2025-05 (2025 rate).
+//
+// Usage: AIAnalysis.jsx reads getTable(year)?.mileageRate from TAX_TABLES in taxCalc.js.
+// taxCalc.js TAX_TABLES[year] should include a mileageRate key for each year.
+// This map is a fallback reference and the authoritative source for updating TAX_TABLES.
+//
+// Audit finding T-06: mileageRate key was absent from TAX_TABLES, so AIAnalysis.jsx
+// was silently falling back to the hardcoded inline value (0.70 for 2025+).
+// Fix: add mileageRate to each year in TAX_TABLES in taxCalc.js.
+//
+// ⚠ ANNUAL UPDATE REQUIRED: verify 2026 rate against IRS.gov/newsroom each December.
+// If the 2026 rate has changed from 0.70, update taxCalc.js TAX_TABLES[2026].mileageRate
+// and the 2026 entry in this map simultaneously.
+export const IRS_MILEAGE_RATES = {
+  2024: 0.67,  // IRS Notice 2024-08 — 67¢/mile for business use
+  2025: 0.70,  // IRS Notice 2025-05 — 70¢/mile for business use (5¢ increase from 2024)
+  2026: 0.70,  // ⚠ ESTIMATED — verify at IRS.gov when 2026 Notice is published
+}
