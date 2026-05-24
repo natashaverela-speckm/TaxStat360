@@ -828,6 +828,98 @@ export default function CalculateTaxInner() {
     reader.readAsText(file)
   }
 
+  // ─── OAuth callback handler ───────────────────────────────────────────────────
+  async function fetchEntityPnL(idx, pid, tok, extra) {
+    try {
+      let url = `${API_BASE_URL}/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
+      if (pid === 'quickbooks' && extra) url += '&realm=' + extra
+      if (pid === 'xero'        && extra) url += '&tenant=' + extra
+      if (pid === 'freshbooks'  && extra) url += '&account=' + extra
+      const d = await (await fetch(url)).json()
+      if (d && !d.error) {
+        if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
+          localStorage.removeItem('ts360_' + pid + '_token')
+          localStorage.removeItem('ts360_' + pid + '_connected')
+        } else {
+          const pnl = {
+            grossRevenue:  d.revenue,
+            totalExpenses: d.expenses,
+            netProfit:     d.net_profit,
+            officerSalary: d.officer_salary || 0,
+            categories:    d.categories || {}
+          }
+          setEntities(prev => {
+            const updated = [...prev]
+            if (updated[idx]) {
+              updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false }
+            } else {
+              updated.push({
+                name: pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business',
+                type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '',
+                pnl, connectedId: pid, isManual: false
+              })
+            }
+            return updated
+          })
+        }
+      }
+    } catch (ex) { console.error('fetchEntityPnL error:', ex) }
+  }
+
+  React.useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    // Map of URL param names → provider IDs (backend returns several variants)
+    const mp = {
+      qb_token: 'quickbooks', quickbooks_token: 'quickbooks',
+      xero_token: 'xero',
+      wave_token: 'wave', wave_token2: 'wave',
+      fb_token: 'freshbooks', freshbooks_token: 'freshbooks'
+    }
+    const xeroRefresh = p.get('xero_refresh')
+    if (xeroRefresh) localStorage.setItem('ts360_xero_refresh', xeroRefresh)
+    const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
+    let foundInUrl = false
+    // Check for {provider}=connected flag (without inline token)
+    for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
+      if (p.get(pid) === 'connected') {
+        foundInUrl = true
+        localStorage.setItem('ts360_' + pid + '_connected', 'true')
+        const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
+        if (!hasToken) {
+          fetchEntityPnL(entityIdx, pid, localStorage.getItem('token') || '', null)
+        }
+        break
+      }
+    }
+    // Check for tokens in URL params
+    for (const [k, pid] of Object.entries(mp)) {
+      const tok = p.get(k)
+      if (tok) {
+        foundInUrl = true
+        localStorage.setItem('ts360_' + pid + '_connected', 'true')
+        localStorage.setItem('ts360_' + pid + '_token', tok)
+        const extra = pid === 'quickbooks' ? p.get('realm')
+                    : pid === 'xero'        ? p.get('tenant')
+                    : pid === 'freshbooks'  ? p.get('account')
+                    : null
+        if (extra) localStorage.setItem('ts360_' + pid + '_extra', extra)
+        fetchEntityPnL(entityIdx, pid, tok, extra)
+      }
+    }
+    // Fallback: restore from persisted connected session
+    if (!foundInUrl) {
+      for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
+        if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
+          const tok = localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+          const extra = localStorage.getItem('ts360_' + pid + '_extra')
+          if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
+        }
+      }
+    }
+    // Clean URL without reload so user sees /calculate-tax not /calculate-tax?...
+    if (foundInUrl) window.history.replaceState({}, '', window.location.pathname)
+  }, [])
+
   const hasData = entities.length > 0 && entities.some(e => nf(e.pnl?.grossRevenue) > 0)
 
   return (
