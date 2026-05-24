@@ -135,6 +135,10 @@ const [w2Withheld, setW2Withheld] = React.useState(savedF1040.w2Withheld || 0)
 const [dependents, setDependents] = React.useState(savedF1040.dependents || '0')
 const [isREP, setIsREP] = React.useState(savedF1040.isREP || false)
 const [repHours, setRepHours] = React.useState(() => parseInt(localStorage.getItem('ts360_rep_hours') || '0'))
+// Persist rep hours across sessions
+React.useEffect(() => {
+localStorage.setItem('ts360_rep_hours', String(repHours))
+}, [repHours])
 const [isActiveParticipant, setIsActiveParticipant] = React.useState(
 savedF1040.isActiveParticipant !== false
 )
@@ -1400,7 +1404,6 @@ Due dates: Apr 15 (Q1) · Jun 15 (Q2) · Sep 15 (Q3) · Jan 15 (Q4). Payments af
 </div>
 )}
 
-</div>
 </div>
 </div>
 
