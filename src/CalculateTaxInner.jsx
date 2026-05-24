@@ -1,943 +1,974 @@
-import React from 'react'
-import EntityCompareModal from './EntityCompareModal'
+// src/CalculateTaxInner.jsx
+// Step 1 of the TaxStat360 two-step flow: Business Entity Entry.
+// Users connect accounting software (QuickBooks, Xero, Wave, FreshBooks)
+// or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
+//
+// ── Change log ────────────────────────────────────────────────────────────────
+// L-01 FIX: ReasonableCompIndicator displayed "35% of net profit" as the
+//   description of the recommended officer salary threshold. The math is correct
+//   (Math.round(0.35/0.65 * netProfit) produces the salary that equals 35% of
+//   total comp when total comp = salary + distributions = netProfit), but the
+//   LABEL was wrong. The heuristic is 35% of TOTAL OFFICER COMPENSATION
+//   (salary ÷ (salary + distributions)), NOT 35% of net profit alone.
+//   Fixed: "35% of net profit" → "35% of total officer compensation" in all
+//   instances within ReasonableCompIndicator.
+//
+// F-05 FIX: No discrete depreciation field in manual entry form. Users with
+//   depreciation deductions (Section 179, MACRS, bonus depreciation) had no
+//   way to enter them separately. AIAnalysis.jsx was flagging "No Depreciation
+//   Recorded" but there was no field to fill. Fix: added manDep state + a
+//   dedicated Depreciation input field (between Operating Expenses and Officer
+//   Salary) in the ManualEntryPanel. applyManual() now includes dep in
+//   totalExpenses so it correctly reduces netProfit and flows to the tax engine.
+//
+// C-02 FIX: Footer "Save Record" button renamed to "Save This Record" to match
+//   the identical button in TaxReturn.jsx Step 2, providing consistent labeling
+//   across both steps of the flow.
+//
+// C-05 FIX: The "✏ Edit / re-enter data" control was styled as a bare text link
+//   (background:none, border:none, textDecoration:underline). This made it
+//   visually indistinguishable from a hyperlink and easy to miss. Restyled as a
+//   small secondary outlined button (border: 1px solid #E2E8F0, borderRadius: 7,
+//   padding: 6px 12px) consistent with secondary action buttons used elsewhere.
+
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MoneyInput from './components/MoneyInput.jsx'
-import DismissibleNotice from './components/DismissibleNotice'
+import { calcTaxReturn, calcQBI, getStdDed, getTable } from './taxCalc'
+import { readPersonalContext, readTaxYear, writeStep1State, clearStep1State, writeTaxYear } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
-
-import { API_BASE_URL, INTEGRATIONS, ENTITY_TYPES } from './constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { writeStep1State, readPersonalContext, readIsCoopPatron, writeIsCoopPatron, readStep1StateRaw, readTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
+import { fmt } from './utils/formatMoney.js'
+import { ownPct, isSCorpEntity, isPassthroughEntity } from './utils/entityPredicates.js'
 
-const fmt=n=>n<0?'($'+Math.abs(Math.round(n)||0).toLocaleString('en-US')+')':'$'+Math.abs(Math.round(n)||0).toLocaleString('en-US')
-function InfoTip({ text, below }) { const [s, ss] = React.useState(false); const popupPos = below ? {top:'120%',right:0} : {bottom:'120%',left:'50%',transform:'translateX(-50%)'}; return (<span style={{position:'relative',display:'inline-flex',alignItems:'center',marginLeft:5}}><span onMouseEnter={()=>ss(true)} onMouseLeave={()=>ss(false)} onClick={()=>ss(v=>!v)} style={{width:16,height:16,borderRadius:'50%',background:'#DBEAFE',color:'#2563EB',fontSize:10,fontWeight:800,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid #93C5FD'}}>i</span>{s && <span style={{position:'absolute',...popupPos,background:'#1E293B',color:'#fff',fontSize:12,padding:'8px 12px',borderRadius:8,width:240,lineHeight:1.5,zIndex:999,pointerEvents:'none'}}>{text}</span>}</span>) }
-const OWN_PRESETS=[100,75,50,33,25]
-const INTS=INTEGRATIONS
-const COLORS=['#2563EB','#16a34a','#A855F7','#F59E0B','#EC4899','#06B6D4']
-const TEMPLATES=[
-{label:'S-Corp Owner',icon:'🏢',type:'S Corporation',own:'100',defaults:{grossRevenue:'250000',operatingExpenses:'80000'},desc:'Owner-operator, reasonable salary set'},
-{label:'Real Estate LLC',icon:'🏠',type:'Partnership / MMLLC — Passive',own:'50',defaults:{grossRevenue:'120000',operatingExpenses:'60000'},desc:'Rental income, 50/50 partnership'},
-{label:'Solo Consultant',icon:'💼',type:'Sole Proprietor / Single-Member LLC',own:'100',defaults:{grossRevenue:'150000',operatingExpenses:'30000'},desc:'Freelance / independent contractor'},
-{label:'Multi-Member LLC',icon:'🤝',type:'Partnership / MMLLC — Passive',own:'33',defaults:{grossRevenue:'500000',operatingExpenses:'200000'},desc:'3-partner LLC, equal ownership'},
-{label:'C Corporation',icon:'🏦',type:'C Corporation',own:'100',defaults:{grossRevenue:'1000000',operatingExpenses:'600000'},desc:'Corporate entity, retained earnings'},
-{label:'Blank Entity',icon:'➕',type:'S Corporation',own:'100',defaults:{},desc:'Start from scratch'},
-]
+// ─── Color palette ──────────────────────────────────────────────────────────
+const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
 
-function exportEntitiesToCSV(entities){
-const rows=[['Name','Entity Type','EIN','Formation Date','Ownership %','Gross Revenue','Total Expenses','Net Profit (Loss)','K-1 Share']]
-entities.forEach(ent=>{
-const k1=ent.pnl&&ent.type!=='C Corporation'?Math.round(ent.pnl.netProfit*((parseFloat(ent.own)||100)/100)):''
-rows.push([ent.name,ent.type,ent.ein||'',ent.formationDate||'',ent.own+'%',ent.pnl?Math.round(ent.pnl.grossRevenue):'',ent.pnl?Math.round(ent.pnl.totalExpenses):'',ent.pnl?Math.round(ent.pnl.netProfit):'',k1])
-})
-const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n')
-const blob=new Blob([csv],{type:'text/csv'})
-const url=URL.createObjectURL(blob)
-const a=document.createElement('a');a.href=url;a.download='taxstat360-entities.csv';a.click()
-URL.revokeObjectURL(url)
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const nf = (v, fallback = 0) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : fallback }
+
+function InfoTip({ text, wide }) {
+  const [show, setShow] = useState(false)
+  const ref = useRef()
+  useEffect(() => {
+    if (!show) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setShow(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [show])
+  return (
+    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5 }}>
+      <button onClick={() => setShow(s => !s)}
+        style={{ width: 16, height: 16, borderRadius: '50%', background: '#E2E8F0', border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: SL, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+        ?
+      </button>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+          background: N, color: '#fff', borderRadius: 8, padding: '10px 14px',
+          fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+          width: wide ? 340 : 280, zIndex: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+        }}>
+          {text}
+          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid ' + N }} />
+        </div>
+      )}
+    </span>
+  )
 }
 
-function parseCSVImport(text){
-const lines=text.trim().split('\n').slice(1)
-return lines.map((line,i)=>{
-const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"').trim())
-const[name,type,ein,formationDate,own,grossRevenue,totalExpenses]=cols
-const rev=parseMoney(grossRevenue),exp=parseMoney(totalExpenses)
-const ownPct=own?own.replace('%',''):'100'
-return{name:name||'Business '+(i+1),type:ENTITY_TYPES.includes(type)?type:'S Corporation',ein:ein||'',state:'',formationDate:formationDate||'',own:ownPct,pnl:(rev||exp)?{grossRevenue:rev,totalExpenses:exp,netProfit:rev-exp,categories:{}}:null,connectedId:null,isManual:!!(rev||exp)}
-}).filter(e=>e.name)
+function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
+  const [raw, setRaw] = useState(value || '')
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) {
+      const n = parseFloat(String(value || '').replace(/,/g, ''))
+      setRaw(Number.isFinite(n) && n !== 0 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (value || ''))
+    }
+  }, [value, focused])
+
+  const handleChange = (e) => {
+    const v = e.target.value.replace(/[^0-9.\-]/g, '')
+    setRaw(v)
+    onChange(v)
+  }
+
+  const handleFocus = () => {
+    setFocused(true)
+    setRaw(String(value || '').replace(/,/g, ''))
+  }
+
+  const handleBlur = () => {
+    setFocused(false)
+    const n = parseFloat(String(raw).replace(/,/g, ''))
+    if (Number.isFinite(n)) {
+      const formatted = n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+      setRaw(formatted)
+      onChange(String(n))
+    }
+  }
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      value={raw}
+      placeholder={placeholder || '0'}
+      disabled={disabled}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      style={{
+        width: '100%', padding: '10px 12px',
+        border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14,
+        fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+        background: disabled ? '#F8FAFC' : '#fff',
+        color: disabled ? '#94A3B8' : N,
+        ...style,
+      }}
+    />
+  )
 }
 
-function ExpenseBreakdown({categories,total}){
-const[open,setOpen]=React.useState(false)
-return(
-<div style={{marginTop:12}}>
-<button onClick={()=>setOpen(!open)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
-{open?'▼':'►'} EXPENSE BREAKDOWN ({Object.keys(categories).length} categories)
-</button>
-{open&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
-{Object.entries(categories).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>(
-<div key={cat} style={{background:'#F8FAFC',borderRadius:7,padding:'7px 10px',display:'flex',justifyContent:'space-between',alignItems:'center',border:'1px solid #F1F5F9'}}>
-<div><div style={{fontSize:11,fontWeight:600,color:N}}>{cat}</div><div style={{fontSize:10,color:SL}}>{total>0?Math.round((amt/total)*100)+'%':''}</div></div>
-<div style={{fontSize:11,fontWeight:700,color:R}}>${Math.round(amt).toLocaleString()}</div>
-</div>
-))}
-</div>}
-</div>
-)
+// ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
+// "35% of net profit" changed to "35% of total officer compensation" in both
+// the description text and the recommended-minimum label. The formula is correct
+// (Math.round(0.35/0.65 * netProfit) gives the salary such that salary ÷ total
+// comp = 35%, where total comp = salary + netProfit).  Only the label was wrong.
+// The IRS audit heuristic is salary-to-total-compensation ratio, not a percentage
+// of net profit — using "net profit" misstated the benchmark to users.
+function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
+  if (!isSCorp || netProfit <= 20000) return null
+
+  const totalComp = officerSal + Math.max(0, netProfit)
+  const ratio = totalComp > 0 ? officerSal / totalComp : 0
+  const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
+
+  if (officerSal === 0) {
+    return (
+      <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
+        <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation</div>
+        <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
+          S-Corp owners must receive reasonable W-2 compensation for services rendered (Rev. Rul. 74-44).
+          A common practitioner starting point is <strong>35–45% of total officer compensation</strong>.
+          Suggested minimum: <strong>{fmt(minTarget)}/yr</strong>.
+        </div>
+      </div>
+    )
+  }
+
+  if (ratio < 0.35) {
+    return (
+      <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
+        <div style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
+        <div style={{ color: '#78350F', lineHeight: 1.6 }}>
+          {/* L-01 FIX: "35% of total officer compensation" — not "35% of net profit" */}
+          Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation (salary ÷ total comp).
+          Tax practitioners commonly recommend 35–45% of total officer compensation based on case law
+          including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
+          A common starting point: <strong>{fmt(minTarget)}</strong>.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
+      <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
+      <div style={{ color: '#166534', lineHeight: 1.6 }}>
+        Salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the
+        practitioner-recommended 35–45% range. Ensure FICA payroll taxes are being withheld and
+        remitted quarterly.
+      </div>
+    </div>
+  )
 }
 
-function ReasonableCompIndicator({ officerSalary, netProfit, entityType }) {
-const isCorp = ['S Corporation', 'C Corporation'].includes(entityType)
-if (!isCorp || netProfit <= 0) return null
-
-const salary = parseFloat(officerSalary) || 0
-const totalComp = salary + netProfit
-const ratio = totalComp > 0 ? salary / totalComp : 0
-const minTarget = Math.round(0.35 / 0.65 * netProfit)
-
-if (salary === 0 && netProfit > 20000) {
-return (
-<div style={{ marginTop: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#991B1B' }}>
-⚠ <strong>No officer salary set.</strong> Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as an S-Corp audit risk. The IRS uses a facts-and-circumstances test — there is no safe harbor, but a suggested starting point is {fmt(minTarget)} (35% of net profit). Consult your CPA.
-</div>
-)
-}
-if (salary > 0 && netProfit > 30000 && ratio < 0.35) {
-return (
-<div style={{ marginTop: 8, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-⚠ <strong>Officer salary ({(ratio * 100).toFixed(1)}% of net profit) may be below practitioner guidelines.</strong> Tax practitioners commonly recommend 35–45% based on Watson v. Commissioner. The IRS applies a facts-and-circumstances test — consider discussing with your CPA whether {fmt(minTarget)} or higher is appropriate.
-</div>
-)
-}
-if (salary > 0 && ratio >= 0.35) {
-return (
-<div style={{ marginTop: 8, background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 7, padding: '7px 12px', fontSize: 12, color: '#166534' }}>
-✓ Officer salary is {(ratio * 100).toFixed(1)}% of net profit — within the practitioner-recommended 35–45% range (Watson v. Commissioner).
-</div>
-)
-}
-return null
+// ─── Integration tile ─────────────────────────────────────────────────────────
+function IntegrationTile({ integ, onConnect, connected }) {
+  return (
+    <div style={{
+      background: connected ? integ.bg : '#fff',
+      border: '1.5px solid ' + (connected ? integ.color : '#E2E8F0'),
+      borderRadius: 10, padding: '10px 14px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      cursor: 'pointer', transition: 'all 0.15s',
+    }} onClick={() => onConnect(integ.id)}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: integ.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+        {integ.abbr}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: N }}>{integ.name}</div>
+        <div style={{ fontSize: 11, color: connected ? integ.color : '#94A3B8', fontWeight: 600 }}>
+          {connected ? '● Connected' : 'Connect →'}
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function generateRecordName(entities, taxYear) {
-const primary = entities[0]
-const entityType = primary?.type || 'S Corporation'
-const typeShort = {
-'S Corporation': 'S-Corp',
-'C Corporation': 'C-Corp',
-'Sole Proprietor / Single-Member LLC': 'Sole Prop',
-'Partnership / MMLLC — Active': 'Partnership (Active)',
-'Partnership / MMLLC — Passive': 'Partnership (Passive)',
-}[entityType] || entityType
-
-const year = taxYear || new Date().getFullYear()
-const revenue = parseFloat(primary?.pnl?.grossRevenue) || 0
-
-let revenueStr = ''
-if (revenue >= 1_000_000) {
-revenueStr = '$' + (revenue / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M Revenue'
-} else if (revenue >= 1_000) {
-revenueStr = '$' + Math.round(revenue / 1_000) + 'K Revenue'
-} else if (revenue > 0) {
-revenueStr = '$' + Math.round(revenue) + ' Revenue'
+// ─── Name record modal ────────────────────────────────────────────────────────
+function NameRecordModal({ defaultName, onConfirm, onSkip }) {
+  const [name, setName] = useState(defaultName || '')
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 28px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 8px' }}>Name This Record</h3>
+        <p style={{ fontSize: 13, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
+          Give this record a descriptive name so you can find it later — or skip and we'll use the date.
+        </p>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. 2025 Q3 Planning, S-Corp Scenario A..."
+          onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onConfirm(name.trim()) }}
+          autoFocus
+          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 16, boxSizing: 'border-box', outline: 'none', color: N }}
+        />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onSkip} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
+            Skip (use date)
+          </button>
+          <button
+            onClick={() => onConfirm(name.trim() || defaultName)}
+            disabled={!name.trim()}
+            style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: name.trim() ? B : '#94A3B8', color: '#fff', fontSize: 13, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'default' }}>
+            Save with Name →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-return [typeShort, String(year), revenueStr].filter(Boolean).join(' — ')
+// ─── Manual entry panel ───────────────────────────────────────────────────────
+// F-05 FIX: Added dedicated depreciation field (manDep state).
+// Previously, users had no way to enter depreciation separately — it was
+// buried in "Other Deductions" or ignored entirely, causing AIAnalysis.jsx
+// to always show "No Depreciation Recorded." The field appears between
+// Operating Expenses and Officer Salary, matching the order used in
+// Dashboard.jsx's calcDashboard function.
+function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
+  const pnl = entity.pnl || {}
+  const [manRev,       setManRev]       = useState(String(nf(pnl.grossRevenue)   || ''))
+  const [manExp,       setManExp]       = useState(String(nf(pnl.totalExpenses)  || ''))
+  const [manDep,       setManDep]       = useState(String(nf(entity.depreciation || pnl.depreciation) || ''))
+  const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary || entity.officerW2) || ''))
+  const [manAdv,       setManAdv]       = useState(String(nf(pnl.advertising)    || ''))
+  const [manOther,     setManOther]     = useState(String(nf(pnl.otherDeductions)|| ''))
+
+  const rv  = nf(manRev)
+  const ex  = nf(manExp)
+  const dep = nf(manDep)
+  const sal = nf(manOfficerSal)
+  const adv = nf(manAdv)
+  const oth = nf(manOther)
+
+  const totalExpenses = ex + dep + sal + adv + oth
+  const manNetProfit  = rv - totalExpenses
+
+  const officerExceedsRevenue = sal > rv && sal > 0 && rv > 0
+  const officerExceedsNetProfit = !officerExceedsRevenue && sal > (rv - ex - dep) && sal > 0 && rv > 0
+
+  const isSCorp = isSCorpEntity(entity.type)
+
+  function applyManual() {
+    // F-05: totalExpenses now includes dep (depreciation)
+    if (rv > 0 || totalExpenses > 0) {
+      onUpdate(idx, {
+        ...entity,
+        officerW2: sal,
+        pnl: {
+          grossRevenue:    rv,
+          totalExpenses,
+          officerSalary:   sal,
+          depreciation:    dep,
+          advertising:     adv,
+          otherDeductions: oth,
+          netProfit:       rv - totalExpenses,
+          categories: {},
+        },
+        connectedId: null,
+        isManual: true,
+      })
+    }
+    onCancel()
+  }
+
+  const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
+  const inp = { fontSize: 14 }
+
+  return (
+    <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 18px', marginTop: 10, border: '1px solid #E2E8F0' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 12 }}>Manual Entry</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div>
+          <label style={lbl}>
+            Gross Revenue
+            <InfoTip text="Total revenue before any deductions. For S-Corps: enter gross revenue of the entity. Do NOT net out officer salary here — enter that separately below." />
+          </label>
+          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
+        </div>
+        <div>
+          <label style={lbl}>
+            Operating Expenses (excl. officer salary, depreciation, advertising)
+            <InfoTip text="Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below." />
+          </label>
+          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
+        </div>
+        {/* F-05 FIX: Dedicated depreciation field.
+            Previously absent — users had to enter depreciation in "Other Deductions"
+            or leave it blank (causing AI to always flag "No Depreciation Recorded").
+            Now stored in pnl.depreciation and included in totalExpenses so it
+            correctly reduces netProfit through the tax engine. */}
+        <div>
+          <label style={lbl}>
+            Depreciation (Sec. 179 + MACRS + Bonus)
+            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.'} wide />
+          </label>
+          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
+        </div>
+        {isSCorp && (
+          <div>
+            <label style={lbl}>
+              Officer Salary (W-2)
+              <InfoTip text={'S-Corp owners must pay themselves a reasonable W-2 salary for services rendered (Rev. Rul. 74-44).\n\nThis is deductible to the S-Corp and reduces its net profit. FICA taxes (15.3% combined employee + employer) apply to W-2 wages.\n\nK-1 distributions avoid FICA entirely — which is the core S-Corp tax advantage.'} wide />
+            </label>
+            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
+            {officerExceedsRevenue && (
+              <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
+                ⚠ Officer salary exceeds gross revenue — verify your numbers.
+              </div>
+            )}
+            {officerExceedsNetProfit && !officerExceedsRevenue && (
+              <div style={{ fontSize: 12, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
+                ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
+              </div>
+            )}
+            <ReasonableCompIndicator
+              officerSal={sal}
+              netProfit={Math.max(0, manNetProfit + sal)}
+              isSCorp={isSCorp}
+            />
+          </div>
+        )}
+        <div>
+          <label style={lbl}>
+            Advertising & Marketing
+            <InfoTip text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
+          </label>
+          <MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} />
+        </div>
+        <div>
+          <label style={lbl}>
+            Other Deductions
+            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer salary — those have dedicated fields." />
+          </label>
+          <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
+        </div>
+      </div>
+
+      {rv > 0 && (
+        <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ color: SL }}>Gross Revenue</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
+            <span style={{ color: N }}>Net Profit</span>
+            <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button onClick={onCancel} style={{ flex: 1, padding: '9px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
+        <button onClick={applyManual} style={{ flex: 2, padding: '9px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+          Apply →
+        </button>
+      </div>
+    </div>
+  )
 }
 
-function NameRecordModal({ defaultName, onConfirm, onCancel }) {
-const [name, setName] = React.useState(defaultName)
-const trimmed = name.trim()
-return (
-<div
-style={{
-position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-}}
-onClick={onCancel}
->
-<div
-style={{
-background: '#fff', borderRadius: 16, padding: 28,
-width: 440, maxWidth: '90vw',
-boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-}}
-onClick={e => e.stopPropagation()}
->
-<div style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3E', marginBottom: 6 }}>
-Name this record
-</div>
-<div style={{ fontSize: 13, color: '#475569', marginBottom: 16, lineHeight: 1.5 }}>
-Give this calculation a name so you can find it on your Dashboard.
-The name below was generated from your inputs — edit it or keep it as-is.
-</div>
-<input
-value={name}
-onChange={e => setName(e.target.value)}
-onKeyDown={e => { if (e.key === 'Enter' && trimmed) onConfirm(trimmed) }}
-autoFocus
-maxLength={80}
-placeholder="e.g. S-Corp — 2025 — $250K Revenue"
-style={{
-width: '100%', padding: '10px 14px',
-border: '1.5px solid #2563EB', borderRadius: 8,
-fontSize: 14, color: '#0D1B3E',
-boxSizing: 'border-box', outline: 'none',
-fontFamily: 'inherit', marginBottom: 6,
-}}
-/>
-<div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 16, textAlign: 'right' }}>
-{name.length}/80
-</div>
-<div style={{ display: 'flex', gap: 10 }}>
-<button
-onClick={onCancel}
-style={{
-flex: 1, padding: '11px', borderRadius: 8,
-border: '1px solid #E2E8F0', background: '#fff',
-fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer',
-}}
->
-Cancel
-</button>
-<button
-onClick={() => { if (trimmed) onConfirm(trimmed) }}
-disabled={!trimmed}
-style={{
-flex: 2, padding: '11px', borderRadius: 8, border: 'none',
-background: trimmed ? '#2563EB' : '#CBD5E1',
-color: '#fff', fontSize: 13, fontWeight: 700,
-cursor: trimmed ? 'pointer' : 'not-allowed',
-transition: 'background 0.15s',
-}}
->
-💾 Save Record →
-</button>
-</div>
-</div>
-</div>
-)
+// ─── Entity card ──────────────────────────────────────────────────────────────
+function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+  const [showManual, setShowManual] = useState(false)
+  const [showQBI,    setShowQBI]    = useState(false)
+  const pnl = entity.pnl || {}
+  const netProfit = nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
+  const own    = ownPct(entity.own) / 100
+  const k1     = Math.round(netProfit * own)
+  const sal    = nf(pnl.officerSalary ?? entity.officerW2)
+  const isSC   = isSCorpEntity(entity.type)
+  const isPT   = isPassthroughEntity(entity.type)
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1.5px solid ' + (isExpanded ? colorAccent : '#E2E8F0'),
+      borderRadius: 14,
+      overflow: 'hidden',
+      transition: 'border-color 0.2s',
+    }}>
+      {/* Card header */}
+      <div
+        onClick={onToggleExpand}
+        style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, background: isExpanded ? colorAccent + '0D' : '#fff' }}
+      >
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: colorAccent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+          {/s.?corp/i.test(entity.type || '') ? '🏢' : /partner|mmllc/i.test(entity.type || '') ? '🤝' : /sole|single/i.test(entity.type || '') ? '💼' : /c.?corp/i.test(entity.type || '') ? '🏗️' : '📋'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {entity.name || entity.type || 'Business Entity'}
+          </div>
+          <div style={{ fontSize: 12, color: SL }}>
+            {entity.type} · {entity.own || 100}% ownership
+            {entity.connectedId && <span style={{ marginLeft: 8, color: G, fontWeight: 600 }}>● Synced</span>}
+            {entity.isManual && <span style={{ marginLeft: 8, color: '#D97706', fontWeight: 600 }}>✏ Manual</span>}
+          </div>
+        </div>
+        {nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses))) !== 0 && (
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 11, color: SL }}>Net / K-1</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
+              {k1 >= 0 ? fmt(k1) : '-' + fmt(Math.abs(k1))}
+            </div>
+          </div>
+        )}
+        <div style={{ color: SL, fontSize: 14, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</div>
+      </div>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div style={{ padding: '14px 18px', borderTop: '1px solid #F1F5F9' }}>
+
+          {/* P&L summary */}
+          {nf(pnl.grossRevenue) > 0 && (
+            <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ color: SL }}>Gross Revenue</span>
+                <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ color: SL }}>Total Expenses</span>
+                <span style={{ fontWeight: 600, color: N }}>- {fmt(nf(pnl.totalExpenses))}</span>
+              </div>
+              {sal > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
+                  <span style={{ color: '#94A3B8' }}>incl. Officer Salary</span>
+                  <span style={{ color: '#94A3B8' }}>{fmt(sal)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
+                <span style={{ color: N }}>Net Profit</span>
+                <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Ownership % */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
+              Ownership %
+              <InfoTip text="Your ownership percentage in this entity. K-1 income is allocated proportionally. Example: 75% ownership of a $100K profit = $75K on your personal return." />
+            </label>
+            <input
+              type="number" min="0" max="100" value={entity.own || '100'}
+              onChange={e => onUpdate(idx, { ...entity, own: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N }}
+            />
+          </div>
+
+          {/* QBI fields */}
+          {isPT && (
+            <div style={{ marginBottom: 10 }}>
+              <button onClick={() => setShowQBI(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: 0, marginBottom: 6 }}>
+                {showQBI ? '▲ Collapse' : '▼ Expand'} §199A QBI Inputs (W-2 Wages, UBIA, SSTB)
+              </button>
+              {showQBI && (
+                <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
+                  {[
+                    { label: 'W-2 Wages (K-1 Box 17V for S-Corp / Box 20Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. From S-Corp K-1 Box 17, Code V. Used in the §199A(b)(2) 50% W-2 wage limitation test. Applies only above the QBI threshold ($197,300 single / $394,600 MFJ for 2025).' },
+                    { label: 'UBIA of Qualified Property (K-1 Box 17W / Box 20AA)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Used in the 25% W-2 + 2.5% UBIA alternative limitation (§199A(b)(2)(B)).' },
+                    { label: 'Section 179 / Ordinary Income Addback (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 deductions passed through from the entity reduce your at-risk basis. These are entered here for basis tracking; they reduce your allocable K-1 income.' },
+                    { label: 'Charitable Contributions (K-1 Box 12 / Box 13)', key: 'box12_13', tip: 'Charitable contributions passed through from the entity. These flow to Schedule A and also reduce your K-1 basis.' },
+                  ].map(({ label, key, tip }) => (
+                    <div key={key} style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', display: 'block', marginBottom: 3 }}>
+                        {label}
+                        <InfoTip text={tip} wide />
+                      </label>
+                      <MoneyInput
+                        value={entity[key] || ''}
+                        onChange={v => onUpdate(idx, { ...entity, [key]: v })}
+                        placeholder="0"
+                        style={{ fontSize: 13 }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <input type="checkbox" id={'sstb_' + idx} checked={!!entity.box17V_sstb} onChange={e => onUpdate(idx, { ...entity, box17V_sstb: e.target.checked })} />
+                    <label htmlFor={'sstb_' + idx} style={{ fontSize: 12, color: '#1D4ED8', cursor: 'pointer' }}>
+                      This is a Specified Service Trade or Business (SSTB) — limits QBI deduction at high income
+                      <InfoTip text={'SSTBs include: law, accounting, consulting, financial services, performing arts, athletics, and health (IRC §199A(d)(1)(B)).\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, and retail.\n\nSSTB status phases out the QBI deduction above $397,300 MFJ / $247,300 single (2025).'} wide />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reasonable comp indicator for non-manual S-Corps */}
+          {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
+            <ReasonableCompIndicator
+              officerSal={sal}
+              netProfit={Math.max(0, netProfit + sal)}
+              isSCorp={isSC}
+            />
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* C-05 FIX: Restyled from bare text link (background:none, border:none,
+                textDecoration:underline) to a secondary outlined button with consistent
+                visual weight. The text-link style was easy to miss and did not signal
+                "this is an interactive control" clearly enough. */}
+            <button
+              onClick={() => setShowManual(s => !s)}
+              style={{
+                background: '#fff',
+                border: '1px solid #E2E8F0',
+                borderRadius: 7,
+                padding: '6px 12px',
+                fontSize: 12,
+                color: SL,
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontFamily: 'inherit',
+              }}
+            >
+              {entity.isManual ? '✏ Edit / re-enter data' : '⟳ Disconnect / reconnect software'}
+            </button>
+            <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#EF4444', fontWeight: 600, padding: '6px 0', fontFamily: 'inherit' }}>
+              🗑 Remove entity
+            </button>
+          </div>
+
+          {showManual && (
+            <ManualEntryPanel
+              entity={entity}
+              onUpdate={onUpdate}
+              onCancel={() => setShowManual(false)}
+              idx={idx}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
-function EntityCard({ent,idx,onUpdate,onRemove,canRemove,onCompare}){
-const[syn,setSyn]=React.useState(null)
-const[manual,setManual]=React.useState(false)
-const[manRev,setManRev]=React.useState(()=>ent.pnl?.grossRevenue ?? 0)
-const[manExp,setManExp]=React.useState(()=>ent.pnl ? ((ent.pnl.totalExpenses || 0) - (ent.pnl.officerSalary || 0)) : 0)
-const[manOfficerSal,setManOfficerSal]=React.useState(()=>ent.pnl?.officerSalary ?? 0)
-const[showDetails,setShowDetails]=React.useState(false)
-const[showAdvK1,setShowAdvK1]=React.useState(false)
-// PASS4B-07: §1366(d) basis section — collapsed by default to keep the card clean.
-// Only rendered for S-Corp and Partnership entities (the types subject to basis limitation).
-const[showBasis,setShowBasis]=React.useState(false)
-const [nameError, setNameError] = React.useState(null)
-const color=COLORS[idx%COLORS.length]
-const inp={width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:13,color:N,boxSizing:'border-box',outline:'none',fontFamily:'inherit',background:'#fff'}
-const lbl={fontSize:11,fontWeight:700,color:SL,display:'block',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.5px'}
+// ─── Compare modal ────────────────────────────────────────────────────────────
+function CompareModal({ entities, onClose }) {
+  const personalCtx = readPersonalContext()
+  const taxYear     = readTaxYear()
+  const filing      = personalCtx.filingStatus || 'single'
+  const w2          = nf(personalCtx.w2Income)
+  const estPaid     = nf(personalCtx.estPaid)
 
-async function fetchPnL(pid,tok,extra){setSyn(pid);try{let url=API_BASE_URL+'/integrations/'+pid+'/data?token='+encodeURIComponent(tok);if(pid==='quickbooks'&&extra)url+='&realm='+extra;if(pid==='xero'&&extra)url+='&tenant='+extra;if(pid==='freshbooks'&&extra)url+='&account='+extra;const d=await(await fetch(url)).json();if(d&&!d.error)onUpdate(idx,{...ent,pnl:d,connectedId:pid})}catch(ex){console.error(ex)}}
-function connectSoftware(pid){
-sessionStorage.setItem('ts360_connecting_entity', idx);
-const tok = localStorage.getItem('token') || '';
-const state = encodeURIComponent('ts360|' + tok + '|' + idx);
-window.location.href = API_BASE_URL + '/integrations/' + pid + '/connect?state=' + state;
+  const entity = entities[0] || {}
+  const pnl    = entity.pnl || {}
+  const rev    = nf(pnl.grossRevenue)
+  const opex   = nf(pnl.totalExpenses)
+  const netP   = rev - opex
+
+  if (rev <= 0) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%' }}>
+          <h3 style={{ fontWeight: 800, color: N, marginBottom: 12 }}>Entity Comparison</h3>
+          <p style={{ color: SL, fontSize: 14, lineHeight: 1.6 }}>Enter revenue and expenses on your entity card first to see a side-by-side comparison across entity structures.</p>
+          <button onClick={onClose} style={{ padding: '10px 24px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginTop: 16 }}>Close</button>
+        </div>
+      </div>
+    )
+  }
+
+  const stdDed = getStdDed(taxYear, filing)
+  const ownerPct = ownPct(entity.own) / 100
+
+  const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
+    const isSC = /s.?corp/i.test(type)
+    const isSE = /sole|single|partner.*active/i.test(type)
+    const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * 0.40)) : 0
+    const k1    = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
+    const _w2All = w2 + salGuess
+    const taxableRough = Math.max(0, k1 + _w2All - stdDed)
+    const { deduction: qbi } = isPassthroughEntity(type)
+      ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
+      : { deduction: 0 }
+    const taxable = Math.max(0, taxableRough - qbi)
+    const r = calcTaxReturn({
+      taxYear, status: filing, dependents: nf(personalCtx.dependents),
+      entities: [{ ...entity, type, k1, own: entity.own }],
+      w2: _w2All, k1Total: k1, rentalNet: 0, stGain: 0, ltGain: 0,
+      intInc: 0, divInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0, iraIncome: 0,
+      selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0, selfEmpRetirement: 0,
+      nolCarryforward: 0, priorYearQBILoss: 0, saltAmount: 0, hasISO: false, isoBargainElement: 0,
+      isREP: false, unrecap1250: 0, collectiblesGain: 0,
+      w2Withheld: nf(personalCtx.w2Withheld), estPaid,
+      useItemized: false, itemizedAmt: 0, ytdFactor: 1,
+    })
+    return { type, qbi, totalTax: r.totalTax, seTax: r.seTax, ficaSavings: r.ficaSavings, k1, salGuess }
+  })
+
+  const minTax = Math.min(...scenarios.map(s => s.totalTax))
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 740, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: N, margin: '0 0 4px' }}>Entity Structure Comparison</h3>
+            <p style={{ fontSize: 13, color: SL, margin: 0 }}>Same revenue, different entity — estimated total federal tax liability</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: SL }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {scenarios.sort((a, b) => a.totalTax - b.totalTax).map((s, i) => (
+            <div key={s.type} style={{ background: s.totalTax === minTax ? '#F0FDF4' : '#F8FAFC', border: '1.5px solid ' + (s.totalTax === minTax ? '#86EFAC' : '#E2E8F0'), borderRadius: 12, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2 }}>
+                    {s.type}
+                    {s.totalTax === minTax && <span style={{ marginLeft: 8, fontSize: 11, background: G, color: '#fff', borderRadius: 4, padding: '2px 8px', fontWeight: 700 }}>LOWEST TAX</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: SL }}>
+                    K-1: {fmt(s.k1)}
+                    {s.salGuess > 0 && <> · Officer salary: {fmt(s.salGuess)}</>}
+                    {s.qbi > 0 && <> · QBI deduction: {fmt(s.qbi)}</>}
+                    {s.seTax > 0 && <> · SE tax: {fmt(s.seTax)}</>}
+                    {s.ficaSavings > 0 && <> · SE tax savings: {fmt(s.ficaSavings)}</>}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: s.totalTax === minTax ? G : N }}>{fmt(s.totalTax)}</div>
+                  {s.totalTax !== minTax && (
+                    <div style={{ fontSize: 12, color: R, fontWeight: 600 }}>+{fmt(s.totalTax - minTax)} more</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: 11, color: SL, textAlign: 'center', marginTop: 16 }}>
+          Federal income tax only · {(readTaxYear() || 2025)} · {filing.toUpperCase()} · Estimates — consult a CPA
+        </p>
+      </div>
+    </div>
+  )
 }
 
-function applyManual(){
-const r=manRev,opEx=manExp,sal=manOfficerSal,totalEx=opEx+sal
-if(r>0||totalEx>0)onUpdate(idx,{
-...ent,
-officerW2: sal,
-pnl:{grossRevenue:r,totalExpenses:totalEx,netProfit:r-totalEx,officerSalary:sal,categories:{}},
-connectedId:null,
-isManual:true
-})
-}
+// ─── Main export ──────────────────────────────────────────────────────────────
+export default function CalculateTaxInner() {
+  const navigate = useNavigate()
 
-const k1 = (ent.pnl && ent.type !== 'C Corporation')
-? Math.round((ent.pnl.netProfit || 0) * ((parseFloat(ent.own) || 100) / 100))
-: 0
+  const [entities, setEntities]         = useState([])
+  const [expandedIdx, setExpandedIdx]   = useState(null)
+  const [showCompare, setShowCompare]   = useState(false)
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [saveStatus, setSaveStatus]     = useState('idle') // idle | saving | saved
+  const [taxYear, setTaxYear]           = useState(() => readTaxYear() || 2025)
+  const [csvImportStatus, setCsvImportStatus] = useState(null)
 
-const netIncomeLabel = ['S Corporation', 'C Corporation'].includes(ent.type)
-? 'Ordinary Business Income (Loss)'
-: ent.type === 'Sole Proprietor / Single-Member LLC'
-? 'Net Profit (Loss)'
-: 'Distributive Share (Loss)'
+  const connectedApp = localStorage.getItem('ts360_connected_app') || ''
 
-const k1ShareLabel = ent.type === 'C Corporation'
-? 'CORP. NET INCOME (STAYS IN ENTITY)'
-: ent.type === 'Sole Proprietor / Single-Member LLC'
-? 'SCHEDULE C NET PROFIT'
-: ent.type === 'S Corporation'
-? 'K-1 PRO-RATA SHARE'
-: 'K-1 DISTRIBUTIVE SHARE'
+  useEffect(() => {
+    const existing = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
+    if (existing.length > 0) {
+      setEntities(existing.map(e => ({
+        ...e,
+        pnl: e.pnl || {
+          grossRevenue: e.grossRevenue || '',
+          totalExpenses: e.totalExpenses || '',
+          officerSalary: e.officerSalary || '',
+          netProfit: e.netProfit || '',
+        },
+        own: e.own || '100',
+        isManual: e.isManual || false,
+      })))
+    }
+  }, [])
 
-const opExpLabel = ['S Corporation', 'C Corporation'].includes(ent.type)
-? 'OPERATING EXPENSES (excl. officer W-2 salary)'
-: /partnership|mmllc/i.test(ent.type || '')
-? 'OPERATING EXPENSES (excl. guaranteed payments)'
-: 'OPERATING EXPENSES'
-const opExpTip = ['S Corporation', 'C Corporation'].includes(ent.type)
-? 'All business expenses except the officer W-2 salary. Enter the officer W-2 separately below. The officer salary is a deductible business expense but also appears on your personal W-2.'
-: /partnership|mmllc/i.test(ent.type || '')
-? 'All business expenses except guaranteed payments to partners (IRC §707(c)). Guaranteed payments are reported on K-1 Box 4a and are deductible at the entity level.'
-: 'All ordinary and necessary business expenses (IRC §162). Includes rent, utilities, supplies, professional fees, and other operating costs reported on Schedule C.'
+  const addEntity = useCallback(() => {
+    const newEnt = {
+      id: Date.now(),
+      type: 'S Corporation',
+      name: '',
+      own: '100',
+      pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
+      isManual: true,
+      connectedId: null,
+      box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+      box17V_sstb: false, box17K: '',
+    }
+    setEntities(prev => [...prev, newEnt])
+    setExpandedIdx(entities.length)
+  }, [entities.length])
 
-const isCorp = ['S Corporation', 'C Corporation'].includes(ent.type)
-const displayNetProfit = ent.pnl ? (ent.pnl.netProfit || 0) : 0
-const displayOfficerSal = ent.pnl?.officerSalary || 0
+  const updateEntity = useCallback((idx, updated) => {
+    setEntities(prev => {
+      const next = [...prev]
+      next[idx] = updated
+      return next
+    })
+  }, [])
 
-const manNetProfit = manRev - manExp - manOfficerSal
+  const removeEntity = useCallback((idx) => {
+    setEntities(prev => prev.filter((_, i) => i !== idx))
+    setExpandedIdx(null)
+  }, [])
 
-const officerExceedsRevenue = manOfficerSal > manRev && manRev > 0
-const officerExceedsNetProfit = !officerExceedsRevenue && manOfficerSal > (manRev - manExp) && manOfficerSal > 0 && manRev > 0
+  const persistStep1 = useCallback(() => {
+    sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
+    const k1Total = entities.reduce((s, e) => {
+      const pnl = e.pnl || {}
+      const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+      const own = ownPct(e.own) / 100
+      const k1  = Math.round(net * own)
+      const sec179 = nf(e.box11_12)
+      const box12  = nf(e.box12_13)
+      return s + k1 - sec179 - box12
+    }, 0)
+    writeStep1State({ entities, k1Total, isCoopPatron: false })
+    writeTaxYear(taxYear)
+    return k1Total
+  }, [entities, taxYear])
 
-return(
-<div style={{border:'2px solid '+color,borderRadius:14,overflow:'hidden',marginBottom:16}}>
-<div style={{background:color,padding:'12px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-<div style={{display:'flex',alignItems:'center',gap:12}}>
-<div style={{color:'rgba(255,255,255,0.5)',fontSize:18,cursor:'grab',userSelect:'none'}}>⠣</div>
-<div style={{width:28,height:28,borderRadius:7,background:'rgba(0,0,0,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff'}}>{idx+1}</div>
-<div>
-<div
-contentEditable
-suppressContentEditableWarning
-onBlur={v => {
-const raw = v.target.innerText.trim()
-if (/^\d+$/.test(raw)) {
-setNameError('Business name cannot be purely numeric. Please use a descriptive name (e.g., "Smith Consulting LLC").')
-v.target.innerText = ent.name
-return
-}
-if (raw.length < 2) {
-setNameError('Business name must be at least 2 characters.')
-v.target.innerText = ent.name
-return
-}
-setNameError(null)
-onUpdate(idx, {...ent, name: raw || 'Business ' + (idx + 1)})
-}}
-onKeyDown={v => { if (v.key === 'Enter') v.target.blur() }}
-style={{background:'transparent',border:'none',outline:'none',fontSize:15,fontWeight:700,color:'#fff',width:180,fontFamily:'inherit',cursor:'text',minWidth:80}}
->
-{ent.name}
-</div>
-<div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{ent.type}{ent.ein?' · EIN '+ent.ein:''}</div>
-</div>
-</div>
-<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',rowGap:6}}>
-<select value={ent.type} onChange={v=>{const newType=v.target.value;const losingOfficer=['S Corporation','C Corporation'].includes(ent.type)&&!['S Corporation','C Corporation'].includes(newType);if(losingOfficer)setManOfficerSal(0);onUpdate(idx,{...ent,type:newType,officerW2:losingOfficer?0:ent.officerW2,pnl:losingOfficer&&ent.pnl?{...ent.pnl,officerSalary:0}:ent.pnl})}} style={{padding:'4px 8px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,color:color,cursor:'pointer',background:'#fff'}}>
-{ENTITY_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-</select>
-<button
-onClick={()=>onCompare(idx)}
-title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor. See side-by-side entity, self-employment, and QBI tax differences."
-style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}
->
-<svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-<rect x="0.5" y="0.5" width="6" height="15" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-<rect x="9.5" y="0.5" width="6" height="15" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-<line x1="3.5" y1="4" x2="3.5" y2="12" stroke="currentColor" strokeWidth="1.2"/>
-<line x1="12.5" y1="4" x2="12.5" y2="12" stroke="currentColor" strokeWidth="1.2"/>
-</svg>
-Compare</button>
-{canRemove&&<button onClick={()=>onRemove(idx)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.8)',background:'rgba(0,0,0,0.2)',cursor:'pointer'}}>✕ Remove</button>}
-<button onClick={()=>setShowDetails(!showDetails)} style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,color:color,background:'#fff',cursor:'pointer'}}>{showDetails?'▲':'▼'} Details</button>
-</div>
-</div>
+  const handleSaveRecord = useCallback((name) => {
+    setSaveStatus('saving')
+    const k1Total = persistStep1()
+    const email   = localStorage.getItem('ts360_email') || 'default'
+    const key     = 'ts360_records_' + email
+    const existing = JSON.parse(localStorage.getItem(key) || '[]')
 
-{nameError && (
-<div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '8px 20px', fontSize: 12, color: '#991B1B' }}>
-⚠ {nameError}
-</div>
-)}
+    const record = {
+      id: Date.now(),
+      name: name || null,
+      savedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      taxYear,
+      entities,
+      k1Income: k1Total,
+      biz: {
+        entityType: entities[0]?.type || 'S Corporation',
+        year: taxYear,
+        ownershipPct: entities[0]?.own || '100',
+        grossRevenue: String(nf(entities[0]?.pnl?.grossRevenue) || ''),
+        operatingExpenses: String(nf(entities[0]?.pnl?.totalExpenses) || ''),
+        officerSalary: String(nf(entities[0]?.pnl?.officerSalary) || ''),
+        depreciation: String(nf(entities[0]?.pnl?.depreciation) || ''),
+        pnl: entities[0]?.pnl || {},
+      },
+      f1040: readPersonalContext(),
+    }
 
-{showDetails&&(
-<div style={{background:color+'15',padding:'12px 20px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
-<div>
-<label style={lbl}>EIN</label>
-<input value={ent.ein||''} onChange={v=>onUpdate(idx,{...ent,ein:v.target.value})} placeholder="XX-XXXXXXX" style={inp} />
-</div>
-<div>
-<label style={lbl}>Formation Date</label>
-<input type="date" aria-label="Business formation date" value={ent.formationDate||''} onChange={v=>onUpdate(idx,{...ent,formationDate:v.target.value})} style={inp} />
-</div>
-<div>
-<label style={lbl}>Ownership %</label>
-<input type="number" aria-label="Ownership percentage" value={ent.own||'100'} min="1" max="100" step="0.01" onChange={v=>onUpdate(idx,{...ent,own:v.target.value})} style={{...inp,background:'#EFF6FF',fontWeight:700,color:B}} />
-</div>
-<div style={{gridColumn:'1/-1'}}>
-<button onClick={()=>setShowAdvK1(!showAdvK1)} style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:SL,cursor:'pointer',letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}>
-{showAdvK1?'▲':'▼'} Advanced K-1 items
-</button>
-</div>
-{showAdvK1&&(
-<div style={{gridColumn:'1/-1',display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>Section 179 Recapture (K-1 Box 17K) <InfoTip text="Recapture of §179 deduction when the property is disposed of or business use drops below 50% (IRC §1245). Reported as ordinary income on Form 4797 Part II — flows to Schedule 1 Line 4. Do NOT include in Long-Term Capital Gains." /></label>
-<MoneyInput value={ent.box17K || 0} onChange={n => onUpdate(idx, {...ent, box17K: n})} placeholder="0" style={inp} />
-</div>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>§179 expense (K-1 Box 11 S-corp / Box 12 partnership) <InfoTip text="Your share of §179 deduction from the entity. Limited to your active business income — excess is disallowed and carried forward." /></label>
-<MoneyInput value={ent.box11_12 || 0} onChange={n => onUpdate(idx, {...ent, box11_12: n})} placeholder="0" style={inp} />
-</div>
-<div style={{gridColumn:'1/-1'}}>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>K-1 ordinary deductions (do NOT include charitable contributions, investment interest, or §199A info — those flow elsewhere) <InfoTip text="Other deductions passed through on K-1 Box 12 (S-corp) or Box 13 (partnership) that reduce ordinary income — e.g. business interest expense subject to §163(j)." /></label>
-<MoneyInput value={ent.box12_13 || 0} onChange={n => onUpdate(idx, {...ent, box12_13: n})} placeholder="0" style={inp} />
-</div>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
-QBI: entity W-2 wages (S-corp K-1 Box 17V / partnership K-1 Box 20Z){' '}
-<InfoTip text="W-2 wages paid by the entity — required for the §199A(b)(2) W-2 wage limitation when your income is above the QBI threshold ($197,300 single / $394,600 MFJ for 2025). If blank, the officer W-2 salary entered above is used as a proxy — enter Box 17V for maximum accuracy." />
-</label>
-<MoneyInput value={ent.box17V_wages || 0} onChange={n => onUpdate(idx, {...ent, box17V_wages: n})} placeholder="0" style={inp} />
-</div>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>QBI: UBIA of qualified property (S-corp K-1 Box 17W / partnership K-1 Box 20Z) <InfoTip text="Unadjusted basis immediately after acquisition of qualified property — used in the §199A(b)(2)(B)(ii) UBIA limitation. S-corp K-1 Box 17, Code W (not Code V — Code V is W-2 wages, entered in the field above)." /></label>
-<MoneyInput value={ent.box17V_ubia || 0} onChange={n => onUpdate(idx, {...ent, box17V_ubia: n})} placeholder="0" style={inp} />
-</div>
-<div style={{gridColumn:'1/-1'}}>
-<label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569',fontWeight:600,cursor:'pointer'}}>
-<input type="checkbox" checked={!!ent.box17V_sstb} onChange={e=>onUpdate(idx,{...ent,box17V_sstb:e.target.checked})} />
-Specified Service Trade or Business (SSTB) <InfoTip text="SSTBs (law, health, consulting, financial services, athletics, performing arts, etc.) are subject to the §199A phase-out at high income levels. Check if the entity's primary activity is an SSTB." />
-</label>
-</div>
-</div>
-)}
+    const updated = [record, ...existing].slice(0, 50)
+    localStorage.setItem(key, JSON.stringify(updated))
+    localStorage.setItem('ts360_records', JSON.stringify(updated))
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 3000)
+  }, [entities, taxYear, persistStep1])
 
-{/* PASS4B-08: S-Corp / Partner Basis (IRC §1366(d) / §704(d))
-Shown only for S-Corps and Partnerships — the entity types where the
-shareholder/partner basis limitation applies. C-Corps and sole props
-do not have this concept (sole props file Schedule C with no stock basis).
-stockBasis: Form 7203 Line 1 (beginning of year adjusted stock basis).
-debtBasis: Form 7203 Part II (loans from shareholder to the S-Corp).
-When entered, taxCalc.js computes the allowable deductible loss.
-Leaving both blank = legacy behavior (full loss passes through). */}
-{/s.?corp|partner/i.test(ent.type || '') && (
-<div style={{gridColumn:'1/-1', marginTop: 10}}>
-<button
-onClick={()=>setShowBasis(v=>!v)}
-style={{background:'none',border:'none',fontSize:11,fontWeight:700,color:'#7C3AED',cursor:'pointer',
-letterSpacing:'1px',display:'flex',alignItems:'center',gap:6}}
->
-{showBasis?'▲':'▼'} Shareholder Basis (IRC §1366(d)) — optional but important for losses
-</button>
-{showBasis && (
-<div style={{marginTop:10,padding:'14px 16px',background:'#F5F3FF',borderRadius:8,border:'1px solid #DDD6FE'}}>
-<div style={{fontSize:12,color:'#5B21B6',marginBottom:10,lineHeight:1.6}}>
-Enter your basis to activate the §1366(d) loss limitation engine. When the K-1 shows a loss
-that exceeds your combined stock + debt basis, only the allowable portion flows through to
-your personal return — the suspended remainder carries forward. Leave both fields blank to
-skip the check (losses pass through unchanged, as in prior releases).
-</div>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
-Stock basis — beginning of this tax year
-<InfoTip below text="Your adjusted stock basis at the START of this year (Form 7203 Line 1). Increases with capital contributions and S-Corp income; decreases with losses and distributions. If prior years reduced it to $0, enter 0." />
-</label>
-<MoneyInput
-value={ent.stockBasis ?? ''}
-onChange={n => onUpdate(idx, {...ent, stockBasis: n})}
-placeholder="0"
-style={{...inp, border:'1px solid #DDD6FE'}}
-/>
-</div>
-<div>
-<label style={{display:'block',fontSize:12,color:'#475569',marginBottom:4,fontWeight:600}}>
-Loans from shareholder to S-Corp (debt basis)
-<InfoTip below text="Bona fide loans YOU personally made to the S-Corp (Form 7203 Part II). NOT bank loans to the corp. If none, leave blank. Creates additional deductible loss capacity beyond stock basis." />
-</label>
-<MoneyInput
-value={ent.debtBasis ?? ''}
-onChange={n => onUpdate(idx, {...ent, debtBasis: n})}
-placeholder="0"
-style={{...inp, border:'1px solid #DDD6FE'}}
-/>
-</div>
-</div>
-{/* Live suspended-loss preview */}
-{(()=>{
-const own=(parseFloat(ent.own)||100)/100
-const k1Val=ent.k1!==undefined?parseFloat(ent.k1)||0:Math.round((parseFloat(ent.pnl?.netProfit||0))*own)
-const hasBasis=ent.stockBasis!==undefined&&ent.stockBasis!==''&&ent.stockBasis!==null
-if(k1Val>=0||!hasBasis) return null
-const sb=Math.max(0,parseFloat(ent.stockBasis)||0)
-const db=Math.max(0,parseFloat(ent.debtBasis)||0)
-const totalBasis=sb+db
-const loss=Math.abs(k1Val)
-const allowed=Math.min(loss,totalBasis)
-const suspended=loss-allowed
-if(suspended<=0) return(
-<div style={{marginTop:10,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#166534'}}>
-✓ Your {fmt(totalBasis)} combined basis covers the full {fmt(loss)} loss — fully deductible.
-</div>
-)
-return(
-<div style={{marginTop:10,background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#991B1B'}}>
-⚠ Loss {fmt(loss)} exceeds basis {fmt(totalBasis)} —
-deductible: {fmt(allowed)} · suspended: {fmt(suspended)}.
-The suspended amount carries forward (IRC §1366(d)).
-</div>
-)
-})()}
-</div>
-)}
-</div>
-)}
+  const handleCsvUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const lines = ev.target.result.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvImportStatus('error'); return }
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase())
+        const vals   = lines[1].split(',').map(v => v.trim().replace(/"/g, ''))
+        const get    = (keys) => { for (const k of keys) { const i = header.indexOf(k); if (i >= 0) return vals[i] || '' } return '' }
 
-</div>
-)}
-<div style={{padding:20,background:'#fff'}}>
-{!ent.pnl ? (
-<div>
-{!manual ? (
-<div>
-<div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10}}>CONNECT ACCOUNTING SOFTWARE</div>
-<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
-{INTS.map(p=>{
-const tok=localStorage.getItem('ts360_'+p.id+'_connected')==='true'?localStorage.getItem('ts360_'+p.id+'_token'):null
-return(
-<div key={p.id} onClick={()=>tok?fetchPnL(p.id,tok,localStorage.getItem('ts360_'+p.id+'_extra')):connectSoftware(p.id)} style={{background:tok?p.color+'22':'#F8FAFC',border:'2px solid '+(tok?p.color:'#E2E8F0'),borderRadius:10,padding:'12px 8px',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
-<div style={{width:32,height:32,borderRadius:8,background:p.color,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 6px',fontSize:13,fontWeight:800,color:'#fff'}}>{p.abbr}</div>
-<div style={{fontSize:11,fontWeight:700,color:N}}>{p.name}</div>
-{syn===p.id&&<div style={{fontSize:10,color:SL,marginTop:3}}>Syncing…</div>}
-{tok&&syn!==p.id&&<div style={{fontSize:10,color:G,marginTop:3}}>✓ Connected</div>}
-</div>
-)
-})}
-</div>
-<button onClick={()=>setManual(true)} style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #E2E8F0',background:'#fff',fontSize:12,fontWeight:600,color:SL,cursor:'pointer'}}>Enter Manually</button>
-</div>
-) : (
-<div>
-<div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>ENTER INCOME &amp; EXPENSES <button onClick={()=>setManual(false)} style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',fontWeight:600}}>Use Software</button></div>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-<div>
-<label style={lbl}>GROSS REVENUE</label>
-<MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
-</div>
-<div>
-<label style={lbl}>{opExpLabel} <InfoTip text={opExpTip} /></label>
-<MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
-</div>
-</div>
-{['S Corporation','C Corporation'].includes(ent.type)&&(
-<div style={{marginBottom:10}}>
-<label style={lbl}>OFFICER W-2 SALARY (ENTERED SEPARATELY) <InfoTip text="The W-2 wages paid to the officer/owner. This is an S-Corp deduction but also appears on your personal W-2 and flows to your 1040. Also used as the §199A W-2 wage proxy when Box 17V is not entered." /></label>
-<MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
-{officerExceedsRevenue && (
-<div style={{ marginTop: 5, fontSize: 11, color: R, fontWeight: 600 }}>
-⚠ Officer salary cannot exceed gross revenue.
-</div>
-)}
-{officerExceedsNetProfit && (
-<div style={{ marginTop: 5, fontSize: 11, color: '#D97706', fontWeight: 600 }}>
-⚠ Officer salary exceeds net income — the S-Corp would show a loss after deducting all expenses including payroll taxes.
-</div>
-)}
-{!officerExceedsRevenue && manRev > 0 && (
-<ReasonableCompIndicator
-officerSalary={manOfficerSal}
-netProfit={manNetProfit}
-entityType={ent.type}
-/>
-)}
-</div>
-)}
-<button onClick={applyManual} style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:N,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Calculate</button>
-</div>
-)}
-</div>
-) : (
-<div>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
-<div style={{background:'#F8FAFC',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
-<div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>GROSS REVENUE</div>
-<div style={{fontSize:18,fontWeight:800,color:N}}>{fmt(ent.pnl.grossRevenue)}</div>
-</div>
-<div style={{background:'#FFF1F2',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
-<div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>TOTAL EXPENSES</div>
-<div style={{fontSize:18,fontWeight:800,color:R}}>{fmt(ent.pnl.totalExpenses)}</div>
-</div>
-<div style={{background:ent.pnl.netProfit>=0?'#F0FDF4':'#FFF1F2',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
-<div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>{netIncomeLabel.toUpperCase()}</div>
-<div style={{fontSize:18,fontWeight:800,color:ent.pnl.netProfit>=0?G:R}}>{fmt(ent.pnl.netProfit)}</div>
-</div>
-</div>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-<div style={{background:'#EFF6FF',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
-<div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>OWNERSHIP</div>
-<div style={{fontSize:18,fontWeight:800,color:B}}>{parseInt(ent.own)||100}%</div>
-<div style={{fontSize:10,color:SL,marginTop:4,cursor:'pointer'}} onClick={()=>setShowDetails(true)}>▼ Details to change</div>
-</div>
-<div style={{background: ent.type==='C Corporation'?'#F8FAFC':'#EFF6FF',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
-<div style={{fontSize:10,fontWeight:700,color:SL,letterSpacing:'1px',marginBottom:4}}>{k1ShareLabel}</div>
-<div style={{fontSize:18,fontWeight:800,color:ent.type==='C Corporation'?SL:B}}>
-{ent.type==='C Corporation' ? fmt(ent.pnl.netProfit) : fmt(k1)}
-</div>
-{ent.type==='C Corporation'&&<div style={{fontSize:10,color:SL,marginTop:4}}>Taxed at entity level — does not flow to your 1040</div>}
-</div>
-</div>
+        const importedEnt = {
+          id: Date.now(),
+          type: 'S Corporation',
+          name: get(['entity', 'entity name', 'business', 'business name']) || 'Imported Entity',
+          own: get(['ownership', 'own', 'ownership %', 'pct']) || '100',
+          pnl: {
+            grossRevenue:   get(['revenue', 'gross revenue', 'income', 'gross income']) || '',
+            totalExpenses:  get(['expenses', 'total expenses', 'operating expenses']) || '',
+            officerSalary:  get(['officer salary', 'salary', 'w2', 'officer compensation']) || '',
+            netProfit:      get(['net profit', 'profit', 'net income']) || '',
+          },
+          isManual: true, connectedId: null,
+          box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+          box17V_sstb: false, box17K: '',
+        }
+        setEntities(prev => [...prev, importedEnt])
+        setExpandedIdx(entities.length)
+        setCsvImportStatus('success')
+      } catch {
+        setCsvImportStatus('error')
+      }
+    }
+    reader.readAsText(file)
+  }
 
-{isCorp && (
-<ReasonableCompIndicator
-officerSalary={displayOfficerSal}
-netProfit={displayNetProfit}
-entityType={ent.type}
-/>
-)}
+  const hasData = entities.length > 0 && entities.some(e => nf(e.pnl?.grossRevenue) > 0)
 
-{ent.type === 'S Corporation' && k1 > 0 && (
-<div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'10px 14px',marginBottom:10,marginTop:8,fontSize:12,color:'#1E40AF',display:'flex',alignItems:'flex-start',gap:8}}>
-<span style={{fontSize:14,flexShrink:0}}>💡</span>
-<span>
-<strong>For accurate §199A QBI deduction:</strong> enter your K-1 Box 17V W-2 wages in{' '}
-<span style={{fontWeight:700,cursor:'pointer',textDecoration:'underline'}} onClick={()=>{setShowDetails(true);setShowAdvK1(true)}}>
-▼ Details → Advanced K-1 items
-</span>
-. If not entered, the officer W-2 salary above is used as a proxy.
-</span>
-</div>
-)}
-{ent.pnl.categories&&Object.keys(ent.pnl.categories).length>0&&<ExpenseBreakdown categories={ent.pnl.categories} total={ent.pnl.totalExpenses} />}
+  return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
-<div style={{textAlign:'center',marginTop:10}}>
-<button
-onClick={()=>{const pid=ent.connectedId;if(pid){localStorage.removeItem('ts360_'+pid+'_connected');localStorage.removeItem('ts360_'+pid+'_token');localStorage.removeItem('ts360_'+pid+'_extra')}onUpdate(idx,{...ent,pnl:null,connectedId:null,isManual:false})}}
-style={{background:'none',border:'none',fontSize:12,color:SL,cursor:'pointer',textDecoration:'underline'}}
->
-{ent.isManual ? '✏ Edit / re-enter data' : '⟳ Disconnect / reconnect software'}
-</button>
-</div>
-</div>
-)}
-</div>
-</div>
-)
-}
+      {/* Nav */}
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 24px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
+          <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+          <div style={{ background: '#EFF6FF', color: B, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700 }}>Step 1 of 2 — Business Entities</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
+          <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>AI Analysis</button>
+          <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
+          <button onClick={() => navigate('/settings')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+        </div>
+      </nav>
 
-function TemplatePicker({onSelect,onClose}){return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}><div style={{background:'#fff',borderRadius:16,padding:24,width:480,maxWidth:'90vw'}} onClick={e=>e.stopPropagation()}><div style={{fontSize:16,fontWeight:800,color:N,marginBottom:16}}>Choose a Template</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>{TEMPLATES.map(t=><div key={t.label} onClick={()=>{onSelect(t);onClose()}} style={{border:'2px solid #E2E8F0',borderRadius:10,padding:'14px 16px',cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=B;e.currentTarget.style.background='#EFF6FF'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#E2E8F0';e.currentTarget.style.background='#fff'}}><div style={{fontSize:22,marginBottom:6}}>{t.icon}</div><div style={{fontSize:13,fontWeight:700,color:N}}>{t.label}</div><div style={{fontSize:11,color:SL,marginTop:3}}>{t.desc}</div></div>)}</div></div></div>)}
+      <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 20px 120px' }}>
 
-function ImportModal({onImport,onClose}){
-const [csvErr, setCsvErr] = React.useState('')
-function handleFile(f){
-if(!f)return
-const r=new FileReader()
-r.onload=e=>{
-try{
-const entities=parseCSVImport(e.target.result)
-if(entities.length){ setCsvErr(''); onImport(entities); onClose() }
-else { setCsvErr('No valid entities found. Check that your CSV matches the template format.') }
-}catch(err){
-setCsvErr('Could not parse CSV: ' + (err.message || 'Please check the file format and try again.'))
-}
-}
-r.readAsText(f)
-}
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Revenue, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
+        </div>
 
-function downloadTemplate() {
-const rows = [
-['"Name"','"Entity Type"','"EIN"','"Formation Date"','"Ownership %"','"Gross Revenue"','"Total Expenses"'],
-['"Smith Consulting LLC"','"S Corporation"','"12-3456789"','"2020-01-15"','"100"','"250000"','"80000"'],
-['"Main Street Rentals"','"Sole Proprietor / Single-Member LLC"','"","","100"','"120000"','"60000"'],
-]
-const csv = rows.map(r => r.join(',')).join('\n')
-const blob = new Blob([csv], { type: 'text/csv' })
-const url = URL.createObjectURL(blob)
-const a = document.createElement('a')
-a.href = url
-a.download = 'taxstat360-import-template.csv'
-a.click()
-URL.revokeObjectURL(url)
-}
+        {/* Tax year selector */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: N, flexShrink: 0 }}>Tax Year</label>
+          <select value={taxYear} onChange={e => { setTaxYear(parseInt(e.target.value)); writeTaxYear(parseInt(e.target.value)) }}
+            style={{ padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none', flex: 1 }}>
+            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
 
-return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}><div style={{background:'#fff',borderRadius:16,padding:24,width:440,maxWidth:'90vw'}} onClick={e=>e.stopPropagation()}>
-<div style={{fontSize:16,fontWeight:800,color:N,marginBottom:12}}>Import from CSV</div>
-<div style={{fontSize:13,color:SL,marginBottom:8,lineHeight:1.6}}>
-Upload a CSV with these columns:<br />
-<span style={{fontFamily:'monospace',fontSize:11,color:N}}>Name, Entity Type, EIN, Formation Date, Ownership %, Gross Revenue, Total Expenses</span>
-</div>
-<button
-onClick={downloadTemplate}
-style={{width:'100%',padding:'9px',borderRadius:8,border:'1px solid #BFDBFE',background:'#EFF6FF',fontSize:12,fontWeight:700,color:'#1D4ED8',cursor:'pointer',marginBottom:12}}
->
-⬇ Download Template CSV
-</button>
-<input type="file" accept=".csv" onChange={e=>handleFile(e.target.files[0])} style={{width:'100%',marginBottom:12}} />
-{csvErr && (
-<div style={{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FECACA',borderRadius:7,padding:'8px 12px',fontSize:12,marginBottom:10}}>
-{csvErr}
-</div>
-)}
-<button onClick={onClose} style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #E2E8F0',background:'#fff',fontSize:13,fontWeight:600,color:SL,cursor:'pointer'}}>Cancel</button>
-</div></div>)
-}
+        {/* Integrations */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
+            Connect accounting software
+            <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or add an entity manually using the button below." />
+          </div>
+          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {INTEGRATIONS.map(integ => (
+              <IntegrationTile
+                key={integ.id}
+                integ={integ}
+                connected={connectedApp.toLowerCase() === integ.id}
+                onConnect={() => {
+                  window.location.href = `${API_BASE_URL}/auth/${integ.id}`
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <label htmlFor="csv-upload" style={{ cursor: 'pointer', fontSize: 12, color: B, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+              📄 Import CSV
+              <input id="csv-upload" type="file" accept=".csv,.xlsx" onChange={handleCsvUpload} style={{ display: 'none' }} />
+            </label>
+            {csvImportStatus === 'success' && <span style={{ fontSize: 12, color: G, fontWeight: 600 }}>✓ Entity imported!</span>}
+            {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R,  fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
+          </div>
+        </div>
 
-export default function CalculateTax() {
-const nav = useNavigate()
+        {/* Entity cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+          {entities.map((ent, idx) => (
+            <EntityCard
+              key={ent.id || idx}
+              entity={ent}
+              idx={idx}
+              onUpdate={updateEntity}
+              onRemove={removeEntity}
+              colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
+              isExpanded={expandedIdx === idx}
+              onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+            />
+          ))}
+        </div>
 
-const computeK1Total = (ents) =>
-ents.reduce((sum, e) => {
-if (!e.pnl || e.type === 'C Corporation') return sum
-return sum + Math.round((e.pnl.netProfit || 0) * ((parseFloat(e.own) || 100) / 100))
-}, 0)
+        {/* Add entity button */}
+        <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
+          + Add Business Entity
+        </button>
 
-const [entities, setEntities] = React.useState(()=>{
-const raw = readStep1StateRaw()
-if(raw && raw.length) return raw
-return [{ name: 'Business 1', type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '', pnl: null, connectedId: null, isManual: false }]
-})
-const [isCoopPatron, setIsCoopPatronState] = React.useState(readIsCoopPatron())
-const [showTemplates, setShowTemplates] = React.useState(false)
-const [showImport, setShowImport] = React.useState(false)
-const [dragIdx, setDragIdx] = React.useState(null)
-const [compareIdx, setCompareIdx] = React.useState(null)
-const [showAdvancedSituations, setShowAdvancedSituations] = React.useState(false)
-const [saveMsg, setSaveMsg] = React.useState(null)
-const [showNameModal, setShowNameModal] = React.useState(false)
-const [pendingRecordName, setPendingRecordName] = React.useState('')
+        {/* Compare button */}
+        {entities.length > 0 && (
+          <button
+            onClick={() => setShowCompare(true)}
+            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor. See side-by-side entity, self-employment, and QBI tax differences."
+            style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
+            ⚖ Compare Entity Structures
+          </button>
+        )}
+      </div>
 
-React.useEffect(() => {
-writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
-}, [entities, isCoopPatron])
+      {/* Fixed footer */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 50 }}>
+        <div style={{ fontSize: 12, color: SL, flex: 1 }}>
+          {entities.length > 0 ? `${entities.length} entity${entities.length > 1 ? 'ies' : ''} — K-1 flows to personal return in Step 2` : 'Add at least one business entity to continue'}
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* C-02 FIX: "Save Record" → "Save This Record" to match TaxReturn.jsx Step 2 */}
+          <button
+            onClick={() => setShowNameModal(true)}
+            disabled={!hasData || saveStatus === 'saving'}
+            style={{
+              padding: '10px 20px',
+              background: saveStatus === 'saved' ? G : hasData ? B : '#94A3B8',
+              color: '#fff', border: 'none', borderRadius: 8,
+              fontSize: 13, fontWeight: 700, cursor: hasData ? 'pointer' : 'default',
+            }}
+          >
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved!' : '💾 Save This Record'}
+          </button>
+          <button
+            onClick={() => { persistStep1(); navigate('/tax-return') }}
+            disabled={entities.length === 0}
+            style={{
+              padding: '10px 24px',
+              background: entities.length > 0 ? N : '#94A3B8',
+              color: '#fff', border: 'none', borderRadius: 8,
+              fontSize: 13, fontWeight: 700, cursor: entities.length > 0 ? 'pointer' : 'default',
+            }}
+          >
+            Continue to Step 2 →
+          </button>
+        </div>
+      </div>
 
-React.useEffect(() => {
-const p = new URLSearchParams(window.location.search)
-const mp = {qb_token:'quickbooks',quickbooks_token:'quickbooks',xero_token:'xero',wave_token:'wave',wave_token2:'wave',fb_token:'freshbooks',freshbooks_token:'freshbooks'}
-const xeroRefresh=p.get('xero_refresh');if(xeroRefresh)localStorage.setItem('ts360_xero_refresh',xeroRefresh)
-const entityIdx=parseInt(p.get('entity')||sessionStorage.getItem('ts360_connecting_entity'))||0
-let foundInUrl=false
-const providerList=['quickbooks','xero','wave','freshbooks']
-for(const pid of providerList){
-if(p.get(pid)==='connected'){
-foundInUrl=true
-localStorage.setItem('ts360_'+pid+'_connected','true')
-const hasTokenInUrl=Object.entries(mp).some(([k,v])=>v===pid&&p.get(k))
-if(!hasTokenInUrl){const ts360tok=localStorage.getItem('token')||'';fetchEntityPnL(entityIdx,pid,ts360tok,null)}
-break
-}
-}
-for(const[k,pid] of Object.entries(mp)){
-const tok=p.get(k)
-if(tok){foundInUrl=true;localStorage.setItem('ts360_'+pid+'_connected','true');localStorage.setItem('ts360_'+pid+'_token',tok)
-const extra=pid==='quickbooks'?p.get('realm'):pid==='xero'?p.get('tenant'):pid==='freshbooks'?p.get('account'):null
-if(extra)localStorage.setItem('ts360_'+pid+'_extra',extra)
-fetchEntityPnL(entityIdx,pid,tok,extra)
-}
-}
-if(!foundInUrl){
-const pids=['quickbooks','xero','wave','freshbooks']
-for(const pid of pids){
-if(localStorage.getItem('ts360_'+pid+'_connected')==='true'){
-const tok=localStorage.getItem('ts360_'+pid+'_token')||localStorage.getItem('token')||''
-const extra=localStorage.getItem('ts360_'+pid+'_extra')
-if(tok)fetchEntityPnL(entityIdx,pid,tok,extra)
-break
-}
-}
-}
-}, [])
+      {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
 
-async function fetchEntityPnL(idx,pid,tok,extra){
-try{
-let url=API_BASE_URL+'/integrations/'+pid+'/data?token='+encodeURIComponent(tok)
-if(pid==='quickbooks'&&extra)url+='&realm='+extra
-if(pid==='xero'&&extra)url+='&tenant='+extra
-if(pid==='freshbooks'&&extra)url+='&account='+extra
-const d=await(await fetch(url)).json()
-if(d&&!d.error){
-if(d.revenue===0&&d.expenses===0&&d.net_profit===0){
-localStorage.removeItem('ts360_'+pid+'_token')
-localStorage.removeItem('ts360_'+pid+'_connected')
-} else {
-const pnl={grossRevenue:d.revenue,totalExpenses:d.expenses,netProfit:d.net_profit,categories:{}}
-updateEntity(idx,{...entities[idx],pnl,connectedId:pid})
-}
-}
-}catch(ex){console.error(ex)}
-}
-
-function updateEntity(idx,updated){setEntities(prev=>prev.map((e,i)=>i===idx?updated:e))}
-function removeEntity(idx){setEntities(prev=>prev.filter((_,i)=>i!==idx))}
-function addFromTemplate(t){setEntities(prev=>[...prev,{name:t.label,type:t.type,own:t.own,ein:'',state:'',formationDate:'',pnl:t.defaults.grossRevenue?{grossRevenue:parseMoney(t.defaults.grossRevenue),totalExpenses:parseMoney(t.defaults.operatingExpenses),netProfit:parseMoney(t.defaults.grossRevenue)-parseMoney(t.defaults.operatingExpenses),categories:{}}:null,connectedId:null,isManual:!!t.defaults.grossRevenue}])}
-function handleImport(imported){setEntities(prev=>[...prev,...imported])}
-function onDragStart(idx){setDragIdx(idx)}
-function onDragOver(e,idx){e.preventDefault();if(dragIdx===null||dragIdx===idx)return;setEntities(prev=>{const a=[...prev];const[item]=a.splice(dragIdx,1);a.splice(idx,0,item);return a});setDragIdx(idx)}
-function onDrop(){setDragIdx(null)}
-function onDragEnd(){setDragIdx(null)}
-
-function proceed() {
-writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
-nav('/tax-return')
-}
-
-function saveRecord() {
-const hasAnyData = entities.some(e => e.pnl && (
-(parseFloat(e.pnl.grossRevenue) || 0) > 0 ||
-(parseFloat(e.pnl.totalExpenses) || 0) > 0
-))
-if (!hasAnyData) {
-setSaveMsg({ type: 'error', text: 'Please enter revenue or expenses for at least one entity before saving a record.' })
-return
-}
-setSaveMsg(null)
-const autoName = generateRecordName(entities, readTaxYear())
-setPendingRecordName(autoName)
-setShowNameModal(true)
-}
-
-function confirmSave(name) {
-setShowNameModal(false)
-writeStep1State({ entities, isCoopPatron, k1Total: computeK1Total(entities), entitiesRaw: entities })
-const email = localStorage.getItem('ts360_email') || 'default'
-const existing = JSON.parse(localStorage.getItem('ts360_records_' + email) || '[]')
-const record = {
-id: Date.now(),
-name,
-savedAt: new Date().toISOString(),
-entities,
-isCoopPatron,
-biz: {
-entityType: entities[0]?.type || 'Unknown',
-year: readTaxYear(),
-ownershipPct: entities[0]?.own || '100',
-grossRevenue: String(entities[0]?.pnl?.grossRevenue || 0),
-},
-f1040: readPersonalContext(),
-}
-existing.unshift(record)
-localStorage.setItem('ts360_records_' + email, JSON.stringify(existing))
-setSaveMsg({ type: 'success', text: 'Record saved! View it on your Dashboard.' })
-setTimeout(() => setSaveMsg(null), 4000)
-}
-
-const hasData = entities.some(e => e.pnl)
-
-return (
-<div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 60 }}>
-{/* Header */}
-<div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-<div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-<div onClick={()=>nav('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-<svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg>
-<span style={{ fontWeight: 800, color: '#0D1B3E', fontSize: 17 }}>TaxStat<span style={{ color: '#2563EB' }}>360</span></span>
-</div>
-<div style={{ background: '#F1F5F9', color: '#475569', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Step 1 of 2 — Business Entities &amp; Income</div>
-</div>
-<div style={{ display: 'flex', gap: 8 }}>
-<button onClick={()=>setShowImport(true)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>📂 Import CSV</button>
-<button onClick={()=>nav('/dashboard')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>Dashboard</button>
-<button onClick={()=>nav('/ai-analysis')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>AI Analysis</button>
-<button onClick={() => signOut(nav)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>Sign Out</button>
-<button onClick={()=>nav('/settings')} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: SL, cursor: 'pointer' }}>Settings</button>
-</div>
-</div>
-
-<div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 16px' }}>
-<DismissibleNotice storageKey="calc_disclaimer" style={{ marginBottom: 20 }}>
-TaxStat360 calculates <strong>federal tax estimates</strong> for planning purposes only. Results are not professional tax advice and do not account for state taxes, AMT in all cases, or your complete financial picture. Consult a licensed CPA or tax professional before making any filing or financial decisions.
-</DismissibleNotice>
-
-<h1 style={{ fontSize: 24, fontWeight: 800, color: N, marginBottom: 6, textAlign: 'center' }}>Step 1: Business Entities &amp; Income</h1>
-<p style={{ textAlign: 'center', color: SL, fontSize: 13, marginBottom: 24 }}>Add all your business entities. Drag ⠣ to reorder. Click ▼ Details to add EIN &amp; formation date.</p>
-
-<div>
-{entities.map((ent, idx) => (
-<div key={idx} draggable onDragStart={()=>onDragStart(idx)} onDragOver={e=>onDragOver(e,idx)} onDrop={onDrop} onDragEnd={onDragEnd}>
-<EntityCard
-ent={ent}
-idx={idx}
-onUpdate={updateEntity}
-onRemove={removeEntity}
-canRemove={entities.length > 1}
-onCompare={setCompareIdx}
-/>
-</div>
-))}
-</div>
-
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-<button
-onClick={()=>setShowTemplates(true)}
-title="Start with a pre-filled example entity (S-Corp, Partnership, Real Estate) — adds to your current setup without replacing existing entities"
-style={{ padding: '14px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}
->🗂 Add from Template</button>
-<button onClick={()=>setEntities(prev=>[...prev, { name: 'Business ' + (prev.length + 1), type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '', pnl: null, connectedId: null, isManual: false }])} style={{ padding: '14px', borderRadius: 12, border: '1px solid #2563EB', background: '#fff', fontSize: 13, fontWeight: 700, color: SL, cursor: 'pointer' }}>+ Add Entity</button>
-</div>
-
-<div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
-<button
-onClick={() => setShowAdvancedSituations(v => !v)}
-style={{
-width: '100%', background: 'none', border: 'none',
-padding: '13px 20px', cursor: 'pointer',
-display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-fontSize: 12, fontWeight: 700, color: SL, letterSpacing: '0.5px',
-}}
->
-<span>Advanced / Special Situations</span>
-<span style={{ fontSize: 11, color: '#94A3B8' }}>{showAdvancedSituations ? '▲ Collapse' : '▼ Expand'}</span>
-</button>
-{showAdvancedSituations && (
-<div style={{ padding: '0 20px 16px', borderTop: '1px solid #F1F5F9' }}>
-<label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', paddingTop: 14 }}>
-<input
-type="checkbox"
-checked={isCoopPatron}
-onChange={e => { setIsCoopPatronState(e.target.checked); writeIsCoopPatron(e.target.checked) }}
-style={{ marginTop: 2, flexShrink: 0 }}
-/>
-<div>
-<div style={{ fontSize: 13, fontWeight: 700, color: N }}>I am a patron of an agricultural or horticultural cooperative</div>
-<div style={{ fontSize: 12, color: SL, marginTop: 4 }}>Check this if you received Form 1099-PATR or a K-1 from an ag/hort co-op (e.g., dairy, grain, fruit/vegetable, or livestock). Per IRS Form 8995 instructions, co-op patrons file Form 8995-A regardless of taxable income. The §199A(g)(2) patron reduction (Form 8995-A Schedule D) is not currently calculated by this tool.</div>
-</div>
-</label>
-</div>
-)}
-</div>
-
-{!hasData && (
-<p style={{ textAlign: 'center', color: SL, fontSize: 12, marginBottom: 8 }}>
-Connect accounting software or enter data manually for at least one entity above to continue.
-</p>
-)}
-
-<button
-onClick={proceed}
-disabled={!hasData}
-style={{
-width: '100%', padding: '16px', borderRadius: 12, border: 'none',
-background: hasData ? '#2563EB' : '#CBD5E1', color: '#fff',
-fontSize: 16, fontWeight: 700, cursor: hasData ? 'pointer' : 'not-allowed',
-marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-}}
->
-Continue to Step 2: Personal Return →
-</button>
-<button
-onClick={saveRecord}
-style={{
-width: '100%', padding: '12px', background: '#fff',
-border: '1px solid #E2E8F0', borderRadius: 12,
-color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-}}
->
-💾 Save Record
-</button>
-
-{saveMsg && (
-<div style={{
-marginTop: 10, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-background: saveMsg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
-border: '1px solid ' + (saveMsg.type === 'success' ? '#86EFAC' : '#FECACA'),
-color: saveMsg.type === 'success' ? '#166534' : '#991B1B',
-}}>
-{saveMsg.type === 'success' ? '✅ ' : '⚠ '}{saveMsg.text}
-</div>
-)}
-</div>
-
-{showTemplates && <TemplatePicker onSelect={addFromTemplate} onClose={()=>setShowTemplates(false)} />}
-{showImport && <ImportModal onImport={handleImport} onClose={()=>setShowImport(false)} />}
-
-{showNameModal && (
-<NameRecordModal
-defaultName={pendingRecordName}
-onConfirm={confirmSave}
-onCancel={() => setShowNameModal(false)}
-/>
-)}
-
-<EntityCompareModal
-isOpen={compareIdx !== null}
-onClose={() => setCompareIdx(null)}
-entity={compareIdx !== null ? entities[compareIdx] : null}
-entities={entities}
-entityIdx={compareIdx}
-personalContext={() => { const pc = readPersonalContext(); return { taxyear: pc.taxyear, status: pc.filingStatus, dependents: pc.dependents }}}
-/>
-</div>
-)
+      {showNameModal && (
+        <NameRecordModal
+          defaultName={entities[0]?.name || ''}
+          onConfirm={(name) => { setShowNameModal(false); handleSaveRecord(name) }}
+          onSkip={() => { setShowNameModal(false); handleSaveRecord(null) }}
+        />
+      )}
+    </div>
+  )
 }
