@@ -866,7 +866,7 @@ export default function CalculateTaxInner() {
     } catch (ex) { console.error('fetchEntityPnL error:', ex) }
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     // Map of URL param names → provider IDs (backend returns several variants)
     const mp = {
