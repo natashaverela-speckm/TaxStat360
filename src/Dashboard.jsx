@@ -702,9 +702,9 @@ export default function Dashboard() {
         )}
 
         {/* Records header */}
+        <FederalDisclosureBanner />
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <FederalDisclosureBanner />
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>
             <p style={{ color: SL, fontSize: 13, margin: '4px 0 0' }}>Click any record to load it into the Tax Tracker.</p>
           </div>
