@@ -659,6 +659,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Safe harbor inputs */}
+          <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
               Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (MFJ) / $75K (others), the safe harbor is 110% of prior year tax.
@@ -674,6 +675,7 @@ export default function TaxReturn() {
               </div>
             </div>
           </CollapsibleSection>
+          </div>
 
         </div>
 
@@ -795,6 +797,23 @@ export default function TaxReturn() {
                 As a sole proprietor, this income would incur SE tax on 92.35% of earnings
                 (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in avoided SE tax.
               </div>
+            </div>
+          )}
+
+          {/* FG-03: Underpayment penalty warning — shown when balance due exists but safe harbor hasn't been calculated */}
+          {hasResult && result.balance > 0 && !nf(priorYearTax) && (
+            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
+              <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven't entered prior year tax. Enter your prior year total tax in{' '}
+              <button
+                onClick={() => {
+                  const el = document.querySelector('[data-section="safe-harbor"]')
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+                style={{ background: 'none', border: 'none', color: '#B45309', fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+              >
+                Safe Harbor Inputs below
+              </button>{' '}
+              to calculate the minimum quarterly payment needed to avoid penalties.
             </div>
           )}
 
