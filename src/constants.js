@@ -26,6 +26,11 @@
 //   an "accepted trade-off." It has been fixed — see entityPredicates.js ownPct() helper.
 //   All call sites in taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, and Dashboard.jsx updated.
 //
+// RESOLVED (C-01): Plan identifier "basic" stored in localStorage conflicted with "Starter"
+//   displayed in the UI. PLAN_IDS and PLAN_DISPLAY_NAMES added below so all plan-identity
+//   checks use a single constant instead of string literals. Settings.jsx and any plan-gate
+//   code should normalise the legacy "basic" value using PLAN_DISPLAY_NAMES.
+//
 // ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
 // taxCalc.js TAX_TABLES[year] now includes a `retirement` object with:
 //   sepIraMax         — §415(c) overall SEP-IRA limit
@@ -315,6 +320,40 @@ export const INTEGRATIONS = [
   { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'W'  },
   { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
+
+// ─── SUBSCRIPTION PLAN IDENTIFIERS ───────────────────────────────────────────
+// C-01 FIX: localStorage was storing plan as 'basic' while the UI showed
+// 'Starter Plan'. This discrepancy meant any code checking plan === 'starter'
+// would silently fail while 'basic' passed (or vice versa).
+//
+// ALL plan-identity comparisons throughout the codebase MUST use PLAN_IDS
+// constants — never bare string literals. The legacy 'basic' alias in
+// PLAN_DISPLAY_NAMES lets Settings.jsx / Upgrade.jsx normalise the stored
+// value without a migration script.
+//
+// To read plan safely:
+//   import { PLAN_IDS, PLAN_DISPLAY_NAMES } from './constants.js'
+//   const raw  = localStorage.getItem('plan') || ''
+//   const plan = raw === 'basic' ? PLAN_IDS.STARTER : raw   // normalise legacy value
+//   const name = PLAN_DISPLAY_NAMES[plan] ?? 'Starter'
+//
+// To write plan (from API response):
+//   localStorage.setItem('plan', PLAN_IDS.STARTER)          // NOT 'basic' / 'Starter'
+export const PLAN_IDS = {
+  STARTER:      'starter',
+  PROFESSIONAL: 'professional',
+  ENTERPRISE:   'enterprise',
+}
+
+// Human-readable display labels — used in Settings.jsx plan badge, Upgrade.jsx headings,
+// and any UI that names the current plan tier.
+// The 'basic' key is a legacy alias for the pre-C-01 stored value. Treat it as Starter.
+export const PLAN_DISPLAY_NAMES = {
+  starter:      'Starter',
+  professional: 'Professional',
+  enterprise:   'Enterprise',
+  basic:        'Starter',   // legacy alias — stored before C-01 fix; normalise on read
+}
 
 // ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
 // Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
