@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useNavigate, Link } from 'react-router-dom'
@@ -313,10 +313,76 @@ function RouteTitle() {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+// ─── Cookie Consent Banner (ADD-02) ──────────────────────────────────────────
+// GDPR (EU) and CCPA (California) require consent before setting non-essential
+// cookies. This banner appears once on first visit and sets ts360_cookie_consent
+// in localStorage. Value is 'accepted' or 'declined'.
+//
+// Design choices:
+// - Bottom-of-screen fixed bar, stays above AuthFooter (z-index 60 vs 50)
+// - "Accept" accepts all cookies; "Essential only" declines analytics/marketing
+// - Once dismissed either way, never shown again in the same browser
+// - Does NOT fire any analytics until/unless user clicks Accept
+//
+// To check consent elsewhere: localStorage.getItem('ts360_cookie_consent')
+// 'accepted' = all cookies OK  |  'declined' = essential only  |  null = not yet shown
+function CookieBanner() {
+  const [visible, setVisible] = useState(() => !localStorage.getItem('ts360_cookie_consent'))
+
+  if (!visible) return null
+
+  const dismiss = (choice) => {
+    localStorage.setItem('ts360_cookie_consent', choice)
+    setVisible(false)
+  }
+
+  const N = '#0F1F3D'
+  const B = '#2563EB'
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 60,
+      background: N,
+      borderTop: '1px solid rgba(255,255,255,0.1)',
+      padding: '14px 24px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: 12,
+      fontFamily: 'Inter, system-ui, sans-serif',
+    }}>
+      <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.85)', maxWidth: 700, lineHeight: 1.5 }}>
+        We use cookies to keep you signed in and to understand how TaxStat360 is used.
+        By clicking <strong style={{ color: '#fff' }}>Accept</strong> you consent to all cookies.{' '}
+        <a href="/privacy" style={{ color: '#93b4d4', textDecoration: 'underline' }}>Privacy Policy</a>
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <button
+          onClick={() => dismiss('declined')}
+          style={{
+            background: 'transparent', border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: 6, padding: '7px 14px', fontSize: 13, color: 'rgba(255,255,255,0.75)',
+            cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+          }}>
+          Essential only
+        </button>
+        <button
+          onClick={() => dismiss('accepted')}
+          style={{
+            background: B, border: 'none',
+            borderRadius: 6, padding: '7px 18px', fontSize: 13, color: '#fff',
+            cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
+          }}>
+          Accept
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <RouteTitle />
+      <CookieBanner />
       <Routes>
         {/* Public */}
         <Route path="/"             element={<Landing />} />
