@@ -28,8 +28,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL } from './constants.js'
 
-const PK = import.meta.env.VITE_STRIPE_PK
-const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY
+const PK = import.meta.env.VITE_STRIPE_PK || 'PK_LIVE_KEY_REDACTED'
+const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY || 'AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
 
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 
