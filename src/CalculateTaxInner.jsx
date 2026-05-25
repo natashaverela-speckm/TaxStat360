@@ -199,24 +199,52 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
 }
 
 // ─── Integration tile ─────────────────────────────────────────────────────────
-function IntegrationTile({ integ, onConnect, connected }) {
+function IntegrationTile({ integ, onConnect, onDisconnect, connected }) {
   return (
     <div style={{
       background: connected ? integ.bg : '#fff',
       border: '1.5px solid ' + (connected ? integ.color : '#E2E8F0'),
       borderRadius: 10, padding: '10px 14px',
       display: 'flex', alignItems: 'center', gap: 10,
-      cursor: 'pointer', transition: 'all 0.15s',
-    }} onClick={() => onConnect(integ.id)}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: integ.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+      transition: 'all 0.15s',
+    }}>
+      <div
+        onClick={() => !connected && onConnect(integ.id)}
+        style={{
+          width: 32, height: 32, borderRadius: 8, background: integ.color,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0,
+          cursor: connected ? 'default' : 'pointer',
+        }}>
         {integ.abbr}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: N }}>{integ.name}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F1F3D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{integ.name}</div>
         <div style={{ fontSize: 11, color: connected ? integ.color : '#94A3B8', fontWeight: 600 }}>
-          {connected ? '● Connected' : 'Connect →'}
+          {connected ? '● Connected' : 'Click to connect →'}
         </div>
       </div>
+      {connected ? (
+        <button
+          onClick={() => onDisconnect(integ.id)}
+          style={{
+            background: 'none', border: '1px solid ' + integ.color + '66',
+            borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 700,
+            color: integ.color, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+          }}>
+          Disconnect
+        </button>
+      ) : (
+        <button
+          onClick={() => onConnect(integ.id)}
+          style={{
+            background: integ.color, border: 'none',
+            borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
+            color: '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+          }}>
+          Connect
+        </button>
+      )}
     </div>
   )
 }
@@ -775,6 +803,24 @@ export default function CalculateTaxInner() {
     setExpandedIdx(null)
   }, [])
 
+  // ─── Integration disconnect ────────────────────────────────────────────────
+  // Called directly from the IntegrationTile "Disconnect" button.
+  // Clears all stored tokens for that provider, then resets any entity that
+  // was synced from it back to manual state so the card shows the edit panel.
+  const handleIntegrationDisconnect = useCallback((pid) => {
+    localStorage.removeItem('ts360_' + pid + '_connected')
+    localStorage.removeItem('ts360_' + pid + '_token')
+    localStorage.removeItem('ts360_' + pid + '_extra')
+    localStorage.removeItem('ts360_connected_app')
+    setEntities(prev => {
+      const next = prev.map(e =>
+        e.connectedId === pid ? { ...e, connectedId: null, isManual: true } : e
+      )
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   const persistStep1 = useCallback(() => {
     sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
     const k1Total = entities.reduce((s, e) => {
@@ -1009,6 +1055,7 @@ export default function CalculateTaxInner() {
                 onConnect={() => {
                   window.open(`${API_BASE_URL}/integrations/${integ.id}/connect`, '_blank')
                 }}
+                onDisconnect={handleIntegrationDisconnect}
               />
             ))}
           </div>
