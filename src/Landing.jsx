@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Aria from './Aria'
 import { INTEGRATIONS } from './constants'
@@ -389,11 +389,94 @@ export default function Landing() {
           ))}
         </div>
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
-        {/* ADD-03 FIX: Cancellation/refund policy added at point of purchase.
-            Users should know the cancellation terms before entering payment. */}
+        {/* ADD-03 FIX: Cancellation/refund policy added at point of purchase. */}
         <p style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1' }}>
           Cancel before day 7 for no charge. No refunds on completed billing periods. Manage or cancel anytime via your account settings.
         </p>
+
+        {/* ─── PLAN COMPARISON TABLE ────────────────────────────────────────── */}
+        <div style={{ marginTop: 56, overflowX: 'auto' }}>
+          <p style={{ ...EYEBROW, color: B, marginBottom: 12 }}>Full Comparison</p>
+          <table style={{ width: '100%', maxWidth: 860, margin: '0 auto', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, borderBottom: '2px solid #e2e8f0', width: '44%' }}></th>
+                {[
+                  { name: 'Starter', price: '$79', highlight: false },
+                  { name: 'Professional', price: '$149', highlight: true },
+                  { name: 'Enterprise', price: '$299', highlight: false },
+                ].map(plan => (
+                  <th key={plan.name} style={{
+                    padding: '12px 16px', textAlign: 'center', borderBottom: '2px solid #e2e8f0',
+                    background: plan.highlight ? '#eff6ff' : 'transparent',
+                    borderRadius: plan.highlight ? '8px 8px 0 0' : 0,
+                    color: plan.highlight ? B : N, fontWeight: 700,
+                  }}>
+                    <div style={{ fontSize: 15 }}>{plan.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 400, color: '#64748b', marginTop: 2 }}>{plan.price}/mo</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { group: 'Tax Calculations', rows: [
+                  ['Federal tax liability tracker',          true,  true,  true],
+                  ['K-1 income (S-Corps, partnerships, LLCs)', true, true, true],
+                  ['Schedule C (sole props & SMLLCs)',       true,  true,  true],
+                  ['Quarterly estimated payments',           true,  true,  true],
+                  ['Personal tax return (W-2 + business)',   true,  true,  true],
+                  ['Multi-entity consolidated tax view',     false, false, true],
+                ]},
+                { group: 'AI & Analysis', rows: [
+                  ['Risk Alert Engine',                      false, true,  true],
+                  ['What-If Tax Scenario Simulator',         false, true,  true],
+                  ['Explainable AI — Why This Number?',      false, true,  true],
+                  ['Audit Risk Indicators',                  false, true,  true],
+                  ['Risk Tolerance Profiling',               false, false, true],
+                ]},
+                { group: 'Integrations', rows: [
+                  ['Accounting software integrations',       '1',   '∞',   '∞'],
+                ]},
+                { group: 'CPA Tools', rows: [
+                  ['One-Click CPA Export Pack',              false, true,  true],
+                  ['AI-Generated CPA Briefing Documents',    false, false, true],
+                  ['CPA Collaboration Portal',               false, false, true],
+                ]},
+                { group: 'Support', rows: [
+                  ['Priority support',                       false, true,  true],
+                  ['Dedicated onboarding & setup call',      false, false, true],
+                ]},
+              ].map(({ group, rows }) => (
+                <React.Fragment key={group}>
+                  <tr>
+                    <td colSpan={4} style={{
+                      padding: '16px 16px 6px', fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      color: '#94a3b8', borderTop: '1px solid #f1f5f9',
+                    }}>{group}</td>
+                  </tr>
+                  {rows.map(([label, s, p, e], i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '11px 16px', color: '#374151', fontSize: 13 }}>{label}</td>
+                      {[s, p, e].map((val, j) => (
+                        <td key={j} style={{
+                          padding: '11px 16px', textAlign: 'center',
+                          background: j === 1 ? '#eff6ff' : 'transparent',
+                          color: val === true ? B : val === false ? '#cbd5e1' : N,
+                          fontWeight: val === true || typeof val === 'string' ? 700 : 400,
+                          fontSize: val === true ? 16 : 13,
+                        }}>
+                          {val === true ? '✓' : val === false ? '—' : val}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* ─── BOTTOM CTA ───────────────────────────────────────────────────────── */}
