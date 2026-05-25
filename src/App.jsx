@@ -53,6 +53,8 @@ function OAuthCallback() {
 const AUTH_KEYS = [
   'ts360_logged_in','ts360_session_start',
   'ts360_email','plan','userName','ts360_connected_app',
+  // Legacy keys from pre-SEC-04 — included so they get wiped on sign-out
+  'token','ts360_session',
 ]
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
