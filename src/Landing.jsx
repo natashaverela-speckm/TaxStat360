@@ -450,11 +450,14 @@ export default function Landing() {
               ].map(({ group, rows }) => (
                 <React.Fragment key={group}>
                   <tr>
-                    <td colSpan={4} style={{
+                    <td style={{
                       padding: '16px 16px 6px', fontSize: 11, fontWeight: 700,
                       letterSpacing: '0.08em', textTransform: 'uppercase',
-                      color: '#94a3b8', borderTop: '1px solid #f1f5f9',
+                      color: '#94a3b8', borderTop: '2px solid #f1f5f9',
                     }}>{group}</td>
+                    <td style={{ background: 'transparent', borderTop: '2px solid #f1f5f9' }} />
+                    <td style={{ background: '#eff6ff', borderTop: '2px solid #dbeafe' }} />
+                    <td style={{ background: 'transparent', borderTop: '2px solid #f1f5f9' }} />
                   </tr>
                   {rows.map(([label, s, p, e], i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
