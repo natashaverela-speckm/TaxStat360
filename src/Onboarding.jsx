@@ -1,9 +1,37 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+// SEC-01 FIX: Stripe live key moved to environment variable (VITE_STRIPE_PK).
+//   Was: const PK='pk_live_51TJmYh...' hardcoded in source.
+//   Now: reads from import.meta.env.VITE_STRIPE_PK.
+//   Set VITE_STRIPE_PK=pk_live_... in .env.production
+//   Set VITE_STRIPE_PK=pk_test_... in .env.development (use test key locally)
+//
+// SEC-02 FIX: Google Maps key moved to environment variable (VITE_GMAPS_KEY).
+//   Was: const GMAPS_KEY='AIzaSy...' hardcoded in source.
+//   Now: reads from import.meta.env.VITE_GMAPS_KEY.
+//   Restrict key to taxstat360.com/* HTTP referrers in Google Cloud Console.
+//
+// SEC-03 FIX: API base URL now imported from constants.js instead of hardcoded.
+//   Was: const API='https://app.taxstat360.com' (violates architecture rule in constants.js)
+//   Now: imported as API_BASE_URL. Value is identical — no integration behaviour changes.
+//   All integration connect URLs (QuickBooks, Xero, Wave, FreshBooks) continue to use
+//   API + '/integrations/' + providerName + '/connect' which resolves identically.
+//
+// F-06 FIX: Annual discount label now uses ANNUAL_DISCOUNT_LABEL from constants.js.
+//   Was: hardcoded 'save ~17%' — inconsistent with 'Save 2 months' on Landing.jsx.
+//   Now: uses the canonical constant so any future discount change is one edit.
+//
+// UX-05 FIX: "← Home" span replaced with semantic <a href="/"> link.
+//
+// CC-04 FIX: LoginScreen now includes a minimal footer with ToS/Privacy links
+//   and planning-only disclaimer.
+
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL } from './constants.js'
+
+const PK = import.meta.env.VITE_STRIPE_PK
+const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY
+
 const N='#0D1B3E',B='#2563EB',SL='#475569'
-const API='https://app.taxstat360.com'
-const PK='pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e'
-const GMAPS_KEY='AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
 
 const LOGO=()=>(<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:20}}><svg width="28" height="28" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="#2563EB"/><rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/><rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/><rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/></svg><div style={{fontWeight:800,color:N,fontSize:17,borderBottom:'2px solid #2563EB',paddingBottom:'1px'}}>TaxStat<span style={{color:B}}>360</span></div></div>)
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
@@ -91,6 +119,7 @@ const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(
 useEffect(()=>{
 const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
 s.onload=()=>{
+// SEC-01 FIX: Uses VITE_STRIPE_PK env var — not a hardcoded live key.
 const sk=window.Stripe(PK);stripeRef.current=sk
 const els=sk.elements();elemRef.current=els
 const card=els.create('card',{style:{base:{fontSize:'16px',color:'#0D1B3E',fontFamily:'Inter,sans-serif',lineHeight:'24px','::placeholder':{color:'#94a3b8'}}}})
@@ -191,7 +220,9 @@ type="button"
 onClick={() => { const nb = billing==='annual'?'monthly':'annual'; setBilling(nb); window.history.replaceState({}, '', `?plan=${plan}&billing=${nb}`) }}
 style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',textDecoration:'underline'}}
 >
-{billing==='annual' ? 'Switch to monthly billing' : 'Switch to annual billing (save ~17%)'}
+{/* F-06 FIX: Uses ANNUAL_DISCOUNT_LABEL from constants.js ("Save 2 months")
+    instead of hardcoded 'save ~17%'. Consistent with Landing.jsx pricing section. */}
+{billing==='annual' ? 'Switch to monthly billing' : `Switch to annual billing — ${ANNUAL_DISCOUNT_LABEL}`}
 </button>
 </div>
 </div>
@@ -272,7 +303,9 @@ By creating an account you agree to our{' '}
 <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
 </p>
 <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
-<p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <span onClick={()=>nav('/')} style={{color:SL,cursor:'pointer'}}>← Home</span></p>
+{/* UX-05 FIX: "← Home" span changed to semantic <a href="/"> link.
+    Better accessibility, correct semantics, and conventional UX pattern. */}
+<p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 
 {/* ISSUE-04: Trust signals — added below the submit button so users see
 key reassurance at the final decision point before clicking Start Free Trial.
@@ -368,6 +401,18 @@ so new users who land on /login have a clear prominent path to register. */}
 <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free trial →</button>
 <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
 </form>
+{/* CC-04 FIX: LoginScreen now includes minimal footer with ToS/Privacy links
+    and planning-only disclaimer. Auth pages previously had no footer at all,
+    meaning users had no access to legal pages from the login screen. */}
+<div style={{borderTop:'1px solid #E2E8F0',marginTop:24,paddingTop:16,textAlign:'center'}}>
+<p style={{fontSize:11,color:'#94a3b8',margin:'0 0 6px'}}>
+<a href="/terms" style={{color:'#94a3b8',marginRight:12,textDecoration:'none'}}>Terms of Service</a>
+<a href="/privacy" style={{color:'#94a3b8',textDecoration:'none'}}>Privacy Policy</a>
+</p>
+<p style={{fontSize:10,color:'#CBD5E1',margin:0,lineHeight:1.5}}>
+TaxStat360 is a tax planning tool — not a tax preparation or filing service. For planning purposes only.
+</p>
+</div>
 </Page>)
 }
 
@@ -406,6 +451,7 @@ if(window.google&&window.google.maps){
 initAutocomplete()
 } else {
 const s=document.createElement('script')
+// SEC-02 FIX: Uses VITE_GMAPS_KEY env var — not a hardcoded API key.
 s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY+'&libraries=places'
 s.onload=initAutocomplete
 document.head.appendChild(s)
@@ -449,6 +495,11 @@ function ImportScreen(){
 const nav=useNavigate()
 const [showSecurityNudge, setShowSecurityNudge]=useState(false)
 const mfaAlreadyEnabled=localStorage.getItem('ts360_mfa_enabled')==='1'
+// Integration tiles — QuickBooks, FreshBooks, Xero, Wave.
+// INTEGRATION SAFETY: connect URLs use API + '/integrations/' + name.toLowerCase() + '/connect'
+// API resolves to API_BASE_URL ('https://app.taxstat360.com') via the import at top of file.
+// The OAuth callback is handled by App.jsx OAuthCallback component at /integrations/:provider/callback.
+// No integration behaviour changes from this file's security fixes.
 const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
 
 function handleContinue(){
