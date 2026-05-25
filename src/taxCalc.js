@@ -17,140 +17,52 @@
 // getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
 //
 // ── Audit-fix change log ────────────────────────────────────────────────────
+// TAX-10 FIX (seEarningsSubject formula):
+// seEarningsSubject was computed as seNetIncome * (1 - FICA_SS_RATE - FICA_MEDICARE_RATE).
+// This produces 0.9235 coincidentally (0.062 + 0.0145 = 0.0765; 1 - 0.0765 = 0.9235)
+// but is semantically wrong — the 92.35% factor is the statutory IRC §1402(a)(12)
+// net earnings factor, not derived from FICA rates. If FICA rates ever change
+// (e.g. temporary payroll tax relief legislation), this formula would silently produce
+// an incorrect result. SE_NET_EARNINGS_FACTOR = 0.9235 already exists in constants.js
+// and is already used correctly in ficaSavings. Now used here too for consistency.
+//
+// TAX-08 / F-07 FIX (quarterlyRecommended safe harbor floor):
+// quarterlyRecommended was computed as balance / 4 before the safe harbor figures
+// were calculated. This could show a lower quarterly amount than the IRC §6654 safe
+// harbor requires, leading users to underpay and incur penalties. Fix: moved
+// quarterlyRecommended to after the safe harbor calculations and uses
+// Math.max(balance/4, safeHarborQuarterly) so it never falls below the safe harbor.
+//
 // F-M02 (0% ownership falsy bug):
 // All instances of (parseFloat(e.own) || 100) / 100 replaced with ownPct(e.own) / 100.
-// The || operator treats 0 as falsy — a silent partner with explicit 0% ownership
-// was silently treated as a 100% owner, inflating K-1 income, QBI basis, and SSTB
-// exclusions. Fix: ownPct() helper uses Number.isFinite() to correctly distinguish
-// an explicit 0 from missing/invalid input.
-// Affected paths: entitiesLimited map, sstbEntityQBI reduce, nonSEk1 reduce,
-//                 entityIncomeBreakdown map, reasonableCompAlert IIFE.
 //
 // F-M03 (retirement plan limits in TAX_TABLES):
-// TAX_TABLES[year] now includes a retirement object with year-specific dollar limits:
-//   sepIraMax, solo401kDeferral, solo401kMax, catchUp401k, catchUp401kSuper,
-//   iraLimit, catchUpIra.
-// AIAnalysis.jsx was hardcoding SOLO_401K_DEFERRAL_LIMITS = {2024:23000,2025:23500,2026:24000}.
-// AIAnalysis.jsx must now read getTable(year).retirement?.solo401kDeferral ?? 23500.
-// This eliminates the stale-value risk when IRS announces annual COLA adjustments.
-// Permanent rate constants (SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, age thresholds)
-// remain in constants.js — only the year-specific dollar caps live here.
+// TAX_TABLES[year] now includes a retirement object with year-specific dollar limits.
 //
 // F-04 (§469 prior passive loss carryforward):
 // calcTaxReturn now accepts priorPassiveLossCarryforward (Form 8582, Line 3).
-// When the rental is PROFITABLE this year, the carryforward offsets rental
-// income dollar-for-dollar before the §469 special allowance logic runs
-// (IRC §469(b) — suspended losses release against passive income of the same
-// activity). When the rental still generates a net loss after applying the
-// carryforward, the existing $25,000 special allowance computation applies.
-// When the rental is a loss year, no carryforward is usable (no passive income
-// to absorb it) — it continues to suspend along with the current-year loss.
-// palCarryforwardApplied is returned so TaxReturn.jsx can display the amount
-// applied and update the field note from "in progress" to the actual result.
-// palCarryforwardRemaining is also returned so TaxReturn.jsx can show how much
-// of the carryforward still awaits a profitable rental year to be absorbed.
 //
 // F-C02 (QBI aggregation disclosure):
-// calcQBI now accepts opts.hasMultiEntityTypes and returns:
-// aggregationApplied — true when W-2 wages across different entity types are
-// combined above the §199A threshold (Reg. §1.199A-4 election
-// is assumed; not automatic). Drives UI disclosure in
-// TaxReturn.jsx and AIAnalysis.jsx.
-// aggregationDisclosure — human-readable disclosure string; null when not applicable.
-// calcTaxReturn computes hasMultiEntityTypes and passes it to calcQBI.
-// NOTE: This file does not prevent aggregation — it surfaces the assumption
-// so the UI can inform the user. Actual un-aggregated path available when
-// hasMultiEntityTypes=false.
+// calcQBI now accepts opts.hasMultiEntityTypes and returns aggregationApplied /
+// aggregationDisclosure.
 //
 // F-C05 (stale AI Analysis data):
-// calcTaxReturn return object now includes calculatedAt (Date.now()) so
-// AIAnalysis.jsx can compare against its savedRecord.savedAt and show a
-// "⚠ Analysis based on last saved record" banner when they diverge.
+// calcTaxReturn return object now includes calculatedAt (Date.now()).
 //
 // F-H03 (income display split — Schedule C vs Schedule E):
-// calcTaxReturn return now includes:
-// scheduleEK1Income — S-Corp / partnership K-1 income routing to Schedule E, Part II
-// scheduleCSEIncome — Sole-proprietor / SMLLC income routing to Schedule C
-// entityIncomeBreakdown — per-entity array with name, type, income, scheduleForm
-// These values are already computed internally; the addition only exposes them
-// for TaxReturn.jsx's income waterfall and IRS Filing Map in AIAnalysis.jsx.
-// No calculation changes — display fix applies to TaxReturn.jsx (File 02).
-//
-// F-H06 (Additional Medicare Tax display):
-// additionalMedicare is already calculated correctly (IRC §3101(b)(2)).
-// The $0 shown in the test case is mathematically correct:
-// W-2 ($70,000) + SE earnings subject ($110,820) = $180,820 < $200,000 threshold.
-// No calc change needed. Display fix: TaxReturn.jsx must show this as a
-// separate labeled line ("Additional Medicare Tax (0.9%) — Form 8959") distinct
-// from amt (Form 6251 AMT) so users aren't confused when both are $0.
+// calcTaxReturn return now includes scheduleEK1Income, scheduleCSEIncome,
+// entityIncomeBreakdown.
 //
 // AUDIT FIX (fix/tax-engine-accuracy):
-// TAX-01: reasonableCompAlert added to calcTaxReturn return. Fires when the first
-// S-Corp entity in the list has officer salary below SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-// (40%) of total S-Corp compensation (salary + K-1). Threshold and citations centralized
-// in constants.js. Dashboard.jsx previously computed this with a fallback IIFE; it now
-// receives the authoritative value from calcTaxReturn and falls back only when
-// calcTaxReturn result is unavailable (??).
-// TAX-04 (niit return format): calcTaxReturn previously returned niit as a plain number.
-// Dashboard.jsx uses niit.applies / niit.amount (object access). The nullish coalescing
-// operator (??) in Dashboard.calcDashboard never fired because a number is not null/
-// undefined — the NIIT line never rendered regardless of income level. Fixed by:
-// • Internal calculation variable renamed to niitAmount (number).
-// • Return key niit now returns { applies, amount, explanation } object.
-// • Backward-compat alias niitAmount also returned for TaxReturn.jsx until
-//   that file is updated to use result.niit.amount (see F-N01 in fix/taxreturn-display).
-// TAX-06: federalOnly: true added to return. Declares that all calculations in this
-// file are federal income tax only — no state tax is computed. UI components
-// (Dashboard, TaxReturn) must surface this to the user.
+// TAX-01: reasonableCompAlert added to calcTaxReturn return.
+// TAX-04: niit return format changed to { applies, amount, explanation } object.
+// TAX-06: federalOnly: true added to return.
 //
-// PASS4B-01 (AMT 2026 MFS bracket typo):
-// AMT_TABLES[2026].bracket26_28 had key 'mhs' instead of 'mfs'. When status === 'mfs'
-// the lookup returned undefined; ordinaryAMTI <= undefined evaluated to false (NaN
-// comparison), causing ALL MFS filers in 2026 to have their entire AMTI taxed at the
-// 28% rate regardless of income — overcharging every MFS filer with any AMT exposure.
-// Fixed: 'mhs' → 'mfs' (correct key for married filing separately).
-//
-// PASS4B-02 (§1366(d) / §704(d) shareholder basis limitation):
-// calcTaxReturn now accepts optional stockBasis and debtBasis fields per entity
-// (supplied via CalculateTaxInner.jsx → entity card "Basis" section).
-// When both fields are provided for an S-Corp or partnership entity AND the entity
-// produces a loss, the deductible loss is limited to stockBasis + debtBasis per
-// IRC §1366(d)(1). The suspended portion:
-// • Does NOT flow into gross income / AGI / taxable income.
-// • Does NOT reduce the QBI basis.
-// • IS returned as entityBasisResults (per-entity detail) and totalSuspendedLoss
-//   (aggregate) for display in TaxReturn.jsx and AI Risk Scan.
-// When stockBasis/debtBasis are absent (legacy records or non-S-Corp entities),
-// losses flow through unchanged — no breaking change to existing behavior.
-//
-// EBL-FIX (§461(l) non-REP passive exclusion):
-// The §461(l) excess business loss computation previously included palAdjustedRental
-// (the §469-allowed passive rental loss) for non-REP filers. Per IRC §461(l)(1)(B)
-// and Form 461 instructions, passive activity income and losses are explicitly
-// EXCLUDED from the EBL computation. Only REP filers (whose rental is non-passive
-// per §469(c)(7)) should have rental included.
-// Fix: eblBiz = adjustedK1Total + f4797Inc + (isREP ? rentalNet : 0)
-// Impact: non-REP filers with rental losses no longer have those passive losses
-// counted against the EBL threshold — preventing premature EBL triggers.
-// eblThreshold is now returned so TaxReturn.jsx can display the threshold in the
-// waterfall line when EBL fires.
-//
-// T-01 FIX (ficaSavings 92.35% SE tax factor — IRC §1402(a)(12)):
-// The ficaSavings display label reads "vs. sole-prop SE tax on same distributions."
-// SE tax applies to 92.35% of net self-employment earnings (IRC §1402(a)(12)) —
-// NOT 100% of gross distributions. The prior code used k1Distributions × 15.3%
-// (FICA rate on 100%) rather than k1Distributions × 0.9235 × 15.3% (SE tax on
-// net earnings). This overstated the S-Corp advantage by ~7.65% of distributions.
-// Fix: seEarningsOnDist = k1Distributions × SE_NET_EARNINGS_FACTOR (0.9235)
-// Both the SS-subject and Medicare-subject bases now use the 92.35% figure.
-// SE_NET_EARNINGS_FACTOR imported from constants.js (centralized per architecture rule).
-//
-// T-06 FIX (mileageRate added to TAX_TABLES):
-// AIAnalysis.jsx reads getTable(year)?.mileageRate for the vehicle deduction finding.
-// The key was absent from TAX_TABLES, so AIAnalysis.jsx was silently falling back to
-// a hardcoded inline value (year >= 2025 ? 0.70 : 0.67). Added mileageRate to each
-// year entry so the value is explicit, versionable, and survives annual updates.
-// Sources: IRS Notice 2024-08 (2024), IRS Notice 2025-05 (2025).
+// PASS4B-01 (AMT 2026 MFS bracket typo): 'mhs' → 'mfs' fixed.
+// PASS4B-02 (§1366(d) / §704(d) shareholder basis limitation): implemented.
+// EBL-FIX (§461(l) non-REP passive exclusion): eblBiz excludes non-REP rental.
+// T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
+// T-06 FIX (mileageRate added to TAX_TABLES).
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -168,27 +80,12 @@ import {
   LTCG_RATE_HIGH,
   FICA_SS_RATE,
   FICA_MEDICARE_RATE,
-  // T-01 FIX: SE_NET_EARNINGS_FACTOR (0.9235) per IRC §1402(a)(12).
-  // SE tax applies to 92.35% of net self-employment earnings, not 100%.
-  // Used in ficaSavings to correctly compare S-Corp structure vs. sole-prop SE tax.
   SE_NET_EARNINGS_FACTOR,
-  // TAX-01: S-Corp reasonable compensation threshold — centralized in constants.js.
-  // 40% heuristic per IRS enforcement patterns; not a statutory floor.
-  // Citations: Rev. Rul. 74-44; Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012);
-  // Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990).
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
 
 // ── IRS Tax Tables 2024-2026 ──────────────────────────────────────────────────
-// Sources: Rev. Proc. 2023-34 (2024) | Rev. Proc. 2024-40 + OBBBA Rev. Proc. 2025-32 (2025) | Rev. Proc. 2025-32 (2026)
-// Numeric value coercer — safely casts form-state inputs (empty strings, undefined, numbers) to finite number, defaulting to 0.
 const nv = (v) => parseFloat(v) || 0
-
-// F-M02: Safe ownership percentage resolver.
-// (parseFloat(e.own) || 100) silently treats '0' as 100 because 0 is falsy in JS.
-// This helper uses Number.isFinite() to correctly distinguish an explicit 0 from
-// missing/invalid input. Returns 100 (default) for null / undefined / '' / NaN.
-// Returns 0 for the string '0' or numeric 0 (valid explicit zero ownership).
 const ownPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 100 }
 
 const TAX_TABLES = {
@@ -216,9 +113,7 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
-    // T-06 FIX: IRS standard mileage rate for business use — IRS Notice 2024-08.
-    // Read by AIAnalysis.jsx via getTable(year)?.mileageRate for vehicle deduction finding.
-    mileageRate: 0.67,  // 67¢/mile (2024)
+    mileageRate: 0.67,
   },
   2025: {
     std: { single: 15750, mfj: 31500, mfs: 15750, hoh: 23625, qss: 31500 },
@@ -244,8 +139,7 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
-    // T-06 FIX: IRS standard mileage rate for business use — IRS Notice 2025-05.
-    mileageRate: 0.70,  // 70¢/mile (2025)
+    mileageRate: 0.70,
   },
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
@@ -271,15 +165,12 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
-    // T-06 FIX: ⚠ ESTIMATED — verify when IRS publishes 2026 mileage notice (typically Dec 2025).
-    mileageRate: 0.70,  // 70¢/mile (2026 estimated — same as 2025 pending IRS announcement)
+    // ⚠ ESTIMATED — verify when IRS publishes 2026 mileage notice (typically Dec 2025).
+    mileageRate: 0.70,
   },
 }
 
 // ── AMT Tables — Form 6251 — IRC §55-59 ──────────────────────────────────────
-// 2024: Rev. Proc. 2023-34 §3.11 | 2025: Rev. Proc. 2024-40 §3.12 | 2026: Rev. Proc. 2025-32 §3.12 (post-OBBBA P.L. 119-21 §70107)
-// Note: OBBBA returned 2026 phaseout thresholds to 2018 levels and doubled the phaseout rate from 25¢/dollar to 50¢/dollar.
-// QSS uses MFJ amounts per §55(d)(1).
 const AMT_TABLES = {
   2024: {
     exemption:    { single:85700,  mfj:133300, mfs:66650,  hoh:85700,  qss:133300 },
@@ -302,8 +193,7 @@ const AMT_TABLES = {
   },
 }
 
-// SALT deduction caps — Schedule A Line 5e — IRC §164(b)(6) (TCJA) as amended by OBBBA §70106
-// 2024: $10K (TCJA original); 2025: $40K (OBBBA increase); 2026: $40,400 (1% inflation adj per OBBBA); MFS = half
+// SALT deduction caps — IRC §164(b)(6) as amended by OBBBA §70106
 const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
 
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
@@ -350,18 +240,11 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
     const remaining15 = totalPref - atZero
     const atFifteen   = Math.min(remaining15, fifteenRoom)
     const atTwenty    = totalPref - atZero - atFifteen
-
     tax += atFifteen * LTCG_RATE_MID
     tax += atTwenty  * LTCG_RATE_HIGH
   }
-
-  if (unrecap1250 > 0) {
-    tax += unrecap1250 * 0.25
-  }
-
-  if (collectibles > 0) {
-    tax += collectibles * 0.28
-  }
+  if (unrecap1250 > 0) tax += unrecap1250 * 0.25
+  if (collectibles > 0) tax += collectibles * 0.28
 
   return Math.round(tax)
 }
@@ -405,7 +288,7 @@ function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qu
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
 }
 
-// ── §199A QBI Threshold and Phase-In Tables ───────────────────────────────────
+// ── §199A QBI Tables ───────────────────────────────────────────────────────────
 const QBI_THRESHOLDS = {
   2024: { single:191950, mfj:383900, hoh:191950, mfs:191950 },
   2025: { single:197300, mfj:394600, hoh:197300, mfs:197300 },
@@ -451,11 +334,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
       'Consult your CPA before relying on this figure.'
     : null
 
-  const withMeta = (result) => ({
-    ...result,
-    aggregationApplied,
-    aggregationDisclosure,
-  })
+  const withMeta = (result) => ({ ...result, aggregationApplied, aggregationDisclosure })
 
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) {
     return _applyMinQBI(
@@ -487,8 +366,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const phaseInRange        = phaseInForYear[status] || phaseInForYear.single
   const excessOverThreshold = taxableBeforeQBI - threshold
   const phasePercent        = Math.min(1, excessOverThreshold / phaseInRange)
-
-  const sstbApplicablePct = Math.max(0, 1 - phasePercent)
+  const sstbApplicablePct   = Math.max(0, 1 - phasePercent)
 
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
@@ -503,10 +381,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const activeQbiForFloor  = activeQbi !== undefined ? activeQbi : adjQBI
 
   const totalWages = entityQbiData.reduce((s, e) => {
-    const w = parseFloat(e.box17V_wages)
-           || parseFloat(e.officerW2)
-           || parseFloat(e.pnl?.officerSalary)
-           || 0
+    const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
   }, 0)
   const totalUBIA = entityQbiData.reduce((s, e) => {
@@ -553,11 +428,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     withMeta({
       deduction: Math.round(ded) || 0,
       limitApplied,
-      caps: {
-        qbi:    Math.round(scaledQbiComponent),
-        wage:   Math.round(wageLimit),
-        income: Math.round(incomeLimitation),
-      },
+      caps: { qbi: Math.round(scaledQbiComponent), wage: Math.round(wageLimit), income: Math.round(incomeLimitation) },
     }),
     activeQbiForFloor,
     taxYear
@@ -586,7 +457,6 @@ function calcTaxReturn(input) {
   } = input
 
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
-
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
   const entityBasisResults = []
@@ -599,23 +469,14 @@ function calcTaxReturn(input) {
       : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
 
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
-
     const hasBasisInput = (
-      e.stockBasis !== undefined &&
-      e.stockBasis !== null &&
-      e.stockBasis !== '' &&
-      e.stockBasis !== 0 ||
+      e.stockBasis !== undefined && e.stockBasis !== null &&
+      e.stockBasis !== '' && e.stockBasis !== 0 ||
       String(e.stockBasis) === '0'
     )
 
     if (!isLimitable || k1Gross >= 0 || !hasBasisInput) {
-      entityBasisResults.push({
-        name:      e.name || e.id || 'Entity',
-        type:      e.type,
-        k1Gross,
-        k1Allowed: k1Gross,
-        suspended: 0,
-      })
+      entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed: k1Gross, suspended: 0 })
       return e
     }
 
@@ -627,33 +488,17 @@ function calcTaxReturn(input) {
     const suspended   = grossLoss - allowedLoss
     const k1Allowed   = allowedLoss > 0 ? -allowedLoss : 0
 
-    entityBasisResults.push({
-      name:       e.name || e.id || 'Entity',
-      type:       e.type,
-      k1Gross,
-      k1Allowed,
-      suspended,
-      stockBasis: sb,
-      debtBasis:  db,
-      totalBasis,
-    })
-
+    entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed, suspended, stockBasis: sb, debtBasis: db, totalBasis })
     return suspended > 0 ? { ...e, k1: k1Allowed } : e
   })
 
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
-
-  const adjustedK1Total = k1Total + totalSuspendedLoss
+  const adjustedK1Total    = k1Total + totalSuspendedLoss
 
   const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
-
-  const palCarryforwardApplied = (rentalNet > 0 && priorPAL > 0)
-    ? Math.min(priorPAL, rentalNet)
-    : 0
-
+  const palCarryforwardApplied   = (rentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, rentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
-
-  const rentalNetAfterCF = rentalNet - palCarryforwardApplied
+  const rentalNetAfterCF         = rentalNet - palCarryforwardApplied
 
   let palAdjustedRental  = rentalNetAfterCF
   let palSuspendedRental = 0
@@ -685,8 +530,13 @@ function calcTaxReturn(input) {
     return sum + Math.max(0, parseFloat(e.k1) || 0)
   }, 0)
 
-  const ssWageBase        = TAX_TABLES[taxYear]?.ssWageBase || 176100
-  const seEarningsSubject = seNetIncome * (1 - FICA_SS_RATE - FICA_MEDICARE_RATE)
+  const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
+
+  // TAX-10 FIX: Use SE_NET_EARNINGS_FACTOR (0.9235) per IRC §1402(a)(12).
+  // The prior formula (1 - FICA_SS_RATE - FICA_MEDICARE_RATE) produced 0.9235
+  // coincidentally but is semantically wrong and would break if FICA rates change.
+  // SE_NET_EARNINGS_FACTOR is the statutory constant — use it directly.
+  const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
   const seTax             = Math.round(ssPortion + medicarePortion)
@@ -697,26 +547,14 @@ function calcTaxReturn(input) {
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
   const employeeFICA   = Math.round(empSS + empMedicare)
 
-  // ── TC-10: FICA Savings from S-Corp Structure ─────────────────────────────────
-  // T-01 FIX: Apply SE_NET_EARNINGS_FACTOR (0.9235) per IRC §1402(a)(12).
-  // The display label is "SE Tax Savings on Distributions (vs. sole-prop SE tax)".
-  // SE tax applies to 92.35% of net self-employment earnings — not 100% of gross.
-  // Using gross distributions × FICA rate overstates the S-Corp advantage.
-  // Correct comparison: sole-prop would pay SE tax on (distributions × 0.9235).
-  //
-  // Example with $160,000 in K-1 distributions:
-  //   Old (incorrect): $160,000 × 15.3% = $24,480
-  //   New (correct):   $160,000 × 0.9235 × 15.3% = $22,619
-  //
-  // seEarningsOnDist  = distributions after 92.35% net earnings factor
-  // distSSTaxable     = net earnings portion within remaining SS wage base room
+  // ── FICA Savings from S-Corp Structure (T-01 FIX) ─────────────────────────
   const k1Distributions  = Math.max(0, nv(adjustedK1Total))
-  const ssWageBaseRoom    = Math.max(0, ssWageBase - totalW2ForFICA)
-  const seEarningsOnDist  = k1Distributions * SE_NET_EARNINGS_FACTOR
-  const distSSTaxable     = Math.min(seEarningsOnDist, ssWageBaseRoom)
+  const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
+  const seEarningsOnDist = k1Distributions * SE_NET_EARNINGS_FACTOR
+  const distSSTaxable    = Math.min(seEarningsOnDist, ssWageBaseRoom)
   const ficaSavings = Math.round(
-    distSSTaxable   * (FICA_SS_RATE      * 2) + // SS equivalent: 12.4% on net SE earnings up to wage base room
-    seEarningsOnDist * (FICA_MEDICARE_RATE * 2)  // Medicare equivalent: 2.9% on all net SE earnings
+    distSSTaxable    * (FICA_SS_RATE      * 2) +
+    seEarningsOnDist * (FICA_MEDICARE_RATE * 2)
   )
 
   const selfEmpHealthDed     = ytdScale(selfEmpHealthIns)
@@ -741,10 +579,10 @@ function calcTaxReturn(input) {
   const agi              = grossIncome - adjustments
   const taxableBeforeQBI = taxableBeforeNOL - nolAllowed
 
-  const _sstbThresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
-  const _sstbPhaseIn    = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
-  const qbiThreshold    = _sstbThresholds[status] || _sstbThresholds.single
-  const qbiPhaseRange   = _sstbPhaseIn[status]    || _sstbPhaseIn.single
+  const _sstbThresholds   = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+  const _sstbPhaseIn      = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
+  const qbiThreshold      = _sstbThresholds[status] || _sstbThresholds.single
+  const qbiPhaseRange     = _sstbPhaseIn[status]    || _sstbPhaseIn.single
   const sstbApplicablePct = taxableBeforeQBI <= qbiThreshold
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
@@ -767,10 +605,7 @@ function calcTaxReturn(input) {
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
 
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status,
-    taxYear,
-    entityQbiData: entitiesLimited,
-    hasMultiEntityTypes,
+    status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes,
   })
   const qbi                      = _qbiResult.deduction
   const qbiLimitApplied          = _qbiResult.limitApplied
@@ -785,24 +620,19 @@ function calcTaxReturn(input) {
   const taxableIncome         = taxableAfterQBI
 
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
-
-  const prefTax = calcPreferentialTax(ordinaryTaxableIncome, {
-    ltcg:        Math.min(Math.max(0, ltGain),     taxableAfterQBI),
-    qualDiv:     Math.min(Math.max(0, qualDiv),    taxableAfterQBI),
-    unrecap1250: Math.min(unrec1250,               taxableAfterQBI),
-    collectibles:Math.min(collectibles,            taxableAfterQBI),
+  const prefTax   = calcPreferentialTax(ordinaryTaxableIncome, {
+    ltcg:         Math.min(Math.max(0, ltGain),      taxableAfterQBI),
+    qualDiv:      Math.min(Math.max(0, qualDiv),     taxableAfterQBI),
+    unrecap1250:  Math.min(unrec1250,                taxableAfterQBI),
+    collectibles: Math.min(collectibles,             taxableAfterQBI),
   }, taxYear, status)
-
   const fedTax = ordFedTax + prefTax
 
   const brackets = getBrackets(taxYear, status)
   let marginalRate = 0
   if (ordinaryTaxableIncome > 0) {
     let prev = 0
-    for (const [cap, rate] of brackets) {
-      if (ordinaryTaxableIncome > prev) marginalRate = rate
-      prev = cap
-    }
+    for (const [cap, rate] of brackets) { if (ordinaryTaxableIncome > prev) marginalRate = rate; prev = cap }
   } else if (totalPrefIncome > 0) {
     const [t0, t15] = getLTCGThresholds(taxYear, status)
     marginalRate = totalPrefIncome > t15 ? LTCG_RATE_HIGH : totalPrefIncome > t0 ? LTCG_RATE_MID : 0
@@ -832,16 +662,14 @@ function calcTaxReturn(input) {
     useItemized, itemized, stdDed,
   })
 
-  const totalTax = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
+  const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
+  const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
+  const withheld      = nv(w2Withheld)
+  const estimated     = nv(estPaid)
+  const totalPayments = withheld + estimated
+  const balance       = totalTax - totalPayments
 
-  const effectiveRate  = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
-  const withheld       = nv(w2Withheld)
-  const estimated      = nv(estPaid)
-  const totalPayments  = withheld + estimated
-  const balance        = totalTax - totalPayments
-
-  const quarterlyRecommended = balance > 0 ? Math.round(balance / 4) : 0
-
+  // ── Safe harbor calculations ───────────────────────────────────────────────
   const priorYearTaxAmt     = Math.max(0, nv(priorYearTax))
   const priorYearAGIAmt     = Math.max(0, nv(priorYearAGI))
   const agiBoundary         = status === 'mfs' ? 75000 : 150000
@@ -856,6 +684,17 @@ function calcTaxReturn(input) {
   const safeHarborBalance   = Math.max(0, safeHarborMinimum - totalPayments)
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
 
+  // TAX-08 / F-07 FIX: quarterlyRecommended moved below safe harbor calculations.
+  // Prior: computed before safeHarborQuarterly existed, always used balance / 4.
+  // Now: uses Math.max so it never falls below the safe harbor quarterly amount.
+  // This prevents the primary "Recommended per quarter" display from showing less
+  // than the amount required to avoid IRC §6654 underpayment penalties.
+  const quarterlyRecommended = Math.max(
+    balance > 0 ? Math.round(balance / 4) : 0,
+    safeHarborQuarterly
+  )
+
+  // ── Schedule C / E income split ───────────────────────────────────────────
   const scheduleEK1Income = nonSEk1
   const scheduleCSEIncome = seNetIncome
 
@@ -878,6 +717,7 @@ function calcTaxReturn(input) {
     }
   }).filter(Boolean)
 
+  // ── S-Corp reasonable compensation alert ──────────────────────────────────
   const reasonableCompAlert = (() => {
     const scorp = entities.find(e => e && e.type === 'S Corporation')
     if (!scorp) return { triggered: false, ratio: 100, message: '' }
@@ -922,8 +762,8 @@ function calcTaxReturn(input) {
     rentalNII, nii,
 
     niit: {
-      applies: niitAmount > 0,
-      amount:  niitAmount,
+      applies:     niitAmount > 0,
+      amount:      niitAmount,
       explanation: niitAmount > 0
         ? `3.8% on the lesser of net investment income ($${nii.toLocaleString()}) or excess MAGI above the $${getNIITThreshold(taxYear, status).toLocaleString()} threshold (IRC §1411)`
         : '',
