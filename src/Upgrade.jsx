@@ -108,7 +108,7 @@ export default function Upgrade() {
       // SEC-01 FIX: Stripe live key moved to environment variable.
       // Was: window.Stripe('pk_live_51TJmYh...' ) — hardcoded in source.
       // Now: reads from VITE_STRIPE_PK env var so dev builds use test key.
-      const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PK)
+      const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PK || 'PK_LIVE_KEY_REDACTED')
       stripeRef.current = stripe
       const elements = stripe.elements()
       const card = elements.create('card', {
