@@ -1126,19 +1126,17 @@ export default function CalculateTaxInner() {
               ⚖ Compare Entity Structures
             </button>
           ) : (
-            <div style={{ marginTop: 16 }}>
-              <LockedFeature requiredPlan="professional" label="What-If Tax Scenario Simulator" minHeight={46}>
-                <button style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
-                  ⚖ Compare Entity Structures
-                </button>
-              </LockedFeature>
+            <div style={{ marginTop: 16, width: '100%', padding: '16px', border: '1.5px dashed #cbd5e1', borderRadius: 12, background: 'rgba(248,250,252,0.88)', textAlign: 'center' }}>
+              <p style={{ fontWeight: 700, fontSize: 14, color: '#0F1F3D', margin: '0 0 4px' }}>⚖ What-If Tax Scenario Simulator</p>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 10px' }}>Available on the <strong>Professional</strong> plan</p>
+              <button onClick={() => nav('/upgrade')} style={{ background: B, color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Upgrade to Professional →</button>
             </div>
           )
         )}
       </div>
 
       {/* Fixed footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 50 }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
         <div style={{ fontSize: 12, color: SL, flex: 1 }}>
           {entities.length > 0
             ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} — K-1 flows to personal return in Step 2`
