@@ -142,6 +142,9 @@ export default function TaxReturn() {
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
+  const [mortgageInt,       setMortgageInt]      = useState(savedCtx.mortgageInt          || '')
+  const [charitableContr,   setCharitableContr]  = useState(savedCtx.charitableContr     || '')
+  const [medicalAmt,        setMedicalAmt]       = useState(savedCtx.medicalAmt           || '')
   const [saltAmount,        setSaltAmount]       = useState(savedCtx.saltAmount           || '')
   const [selfEmpHealthIns,  setSelfEmpHealthIns] = useState(savedCtx.selfEmpHealthIns    || '')
   const [hsaDeduction,      setHsaDeduction]     = useState(savedCtx.hsaDeduction        || '')
@@ -157,6 +160,14 @@ export default function TaxReturn() {
   const [saveStatus, setSaveStatus] = useState('idle')
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
+
+  // T-03: Itemized deduction sub-fields — auto-sum into itemizedAmt for calcTaxReturn.
+  // When useItemized is active, use sub-fields if any are entered; otherwise use the
+  // manual total field directly (for users who know their Schedule A total).
+  const itemizedSubTotal = nf(mortgageInt) + nf(charitableContr) + nf(medicalAmt) + nf(saltAmount)
+  const effectiveItemizedAmt = useItemized
+    ? (itemizedSubTotal > 0 ? itemizedSubTotal : nf(itemizedAmt))
+    : 0
 
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
@@ -177,7 +188,7 @@ export default function TaxReturn() {
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: nf(priorPAL),
-      useItemized, itemizedAmt: nf(itemizedAmt),
+      useItemized, itemizedAmt: effectiveItemizedAmt,
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
@@ -451,7 +462,7 @@ export default function TaxReturn() {
           </div>
 
           {/* Dependents + estimated payments */}
-          <CollapsibleSection title="Dependents & Estimated Payments" defaultOpen>
+          <CollapsibleSection title="Dependents, Withholding & Estimated Payments" defaultOpen>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>
@@ -517,7 +528,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Capital gains & investment */}
-          <CollapsibleSection title="Capital Gains & Investment Income" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
+          <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -625,17 +636,49 @@ export default function TaxReturn() {
                 </label>
               </div>
               {useItemized && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={inpWrap}>
-                    <label style={inputLbl}>Total Itemized Deductions (Schedule A)</label>
-                    <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 7, padding: '7px 10px' }}>
+                    Enter your Schedule A line items below — TaxStat360 totals them automatically. Or skip sub-fields and enter your total directly.
                   </div>
-                  <div style={inpWrap}>
-                    <label style={inputLbl}>
-                      SALT Amount (before cap)
-                      <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap for AMT purposes.`} />
-                    </label>
-                    <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={inpWrap}>
+                      <label style={inputLbl}>
+                        Mortgage Interest (Schedule A Line 8)
+                        <InfoTip text="Home mortgage interest paid on your primary and/or second home (Form 1098). Deductible on acquisition debt up to $750K ($1M if pre-Dec 2017 loan). Investment property mortgage interest goes on Schedule E, not here." />
+                      </label>
+                      <MoneyInput value={mortgageInt} onChange={setMortgageInt} placeholder="0" />
+                    </div>
+                    <div style={inpWrap}>
+                      <label style={inputLbl}>
+                        Charitable Contributions (Schedule A Line 11-12)
+                        <InfoTip text="Cash contributions to qualified 501(c)(3) organizations (Line 11) and non-cash contributions (Line 12). Cash contributions generally limited to 60% of AGI; non-cash limited to 30% or 50% depending on type. Get a receipt for any donation over $250." />
+                      </label>
+                      <MoneyInput value={charitableContr} onChange={setCharitableContr} placeholder="0" />
+                    </div>
+                    <div style={inpWrap}>
+                      <label style={inputLbl}>
+                        Medical Expenses (Schedule A Line 4)
+                        <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC §213(a)). Enter your total medical expenses paid — TaxStat360 applies the 7.5% AGI floor automatically." />
+                      </label>
+                      <MoneyInput value={medicalAmt} onChange={setMedicalAmt} placeholder="0" />
+                    </div>
+                    <div style={inpWrap}>
+                      <label style={inputLbl}>
+                        SALT Amount (before cap)
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap for AMT purposes.`} />
+                      </label>
+                      <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" />
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: SL }}>Sub-field total:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: itemizedSubTotal > stdDed ? G : N }}>{fmt(itemizedSubTotal)}{itemizedSubTotal > stdDed ? ' ✓ exceeds std. ded.' : itemizedSubTotal > 0 ? ` (std. ded. ${fmt(stdDed)} is higher)` : ''}</span>
+                    </div>
+                    <div style={inpWrap}>
+                      <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
+                      <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -699,6 +742,13 @@ export default function TaxReturn() {
               </div>
             )}
           </div>
+
+          {/* FG-01: Empty state — prevent users from mistaking $0 for a real calculation */}
+          {hasResult && result.agi === 0 && (
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
+              💡 Enter your income above to see your tax estimate. All figures are $0 because no income has been entered yet.
+            </div>
+          )}
 
           {/* Waterfall */}
           {hasResult && (
