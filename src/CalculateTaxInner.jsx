@@ -364,7 +364,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           <div>
             <label style={lbl}>
               Officer Salary (W-2)
-              <InfoTip text={'S-Corp owners must pay themselves a reasonable W-2 salary for services rendered (Rev. Rul. 74-44).\n\nThis is deductible to the S-Corp and reduces its net profit. FICA taxes (15.3% combined employee + employer) apply to W-2 wages.\n\nK-1 distributions avoid FICA entirely — which is the core S-Corp tax advantage.'} wide />
+              <InfoTip text={'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
@@ -530,6 +530,18 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </div>
             </div>
           )}
+
+          {/* Entity Name */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Business Name</label>
+            <input
+              type="text"
+              value={entity.name || ''}
+              onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
+              placeholder="e.g. ABC Consulting LLC"
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
+            />
+          </div>
 
           {/* Entity Type */}
           <div style={{ marginBottom: 10 }}>
@@ -1055,18 +1067,19 @@ export default function CalculateTaxInner() {
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <svg width="30" height="30" viewBox="0 0 34 34" style={{ flexShrink: 0 }}><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           {[
             { n: 1, label: 'Entities', done: entities.length > 0 },
             { n: 2, label: 'Return',   done: false },
             { n: 3, label: 'AI',       done: false },
           ].map((s, i) => (
-            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                 <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.n === 1 ? B : s.done ? G : '#E2E8F0', color: s.n === 1 || s.done ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {s.done ? '✓' : s.n}
                 </div>
-                <span style={{ fontSize: 11, fontWeight: s.n === 1 ? 700 : 500, color: s.n === 1 ? N : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
+                {/* Hide label text on narrow screens to prevent overflow */}
+                <span style={{ fontSize: 11, fontWeight: s.n === 1 ? 700 : 500, color: s.n === 1 ? N : '#94A3B8', whiteSpace: 'nowrap', display: 'inline' }}>{s.label}</span>
               </div>
               {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
             </div>
@@ -1176,10 +1189,10 @@ export default function CalculateTaxInner() {
 
       {/* Fixed footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
-        <div style={{ fontSize: 12, color: SL, flex: 1 }}>
+        <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
           {entities.length > 0
-            ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} — K-1 flows to personal return in Step 2`
-            : 'Add at least one business entity to continue'}
+            ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
+            : 'Add an entity to continue'}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button
