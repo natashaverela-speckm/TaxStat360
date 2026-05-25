@@ -555,13 +555,10 @@ export default function Landing() {
             </div>
             <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>TaxStat<span style={{ color: B }}>360</span></span>
           </div>
-          {/* UX-04 FIX: LinkedIn link added. For a B2B SaaS targeting business owners,
-              LinkedIn presence is expected and provides a trust signal. */}
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
             <a href="/privacy"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
             <a href="/terms"    style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
             <a href="#contact"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
-            <a href="https://www.linkedin.com/company/taxstat360" target="_blank" rel="noopener noreferrer" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>LinkedIn</a>
           </div>
           {/* LBL-06 FIX: Added "not a tax preparation or filing service" to footer disclaimer.
               This is the most important product distinction (separates TaxStat360 from
