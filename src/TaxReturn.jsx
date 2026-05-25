@@ -136,7 +136,7 @@ export default function TaxReturn() {
   const [rentalIncome,        setRentalIncome]        = useState(savedCtx.rentalIncome   || '')
   const [rentalExpenses,      setRentalExpenses]      = useState(savedCtx.rentalExpenses || '')
   const [isREP,               setIsREP]               = useState(!!(savedCtx.isREP))
-  const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant !== false)
+  const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant === true)
   const [priorPAL,            setPriorPAL]            = useState(savedCtx.priorPassiveLossCarryforward || '')
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
@@ -302,7 +302,23 @@ export default function TaxReturn() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
-          <div style={{ background: '#EFF6FF', color: B, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700 }}>Step 2 of 2 — Personal Return</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {[
+              { n: 1, label: 'Entities', active: false, done: true },
+              { n: 2, label: 'Return',   active: true,  done: false },
+              { n: 3, label: 'AI',       active: false, done: false },
+            ].map((s, i) => (
+              <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : s.active ? B : '#E2E8F0', color: s.done || s.active ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {s.done ? '✓' : s.n}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
+                </div>
+                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
+              </div>
+            ))}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Back to Business</button>
@@ -393,21 +409,30 @@ export default function TaxReturn() {
                 <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" />
               </div>
             </div>
+            {/* UX-08: Remind S-Corp owners to enter their W-2 withholding */}
+            {entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
+              <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
+                💡 <strong>S-Corp owner:</strong> If you paid yourself a W-2 salary in Step 1, enter the federal income tax withheld here (W-2 Box 2). FICA taxes (Boxes 4 and 6) are separate — don't include those here.
+              </div>
+            )}
           </CollapsibleSection>
 
-          {/* YTD mode */}
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* UX-05: YTD mode — renamed to surface mid-year use case */}
+          <div style={{ background: ytdMode ? '#EFF6FF' : '#fff', border: `1px solid ${ytdMode ? '#BFDBFE' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 12, transition: 'background 0.2s, border-color 0.2s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: N }}>
-                  YTD Mode
+                  📅 Planning Mid-Year?
                   <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nUseful mid-year for planning — e.g. in September, enter what you\'ve earned through September.\n\nDisable to enter full-year figures directly.'} />
                 </span>
+                {!ytdMode && (
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Enable YTD Mode to annualize your income for a full-year projection</div>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 {ytdMode && (
                   <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
-                    style={{ padding: '6px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
+                    style={{ padding: '6px 10px', border: '1.5px solid #BFDBFE', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
                     {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                       <option key={i+1} value={i+1}>{m}</option>
                     ))}
@@ -419,7 +444,7 @@ export default function TaxReturn() {
               </div>
             </div>
             {ytdMode && (
-              <div style={{ marginTop: 8, fontSize: 12, color: B, fontWeight: 600 }}>
+              <div style={{ marginTop: 8, fontSize: 12, color: '#1D4ED8', fontWeight: 600 }}>
                 📅 YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]} — figures will be annualized (× {ytdFactor.toFixed(2)})
               </div>
             )}
@@ -791,35 +816,35 @@ export default function TaxReturn() {
             🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
           </div>
 
-          {/* Save buttons */}
+          {/* Save buttons — UX-06: secondary/primary hierarchy */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Primary CTA — solid navy */}
+            <div>
+              <button
+                onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
+                disabled={saveStatus === 'saving'}
+                style={{ width: '100%', padding: '13px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
+              >
+                Save &amp; Analyze →
+              </button>
+              <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                Saves and goes to AI Tax Analysis
+              </div>
+            </div>
+            {/* Secondary CTA — outlined */}
             <div>
               <button
                 onClick={() => handleSave()}
                 disabled={saveStatus === 'saving'}
-                style={{ width: '100%', padding: '12px', background: saveStatus === 'saved' ? G : B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
+                style={{ width: '100%', padding: '11px', background: saveStatus === 'saved' ? '#F0FDF4' : '#fff', color: saveStatus === 'saved' ? G : B, border: `1.5px solid ${saveStatus === 'saved' ? G : B}`, borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
               >
-                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved!' : '💾 Save This Record'}
               </button>
-              {/* UX-05 FIX: Micro-text clarifies this button stays on the page. */}
               {saveStatus !== 'saved' && (
                 <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
                   Saves your work — stay on this page
                 </div>
               )}
-            </div>
-            <div>
-              <button
-                onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
-                disabled={saveStatus === 'saving'}
-                style={{ width: '100%', padding: '12px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: saveStatus === 'saving' ? 'default' : 'pointer' }}
-              >
-                💾 Save &amp; Analyze →
-              </button>
-              {/* UX-05 FIX: Micro-text clarifies this button navigates to AI Analysis. */}
-              <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
-                Saves and goes to AI Tax Analysis
-              </div>
             </div>
           </div>
 
