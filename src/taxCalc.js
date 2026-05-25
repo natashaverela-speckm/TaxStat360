@@ -389,9 +389,8 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
-    const k1Income = parseFloat(
-      e.k1 ?? Math.round(parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
-    ) || 0
+    // C-02 FIX: nv() handles empty strings; e.k1 = "" yields NaN via parseFloat directly
+    const k1Income = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     return s + Math.max(0, k1Income)
   }, 0)
 
@@ -610,7 +609,11 @@ function calcTaxReturn(input) {
 
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    const k1    = parseFloat(e.k1 ?? 0) || Math.round(parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
+    // C-02 FIX: Use nv() not parseFloat() directly. e.k1 may be "" (empty string) when
+    // a user has not yet entered data — parseFloat("" ?? 0) = parseFloat("") = NaN.
+    // nv() normalises "" → 0 correctly. The ?? 0 fallback is also replaced with || 0
+    // via nv() so both null/undefined AND empty-string are handled the same way.
+    const k1    = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
