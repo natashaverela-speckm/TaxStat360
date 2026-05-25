@@ -5,27 +5,18 @@
 // estimated federal tax liability.
 //
 // ── Change log ────────────────────────────────────────────────────────────────
+// BUG-01 FIX: Duplicate Prior Year Passive Loss Carryforward (priorPAL) field.
+//   Two consecutive MoneyInput blocks for priorPAL existed in the Rental Real
+//   Estate section — one conditionally rendered when nf(priorPAL) !== 0, and one
+//   always rendered when !isREP. When priorPAL had a non-zero value, BOTH rendered
+//   simultaneously, creating a duplicated form field. Merged into a single always-
+//   visible field (retaining the InfoTip from the conditional block).
+//
 // L-02 FIX: "S-Corp FICA Savings" renamed to "SE Tax Savings on Distributions".
-//   The prior label was S-Corp-specific and implied the savings come from FICA
-//   (the employee/employer payroll tax on W-2 wages). The savings are actually
-//   the avoided self-employment (SE) tax equivalent on K-1 distributions — the
-//   same income as a sole proprietor would pay SE tax on 92.35% of at 15.3%
-//   (up to SS wage base) / 2.9% (above). Both S-Corps and actively-managed
-//   partnerships generate this savings; "FICA Savings" is a misnomer for
-//   partnerships and confusing for S-Corp owners who understand that FICA
-//   applies to wages (which they DO pay), not to distributions. InfoTip text
-//   already explains this correctly — only the label has changed.
 //
-// C-06 FIX: 2026 tax year dropdown option shortened.
-//   Old: "2026 — Rev. Proc. 2025-32 (OBBBA)"  (34 chars, overflows on mobile)
-//   New: "2026 (OBBBA)"                         (13 chars, clean)
-//   The full citation is preserved in a footnote below the dropdown.
+// C-06 FIX: 2026 tax year dropdown option shortened to "2026 (OBBBA)".
 //
-// UX-05 FIX: Micro-text added beneath each save button to disambiguate:
-//   "💾 Save This Record" → micro-text: "Saves your work — stay on this page"
-//   "💾 Save & Analyze →" → micro-text: "Saves and goes to AI Tax Analysis"
-//   Users were unsure whether "Save & Analyze" would navigate away or open a
-//   panel. The micro-text resolves this without adding visual bulk.
+// UX-05 FIX: Micro-text added beneath each save button to disambiguate navigation.
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -121,12 +112,10 @@ function CollapsibleSection({ title, badge, children, defaultOpen = false, accen
 export default function TaxReturn() {
   const navigate = useNavigate()
 
-  // ── State from session ──────────────────────────────────────────────────────
   const { entities, k1Total: sessionK1 } = readStep1State()
   const savedCtx = readPersonalContext()
   const [taxYear, setTaxYear] = useState(() => readTaxYear() || 2025)
 
-  // ── Personal 1040 fields ────────────────────────────────────────────────────
   const [filingStatus, setFilingStatus] = useState(savedCtx.filingStatus || 'single')
   const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')
   const [w2Withheld,   setW2Withheld]   = useState(savedCtx.w2Withheld    || '')
@@ -135,89 +124,59 @@ export default function TaxReturn() {
   const [ytdMode,      setYtdMode]      = useState(!!(savedCtx.ytdMode))
   const [ytdMonth,     setYtdMonth]     = useState(savedCtx.ytdMonth       || new Date().getMonth() + 1)
 
-  // ── Capital gains & investment income ──────────────────────────────────────
-  const [stGain,       setStGain]       = useState(savedCtx.stGain         || '')
-  const [ltGain,       setLtGain]       = useState(savedCtx.capitalGains   || savedCtx.ltGain || '')
-  const [interest,     setInterest]     = useState(savedCtx.interest       || '')
-  const [dividends,    setDividends]    = useState(savedCtx.dividends      || '')
+  const [stGain,        setStGain]        = useState(savedCtx.stGain         || '')
+  const [ltGain,        setLtGain]        = useState(savedCtx.capitalGains   || savedCtx.ltGain || '')
+  const [interest,      setInterest]      = useState(savedCtx.interest       || '')
+  const [dividends,     setDividends]     = useState(savedCtx.dividends      || '')
   const [qualDividends, setQualDividends] = useState(savedCtx.qualDividends || savedCtx.qualifiedDividends || '')
-  const [unrecap1250,  setUnrecap1250]  = useState(savedCtx.unrecap1250    || '')
-  const [collectibles, setCollectibles] = useState(savedCtx.collectiblesGain || '')
-  const [form4797,     setForm4797]     = useState(savedCtx.form4797       || '')
+  const [unrecap1250,   setUnrecap1250]   = useState(savedCtx.unrecap1250    || '')
+  const [collectibles,  setCollectibles]  = useState(savedCtx.collectiblesGain || '')
+  const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
 
-  // ── Rental real estate ─────────────────────────────────────────────────────
-  const [rentalIncome,   setRentalIncome]   = useState(savedCtx.rentalIncome   || '')
-  const [rentalExpenses, setRentalExpenses] = useState(savedCtx.rentalExpenses || '')
-  const [isREP,          setIsREP]          = useState(!!(savedCtx.isREP))
+  const [rentalIncome,        setRentalIncome]        = useState(savedCtx.rentalIncome   || '')
+  const [rentalExpenses,      setRentalExpenses]      = useState(savedCtx.rentalExpenses || '')
+  const [isREP,               setIsREP]               = useState(!!(savedCtx.isREP))
   const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant !== false)
-  const [priorPAL,       setPriorPAL]       = useState(savedCtx.priorPassiveLossCarryforward || '')
+  const [priorPAL,            setPriorPAL]            = useState(savedCtx.priorPassiveLossCarryforward || '')
 
-  // ── Deductions & adjustments ───────────────────────────────────────────────
-  const [useItemized,       setUseItemized]       = useState(!!(savedCtx.useItemized))
-  const [itemizedAmt,       setItemizedAmt]       = useState(savedCtx.itemizedAmt         || '')
-  const [saltAmount,        setSaltAmount]         = useState(savedCtx.saltAmount           || '')
-  const [selfEmpHealthIns,  setSelfEmpHealthIns]   = useState(savedCtx.selfEmpHealthIns    || '')
-  const [hsaDeduction,      setHsaDeduction]       = useState(savedCtx.hsaDeduction        || '')
-  const [studentLoanInt,    setStudentLoanInt]      = useState(savedCtx.studentLoanInt      || '')
-  const [selfEmpRetirement, setSelfEmpRetirement]  = useState(savedCtx.selfEmpRetirement   || '')
-  const [nolCarryforward,   setNolCarryforward]    = useState(savedCtx.nolCarryforward     || '')
-  const [priorYearQBILoss,  setPriorYearQBILoss]   = useState(savedCtx.priorYearLosses     || '')
-  const [hasISO,            setHasISO]             = useState(!!(savedCtx.hasISO))
-  const [isoBargainElement, setIsoBargainElement]  = useState(savedCtx.isoBargainElement   || '')
-  const [priorYearTax,      setPriorYearTax]        = useState(savedCtx.priorYearTax        || '')
-  const [priorYearAGI,      setPriorYearAGI]        = useState(savedCtx.priorYearAGI        || '')
+  const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
+  const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
+  const [saltAmount,        setSaltAmount]       = useState(savedCtx.saltAmount           || '')
+  const [selfEmpHealthIns,  setSelfEmpHealthIns] = useState(savedCtx.selfEmpHealthIns    || '')
+  const [hsaDeduction,      setHsaDeduction]     = useState(savedCtx.hsaDeduction        || '')
+  const [studentLoanInt,    setStudentLoanInt]   = useState(savedCtx.studentLoanInt      || '')
+  const [selfEmpRetirement, setSelfEmpRetirement]= useState(savedCtx.selfEmpRetirement   || '')
+  const [nolCarryforward,   setNolCarryforward]  = useState(savedCtx.nolCarryforward     || '')
+  const [priorYearQBILoss,  setPriorYearQBILoss] = useState(savedCtx.priorYearLosses     || '')
+  const [hasISO,            setHasISO]           = useState(!!(savedCtx.hasISO))
+  const [isoBargainElement, setIsoBargainElement]= useState(savedCtx.isoBargainElement   || '')
+  const [priorYearTax,      setPriorYearTax]     = useState(savedCtx.priorYearTax        || '')
+  const [priorYearAGI,      setPriorYearAGI]     = useState(savedCtx.priorYearAGI        || '')
 
-  // ── Save state ─────────────────────────────────────────────────────────────
-  const [saveStatus, setSaveStatus] = useState('idle')  // idle | saving | saved
+  const [saveStatus, setSaveStatus] = useState('idle')
 
-  // ── YTD factor ─────────────────────────────────────────────────────────────
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
-  // ── Build calc input ───────────────────────────────────────────────────────
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
-    const additionalW2 = nf(w2Income)
-    const additionalWithheld = nf(w2Withheld)
-
     const form4797Total = nf(form4797) + entityList.reduce((s, e) => s + (nf(e.box17K)), 0)
-
     return {
-      taxYear,
-      status: filingStatus,
-      dependents: nf(dependents),
-      entities: entityList,
-      w2: additionalW2,
-      k1Total: sessionK1 || 0,
+      taxYear, status: filingStatus, dependents: nf(dependents),
+      entities: entityList, w2: nf(w2Income), k1Total: sessionK1 || 0,
       rentalNet: nf(rentalIncome) - nf(rentalExpenses),
-      stGain:    nf(stGain),
-      ltGain:    nf(ltGain),
-      intInc:    nf(interest),
-      divInc:    nf(dividends),
-      qualDiv:   nf(qualDividends),
-      f4797Inc:  form4797Total,
-      taxableSS: 0,
-      iraIncome: 0,
-      selfEmpHealthIns:  nf(selfEmpHealthIns),
-      hsaDeduction:      nf(hsaDeduction),
-      studentLoanInt:    nf(studentLoanInt),
-      selfEmpRetirement: nf(selfEmpRetirement),
-      nolCarryforward:   nf(nolCarryforward),
-      priorYearQBILoss:  nf(priorYearQBILoss),
-      saltAmount:        nf(saltAmount),
-      hasISO,
-      isoBargainElement: nf(isoBargainElement),
-      isREP,
-      isActiveParticipant,
-      unrecap1250:   nf(unrecap1250),
-      collectiblesGain: nf(collectibles),
-      w2Withheld:    additionalWithheld,
-      estPaid:       nf(estPaid),
-      ytdFactor,
-      priorYearTax:  nf(priorYearTax),
-      priorYearAGI:  nf(priorYearAGI),
+      stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
+      divInc: nf(dividends), qualDiv: nf(qualDividends), f4797Inc: form4797Total,
+      taxableSS: 0, iraIncome: 0,
+      selfEmpHealthIns: nf(selfEmpHealthIns), hsaDeduction: nf(hsaDeduction),
+      studentLoanInt: nf(studentLoanInt), selfEmpRetirement: nf(selfEmpRetirement),
+      nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
+      saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
+      isREP, isActiveParticipant,
+      unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
+      w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
+      priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: nf(priorPAL),
-      useItemized:  useItemized,
-      itemizedAmt:  nf(itemizedAmt),
+      useItemized, itemizedAmt: nf(itemizedAmt),
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
@@ -233,40 +192,33 @@ export default function TaxReturn() {
     catch { return null }
   }, [calcInput])
 
-  // ── Persist personal context on change ────────────────────────────────────
   useEffect(() => {
     writePersonalContext({
-      filingStatus, w2Income, w2Withheld, estPaid, dependents,
-      ytdMode, ytdMonth,
+      filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
-      qualifiedDividends: qualDividends,
-      unrecap1250, collectiblesGain: collectibles, form4797,
+      qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797,
       rentalIncome, rentalExpenses, isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
-      useItemized, itemizedAmt, saltAmount,
-      hasISO, isoBargainElement,
+      useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
     })
   }, [
-    filingStatus, w2Income, w2Withheld, estPaid, dependents,
-    ytdMode, ytdMonth,
-    stGain, ltGain, interest, dividends, qualDividends,
-    unrecap1250, collectibles, form4797,
+    filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
   ])
 
-  // ── Save handler ──────────────────────────────────────────────────────────
   const handleSave = useCallback(({ thenNavigate } = {}) => {
     if (saveStatus === 'saving') return
     setSaveStatus('saving')
 
-    const email = localStorage.getItem('ts360_email') || 'default'
-    const key   = 'ts360_records_' + email
+    const email    = localStorage.getItem('ts360_email') || 'default'
+    const key      = 'ts360_records_' + email
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
 
     const record = {
@@ -275,26 +227,21 @@ export default function TaxReturn() {
       taxYear,
       entities: Array.isArray(entities) ? entities : [],
       k1Income: sessionK1 || 0,
-      filingStatus,
-      dependents,
-      w2Income,
-      w2Withheld,
-      estPaid,
+      filingStatus, dependents, w2Income, w2Withheld, estPaid,
       quarterly: result?.quarterlyRecommended || 0,
-      totalTax: result?.totalTax || 0,
+      totalTax:  result?.totalTax || 0,
       biz: {
-        entityType: entities?.[0]?.type || 'S Corporation',
-        year: taxYear,
-        ownershipPct: entities?.[0]?.own || '100',
-        grossRevenue: String(nf(entities?.[0]?.pnl?.grossRevenue) || 0),
+        entityType:        entities?.[0]?.type || 'S Corporation',
+        year:              taxYear,
+        ownershipPct:      entities?.[0]?.own || '100',
+        grossRevenue:      String(nf(entities?.[0]?.pnl?.grossRevenue) || 0),
         operatingExpenses: String(nf(entities?.[0]?.pnl?.totalExpenses) || 0),
-        officerSalary: String(nf(entities?.[0]?.pnl?.officerSalary) || 0),
-        depreciation: String(nf(entities?.[0]?.pnl?.depreciation) || 0),
-        pnl: entities?.[0]?.pnl || {},
+        officerSalary:     String(nf(entities?.[0]?.pnl?.officerSalary) || 0),
+        depreciation:      String(nf(entities?.[0]?.pnl?.depreciation) || 0),
+        pnl:               entities?.[0]?.pnl || {},
       },
       f1040: {
-        filingStatus, w2Income, w2Withheld, estPaid, dependents,
-        ytdMode, ytdMonth,
+        filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
         unrecap1250, collectiblesGain: collectibles, form4797,
@@ -302,12 +249,9 @@ export default function TaxReturn() {
         priorPassiveLossCarryforward: priorPAL,
         selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
-        useItemized, itemizedAmt, saltAmount,
-        hasISO, isoBargainElement,
+        useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
         priorYearTax, priorYearAGI,
       },
-      quarterly: result?.quarterlyRecommended || 0,
-      totalTax: result?.totalTax || 0,
       totalSuspendedLoss: result?.totalSuspendedLoss || 0,
       entityBasisResults: result?.entityBasisResults || [],
     }
@@ -334,12 +278,9 @@ export default function TaxReturn() {
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result, navigate,
   ])
 
-  const stdDed = getStdDed(taxYear, filingStatus)
-  const hasResult = !!result && result.totalTax >= 0
-
-  const entityList = Array.isArray(entities) ? entities : []
-  const hasSCorpEntity = entityList.some(e => isSCorpEntity(e?.type))
-  const hasPassthrough  = entityList.some(e => isPassthroughEntity(e?.type))
+  const stdDed      = getStdDed(taxYear, filingStatus)
+  const hasResult   = !!result && result.totalTax >= 0
+  const entityList  = Array.isArray(entities) ? entities : []
 
   const YEARS = [2024, 2025, 2026]
   const FS_OPTIONS = [
@@ -374,7 +315,7 @@ export default function TaxReturn() {
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px 100px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
 
-        {/* ── LEFT: Input form ──────────────────────────────────────────────── */}
+        {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
           <p style={{ color: SL, fontSize: 13, margin: '0 0 20px' }}>
@@ -385,18 +326,11 @@ export default function TaxReturn() {
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
-                <label style={inputLbl}>
-                  {/* C-06 FIX: 2026 dropdown option shortened.
-                      Old: "2026 — Rev. Proc. 2025-32 (OBBBA)" (overflows on mobile)
-                      New: "2026 (OBBBA)" — full citation shown in footnote below */}
-                  Tax Year
-                </label>
+                <label style={inputLbl}>Tax Year</label>
                 <select value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {YEARS.map(y => (
-                    <option key={y} value={y}>
-                      {y === 2026 ? '2026 (OBBBA)' : String(y)}
-                    </option>
+                    <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA)' : String(y)}</option>
                   ))}
                 </select>
                 {taxYear === 2026 && (
@@ -421,10 +355,10 @@ export default function TaxReturn() {
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', letterSpacing: '0.5px', marginBottom: 8 }}>FROM STEP 1 — BUSINESS ENTITIES</div>
               {entityList.map((e, i) => {
-                const pnl   = e.pnl || {}
-                const net   = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-                const own   = ownPct(e.own) / 100
-                const k1    = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
+                const pnl = e.pnl || {}
+                const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+                const own = ownPct(e.own) / 100
+                const k1  = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
                 return (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: i < entityList.length - 1 ? '1px solid #BFDBFE' : 'none' }}>
                     <span style={{ color: '#1D4ED8' }}>{e.name || e.type} ({e.own || 100}%)</span>
@@ -540,19 +474,17 @@ export default function TaxReturn() {
                 </label>
               </div>
             )}
-            {!isREP && nf(priorPAL) !== 0 && (
+            {/* BUG-01 FIX: Single priorPAL field replaces the prior two-field duplicate.
+                The original code had two consecutive MoneyInput blocks for priorPAL:
+                  1. Conditional: rendered only when nf(priorPAL) !== 0
+                  2. Always: rendered whenever !isREP
+                When priorPAL had a value, both rendered simultaneously — duplicate field.
+                Merged into one always-visible field with the InfoTip from the conditional. */}
+            {!isREP && (
               <div style={inpWrap}>
                 <label style={inputLbl}>
                   Prior Year Passive Loss Carryforward (Form 8582)
                   <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). These are released when the rental activity generates passive income. Enter the total carryforward, NOT the current-year loss." />
-                </label>
-                <MoneyInput value={priorPAL} onChange={setPriorPAL} placeholder="0" />
-              </div>
-            )}
-            {!isREP && (
-              <div style={inpWrap}>
-                <label style={inputLbl}>
-                  Prior Year Passive Loss Carryforward (Form 8582, if any)
                 </label>
                 <MoneyInput value={priorPAL} onChange={setPriorPAL} placeholder="0" />
               </div>
@@ -747,35 +679,35 @@ export default function TaxReturn() {
               <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 12 }}>Tax Waterfall</div>
 
               {[
-                { label: 'Business K-1 Income',     value: result.scheduleEK1Income || sessionK1 || 0,     sign: 1 },
-                { label: 'Schedule C Income',        value: result.scheduleCSEIncome || 0,                  sign: 1, hide: !(result.scheduleCSEIncome > 0) },
-                { label: 'W-2 Wages',                value: nf(w2Income),                                   sign: 1, hide: nf(w2Income) === 0 },
-                { label: 'Rental Income (net)',       value: nf(rentalIncome) - nf(rentalExpenses),          sign: 1, hide: nf(rentalIncome) === 0 },
-                { label: 'Capital Gains (LT)',       value: nf(ltGain),                                     sign: 1, hide: nf(ltGain) === 0 },
-                { label: 'Capital Gains (ST)',       value: nf(stGain),                                     sign: 1, hide: nf(stGain) === 0 },
-                { label: 'Interest & Dividends',     value: nf(interest) + nf(dividends),                  sign: 1, hide: nf(interest) + nf(dividends) === 0 },
+                { label: 'Business K-1 Income',        value: result.scheduleEK1Income || sessionK1 || 0, sign: 1 },
+                { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
+                { label: 'W-2 Wages',                   value: nf(w2Income),                              sign: 1, hide: nf(w2Income) === 0 },
+                { label: 'Rental Income (net)',          value: nf(rentalIncome) - nf(rentalExpenses),     sign: 1, hide: nf(rentalIncome) === 0 },
+                { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
+                { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
+                { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: 'AGI',                      value: result.agi,                                     sign: 1, bold: true },
-                { label: 'Standard Deduction',       value: result.deduction,                               sign: -1 },
-                { label: 'SE Tax Deduction (½)',      value: result.halfSE,                                  sign: -1, hide: result.halfSE === 0 },
-                { label: 'Retirement Contributions', value: result.selfEmpRetirementDed,                    sign: -1, hide: result.selfEmpRetirementDed === 0 },
-                { label: 'Health Insurance Ded.',    value: result.selfEmpHealthDed,                        sign: -1, hide: result.selfEmpHealthDed === 0 },
-                { label: 'NOL Applied',              value: result.nolAllowed,                              sign: -1, hide: result.nolAllowed === 0 },
+                { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
+                { label: 'Standard Deduction',          value: result.deduction,                         sign: -1 },
+                { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
+                { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
+                { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
+                { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: 'Taxable Income (before QBI)', value: result.taxableBeforeQBI,                    sign: 1 },
-                { label: '§199A QBI Deduction',      value: result.qbi,                                    sign: -1, hide: result.qbi === 0, accent: '#059669' },
+                { label: 'Taxable Income (before QBI)', value: result.taxableBeforeQBI,                  sign: 1 },
+                { label: '§199A QBI Deduction',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
-                { label: 'Taxable Income (final)',   value: result.taxableAfterQBI,                        sign: 1, bold: true },
+                { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
                 { label: '—', value: 0, divider: true },
-                { label: 'Federal Income Tax',       value: result.fedTax,                                 sign: 1 },
-                { label: 'SE Tax',                   value: result.seTax,                                  sign: 1, hide: result.seTax === 0 },
-                { label: 'NIIT (Form 8960)',          value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
-                { label: 'Addl. Medicare Tax (0.9%)',value: result.additionalMedicare,                      sign: 1, hide: result.additionalMedicare === 0 },
-                { label: 'AMT (Form 6251)',           value: result.amt,                                    sign: 1, hide: result.amt === 0, accent: R },
-                { label: 'Child Tax Credit',         value: result.childCredit,                            sign: -1, hide: result.childCredit === 0, accent: '#059669' },
+                { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
+                { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
+                { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
+                { label: 'Addl. Medicare Tax (0.9%)',   value: result.additionalMedicare,                sign: 1, hide: result.additionalMedicare === 0 },
+                { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
+                { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
-                { label: 'Total Tax',                value: result.totalTax,                               sign: 1, bold: true },
-                { label: 'Withholding & Est. Pmts',  value: result.totalPayments,                          sign: -1, hide: result.totalPayments === 0 },
+                { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
+                { label: 'Withholding & Est. Pmts',     value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: result.balance >= 0 ? 'Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
@@ -790,30 +722,25 @@ export default function TaxReturn() {
                 )
               })}
 
-              {/* §461(l) EBL — shown when it fires */}
               {result.ebl > 0 && result.eblThreshold > 0 && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} added back to income
-                  (threshold: {fmt(result.eblThreshold)}).
+                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} added back to income (threshold: {fmt(result.eblThreshold)}).
                   Excess business losses are limited to {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}).
                 </div>
               )}
 
-              {/* NOL surplus */}
               {result.nolSurplus > 0 && (
                 <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8' }}>
                   <strong>NOL carryforward:</strong> {fmt(result.nolSurplus)} remaining (80% of taxable income cap applied per IRC §172(a)(2)).
                 </div>
               )}
 
-              {/* QBI aggregation disclosure */}
               {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
                 <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
                   <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
                 </div>
               )}
 
-              {/* S-Corp basis suspension */}
               {result.totalSuspendedLoss > 0 && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
                   <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
@@ -825,14 +752,8 @@ export default function TaxReturn() {
           {/* SE Tax Savings panel */}
           {hasResult && result.ficaSavings > 0 && (
             <div style={{ background: '#0f1f3d', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
+              {/* L-02 FIX: Renamed from "S-Corp FICA Savings" to "SE Tax Savings on Distributions". */}
               <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
-                {/* L-02 FIX: Renamed from "S-Corp FICA Savings" to "SE Tax Savings on Distributions".
-                    Rationale: The savings represent avoided SE tax equivalent on K-1 distributions
-                    (not avoided FICA, which applies to W-2 wages — which S-Corp owners DO pay).
-                    The sole-prop comparison uses 92.35% of net earnings × SE tax rate (per
-                    IRC §1402(a)(12)), now correctly computed in taxCalc.js (T-01 fix).
-                    The label "SE Tax Savings on Distributions" is accurate for both S-Corps
-                    and actively-managed partnerships that generate this same benefit. */}
                 SE TAX SAVINGS ON DISTRIBUTIONS
               </div>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#4ADE80' }}>
@@ -867,12 +788,11 @@ export default function TaxReturn() {
 
           {/* Federal-only notice */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.5 }}>
-            🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state's effective rate separately for a complete liability picture.
+            🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
           </div>
 
           {/* Save buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* "Save This Record" button — stays on this page */}
             <div>
               <button
                 onClick={() => handleSave()}
@@ -881,16 +801,13 @@ export default function TaxReturn() {
               >
                 {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Record Saved!' : '💾 Save This Record'}
               </button>
-              {/* UX-05 FIX: Micro-text beneath "Save This Record" button.
-                  Users unsure whether save navigates away. This clarifies it stays. */}
+              {/* UX-05 FIX: Micro-text clarifies this button stays on the page. */}
               {saveStatus !== 'saved' && (
                 <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
                   Saves your work — stay on this page
                 </div>
               )}
             </div>
-
-            {/* "Save & Analyze" button — saves then navigates to AI Analysis */}
             <div>
               <button
                 onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
@@ -899,15 +816,13 @@ export default function TaxReturn() {
               >
                 💾 Save &amp; Analyze →
               </button>
-              {/* UX-05 FIX: Micro-text beneath "Save & Analyze" button.
-                  Clarifies that this button navigates away to AI Tax Analysis. */}
+              {/* UX-05 FIX: Micro-text clarifies this button navigates to AI Analysis. */}
               <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
                 Saves and goes to AI Tax Analysis
               </div>
             </div>
           </div>
 
-          {/* Disclaimer */}
           <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
             Estimates for planning only — not professional tax advice. Consult a licensed CPA before filing.
           </div>
