@@ -1,22 +1,36 @@
 import { useNavigate } from 'react-router-dom'
 
-// ─── Plan Utilities ───────────────────────────────────────────────────────────
-// Single source of truth for plan checking across all components.
-// Plan is written to localStorage by Onboarding.jsx on login/signup (data.plan)
-// and by Upgrade.jsx after a plan change. It reflects the server-verified value
-// returned at login — not client-set. For additional security, App.jsx's
-// RequireAuth should re-verify plan from /auth/me on session load.
+// ─── Plan Constants & Normalization ──────────────────────────────────────────
+// Single source of truth for plan IDs. ALL plan-gate code must import from here.
+// Never compare against raw localStorage values — always use getUserPlan() which
+// normalises legacy names via PLAN_ALIASES transparently.
 
-export const PLANS = ['starter', 'professional', 'enterprise']
-
-// Legacy plan name aliases — matches the planMap in Upgrade.jsx
-const PLAN_ALIASES = {
-  'basic':     'starter',
-  'pro':       'professional',
-  'expert':    'enterprise',
-  'elite':     'enterprise',
-  'essential': 'enterprise',
+export const PLAN_IDS = {
+  STARTER:      'starter',
+  PROFESSIONAL: 'professional',
+  ENTERPRISE:   'enterprise',
 }
+
+// Legacy plan name aliases — maps old DB/Lambda values to canonical PLAN_IDS.
+// "basic" is the pre-migration DB value for Starter accounts (C-01).
+// Add new aliases here; never scatter alias logic across other components.
+const PLAN_ALIASES = {
+  'basic':     PLAN_IDS.STARTER,
+  'pro':       PLAN_IDS.PROFESSIONAL,
+  'expert':    PLAN_IDS.ENTERPRISE,
+  'elite':     PLAN_IDS.ENTERPRISE,
+  'essential': PLAN_IDS.ENTERPRISE,
+}
+
+// normalizePlanId — converts any raw plan string (from localStorage, Lambda,
+// or DynamoDB) into a canonical PLAN_IDS value. Import and use this anywhere
+// a plan string is read outside of getUserPlan() — e.g. Upgrade.jsx planMap.
+export function normalizePlanId(raw) {
+  const lower = (raw || '').toLowerCase().trim()
+  return PLAN_ALIASES[lower] || (Object.values(PLAN_IDS).includes(lower) ? lower : PLAN_IDS.STARTER)
+}
+
+export const PLANS = Object.values(PLAN_IDS)
 
 export function getUserPlan() {
   const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
