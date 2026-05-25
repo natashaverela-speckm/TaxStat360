@@ -563,7 +563,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {/* QBI fields */}
           {isPT && (
             <div style={{ marginBottom: 10 }}>
-              <button onClick={() => setShowQBI(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: 0, marginBottom: 6 }}>
+              <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
                 {showQBI ? '▲ Collapse' : '▼ Expand'} §199A QBI Inputs (W-2 Wages, UBIA, SSTB)
               </button>
               {showQBI && (
@@ -756,8 +756,9 @@ export default function CalculateTaxInner() {
   const [entities,        setEntities]        = useState([])
   const [expandedIdx,     setExpandedIdx]     = useState(null)
   const [showCompare,     setShowCompare]     = useState(false)
-  const [showNameModal,   setShowNameModal]   = useState(false)
+  const [showNameModal,    setShowNameModal]    = useState(false)
   const [showEntityPicker, setShowEntityPicker] = useState(false)
+  const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,      setSaveStatus]      = useState('idle')
   const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
@@ -802,7 +803,12 @@ export default function CalculateTaxInner() {
       box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
       box17V_sstb: false, box17K: '',
     }
-    setEntities(prev => [...prev, newEnt])
+    setEntities(prev => {
+      const next = [...prev, newEnt]
+      // F-07 FIX: persist immediately so navigating away before editing doesn't lose the entity
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      return next
+    })
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
   }, [entities.length])
@@ -1046,7 +1052,23 @@ export default function CalculateTaxInner() {
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <svg width="30" height="30" viewBox="0 0 34 34" style={{ flexShrink: 0 }}><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
-          <div style={{ background: '#EFF6FF', color: B, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>Step 1 of 2</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {[
+            { n: 1, label: 'Entities', done: entities.length > 0 },
+            { n: 2, label: 'Return',   done: false },
+            { n: 3, label: 'AI',       done: false },
+          ].map((s, i) => (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.n === 1 ? B : s.done ? G : '#E2E8F0', color: s.n === 1 || s.done ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {s.done ? '✓' : s.n}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: s.n === 1 ? 700 : 500, color: s.n === 1 ? N : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
+              </div>
+              {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
+            </div>
+          ))}
+        </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           <button onClick={() => navigate('/dashboard')}   style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Dashboard</button>
@@ -1125,7 +1147,7 @@ export default function CalculateTaxInner() {
               entity={ent}
               idx={idx}
               onUpdate={updateEntity}
-              onRemove={removeEntity}
+              onRemove={setConfirmRemoveIdx}
               colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
               isExpanded={expandedIdx === idx}
               onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
@@ -1138,22 +1160,14 @@ export default function CalculateTaxInner() {
           + Add Business Entity
         </button>
 
-        {/* Compare button — Professional feature */}
-        {entities.length > 0 && (
-          isPro() ? (
-            <button
-              onClick={() => setShowCompare(true)}
-              title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
-              style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
-              ⚖ Compare Entity Structures
-            </button>
-          ) : (
-            <div style={{ marginTop: 16, width: '100%', padding: '16px', border: '1.5px dashed #cbd5e1', borderRadius: 12, background: 'rgba(248,250,252,0.88)', textAlign: 'center' }}>
-              <p style={{ fontWeight: 700, fontSize: 14, color: '#0F1F3D', margin: '0 0 4px' }}>⚖ What-If Tax Scenario Simulator</p>
-              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 10px' }}>Available on the <strong>Professional</strong> plan</p>
-              <button onClick={() => nav('/upgrade')} style={{ background: B, color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Upgrade to Professional →</button>
-            </div>
-          )
+        {/* Compare button — Pro only, shown above footer */}
+        {entities.length > 0 && isPro() && (
+          <button
+            onClick={() => setShowCompare(true)}
+            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
+            style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
+            ⚖ Compare Entity Structures
+          </button>
         )}
       </div>
 
@@ -1193,6 +1207,31 @@ export default function CalculateTaxInner() {
       </div>
 
       {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
+
+      {/* UX-02: What-If upsell lives BELOW the fixed footer as a subtle hint,
+          not blocking the Continue button or breaking workflow continuity. */}
+      {!isPro() && entities.length > 0 && (
+        <div style={{ position: 'fixed', bottom: 70, left: 0, right: 0, zIndex: 65, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ background: '#F0F6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '6px 14px', fontSize: 11, color: '#1D4ED8', fontWeight: 600, pointerEvents: 'auto' }}>
+            ⚖ Compare entity structures with <button onClick={() => nav('/upgrade')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Professional →</button>
+          </div>
+        </div>
+      )}
+
+      {/* F-05: Remove entity confirmation modal */}
+      {confirmRemoveIdx !== null && (
+        <div onClick={() => setConfirmRemoveIdx(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '28px 24px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑</div>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: N, margin: '0 0 8px' }}>Remove This Entity?</h2>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 24px', lineHeight: 1.5 }}>All entered financial data, §199A inputs, and ownership percentages will be permanently lost. This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmRemoveIdx(null)} style={{ flex: 1, padding: '11px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: N }}>Cancel</button>
+              <button onClick={() => { removeEntity(confirmRemoveIdx); setConfirmRemoveIdx(null) }} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: 8, background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Remove Entity</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Entity Type Picker Modal ─────────────────────────────────────────── */}
       {showEntityPicker && (
