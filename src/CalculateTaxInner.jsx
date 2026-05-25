@@ -402,6 +402,27 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const [showQBI,    setShowQBI]    = useState(false)
   const pnl = entity.pnl || {}
 
+  // BUG-03 FIX: Disconnect button now actually disconnects.
+  // Previously, clicking "⟳ Disconnect / reconnect software" only toggled
+  // showManual — it never cleared stored tokens or reset the entity's
+  // connectedId, so the integration remained active in the background.
+  // Fix: clear all localStorage keys for the provider (token, connected flag,
+  // extra realm/tenant/account ID, and the global connected_app flag), then
+  // mark the entity as manual so the user can re-enter or reconnect.
+  // The P&L data is preserved in the manual entry fields so the user doesn't
+  // lose their numbers — they can edit them or reconnect to refresh.
+  const handleDisconnect = () => {
+    const pid = entity.connectedId
+    if (pid) {
+      localStorage.removeItem('ts360_' + pid + '_connected')
+      localStorage.removeItem('ts360_' + pid + '_token')
+      localStorage.removeItem('ts360_' + pid + '_extra')
+      localStorage.removeItem('ts360_connected_app')
+    }
+    onUpdate(idx, { ...entity, connectedId: null, isManual: true })
+    setShowManual(true)
+  }
+
   // BUG-02 FIX: Parentheses added so (grossRevenue - totalExpenses) is the
   // fallback used ONLY when netProfit is absent. When QuickBooks (or any
   // integration) populates pnl.netProfit directly, it is used as-is without
@@ -546,7 +567,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
-              onClick={() => setShowManual(s => !s)}
+              onClick={entity.isManual ? () => setShowManual(s => !s) : handleDisconnect}
               style={{
                 background: '#fff',
                 border: '1px solid #E2E8F0',
