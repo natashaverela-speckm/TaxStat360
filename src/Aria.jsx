@@ -43,9 +43,8 @@ export default function Aria() {
     setLoading(true)
     setPlanError(false)
     try {
-      // SECURITY: use ts360_session as the canonical auth key (namespaced, matches ts360_* convention)
-      const token = localStorage.getItem('ts360_session') || ''
-
+      // SEC-04: Session token now lives in an httpOnly cookie set by the login Lambda.
+      // The browser sends it automatically on credentialed requests — no localStorage read needed.
       // Build conversation history — exclude intro welcome message and cap at MAX_HISTORY_TURNS
       const history = msgs
         .filter(m => !m.intro)
@@ -55,17 +54,15 @@ export default function Aria() {
 
       const r = await fetch(ARIA_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages })
       })
 
       if (r.status === 401) {
-        // Clear stale tokens and prompt user to sign in
-        localStorage.removeItem('ts360_session')
-        localStorage.removeItem('token')
+        // Cookie expired or invalid — clear local flags and redirect to login
+        localStorage.removeItem('ts360_logged_in')
+        localStorage.removeItem('ts360_session_start')
         setMsgs(m => [...m, {
           role: 'assistant',
           text: 'Your session has expired.',
