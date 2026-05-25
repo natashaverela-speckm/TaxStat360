@@ -16,19 +16,33 @@ const PLANS = {
   enterprise:   { label:'Enterprise',   price:{ monthly:299, annual:249 }, color:N         },
 }
 
+// FEAT-01 FIX: FEATURES table now mirrors Landing.jsx plan feature lists exactly.
+// Prior table used mismatched labels that diverged from marketing copy, and was
+// missing several features (What-If Simulator, CPA Export Pack, Explainable AI,
+// Audit Risk Indicators, multi-entity view, CPA Collaboration Portal).
+// Users on the upgrade page now see the same features advertised on the landing page.
 const FEATURES = [
-  { label:'Year-round tax liability calculator',    starter:true,  professional:true, enterprise:true  },
-  { label:'Unlimited saved records',               starter:true,  professional:true, enterprise:true  },
-  { label:'Dashboard with My Records',             starter:true,  professional:true, enterprise:true  },
-  { label:'InfoTip field guidance',                starter:true,  professional:true, enterprise:true  },
-  { label:'Prior year loss carryforward',          starter:true,  professional:true, enterprise:true  },
-  { label:'AI Tax Planning Insights',              starter:false, professional:true, enterprise:true  },
-  { label:'Risk alert engine',                     starter:false, professional:true, enterprise:true  },
-  { label:'Officer compensation analysis',         starter:false, professional:true, enterprise:true  },
-  { label:'QuickBooks / Xero / Wave import',       starter:false, professional:true, enterprise:true  },
-  { label:'Multiple business entities',            starter:false, professional:false, enterprise:true },
-  { label:'Priority support',                      starter:false, professional:false, enterprise:true },
-  { label:'Dedicated account manager',             starter:false, professional:false, enterprise:true },
+  // ── Starter ──────────────────────────────────────────────────────────────
+  { label:'Year-round federal tax liability tracker',                   starter:true,  professional:true,  enterprise:true  },
+  { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
+  { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
+  { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
+  { label:'Personal tax return (W-2 + business income)',                starter:true,  professional:true,  enterprise:true  },
+  { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
+  // ── Professional additions ────────────────────────────────────────────────
+  { label:'Risk Alert Engine',                                          starter:false, professional:true,  enterprise:true  },
+  { label:'What-If Tax Scenario Simulator',                             starter:false, professional:true,  enterprise:true  },
+  { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
+  { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
+  { label:'Audit Risk Indicators',                                      starter:false, professional:true,  enterprise:true  },
+  { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
+  { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
+  // ── Enterprise additions ──────────────────────────────────────────────────
+  { label:'Multi-entity consolidated tax view',                         starter:false, professional:false, enterprise:true  },
+  { label:'AI-Generated CPA Briefing Documents',                        starter:false, professional:false, enterprise:true  },
+  { label:'Risk Tolerance Profiling',                                   starter:false, professional:false, enterprise:true  },
+  { label:'CPA Collaboration Portal',                                   starter:false, professional:false, enterprise:true  },
+  { label:'Dedicated onboarding & setup call',                          starter:false, professional:false, enterprise:true  },
 ]
 
 function LOGO() {
@@ -91,7 +105,10 @@ export default function Upgrade() {
     if (mountedRef.current) return
     setTimeout(() => {
       if (!window.Stripe || !document.getElementById('card-element')) return
-      const stripe = window.Stripe('pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e')
+      // SEC-01 FIX: Stripe live key moved to environment variable.
+      // Was: window.Stripe('pk_live_51TJmYh...' ) — hardcoded in source.
+      // Now: reads from VITE_STRIPE_PK env var so dev builds use test key.
+      const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PK)
       stripeRef.current = stripe
       const elements = stripe.elements()
       const card = elements.create('card', {
@@ -316,7 +333,7 @@ export default function Upgrade() {
           To cancel, click "Cancel Plan" → confirm → you will be redirected to our secure billing portal.
         </div>
 
-        {/* Feature comparison */}
+        {/* Feature comparison table */}
         <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,overflow:'hidden',marginBottom:32}}>
           <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',padding:'12px 20px',background:'#F8FAFC',borderBottom:'1px solid #E2E8F0'}}>
             <div style={{fontSize:12,fontWeight:700,color:SL,textTransform:'uppercase',letterSpacing:'0.06em'}}>Feature</div>
@@ -336,7 +353,7 @@ export default function Upgrade() {
           ))}
         </div>
 
-        {/* Card input */}
+        {/* Card input for upgrades */}
         {showCard && selectedPlan && (
           <div style={{background:'#fff',border:`2px solid ${B}`,borderRadius:14,padding:28,maxWidth:520,margin:'0 auto'}}>
             <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:4}}>
