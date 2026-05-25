@@ -205,8 +205,8 @@ function IntegrationTile({ integ, onConnect, onDisconnect, connected }) {
       background: connected ? integ.bg : '#fff',
       border: '1.5px solid ' + (connected ? integ.color : '#E2E8F0'),
       borderRadius: 10, padding: '10px 14px',
-      display: 'flex', alignItems: 'center', gap: 10,
-      transition: 'all 0.15s',
+      display: 'flex', alignItems: 'center', gap: 8,
+      transition: 'all 0.15s', overflow: 'hidden',
     }}>
       <div
         onClick={() => !connected && onConnect(integ.id)}
@@ -1046,7 +1046,7 @@ export default function CalculateTaxInner() {
             <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or add an entity manually using the button below." />
           </div>
           <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {INTEGRATIONS.map(integ => (
               <IntegrationTile
                 key={integ.id}
