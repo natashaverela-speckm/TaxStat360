@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
+// SEC-05 FIX: Route through CloudFront (app.taxstat360.com) instead of raw
+// API Gateway URL. Per constants.js architecture rule: "all components use
+// API_BASE_URL; do not hardcode the raw API Gateway URL — CloudFront / WAF
+// rules apply uniformly only when requests route through app.taxstat360.com."
+import { API_BASE_URL } from './constants.js'
 
-// SECURITY: Use API Gateway endpoint (enforces auth + plan check) instead of
-// direct Lambda URL (which bypasses all security middleware).
-const ARIA_URL = 'https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod/aria'
+const ARIA_URL = `${API_BASE_URL}/aria`
 const N = '#0D1B3E'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
@@ -135,7 +138,14 @@ export default function Aria() {
           </div>
         </div>
       )}
-      <button onClick={() => setOpen(o => !o)} style={{ position: 'fixed', bottom: 28, right: 28, width: 56, height: 56, borderRadius: '50%', background: N, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(13,27,62,0.35)', zIndex: 9999 }}>
+      {/* UX-03 FIX: aria-label and title added for accessibility and discoverability.
+          Screen readers now identify the button. Sighted users see tooltip on hover. */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label={open ? 'Close Aria AI assistant' : 'Open Aria AI assistant'}
+        title={open ? 'Close Aria' : 'Ask Aria — AI Tax Assistant'}
+        style={{ position: 'fixed', bottom: 28, right: 28, width: 56, height: 56, borderRadius: '50%', background: N, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(13,27,62,0.35)', zIndex: 9999 }}
+      >
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
           <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
           <path d="M24 1L24.7 4.3L28 5L24.7 5.7L24 9L23.3 5.7L20 5L23.3 4.3Z" fill="#F5C842" opacity="0.85"/>
