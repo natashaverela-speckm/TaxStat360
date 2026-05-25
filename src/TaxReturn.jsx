@@ -32,6 +32,7 @@ import { fmt, pct } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, SE_SUBJECT_TYPES } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL } from './constants.js'
+import { isPro } from './LockedFeature'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const nf = (v, fb = 0) => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : fb }
@@ -323,7 +324,7 @@ export default function TaxReturn() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Back to Business</button>
           <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
-          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>AI Analysis</button>
+          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }}>AI Analysis{!isPro() ? ' 🔒' : ''}</button>
           <button onClick={() => signOut(navigate)}         style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
           <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
         </div>
@@ -346,13 +347,12 @@ export default function TaxReturn() {
                 <select value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {YEARS.map(y => (
-                    <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA)' : String(y)}</option>
+                    <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
                   ))}
                 </select>
                 {taxYear === 2026 && (
                   <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>
-                    Per Rev. Proc. 2025-32 (One Big Beautiful Budget Act, P.L. 119-21).
-                    §461(l) EBL thresholds estimated — verify when IRS publishes final guidance.
+                    One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted. §461(l) EBL thresholds estimated — verify when IRS publishes final guidance.
                   </div>
                 )}
               </div>
@@ -396,8 +396,8 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>
-                  W-2 Income (Additional)
-                  <InfoTip text="Enter any W-2 wages NOT from your business entity. If you're a W-2 employee at another company in addition to owning a business, enter those wages here. Officer salary from your S-Corp flows automatically from Step 1." />
+                  W-2 Income (Other Employers)
+                  <InfoTip text="Enter W-2 wages from employers OTHER than the business entity you entered in Step 1. Your S-Corp officer salary already flows from Step 1 — do not re-enter it here. If you also work a W-2 job at a separate company, enter those wages here." />
                 </label>
                 <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" />
               </div>
@@ -472,7 +472,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Rental real estate */}
-          <CollapsibleSection title="Rental Real Estate" badge={nf(rentalIncome) > 0 ? 'Schedule E' : undefined} accent="#7C3AED">
+          <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(nf(rentalIncome) - nf(rentalExpenses)) : undefined} accent="#7C3AED">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>Rental Income</label>
@@ -561,8 +561,8 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label style={inputLbl}>
-                  Collectibles Gain (§1(h)(4))
-                  <InfoTip text="Gain from the sale of collectibles (coins, art, antiques, gems, stamps) held more than 1 year. Taxed at max 28%." />
+                  Collectibles Gain (Art, Coins, Stamps)
+                  <InfoTip text="Gain from the sale of collectibles held more than 1 year — including coins, art, antiques, gems, and stamps (IRC §1(h)(4)). Taxed at a maximum 28% rate, not the standard long-term capital gains rates. Enter your net gain from Schedule D." />
                 </label>
                 <MoneyInput value={collectibles} onChange={setCollectibles} placeholder="0" />
               </div>
@@ -570,7 +570,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Deductions & Above-Line Adjustments">
+          <CollapsibleSection title="Above-the-Line Deductions (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>
