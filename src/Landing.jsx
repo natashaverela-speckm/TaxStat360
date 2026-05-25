@@ -466,9 +466,9 @@ export default function Landing() {
                         <td key={j} style={{
                           padding: '11px 16px', textAlign: 'center',
                           background: j === 1 ? '#eff6ff' : 'transparent',
-                          color: val === true ? B : val === false ? '#cbd5e1' : N,
-                          fontWeight: val === true || typeof val === 'string' ? 700 : 400,
-                          fontSize: val === true ? 16 : 13,
+                          color: val === true ? B : val === false ? '#cbd5e1' : B,
+                          fontWeight: val === false ? 400 : 700,
+                          fontSize: val === false ? 13 : 15,
                         }}>
                           {val === true ? '✓' : val === false ? '—' : val}
                         </td>
