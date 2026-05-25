@@ -819,6 +819,7 @@ export default function CalculateTaxInner() {
               ...e,
               connectedId: null,
               isManual: true,
+              name: '',
               pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '', categories: {} },
             }
           : e
@@ -937,11 +938,15 @@ export default function CalculateTaxInner() {
           }
           setEntities(prev => {
             const updated = [...prev]
+            const providerName = pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business'
             if (updated[idx]) {
-              updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false }
+              // BUG-04 FIX: spread preserved stale name (e.g. 'Wave Business') when
+              // switching to a different integration without disconnecting first.
+              // Now explicitly sets name to match the current provider on every sync.
+              updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
               updated.push({
-                name: pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business',
+                name: providerName,
                 type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '',
                 pnl, connectedId: pid, isManual: false
               })
