@@ -726,6 +726,7 @@ export default function TaxReturn() {
                 { label: '—', value: 0, divider: true },
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
+                { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 { label: 'Addl. Medicare Tax (0.9%)',   value: result.additionalMedicare,                sign: 1, hide: result.additionalMedicare === 0 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
