@@ -26,10 +26,11 @@
 //   an "accepted trade-off." It has been fixed — see entityPredicates.js ownPct() helper.
 //   All call sites in taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, and Dashboard.jsx updated.
 //
-// RESOLVED (C-01): Plan identifier "basic" stored in localStorage conflicted with "Starter"
-//   displayed in the UI. PLAN_IDS and PLAN_DISPLAY_NAMES added below so all plan-identity
-//   checks use a single constant instead of string literals. Settings.jsx and any plan-gate
-//   code should normalise the legacy "basic" value using PLAN_DISPLAY_NAMES.
+// RESOLVED (C-01): Plan identifier inconsistency — localStorage stored 'basic' while UI
+//   displayed 'Starter'. PLAN_IDS and PLAN_DISPLAY_NAMES added below. All plan-gate checks
+//   must use PLAN_IDS.STARTER (= 'basic') rather than inline string literals.
+//   LockedFeature.jsx isPro() / isEnterprise() must be updated to compare against
+//   PLAN_IDS.PROFESSIONAL and PLAN_IDS.ENTERPRISE respectively.
 //
 // ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
 // taxCalc.js TAX_TABLES[year] now includes a `retirement` object with:
@@ -54,6 +55,34 @@
 // anywhere in the codebase. CloudFront / WAF rules apply uniformly only when
 // requests route through app.taxstat360.com.
 export const API_BASE_URL = 'https://app.taxstat360.com'
+
+// ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────
+// C-01 FIX: Canonical plan IDs stored in localStorage['plan'] by the auth Lambda.
+// ALL plan-gate checks must use these constants — never inline string literals.
+//
+// Storage → display name mapping:
+//   PLAN_IDS.STARTER      = 'basic'       ← what the auth Lambda writes to localStorage
+//   PLAN_IDS.PROFESSIONAL = 'pro'
+//   PLAN_IDS.ENTERPRISE   = 'enterprise'
+//
+// LockedFeature.jsx isPro() must compare: localStorage.getItem('plan') === PLAN_IDS.PROFESSIONAL
+// Settings.jsx plan display must use: PLAN_DISPLAY_NAMES[localStorage.getItem('plan') || 'basic']
+//
+// ⚠ Do NOT change the string VALUES — they must match what the Lambda writes.
+//   Only rename the JavaScript identifiers (STARTER, PROFESSIONAL, ENTERPRISE) if needed.
+export const PLAN_IDS = {
+  STARTER:      'basic',       // Free-tier / Starter plan
+  PROFESSIONAL: 'pro',         // Professional plan ($149/mo)
+  ENTERPRISE:   'enterprise',  // Enterprise plan ($299/mo)
+}
+
+// Human-readable display names keyed by the storage value.
+// Usage: PLAN_DISPLAY_NAMES[localStorage.getItem('plan')] ?? 'Starter'
+export const PLAN_DISPLAY_NAMES = {
+  basic:       'Starter',
+  pro:         'Professional',
+  enterprise:  'Enterprise',
+}
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
 // Employee and employer shares are symmetric (each 6.2% SS + 1.45% Medicare).
@@ -239,6 +268,12 @@ export const COLLECTIBLES_MAX_RATE = 0.28  // IRC §1(h)(4)
 // §199A(i) OBBBA minimum deduction (tax years beginning after 12/31/2025):
 //   If active QBI ≥ $1,000, deduction = GREATER of regular calc or $400.
 //   Dollar amounts are year-specific and in QBI_MIN_DEDUCTION / QBI_MIN_THRESHOLD (taxCalc.js).
+//
+// ⚠ C-02 / F-02 note: empty-string pnl fields (netProfit = '') produce NaN via parseFloat.
+//   NaN fails all numeric comparisons silently (NaN < threshold === false), which caused
+//   _applyMinQBI to apply the $400 OBBBA floor when QBI was actually zero.
+//   Fix applied in taxCalc.js: nv() normalization at calcQBI entry + Number.isFinite guard
+//   in _applyMinQBI. All entity income lookups now use nv() instead of raw parseFloat().
 export const QBI_DEDUCTION_RATE = 0.20   // IRC §199A(a)           — 20% of QBI
 export const W2_WAGE_LIMIT_RATE = 0.50   // IRC §199A(b)(2)(A)     — 50% of W-2 wages
 export const W2_WAGE_ALT_RATE   = 0.25   // IRC §199A(b)(2)(B)(i)  — 25% of W-2 wages
@@ -320,40 +355,6 @@ export const INTEGRATIONS = [
   { id: 'wave',       name: 'Wave',       color: '#2C6ECB', bg: '#EFF4FF', abbr: 'W'  },
   { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
-
-// ─── SUBSCRIPTION PLAN IDENTIFIERS ───────────────────────────────────────────
-// C-01 FIX: localStorage was storing plan as 'basic' while the UI showed
-// 'Starter Plan'. This discrepancy meant any code checking plan === 'starter'
-// would silently fail while 'basic' passed (or vice versa).
-//
-// ALL plan-identity comparisons throughout the codebase MUST use PLAN_IDS
-// constants — never bare string literals. The legacy 'basic' alias in
-// PLAN_DISPLAY_NAMES lets Settings.jsx / Upgrade.jsx normalise the stored
-// value without a migration script.
-//
-// To read plan safely:
-//   import { PLAN_IDS, PLAN_DISPLAY_NAMES } from './constants.js'
-//   const raw  = localStorage.getItem('plan') || ''
-//   const plan = raw === 'basic' ? PLAN_IDS.STARTER : raw   // normalise legacy value
-//   const name = PLAN_DISPLAY_NAMES[plan] ?? 'Starter'
-//
-// To write plan (from API response):
-//   localStorage.setItem('plan', PLAN_IDS.STARTER)          // NOT 'basic' / 'Starter'
-export const PLAN_IDS = {
-  STARTER:      'starter',
-  PROFESSIONAL: 'professional',
-  ENTERPRISE:   'enterprise',
-}
-
-// Human-readable display labels — used in Settings.jsx plan badge, Upgrade.jsx headings,
-// and any UI that names the current plan tier.
-// The 'basic' key is a legacy alias for the pre-C-01 stored value. Treat it as Starter.
-export const PLAN_DISPLAY_NAMES = {
-  starter:      'Starter',
-  professional: 'Professional',
-  enterprise:   'Enterprise',
-  basic:        'Starter',   // legacy alias — stored before C-01 fix; normalise on read
-}
 
 // ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
 // Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
