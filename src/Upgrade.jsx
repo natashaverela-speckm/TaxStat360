@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/signOut'
+import { normalizePlanId } from './LockedFeature'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 // M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
@@ -83,9 +84,8 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
-    const planMap = { 'basic': 'starter', 'pro': 'professional', 'expert': 'enterprise', 'elite': 'enterprise', 'essential': 'enterprise' }
-    const plan = planMap[raw] || (PLANS[raw] ? raw : 'starter')
+    const raw  = localStorage.getItem('plan') || 'starter'
+    const plan = normalizePlanId(raw)
     const em = localStorage.getItem('ts360_email') || ''
     setCurrentPlan(plan)
     setEmail(em)
