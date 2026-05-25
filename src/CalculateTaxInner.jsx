@@ -55,6 +55,7 @@ import { calcTaxReturn, calcQBI, getStdDed, getTable } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, clearStep1State, writeTaxYear } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
+import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
@@ -1059,17 +1060,31 @@ export default function CalculateTaxInner() {
           </div>
           <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {INTEGRATIONS.map(integ => (
-              <IntegrationTile
-                key={integ.id}
-                integ={integ}
-                connected={entities.some(e => e.connectedId === integ.id)}
-                onConnect={() => {
-                  window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect`
-                }}
-                onDisconnect={handleIntegrationDisconnect}
-              />
-            ))}
+            {(() => {
+              const userIsPro = isPro()
+              const connectedCount = entities.filter(e => e.connectedId).length
+              return INTEGRATIONS.map(integ => {
+                const isConnected = entities.some(e => e.connectedId === integ.id)
+                // Starter users may connect 1 app. Lock remaining tiles once 1 is connected.
+                const isLocked = !userIsPro && !isConnected && connectedCount >= 1
+                if (isLocked) {
+                  return (
+                    <LockedFeature key={integ.id} requiredPlan="professional" label="Unlimited Integrations" minHeight={70}>
+                      <IntegrationTile integ={integ} connected={false} onConnect={() => {}} onDisconnect={() => {}} />
+                    </LockedFeature>
+                  )
+                }
+                return (
+                  <IntegrationTile
+                    key={integ.id}
+                    integ={integ}
+                    connected={isConnected}
+                    onConnect={() => { window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect` }}
+                    onDisconnect={handleIntegrationDisconnect}
+                  />
+                )
+              })
+            })()}
           </div>
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <label htmlFor="csv-upload" style={{ cursor: 'pointer', fontSize: 12, color: B, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1102,14 +1117,22 @@ export default function CalculateTaxInner() {
           + Add Business Entity
         </button>
 
-        {/* Compare button */}
+        {/* Compare button — Professional feature */}
         {entities.length > 0 && (
-          <button
-            onClick={() => setShowCompare(true)}
-            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
-            style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
-            ⚖ Compare Entity Structures
-          </button>
+          isPro() ? (
+            <button
+              onClick={() => setShowCompare(true)}
+              title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
+              style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
+              ⚖ Compare Entity Structures
+            </button>
+          ) : (
+            <LockedFeature requiredPlan="professional" label="What-If Tax Scenario Simulator" minHeight={46}>
+              <button style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
+                ⚖ Compare Entity Structures
+              </button>
+            </LockedFeature>
+          )
         )}
       </div>
 
