@@ -531,6 +531,22 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             </div>
           )}
 
+          {/* Entity Type */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Entity Type</label>
+            <select
+              value={entity.type || 'S Corporation'}
+              onChange={e => onUpdate(idx, { ...entity, type: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, background: '#fff' }}
+            >
+              <option value="S Corporation">S Corporation</option>
+              <option value="Partnership / LLC">Partnership / LLC</option>
+              <option value="Sole Proprietor / SMLLC">Sole Proprietor / SMLLC</option>
+              <option value="Real Estate (Schedule E)">Real Estate (Schedule E)</option>
+              <option value="C Corporation">C Corporation</option>
+            </select>
+          </div>
+
           {/* Ownership % */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
@@ -741,6 +757,7 @@ export default function CalculateTaxInner() {
   const [expandedIdx,     setExpandedIdx]     = useState(null)
   const [showCompare,     setShowCompare]     = useState(false)
   const [showNameModal,   setShowNameModal]   = useState(false)
+  const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [saveStatus,      setSaveStatus]      = useState('idle')
   const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
@@ -770,9 +787,13 @@ export default function CalculateTaxInner() {
   }, [])
 
   const addEntity = useCallback(() => {
+    setShowEntityPicker(true)
+  }, [])
+
+  const addEntityOfType = useCallback((type) => {
     const newEnt = {
       id: Date.now(),
-      type: 'S Corporation',
+      type,
       name: '',
       own: '100',
       pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
@@ -783,6 +804,7 @@ export default function CalculateTaxInner() {
     }
     setEntities(prev => [...prev, newEnt])
     setExpandedIdx(entities.length)
+    setShowEntityPicker(false)
   }, [entities.length])
 
   const updateEntity = useCallback((idx, updated) => {
@@ -1171,6 +1193,41 @@ export default function CalculateTaxInner() {
       </div>
 
       {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
+
+      {/* ── Entity Type Picker Modal ─────────────────────────────────────────── */}
+      {showEntityPicker && (
+        <div onClick={() => setShowEntityPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', maxWidth: 560, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 4px' }}>What type of business entity?</h2>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Select the structure that matches how your business files taxes.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { type: 'S Corporation',              icon: '🏢', desc: 'Elected S-Corp tax status. Officer salary + K-1 distributions. FICA savings analysis included.' },
+                { type: 'Partnership / LLC',           icon: '🤝', desc: 'Multi-member LLC or partnership. Each partner\'s distributive share from K-1.' },
+                { type: 'Sole Proprietor / SMLLC',    icon: '💼', desc: 'Schedule C filer. Self-employment income, SE tax, and QBI deduction calculated automatically.' },
+                { type: 'Real Estate (Schedule E)',    icon: '🏠', desc: 'Rental income and expenses. Passive loss rules, depreciation, and REP status.' },
+                { type: 'C Corporation',               icon: '🏗️', desc: 'C-Corp. Dividends flow to personal return. Corporate-level tax is tracked separately.' },
+              ].map(({ type, icon, desc }) => (
+                <button
+                  key={type}
+                  onClick={() => addEntityOfType(type)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = B; e.currentTarget.style.background = '#F0F6FF' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = '#fff' }}
+                >
+                  <span style={{ fontSize: 26, flexShrink: 0 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2 }}>{type}</div>
+                    <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>{desc}</div>
+                  </div>
+                  <span style={{ marginLeft: 'auto', color: '#CBD5E1', fontSize: 18, flexShrink: 0 }}>›</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowEntityPicker(false)} style={{ marginTop: 16, background: 'none', border: 'none', color: SL, fontSize: 13, cursor: 'pointer', width: '100%' }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {showNameModal && (
         <NameRecordModal
