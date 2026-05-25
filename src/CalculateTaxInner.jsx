@@ -716,7 +716,12 @@ export default function CalculateTaxInner() {
   const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
 
-  const connectedApp = localStorage.getItem('ts360_connected_app') || ''
+  // BUG-03b FIX: connectedApp was a plain const loaded once at mount.
+  // After handleDisconnect cleared localStorage, integration tiles still showed
+  // "● Connected" because the const never updated. Now derived from entities
+  // state — reactive to every onUpdate call including disconnect.
+  // connectedApp kept as empty string fallback for any legacy references.
+  const connectedApp = ''
 
   useEffect(() => {
     const existing = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
@@ -755,6 +760,12 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
+      // BUG-03c FIX: sessionStorage was never updated during disconnect (or any
+      // inline edit). On page refresh the entity reloaded with the old connectedId
+      // still set, showing "● Synced" even after disconnect. Now every onUpdate
+      // call (disconnect, manual edit, QBI field change, etc.) writes back to
+      // sessionStorage so the state survives navigation and refresh correctly.
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
   }, [])
@@ -994,7 +1005,7 @@ export default function CalculateTaxInner() {
               <IntegrationTile
                 key={integ.id}
                 integ={integ}
-                connected={connectedApp.toLowerCase() === integ.id}
+                connected={entities.some(e => e.connectedId === integ.id)}
                 onConnect={() => {
                   window.open(`${API_BASE_URL}/integrations/${integ.id}/connect`, '_blank')
                 }}
