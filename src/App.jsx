@@ -46,16 +46,20 @@ function OAuthCallback() {
 }
 
 // ─── Auth Keys ────────────────────────────────────────────────────────────────
+// SEC-04: Session token migrated to httpOnly cookie (set by login Lambda).
+// localStorage no longer stores the raw token — only non-sensitive metadata.
+// ts360_logged_in is a lightweight hint; the real auth is the httpOnly cookie
+// which the browser sends automatically on every credentialed request.
 const AUTH_KEYS = [
-  'token','ts360_session','ts360_session_start',
+  'ts360_logged_in','ts360_session_start',
   'ts360_email','plan','userName','ts360_connected_app',
 ]
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidSession() {
-  const session = localStorage.getItem('ts360_session')
-  if (!session || session.trim().length < 10) return false
+  const loggedIn = localStorage.getItem('ts360_logged_in')
+  if (!loggedIn) return false
   const start = localStorage.getItem('ts360_session_start')
   if (start) {
     const startMs = parseInt(start, 10)
