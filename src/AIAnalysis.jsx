@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc'
+import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
@@ -1199,7 +1200,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
   const tools = [
     { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: N, action: onReport, available: true },
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
-    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: true },
+    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: isEnterprise(), requiredPlan: 'enterprise' },
   ]
   return (
     <div>
@@ -1208,16 +1209,26 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
         <p style={{ fontSize: 13, color: SL, margin: 0 }}>Three tools built for your CPA relationship and IRS preparedness.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {tools.map(t => (
-          <div key={t.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px', display: 'flex', gap: 20, alignItems: 'center' }}>
-            <div style={{ fontSize: 48, flexShrink: 0 }}>{t.icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 6 }}>{t.title}</div>
-              <div style={{ fontSize: 13, color: SL, lineHeight: 1.6 }}>{t.desc}</div>
+        {tools.map(t => {
+          const card = (
+            <div key={t.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px', display: 'flex', gap: 20, alignItems: 'center' }}>
+              <div style={{ fontSize: 48, flexShrink: 0 }}>{t.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 6 }}>{t.title}</div>
+                <div style={{ fontSize: 13, color: SL, lineHeight: 1.6 }}>{t.desc}</div>
+              </div>
+              <button onClick={t.action} style={{ padding: '12px 24px', background: t.available ? t.color : '#94A3B8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: t.available ? 'pointer' : 'default', flexShrink: 0 }}>{t.btn}</button>
             </div>
-            <button onClick={t.action} style={{ padding: '12px 24px', background: t.available ? t.color : '#94A3B8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: t.available ? 'pointer' : 'default', flexShrink: 0 }}>{t.btn}</button>
-          </div>
-        ))}
+          )
+          if (!t.available && t.requiredPlan) {
+            return (
+              <LockedFeature key={t.title} requiredPlan={t.requiredPlan} label={t.title} minHeight={100}>
+                {card}
+              </LockedFeature>
+            )
+          }
+          return card
+        })}
       </div>
     </div>
   )
@@ -1237,6 +1248,32 @@ export default function AIAnalysis() {
   const rec = getRecord(liveState)
   const score = completeness(rec)
   const missing = missingFields(rec)
+
+  // ── Plan gate ── AI Analysis is a Professional+ feature ──────────────────────
+  if (!isPro()) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #cbd5e1', padding: '48px 36px', maxWidth: 480, textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F1F3D', margin: '0 0 10px' }}>AI Analysis — Professional Feature</h2>
+          <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
+            AI Risk Scan, Tax Optimization, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
+          </p>
+          <div style={{ background: '#f8fafc', borderRadius: 10, padding: '16px', marginBottom: 24, textAlign: 'left' }}>
+            {['🚨 Officer salary & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
+              <div key={f} style={{ fontSize: 13, color: '#374151', padding: '4px 0', display: 'flex', gap: 8 }}>{f}</div>
+            ))}
+          </div>
+          <button onClick={() => navigate('/upgrade')} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer', width: '100%' }}>
+            Upgrade to Professional →
+          </button>
+          <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
+            ← Back to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const tabs = [
     { id: 'risk',       label: '🔍 Risk Scan' },
