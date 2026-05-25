@@ -9,8 +9,18 @@ import { useNavigate } from 'react-router-dom'
 
 export const PLANS = ['starter', 'professional', 'enterprise']
 
+// Legacy plan name aliases — matches the planMap in Upgrade.jsx
+const PLAN_ALIASES = {
+  'basic':     'starter',
+  'pro':       'professional',
+  'expert':    'enterprise',
+  'elite':     'enterprise',
+  'essential': 'enterprise',
+}
+
 export function getUserPlan() {
-  return (localStorage.getItem('plan') || 'starter').toLowerCase()
+  const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
+  return PLAN_ALIASES[raw] || raw
 }
 
 export function isPro() {
