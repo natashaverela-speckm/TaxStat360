@@ -814,7 +814,14 @@ export default function CalculateTaxInner() {
     localStorage.removeItem('ts360_connected_app')
     setEntities(prev => {
       const next = prev.map(e =>
-        e.connectedId === pid ? { ...e, connectedId: null, isManual: true } : e
+        e.connectedId === pid
+          ? {
+              ...e,
+              connectedId: null,
+              isManual: true,
+              pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '', categories: {} },
+            }
+          : e
       )
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
