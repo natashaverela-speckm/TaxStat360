@@ -63,6 +63,37 @@
 // EBL-FIX (§461(l) non-REP passive exclusion): eblBiz excludes non-REP rental.
 // T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
 // T-06 FIX (mileageRate added to TAX_TABLES).
+//
+// F-02 / T-01 / C-02 FIX (§199A phantom –$400 with empty entity):
+//   Root cause: pnl.netProfit stored as empty string '' in sessionStorage.
+//   In calcTaxReturn → nonSEk1 reduce:
+//     parseFloat('' ?? 0) !== the issue — the ?? operator does NOT skip empty string
+//     (it only skips null / undefined). So e.pnl?.netProfit ?? e.netProfit ?? 0
+//     evaluates to '' when netProfit is ''. parseFloat('') = NaN.
+//     0 || NaN = NaN  (0 is falsy; || evaluates the RHS).
+//   NaN propagates to qbiBasis, then into calcQBI(NaN, ...).
+//   Inside calcQBI:  NaN <= 0 is false in JS, so the early-return guard is skipped.
+//   deduction ends up as Math.round(NaN) || 0 = 0.
+//   _applyMinQBI is called with activeQbiForFloor = NaN.
+//   NaN < threshold is false in JS — so the guard that should short-circuit
+//   does not fire. The min-$400 branch executes, returning deduction = 400.
+//
+//   Fix 1 (root cause — C-02 normalisation):
+//     In nonSEk1 reducer, replace
+//       parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0)
+//     with
+//       nv(e.pnl?.netProfit ?? e.netProfit)
+//     nv() is already defined as (v) => parseFloat(v) || 0, so nv('') = 0.
+//
+//   Fix 2 (belt-and-suspenders — _applyMinQBI NaN guard):
+//     Change:  if (activeQbiForFloor < threshold) return result
+//     To:      if (!Number.isFinite(activeQbiForFloor) || activeQbiForFloor < threshold) return result
+//     This ensures any future NaN that reaches _applyMinQBI is treated as
+//     "below threshold" and suppresses the minimum deduction correctly.
+//
+//   Together these two fixes are minimal, isolated, and cannot regress any
+//   legitimate QBI scenario — the §199A(i) OBBBA $400 minimum still fires
+//   correctly whenever activeQbiForFloor is a finite number ≥ $1,000.
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -304,11 +335,25 @@ const QBI_PHASE_IN_RANGE = {
 const QBI_MIN_DEDUCTION = { 2026: 400 }
 const QBI_MIN_THRESHOLD = { 2026: 1000 }
 
+// F-02 / C-02 FIX — Belt-and-suspenders NaN guard.
+// The primary fix is in calcTaxReturn's nonSEk1 reducer (see below).
+// This guard is a secondary defence: if any NaN ever reaches activeQbiForFloor
+// (e.g. from a future code path), treat it as "below threshold" so the OBBBA
+// minimum deduction does not fire incorrectly.
+//
+// JavaScript comparison semantics:
+//   NaN < 1000  → false  (any comparison with NaN is false)
+//   NaN >= 1000 → false
+// Without the isFinite guard, NaN slips past the threshold check and the
+// $400 minimum fires unconditionally — that is the bug this fixes.
 function _applyMinQBI(result, activeQbiForFloor, taxYear) {
   const floor     = QBI_MIN_DEDUCTION[taxYear]
   const threshold = QBI_MIN_THRESHOLD[taxYear]
   if (floor == null || threshold == null) return result
-  if (activeQbiForFloor < threshold) return result
+  // F-02 FIX: !Number.isFinite catches NaN, Infinity, and -Infinity.
+  // A non-finite activeQbiForFloor means the QBI basis was indeterminate;
+  // suppress the minimum deduction rather than applying it blindly.
+  if (!Number.isFinite(activeQbiForFloor) || activeQbiForFloor < threshold) return result
   if (result.deduction >= floor) return { ...result, caps: { ...result.caps, min400: floor } }
   return { deduction: floor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
 }
@@ -587,9 +632,22 @@ function calcTaxReturn(input) {
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
 
+  // F-02 / C-02 FIX (primary — root-cause fix):
+  // pnl.netProfit is stored as an empty string '' when the entity card has been
+  // added but the user has not yet applied manual data. The nullish coalescing
+  // chain  e.pnl?.netProfit ?? e.netProfit ?? 0  evaluates to '' because ??
+  // only skips null/undefined — empty string passes through as-is.
+  // parseFloat('') = NaN; then 0 || NaN = NaN (0 is falsy, JS evaluates RHS).
+  // NaN propagates to qbiBasis and triggers the phantom –$400 QBI deduction.
+  //
+  // Fix: replace parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0)
+  //      with     nv(e.pnl?.netProfit ?? e.netProfit)
+  // nv() is (v) => parseFloat(v) || 0, so nv('') = 0. This eliminates the NaN.
+  // The ?? chain is preserved so a numeric netProfit (from Apply or integration)
+  // still takes precedence over the entity-level netProfit fallback.
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    const k1    = parseFloat(e.k1 ?? 0) || Math.round(parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
+    const k1    = parseFloat(e.k1 ?? 0) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
