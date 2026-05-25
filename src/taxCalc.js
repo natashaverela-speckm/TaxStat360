@@ -64,36 +64,28 @@
 // T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
 // T-06 FIX (mileageRate added to TAX_TABLES).
 //
-// F-02 / T-01 / C-02 FIX (§199A phantom –$400 with empty entity):
-//   Root cause: pnl.netProfit stored as empty string '' in sessionStorage.
-//   In calcTaxReturn → nonSEk1 reduce:
-//     parseFloat('' ?? 0) !== the issue — the ?? operator does NOT skip empty string
-//     (it only skips null / undefined). So e.pnl?.netProfit ?? e.netProfit ?? 0
-//     evaluates to '' when netProfit is ''. parseFloat('') = NaN.
-//     0 || NaN = NaN  (0 is falsy; || evaluates the RHS).
-//   NaN propagates to qbiBasis, then into calcQBI(NaN, ...).
-//   Inside calcQBI:  NaN <= 0 is false in JS, so the early-return guard is skipped.
-//   deduction ends up as Math.round(NaN) || 0 = 0.
-//   _applyMinQBI is called with activeQbiForFloor = NaN.
-//   NaN < threshold is false in JS — so the guard that should short-circuit
-//   does not fire. The min-$400 branch executes, returning deduction = 400.
+// F-02 / T-01 / C-02 FIX (NaN propagation → ghost $400 QBI deduction):
+// Root cause: e.pnl.netProfit is stored as '' (empty string) when a user adds an
+// entity but has not yet entered data. The ?? operator does NOT coerce '' to a
+// fallback (only null/undefined trigger ??), so parseFloat('') = NaN. NaN then
+// propagates into nonSEk1, qbiBasis, and finally calcQBI. Inside calcQBI,
+// NaN <= 0 is false — bypassing the early-exit guard. Math.round(NaN)||0 produces
+// deduction=0, but activeQbiForFloor=NaN, and NaN < threshold is also false —
+// so _applyMinQBI fell through to the OBBBA $400 floor unconditionally.
+// Three-part fix:
+//   1. nv() normalization added at calcQBI entry for all three numeric params.
+//   2. Number.isFinite guard in _applyMinQBI before the threshold comparison.
+//   3. nonSEk1 and related entity income lookups now use nv() instead of parseFloat().
 //
-//   Fix 1 (root cause — C-02 normalisation):
-//     In nonSEk1 reducer, replace
-//       parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0)
-//     with
-//       nv(e.pnl?.netProfit ?? e.netProfit)
-//     nv() is already defined as (v) => parseFloat(v) || 0, so nv('') = 0.
-//
-//   Fix 2 (belt-and-suspenders — _applyMinQBI NaN guard):
-//     Change:  if (activeQbiForFloor < threshold) return result
-//     To:      if (!Number.isFinite(activeQbiForFloor) || activeQbiForFloor < threshold) return result
-//     This ensures any future NaN that reaches _applyMinQBI is treated as
-//     "below threshold" and suppresses the minimum deduction correctly.
-//
-//   Together these two fixes are minimal, isolated, and cannot regress any
-//   legitimate QBI scenario — the §199A(i) OBBBA $400 minimum still fires
-//   correctly whenever activeQbiForFloor is a finite number ≥ $1,000.
+// T-02 FIX (officer W-2 excluded from FICA base):
+// totalW2ForFICA previously used only the additional W-2 income entered in Step 2.
+// Officer W-2 salary entered in Step 1 (entity pnl.officerSalary / officerW2) was
+// omitted, understating employee FICA and the SS wage base consumed. Fix:
+//   officerW2Total — sum of officer salaries across all S-Corp entities.
+//   allW2ForFICA   — additionalW2 + officerW2Total (used for empSS/empMedicare).
+//   ssWageBaseRoom — now deducts allW2ForFICA so ficaSavings correctly reflects
+//                   the remaining base available for K-1 distribution comparison.
+// Both values returned for Tax Waterfall display in TaxReturn.jsx.
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -335,30 +327,33 @@ const QBI_PHASE_IN_RANGE = {
 const QBI_MIN_DEDUCTION = { 2026: 400 }
 const QBI_MIN_THRESHOLD = { 2026: 1000 }
 
-// F-02 / C-02 FIX — Belt-and-suspenders NaN guard.
-// The primary fix is in calcTaxReturn's nonSEk1 reducer (see below).
-// This guard is a secondary defence: if any NaN ever reaches activeQbiForFloor
-// (e.g. from a future code path), treat it as "below threshold" so the OBBBA
-// minimum deduction does not fire incorrectly.
-//
-// JavaScript comparison semantics:
-//   NaN < 1000  → false  (any comparison with NaN is false)
-//   NaN >= 1000 → false
-// Without the isFinite guard, NaN slips past the threshold check and the
-// $400 minimum fires unconditionally — that is the bug this fixes.
+// F-02 / T-01 / C-02 FIX: Added Number.isFinite guard.
+// Prior code: `if (activeQbiForFloor < threshold)` — when activeQbiForFloor is NaN
+// (from empty-string pnl fields propagating through nonSEk1 → qbiBasis → calcQBI),
+// NaN < threshold evaluates to false and the function fell through to apply the
+// $400 OBBBA minimum even when actual QBI was zero.
+// Fix: treat non-finite (NaN, ±Infinity) as zero — the minimum never applies at 0.
 function _applyMinQBI(result, activeQbiForFloor, taxYear) {
   const floor     = QBI_MIN_DEDUCTION[taxYear]
   const threshold = QBI_MIN_THRESHOLD[taxYear]
   if (floor == null || threshold == null) return result
-  // F-02 FIX: !Number.isFinite catches NaN, Infinity, and -Infinity.
-  // A non-finite activeQbiForFloor means the QBI basis was indeterminate;
-  // suppress the minimum deduction rather than applying it blindly.
-  if (!Number.isFinite(activeQbiForFloor) || activeQbiForFloor < threshold) return result
+  // Guard: NaN and Infinity are not valid QBI amounts. Treat them as 0.
+  const safeActive = Number.isFinite(activeQbiForFloor) ? activeQbiForFloor : 0
+  if (safeActive < threshold) return result
   if (result.deduction >= floor) return { ...result, caps: { ...result.caps, min400: floor } }
   return { deduction: floor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
 }
 
+// F-02 / T-01 / C-02 FIX: nv() normalization added at function entry.
+// All three numeric inputs are normalized here so downstream comparisons
+// (qbiIncome <= 0, taxableBeforeQBI <= 0) behave correctly when called with NaN.
+// Without this, NaN <= 0 evaluates to false, bypassing the early-exit guard entirely.
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
+  // Normalize all three inputs: parseFloat('') = NaN; nv('') = 0.
+  qbiIncome        = nv(qbiIncome)
+  taxableBeforeQBI = nv(taxableBeforeQBI)
+  capitalGains     = nv(capitalGains)
+
   const {
     status = 'single',
     taxYear = 2025,
@@ -384,7 +379,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   if (qbiIncome <= 0 || taxableBeforeQBI <= 0) {
     return _applyMinQBI(
       withMeta({ deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }),
-      activeQbi !== undefined ? activeQbi : qbiIncome,
+      activeQbi !== undefined ? nv(activeQbi) : qbiIncome,
       taxYear
     )
   }
@@ -402,7 +397,7 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
         limitApplied,
         caps: { qbi: Math.round(qbiComponent), wage: null, income: Math.round(incomeLimitation) },
       }),
-      activeQbi !== undefined ? activeQbi : qbiIncome,
+      activeQbi !== undefined ? nv(activeQbi) : qbiIncome,
       taxYear
     )
   }
@@ -416,21 +411,21 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
     const k1Income = parseFloat(
-      e.k1 ?? Math.round(parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
+      e.k1 ?? Math.round(nv(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
     ) || 0
     return s + Math.max(0, k1Income)
   }, 0)
 
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
   const scaledQbiComponent = adjQBI * QBI_DEDUCTION_RATE
-  const activeQbiForFloor  = activeQbi !== undefined ? activeQbi : adjQBI
+  const activeQbiForFloor  = activeQbi !== undefined ? nv(activeQbi) : adjQBI
 
   const totalWages = entityQbiData.reduce((s, e) => {
-    const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
+    const w = nv(e.box17V_wages) || nv(e.officerW2) || nv(e.pnl?.officerSalary) || 0
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
   }, 0)
   const totalUBIA = entityQbiData.reduce((s, e) => {
-    const u = parseFloat(e.box17V_ubia) || 0
+    const u = nv(e.box17V_ubia) || 0
     return s + (e.box17V_sstb ? u * sstbApplicablePct : u)
   }, 0)
 
@@ -511,7 +506,7 @@ function calcTaxReturn(input) {
     const own = ownPct(e.own) / 100
     const k1Gross = e.k1 !== undefined
       ? parseFloat(e.k1) || 0
-      : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
+      : Math.round((nv(e.pnl?.netProfit) || 0) * own)
 
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
     const hasBasisInput = (
@@ -578,23 +573,33 @@ function calcTaxReturn(input) {
   const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
 
   // TAX-10 FIX: Use SE_NET_EARNINGS_FACTOR (0.9235) per IRC §1402(a)(12).
-  // The prior formula (1 - FICA_SS_RATE - FICA_MEDICARE_RATE) produced 0.9235
-  // coincidentally but is semantically wrong and would break if FICA rates change.
-  // SE_NET_EARNINGS_FACTOR is the statutory constant — use it directly.
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
   const seTax             = Math.round(ssPortion + medicarePortion)
   const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
 
-  const totalW2ForFICA = Math.max(0, nv(w2))
-  const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
-  const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
-  const employeeFICA   = Math.round(empSS + empMedicare)
+  // T-02 FIX: Include officer W-2 salary from S-Corp entities in the FICA base.
+  // Prior code only used the additional W-2 entered in Step 2 (nv(w2)).
+  // The officer salary entered in Step 1 pnl.officerSalary is also W-2 income
+  // subject to FICA. Omitting it understated employee FICA and gave an inflated
+  // ssWageBaseRoom, causing ficaSavings to overstate the S-Corp advantage.
+  const officerW2Total = entitiesLimited.reduce((sum, e) => {
+    if (!e || !/s.?corp/i.test(e.type || '')) return sum
+    return sum + Math.max(0, nv(e.pnl?.officerSalary ?? e.officerW2 ?? 0))
+  }, 0)
+  const additionalW2   = Math.max(0, nv(w2))
+  const allW2ForFICA   = additionalW2 + officerW2Total
 
-  // ── FICA Savings from S-Corp Structure (T-01 FIX) ─────────────────────────
+  const empSS        = Math.min(allW2ForFICA, ssWageBase) * FICA_SS_RATE
+  const empMedicare  = allW2ForFICA * FICA_MEDICARE_RATE
+  const employeeFICA = Math.round(empSS + empMedicare)
+
+  // ── FICA Savings from S-Corp Structure ────────────────────────────────────
+  // ssWageBaseRoom now uses allW2ForFICA (officer + additional) so the
+  // remaining room is correctly reduced by all W-2 wages already taxed.
   const k1Distributions  = Math.max(0, nv(adjustedK1Total))
-  const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
+  const ssWageBaseRoom   = Math.max(0, ssWageBase - allW2ForFICA)
   const seEarningsOnDist = k1Distributions * SE_NET_EARNINGS_FACTOR
   const distSSTaxable    = Math.min(seEarningsOnDist, ssWageBaseRoom)
   const ficaSavings = Math.round(
@@ -632,22 +637,13 @@ function calcTaxReturn(input) {
     ? 1
     : Math.max(0, 1 - Math.min(1, (taxableBeforeQBI - qbiThreshold) / qbiPhaseRange))
 
-  // F-02 / C-02 FIX (primary — root-cause fix):
-  // pnl.netProfit is stored as an empty string '' when the entity card has been
-  // added but the user has not yet applied manual data. The nullish coalescing
-  // chain  e.pnl?.netProfit ?? e.netProfit ?? 0  evaluates to '' because ??
-  // only skips null/undefined — empty string passes through as-is.
-  // parseFloat('') = NaN; then 0 || NaN = NaN (0 is falsy, JS evaluates RHS).
-  // NaN propagates to qbiBasis and triggers the phantom –$400 QBI deduction.
-  //
-  // Fix: replace parseFloat(e.pnl?.netProfit ?? e.netProfit ?? 0)
-  //      with     nv(e.pnl?.netProfit ?? e.netProfit)
-  // nv() is (v) => parseFloat(v) || 0, so nv('') = 0. This eliminates the NaN.
-  // The ?? chain is preserved so a numeric netProfit (from Apply or integration)
-  // still takes precedence over the entity-level netProfit fallback.
+  // C-02 FIX: use nv() instead of raw parseFloat() for all entity income lookups.
+  // parseFloat('') = NaN; nv('') = 0. The ?? operator does NOT coerce '' to 0
+  // (only null/undefined trigger ??), so nv() is required to safely handle
+  // the empty-string pnl fields stored when a user adds an entity without data.
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    const k1    = parseFloat(e.k1 ?? 0) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1    = nv(e.k1 ?? 0) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit ?? 0) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
@@ -742,11 +738,7 @@ function calcTaxReturn(input) {
   const safeHarborBalance   = Math.max(0, safeHarborMinimum - totalPayments)
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
 
-  // TAX-08 / F-07 FIX: quarterlyRecommended moved below safe harbor calculations.
-  // Prior: computed before safeHarborQuarterly existed, always used balance / 4.
-  // Now: uses Math.max so it never falls below the safe harbor quarterly amount.
-  // This prevents the primary "Recommended per quarter" display from showing less
-  // than the amount required to avoid IRC §6654 underpayment penalties.
+  // TAX-08 / F-07 FIX: quarterlyRecommended never falls below safe harbor quarterly.
   const quarterlyRecommended = Math.max(
     balance > 0 ? Math.round(balance / 4) : 0,
     safeHarborQuarterly
@@ -760,7 +752,7 @@ function calcTaxReturn(input) {
     if (!e) return null
     const isSEType = SE_SUBJECT_TYPES.includes(e.type)
     const own      = ownPct(e.own) / 100
-    const income   = parseFloat(e.k1 ?? 0) || Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
+    const income   = parseFloat(e.k1 ?? 0) || Math.round((nv(e.pnl?.netProfit) || 0) * own)
     return {
       name:         e.name || e.id || 'Unnamed Entity',
       type:         e.type,
@@ -783,7 +775,7 @@ function calcTaxReturn(input) {
     if (sal < 0) return { triggered: false, ratio: 100, message: '' }
     const k1Val = Math.max(0,
       parseFloat(scorp.k1 ?? 0) ||
-      Math.round((parseFloat(scorp.pnl?.netProfit || 0)) * (ownPct(scorp.own) / 100))
+      Math.round((nv(scorp.pnl?.netProfit || 0)) * (ownPct(scorp.own) / 100))
     )
     const totalComp = sal + k1Val
     if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
@@ -803,7 +795,13 @@ function calcTaxReturn(input) {
 
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE,
-    employeeFICA, totalW2ForFICA,
+    // T-02: both legacy totalW2ForFICA (additional W-2 only) and new allW2ForFICA
+    // (additional + officer) are returned for backward compatibility with callers
+    // that reference totalW2ForFICA. New TaxReturn.jsx waterfall uses allW2ForFICA.
+    totalW2ForFICA: additionalW2,
+    officerW2Total,
+    allW2ForFICA,
+    employeeFICA,
     ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     stdDed, itemized, deduction,
