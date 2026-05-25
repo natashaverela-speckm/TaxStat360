@@ -13,6 +13,8 @@ import Upgrade from './Upgrade'
 import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
+// F-01 FIX: Custom 404 page replaces silent wildcard redirect to homepage.
+import NotFound from './components/NotFound'
 // TC-N01 FIX: App.jsx was calling fetch(`${API_BASE}/auth/logout`, ...) but API_BASE was
 // never defined in this file — only API_BASE_URL is exported from constants.js.
 // This caused a ReferenceError on every session expiry, silently swallowed by .catch(()=>{}).
@@ -469,7 +471,7 @@ export default function App() {
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
 
-        {/* OAuth callback */}
+        {/* OAuth callback — handles QuickBooks, Xero, Wave, FreshBooks redirects */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
         {/* Protected app routes — RequireAuth wraps each in ErrorBoundary (UX-M01) */}
@@ -491,8 +493,10 @@ export default function App() {
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* F-01 FIX: Custom 404 page — replaces silent <Navigate to="/" replace />.
+            Users landing on invalid URLs now see a branded "Page Not Found" screen
+            instead of the homepage with no explanation. */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )
