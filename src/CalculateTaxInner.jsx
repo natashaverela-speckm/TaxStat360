@@ -1065,7 +1065,7 @@ export default function CalculateTaxInner() {
                 integ={integ}
                 connected={entities.some(e => e.connectedId === integ.id)}
                 onConnect={() => {
-                  window.open(`${API_BASE_URL}/integrations/${integ.id}/connect`, '_blank')
+                  window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect`
                 }}
                 onDisconnect={handleIntegrationDisconnect}
               />
