@@ -4,6 +4,24 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 // ── Change log ────────────────────────────────────────────────────────────────
+// BUG-02 FIX: EntityCard netProfit formula double-subtracted totalExpenses
+//   when P&L data came from an accounting software integration (QuickBooks,
+//   Xero, Wave, FreshBooks). The integration sets pnl.netProfit directly from
+//   the API response (d.net_profit). The prior formula:
+//     nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
+//   resolves the ?? to pnl.netProfit when it exists, then STILL subtracts
+//   totalExpenses — double-counting all expenses.
+//   Example: netProfit=-106,507, totalExpenses=312,850 → displayed -419,357.
+//   Fix: parentheses make (grossRevenue - totalExpenses) the fallback used
+//   ONLY when netProfit is absent:
+//     nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+//   When netProfit is present (integration sync), it is used directly.
+//   When netProfit is absent (entity card before manual entry is applied),
+//   it falls back to revenue - expenses as before.
+//   Impact: display only — persistStep1() already used the correct formula,
+//   so the tax calculation in Step 2 was always correct. This fixes the
+//   entity card header K-1 value and the P&L summary Net Profit line.
+//
 // L-01 FIX: ReasonableCompIndicator displayed "35% of net profit" as the
 //   description of the recommended officer salary threshold. The math is correct
 //   (Math.round(0.35/0.65 * netProfit) produces the salary that equals 35% of
@@ -134,12 +152,6 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
 }
 
 // ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
-// "35% of net profit" changed to "35% of total officer compensation" in both
-// the description text and the recommended-minimum label. The formula is correct
-// (Math.round(0.35/0.65 * netProfit) gives the salary such that salary ÷ total
-// comp = 35%, where total comp = salary + netProfit).  Only the label was wrong.
-// The IRS audit heuristic is salary-to-total-compensation ratio, not a percentage
-// of net profit — using "net profit" misstated the benchmark to users.
 function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
 
@@ -165,7 +177,6 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
         <div style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
-          {/* L-01 FIX: "35% of total officer compensation" — not "35% of net profit" */}
           Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation (salary ÷ total comp).
           Tax practitioners commonly recommend 35–45% of total officer compensation based on case law
           including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
@@ -246,20 +257,14 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 }
 
 // ─── Manual entry panel ───────────────────────────────────────────────────────
-// F-05 FIX: Added dedicated depreciation field (manDep state).
-// Previously, users had no way to enter depreciation separately — it was
-// buried in "Other Deductions" or ignored entirely, causing AIAnalysis.jsx
-// to always show "No Depreciation Recorded." The field appears between
-// Operating Expenses and Officer Salary, matching the order used in
-// Dashboard.jsx's calcDashboard function.
 function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const pnl = entity.pnl || {}
-  const [manRev,       setManRev]       = useState(String(nf(pnl.grossRevenue)   || ''))
-  const [manExp,       setManExp]       = useState(String(nf(pnl.totalExpenses)  || ''))
-  const [manDep,       setManDep]       = useState(String(nf(entity.depreciation || pnl.depreciation) || ''))
-  const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary || entity.officerW2) || ''))
-  const [manAdv,       setManAdv]       = useState(String(nf(pnl.advertising)    || ''))
-  const [manOther,     setManOther]     = useState(String(nf(pnl.otherDeductions)|| ''))
+  const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
+  const [manExp,        setManExp]        = useState(String(nf(pnl.totalExpenses)                        || ''))
+  const [manDep,        setManDep]        = useState(String(nf(entity.depreciation || pnl.depreciation)  || ''))
+  const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary  || entity.officerW2)   || ''))
+  const [manAdv,        setManAdv]        = useState(String(nf(pnl.advertising)                          || ''))
+  const [manOther,      setManOther]      = useState(String(nf(pnl.otherDeductions)                      || ''))
 
   const rv  = nf(manRev)
   const ex  = nf(manExp)
@@ -271,13 +276,12 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const totalExpenses = ex + dep + sal + adv + oth
   const manNetProfit  = rv - totalExpenses
 
-  const officerExceedsRevenue = sal > rv && sal > 0 && rv > 0
+  const officerExceedsRevenue   = sal > rv && sal > 0 && rv > 0
   const officerExceedsNetProfit = !officerExceedsRevenue && sal > (rv - ex - dep) && sal > 0 && rv > 0
 
   const isSCorp = isSCorpEntity(entity.type)
 
   function applyManual() {
-    // F-05: totalExpenses now includes dep (depreciation)
     if (rv > 0 || totalExpenses > 0) {
       onUpdate(idx, {
         ...entity,
@@ -320,11 +324,6 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
         </div>
-        {/* F-05 FIX: Dedicated depreciation field.
-            Previously absent — users had to enter depreciation in "Other Deductions"
-            or leave it blank (causing AI to always flag "No Depreciation Recorded").
-            Now stored in pnl.depreciation and included in totalExpenses so it
-            correctly reduces netProfit through the tax engine. */}
         <div>
           <label style={lbl}>
             Depreciation (Sec. 179 + MACRS + Bonus)
@@ -402,7 +401,15 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const pnl = entity.pnl || {}
-  const netProfit = nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
+
+  // BUG-02 FIX: Parentheses added so (grossRevenue - totalExpenses) is the
+  // fallback used ONLY when netProfit is absent. When QuickBooks (or any
+  // integration) populates pnl.netProfit directly, it is used as-is without
+  // subtracting totalExpenses again.
+  // Prior (broken): nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
+  // Fixed:          nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+  const netProfit = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+
   const own    = ownPct(entity.own) / 100
   const k1     = Math.round(netProfit * own)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
@@ -435,7 +442,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             {entity.isManual && <span style={{ marginLeft: 8, color: '#D97706', fontWeight: 600 }}>✏ Manual</span>}
           </div>
         </div>
-        {nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses))) !== 0 && (
+        {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 11, color: SL }}>Net / K-1</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
@@ -538,10 +545,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* C-05 FIX: Restyled from bare text link (background:none, border:none,
-                textDecoration:underline) to a secondary outlined button with consistent
-                visual weight. The text-link style was easy to miss and did not signal
-                "this is an interactive control" clearly enough. */}
             <button
               onClick={() => setShowManual(s => !s)}
               style={{
@@ -592,9 +595,9 @@ function CompareModal({ entities, onClose }) {
   const pnl    = entity.pnl || {}
   const rev    = nf(pnl.grossRevenue)
   const opex   = nf(pnl.totalExpenses)
-  const netP   = rev - opex
+  const netP   = nf(pnl.netProfit ?? (rev - opex))
 
-  if (rev <= 0) {
+  if (rev <= 0 && netP === 0) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%' }}>
@@ -606,15 +609,14 @@ function CompareModal({ entities, onClose }) {
     )
   }
 
-  const stdDed = getStdDed(taxYear, filing)
+  const stdDed   = getStdDed(taxYear, filing)
   const ownerPct = ownPct(entity.own) / 100
 
   const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
-    const isSC = /s.?corp/i.test(type)
-    const isSE = /sole|single|partner.*active/i.test(type)
+    const isSC     = /s.?corp/i.test(type)
     const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * 0.40)) : 0
-    const k1    = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
-    const _w2All = w2 + salGuess
+    const k1       = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
+    const _w2All   = w2 + salGuess
     const taxableRough = Math.max(0, k1 + _w2All - stdDed)
     const { deduction: qbi } = isPassthroughEntity(type)
       ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
@@ -685,12 +687,12 @@ function CompareModal({ entities, onClose }) {
 export default function CalculateTaxInner() {
   const navigate = useNavigate()
 
-  const [entities, setEntities]         = useState([])
-  const [expandedIdx, setExpandedIdx]   = useState(null)
-  const [showCompare, setShowCompare]   = useState(false)
-  const [showNameModal, setShowNameModal] = useState(false)
-  const [saveStatus, setSaveStatus]     = useState('idle') // idle | saving | saved
-  const [taxYear, setTaxYear]           = useState(() => readTaxYear() || 2025)
+  const [entities,        setEntities]        = useState([])
+  const [expandedIdx,     setExpandedIdx]     = useState(null)
+  const [showCompare,     setShowCompare]     = useState(false)
+  const [showNameModal,   setShowNameModal]   = useState(false)
+  const [saveStatus,      setSaveStatus]      = useState('idle')
+  const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
 
   const connectedApp = localStorage.getItem('ts360_connected_app') || ''
@@ -701,12 +703,12 @@ export default function CalculateTaxInner() {
       setEntities(existing.map(e => ({
         ...e,
         pnl: e.pnl || {
-          grossRevenue: e.grossRevenue || '',
+          grossRevenue:  e.grossRevenue  || '',
           totalExpenses: e.totalExpenses || '',
           officerSalary: e.officerSalary || '',
-          netProfit: e.netProfit || '',
+          netProfit:     e.netProfit     || '',
         },
-        own: e.own || '100',
+        own:      e.own      || '100',
         isManual: e.isManual || false,
       })))
     }
@@ -772,14 +774,14 @@ export default function CalculateTaxInner() {
       entities,
       k1Income: k1Total,
       biz: {
-        entityType: entities[0]?.type || 'S Corporation',
-        year: taxYear,
-        ownershipPct: entities[0]?.own || '100',
-        grossRevenue: String(nf(entities[0]?.pnl?.grossRevenue) || ''),
+        entityType:    entities[0]?.type       || 'S Corporation',
+        year:          taxYear,
+        ownershipPct:  entities[0]?.own        || '100',
+        grossRevenue:  String(nf(entities[0]?.pnl?.grossRevenue)    || ''),
         operatingExpenses: String(nf(entities[0]?.pnl?.totalExpenses) || ''),
-        officerSalary: String(nf(entities[0]?.pnl?.officerSalary) || ''),
-        depreciation: String(nf(entities[0]?.pnl?.depreciation) || ''),
-        pnl: entities[0]?.pnl || {},
+        officerSalary: String(nf(entities[0]?.pnl?.officerSalary)   || ''),
+        depreciation:  String(nf(entities[0]?.pnl?.depreciation)    || ''),
+        pnl:           entities[0]?.pnl || {},
       },
       f1040: readPersonalContext(),
     }
@@ -797,22 +799,22 @@ export default function CalculateTaxInner() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const lines = ev.target.result.split('\n').filter(l => l.trim())
+        const lines  = ev.target.result.split('\n').filter(l => l.trim())
         if (lines.length < 2) { setCsvImportStatus('error'); return }
         const header = lines[0].split(',').map(h => h.trim().toLowerCase())
         const vals   = lines[1].split(',').map(v => v.trim().replace(/"/g, ''))
         const get    = (keys) => { for (const k of keys) { const i = header.indexOf(k); if (i >= 0) return vals[i] || '' } return '' }
 
         const importedEnt = {
-          id: Date.now(),
+          id:   Date.now(),
           type: 'S Corporation',
           name: get(['entity', 'entity name', 'business', 'business name']) || 'Imported Entity',
-          own: get(['ownership', 'own', 'ownership %', 'pct']) || '100',
+          own:  get(['ownership', 'own', 'ownership %', 'pct']) || '100',
           pnl: {
-            grossRevenue:   get(['revenue', 'gross revenue', 'income', 'gross income']) || '',
-            totalExpenses:  get(['expenses', 'total expenses', 'operating expenses']) || '',
-            officerSalary:  get(['officer salary', 'salary', 'w2', 'officer compensation']) || '',
-            netProfit:      get(['net profit', 'profit', 'net income']) || '',
+            grossRevenue:  get(['revenue', 'gross revenue', 'income', 'gross income'])        || '',
+            totalExpenses: get(['expenses', 'total expenses', 'operating expenses'])          || '',
+            officerSalary: get(['officer salary', 'salary', 'w2', 'officer compensation'])    || '',
+            netProfit:     get(['net profit', 'profit', 'net income'])                        || '',
           },
           isManual: true, connectedId: null,
           box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
@@ -828,12 +830,12 @@ export default function CalculateTaxInner() {
     reader.readAsText(file)
   }
 
-  // ─── OAuth callback handler ───────────────────────────────────────────────────
+  // ─── OAuth / integration data fetch ──────────────────────────────────────────
   async function fetchEntityPnL(idx, pid, tok, extra) {
     try {
       let url = `${API_BASE_URL}/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
-      if (pid === 'quickbooks' && extra) url += '&realm=' + extra
-      if (pid === 'xero'        && extra) url += '&tenant=' + extra
+      if (pid === 'quickbooks' && extra) url += '&realm='   + extra
+      if (pid === 'xero'        && extra) url += '&tenant='  + extra
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
       const d = await (await fetch(url)).json()
       if (d && !d.error) {
@@ -868,7 +870,6 @@ export default function CalculateTaxInner() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
-    // Map of URL param names → provider IDs (backend returns several variants)
     const mp = {
       qb_token: 'quickbooks', quickbooks_token: 'quickbooks',
       xero_token: 'xero',
@@ -879,7 +880,7 @@ export default function CalculateTaxInner() {
     if (xeroRefresh) localStorage.setItem('ts360_xero_refresh', xeroRefresh)
     const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
     let foundInUrl = false
-    // Check for {provider}=connected flag (without inline token)
+
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
@@ -891,7 +892,7 @@ export default function CalculateTaxInner() {
         break
       }
     }
-    // Check for tokens in URL params
+
     for (const [k, pid] of Object.entries(mp)) {
       const tok = p.get(k)
       if (tok) {
@@ -906,21 +907,24 @@ export default function CalculateTaxInner() {
         fetchEntityPnL(entityIdx, pid, tok, extra)
       }
     }
-    // Fallback: restore from persisted connected session
+
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
         if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
-          const tok = localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+          const tok   = localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
           const extra = localStorage.getItem('ts360_' + pid + '_extra')
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }
       }
     }
-    // Clean URL without reload so user sees /calculate-tax not /calculate-tax?...
+
     if (foundInUrl) window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
-  const hasData = entities.length > 0 && entities.some(e => nf(e.pnl?.grossRevenue) > 0)
+  const hasData = entities.length > 0 && entities.some(e => {
+    const pnl = e.pnl || {}
+    return nf(pnl.grossRevenue) > 0 || nf(pnl.netProfit) !== 0
+  })
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -933,10 +937,10 @@ export default function CalculateTaxInner() {
           <div style={{ background: '#EFF6FF', color: B, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700 }}>Step 1 of 2 — Business Entities</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
+          <button onClick={() => navigate('/dashboard')}   style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
           <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>AI Analysis</button>
-          <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
-          <button onClick={() => navigate('/settings')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+          <button onClick={() => signOut(navigate)}        style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
+          <button onClick={() => navigate('/settings')}    style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
         </div>
       </nav>
 
@@ -982,7 +986,7 @@ export default function CalculateTaxInner() {
               <input id="csv-upload" type="file" accept=".csv,.xlsx" onChange={handleCsvUpload} style={{ display: 'none' }} />
             </label>
             {csvImportStatus === 'success' && <span style={{ fontSize: 12, color: G, fontWeight: 600 }}>✓ Entity imported!</span>}
-            {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R,  fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
+            {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R, fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
           </div>
         </div>
 
@@ -1011,7 +1015,7 @@ export default function CalculateTaxInner() {
         {entities.length > 0 && (
           <button
             onClick={() => setShowCompare(true)}
-            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor. See side-by-side entity, self-employment, and QBI tax differences."
+            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
             style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
             ⚖ Compare Entity Structures
           </button>
@@ -1021,10 +1025,11 @@ export default function CalculateTaxInner() {
       {/* Fixed footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 50 }}>
         <div style={{ fontSize: 12, color: SL, flex: 1 }}>
-          {entities.length > 0 ? `${entities.length} entity${entities.length > 1 ? 'ies' : ''} — K-1 flows to personal return in Step 2` : 'Add at least one business entity to continue'}
+          {entities.length > 0
+            ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} — K-1 flows to personal return in Step 2`
+            : 'Add at least one business entity to continue'}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* C-02 FIX: "Save Record" → "Save This Record" to match TaxReturn.jsx Step 2 */}
           <button
             onClick={() => setShowNameModal(true)}
             disabled={!hasData || saveStatus === 'saving'}
