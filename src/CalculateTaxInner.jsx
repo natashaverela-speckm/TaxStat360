@@ -805,7 +805,12 @@ export default function CalculateTaxInner() {
     }
     setEntities(prev => {
       const next = [...prev, newEnt]
-      // F-07 FIX: persist immediately so navigating away before editing doesn't lose the entity
+      // C-03: ts360_step1_entities = rolling DRAFT state.
+      // Written on every entity mutation (creation, field edit, disconnect).
+      // ts360_entities (written by persistStep1/writeStep1State) = FINALIZED
+      // snapshot passed to Step 2. These are two separate keys by design.
+      // updateEntity() must only ever write to ts360_step1_entities, never
+      // to ts360_entities directly — that would corrupt the Step 2 snapshot.
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
@@ -817,11 +822,9 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
-      // BUG-03c FIX: sessionStorage was never updated during disconnect (or any
-      // inline edit). On page refresh the entity reloaded with the old connectedId
-      // still set, showing "● Synced" even after disconnect. Now every onUpdate
-      // call (disconnect, manual edit, QBI field change, etc.) writes back to
-      // sessionStorage so the state survives navigation and refresh correctly.
+      // C-03: ts360_step1_entities = rolling DRAFT. Written on every field change.
+      // MUST NOT write to ts360_entities here — that is the finalized Step 2
+      // snapshot written exclusively by persistStep1() / writeStep1State().
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
