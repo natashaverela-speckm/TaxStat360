@@ -495,7 +495,7 @@ export default function TaxReturn() {
                 <input type="checkbox" id="active" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
                 <label htmlFor="active" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
                   Active Participant (§469(i) $25K allowance)
-                  <InfoTip text="If you actively participated in managing the rental (made management decisions, approved tenants, etc.) you may deduct up to $25,000 in rental losses against non-passive income. This allowance phases out at 50¢ per dollar of AGI above $100,000 and is $0 above $150,000 AGI." />
+                  <InfoTip text="If you actively participated in managing the rental (made management decisions, approved tenants, set rental terms, etc.) you may deduct up to $25,000 in rental losses against non-passive income.\n\nPhase-out: The $25K allowance phases out at 50¢ per dollar of AGI above $100,000 and reaches $0 at $150,000 AGI (IRC §469(i)(3)).\n\nMFS filers: $0 allowance regardless of AGI (IRC §469(i)(4)) — do not check this box if filing Married Filing Separately.\n\nAbove $150K AGI, losses may still be usable against other passive income or carried forward to future years." />
                 </label>
               </div>
             )}
@@ -603,7 +603,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label style={inputLbl}>
                   NOL Carryforward (IRC §172)
-                  <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically." />
+                  <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically.\n\nExample: $200K NOL with $100K taxable income → $80K deductible this year (80% cap); $120K carries forward indefinitely.\n\nThe remaining carryforward is shown below the Tax Waterfall when applicable." />
                 </label>
                 <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" />
               </div>
@@ -739,11 +739,16 @@ export default function TaxReturn() {
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
-                    <span style={{ color: row.accent || SL, fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
-                    <span style={{ fontWeight: row.bold ? 700 : 500, color: row.accent || N }}>
-                      {row.sign < 0 ? '−' : ''}{fmt(Math.abs(row.value))}
-                    </span>
+                  <div key={i}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                      <span style={{ color: row.accent || SL, fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
+                      <span style={{ fontWeight: row.bold ? 700 : 500, color: row.accent || N }}>
+                        {row.sign < 0 ? '−' : ''}{fmt(Math.abs(row.value))}
+                      </span>
+                    </div>
+                    {row.note && (
+                      <div style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2, paddingLeft: 2 }}>{row.note}</div>
+                    )}
                   </div>
                 )
               })}
