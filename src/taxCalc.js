@@ -301,6 +301,10 @@ const QBI_PHASE_IN_RANGE = {
   2026: { single:75000, mfj:150000, hoh:75000, mfs:75000 },
 }
 
+// §199A minimum deduction — OBBBA §70101, effective 2026 only.
+// No entry for 2025 is intentional: the $400 minimum did not exist pre-OBBBA.
+// If _applyMinQBI is called for taxYear=2025, floor/threshold are null and
+// the function returns the result unchanged (correct behavior).
 const QBI_MIN_DEDUCTION = { 2026: 400 }
 const QBI_MIN_THRESHOLD = { 2026: 1000 }
 
