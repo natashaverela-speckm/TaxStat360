@@ -64,6 +64,17 @@
 // T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
 // T-06 FIX (mileageRate added to TAX_TABLES).
 //
+// PASS4B-02b-fix (§1368 income-entity distribution gap):
+// The non-limiting branch of the entityBasisResults pass previously omitted
+// stockBasis / debtBasis from the pushed result object. For profitable entities
+// (k1Gross >= 0) that entered basis data, the distribution loop could not find
+// the basis in basisResult and fell back to excessCapGain: null (amber prompt).
+// Fix: spread stockBasis / debtBasis into the non-limiting push when hasBasisInput
+// is true. The hasBasisEntry guard (basisResult.stockBasis !== undefined) now
+// correctly resolves for income entities, enabling full §1368 computation.
+// No change for entities where basis was not entered — stockBasis remains absent
+// from the pushed result so hasBasisEntry = false (amber prompt, correct).
+//
 // PASS4B-02b (§1368(b)(2) S-Corp distribution capital gain):
 // S-Corp distributions that exceed a shareholder's remaining stock basis (after the
 // current year's income/loss allocation) are taxable as long-term capital gain
@@ -519,7 +530,18 @@ function calcTaxReturn(input) {
     )
 
     if (!isLimitable || k1Gross >= 0 || !hasBasisInput) {
-      entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed: k1Gross, suspended: 0 })
+      // PASS4B-02b FIX: also store stockBasis/debtBasis when the user has entered
+      // them, even for profitable entities (k1Gross >= 0) that don't need loss
+      // limitation. Without this, the §1368 distribution capital gain loop below
+      // cannot find the basis for income entities and falls back to the amber
+      // "enter basis to compute" prompt even though basis was provided.
+      const sbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.stockBasis) || 0) : undefined
+      const dbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.debtBasis)  || 0) : undefined
+      entityBasisResults.push({
+        name: e.name || e.id || 'Entity', type: e.type,
+        k1Gross, k1Allowed: k1Gross, suspended: 0,
+        ...(sbPassthrough !== undefined ? { stockBasis: sbPassthrough, debtBasis: dbPassthrough } : {}),
+      })
       return e
     }
 
