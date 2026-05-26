@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Privacy from './Privacy'
 import Terms from './Terms'
+import About from './About'
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
@@ -183,10 +184,10 @@ const SECTION_META = {
     ogDescription: 'Start free for 7 days. Starter $79/mo · Professional $149/mo · Enterprise $299/mo.',
   },
   faq: {
-    title: 'FAQ — TaxStat360 | Common Questions About S-Corp Tax Tracking',
-    description: 'Answers to common questions about TaxStat360: accuracy of tax calculations, accounting software integrations, data security, multi-entity support, and how the 7-day free trial works.',
+    title: 'FAQ — TaxStat360 | Questions About S-Corp, LLC & Real Estate Tax Planning',
+    description: 'Answers to common questions about TaxStat360: tax year selection, accuracy of calculations, accounting software integrations, data security, multi-entity support, and how the 7-day free trial works.',
     canonical: 'https://www.taxstat360.com/faq',
-    ogTitle: 'TaxStat360 FAQ — Your S-Corp Tax Tracking Questions Answered',
+    ogTitle: 'TaxStat360 FAQ — Your Tax Planning Questions Answered',
     ogDescription: 'Do I need a CPA? How accurate are the calculations? What software integrates? All your TaxStat360 questions answered.',
   },
 }
@@ -265,6 +266,7 @@ function LandingAtSection({ sectionId }) {
 // ─── Route-level page titles ──────────────────────────────────────────────────
 const ROUTE_TITLES = {
   '/':                 'TaxStat360 — Year-Round Tax Liability Management for Business Owners',
+  '/about':            'About | TaxStat360 | Built by Former IRS Agents',
   '/how-it-works':     'How It Works | TaxStat360',
   '/contact':          'Contact | TaxStat360',
   '/login':            'Sign In | TaxStat360',
@@ -310,7 +312,7 @@ function RouteTitle() {
     const path = location.pathname.replace(/\/$/, '') || '/'
     setNoindex(NOINDEX_PREFIXES.some(p => path.startsWith(p)))
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
-    if (path.startsWith('/onboarding'))  { document.title = 'Set Up Your Account | TaxStat360'; return }
+    if (path.startsWith('/onboarding'))   { document.title = 'Set Up Your Account | TaxStat360'; return }
     if (path.startsWith('/integrations')) return
     const title = ROUTE_TITLES[path]
     if (title) document.title = title
@@ -318,20 +320,10 @@ function RouteTitle() {
   return null
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
-// ─── Cookie Consent Banner (ADD-02) ──────────────────────────────────────────
-// GDPR (EU) and CCPA (California) require consent before setting non-essential
-// cookies. This banner appears once on first visit and sets ts360_cookie_consent
-// in localStorage. Value is 'accepted' or 'declined'.
-//
-// Design choices:
-// - Bottom-of-screen fixed bar, stays above AuthFooter (z-index 60 vs 50)
-// - "Accept" accepts all cookies; "Essential only" declines analytics/marketing
-// - Once dismissed either way, never shown again in the same browser
-// - Does NOT fire any analytics until/unless user clicks Accept
-//
-// To check consent elsewhere: localStorage.getItem('ts360_cookie_consent')
-// 'accepted' = all cookies OK  |  'declined' = essential only  |  null = not yet shown
+// ─── Cookie Consent Banner ────────────────────────────────────────────────────
+// ADD-02: GDPR (EU) and CCPA (California) require consent before setting
+// non-essential cookies. Banner appears once on first visit. Value stored in
+// localStorage as 'accepted' or 'declined'.
 function CookieBanner() {
   const [visible, setVisible] = useState(() => !localStorage.getItem('ts360_cookie_consent'))
 
@@ -384,6 +376,7 @@ function CookieBanner() {
   )
 }
 
+// ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
@@ -397,6 +390,9 @@ export default function App() {
         <Route path="/how-it-works" element={<LandingAtSection sectionId="how-it-works" />} />
         <Route path="/faq"          element={<LandingAtSection sectionId="faq" />} />
         <Route path="/contact"      element={<LandingAtSection sectionId="contact" />} />
+
+        {/* UX-03: About page — dedicated team of former IRS agents and tax professionals */}
+        <Route path="/about"        element={<About />} />
 
         <Route path="/signup"       element={<Onboarding screen="signup" />} />
         <Route path="/register"     element={<Onboarding screen="signup" />} />
