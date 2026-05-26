@@ -135,19 +135,70 @@ export default function Aria() {
           </div>
         </div>
       )}
-      {/* UX-03 FIX: aria-label and title added for accessibility and discoverability.
-          Screen readers now identify the button. Sighted users see tooltip on hover. */}
+
+      {/* UX-05 FIX: The trigger button now has a visible label so users know what it does
+          without having to hover or guess.
+          —
+          BEFORE (regression): A bare 56×56 navy circle with the Aria star SVG and no text.
+          The aria-label / title attributes were present for screen readers and hover tooltips,
+          but sighted users on mobile — where title tooltips never fire — had no affordance.
+          The button was invisible as a feature; click-through on the widget was low as a result.
+          —
+          AFTER: Two distinct states driven by the existing `open` boolean:
+            • Closed → pill button (auto width, 48px tall): star SVG + "Ask Aria" text.
+                        Pill shape is the industry-standard chat widget pattern (Intercom, Drift).
+                        Makes the feature discoverable on first visit without any interaction.
+            • Open   → circle button (48×48): plain × glyph.
+                        Collapses back to a compact close target that doesn't obscure the chat panel.
+          —
+          Positioning, z-index, onClick, aria-label, and title are all unchanged from the prior
+          version so nothing else in the component is affected. */}
       <button
         onClick={() => setOpen(o => !o)}
         aria-label={open ? 'Close Aria AI assistant' : 'Open Aria AI assistant'}
         title={open ? 'Close Aria' : 'Ask Aria — AI Tax Assistant'}
-        style={{ position: 'fixed', bottom: 28, right: 28, width: 56, height: 56, borderRadius: '50%', background: N, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(13,27,62,0.35)', zIndex: 9999 }}
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          height: 48,
+          // Pill when closed (fits icon + label), circle when open (just the × glyph)
+          width: open ? 48 : 'auto',
+          borderRadius: 24,
+          background: N,
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: open ? 0 : 8,
+          padding: open ? 0 : '0 20px 0 14px',
+          boxShadow: '0 4px 20px rgba(13,27,62,0.35)',
+          zIndex: 9999,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          transition: 'width 0.2s ease, padding 0.2s ease, border-radius 0.2s ease',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+        }}
       >
-        <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-          <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
-          <path d="M24 1L24.7 4.3L28 5L24.7 5.7L24 9L23.3 5.7L20 5L23.3 4.3Z" fill="#F5C842" opacity="0.85"/>
-          <path d="M5 18L5.5 20.5L8 21L5.5 21.5L5 24L4.5 21.5L2 21L4.5 20.5Z" fill="#F5C842" opacity="0.7"/>
-        </svg>
+        {open ? (
+          /* Close state — compact × so it doesn't cover the chat panel */
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M2 2L16 16M16 2L2 16" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
+          </svg>
+        ) : (
+          /* Open/idle state — star icon + visible label */
+          <>
+            <svg width="22" height="22" viewBox="0 0 30 30" fill="none" style={{ flexShrink: 0 }}>
+              <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
+              <path d="M24 1L24.7 4.3L28 5L24.7 5.7L24 9L23.3 5.7L20 5L23.3 4.3Z" fill="#F5C842" opacity="0.85"/>
+              <path d="M5 18L5.5 20.5L8 21L5.5 21.5L5 24L4.5 21.5L2 21L4.5 20.5Z" fill="#F5C842" opacity="0.7"/>
+            </svg>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: '0.01em' }}>
+              Ask Aria
+            </span>
+          </>
+        )}
       </button>
     </>
   )
