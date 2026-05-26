@@ -1188,7 +1188,7 @@ export default function CalculateTaxInner() {
       </div>
 
       {/* Fixed footer — paddingRight: 90 ensures buttons clear the Aria floating icon (72px + 16px margin) */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 90px 12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 80, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
         <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
           {entities.length > 0
             ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
