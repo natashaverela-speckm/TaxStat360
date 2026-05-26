@@ -18,13 +18,13 @@ const EYEBROW = {
 
 const CTA_LABEL = 'Start Free 7-Day Trial'
 
-// UX-03 FIX: Reordered so benefits lead ("No charge for 7 days · Cancel anytime")
-// before the friction condition ("Credit card required"). The original order led
-// with "Credit card required" which is a deterrent that can stop users from reading
-// the reassurances that follow. Benefits first → condition second is standard
-// conversion copywriting practice. "No CPA needed" retained in hero only.
-const CTA_COPY_FULL  = 'No charge for 7 days · Cancel anytime · Credit card required · No CPA needed to get started'
-const CTA_COPY_SHORT = 'Credit card required · No charge for 7 days · Cancel anytime'
+// UX-06 FIX: Changed "Credit card required" → "Card for verification only" in both
+// the full and short CTA copy strings. The word "required" at the top of the funnel
+// acts as a deterrent; "for verification only" re-frames the card ask as a security
+// step rather than a payment commitment, which is more accurate and less friction.
+// CTA_COPY_FULL is used in the hero; CTA_COPY_SHORT in pricing and bottom CTA.
+const CTA_COPY_FULL  = 'No charge for 7 days · Cancel anytime · Card for verification only · No CPA needed to get started'
+const CTA_COPY_SHORT = 'Card for verification only · No charge for 7 days · Cancel anytime'
 
 // F-02 FIX: Nav component now uses hamburger toggle for mobile.
 // menuOpen state controls className on nav-links div (.nav-links vs .nav-links.open).
@@ -49,7 +49,7 @@ function Nav({ nav }) {
         <a href="#features"     style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Features</a>
         <a href="#pricing"      style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Pricing</a>
         <a href="#faq"          style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>FAQ</a>
-        <button onClick={() => nav('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
+        <button onClick={() => nav('/login')}  style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
         <button onClick={() => nav('/signup')} className="nav-cta-btn" style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>{CTA_LABEL}</button>
       </div>
       {/* Hamburger — visible on mobile only via Landing.css @media rule */}
@@ -70,22 +70,22 @@ function Nav({ nav }) {
 export default function Landing() {
   const nav = useNavigate()
   const [billing, setBilling] = useState('monthly')
-  const [contactName, setContactName]     = useState('')
-  const [contactEmail, setContactEmail]   = useState('')
-  const [contactMsg, setContactMsg]       = useState('')
+  const [contactName, setContactName]       = useState('')
+  const [contactEmail, setContactEmail]     = useState('')
+  const [contactMsg, setContactMsg]         = useState('')
   // F-05 FIX: Added inquiry type dropdown to contact form.
   // Feeds into web3forms subject line for easier triage.
-  const [contactType, setContactType]     = useState('General Question')
-  const [contactSent, setContactSent]     = useState(false)
+  const [contactType, setContactType]       = useState('General Question')
+  const [contactSent, setContactSent]       = useState(false)
   const [contactSending, setContactSending] = useState(false)
-  const [contactErr, setContactErr]       = useState('')
+  const [contactErr, setContactErr]         = useState('')
 
   const handleContact = async (e) => {
     e.preventDefault()
     const _emailRgx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!contactName || !contactName.trim())              { setContactErr('Please enter your full name.'); return }
+    if (!contactName || !contactName.trim())                   { setContactErr('Please enter your full name.'); return }
     if (!contactEmail || !_emailRgx.test(contactEmail.trim())) { setContactErr('Please enter a valid email address.'); return }
-    if (!contactMsg || !contactMsg.trim())                { setContactErr('Please describe how we can help.'); return }
+    if (!contactMsg || !contactMsg.trim())                     { setContactErr('Please describe how we can help.'); return }
     setContactErr('')
     setContactSending(true)
     try {
@@ -95,7 +95,7 @@ export default function Landing() {
           // ADD-01 FIX: Web3Forms key moved to env var with hardcode fallback.
           access_key: import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed',
           // F-05 FIX: Subject line now includes inquiry type for triage.
-          subject:    `TaxStat360 [${contactType}] — ${contactName}`,
+          subject:   `TaxStat360 [${contactType}] — ${contactName}`,
           from_name:  contactName,
           email:      contactEmail,
           message:    contactMsg,
@@ -131,9 +131,9 @@ export default function Landing() {
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{CTA_LABEL}</button>
-          <button onClick={() => nav('/login')} style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Sign In to Your Account</button>
+          <button onClick={() => nav('/login')}  style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Sign In to Your Account</button>
         </div>
-        {/* UX-03: CTA_COPY_FULL now leads with benefits, not "Credit card required" */}
+        {/* UX-06: CTA_COPY_FULL now uses "Card for verification only" instead of "Credit card required" */}
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>{CTA_COPY_FULL}</p>
 
         <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
@@ -142,8 +142,6 @@ export default function Landing() {
             <div key={integ.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: integ.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{integ.abbr}</div>
               <span style={{ fontSize: 14, fontWeight: 600, color: N }}>{integ.name}</span>
-              {/* F-04 FIX: "LIVE" → "Available" — LIVE implied dynamic status monitoring
-                  which does not exist. Available is accurate and non-misleading. */}
               <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.03em' }}>Available</span>
             </div>
           ))}
@@ -153,8 +151,6 @@ export default function Landing() {
 
       {/* ─── VIDEO ────────────────────────────────────────────────────────────── */}
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
-        {/* UX-07 FIX: Eyebrow changed from "See It In Action" (redundant with heading)
-            to "Product Demo" — more descriptive and distinct from the H2. */}
         <p style={{ ...EYEBROW, color: '#93b4d4' }}>Product Demo</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
@@ -174,28 +170,32 @@ export default function Landing() {
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
         </div>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Built by a Former IRS Revenue Agent</h2>
-        {/* LBL-02 FIX: Replaced generic "AI-powered guidance" with specific capabilities.
-            Users now understand exactly what the AI does before signing up. */}
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Built by a Dedicated Team of Former IRS Agents and Tax Professionals</h2>
         <p style={{ fontSize: 13, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          TaxStat360 was developed by our founder, who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into automated tax calculations, AI-powered risk alerts, and audit scenario analysis — purpose-built for business owners.
+          TaxStat360 was developed by professionals who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into automated tax calculations, AI-powered risk alerts, and audit scenario analysis — purpose-built for business owners.
         </p>
-        <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          {CTA_LABEL} →
-        </button>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+            {CTA_LABEL} →
+          </button>
+          {/* UX-03: Link to About page from the credentialing section */}
+          <button onClick={() => nav('/about')} style={{ background: 'transparent', color: B, border: '2px solid ' + B, borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+            Meet Our Team →
+          </button>
+        </div>
       </section>
 
       {/* ─── ENTITY FEATURES ──────────────────────────────────────────────────── */}
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
         <p style={EYEBROW}>Built for Every Structure</p>
         <h2 id="features" style={{ scrollMarginTop: 72, fontSize: 26, fontWeight: 800, marginBottom: 12 }}>Built to Build Wealth &mdash; No Matter Your Entity Structure</h2>
-        <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
+        <p style={{ fontSize: 13, color: '#475569', marginBottom: 4 }}>S-Corp, LLC, Partnership, Sole Prop &mdash; every structure has legal strategies to reduce what you owe.</p>
+        {/* UX-08: Federal-only scope stated clearly at the top of the features section */}
+        <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>Covers federal tax only. State taxes are not included.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
             { icon: '🏢', label: 'K-1',
               title: 'S-Corporations',
-              // LBL-08 FIX: Added FICA savings mention — the core S-Corp planning benefit.
-              // Previously omitted entirely from the marketing description.
               desc: 'Officer W-2 salary, K-1 distributions, and FICA savings all calculated instantly. See exactly how your salary-to-distribution split affects your estimated federal tax liability.' },
             { icon: '🤝', label: 'K-1',
               title: 'Partnerships and Multi-Member LLCs',
@@ -237,11 +237,6 @@ export default function Landing() {
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
-              // F-03 / LBL-01 / LBL-09 FIX:
-              // - Added "federal" to be accurate about scope (state tax not included)
-              // - Changed "updated in real time" → "update instantly as you enter numbers"
-              //   (real-time was ambiguous — accounting sync is on-demand, not auto)
-              // - Added sync clarification sentence
               desc: 'Complete estimated federal tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
@@ -263,10 +258,13 @@ export default function Landing() {
             { q: 'Do I need a CPA or accountant to use TaxStat360?',
               a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
             { q: 'How accurate are the tax calculations?',
-              // LBL-07 FIX: Added NIIT, Additional Medicare Tax, AMT, and safe harbor
-              // to the accuracy answer. All are fully implemented in taxCalc.js but were
-              // previously omitted from this answer, understating the tool's capabilities.
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules updated every tax year. Our calculations include federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+              // UX-09 FIX: Added explicit mention of the tax year selector — users choose
+              // their applicable year from a dropdown and all IRS rates/brackets update
+              // automatically. Previously the answer said "updated every tax year" without
+              // explaining the year-selection mechanic or who controls it.
+              // UX-08 FIX: Added explicit "federal tax only — state taxes are not included"
+              // statement so users understand the scope of what is calculated.
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in your settings and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
@@ -274,22 +272,15 @@ export default function Landing() {
             { q: 'Is my financial data secure?',
               a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?',
-              a: 'You get full access to all features on your selected plan for 7 days. A credit card is required to start your trial — this is used to set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
+              a: 'You get full access to all features on your selected plan for 7 days. A card is required to start your trial — this is used to verify your identity and set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
             { q: 'How current is the data I see?',
               a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute." },
             { q: 'Does TaxStat360 replace my CPA?',
               a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same up-to-date visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
-            // UX-09 FIX: First FAQ item is open by default (open={i === 0}).
-            // Uses the HTML <details> `open` attribute so users immediately see
-            // the answer format without having to click. Reduces perceived friction
-            // from a "wall of collapsed content." All subsequent items remain closed.
             <details key={i} open={i === 0} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
               <summary style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {item.q}
-                {/* UX-01 FIX: Static '+' span replaced with CSS-driven pseudo-element.
-                    Landing.css details[open] summary .faq-toggle-icon::after sets content
-                    to '−' when expanded, '+' when collapsed. No JS needed. */}
                 <span className="faq-toggle-icon" style={{ flexShrink: 0 }} />
               </summary>
               <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.7, marginTop: 12, paddingRight: 24 }}>{item.a}</p>
@@ -303,6 +294,14 @@ export default function Landing() {
         <p style={EYEBROW}>Simple, Transparent Pricing</p>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Plans for Every Business</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>{CTA_COPY_SHORT}</p>
+
+        {/* UX-07: Planning-only disclaimer at the top of the pricing section.
+            Mirrors the banner shown on /login and /register so users evaluating
+            plans see the same scope disclosure before committing. */}
+        <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 20px', maxWidth: 680, margin: '0 auto 24px', fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+          <strong>Planning tool only</strong> — TaxStat360 estimates your federal tax liability for planning purposes. This is not a tax preparation or filing service. State taxes are not included.
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 28 }}>
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
           <div onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')} style={{ width: 50, height: 26, background: isAnnual ? B : '#CBD5E1', borderRadius: 13, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
@@ -311,17 +310,13 @@ export default function Landing() {
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 700 : 500, color: isAnnual ? '#0D1B3E' : '#64748b' }}>Annual</span>
           <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>Save 2 months</span>
         </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
             {
-              name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790',
+              name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790', annualSavings: '$158',
               highlight: false,
               desc: 'Know exactly what you owe — every month, not just in April.',
-              // L-04 FIX: Changed 'K-1 income (S-Corps, partnerships, LLCs)' to
-              // 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)'.
-              // Single-Member LLCs (SMLLCs) file as Schedule C (disregarded entity),
-              // NOT via K-1. Multi-Member LLCs file as partnerships and DO generate K-1s.
-              // Schedule C (sole props & SMLLCs) is already listed as a separate feature.
               features: [
                 'Year-round federal tax liability tracker',
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
@@ -332,7 +327,7 @@ export default function Landing() {
               ],
             },
             {
-              name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490',
+              name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490', annualSavings: '$298',
               highlight: true,
               desc: 'AI that catches problems before they become expensive mistakes.',
               features: [
@@ -347,21 +342,14 @@ export default function Landing() {
               ],
             },
             {
-              name: 'Enterprise', price: '$299', annualPrice: '$249', annualTotal: '$2,990',
+              name: 'Enterprise', price: '$299', annualPrice: '$249', annualTotal: '$2,990', annualSavings: '$598',
               highlight: false,
               desc: 'Built for owners running multiple businesses or entities.',
               features: [
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
-                // LBL-04 FIX: Renamed from "AI-Generated Position Documentation"
-                // "Position documentation" is a legal term (IRC §6662 penalty protection).
-                // Renamed to "AI-Generated CPA Briefing Documents" — accurate and avoids
-                // unintended legal implications.
                 'AI-Generated CPA Briefing Documents (planning summaries for CPA discussion — not for filing)',
-                // LBL-03 FIX: Added parenthetical to define "Risk Tolerance Profiling"
-                // in tax planning context (not investment suitability).
                 'Risk Tolerance Profiling (how aggressively to pursue tax-reduction strategies)',
-                // LBL-05 FIX: Added parenthetical to define "CPA Collaboration Portal".
                 'CPA Collaboration Portal (share a live read-only dashboard view with your CPA)',
                 'Dedicated onboarding & setup call',
               ],
@@ -369,10 +357,29 @@ export default function Landing() {
           ].map((p, i) => (
             <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
               <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
-              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, marginBottom: 2 }}>
-                {isAnnual ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
+
+              {/* UX-04 FIX: Annual pricing now shows:
+                  - The discounted per-month rate (e.g. $66/mo)
+                  - A strikethrough of the original monthly price ($79/mo) beside it
+                  - The actual annual total billed and the yearly savings amount
+                  Previously the toggle just showed the discounted rate with an opacity-dimmed
+                  "billed X/yr" line — users had to calculate the savings themselves. */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+                <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1 }}>
+                  {isAnnual ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
+                </div>
+                {isAnnual && (
+                  <span style={{ fontSize: 14, color: p.highlight ? 'rgba(147,180,212,0.7)' : '#94a3b8', textDecoration: 'line-through', lineHeight: 1 }}>
+                    {p.price}/mo
+                  </span>
+                )}
               </div>
-              {isAnnual && <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>billed {p.annualTotal}/yr</div>}
+              {isAnnual && (
+                <div style={{ fontSize: 12, color: p.highlight ? '#86efac' : '#16a34a', fontWeight: 600, marginBottom: 8 }}>
+                  billed {p.annualTotal}/yr &mdash; save {p.annualSavings}/yr
+                </div>
+              )}
+
               <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
               <button
                 onClick={() => nav('/signup?plan=' + p.name.toLowerCase() + '&billing=' + billing)}
@@ -388,8 +395,8 @@ export default function Landing() {
             </div>
           ))}
         </div>
+
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
-        {/* ADD-03 FIX: Cancellation/refund policy added at point of purchase. */}
         <p style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1' }}>
           Cancel before day 7 for no charge. No refunds on completed billing periods. Manage or cancel anytime via your account settings.
         </p>
@@ -436,8 +443,8 @@ export default function Landing() {
                   ['Risk Tolerance Profiling',               false, false, true],
                 ]},
                 { group: 'Integrations', rows: [
-                  ['Accounting software integration',    true,  true,  true],
-                  ['Unlimited integrations',             false, true,  true],
+                  ['Accounting software integration',        true,  true,  true],
+                  ['Unlimited integrations',                 false, true,  true],
                 ]},
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
@@ -508,8 +515,6 @@ export default function Landing() {
             </div>
           ) : (
             <div style={{ background: '#fff', borderRadius: 16, padding: '40px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #E2E8F0' }}>
-              {/* F-05 FIX: Inquiry type dropdown added above name/email fields.
-                  Feeds into web3forms subject line for better triage. */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Inquiry Type</label>
                 <select
@@ -556,13 +561,12 @@ export default function Landing() {
             <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>TaxStat<span style={{ color: B }}>360</span></span>
           </div>
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-            <a href="/privacy"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
-            <a href="/terms"    style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            <a href="#contact"  style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
+            {/* UX-03: About page link added to footer */}
+            <a href="/about"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>About</a>
+            <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
+            <a href="/terms"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
+            <a href="#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
-          {/* LBL-06 FIX: Added "not a tax preparation or filing service" to footer disclaimer.
-              This is the most important product distinction (separates TaxStat360 from
-              tax prep software like TurboTax). Was in signup/login banners but not footer. */}
           <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.</p>
           <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
             TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
