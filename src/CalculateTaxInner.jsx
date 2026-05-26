@@ -49,6 +49,22 @@
 //   small secondary outlined button (border: 1px solid #E2E8F0, borderRadius: 7,
 //   padding: 6px 12px) consistent with secondary action buttons used elsewhere.
 //
+// L-01 FIX (Pass 3 — Correct Labeling):
+//   QBI field label "Section 179 / Ordinary Income Addback (K-1 Box 11 / Box 12)"
+//   had two errors:
+//   (a) "Addback" is semantically backwards — persistStep1() SUBTRACTS box11_12
+//       from k1Total, reducing K-1 income and QBI. An "addback" implies adding
+//       something back to income. The tooltip even contradicted the label:
+//       "they reduce your allocable K-1 income."
+//   (b) "Ordinary Income Addback" is not an IRS form label. K-1 Box 11
+//       (Form 1120-S) and Box 12 (Form 1065) are both labeled "Section 179
+//       deduction" on the actual forms.
+//   Tooltip also said "reduce your at-risk basis" — at-risk basis is a §465
+//   concept. §179 reduces QBI (Treas. Reg. §1.199A-3(b)(1)(ii)(A)) and
+//   shareholder/partner basis (§1367/§705), not at-risk basis.
+//   Fix: label → "Section 179 Deduction (K-1 Box 11 / Box 12)"; tooltip
+//   rewritten with correct citations and a double-counting warning.
+//
 // PASS4B-02b (§1366(d) Basis Limitation UI + §1368 Distribution Capital Gain):
 //   The calculation engine (taxCalc.js) already implemented §1366(d) loss
 //   limitation via the stockBasis / debtBasis fields on each entity. However,
@@ -659,7 +675,13 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   {[
                     { label: 'W-2 Wages (K-1 Box 17V for S-Corp / Box 20Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. From S-Corp K-1 Box 17, Code V.\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
                     { label: 'UBIA of Qualified Property (K-1 Box 17W / Box 20AA)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
-                    { label: 'Section 179 / Ordinary Income Addback (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 deductions passed through from the entity reduce your at-risk basis. These are entered here for basis tracking; they reduce your allocable K-1 income.' },
+                    // L-01 FIX: Label was "Section 179 / Ordinary Income Addback" — "Addback"
+                    // is backwards (persistStep1 SUBTRACTS this, reducing k1Total / QBI) and
+                    // "Ordinary Income Addback" is not an IRS form label. K-1 Box 11 (Form 1120-S)
+                    // and Box 12 (Form 1065) are both labeled "Section 179 deduction" on the
+                    // actual forms. Tooltip fixed: §179 reduces QBI (Treas. Reg. §1.199A-3(b)(1)(ii)(A))
+                    // and shareholder/partner basis — NOT "at-risk basis" (that is §465).
+                    { label: 'Section 179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions (K-1 Box 12 / Box 13)', key: 'box12_13', tip: 'Charitable contributions passed through from the entity. These flow to Schedule A and also reduce your K-1 basis.' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
