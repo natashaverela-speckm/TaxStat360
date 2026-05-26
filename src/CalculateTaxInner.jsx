@@ -48,6 +48,39 @@
 //   visually indistinguishable from a hyperlink and easy to miss. Restyled as a
 //   small secondary outlined button (border: 1px solid #E2E8F0, borderRadius: 7,
 //   padding: 6px 12px) consistent with secondary action buttons used elsewhere.
+//
+// PASS4B-02b (§1366(d) Basis Limitation UI + §1368 Distribution Capital Gain):
+//   The calculation engine (taxCalc.js) already implemented §1366(d) loss
+//   limitation via the stockBasis / debtBasis fields on each entity. However,
+//   there were no UI input fields for these values, so the gate was unreachable.
+//   This change adds three new fields to every S-Corp entity:
+//
+//   1. stockBasis (Form 7203, Line 1) — beginning-of-year stock basis.
+//      The engine reads e.stockBasis to cap deductible losses; losses in excess
+//      of basis are suspended and carried forward (IRC §1366(d)(2)).
+//
+//   2. debtBasis (Form 7203, Part II) — loans personally made by the shareholder
+//      to the S-Corp. Absorbs losses after stock basis is exhausted (§1366(d)(1)(B)).
+//
+//   3. distributions (Form 7203, Line 6 / Schedule M-2 Line 7) — cash or
+//      property distributions received from the S-Corp this year. Distributions
+//      in excess of remaining stock basis (after current-year income/loss) are
+//      taxable as long-term capital gain (IRC §1368(b)(2)) and are threaded into
+//      _ltGain in taxCalc.js (PASS4B-02b). This capital gain does not appear on
+//      the K-1 — it is computed at the shareholder level.
+//
+//   UI: A collapsible "Form 7203 Basis & Distributions" panel is added inside
+//   EntityCard for S-Corp entities (after the §199A QBI section). The panel
+//   shows inline warning badges:
+//   • §1366(d) suspension alert when entered loss > basis (red)
+//   • §1366(d) full-loss confirmation when loss ≤ basis (green)
+//   • §1368 capital gain alert when distributions > post-income basis (red)
+//   • §1368 tax-free confirmation when distributions ≤ basis (green)
+//   • "Enter basis to compute" prompt when distributions entered but no basis (amber)
+//
+//   All three fields are initialised to '' in addEntityOfType and handleCsvUpload.
+//   The EntityCard badge computations are display-only — taxCalc.js is the
+//   authoritative calculation source.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -429,17 +462,11 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
+  // PASS4B-02b: Basis & Distributions panel toggle
+  const [showBasis,  setShowBasis]  = useState(false)
   const pnl = entity.pnl || {}
 
   // BUG-03 FIX: Disconnect button now actually disconnects.
-  // Previously, clicking "⟳ Disconnect / reconnect software" only toggled
-  // showManual — it never cleared stored tokens or reset the entity's
-  // connectedId, so the integration remained active in the background.
-  // Fix: clear all localStorage keys for the provider (token, connected flag,
-  // extra realm/tenant/account ID, and the global connected_app flag), then
-  // mark the entity as manual so the user can re-enter or reconnect.
-  // The P&L data is preserved in the manual entry fields so the user doesn't
-  // lose their numbers — they can edit them or reconnect to refresh.
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
@@ -452,12 +479,8 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     setShowManual(true)
   }
 
-  // BUG-02 FIX: Parentheses added so (grossRevenue - totalExpenses) is the
-  // fallback used ONLY when netProfit is absent. When QuickBooks (or any
-  // integration) populates pnl.netProfit directly, it is used as-is without
-  // subtracting totalExpenses again.
-  // Prior (broken): nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
-  // Fixed:          nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+  // BUG-02 FIX: parentheses so (grossRevenue - totalExpenses) is the fallback
+  // only when netProfit is absent.
   const netProfit = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
 
   const own    = ownPct(entity.own) / 100
@@ -465,6 +488,43 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
+
+  // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
+  // §1366(d) suspension badge — only when basis is entered and there is a loss.
+  const basisBadge = (() => {
+    if (!isSC) return null
+    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
+    if (sb === null) return null                          // basis not entered — no badge
+    const lossAmt = Math.abs(Math.min(0, netProfit * own))
+    if (lossAmt === 0) return null                        // no loss — nothing to limit
+    const totalBasis  = sb + db
+    const allowedLoss = Math.min(lossAmt, totalBasis)
+    const suspended   = lossAmt - allowedLoss
+    if (suspended > 0) {
+      return { type: 'warn', msg: `§1366(d): ${fmt(suspended)} of your ${fmt(lossAmt)} loss is suspended — basis insufficient.` }
+    }
+    return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within basis.` }
+  })()
+
+  // §1368 distribution badge — only when distributions are entered.
+  const distBadge = (() => {
+    if (!isSC) return null
+    const dist = nf(entity.distributions)
+    if (dist <= 0) return null
+    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+    if (sb === null) {
+      return { type: 'amber', msg: `§1368: ${fmt(dist)} in distributions — enter stock basis to compute capital gain.` }
+    }
+    const k1Net = netProfit * own
+    const k1Allowed = k1Net < 0 ? -Math.min(Math.abs(k1Net), sb) : k1Net
+    const postIncomeBasis = Math.max(0, sb + k1Allowed)
+    const excess = Math.max(0, dist - postIncomeBasis)
+    if (excess > 0) {
+      return { type: 'warn', msg: `§1368: ${fmt(excess)} of distributions exceeds basis — treated as capital gain.` }
+    }
+    return { type: 'ok', msg: `§1368: All ${fmt(dist)} distributions are tax-free return of basis.` }
+  })()
 
   return (
     <div style={{
@@ -491,6 +551,21 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             {entity.connectedId && <span style={{ marginLeft: 8, color: G, fontWeight: 600 }}>● Synced</span>}
             {entity.isManual && <span style={{ marginLeft: 8, color: '#D97706', fontWeight: 600 }}>✏ Manual</span>}
           </div>
+          {/* Collapsed-state basis badges */}
+          {!isExpanded && (basisBadge || distBadge) && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+              {basisBadge && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : '#86EFAC') }}>
+                  {basisBadge.msg}
+                </span>
+              )}
+              {distBadge && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: distBadge.type === 'warn' ? '#FEF2F2' : distBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: distBadge.type === 'warn' ? R : distBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (distBadge.type === 'warn' ? '#FECACA' : distBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
+                  {distBadge.msg}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -611,6 +686,146 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               )}
             </div>
           )}
+
+          {/* ── PASS4B-02b: §1366(d) Stock Basis & §1368 Distributions ── */}
+          {isSC && (
+            <div style={{ marginBottom: 10 }}>
+              <button
+                onClick={e => { e.stopPropagation(); setShowBasis(s => !s) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#7C3AED', padding: '4px 0', marginBottom: 6 }}
+              >
+                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions (Form 7203)
+              </button>
+              {showBasis && (
+                <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
+                    §1366(d) Basis Limitation · §1368 Distributions — from Form 7203
+                  </div>
+
+                  {/* Stock Basis */}
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Stock Basis at Beginning of Year (Form 7203, Line 1)
+                      <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year it increases for income and tax-exempt items allocated to you, and decreases for losses, deductions, and distributions.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nWhen you enter your basis here, TaxStat360 will:\n• Cap the deductible loss at your available basis\n• Show a §1366(d) suspension warning badge on the card\n• Exclude the suspended portion from income automatically\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
+                    </label>
+                    <MoneyInput
+                      value={entity.stockBasis || ''}
+                      onChange={v => onUpdate(idx, { ...entity, stockBasis: v })}
+                      placeholder="0"
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+
+                  {/* Debt Basis */}
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Debt Basis (Form 7203, Part II) — Optional
+                      <InfoTip text={'Debt basis arises from bona fide loans you have personally made to the S-Corp — NOT loans the corporation took from a bank or third party.\n\nDebt basis absorbs losses after stock basis is exhausted (IRC §1366(d)(1)(B)).\n\nExample: $0 stock basis + $50,000 personal loan to the S-Corp = $50,000 debt basis available to absorb losses.\n\nThis is an advanced field. Most shareholders only have stock basis. Leave blank if you have not personally loaned money to your S-Corp.\n\nSee Form 7203, Part II for the calculation.'} wide />
+                    </label>
+                    <MoneyInput
+                      value={entity.debtBasis || ''}
+                      onChange={v => onUpdate(idx, { ...entity, debtBasis: v })}
+                      placeholder="0 (optional)"
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+
+                  {/* §1366(d) suspension inline badge */}
+                  {(() => {
+                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
+                    if (sb === null) return null
+                    const lossAmt = Math.abs(Math.min(0, netProfit * own))
+                    if (lossAmt === 0) return null
+                    const totalBasis  = sb + db
+                    const allowedLoss = Math.min(lossAmt, totalBasis)
+                    const suspended   = lossAmt - allowedLoss
+                    if (suspended > 0) {
+                      return (
+                        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1366(d) Loss Limitation Active</div>
+                          <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
+                            Your {fmt(lossAmt)} K-1 loss exceeds your {fmt(totalBasis)} basis.
+                            Only <strong>{fmt(allowedLoss)}</strong> is deductible this year.
+                            <strong> {fmt(suspended)}</strong> is suspended and carries forward to future
+                            years when basis is restored (IRC §1366(d)(2)).
+                            Consult your CPA to confirm your exact basis before filing.
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Full Loss Deductible</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
+                          Your {fmt(lossAmt)} K-1 loss is within your {fmt(totalBasis)} basis — the full loss is deductible this year.
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Distributions */}
+                  <div style={{ marginBottom: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Distributions Received This Year (Form 7203, Line 6)
+                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year (Form 7203, Line 6 / Schedule M-2, Line 7).\n\nWhy this matters:\nDistributions reduce your stock basis. If distributions EXCEED your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nExample:\n• Beginning basis: $0\n• K-1 loss: suspended (basis insufficient)\n• Distributions received: $100,000\n• Excess over remaining basis: $100,000 → long-term capital gain\n\nEnter your stock basis above — TaxStat360 computes the taxable portion automatically and includes it in your estimated liability.'} wide />
+                    </label>
+                    <MoneyInput
+                      value={entity.distributions || ''}
+                      onChange={v => onUpdate(idx, { ...entity, distributions: v })}
+                      placeholder="0"
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+
+                  {/* §1368 distribution capital gain inline badge */}
+                  {(() => {
+                    const dist = nf(entity.distributions)
+                    if (dist <= 0) return null
+                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+                    if (sb === null) {
+                      return (
+                        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Enter Stock Basis to Compute Capital Gain</div>
+                          <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                            You have entered {fmt(dist)} in distributions. Enter your stock basis above
+                            to determine whether any portion is taxable as long-term capital gain
+                            (IRC §1368(b)(2)).
+                          </div>
+                        </div>
+                      )
+                    }
+                    const k1Net       = netProfit * own
+                    const k1Allowed   = k1Net < 0 ? -Math.min(Math.abs(k1Net), sb) : k1Net
+                    const postBasis   = Math.max(0, sb + k1Allowed)
+                    const excess      = Math.max(0, dist - postBasis)
+                    if (excess > 0) {
+                      return (
+                        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1368 Capital Gain — Distributions Exceed Basis</div>
+                          <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
+                            <strong>{fmt(excess)}</strong> of your {fmt(dist)} distributions exceeds your
+                            remaining stock basis ({fmt(postBasis)}) and is treated as a{' '}
+                            <strong>long-term capital gain</strong> on Schedule D (IRC §1368(b)(2)).
+                            This amount is included in your tax estimate automatically.
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Distributions Within Basis</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
+                          All {fmt(dist)} in distributions are a tax-free return of basis — no capital gain triggered (IRC §1368(b)(1)).
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+          {/* ── end PASS4B-02b ── */}
 
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
@@ -775,11 +990,6 @@ export default function CalculateTaxInner() {
   const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
 
-  // BUG-03b FIX: connectedApp was a plain const loaded once at mount.
-  // After handleDisconnect cleared localStorage, integration tiles still showed
-  // "● Connected" because the const never updated. Now derived from entities
-  // state — reactive to every onUpdate call including disconnect.
-  // connectedApp kept as empty string fallback for any legacy references.
   const connectedApp = ''
 
   useEffect(() => {
@@ -814,15 +1024,16 @@ export default function CalculateTaxInner() {
       connectedId: null,
       box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
       box17V_sstb: false, box17K: '',
+      // PASS4B-02b: §1366(d) basis fields + §1368 distributions field.
+      // taxCalc.js reads these to gate loss deductibility and compute
+      // distribution capital gains. Initialised to '' (not 0) so the
+      // engine's hasBasisInput guard correctly skips entities where the
+      // user has not yet entered a basis (avoids applying the limitation
+      // to users who leave the field blank).
+      stockBasis: '', debtBasis: '', distributions: '',
     }
     setEntities(prev => {
       const next = [...prev, newEnt]
-      // C-03: ts360_step1_entities = rolling DRAFT state.
-      // Written on every entity mutation (creation, field edit, disconnect).
-      // ts360_entities (written by persistStep1/writeStep1State) = FINALIZED
-      // snapshot passed to Step 2. These are two separate keys by design.
-      // updateEntity() must only ever write to ts360_step1_entities, never
-      // to ts360_entities directly — that would corrupt the Step 2 snapshot.
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
@@ -834,9 +1045,6 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
-      // C-03: ts360_step1_entities = rolling DRAFT. Written on every field change.
-      // MUST NOT write to ts360_entities here — that is the finalized Step 2
-      // snapshot written exclusively by persistStep1() / writeStep1State().
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
@@ -848,9 +1056,6 @@ export default function CalculateTaxInner() {
   }, [])
 
   // ─── Integration disconnect ────────────────────────────────────────────────
-  // Called directly from the IntegrationTile "Disconnect" button.
-  // Clears all stored tokens for that provider, then resets any entity that
-  // was synced from it back to manual state so the card shows the edit panel.
   const handleIntegrationDisconnect = useCallback((pid) => {
     localStorage.removeItem('ts360_' + pid + '_connected')
     localStorage.removeItem('ts360_' + pid + '_token')
@@ -949,6 +1154,8 @@ export default function CalculateTaxInner() {
           isManual: true, connectedId: null,
           box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
           box17V_sstb: false, box17K: '',
+          // PASS4B-02b: initialise basis fields on CSV import
+          stockBasis: '', debtBasis: '', distributions: '',
         }
         setEntities(prev => [...prev, importedEnt])
         setExpandedIdx(entities.length)
@@ -984,15 +1191,14 @@ export default function CalculateTaxInner() {
             const updated = [...prev]
             const providerName = pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business'
             if (updated[idx]) {
-              // BUG-04 FIX: spread preserved stale name (e.g. 'Wave Business') when
-              // switching to a different integration without disconnecting first.
-              // Now explicitly sets name to match the current provider on every sync.
               updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
               updated.push({
                 name: providerName,
                 type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '',
-                pnl, connectedId: pid, isManual: false
+                pnl, connectedId: pid, isManual: false,
+                // PASS4B-02b: initialise basis fields on integration sync
+                stockBasis: '', debtBasis: '', distributions: '',
               })
             }
             return updated
@@ -1078,7 +1284,6 @@ export default function CalculateTaxInner() {
                 <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.n === 1 ? B : s.done ? G : '#E2E8F0', color: s.n === 1 || s.done ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {s.done ? '✓' : s.n}
                 </div>
-                {/* Hide label text on narrow screens to prevent overflow */}
                 <span style={{ fontSize: 11, fontWeight: s.n === 1 ? 700 : 500, color: s.n === 1 ? N : '#94A3B8', whiteSpace: 'nowrap', display: 'inline' }}>{s.label}</span>
               </div>
               {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
@@ -1124,7 +1329,6 @@ export default function CalculateTaxInner() {
               const connectedCount = entities.filter(e => e.connectedId).length
               return INTEGRATIONS.map(integ => {
                 const isConnected = entities.some(e => e.connectedId === integ.id)
-                // Starter users may connect 1 app. Lock remaining tiles once 1 is connected.
                 const isLocked = !userIsPro && !isConnected && connectedCount >= 1
                 if (isLocked) {
                   return (
@@ -1176,7 +1380,7 @@ export default function CalculateTaxInner() {
           + Add Business Entity
         </button>
 
-        {/* Compare button — Pro only, shown above footer */}
+        {/* Compare button — Pro only */}
         {entities.length > 0 && isPro() && (
           <button
             onClick={() => setShowCompare(true)}
@@ -1187,7 +1391,7 @@ export default function CalculateTaxInner() {
         )}
       </div>
 
-      {/* Fixed footer — paddingRight: 90 ensures buttons clear the Aria floating icon (72px + 16px margin) */}
+      {/* Fixed footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 80, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
         <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
           {entities.length > 0
@@ -1224,17 +1428,15 @@ export default function CalculateTaxInner() {
 
       {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
 
-      {/* UX-02: What-If upsell lives BELOW the fixed footer as a subtle hint,
-          not blocking the Continue button or breaking workflow continuity. */}
       {!isPro() && entities.length > 0 && (
         <div style={{ position: 'fixed', bottom: 70, left: 0, right: 0, zIndex: 65, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           <div style={{ background: '#F0F6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '6px 14px', fontSize: 11, color: '#1D4ED8', fontWeight: 600, pointerEvents: 'auto' }}>
-            ⚖ Compare entity structures with <button onClick={() => nav('/upgrade')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Professional →</button>
+            ⚖ Compare entity structures with <button onClick={() => navigate('/upgrade')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Professional →</button>
           </div>
         </div>
       )}
 
-      {/* F-05: Remove entity confirmation modal */}
+      {/* Remove entity confirmation modal */}
       {confirmRemoveIdx !== null && (
         <div onClick={() => setConfirmRemoveIdx(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '28px 24px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
@@ -1249,7 +1451,7 @@ export default function CalculateTaxInner() {
         </div>
       )}
 
-      {/* ── Entity Type Picker Modal ─────────────────────────────────────────── */}
+      {/* Entity Type Picker Modal */}
       {showEntityPicker && (
         <div onClick={() => setShowEntityPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', maxWidth: 560, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
