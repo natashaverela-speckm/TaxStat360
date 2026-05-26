@@ -63,6 +63,19 @@
 // EBL-FIX (§461(l) non-REP passive exclusion): eblBiz excludes non-REP rental.
 // T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
 // T-06 FIX (mileageRate added to TAX_TABLES).
+//
+// PASS4B-02b (§1368(b)(2) S-Corp distribution capital gain):
+// S-Corp distributions that exceed a shareholder's remaining stock basis (after the
+// current year's income/loss allocation) are taxable as long-term capital gain
+// (IRC §1368(b)(2)). Previously, distributions were not modeled at all in the engine.
+// Fix: after the §1366(d) basis limitation pass, compute excessDistribution for each
+// S-Corp entity where both e.stockBasis AND e.distributions are provided. The excess
+// is accumulated in distributionCapGain and added to ltGain via _ltGain, which is
+// threaded through all subsequent capital gain and NIIT calculations. When distributions
+// are entered but no stockBasis is provided, we flag the entity in
+// entityDistributionResults with excessCapGain: null (cannot determine taxable portion
+// without basis) — no phantom tax is added. entityDistributionResults is included in
+// the return object so TaxReturn.jsx and AIAnalysis.jsx can surface the disclosure.
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -483,6 +496,12 @@ function calcTaxReturn(input) {
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
+  // ── PASS4B-02: §1366(d) / §704(d) Shareholder Basis Limitation ────────────
+  // For each S-Corp or Partnership entity, if the user has entered a stock basis
+  // and the entity has a loss, limit the deductible loss to (stockBasis + debtBasis).
+  // The remainder is suspended and carried forward per IRC §1366(d)(2).
+  // entityBasisResults records each entity's outcome for display in TaxReturn.jsx
+  // and AIAnalysis.jsx.
   const entityBasisResults = []
   const entitiesLimited = entities.map(e => {
     if (!e) return e
@@ -519,6 +538,79 @@ function calcTaxReturn(input) {
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
   const adjustedK1Total    = k1Total + totalSuspendedLoss
 
+  // ── PASS4B-02b: §1368(b)(2) S-Corp Distribution Capital Gain ─────────────
+  // Distributions reduce stock basis. The portion of distributions that exceeds
+  // the shareholder's remaining basis (after the current year's income/loss
+  // allocation) is a long-term capital gain (IRC §1368(b)(2)).
+  //
+  // Computation is gated on BOTH stockBasis AND distributions being provided:
+  // - If distributions entered but no stockBasis: flag as unknown (excessCapGain: null).
+  //   No phantom tax is added — we cannot compute without basis.
+  // - If both entered: post-income basis = stockBasis + k1Allowed (positive income
+  //   increases basis; limited loss already reduces the allowable deduction above).
+  //   excess = max(0, distributions - max(0, postIncomeBasis)).
+  //
+  // distributionCapGain is threaded into _ltGain and participates in all
+  // subsequent capital gain, NIIT, AMT, and preferential tax computations.
+  let distributionCapGain = 0
+  const entityDistributionResults = []
+
+  entities.forEach((e, idx) => {
+    if (!e || !/s.?corp/i.test(e.type || '')) {
+      entityDistributionResults.push(null)
+      return
+    }
+
+    const dist = Math.max(0, parseFloat(e.distributions) || 0)
+    if (dist === 0) {
+      entityDistributionResults.push({
+        name: e.name || e.id || 'Entity',
+        distributions: 0,
+        excessCapGain: 0,
+      })
+      return
+    }
+
+    const basisResult   = entityBasisResults[idx]
+    const hasBasisEntry = basisResult && basisResult.stockBasis !== undefined
+
+    if (!hasBasisEntry) {
+      // Distributions entered but no stock basis — cannot determine taxable portion.
+      // Flag for disclosure without adding phantom tax to the calculation.
+      entityDistributionResults.push({
+        name: e.name || e.id || 'Entity',
+        distributions: dist,
+        excessCapGain: null,
+        note: 'Stock basis not entered — cannot determine if distributions are taxable. ' +
+              'Distributions in excess of your stock basis are long-term capital gain ' +
+              '(IRC §1368(b)(2)). Enter your stock basis to compute this automatically.',
+      })
+      return
+    }
+
+    // Post-income/loss basis: beginning basis + income (or - allowed loss).
+    // k1Allowed is negative for losses and positive for income.
+    const postIncomeBasis = Math.max(0, basisResult.stockBasis + basisResult.k1Allowed)
+    const excess          = Math.max(0, dist - postIncomeBasis)
+    const taxFreeReturn   = dist - excess
+
+    distributionCapGain += excess
+
+    entityDistributionResults.push({
+      name:            e.name || e.id || 'Entity',
+      distributions:   dist,
+      basisBeforeDist: postIncomeBasis,
+      taxFreeReturn:   Math.round(taxFreeReturn),
+      excessCapGain:   Math.round(excess),
+    })
+  })
+
+  // _ltGain threads the §1368 distribution capital gain into all downstream
+  // computations (preferential tax, NIIT, AMT, gross income). The original
+  // ltGain parameter (from user-entered Schedule D) is never mutated.
+  const _ltGain = nv(ltGain) + distributionCapGain
+
+  // ── PAL — §469 Passive Activity Loss ──────────────────────────────────────
   const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
   const palCarryforwardApplied   = (rentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, rentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
@@ -528,7 +620,7 @@ function calcTaxReturn(input) {
   let palSuspendedRental = 0
 
   if (!isREP && rentalNetAfterCF < 0) {
-    const preRentalAGI = w2 + adjustedK1Total + f4797Inc + stGain + ltGain + intInc + divInc + iraIncome
+    const preRentalAGI = w2 + adjustedK1Total + f4797Inc + stGain + _ltGain + intInc + divInc + iraIncome
       - Math.min(ytdScale(studentLoanInt), 2500)
       - ytdScale(hsaDeduction)
       - ytdScale(selfEmpRetirement)
@@ -557,9 +649,6 @@ function calcTaxReturn(input) {
   const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
 
   // TAX-10 FIX: Use SE_NET_EARNINGS_FACTOR (0.9235) per IRC §1402(a)(12).
-  // The prior formula (1 - FICA_SS_RATE - FICA_MEDICARE_RATE) produced 0.9235
-  // coincidentally but is semantically wrong and would break if FICA rates change.
-  // SE_NET_EARNINGS_FACTOR is the statutory constant — use it directly.
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
@@ -591,7 +680,8 @@ function calcTaxReturn(input) {
   const itemized  = nv(itemizedAmt)
   const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
-  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + ltGain
+  // _ltGain used here and throughout — includes §1368 distribution cap gain.
+  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + _ltGain
     + unrec1250 + collectibles + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
 
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction)
@@ -613,10 +703,6 @@ function calcTaxReturn(input) {
 
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    // C-02 FIX: Use nv() not parseFloat() directly. e.k1 may be "" (empty string) when
-    // a user has not yet entered data — parseFloat("" ?? 0) = parseFloat("") = NaN.
-    // nv() normalises "" → 0 correctly. The ?? 0 fallback is also replaced with || 0
-    // via nv() so both null/undefined AND empty-string are handled the same way.
     const k1    = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
@@ -626,7 +712,8 @@ function calcTaxReturn(input) {
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO + k1FallbackForQBI
 
-  const prefIncome = ltGain + qualDiv
+  // Use _ltGain for QBI capital gains ceiling (§199A(a)(2))
+  const prefIncome = _ltGain + qualDiv
 
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
@@ -642,14 +729,15 @@ function calcTaxReturn(input) {
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
 
-  const totalPrefIncome       = Math.max(0, ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
+  // Use _ltGain throughout capital gain computations
+  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
   const taxableIncome         = taxableAfterQBI
 
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
   const prefTax   = calcPreferentialTax(ordinaryTaxableIncome, {
-    ltcg:         Math.min(Math.max(0, ltGain),      taxableAfterQBI),
+    ltcg:         Math.min(Math.max(0, _ltGain),    taxableAfterQBI),
     qualDiv:      Math.min(Math.max(0, qualDiv),     taxableAfterQBI),
     unrecap1250:  Math.min(unrec1250,                taxableAfterQBI),
     collectibles: Math.min(collectibles,             taxableAfterQBI),
@@ -671,8 +759,9 @@ function calcTaxReturn(input) {
     Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE
   )
 
+  // NIIT: use _ltGain (includes §1368 distribution capital gain)
   const rentalNII  = isREP ? 0 : Math.max(0, rentalNet)
-  const nii        = Math.max(0, intInc + divInc + Math.max(0, ltGain + stGain + unrec1250 + collectibles) + rentalNII)
+  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + stGain + unrec1250 + collectibles) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
 
   const numDependents        = parseInt(dependents) || 0
@@ -683,10 +772,11 @@ function calcTaxReturn(input) {
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
 
+  // AMT: use _ltGain
   const amt = calcAMT({
     taxableIncome, qbi, saltAmount: nv(saltAmount),
     isoBargainElement: hasISO ? nv(isoBargainElement) : 0,
-    ltGain, qualDiv, regularTax: fedTax, status, taxYear,
+    ltGain: _ltGain, qualDiv, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
 
@@ -713,10 +803,6 @@ function calcTaxReturn(input) {
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
 
   // TAX-08 / F-07 FIX: quarterlyRecommended moved below safe harbor calculations.
-  // Prior: computed before safeHarborQuarterly existed, always used balance / 4.
-  // Now: uses Math.max so it never falls below the safe harbor quarterly amount.
-  // This prevents the primary "Recommended per quarter" display from showing less
-  // than the amount required to avoid IRC §6654 underpayment penalties.
   const quarterlyRecommended = Math.max(
     balance > 0 ? Math.round(balance / 4) : 0,
     safeHarborQuarterly
@@ -827,8 +913,16 @@ function calcTaxReturn(input) {
 
     federalOnly: true,
 
+    // §1366(d) basis limitation results — one entry per entity
     entityBasisResults,
     totalSuspendedLoss,
+
+    // §1368(b)(2) distribution capital gain results — one entry per S-Corp entity
+    distributionCapGain,
+    entityDistributionResults,
+
+    // Effective ltGain used in calculations (ltGain input + distributionCapGain)
+    ltGainEffective: _ltGain,
   }
 }
 
