@@ -370,8 +370,11 @@ if (!actualEmail || !actualPass) { setErr('Please enter your email and password.
 const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actualEmail,password:actualPass})})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
+const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
+const rawPlan = data.plan || 'starter'
+const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
 localStorage.setItem('ts360_email',actualEmail)
-localStorage.setItem('plan',data.plan)
+localStorage.setItem('plan', normalizedPlan)
 localStorage.setItem('ts360_logged_in','1')
 localStorage.setItem('ts360_session_start', String(Date.now()))
 nav(redirectTo,{replace:true})
