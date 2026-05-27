@@ -357,6 +357,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const officerExceedsNetProfit = !officerExceedsRevenue && sal > (rv - ex - dep) && sal > 0 && rv > 0
 
   const isSCorp = isSCorpEntity(entity.type)
+  const isPartnership = /partner|mmllc/i.test(entity.type || '')
 
   function applyManual() {
     if (rv > 0 || totalExpenses > 0) {
@@ -457,8 +458,28 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
-            <span style={{ color: N }}>Net Profit</span>
+            <span style={{ color: N }}>Net Profit{isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
+          </div>
+        </div>
+      )}
+
+      {isPartnership && (
+        <div style={{ marginTop: 10, padding: '12px 14px', background: '#F0F9FF', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12 }}>
+          <div style={{ fontWeight: 700, color: '#0369A1', marginBottom: 6 }}>📋 K-1 Box Mapping — Partnership / LLC</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, color: '#334155' }}>
+            <div>
+              <span style={{ fontWeight: 600 }}>Box 1 — Ordinary Business Income:</span>{' '}
+              Your net profit above flows here. Taxed at ordinary rates on Schedule E (page 2). Not subject to self-employment tax for limited partners.
+            </div>
+            <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
+              <span style={{ fontWeight: 600 }}>Box 2 — Net Rental Income (Loss):</span>{' '}
+              Enter K-1 Box 2 income in the <span style={{ fontWeight: 700 }}>Rental Real Estate (Schedule E)</span> section in Step 2. Passive activity rules (IRC §469) apply — including the $25K allowance and REP status.
+            </div>
+            <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
+              <span style={{ fontWeight: 600 }}>Box 9a — Net §1231 Gain (Loss):</span>{' '}
+              Enter K-1 Box 9a in the <span style={{ fontWeight: 700 }}>Capital Gains (Form 4797)</span> field in Step 2. Net §1231 gains are treated as long-term capital gain; net §1231 losses are ordinary.
+            </div>
           </div>
         </div>
       )}
