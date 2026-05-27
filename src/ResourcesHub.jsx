@@ -154,7 +154,7 @@ export default function ResourcesHub() {
             fontSize: 13, color: '#fff', fontWeight: 700, textDecoration: 'none',
             padding: '8px 16px', background: N, borderRadius: 8,
           }}>
-            Start Free Trial
+            Start Free 7-Day Trial
           </a>
         </div>
       </nav>
