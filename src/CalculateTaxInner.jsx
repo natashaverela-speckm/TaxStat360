@@ -100,11 +100,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getTable } from './taxCalc'
-import { readPersonalContext, readTaxYear, writeStep1State, clearStep1State, writeTaxYear } from './utils/sessionState.js'
-import { parseMoney } from './utils/parseMoney.js'
+import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
+import LockedFeature, { isPro } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
@@ -936,7 +935,6 @@ function CompareModal({ entities, onClose }) {
     const { deduction: qbi } = isPassthroughEntity(type)
       ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
       : { deduction: 0 }
-    const taxable = Math.max(0, taxableRough - qbi)
     const r = calcTaxReturn({
       taxYear, status: filing, dependents: nf(personalCtx.dependents),
       entities: [{ ...entity, type, k1, own: entity.own }],
@@ -1012,8 +1010,6 @@ export default function CalculateTaxInner() {
   const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
   const [csvImportStatus, setCsvImportStatus] = useState(null)
 
-  const connectedApp = ''
-
   useEffect(() => {
     const existing = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
     if (existing.length > 0) {
@@ -1045,7 +1041,7 @@ export default function CalculateTaxInner() {
       isManual: true,
       connectedId: null,
       box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
-      box17V_sstb: false, box17K: '',
+      box17V_sstb: false,
       // PASS4B-02b: §1366(d) basis fields + §1368 distributions field.
       // taxCalc.js reads these to gate loss deductibility and compute
       // distribution capital gains. Initialised to '' (not 0) so the
@@ -1175,7 +1171,7 @@ export default function CalculateTaxInner() {
           },
           isManual: true, connectedId: null,
           box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
-          box17V_sstb: false, box17K: '',
+          box17V_sstb: false,
           // PASS4B-02b: initialise basis fields on CSV import
           stockBasis: '', debtBasis: '', distributions: '',
         }
