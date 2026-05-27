@@ -989,7 +989,7 @@ function CompareModal({ entities, onClose }) {
           ))}
         </div>
         <p style={{ fontSize: 11, color: SL, textAlign: 'center', marginTop: 16 }}>
-          Federal income tax only · {(readTaxYear() || 2025)} · {filing.toUpperCase()} · Estimates — consult a CPA
+          Federal income tax only · {(readTaxYear() || 2025)} · {filing.toUpperCase()} · Estimates — consult a tax professional
         </p>
       </div>
     </div>
