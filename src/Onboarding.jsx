@@ -285,7 +285,7 @@ padding:'10px 14px',marginBottom:12,
 }}>
 <span style={{fontSize:16,flexShrink:0,lineHeight:1.4}}>🔒</span>
 <p style={{fontSize:12,color:'#166534',margin:0,lineHeight:1.5}}>
-<strong>Card for identity verification only.</strong> You will <strong>not be charged</strong> until after your 7-day free trial ends. Cancel anytime.
+<strong>No charge for 7 days.</strong> You will <strong>not be charged</strong> until after your free trial ends. Cancel in one click anytime.
 </p>
 </div>
 
