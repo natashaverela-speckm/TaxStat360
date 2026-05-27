@@ -610,7 +610,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label style={inputLbl}>
                   Self-Employed Health Insurance Premiums
-                  <InfoTip text="Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible for self-employed individuals and S-Corp shareholder-employees if the plan is established in the name of the business. Cannot exceed your net self-employment income." />
+                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here — this offsets the Box 1 addition and results in the same deduction. Do NOT enter premiums paid directly without the W-2 grossup, as the IRS may disallow the deduction.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income or net earnings from the partnership."} />
                 </label>
                 <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" />
               </div>
