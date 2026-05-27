@@ -930,7 +930,7 @@ export default function TaxReturn() {
 
           {/* CC-P04: Disclaimer aligned with site footer — adds "legal, or financial" and "or attorney". */}
           <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
-            For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed CPA or attorney before filing.
+            For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
           </div>
         </div>
       </div>
