@@ -23,8 +23,8 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 // acts as a deterrent; "for verification only" re-frames the card ask as a security
 // step rather than a payment commitment, which is more accurate and less friction.
 // CTA_COPY_FULL is used in the hero; CTA_COPY_SHORT in pricing and bottom CTA.
-const CTA_COPY_FULL  = 'No charge for 7 days · Cancel anytime · Card for verification only · No CPA needed to get started'
-const CTA_COPY_SHORT = 'Card for verification only · No charge for 7 days · Cancel anytime'
+const CTA_COPY_FULL  = 'No charge during your 7-day trial · Cancel in one click · No CPA needed'
+const CTA_COPY_SHORT = 'No charge for 7 days · Cancel in one click'
 
 // F-02 FIX: Nav component now uses hamburger toggle for mobile.
 // menuOpen state controls className on nav-links div (.nav-links vs .nav-links.open).
@@ -320,7 +320,7 @@ export default function Landing() {
             { q: 'Is my financial data secure?',
               a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?',
-              a: 'You get full access to all features on your selected plan for 7 days. A card is required to start your trial — this is used to verify your identity and set up your subscription. You will not be charged until your 7-day trial ends. Cancel anytime before day 7 and you will never be billed.' },
+              a: 'You get full access to all features on your selected plan for 7 days, completely free. You will not be charged until your 7-day trial ends. Cancel in one click before day 7 and you will never be billed. A payment method is required to activate your trial.' },
             { q: 'How current is the data I see?',
               a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute." },
             { q: 'Does TaxStat360 replace my CPA?',
@@ -444,7 +444,7 @@ export default function Landing() {
           ))}
         </div>
 
-        <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime</p>
+        <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel in one click</p>
         <p style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1' }}>
           Cancel before day 7 for no charge. No refunds on completed billing periods. Manage or cancel anytime via your account settings.
         </p>
