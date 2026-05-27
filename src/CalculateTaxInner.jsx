@@ -1518,10 +1518,10 @@ export default function CalculateTaxInner() {
             <p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Select the structure that matches how your business files taxes.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { type: 'S Corporation',              icon: '🏢', desc: 'Elected S-Corp tax status. Officer salary + K-1 distributions. FICA savings analysis included.' },
-                { type: 'Partnership / LLC',           icon: '🤝', desc: 'Multi-member LLC or partnership. Each partner\'s distributive share from K-1.' },
-                { type: 'Sole Proprietor / SMLLC',    icon: '💼', desc: 'Schedule C filer. Self-employment income, SE tax, and QBI deduction calculated automatically.' },
-                { type: 'Real Estate (Schedule E)',    icon: '🏠', desc: 'Rental income and expenses. Passive loss rules, depreciation, and REP status.' },
+                { type: 'S Corporation',              icon: '🏢', desc: 'Elected S-Corp tax status. Officer salary + K-1 distributions. FICA savings analysis included. LLC with an S-Corp election? Choose this.' },
+                { type: 'Partnership / LLC',           icon: '🤝', desc: 'Multi-member LLC or partnership (Form 1065). Each partner\'s distributive share from K-1. LLC without an S-Corp or C-Corp election? Choose this.' },
+                { type: 'Sole Proprietor / SMLLC',    icon: '💼', desc: 'Schedule C filer. Self-employment income, SE tax, and QBI deduction calculated automatically. Single-member LLC with no tax election? Choose this.' },
+                { type: 'Real Estate (Schedule E)',    icon: '🏠', desc: 'Personally-held rental property. Passive loss rules, depreciation, and REP status. Property held in an LLC or partnership? Use Partnership / LLC above.' },
                 { type: 'C Corporation',               icon: '🏗️', desc: 'C-Corp. Dividends flow to personal return. Corporate-level tax is tracked separately.' },
               ].map(({ type, icon, desc }) => (
                 <button
