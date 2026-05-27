@@ -532,7 +532,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
       sessionStorage.removeItem('ts360_' + pid + '_token')
       localStorage.removeItem('ts360_connected_app')
     }
-    onUpdate(idx, { ...entity, connectedId: null, isManual: true })
+    onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
   }
 
