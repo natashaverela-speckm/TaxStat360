@@ -456,7 +456,7 @@ function RiskScan({ rec }) {
             The IRS uses proprietary DIF scoring and undisclosed methods to select returns —
             no third-party tool can predict audit selection. */}
         <p style={{ fontSize: 11, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
-          These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed CPA before making any filing decisions.
+          These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed tax professional before making any filing decisions.
         </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -673,7 +673,7 @@ function TaxOptimization({ rec }) {
         })}
       </div>
       <div style={{ marginTop: 16, fontSize: 11, color: SL, textAlign: 'center' }}>
-        Estimates based on inputs entered. Consult a CPA before implementing any strategy.
+        Estimates based on inputs entered. Consult a licensed tax professional before implementing any strategy.
       </div>
     </div>
   )
@@ -933,7 +933,7 @@ function ReportModal({ onClose, rec }) {
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>For planning purposes only. Consult a licensed CPA before filing.</div>
+        <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>For planning purposes only. Consult a licensed tax professional before filing.</div>
       </div>
     </Modal>
   )
@@ -1146,7 +1146,7 @@ function SimulatorModal({ onClose, rec }) {
           </div>
         )}
         <div style={{fontSize:11,color:'#94A3B8',textAlign:'center',marginTop:8}}>
-          Uses {taxYear} federal brackets · {filing.toUpperCase()} · ${stdDed.toLocaleString()} std deduction · Does not include state tax, FICA, or AMT · Consult a CPA before implementing.
+          Uses {taxYear} federal brackets · {filing.toUpperCase()} · ${stdDed.toLocaleString()} std deduction · Does not include state tax, FICA, or AMT · Consult a licensed tax professional before implementing.
         </div>
       </div>
     </Modal>
