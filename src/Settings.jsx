@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signOut } from './utils/signOut'
+import { isPro } from './LockedFeature'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 const API = 'https://app.taxstat360.com'
@@ -62,9 +63,6 @@ export default function Settings() {
   useEffect(() => {
     let storedEmail = localStorage.getItem('ts360_email') || ''
     if (!storedEmail) {
-      // token no longer stored in localStorage — email resolved from ts360_email key instead
-    }
-    if (!storedEmail) {
       for (const key of Object.keys(localStorage)) {
         const match = key.match(/^ts360_records_(.+@.+)$/)
         if (match && match[1] !== 'default') {
@@ -79,9 +77,6 @@ export default function Settings() {
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
 
-    // FIX (BILLING-INTERVAL): Read billing interval from localStorage so the
-    // Subscription card shows "Annual" or "Monthly" correctly instead of the
-    // hardcoded "Billed monthly" that was previously shown for all users.
     const storedBilling = localStorage.getItem('billing') || 'monthly'
     setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
 
@@ -98,19 +93,17 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    fetch(`${API}/auth/mfa/status`, {
-        credentials: 'include'
+    fetch(`${API}/auth/mfa/status`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data.enabled === 'boolean') {
+          setMfaEnabled(data.enabled)
+          localStorage.setItem('ts360_mfa_enabled', data.enabled ? '1' : '0')
+        }
       })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data && typeof data.enabled === 'boolean') {
-            setMfaEnabled(data.enabled)
-            localStorage.setItem('ts360_mfa_enabled', data.enabled ? '1' : '0')
-          }
-        })
-        .catch(() => {
-          setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
-        })
+      .catch(() => {
+        setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
+      })
   }, [])
 
   const handleEmailChange = async () => {
@@ -186,7 +179,6 @@ export default function Settings() {
     localStorage.setItem('ts360_idle_timeout_mins', val)
   }
 
-  // ── MFA/ ── MFA/2FA handlers ────────────────────────────────────────────────────────
   const handleMfaSetup = async () => {
     setMfaLoading(true)
     setMfaError('')
@@ -287,16 +279,25 @@ export default function Settings() {
 
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
-      {/* Nav */}
+      {/* Nav
+          U-01 FIX: AI Analysis nav button now conditionally shows 🔒 for non-Pro
+          users, matching every other authenticated page (CalculateTaxInner.jsx,
+          TaxReturn.jsx, Dashboard). Settings.jsx previously never imported isPro,
+          so the lock was always absent here regardless of plan. Also dims the
+          button color to '#94A3B8' for non-Pro users, consistent with other navs. */}
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
         <div onClick={()=>nav('/dashboard')}><LOGO/></div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <NavBtn label="Dashboard" onClick={()=>nav('/dashboard')}/>
-          <NavBtn label="Tax Tracker" onClick={()=>nav('/calculate-tax')}/>
-          <NavBtn label="AI Analysis" onClick={()=>nav('/ai-analysis')}/>
-          {/* CC-06: Removed ⚙ gear emoji from nav button — emoji reserved for
-              decorative/illustrative use, not navigation or interactive controls. */}
-          <NavBtn label="Settings" onClick={()=>nav('/settings')} active/>
+          <NavBtn label="Dashboard"    onClick={()=>nav('/dashboard')}/>
+          <NavBtn label="Tax Tracker"  onClick={()=>nav('/calculate-tax')}/>
+          {/* U-01 FIX: was <NavBtn label="AI Analysis" .../> — no lock, no isPro check */}
+          <button
+            onClick={()=>nav('/ai-analysis')}
+            style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',color:isPro()?SL:'#94A3B8',fontWeight:600,fontSize:13,cursor:'pointer'}}
+          >
+            AI Analysis{!isPro()?' 🔒':''}
+          </button>
+          <NavBtn label="Settings"     onClick={()=>nav('/settings')} active/>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
         </div>
       </nav>
@@ -319,7 +320,6 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Change Email */}
           <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20,marginBottom:20}}>
             <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:10}}>Change email address</div>
             <div style={{display:'flex',gap:10,alignItems:'center'}}>
@@ -341,7 +341,6 @@ export default function Settings() {
             {msg && !pwSent && <div style={{fontSize:13,color:emailSent?'#059669':'#DC2626',marginTop:8}}>{emailSent?'✓ ':''}{msg}</div>}
           </div>
 
-          {/* Change Password */}
           <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20}}>
             <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:6}}>Change password</div>
             <div style={{fontSize:13,color:SL,marginBottom:12}}>We'll email a reset link to <strong>{email}</strong>. Click it to set a new password.</div>
@@ -362,9 +361,6 @@ export default function Settings() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
               <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
-              {/* FIX (BILLING-INTERVAL): Show actual billing interval from localStorage
-                  instead of hardcoded "Billed monthly". Reads the 'billing' key written
-                  by Onboarding.jsx on signup and by the plan picker on signup. */}
               <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime</div>
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
@@ -606,7 +602,6 @@ export default function Settings() {
             )}
           </div>
         </div>
-
 
         {/* Privacy & Data */}
         <div style={card}>
