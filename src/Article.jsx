@@ -192,7 +192,7 @@ export default function Article() {
             <strong>Planning tool disclaimer:</strong> This article is for informational and
             planning purposes only — not professional tax, legal, or financial advice.
             Tax laws change; thresholds and limits cited reflect 2026 figures.
-            Consult a licensed CPA or attorney before making any filing or financial decisions.
+            Consult a licensed tax professional before making any filing or financial decisions.
           </div>
         </article>
 
@@ -275,7 +275,7 @@ export default function Article() {
         </p>
         <p style={{ margin: 0 }}>
           For planning purposes only — not professional tax, legal, or financial advice.
-          Consult a licensed CPA or attorney before making any filing or financial decisions.
+          Consult a licensed tax professional before making any filing or financial decisions.
         </p>
       </div>
     </div>
