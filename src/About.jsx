@@ -31,6 +31,7 @@ function AboutNav({ nav }) {
         <a href="/features"  style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none' }}>Features</a>
         <a href="/pricing"   style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none' }}>Pricing</a>
         <a href="/faq"       style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none' }}>FAQ</a>
+        <a href="/resources" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none' }}>Resources</a>
         <button onClick={() => nav('/login')}  style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: N }}>Sign In</button>
         <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>{CTA_LABEL}</button>
       </div>
@@ -150,7 +151,7 @@ export default function About() {
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
         <div style={{ maxWidth: 680, margin: '0 auto', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '20px 28px' }}>
           <p style={{ fontSize: 13, color: '#92400E', lineHeight: 1.6, margin: 0 }}>
-            <strong>Important:</strong> TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service. Calculations cover federal tax only and are for planning purposes only. Always consult a licensed CPA or tax attorney before making any filing or financial decisions.
+            <strong>Important:</strong> TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service. Calculations cover federal tax only and are for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
           </p>
         </div>
       </section>
@@ -186,7 +187,7 @@ export default function About() {
             <a href="/#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
           <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>
-            TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.
+            TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.
           </p>
           <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
             TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
