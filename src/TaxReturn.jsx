@@ -92,8 +92,27 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx }) {
       value={raw}
       disabled={disabled}
       placeholder={placeholder || '0'}
-      onChange={e => { const v = e.target.value.replace(/[^0-9.\-]/g, ''); setRaw(v); onChange(v) }}
-      onFocus={() => { setFocused(true); setRaw(String(value || '').replace(/,/g, '')) }}
+      onChange={e => {
+        const input = e.target
+        const cursorPos = input.selectionStart
+        const prevVal = input.value
+        const prevCommas = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
+        const stripped = e.target.value.replace(/[^0-9\-]/g, '')
+        const isNeg = stripped.startsWith('-')
+        const digits = stripped.replace(/^-/, '')
+        const n = parseInt(digits, 10)
+        const fmt = stripped === '' ? '' : stripped === '-' ? '-' :
+          (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
+        setRaw(fmt); onChange(stripped)
+        requestAnimationFrame(() => {
+          if (input && document.activeElement === input) {
+            const newCommas = (fmt.slice(0, cursorPos).match(/,/g) || []).length
+            const pos = Math.max(0, Math.min(cursorPos + (newCommas - prevCommas), fmt.length))
+            input.setSelectionRange(pos, pos)
+          }
+        })
+      }}
+      onFocus={() => { setFocused(true) }}
       onBlur={() => {
         setFocused(false)
         const n = nf(raw)
