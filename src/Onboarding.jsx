@@ -176,7 +176,7 @@ return(<Page>
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <span style={{fontSize:15,flexShrink:0}}>📋</span>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
-<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed CPA or attorney before making any filing or financial decisions.
+<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
@@ -388,7 +388,7 @@ return(<Page>
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <span style={{fontSize:15,flexShrink:0}}>📋</span>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
-<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed CPA or attorney before making any filing or financial decisions.
+<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
@@ -412,7 +412,7 @@ so new users who land on /login have a clear prominent path to register. */}
 <a href="/privacy" style={{color:'#94a3b8',textDecoration:'none'}}>Privacy Policy</a>
 </p>
 <p style={{fontSize:10,color:'#CBD5E1',margin:0,lineHeight:1.5}}>
-For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed CPA or attorney before filing.
+For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
 </p>
 </div>
 </Page>)
