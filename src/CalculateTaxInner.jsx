@@ -157,14 +157,34 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
   }, [value, focused])
 
   const handleChange = (e) => {
-    const v = e.target.value.replace(/[^0-9.\-]/g, '')
-    setRaw(v)
-    onChange(v)
+    const input = e.target
+    const cursorPos = input.selectionStart
+    const prevVal = input.value
+    const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
+
+    const stripped = e.target.value.replace(/[^0-9\-]/g, '')
+    const isNeg = stripped.startsWith('-')
+    const digits = stripped.replace(/^-/, '')
+    const n = parseInt(digits, 10)
+    const formatted = stripped === '' ? '' : stripped === '-' ? '-' :
+      (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
+
+    setRaw(formatted)
+    onChange(stripped)
+
+    requestAnimationFrame(() => {
+      if (input && document.activeElement === input) {
+        const newCommasBefore = (formatted.slice(0, cursorPos).match(/,/g) || []).length
+        const diff = newCommasBefore - prevCommasBefore
+        const newPos = Math.max(0, Math.min(cursorPos + diff, formatted.length))
+        input.setSelectionRange(newPos, newPos)
+      }
+    })
   }
 
   const handleFocus = () => {
     setFocused(true)
-    setRaw(String(value || '').replace(/,/g, ''))
+    // Keep formatted value on focus — commas remain visible while editing
   }
 
   const handleBlur = () => {
