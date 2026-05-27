@@ -71,6 +71,7 @@ function Nav({ nav }) {
 export default function Landing() {
   const nav = useNavigate()
   const [billing, setBilling] = useState('monthly')
+  const [selectedEntity, setSelectedEntity] = useState(null)
   const [contactName, setContactName]       = useState('')
   const [contactEmail, setContactEmail]     = useState('')
   const [contactMsg, setContactMsg]         = useState('')
@@ -127,9 +128,14 @@ export default function Landing() {
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
           Build Wealth by Managing Tax <br />Liability Year-Round.
         </h1>
-        <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 40px', lineHeight: 1.7 }}>
+        <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
           Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe whenever you need it, so you can make strategic moves that preserve capital and accelerate wealth building.
         </p>
+        {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, background: '#fff', border: '1.5px solid #dde6f0', borderRadius: 100, padding: '7px 18px' }}>
+          <span style={{ fontSize: 15 }}>🏛️</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Built by former IRS Revenue Agents</span>
+        </div>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{CTA_LABEL}</button>
           <button onClick={() => nav('/login')}  style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Sign In to Your Account</button>
@@ -214,16 +220,57 @@ export default function Landing() {
               title: 'Multiple Entities',
               desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
           ].map((e, i) => (
-            <div key={i} style={{ background: '#F8FAFC', borderRadius: 16, padding: 28, textAlign: 'left', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div
+              key={i}
+              onClick={() => setSelectedEntity(selectedEntity === i ? null : i)}
+              style={{
+                background: selectedEntity === i ? '#EFF6FF' : '#F8FAFC',
+                borderRadius: 16, padding: 28, textAlign: 'left',
+                border: selectedEntity === i ? '2px solid ' + B : '1px solid #e2e8f0',
+                boxShadow: selectedEntity === i ? '0 4px 16px rgba(37,99,235,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+                cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <span style={{ fontSize: 32 }}>{e.icon}</span>
-                <span style={{ background: N, color: '#fff', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{e.label}</span>
+                <span style={{ background: selectedEntity === i ? B : N, color: '#fff', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{e.label}</span>
               </div>
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{e.title}</h3>
               <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6 }}>{e.desc}</p>
+              {selectedEntity === i && (
+                <div style={{ marginTop: 14, fontSize: 12, fontWeight: 700, color: B }}>✓ Selected — {e.title}</div>
+              )}
             </div>
           ))}
         </div>
+        {/* UX-1.3: Contextual CTA appears when user selects their entity type */}
+        {selectedEntity !== null && (() => {
+          const e = [
+            { icon: '🏢', title: 'S-Corp Owner' },
+            { icon: '🤝', title: 'Partnership / LLC Owner' },
+            { icon: '📋', title: 'Sole Proprietor' },
+            { icon: '🏠', title: 'Real Estate Investor' },
+            { icon: '💼', title: 'W-2 + Business Owner' },
+            { icon: '🏗️', title: 'Multi-Entity Operator' },
+          ][selectedEntity]
+          return (
+            <div style={{ marginTop: 24, padding: '20px 28px', background: '#EFF6FF', border: '1.5px solid ' + B, borderRadius: 14, maxWidth: 540, margin: '24px auto 0', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, marginBottom: 8 }}>{e.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6 }}>
+                Start tracking your taxes as a {e.title}
+              </div>
+              <div style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
+                TaxStat360 is built for your structure. See your federal tax liability in minutes.
+              </div>
+              <button
+                onClick={() => nav('/signup')}
+                style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '13px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+              >
+                Start Free 7-Day Trial as {e.title} →
+              </button>
+            </div>
+          )
+        })()}
       </section>
 
       {/* ─── HOW IT WORKS ─────────────────────────────────────────────────────── */}
