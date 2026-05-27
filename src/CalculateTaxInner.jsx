@@ -244,7 +244,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
   if (ratio < 0.35) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
+        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
           Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation (salary ÷ total comp).
           Tax practitioners commonly recommend 35–45% of total officer compensation based on case law
@@ -529,6 +529,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
       localStorage.removeItem('ts360_' + pid + '_connected')
       localStorage.removeItem('ts360_' + pid + '_token')
       localStorage.removeItem('ts360_' + pid + '_extra')
+      sessionStorage.removeItem('ts360_' + pid + '_token')
       localStorage.removeItem('ts360_connected_app')
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true })
@@ -805,7 +806,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     if (suspended > 0) {
                       return (
                         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1366(d) Loss Limitation Active</div>
+                          <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1366(d) Loss Limitation Active</div>
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
                             Your {fmt(lossAmt)} K-1 loss exceeds your {fmt(totalBasis)} basis.
                             Only <strong>{fmt(allowedLoss)}</strong> is deductible this year.
@@ -848,7 +849,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     if (sb === null) {
                       return (
                         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Enter Stock Basis to Compute Capital Gain</div>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Enter Stock Basis to Compute Capital Gain</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5 }}>
                             You have entered {fmt(dist)} in distributions. Enter your stock basis above
                             to determine whether any portion is taxable as long-term capital gain
@@ -864,7 +865,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     if (excess > 0) {
                       return (
                         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1368 Capital Gain — Distributions Exceed Basis</div>
+                          <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1368 Capital Gain — Distributions Exceed Basis</div>
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
                             <strong>{fmt(excess)}</strong> of your {fmt(dist)} distributions exceeds your
                             remaining stock basis ({fmt(postBasis)}) and is treated as a{' '}
@@ -1297,7 +1298,7 @@ export default function CalculateTaxInner() {
       if (tok) {
         foundInUrl = true
         localStorage.setItem('ts360_' + pid + '_connected', 'true')
-        localStorage.setItem('ts360_' + pid + '_token', tok)
+        sessionStorage.setItem('ts360_' + pid + '_token', tok)  // AF-2.2: use sessionStorage (clears on tab close) — full fix is server-side token storage
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
                     : pid === 'freshbooks'  ? p.get('account')
@@ -1310,7 +1311,7 @@ export default function CalculateTaxInner() {
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
         if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
-          const tok   = localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+          const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
           const extra = localStorage.getItem('ts360_' + pid + '_extra')
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }
