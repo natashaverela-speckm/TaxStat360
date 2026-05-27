@@ -417,7 +417,7 @@ function RiskScan({ rec }) {
     findings.push({
       level: 'high',
       icon: '🚨',
-      title: `Deductions Exceed Revenue by ${_ratio - 100}% — IRS Audit Profile`,
+      title: `Deductions Exceed Revenue by ${_ratio - 100}% — Common IRS Scrutiny Pattern`,
       detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross revenue (${fmt(_totEntRev)}). Deductions substantially exceeding revenue place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed revenue in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
       action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If deductions exceed revenue by >50%, discuss with your CPA before filing.`,
     })
@@ -451,7 +451,13 @@ function RiskScan({ rec }) {
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Based on your saved record. These findings are specific to your situation.</p>
+        <p style={{ fontSize: 13, color: SL, margin: '0 0 8px' }}>Based on your saved record. These findings are specific to your situation.</p>
+        {/* TC-04 FIX: Explicitly frame findings as patterns of scrutiny, not audit probability.
+            The IRS uses proprietary DIF scoring and undisclosed methods to select returns —
+            no third-party tool can predict audit selection. */}
+        <p style={{ fontSize: 11, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+          These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed CPA before making any filing decisions.
+        </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {findings.map((f, i) => {
