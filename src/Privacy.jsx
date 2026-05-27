@@ -40,6 +40,7 @@ export default function Privacy() {
           <a href='/#features'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Features</a>
           <a href='/#pricing'      style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Pricing</a>
           <a href='/#faq'          style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>FAQ</a>
+          <a href='/resources'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Resources</a>
           <a href='/login'         style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Sign In</a>
           <a href='/signup' style={{ padding: '9px 20px', background: N, color: 'white', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>Start Free 7-Day Trial</a>
         </div>
@@ -104,7 +105,7 @@ export default function Privacy() {
           <a href='/#contact' style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Contact</a>
         </div>
         <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 8px', lineHeight: 1.5 }}>
-          TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed CPA or tax attorney before making any filing or financial decisions.
+          TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.
         </p>
         <p style={{ fontSize: 12, color: SL, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
       </footer>
