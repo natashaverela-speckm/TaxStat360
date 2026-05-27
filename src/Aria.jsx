@@ -90,7 +90,7 @@ export default function Aria() {
   return (
     <>
       {open && (
-        <div style={{ position: 'fixed', bottom: 96, right: 20, width: 360, maxHeight: 500, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(13,27,62,0.18)', display: 'flex', flexDirection: 'column', zIndex: 9998, overflow: 'hidden', border: '1px solid #E2E8F0', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div style={{ position: 'fixed', bottom: 140, right: 20, width: 360, maxHeight: 500, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(13,27,62,0.18)', display: 'flex', flexDirection: 'column', zIndex: 9998, overflow: 'hidden', border: '1px solid #E2E8F0', fontFamily: 'Inter, system-ui, sans-serif' }}>
           <div style={{ background: N, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <svg width="20" height="20" viewBox="0 0 30 30" fill="none">
               <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
@@ -159,7 +159,7 @@ export default function Aria() {
         title={open ? 'Close Aria' : 'Ask Aria — AI Tax Assistant'}
         style={{
           position: 'fixed',
-          bottom: 24,
+          bottom: 80,
           right: 24,
           height: 48,
           // Pill when closed (fits icon + label), circle when open (just the × glyph)
