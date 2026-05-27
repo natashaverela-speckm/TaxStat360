@@ -1300,6 +1300,7 @@ export default function AIAnalysis() {
               { label: 'Dashboard',    path: '/dashboard' },
               { label: 'Tax Tracker', path: '/calculate-tax' },
               { label: 'AI Analysis', path: '/ai-analysis' },
+              { label: 'Settings',    path: '/settings' },
             ].map(link => (
               <button key={link.path} onClick={() => navigate(link.path)} style={{
                 padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
