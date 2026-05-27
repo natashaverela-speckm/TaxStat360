@@ -333,6 +333,15 @@ export default function TaxReturn() {
     { value: 'qss',    label: 'Qualifying Surviving Spouse' },
   ]
 
+  // Mobile responsive breakpoint — used to collapse 2-column layout to 1-column
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const inputLbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }
   const inpWrap  = { marginBottom: 14 }
 
@@ -371,7 +380,7 @@ export default function TaxReturn() {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px 100px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>
@@ -747,7 +756,7 @@ export default function TaxReturn() {
         </div>
 
         {/* ── RIGHT: Results panel ─────────────────────────────────────────── */}
-        <div style={{ position: 'sticky', top: 70 }}>
+        <div style={{ position: isMobile ? 'relative' : 'sticky', top: isMobile ? 'auto' : 70 }}>
 
           {/* Main liability card */}
           <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff' }}>
