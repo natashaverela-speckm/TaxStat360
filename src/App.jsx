@@ -15,6 +15,9 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
 import { API_BASE_URL } from './constants.js'
+// AF-02: Resources / blog section for organic SEO traffic
+import ResourcesHub from './ResourcesHub'
+import Article from './Article'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -284,6 +287,7 @@ const ROUTE_TITLES = {
   '/upgrade':          'Upgrade Plan | TaxStat360',
   '/reset-password':   'Reset Password | TaxStat360',
   '/forgot-password':  'Forgot Password | TaxStat360',
+  '/resources':        'Tax Planning Resources | TaxStat360',
   '/privacy':          'Privacy Policy | TaxStat360',
   '/privacy-policy':   'Privacy Policy | TaxStat360',
   '/terms':            'Terms of Service | TaxStat360',
@@ -313,6 +317,7 @@ function RouteTitle() {
     setNoindex(NOINDEX_PREFIXES.some(p => path.startsWith(p)))
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
     if (path.startsWith('/onboarding'))   { document.title = 'Set Up Your Account | TaxStat360'; return }
+    if (path.startsWith('/resources/'))   { document.title = 'Tax Planning Resources | TaxStat360'; return }
     if (path.startsWith('/integrations')) return
     const title = ROUTE_TITLES[path]
     if (title) document.title = title
@@ -427,6 +432,10 @@ export default function App() {
         <Route path="/terms"            element={<Terms />} />
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
+
+        {/* AF-02: Public resources / blog section — no auth required, fully indexable */}
+        <Route path="/resources"       element={<ResourcesHub />} />
+        <Route path="/resources/:slug" element={<Article />} />
 
         {/* F-01 FIX: Branded 404 replaces silent redirect to homepage */}
         <Route path="*" element={<NotFound />} />
