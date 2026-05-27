@@ -269,7 +269,7 @@ export default function ResourcesHub() {
         </p>
         <p style={{ margin: 0 }}>
           For planning purposes only — not professional tax, legal, or financial advice.
-          Consult a licensed CPA or attorney before making any filing or financial decisions.
+          Consult a licensed tax professional before making any filing or financial decisions.
         </p>
       </div>
     </div>
