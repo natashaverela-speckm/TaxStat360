@@ -123,13 +123,13 @@ export default function Landing() {
       {/* ─── HERO ─────────────────────────────────────────────────────────────── */}
       <section style={{ background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)', padding: '80px 24px 60px', textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #dde6f0', borderRadius: 100, padding: '8px 18px', fontSize: 15, fontWeight: 700, letterSpacing: 1.5, color: N, marginBottom: 32, textTransform: 'uppercase' }}>
-          <span style={{ color: B }}>&#10003;</span> Get in Front of Your Largest Expense
+          <span style={{ color: B }}>&#10003;</span> No More April Surprises
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          Build Wealth by Managing Tax <br />Liability Year-Round.
+          See Exactly What You Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          Most business owners discover their tax liability at year-end when it&apos;s too late to optimize. TaxStat360 shows you exactly what you owe whenever you need it, so you can make strategic moves that preserve capital and accelerate wealth building.
+          Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your real federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
         </p>
         {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, background: '#fff', border: '1.5px solid #dde6f0', borderRadius: 100, padding: '7px 18px' }}>
