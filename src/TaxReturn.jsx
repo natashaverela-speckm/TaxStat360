@@ -436,18 +436,18 @@ export default function TaxReturn() {
           <CollapsibleSection title="W-2 Income & Withholding" defaultOpen badge={nf(w2Income) > 0 ? fmt(nf(w2Income)) : undefined}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-w2-income" style={inputLbl}>
                   W-2 Income (Other Employers)
                   <InfoTip text="Enter W-2 wages from employers OTHER than the business entity you entered in Step 1. Your S-Corp officer salary already flows from Step 1 — do not re-enter it here. If you also work a W-2 job at a separate company, enter those wages here." />
                 </label>
-                <MoneyInput value={w2Income} onChange={setW2Income} placeholder="0" />
+                <MoneyInput id="tr-w2-income" value={w2Income} onChange={setW2Income} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-w2-withheld" style={inputLbl}>
                   Federal Tax Withheld (W-2 Box 2)
                   <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
                 </label>
-                <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" />
+                <MoneyInput id="tr-w2-withheld" value={w2Withheld} onChange={setW2Withheld} placeholder="0" />
               </div>
             </div>
             {entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
@@ -502,11 +502,11 @@ export default function TaxReturn() {
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-est-paid" style={inputLbl}>
                   Estimated Tax Payments Made
                   <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
                 </label>
-                <MoneyInput value={estPaid} onChange={setEstPaid} placeholder="0" />
+                <MoneyInput id="tr-est-paid" value={estPaid} onChange={setEstPaid} placeholder="0" />
               </div>
             </div>
           </CollapsibleSection>
@@ -515,12 +515,12 @@ export default function TaxReturn() {
           <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(nf(rentalIncome) - nf(rentalExpenses)) : undefined} accent="#7C3AED">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
-                <label style={inputLbl}>Rental Income</label>
-                <MoneyInput value={rentalIncome} onChange={setRentalIncome} placeholder="0" />
+                <label htmlFor="tr-rental-income" style={inputLbl}>Rental Income</label>
+                <MoneyInput id="tr-rental-income" value={rentalIncome} onChange={setRentalIncome} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>Rental Expenses (incl. depreciation)</label>
-                <MoneyInput value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" />
+                <label htmlFor="tr-rental-exp" style={inputLbl}>Rental Expenses (incl. depreciation)</label>
+                <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
@@ -542,11 +542,11 @@ export default function TaxReturn() {
             {/* BUG-01 FIX: Single priorPAL field replaces the prior two-field duplicate. */}
             {!isREP && (
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-prior-pal" style={inputLbl}>
                   Prior Year Passive Loss Carryforward (Form 8582)
                   <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). These are released when the rental activity generates passive income. Enter the total carryforward, NOT the current-year loss." />
                 </label>
-                <MoneyInput value={priorPAL} onChange={setPriorPAL} placeholder="0" />
+                <MoneyInput id="tr-prior-pal" value={priorPAL} onChange={setPriorPAL} placeholder="0" />
               </div>
             )}
           </CollapsibleSection>
@@ -555,51 +555,51 @@ export default function TaxReturn() {
           <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
-                <label style={inputLbl}>Short-Term Capital Gains (or losses)</label>
-                <MoneyInput value={stGain} onChange={setStGain} placeholder="0" />
+                <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
+                <MoneyInput id="tr-st-gain" value={stGain} onChange={setStGain} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-lt-gain" style={inputLbl}>
                   Long-Term Capital Gains (or losses)
                   <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income — not at ordinary rates." />
                 </label>
-                <MoneyInput value={ltGain} onChange={setLtGain} placeholder="0" />
+                <MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>Interest Income (Schedule B)</label>
-                <MoneyInput value={interest} onChange={setInterest} placeholder="0" />
+                <label htmlFor="tr-interest" style={inputLbl}>Interest Income (Schedule B)</label>
+                <MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>Ordinary Dividends</label>
-                <MoneyInput value={dividends} onChange={setDividends} placeholder="0" />
+                <label htmlFor="tr-dividends" style={inputLbl}>Ordinary Dividends</label>
+                <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-qual-div" style={inputLbl}>
                   Qualified Dividends (Form 1099-DIV Box 1b)
                   <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above." />
                 </label>
-                <MoneyInput value={qualDividends} onChange={setQualDividends} placeholder="0" />
+                <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-form4797" style={inputLbl}>
                   Form 4797 Gains (§1231)
                   <InfoTip text="Ordinary gains from the sale of business property (Form 4797). This includes §1231 gains from depreciable real property and equipment used in a trade or business." />
                 </label>
-                <MoneyInput value={form4797} onChange={setForm4797} placeholder="0" />
+                <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-unrec1250" style={inputLbl}>
                   Unrecaptured §1250 Gain
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
-                <MoneyInput value={unrecap1250} onChange={setUnrecap1250} placeholder="0" />
+                <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-collectibles" style={inputLbl}>
                   Collectibles Gain (Art, Coins, Stamps)
                   <InfoTip text="Gain from the sale of collectibles held more than 1 year — including coins, art, antiques, gems, and stamps (IRC §1(h)(4)). Taxed at a maximum 28% rate, not the standard long-term capital gains rates. Enter your net gain from Schedule D." />
                 </label>
-                <MoneyInput value={collectibles} onChange={setCollectibles} placeholder="0" />
+                <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" />
               </div>
             </div>
           </CollapsibleSection>
@@ -608,46 +608,46 @@ export default function TaxReturn() {
           <CollapsibleSection title="Above-the-Line Deductions (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-health-ins" style={inputLbl}>
                   Self-Employed Health Insurance Premiums
                   <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here — this offsets the Box 1 addition and results in the same deduction. Do NOT enter premiums paid directly without the W-2 grossup, as the IRS may disallow the deduction.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income or net earnings from the partnership."} />
                 </label>
-                <MoneyInput value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" />
+                <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-hsa" style={inputLbl}>
                   HSA Deduction (Form 8889)
                   <InfoTip text="Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
                 </label>
-                <MoneyInput value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" />
+                <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
                   <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
                 </label>
-                <MoneyInput value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" />
+                <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plans
                   <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary (can stack with employee deferral)\n• Deadline for S-Corp: September 15 (Form 1120-S due date, NOT October 15)\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.\n• Deadline: October 15 (Form 1040 due date with extension)'} wide />
                 </label>
-                <MoneyInput value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" />
+                <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-nol" style={inputLbl}>
                   NOL Carryforward (IRC §172)
                   <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically.\n\nExample: $200K NOL with $100K taxable income → $80K deductible this year (80% cap); $120K carries forward indefinitely.\n\nThe remaining carryforward is shown below the Tax Waterfall when applicable." />
                 </label>
-                <MoneyInput value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" />
+                <MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>
+                <label htmlFor="tr-qbi-loss" style={inputLbl}>
                   Prior Year QBI Loss Carryforward
                   <InfoTip text="If your business generated a net loss last year, that loss reduces your §199A QBI deduction base in the CURRENT year per IRC §199A(c)(2). Enter the absolute value of last year's QBI loss (as a positive number)." />
                 </label>
-                <MoneyInput value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" />
+                <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" />
               </div>
             </div>
 
@@ -733,12 +733,12 @@ export default function TaxReturn() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
-                <label style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
-                <MoneyInput value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
+                <label htmlFor="tr-prior-tax" style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
+                <MoneyInput id="tr-prior-tax" id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
               </div>
               <div style={inpWrap}>
-                <label style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
-                <MoneyInput value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
+                <label htmlFor="tr-prior-agi" style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
+                <MoneyInput id="tr-prior-agi" id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
               </div>
             </div>
           </CollapsibleSection>
@@ -772,7 +772,7 @@ export default function TaxReturn() {
 
           {/* Empty state */}
           {hasResult && result.agi === 0 && (
-            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
+            <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
               💡 Enter your income above to see your tax estimate. All figures are $0 because no income has been entered yet.
             </div>
           )}
@@ -833,7 +833,7 @@ export default function TaxReturn() {
               })}
 
               {result.ebl > 0 && result.eblThreshold > 0 && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
+                <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
                   <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} added back to income (threshold: {fmt(result.eblThreshold)}).
                   Excess business losses are limited to {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}).
                 </div>
@@ -846,13 +846,13 @@ export default function TaxReturn() {
               )}
 
               {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
-                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
                   <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
                 </div>
               )}
 
               {result.totalSuspendedLoss > 0 && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
+                <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
                   <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
                 </div>
               )}
@@ -878,7 +878,7 @@ export default function TaxReturn() {
 
           {/* Underpayment penalty warning */}
           {hasResult && result.balance > 0 && !nf(priorYearTax) && (
-            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
+            <div role="alert" aria-live="polite" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
               <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven't entered prior year tax. Enter your prior year total tax in{' '}
               <button
                 onClick={() => {
