@@ -97,7 +97,7 @@ function AuthFooter() {
       <span style={{color:'#E2E8F0'}}>|</span>
       <a href="mailto:support@taxstat360.com" style={link}>support@taxstat360.com</a>
       <span style={{color:'#E2E8F0'}}>|</span>
-      <span>For planning purposes only &mdash; not professional tax, legal, or financial advice. Consult a licensed CPA or attorney before filing.</span>
+      <span>For planning purposes only &mdash; not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.</span>
     </div>
   )
 }
