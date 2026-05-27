@@ -17,6 +17,18 @@
 // C-06 FIX: 2026 tax year dropdown option shortened to "2026 (OBBBA)".
 //
 // UX-05 FIX: Micro-text added beneath each save button to disambiguate navigation.
+//
+// PASS5 (Code Consistency):
+//   CC-P01: Removed dead import — parseMoney was imported but never called.
+//   CC-P02: Removed dead box17K reduce — e.box17K is always undefined after
+//     CalculateTaxInner.jsx CC-07 removed box17K from entity initialization;
+//     form4797Total simplifies to nf(form4797).
+//   CC-P03: Removed dead result.effRate null-coalesce — calcTaxReturn returns
+//     effectiveRate not effRate, so the coalesce always fell through to the
+//     inline formula. Removed the dead property read; inline formula unchanged.
+//   CC-P04: Disclaimer wording aligned with site footer — in-page text now reads
+//     "not professional tax, legal, or financial advice" and includes "or attorney"
+//     to match the page-level footer copy exactly.
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -26,7 +38,6 @@ import {
   readTaxYear, writeTaxYear,
   readStep1State, writeStep1State,
 } from './utils/sessionState.js'
-import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, SE_SUBJECT_TYPES } from './utils/entityPredicates.js'
@@ -162,8 +173,6 @@ export default function TaxReturn() {
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
   // T-03: Itemized deduction sub-fields — auto-sum into itemizedAmt for calcTaxReturn.
-  // When useItemized is active, use sub-fields if any are entered; otherwise use the
-  // manual total field directly (for users who know their Schedule A total).
   const itemizedSubTotal = nf(mortgageInt) + nf(charitableContr) + nf(medicalAmt) + nf(saltAmount)
   const effectiveItemizedAmt = useItemized
     ? (itemizedSubTotal > 0 ? itemizedSubTotal : nf(itemizedAmt))
@@ -171,7 +180,9 @@ export default function TaxReturn() {
 
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
-    const form4797Total = nf(form4797) + entityList.reduce((s, e) => s + (nf(e.box17K)), 0)
+    // CC-P02: box17K removed from entity init in CalculateTaxInner.jsx (CC-07);
+    // e.box17K is always undefined so the reduce was always 0. Simplified.
+    const form4797Total = nf(form4797)
     return {
       taxYear, status: filingStatus, dependents: nf(dependents),
       entities: entityList, w2: nf(w2Income), k1Total: sessionK1 || 0,
@@ -420,7 +431,6 @@ export default function TaxReturn() {
                 <MoneyInput value={w2Withheld} onChange={setW2Withheld} placeholder="0" />
               </div>
             </div>
-            {/* UX-08: Remind S-Corp owners to enter their W-2 withholding */}
             {entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
                 💡 <strong>S-Corp owner:</strong> If you paid yourself a W-2 salary in Step 1, enter the federal income tax withheld here (W-2 Box 2). FICA taxes (Boxes 4 and 6) are separate — don't include those here.
@@ -428,7 +438,7 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* UX-05: YTD mode — renamed to surface mid-year use case */}
+          {/* YTD mode */}
           <div style={{ background: ytdMode ? '#EFF6FF' : '#fff', border: `1px solid ${ytdMode ? '#BFDBFE' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 12, transition: 'background 0.2s, border-color 0.2s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div>
@@ -510,12 +520,7 @@ export default function TaxReturn() {
                 </label>
               </div>
             )}
-            {/* BUG-01 FIX: Single priorPAL field replaces the prior two-field duplicate.
-                The original code had two consecutive MoneyInput blocks for priorPAL:
-                  1. Conditional: rendered only when nf(priorPAL) !== 0
-                  2. Always: rendered whenever !isREP
-                When priorPAL had a value, both rendered simultaneously — duplicate field.
-                Merged into one always-visible field with the InfoTip from the conditional. */}
+            {/* BUG-01 FIX: Single priorPAL field replaces the prior two-field duplicate. */}
             {!isREP && (
               <div style={inpWrap}>
                 <label style={inputLbl}>
@@ -738,12 +743,15 @@ export default function TaxReturn() {
             )}
             {hasResult && (
               <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
-                Effective rate: {pct(result.effRate ?? (result.agi > 0 ? (result.totalTax / result.agi * 100).toFixed(1) : '0.0'))}
+                {/* CC-P03: result.effRate was undefined (calcTaxReturn returns effectiveRate);
+                    null-coalesce always fell through. Removed dead property read;
+                    using inline AGI-denominator formula directly. */}
+                Effective rate: {pct(result.agi > 0 ? (result.totalTax / result.agi * 100).toFixed(1) : '0.0')}
               </div>
             )}
           </div>
 
-          {/* FG-01: Empty state — prevent users from mistaking $0 for a real calculation */}
+          {/* Empty state */}
           {hasResult && result.agi === 0 && (
             <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
               💡 Enter your income above to see your tax estimate. All figures are $0 because no income has been entered yet.
@@ -835,7 +843,6 @@ export default function TaxReturn() {
           {/* SE Tax Savings panel */}
           {hasResult && result.ficaSavings > 0 && (
             <div style={{ background: '#0f1f3d', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
-              {/* L-02 FIX: Renamed from "S-Corp FICA Savings" to "SE Tax Savings on Distributions". */}
               <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
                 SE TAX SAVINGS ON DISTRIBUTIONS
               </div>
@@ -850,7 +857,7 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* FG-03: Underpayment penalty warning — shown when balance due exists but safe harbor hasn't been calculated */}
+          {/* Underpayment penalty warning */}
           {hasResult && result.balance > 0 && !nf(priorYearTax) && (
             <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
               <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven't entered prior year tax. Enter your prior year total tax in{' '}
@@ -891,9 +898,8 @@ export default function TaxReturn() {
             🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
           </div>
 
-          {/* Save buttons — UX-06: secondary/primary hierarchy */}
+          {/* Save buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Primary CTA — solid navy */}
             <div>
               <button
                 onClick={() => handleSave({ thenNavigate: '/ai-analysis' })}
@@ -906,7 +912,6 @@ export default function TaxReturn() {
                 Saves and goes to AI Tax Analysis
               </div>
             </div>
-            {/* Secondary CTA — outlined */}
             <div>
               <button
                 onClick={() => handleSave()}
@@ -923,8 +928,9 @@ export default function TaxReturn() {
             </div>
           </div>
 
+          {/* CC-P04: Disclaimer aligned with site footer — adds "legal, or financial" and "or attorney". */}
           <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
-            Estimates for planning only — not professional tax advice. Consult a licensed CPA before filing.
+            For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed CPA or attorney before filing.
           </div>
         </div>
       </div>
