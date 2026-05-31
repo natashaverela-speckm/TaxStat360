@@ -231,6 +231,34 @@ export default function ResourcesHub() {
         ))}
       </div>
 
+      {/* Tools & Partners — RepsRecord (companion app) + Engineered Tax Services (affiliate partner) */}
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px 72px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Recommended Tools & Partners</h2>
+        <p style={{ fontSize: 14, color: SL, margin: '0 0 20px' }}>Tools and partners we trust for real-estate and tax planning.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+
+          {/* RepsRecord — TaxStat360's companion app */}
+          <a href="https://repsrecord.com" target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: 14, padding: 24, textDecoration: 'none' }}>
+            <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: B, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '3px 8px' }}>Our App</span>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: N, margin: 0 }}>RepsRecord</h3>
+            <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>Log and substantiate your Real Estate Professional Status (REPS) hours to support material-participation claims at tax time.</p>
+            <span style={{ fontSize: 13, fontWeight: 700, color: B }}>Visit RepsRecord &rarr;</span>
+          </a>
+
+          {/* Engineered Tax Services — affiliate partner (cost segregation) */}
+          <a href="https://engineeredtaxservices.com/?ref_id=pyvjdbl" target="_blank" rel="sponsored noopener noreferrer"
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: 14, padding: 24, textDecoration: 'none' }}>
+            <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: SL, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '3px 8px' }}>Partner</span>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: N, margin: 0 }}>Engineered Tax Services</h3>
+            <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>Engineering-based cost segregation studies that accelerate depreciation on commercial and rental property &mdash; front-loading deductions to reduce taxable income.</p>
+            <span style={{ fontSize: 13, fontWeight: 700, color: B }}>Visit Engineered Tax Services &rarr;</span>
+            <span style={{ fontSize: 11, color: '#94A3B8' }}>Affiliate partner &mdash; TaxStat360 may earn a commission at no additional cost to you.</span>
+          </a>
+
+        </div>
+      </div>
+
       {/* CTA */}
       <div style={{
         background: '#fff', borderTop: '1px solid #E2E8F0',
