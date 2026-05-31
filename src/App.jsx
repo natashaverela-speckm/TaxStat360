@@ -15,6 +15,7 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
 import { API_BASE_URL } from './constants.js'
+import { refreshPlanFromServer } from './LockedFeature'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
 import Article from './Article'
@@ -106,6 +107,19 @@ function AuthFooter() {
 function RequireAuth({ children }) {
   const sessionOk = isValidSession()
   const location = useLocation()
+
+  // SEC-05: re-validate the real plan from the server on every authenticated
+  // load, so dev-tools localStorage tampering can't unlock paid features.
+  // Fail-safe: refreshPlanFromServer() leaves the plan untouched on any error
+  // or if /auth/me doesn't exist yet. The state bump re-renders gated UI once
+  // the server's answer lands.
+  const [, setPlanChecked] = useState(0)
+  useEffect(() => {
+    if (!sessionOk) return
+    let active = true
+    refreshPlanFromServer().then(() => { if (active) setPlanChecked(n => n + 1) })
+    return () => { active = false }
+  }, [sessionOk])
 
   useEffect(() => {
     if (!sessionOk) return
