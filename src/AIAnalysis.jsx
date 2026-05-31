@@ -428,12 +428,15 @@ function RiskScan({ rec }) {
   const _totRevForVehicle = _totEntRev > 0 ? _totEntRev : revenue
   if (_totRevForVehicle > 15000 && _mileageDeduction === 0 && _vehicleExpenses === 0 && dep === 0) {
     const _stdMileRate = getTable(year)?.mileageRate ?? (year >= 2025 ? 0.70 : 0.67)
+    // AUDIT FIX (display): format to preserve the half-cent (72.5¢). The prior
+    // toFixed(0) rounded 72.5 → 73. Strips a trailing .0 so whole rates stay clean.
+    const _stdMileCents = (_stdMileRate * 100).toFixed(1).replace(/\.0$/, '')
     findings.push({
       level: 'info',
       icon: '🚗',
       title: 'Vehicle / Mileage Deduction — Review Before Filing',
-      detail: `No vehicle or mileage deduction is recorded. If you drive for business purposes — client visits, supply runs, business banking, attending professional education, or travel between job sites — you may be entitled to a vehicle deduction. The IRS standard mileage rate for ${year} is ${(_stdMileRate * 100).toFixed(0)}¢ per business mile. Personal commuting (home ↔ regular office) is never deductible.`,
-      action: `Two methods to choose from (must select one method per vehicle and generally stick with it):\n\n① Standard Mileage Rate — multiply business miles by the IRS rate (${(_stdMileRate * 100).toFixed(0)}¢/mile for ${year}). Simple. Requires a mileage log.\n\n② Actual Expense Method — deduct actual costs (gas, insurance, registration, repairs, depreciation) × business-use percentage. Can yield a larger deduction for high-cost or high-depreciation vehicles.\n\nRequirements: maintain a contemporaneous mileage log showing date, destination, business purpose, and miles for each trip. Apps like MileIQ, Everlance, or a simple spreadsheet work. The IRS requires contemporaneous records — reconstructed logs are regularly disallowed on audit.`,
+      detail: `No vehicle or mileage deduction is recorded. If you drive for business purposes — client visits, supply runs, business banking, attending professional education, or travel between job sites — you may be entitled to a vehicle deduction. The IRS standard mileage rate for ${year} is ${_stdMileCents}¢ per business mile. Personal commuting (home ↔ regular office) is never deductible.`,
+      action: `Two methods to choose from (must select one method per vehicle and generally stick with it):\n\n① Standard Mileage Rate — multiply business miles by the IRS rate (${_stdMileCents}¢/mile for ${year}). Simple. Requires a mileage log.\n\n② Actual Expense Method — deduct actual costs (gas, insurance, registration, repairs, depreciation) × business-use percentage. Can yield a larger deduction for high-cost or high-depreciation vehicles.\n\nRequirements: maintain a contemporaneous mileage log showing date, destination, business purpose, and miles for each trip. Apps like MileIQ, Everlance, or a simple spreadsheet work. The IRS requires contemporaneous records — reconstructed logs are regularly disallowed on audit.`,
     })
   }
 
