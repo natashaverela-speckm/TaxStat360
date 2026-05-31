@@ -87,6 +87,11 @@ sessionStorage.removeItem('ts360_entities')
 sessionStorage.removeItem('ts360_entities_raw')
 sessionStorage.removeItem('ts360_k1')
 sessionStorage.removeItem('ts360_isCoopPatron')
+// AUDIT FIX (finding #5 — "+ New Calculation" did not reset): CalculateTaxInner
+// hydrates its entity list on mount from ts360_step1_entities (its own working-copy
+// key), NOT from ts360_entities_raw. Clearing the canonical keys above left this one
+// untouched, so a previously-entered entity bled into every fresh calculation.
+sessionStorage.removeItem('ts360_step1_entities')
 }
 
 // ─── Personal 1040 context (filing status, year, income, deductions, payments) ─
