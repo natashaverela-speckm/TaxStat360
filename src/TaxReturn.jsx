@@ -199,12 +199,30 @@ export default function TaxReturn() {
 
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
-    // CC-P02: box17K removed from entity init in CalculateTaxInner.jsx (CC-07);
-    // e.box17K is always undefined so the reduce was always 0. Simplified.
-    const form4797Total = nf(form4797)
+    // F-05 (PR #154 — RESTORED): K-1 Box 17K (§1231 gain) flows into f4797Inc.
+    // Post-CC-07 entity init and older saved records may not carry box17K, in
+    // which case nf(undefined) === 0 and this is a no-op. Re-added so production
+    // matches the F-05 regression suite in TaxReturn.test.jsx.
+    const box17KTotal = entityList.reduce((s, e) => s + (e ? nf(e.box17K) : 0), 0)
+    const form4797Total = nf(form4797) + box17KTotal
+    // F-06 (PR #157 — RESTORED): an S-Corp / C-Corp officer's W-2 salary is the
+    // owner's personal wage income (Form 1040, Line 1a). It is deducted at the
+    // entity level to reach K-1 ordinary income, so it MUST be added back on the
+    // personal return — otherwise AGI omits the salary entirely and the headline
+    // federal tax liability is understated (audit finding: critical). Uses the
+    // same wage source/precedence the QBI wage-limit reads in taxCalc.js
+    // (e.officerW2 then e.pnl.officerSalary). Pass-through partner / sole-prop
+    // guaranteed payments are NOT W-2 wages and are excluded here — that income
+    // flows through k1Total and is taxed as SE income by the engine.
+    const officerW2Total = entityList.reduce((s, e) => {
+      if (!e) return s
+      const isCorp = e.type === 'S Corporation' || e.type === 'C Corporation'
+      return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
+    }, 0)
+    const w2Total = nf(w2Income) + officerW2Total
     return {
       taxYear, status: filingStatus, dependents: nf(dependents),
-      entities: entityList, w2: nf(w2Income), k1Total: sessionK1 || 0,
+      entities: entityList, w2: w2Total, k1Total: sessionK1 || 0,
       rentalNet: nf(rentalIncome) - nf(rentalExpenses),
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
       divInc: nf(dividends), qualDiv: nf(qualDividends), f4797Inc: form4797Total,
@@ -794,7 +812,7 @@ export default function TaxReturn() {
               {[
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income || sessionK1 || 0, sign: 1 },
                 { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
-                { label: 'W-2 Wages',                   value: nf(w2Income),                              sign: 1, hide: nf(w2Income) === 0 },
+                { label: 'W-2 Wages',                   value: result.totalW2ForFICA || 0,                sign: 1, hide: !(result.totalW2ForFICA > 0) },
                 { label: 'Rental Income (net)',          value: nf(rentalIncome) - nf(rentalExpenses),     sign: 1, hide: nf(rentalIncome) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
