@@ -107,6 +107,7 @@ import {
   SE_NET_EARNINGS_FACTOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
+import { normalizeEntityType } from './utils/entityPredicates.js'
 
 // ── IRS Tax Tables 2024-2026 ──────────────────────────────────────────────────
 const nv = (v) => parseFloat(v) || 0
@@ -486,7 +487,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 function calcTaxReturn(input) {
   const {
     taxYear, status, dependents,
-    entities = [],
+    entities: _rawEntities = [],
     w2 = 0, k1Total = 0, rentalNet = 0,
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
@@ -503,6 +504,13 @@ function calcTaxReturn(input) {
     priorYearAGI,
     priorPassiveLossCarryforward = 0,
   } = input
+
+  // AUDIT FIX (entity-type mismatch): the Step-1 UI emits friendly labels
+  // ("Sole Proprietor / SMLLC", "Partnership / LLC") that do not match the engine's
+  // exact-match SE_SUBJECT_TYPES / PASSTHROUGH_ENTITY_TYPES arrays — so without this
+  // normalization sole props & partnerships silently received NO self-employment tax.
+  // Canonicalize every entity's type before any classification below.
+  const entities = _rawEntities.map(e => (e ? { ...e, type: normalizeEntityType(e.type) } : e))
 
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
@@ -665,7 +673,11 @@ function calcTaxReturn(input) {
 
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    return sum + Math.max(0, parseFloat(e.k1) || 0)
+    // AUDIT FIX: derive k1 from pnl.netProfit when no explicit e.k1 is set
+    // (manually-entered entities store only pnl.netProfit) — matches every other
+    // k1 computation in this engine. Without it, SE income reads as 0.
+    const k1 = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    return sum + Math.max(0, k1)
   }, 0)
 
   const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
@@ -683,7 +695,15 @@ function calcTaxReturn(input) {
   const employeeFICA   = Math.round(empSS + empMedicare)
 
   // ── FICA Savings from S-Corp Structure (T-01 FIX) ─────────────────────────
-  const k1Distributions  = Math.max(0, nv(adjustedK1Total))
+  // AUDIT FIX: only NON-SE-subject pass-through distributions (S-corp, passive
+  // partner) avoid SE tax. SE-subject income (sole prop, active partner) is itself
+  // SE-taxed, so excluding it here stops the "you avoid SE tax" panel from wrongly
+  // appearing for sole proprietors. Scalar-only callers (no entities) keep prior behavior.
+  const nonSEDistributions = entitiesLimited.reduce((sum, e) => {
+    if (!e || SE_SUBJECT_TYPES.includes(e.type)) return sum
+    return sum + (nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100)))
+  }, 0)
+  const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nv(adjustedK1Total))
   const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
   const seEarningsOnDist = k1Distributions * SE_NET_EARNINGS_FACTOR
   const distSSTaxable    = Math.min(seEarningsOnDist, ssWageBaseRoom)
