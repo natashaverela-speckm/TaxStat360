@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Aria from './Aria'
+import Nav from './Nav'
 import { INTEGRATIONS } from './constants'
 import './Landing.css'
 
@@ -26,47 +27,10 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 const CTA_COPY_FULL  = 'No charge during your 7-day trial · Cancel in one click · No CPA needed'
 const CTA_COPY_SHORT = 'No charge for 7 days · Cancel in one click'
 
-// F-02 FIX: Nav component now uses hamburger toggle for mobile.
-// menuOpen state controls className on nav-links div (.nav-links vs .nav-links.open).
-// Landing.css provides the @media (max-width:768px) rules that collapse the nav
-// and show/hide the hamburger button. CTA button is always inside nav-links so it
-// appears in the mobile drawer. nav-hamburger class is display:none on desktop.
-function Nav({ nav }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  return (
-    <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => nav('/')}>
-        <div style={{ width: 32, height: 32, background: B, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
-        </div>
-        <div style={{ display: 'inline-block', borderBottom: '2px solid ' + B, paddingBottom: 1 }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
-        </div>
-      </div>
-      {/* Desktop + mobile-drawer nav links */}
-      <div className={`nav-links${menuOpen ? ' open' : ''}`}>
-        <a href="#how-it-works" style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>How It Works</a>
-        <a href="#features"     style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Features</a>
-        <a href="#pricing"      style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Pricing</a>
-        <a href="#faq"          style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>FAQ</a>
-        <a href="/resources"    style={{ fontSize: 14, fontWeight: 500, color: N, textDecoration: 'none', padding: '4px 2px' }}>Resources</a>
-        <button onClick={() => nav('/login')}  style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, color: N }}>Sign In</button>
-        <button onClick={() => nav('/signup')} className="nav-cta-btn" style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>{CTA_LABEL}</button>
-      </div>
-      {/* Hamburger — visible on mobile only via Landing.css @media rule */}
-      <button
-        className="nav-hamburger"
-        onClick={() => setMenuOpen(o => !o)}
-        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-        aria-expanded={menuOpen}
-      >
-        <span />
-        <span />
-        <span />
-      </button>
-    </nav>
-  )
-}
+// #7 FIX: The site navigation was extracted into a shared <Nav> component
+// (src/Nav.jsx) so Landing, About, Privacy, Terms, and Resources all render the
+// same nav instead of each maintaining its own copy. Import it above and render
+// <Nav nav={nav} /> below.
 
 export default function Landing() {
   const nav = useNavigate()
