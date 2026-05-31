@@ -20,13 +20,13 @@ export default function Privacy() {
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingTop: 64 }}>
 
       {/* #7 FIX: inline page nav replaced with the shared <Nav> component so all
-          pages stay in sync. (Previous inline nav now lives in src/Nav.jsx.) */}
+          pages stay in sync. */}
       <Nav nav={nav} />
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: April 19, 2026</p>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: May 31, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Privacy Policy</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>TaxStat360 is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and protect your data.</p>
         </div>
@@ -51,13 +51,19 @@ export default function Privacy() {
           <p>Your data is stored on AWS infrastructure in the United States and is never sold or shared with third parties for advertising.</p>
         </Section>
 
-        {/* FIX (#6 — AI data disclosure): The policy previously described AI features
-            in §2 but never disclosed how that data is processed, and §5 listed every
-            other processor except the AI provider. Resolved: AI features call the
-            Anthropic API, so Anthropic is named here and added to §6 as a processor. */}
+        {/* #6 FINAL (Anthropic, external API processor):
+            TaxStat360 calls the Anthropic API under Anthropic's Commercial Terms
+            using the company's own API key. Per those terms and Anthropic's
+            published policy, inputs/outputs from the Anthropic API are NOT used
+            to train their models by default. The "does not use your data to
+            train its models" sentence below is therefore accurate.
+            CAVEAT: that default does NOT apply to data you voluntarily submit as
+            feedback (e.g. a thumbs up/down). If TaxStat360 ever forwards user
+            financial data to Anthropic through a feedback mechanism, revisit
+            this wording. */}
         <Section title="4. AI Features & Automated Processing">
-          <p style={{ marginBottom: 10 }}>Some features — including Risk Alerts, the &ldquo;Why This Number?&rdquo; explanations, and the Ask Aria assistant — use automated AI to generate explanations and planning suggestions based on the figures you enter.</p>
-          <p style={{ marginBottom: 10 }}>To generate these results we transmit the relevant calculation inputs to Anthropic, our AI provider, solely to produce your output. Anthropic does not use your data to train its models. These inputs are never sold and are never used for advertising.</p>
+          <p style={{ marginBottom: 10 }}>Some features &mdash; including Risk Alerts, the &ldquo;Why This Number?&rdquo; explanations, and the Ask Aria assistant &mdash; use automated AI to generate explanations and planning suggestions based on the figures you enter.</p>
+          <p style={{ marginBottom: 10 }}>To generate these results, the relevant calculation inputs are transmitted to Anthropic (the Claude API), our AI processor, solely to produce your output. Under Anthropic&rsquo;s commercial terms, your inputs and outputs are not used to train their models. This data is never sold and is never used for advertising.</p>
           <p>AI output is provided for planning purposes only and is not professional tax advice.</p>
         </Section>
 
@@ -69,8 +75,7 @@ export default function Privacy() {
           <p style={{ marginBottom: 8 }}>- Stripe (payment processing)</p>
           <p style={{ marginBottom: 8 }}>- AWS (infrastructure and data storage)</p>
           <p style={{ marginBottom: 8 }}>- QuickBooks, Xero, Wave, FreshBooks (read-only accounting data)</p>
-          {/* FIX (#6): Anthropic added as the AI processor. */}
-          <p>- Anthropic (AI processing for explanations, risk alerts, and Ask Aria)</p>
+          <p>- Anthropic (Claude API &mdash; AI processing for explanations, risk alerts, and Ask Aria)</p>
         </Section>
 
         <Section title="7. Your Rights">
