@@ -810,7 +810,7 @@ export default function TaxReturn() {
               <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 12 }}>Tax Waterfall</div>
 
               {[
-                { label: 'Business K-1 Income',        value: result.scheduleEK1Income || sessionK1 || 0, sign: 1 },
+                { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },
                 { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
                 { label: 'W-2 Wages',                   value: result.totalW2ForFICA || 0,                sign: 1, hide: !(result.totalW2ForFICA > 0) },
                 { label: 'Rental Income (net)',          value: nf(rentalIncome) - nf(rentalExpenses),     sign: 1, hide: nf(rentalIncome) === 0 },
