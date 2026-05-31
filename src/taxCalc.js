@@ -189,8 +189,8 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
-    // ⚠ ESTIMATED — verify when IRS publishes 2026 mileage notice (typically Dec 2025).
-    mileageRate: 0.70,
+    // IRS Notice 2026-10 (released Dec 29, 2025) — 72.5¢/mile for business use (up 2.5¢ from 2025).
+    mileageRate: 0.725,
   },
 }
 
