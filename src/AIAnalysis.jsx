@@ -287,7 +287,7 @@ function RiskScan({ rec }) {
     if (ownerComp === 0 && k1 > 20000) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
-        action: 'Set an officer salary of at least 35–40% of net profit. This is deductible to the S-Corp and reduces self-employment tax exposure.' })
+        action: 'Set a reasonable W-2 officer salary for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of total officer compensation (salary + distributions). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${((ownerComp/(ownerComp+k1))*100).toFixed(1)}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
@@ -301,7 +301,7 @@ function RiskScan({ rec }) {
 
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
-      detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties (currently ~8% annually).`,
+      detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties, charged at the federal short-term rate plus 3% (IRC §6621) and reset quarterly by the IRS (recently in the 6–8% range).`,
       action: `Estimated quarterly payment: approx. ${fmt(accurateQuarterly)}. Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
@@ -336,8 +336,8 @@ function RiskScan({ rec }) {
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
     const _aggNote = _agg && _aggDisc ? ` ⚠ Aggregation assumed: ${_aggDisc}` : ''
-    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`,
-      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)}.`,
+    findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`,
+      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)} — worth roughly ${fmt(Math.round(qbi * _marginalRate))} in federal tax at your ${(_marginalRate * 100).toFixed(0)}% marginal rate.`,
       action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.${_aggNote}` })
   }
 
@@ -616,7 +616,7 @@ function TaxOptimization({ rec }) {
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
         detail: `Your S-Corp structure saves FICA taxes on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary. The FICA rate is 15.3% on wages up to the Social Security wage base ($176,100 for 2025) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
-        howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the $176,100 SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary too low — IRS minimum guidance is typically 35–40% of net profit.`
+        howTo: `Estimated FICA savings from K-1 vs. W-2 structure: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the $176,100 SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary unreasonably low — there is no IRS safe-harbor percentage, but practitioners commonly target 35–45% of total officer compensation (salary + distributions) and document that it is reasonable for the role.`
       })
     }
   }
@@ -949,11 +949,20 @@ function SimulatorModal({ onClose, rec }) {
   const base = {
     grossRevenue:      parseFloat(b.grossRevenue)      || 0,
     cogs:              parseFloat(b.cogs)               || 0,
-    operatingExpenses: parseFloat(b.operatingExpenses)  || 0,
+    // AUDIT FIX (simulator double-count): b.operatingExpenses is the saved
+    // pnl.totalExpenses = pure opex + officer salary + depreciation +
+    // advertising + other. Those are tracked as separate adjustable lines
+    // below, so strip them back out here to recover PURE operating expenses;
+    // otherwise calcScenario subtracts them twice and understates K-1 income.
+    operatingExpenses: Math.max(0, (parseFloat(b.operatingExpenses) || 0)
+                       - (parseFloat(b.officerSalary) || 0)
+                       - (parseFloat(b.depreciation) || 0)
+                       - (parseFloat((b.pnl || {}).advertising) || 0)
+                       - (parseFloat((b.pnl || {}).otherDeductions) || 0)),
     officerSalary:     parseFloat(b.officerSalary)      || 0,
     depreciation:      parseFloat(b.depreciation)       || 0,
-    advertising:       parseFloat(b.advertising)        || 0,
-    otherDeductions:   parseFloat(b.otherDeductions)    || 0,
+    advertising:       parseFloat((b.pnl || {}).advertising)     || 0,
+    otherDeductions:   parseFloat((b.pnl || {}).otherDeductions) || 0,
     w2Income:          getTotalW2(rec)                  || 0,
     estPaid:           parseFloat(f.estPaid)  || 0,
   }
