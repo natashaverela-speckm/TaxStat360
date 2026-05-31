@@ -295,7 +295,7 @@ export default function Settings() {
             onClick={()=>nav('/ai-analysis')}
             style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',color:isPro()?SL:'#94A3B8',fontWeight:600,fontSize:13,cursor:'pointer'}}
           >
-            AI Analysis{!isPro()?' 🔒':''}
+            AI Analysis & Reporting{!isPro()?' 🔒':''}
           </button>
           <NavBtn label="Settings"     onClick={()=>nav('/settings')} active/>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
