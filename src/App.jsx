@@ -282,7 +282,7 @@ const ROUTE_TITLES = {
   '/calculate-tax':    'Tax Tracker | TaxStat360',
   '/calculator':       'Tax Tracker | TaxStat360',
   '/tax-return':       'Personal Return | TaxStat360',
-  '/ai-analysis':      'AI Tax Analysis | TaxStat360',
+  '/ai-analysis':      'AI Analysis & Reporting | TaxStat360',
   '/settings':         'Account Settings | TaxStat360',
   '/upgrade':          'Upgrade Plan | TaxStat360',
   '/reset-password':   'Reset Password | TaxStat360',
