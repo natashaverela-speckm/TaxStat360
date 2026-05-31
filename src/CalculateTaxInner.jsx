@@ -382,24 +382,29 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const adv = nf(manAdv)
   const oth = nf(manOther)
 
-  const totalExpenses = ex + dep + sal + adv + oth
-  const manNetProfit  = rv - totalExpenses
-
-  const officerExceedsRevenue   = sal > rv && sal > 0 && rv > 0
-  const officerExceedsNetProfit = !officerExceedsRevenue && sal > (rv - ex - dep) && sal > 0 && rv > 0
-
   const isSCorp = isSCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
+  // AUDIT FIX (phantom salary on entity-type switch): the Officer Salary (W-2) field is
+  // only shown for S-Corps. If an entity is switched away from S-Corp, manOfficerSal can
+  // still hold a stale value — count it ONLY when the field is actually applicable, so it
+  // cannot silently inflate expenses / understate net profit for a sole prop or partnership.
+  const effectiveSal = isSCorp ? sal : 0
+
+  const totalExpenses = ex + dep + effectiveSal + adv + oth
+  const manNetProfit  = rv - totalExpenses
+
+  const officerExceedsRevenue   = effectiveSal > rv && effectiveSal > 0 && rv > 0
+  const officerExceedsNetProfit = !officerExceedsRevenue && effectiveSal > (rv - ex - dep) && effectiveSal > 0 && rv > 0
 
   function applyManual() {
     if (rv > 0 || totalExpenses > 0) {
       onUpdate(idx, {
         ...entity,
-        officerW2: sal,
+        officerW2: effectiveSal,
         pnl: {
           grossRevenue:    rv,
           totalExpenses,
-          officerSalary:   sal,
+          officerSalary:   effectiveSal,
           depreciation:    dep,
           advertising:     adv,
           otherDeductions: oth,
@@ -708,7 +713,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               <option value="Partnership / LLC">Partnership / LLC</option>
               <option value="Sole Proprietor / SMLLC">Sole Proprietor / SMLLC</option>
               <option value="Real Estate (Schedule E)">Real Estate (Schedule E)</option>
-              <option value="C Corporation">C Corporation</option>
             </select>
           </div>
 
@@ -1544,7 +1548,6 @@ export default function CalculateTaxInner() {
                 { type: 'Partnership / LLC',           icon: '🤝', desc: 'Multi-member LLC or partnership (Form 1065). Each partner\'s distributive share from K-1. LLC without an S-Corp or C-Corp election? Choose this.' },
                 { type: 'Sole Proprietor / SMLLC',    icon: '💼', desc: 'Schedule C filer. Self-employment income, SE tax, and QBI deduction calculated automatically. Single-member LLC with no tax election? Choose this.' },
                 { type: 'Real Estate (Schedule E)',    icon: '🏠', desc: 'Personally-held rental property. Passive loss rules, depreciation, and REP status. Property held in an LLC or partnership? Use Partnership / LLC above.' },
-                { type: 'C Corporation',               icon: '🏗️', desc: 'C-Corp. Dividends flow to personal return. Corporate-level tax is tracked separately.' },
               ].map(({ type, icon, desc }) => (
                 <button
                   key={type}
