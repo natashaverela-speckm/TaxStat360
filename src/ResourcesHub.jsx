@@ -241,7 +241,7 @@ export default function ResourcesHub() {
           <a href="https://repsrecord.com" target="_blank" rel="noopener noreferrer"
             style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: 14, padding: 24, textDecoration: 'none' }}>
             <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: B, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '3px 8px' }}>Our App</span>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: N, margin: 0 }}>RepsRecord</h3>
+            <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}><span style={{ color: '#14233B' }}>REPS</span><span style={{ color: '#3AA896' }}>Record</span></h3>
             <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>Log and substantiate your Real Estate Professional Status (REPS) hours to support material-participation claims at tax time.</p>
             <span style={{ fontSize: 13, fontWeight: 700, color: B }}>Visit RepsRecord &rarr;</span>
           </a>
