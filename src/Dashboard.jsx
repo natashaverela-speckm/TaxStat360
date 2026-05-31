@@ -64,8 +64,16 @@ function calcDashboard(biz, f1040) {
   const dep    = parseFloat(biz.depreciation)      || 0
   const adv    = parseFloat(biz.advertising)       || 0
   const other  = parseFloat(biz.otherDeductions)   || 0
-  const totalExp = opExp + sal + dep + adv + other
-  const netBiz   = gross - totalExp
+  // AUDIT FIX (save/reload double-count): biz.operatingExpenses is persisted as
+  // pnl.totalExpenses — it ALREADY includes officer salary, depreciation,
+  // advertising and other. Re-adding the component lines double-counted them,
+  // understating net business income by the salary (the S-corp comp ratio then
+  // showed e.g. 33% / $200k distributions instead of 25% / $300k). Prefer the
+  // authoritative net profit captured at entry; fall back to (gross − total),
+  // where operatingExpenses IS the full total.
+  const totalExp = opExp
+  const _pnlNet  = parseFloat(biz.pnl?.netProfit)
+  const netBiz   = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) : (gross - totalExp)
   const own      = ownPct(biz.ownershipPct) / 100
   const k1       = Math.round(netBiz * own)
 
@@ -112,8 +120,13 @@ function calcDashboard(biz, f1040) {
     }
   }
 
-  const entities = isPassthru ? [{ type: biz.entityType, k1, own: 100 }] : []
-  const r = calcTaxReturn({ ...baseInput, entities, w2, k1Total: k1, divInc: 0, iraIncome: otherInc })
+  // AUDIT FIX: include the officer W-2 salary so it (a) enters personal income on
+  // the engine's 1040 and (b) is visible to the §199A QBI wage limit — mirroring
+  // the main return page. Without officerW2 the engine saw $0 wages (QBI unlimited)
+  // and dropped the salary from AGI, so the dashboard estimate diverged from the
+  // return. (sal is 0 for sole-prop / partnership, so this is a no-op there.)
+  const entities = isPassthru ? [{ type: biz.entityType, k1, own: 100, officerW2: sal }] : []
+  const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
   const reasonableCompAlert = (() => {
     if (!isSC) return { triggered: false, ratio: 100, message: '' }
