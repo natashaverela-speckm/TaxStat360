@@ -20,8 +20,7 @@ export default function Privacy() {
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingTop: 64 }}>
 
       {/* #7 FIX: inline page nav replaced with the shared <Nav> component so all
-          pages stay in sync. (Previous inline nav + its FIX comments now live in
-          src/Nav.jsx.) */}
+          pages stay in sync. (Previous inline nav now lives in src/Nav.jsx.) */}
       <Nav nav={nav} />
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
@@ -52,31 +51,14 @@ export default function Privacy() {
           <p>Your data is stored on AWS infrastructure in the United States and is never sold or shared with third parties for advertising.</p>
         </Section>
 
-        {/* FIX (#6 — AI data disclosure): The policy previously described AI
-            features in §2 ("AI-powered risk alerts and tax optimization
-            suggestions") but never disclosed how data is processed by those
-            features, and §5 listed every other processor (Stripe, AWS,
-            accounting connectors) but no AI processor. This new section closes
-            that gap. The text below is accurate whether AI runs in-house OR via
-            an external provider.
-
-            >>> ACTION REQUIRED: pick ONE based on your architecture <<<
-            • If AI runs ENTIRELY on your own servers/infrastructure: keep the
-              text as-is, and ALSO uncomment the in-house reassurance line below.
-            • If AI calls an EXTERNAL provider (Anthropic, OpenAI, AWS Bedrock,
-              etc.): uncomment the "external provider" line below, replace
-              PROVIDER_NAME, AND add the matching processor line in §6. Confirm
-              the provider's terms actually state your data is not used to train
-              their models before keeping that clause. */}
+        {/* FIX (#6 — AI data disclosure): The policy previously described AI features
+            in §2 but never disclosed how that data is processed, and §5 listed every
+            other processor except the AI provider. Resolved: AI features call the
+            Anthropic API, so Anthropic is named here and added to §6 as a processor. */}
         <Section title="4. AI Features & Automated Processing">
           <p style={{ marginBottom: 10 }}>Some features — including Risk Alerts, the &ldquo;Why This Number?&rdquo; explanations, and the Ask Aria assistant — use automated AI to generate explanations and planning suggestions based on the figures you enter.</p>
-          <p style={{ marginBottom: 10 }}>These inputs are processed solely to produce your results. They are never sold and are never used for advertising. AI output is provided for planning purposes only and is not professional tax advice.</p>
-
-          {/* OPTION A — IN-HOUSE (uncomment if AI runs only on your own infrastructure): */}
-          {/* <p>AI processing is performed on our own AWS infrastructure. Your financial data is not sent to any external AI provider.</p> */}
-
-          {/* OPTION B — EXTERNAL PROVIDER (uncomment + set PROVIDER_NAME if AI calls an outside API): */}
-          {/* <p>To generate these explanations we transmit the relevant calculation inputs to PROVIDER_NAME, our AI processor, solely to produce your result. PROVIDER_NAME does not use your data to train its models.</p> */}
+          <p style={{ marginBottom: 10 }}>To generate these results we transmit the relevant calculation inputs to Anthropic, our AI provider, solely to produce your output. Anthropic does not use your data to train its models. These inputs are never sold and are never used for advertising.</p>
+          <p>AI output is provided for planning purposes only and is not professional tax advice.</p>
         </Section>
 
         <Section title="5. Data Retention">
@@ -87,8 +69,8 @@ export default function Privacy() {
           <p style={{ marginBottom: 8 }}>- Stripe (payment processing)</p>
           <p style={{ marginBottom: 8 }}>- AWS (infrastructure and data storage)</p>
           <p style={{ marginBottom: 8 }}>- QuickBooks, Xero, Wave, FreshBooks (read-only accounting data)</p>
-          {/* FIX (#6): add ONLY if an external AI provider is used (see §4 Option B). */}
-          {/* <p>- PROVIDER_NAME (AI processing for explanations, risk alerts, and Ask Aria)</p> */}
+          {/* FIX (#6): Anthropic added as the AI processor. */}
+          <p>- Anthropic (AI processing for explanations, risk alerts, and Ask Aria)</p>
         </Section>
 
         <Section title="7. Your Rights">
@@ -101,10 +83,6 @@ export default function Privacy() {
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      {/* FIX: added © symbol, Terms of Service link, Contact link, and the
-          "not professional tax advice" disclaimer. Previously the footer had
-          only a bare copyright line with no cross-navigation links and no
-          compliance disclaimer — a gap for users who arrive here from signup. */}
       <footer style={{ borderTop: '1px solid #E2E8F0', padding: '24px 32px', textAlign: 'center' }}>
         <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
           <a href='/terms'    style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Terms of Service</a>
