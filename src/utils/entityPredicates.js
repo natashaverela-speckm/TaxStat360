@@ -22,6 +22,32 @@ export const isCCorpEntity = (t) => /c.?corp/i.test(t || '')
 export const isPassthroughEntity = (t) =>
   /partnership|llc|s.?corp|sole/i.test(t || '')
 
+/**
+ * Map any entity-type label (Step-1 UI values, legacy strings) to the canonical
+ * ENTITY_TYPES string the tax engine keys on. The Step-1 dropdown emits friendly
+ * labels ("Sole Proprietor / SMLLC", "Partnership / LLC") that do NOT match the
+ * engine's exact-match SE_SUBJECT_TYPES / PASSTHROUGH_ENTITY_TYPES arrays — so
+ * without normalization sole proprietors and partnerships silently received NO
+ * self-employment tax. Idempotent: canonical strings pass through unchanged.
+ *
+ * "Partnership / LLC" carries no active/passive distinction in the current UI, so we
+ * default to Active (SE-subject) — the correct default for materially-participating
+ * owners and far safer than charging no SE tax at all. An explicit "passive" label
+ * still resolves to the Passive variant.
+ */
+export function normalizeEntityType(type) {
+  const t = String(type || '').trim()
+  if (!t) return t
+  if (isCCorpEntity(t)) return 'C Corporation'
+  if (isSCorpEntity(t)) return 'S Corporation'
+  if (isScheduleCType(t)) return 'Sole Proprietor / Single-Member LLC'
+  if (/real.?estate|schedule.?e/i.test(t)) return t  // rental — not a SE/business entity
+  if (/partnership|mmllc|partner|llc/i.test(t)) {
+    return /passive/i.test(t) ? 'Partnership / MMLLC — Passive' : 'Partnership / MMLLC — Active'
+  }
+  return t
+}
+
 // ── Data model helpers ────────────────────────────────────────────────────────
 
 /**
