@@ -396,10 +396,7 @@ export default function Landing() {
               features: [
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
-                'AI-Generated CPA Briefing Documents (planning summaries for CPA discussion — not for filing)',
-                'Risk Tolerance Profiling (how aggressively to pursue tax-reduction strategies)',
-                'CPA Collaboration Portal (share a live read-only dashboard view with your CPA)',
-                'Dedicated onboarding & setup call',
+                'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
               ],
             },
           ].map((p, i) => (
@@ -488,7 +485,6 @@ export default function Landing() {
                   ['What-If Tax Scenario Simulator',         false, true,  true],
                   ['Explainable AI — Why This Number?',      false, true,  true],
                   ['Audit Risk Indicators',                  false, true,  true],
-                  ['Risk Tolerance Profiling',               false, false, true],
                 ]},
                 { group: 'Integrations', rows: [
                   ['Accounting software integration',        true,  true,  true],
@@ -496,12 +492,10 @@ export default function Landing() {
                 ]},
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
-                  ['AI-Generated CPA Briefing Documents',    false, false, true],
-                  ['CPA Collaboration Portal',               false, false, true],
+                  ['Auto-Generated CPA Briefing',    false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],
-                  ['Dedicated onboarding & setup call',      false, false, true],
                 ]},
               ].map(({ group, rows }) => (
                 <React.Fragment key={group}>
