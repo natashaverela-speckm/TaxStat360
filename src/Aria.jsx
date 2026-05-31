@@ -13,6 +13,18 @@ const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here
 // Max conversation turns to send to API — prevents unbounded cost growth
 const MAX_HISTORY_TURNS = 20
 
+// Aria is mounted globally (its own root in main.jsx, outside the Router), so it
+// would otherwise appear on every page — including the public marketing pages.
+// Gate it to the authenticated app routes only: signed-in users on the actual
+// product, never on the landing / pricing / legal / auth pages.
+const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
+function ariaAllowed() {
+  try { if (!localStorage.getItem('ts360_logged_in')) return false } catch { return false }
+  const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/'
+  if (path.startsWith('/onboarding')) return true
+  return ARIA_APP_ROUTES.includes(path)
+}
+
 export default function Aria() {
   // FIX (CLEANUP): Removed unused `useNavigate` import and `nav` variable.
   // The component uses plain <a href> tags for all navigation (login, upgrade),
@@ -25,6 +37,18 @@ export default function Aria() {
   const [planError, setPlanError] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+
+  // Visibility gate — re-evaluated on navigation so it tracks SPA route changes
+  // and login/logout without requiring a full page reload.
+  const [visible, setVisible] = useState(ariaAllowed)
+  useEffect(() => {
+    const check = () => setVisible(ariaAllowed())
+    check()
+    window.addEventListener('popstate', check)
+    window.addEventListener('focus', check)
+    const id = setInterval(check, 1500)
+    return () => { window.removeEventListener('popstate', check); window.removeEventListener('focus', check); clearInterval(id) }
+  }, [])
 
   useEffect(() => {
     if (open && !welcomed) {
@@ -86,6 +110,8 @@ export default function Aria() {
     }
     setLoading(false)
   }
+
+  if (!visible) return null
 
   return (
     <>
