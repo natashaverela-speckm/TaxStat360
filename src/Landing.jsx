@@ -474,27 +474,27 @@ export default function Landing() {
             <tbody>
               {[
                 { group: 'Tax Calculations', rows: [
-                  ['Federal tax liability tracker',          true,  true,  true],
-                  ['K-1 income (S-Corps, partnerships, LLCs)', true, true, true],
+                  ['Year-round federal tax liability tracker', true, true, true],
+                  ['K-1 income (S-Corps, partnerships, Multi-Member LLCs)', true, true, true],
                   ['Schedule C (sole props & SMLLCs)',       true,  true,  true],
                   ['Quarterly estimated payments',           true,  true,  true],
-                  ['Personal tax return (W-2 + business)',   true,  true,  true],
+                  ['Personal tax return (W-2 + business income)', true, true, true],
                   ['Multi-entity consolidated tax view',     false, false, true],
                 ]},
                 { group: 'AI & Analysis', rows: [
                   ['Risk Alert Engine',                      false, true,  true],
                   ['What-If Tax Scenario Simulator',         false, true,  true],
-                  ['Explainable AI — Why This Number?',      false, true,  true],
+                  ['Explainable AI: Why This Number?',       false, true,  true],
                   ['Audit Risk Indicators',                  false, true,  true],
                 ]},
                 { group: 'Integrations', rows: [
-                  ['Accounting software integration',        true,  true,  true],
-                  ['Unlimited integrations',                 false, true,  true],
+                  ['Accounting software integration',         true,  true,  true],
+                  ['Unlimited accounting integrations',      false, true,  true],
                 ]},
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
-                  ['Auto-Generated CPA Briefing',    false, false, true],
-                  ['Position Documentation & IRS templates', false, false, true],
+                  ['Auto-Generated CPA Briefing',           false, false, true],
+                  ['Position Documentation & IRS response templates', false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],
