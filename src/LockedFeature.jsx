@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './constants.js'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
@@ -35,6 +36,39 @@ export const PLANS = Object.values(PLAN_IDS)
 export function getUserPlan() {
   const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
   return PLAN_ALIASES[raw] || raw
+}
+
+// ─── Server-side plan re-validation (SEC-05) ─────────────────────────────────
+// The browser cannot be trusted to report its own plan: anyone can run
+// localStorage.setItem('plan','enterprise') in dev tools. The SERVER is the
+// source of truth. On every app load we ask GET /auth/me (which reads the
+// httpOnly session cookie and looks up the real plan from Stripe) and stamp the
+// answer back into localStorage, overwriting any tampering.
+//
+// FAILS SAFE: if the endpoint is missing (404, before backend ships), errors,
+// or times out, we leave the existing plan untouched — this never locks a real
+// user out, so it is safe to deploy BEFORE /auth/me exists. It begins enforcing
+// automatically the moment the endpoint returns a real plan.
+export async function refreshPlanFromServer() {
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 5000)
+    const res = await fetch(API_BASE_URL + '/auth/me', {
+      method: 'GET',
+      credentials: 'include',          // send the httpOnly session cookie
+      headers: { 'Accept': 'application/json' },
+      signal: ctrl.signal,
+    })
+    clearTimeout(timer)
+    if (!res.ok) return getUserPlan()  // 401/404/5xx → trust nothing new, keep current
+    const data = await res.json()
+    if (data && data.plan) {
+      localStorage.setItem('plan', normalizePlanId(data.plan))
+    }
+  } catch (_e) {
+    // network error / timeout / abort → fail safe, keep existing plan
+  }
+  return getUserPlan()
 }
 
 export function isPro() {
