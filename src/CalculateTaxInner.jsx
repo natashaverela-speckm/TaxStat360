@@ -103,7 +103,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import LockedFeature, { isPro } from './LockedFeature'
+import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
@@ -1095,10 +1095,14 @@ export default function CalculateTaxInner() {
   }, [])
 
   const addEntity = useCallback(() => {
+    // GATE: multi-entity input is an Enterprise feature. Everyone gets one entity;
+    // adding more requires Enterprise (manual, picker, and CSV paths all gated).
+    if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
     setShowEntityPicker(true)
-  }, [])
+  }, [entities.length, navigate])
 
   const addEntityOfType = useCallback((type) => {
+    if (!isEnterprise() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
     const newEnt = {
       id: Date.now(),
       type,
@@ -1124,7 +1128,7 @@ export default function CalculateTaxInner() {
     })
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
-  }, [entities.length])
+  }, [entities.length, navigate])
 
   const updateEntity = useCallback((idx, updated) => {
     setEntities(prev => {
@@ -1216,6 +1220,7 @@ export default function CalculateTaxInner() {
   const handleCsvUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!isEnterprise() && entities.length >= 1) { setCsvImportStatus('locked'); e.target.value = ''; return }
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
@@ -1441,6 +1446,7 @@ export default function CalculateTaxInner() {
             </label>
             {csvImportStatus === 'success' && <span style={{ fontSize: 12, color: G, fontWeight: 600 }}>✓ Entity imported!</span>}
             {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R, fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
+            {csvImportStatus === 'locked'  && <span style={{ fontSize: 12, color: B, fontWeight: 600 }}>🔒 Multi-entity import is an Enterprise feature</span>}
           </div>
         </div>
 
@@ -1460,10 +1466,16 @@ export default function CalculateTaxInner() {
           ))}
         </div>
 
-        {/* Add entity button */}
-        <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
-          + Add Business Entity
-        </button>
+        {/* Add entity button — multi-entity is an Enterprise feature; everyone gets one entity */}
+        {(isEnterprise() || entities.length === 0) ? (
+          <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
+            + Add Business Entity
+          </button>
+        ) : (
+          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is an Enterprise feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Enterprise</span>
+          </button>
+        )}
 
         {/* Compare button — Pro only */}
         {entities.length > 0 && isPro() && (
