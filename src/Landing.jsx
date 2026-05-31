@@ -397,6 +397,7 @@ export default function Landing() {
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
                 'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
+                'Position Documentation & IRS response templates',
               ],
             },
           ].map((p, i) => (
@@ -493,6 +494,7 @@ export default function Landing() {
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
                   ['Auto-Generated CPA Briefing',    false, false, true],
+                  ['Position Documentation & IRS templates', false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],
