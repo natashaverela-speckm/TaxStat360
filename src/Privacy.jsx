@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import Nav from './Nav'
 
 const N  = '#0D1B3E'
 const B  = '#2563EB'
@@ -15,36 +16,13 @@ export default function Privacy() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    /* #7 FIX: paddingTop 64 offsets the shared fixed <Nav> (height 64). */
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingTop: 64 }}>
 
-      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
-      {/* FIX: added How It Works + FAQ links to match Landing.jsx nav.
-          Previously only had Features and Pricing — users couldn't navigate
-          to the full site from legal pages.
-          FIX: Sign In was linking to /dashboard (authenticated route). Users
-          reading Privacy before signing up are not authenticated — /login is correct.
-          FIX: CTA "Start Free Trial" → "Start Free 7-Day Trial" (CC-02). */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 40px', display: 'flex', alignItems: 'center', height: 64 }}>
-        <a href='/' style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginRight: 'auto' }}>
-          <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width='18' height='18' viewBox='0 0 24 24' fill='none'>
-              <rect x='3' y='12' width='4' height='9' fill='white' rx='1'/>
-              <rect x='10' y='7' width='4' height='14' fill='white' rx='1'/>
-              <rect x='17' y='3' width='4' height='18' fill='white' rx='1'/>
-            </svg>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 18, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
-        </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <a href='/#how-it-works' style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>How It Works</a>
-          <a href='/#features'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Features</a>
-          <a href='/#pricing'      style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Pricing</a>
-          <a href='/#faq'          style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>FAQ</a>
-          <a href='/resources'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Resources</a>
-          <a href='/login'         style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Sign In</a>
-          <a href='/signup' style={{ padding: '9px 20px', background: N, color: 'white', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>Start Free 7-Day Trial</a>
-        </div>
-      </nav>
+      {/* #7 FIX: inline page nav replaced with the shared <Nav> component so all
+          pages stay in sync. (Previous inline nav + its FIX comments now live in
+          src/Nav.jsx.) */}
+      <Nav nav={nav} />
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
