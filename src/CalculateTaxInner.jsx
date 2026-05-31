@@ -357,7 +357,19 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const pnl = entity.pnl || {}
   const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
-  const [manExp,        setManExp]        = useState(String(nf(pnl.totalExpenses)                        || ''))
+  // AUDIT FIX (save/reload double-count): pnl.totalExpenses is the GRAND total
+  // (pure opex + depreciation + officer salary + advertising + other). This field
+  // is "Operating Expenses EXCLUDING those", so reloading it with the total made
+  // every component get subtracted twice on re-apply (net profit dropped by the
+  // salary). Recover pure operating expenses by removing the separately-reloaded
+  // components — matching exactly how manDep / manOfficerSal / manAdv / manOther init.
+  const _reloadOpex = Math.max(0,
+    nf(pnl.totalExpenses)
+    - nf(entity.depreciation || pnl.depreciation)
+    - nf(pnl.officerSalary || entity.officerW2)
+    - nf(pnl.advertising)
+    - nf(pnl.otherDeductions))
+  const [manExp,        setManExp]        = useState(String(_reloadOpex || ''))
   const [manDep,        setManDep]        = useState(String(nf(entity.depreciation || pnl.depreciation)  || ''))
   const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary  || entity.officerW2)   || ''))
   const [manAdv,        setManAdv]        = useState(String(nf(pnl.advertising)                          || ''))
