@@ -142,14 +142,16 @@ function calcDashboard(biz, f1040) {
     recSal: isSC ? Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD) : 0,
     w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
     niit: r.niit ?? { applies: false, amount: 0 },
-    reasonableCompAlert: (() => {
-      const alertData = r.reasonableCompAlert ?? reasonableCompAlert
-      return {
-        ...alertData,
-        sal: Math.round(sal),
-        distributions: Math.round(Math.max(0, k1)),
-      }
-    })(),
+    // AUDIT FIX (formula display mismatch): use the LOCAL, self-consistent alert.
+    // This previously spread r.reasonableCompAlert (from the engine), but the
+    // entities passed to calcTaxReturn above are [{ type, k1, own }] with NO
+    // officer salary, so the engine computed ratio/message with salary = $0 —
+    // while this block then overrode sal/distributions with the real local
+    // values, yielding a contradictory formula like
+    // "$80,000 ÷ ($80,000 + $320,000) = 0%" and a "$0" message. The local
+    // reasonableCompAlert (computed above) derives triggered/ratio/sal/
+    // distributions/message from the same local sal & k1, so they always agree.
+    reasonableCompAlert,
   }
 }
 
@@ -169,7 +171,7 @@ function buildRecs(biz, calc) {
   if (quarterly > 500)
     recs.push({ type: 'warning', title: 'Quarterly Estimated Payments Required', msg: `Pay approximately ${fmt(quarterly)} per quarter. Due: Apr 15, Jun 15, Sep 15, Jan 15.` })
   if (qbi > 0)
-    recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Saved`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
+    recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
   if (dep === 0 && grossRev > 50000)
     recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Section 179.' })
   if (parseFloat(effRate) > 28)
