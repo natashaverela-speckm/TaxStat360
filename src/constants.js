@@ -387,5 +387,5 @@ export const ANNUAL_DISCOUNT_LABEL      = 'Save 2 months'  // display copy — u
 export const IRS_MILEAGE_RATES = {
   2024: 0.67,  // IRS Notice 2024-08 — 67¢/mile for business use
   2025: 0.70,  // IRS Notice 2025-05 — 70¢/mile for business use (5¢ increase from 2024)
-  2026: 0.70,  // ⚠ ESTIMATED — verify at IRS.gov when 2026 Notice is published
+  2026: 0.725, // IRS Notice 2026-10 (Dec 29, 2025) — 72.5¢/mile for business use (up 2.5¢ from 2025)
 }
