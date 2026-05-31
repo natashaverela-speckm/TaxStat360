@@ -218,7 +218,7 @@ export default function Landing() {
               desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
             { icon: '🏗️', label: 'Multi',
               title: 'Multiple Entities',
-              desc: 'Run multiple businesses? Connect each accounting system and see your consolidated tax exposure.' },
+              desc: 'Run multiple businesses? Our Enterprise plan tracks each entity and shows your consolidated federal tax exposure across all of them in one view.' },
           ].map((e, i) => (
             <div
               key={i}
@@ -316,7 +316,7 @@ export default function Landing() {
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
-              a: 'Yes. The Professional and Enterprise plans support multiple entities. You can connect a separate accounting system for each business and see your consolidated tax exposure across all of them in one view.' },
+              a: 'Multiple entities is an Enterprise plan feature. On Enterprise you can track each business separately and see your consolidated federal tax exposure across all of them in one view. The Starter and Professional plans cover a single business entity.' },
             { q: 'Is my financial data secure?',
               a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?',
