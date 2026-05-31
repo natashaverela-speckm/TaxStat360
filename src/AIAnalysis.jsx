@@ -942,6 +942,215 @@ function ReportModal({ onClose, rec }) {
   )
 }
 
+function BriefingModal({ onClose, rec }) {
+  const [copied, setCopied] = useState(false)
+  if (!rec) {
+    return (
+      <Modal onClose={onClose}>
+        <div style={{ padding: '28px 32px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 4 }}>CPA PLANNING BRIEFING</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 12px' }}>No calculation found</h2>
+          <p style={{ fontSize: 13, color: SL, lineHeight: 1.6 }}>Enter your business and personal figures in the Tax Tracker first, then come back to generate your CPA briefing.</p>
+          <button onClick={onClose} style={{ marginTop: 16, padding: '10px 20px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Close</button>
+        </div>
+      </Modal>
+    )
+  }
+
+  const b = rec.biz || {}, f = rec.f1040 || {}
+  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const year = parseInt(b.year) || 2025
+  const filing = f.filingStatus || 'single'
+  const filingLabel = ({ single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' })[filing] || filing
+  const num = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0
+
+  // Inputs (mirror the Risk Scan tab's derivation so figures match what the user already sees)
+  const k1 = num(rec.k1Income)
+  const w2 = getTotalW2(rec)
+  const officerSal = num(b.officerSalary)
+  const estPay = num(f.estPaid)
+  const rentalIncome = num(b.rentalIncome) || num(f.rentalIncome)
+  const rentalExpenses = num(f.rentalExpenses)
+  const rentalNet = Math.max(0, rentalIncome - rentalExpenses)
+  const capitalGains = num(f.capitalGains) + num(f.ltCapGains)
+  const interest = num(f.interest)
+  const dividends = num(f.dividends)
+  const otherInc = num(f.otherIncome)
+  const totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
+
+  const stdDed = getStdDed(year, filing)
+  const taxableBeforeQBI = Math.max(0, totalIncome - stdDed)
+  const qbi = (isPassthroughEntity(b.entityType) && k1 > 0)
+    ? ((calcQBI(k1, taxableBeforeQBI, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] }) || {}).deduction || 0)
+    : 0
+  const taxable = Math.max(0, taxableBeforeQBI - qbi)
+  const fedTax = calcFederalTax(taxable, year, filing)
+  const marginalRate = getMarginalRate(taxable, year, filing)
+  // Self-employment tax estimate — only sole props / active partnerships are SE-subject (IRC §1401).
+  const seSubject = isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')
+  const ssWageBase = (getTable(year) || {}).ssWageBase || 176100
+  const seBase = seSubject ? Math.max(0, k1) * 0.9235 : 0
+  const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * 0.124 + seBase * 0.029) : 0
+  const totalFedTax = fedTax + seTax
+  const effectiveRate = totalIncome > 0 ? totalFedTax / totalIncome : 0
+  const quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(totalFedTax / 4)
+
+  const entities = (Array.isArray(rec.entities) ? rec.entities : []).filter(Boolean)
+
+  // Data-driven planning discussion points
+  const points = []
+  if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 0) {
+    const ratio = officerSal / (officerSal + k1)
+    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 distributions — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < 0.35 ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
+  } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
+    points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 salary on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
+  }
+  if (isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')) {
+    points.push(`Net earnings from this ${isScheduleCType(b.entityType) ? 'sole proprietorship / SMLLC' : 'partnership / LLC'} are subject to self-employment tax (IRC §1401) in addition to income tax. One-half of SE tax is deductible above the line (§164(f)).`)
+  }
+  if (qbi > 0) {
+    points.push(`A §199A QBI deduction of approximately ${fmt(qbi)} is reflected — worth roughly ${fmt(Math.round(qbi * marginalRate))} at the ${pct(marginalRate * 100)} marginal rate. Above the ${year} income threshold the W-2 wage / UBIA limit (§199A(b)(2)) can reduce it; confirm entity W-2 wages and qualified property.`)
+  } else if (isPassthroughEntity(b.entityType) && k1 > 0) {
+    points.push(`Review §199A QBI eligibility for the pass-through income, including SSTB status and the W-2 wage / UBIA limitations that apply above the ${year} income threshold.`)
+  }
+  if (totalIncome > 0) {
+    points.push(estPay > 0
+      ? `${fmt(estPay)} in estimated payments is on file. Confirm the remaining quarterly installments meet a §6654 safe harbor (90% of current-year tax, or 100%/110% of prior-year tax).`
+      : `No estimated payments are on file. With ${fmt(totalIncome)} of income, quarterly estimates are likely required — approximately ${fmt(quarterly)} per quarter (due Apr 15, Jun 15, Sep 15, Jan 15) — to avoid §6654 underpayment penalties.`)
+  }
+  const gather = []
+  if (!(num(b.depreciation) > 0)) gather.push('depreciation / §179 on business assets')
+  if (estPay === 0) gather.push('estimated payments made year-to-date')
+  if (gather.length) points.push(`To complete the picture before filing, gather: ${gather.join('; ')}.`)
+  if (points.length === 0) points.push('No significant planning flags surfaced from the data entered. Review the figures below with your CPA to confirm completeness.')
+
+  const sign = (v) => (v < 0 ? '−' + fmt(Math.abs(v)) : fmt(v))
+  const incomeRows = [
+    ['Gross revenue', num(b.grossRevenue)],
+    ['Operating expenses', num(b.operatingExpenses)],
+    ['Officer W-2 salary', officerSal],
+    ['K-1 ordinary income (Box 1)', k1],
+    ['W-2 wages', w2],
+    ['Rental net', rentalNet],
+    ['Interest & dividends', interest + dividends],
+  ].filter(([, v]) => v && v !== 0)
+
+  const plain = [
+    'CPA PLANNING BRIEFING — TaxStat360',
+    `Prepared ${now} · Tax year ${year} · ${filingLabel}`,
+    'Planning summary for discussion — not a tax return, not for filing.',
+    '',
+    'ENTITY STRUCTURE',
+    ...(entities.length
+      ? entities.map(e => `  - ${e.type || 'Entity'} (${ownPct(e.own)}%): net ${fmt(getEntityNetProfit(e))}${num(e?.pnl?.officerSalary) > 0 ? `, officer salary ${fmt(num(e.pnl.officerSalary))}` : ''}`)
+      : [`  - ${b.entityType || 'Unknown'} (${b.ownershipPct || '100'}%)`]),
+    '',
+    'INCOME & BUSINESS SUMMARY',
+    ...incomeRows.map(([l, v]) => `  ${l}: ${fmt(v)}`),
+    '',
+    'ESTIMATED FEDERAL POSITION (planning estimate)',
+    `  Total income (est.): ${fmt(totalIncome)}`,
+    `  Standard deduction (${filingLabel}): -${fmt(stdDed)}`,
+    ...(qbi > 0 ? [`  §199A QBI deduction (est.): -${fmt(qbi)}`] : []),
+    `  Taxable income (est.): ${fmt(taxable)}`,
+    `  Estimated federal income tax: ${fmt(fedTax)}`,
+    ...(seTax > 0 ? [`  Estimated self-employment tax: ${fmt(seTax)}`, `  Estimated total federal tax: ${fmt(totalFedTax)}`] : []),
+    `  Estimated effective rate: ${pct(effectiveRate * 100)}`,
+    `  Estimated quarterly payment: ${fmt(quarterly)}`,
+    '',
+    'PLANNING DISCUSSION POINTS',
+    ...points.map((p, i) => `  ${i + 1}. ${p}`),
+    '',
+    'Figures are auto-generated from data entered in TaxStat360 and are estimates for planning discussion only — not professional tax advice and not for filing. Verify with a licensed CPA, EA, or tax attorney.',
+  ].join('\n')
+
+  const handleCopy = () => { navigator.clipboard.writeText(plain).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }
+
+  const cellL = { color: SL, fontSize: 13 }
+  const cellR = { fontWeight: 600, color: N, fontSize: 13 }
+  const sectionTitle = { fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', margin: '0 0 10px' }
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ padding: '28px 32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 4 }}>CPA PLANNING BRIEFING</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Briefing for CPA Discussion</h2>
+            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Prepared {now} · Tax year {year} · {filingLabel} · TaxStat360</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleCopy} style={{ padding: '8px 16px', background: copied ? G : B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{copied ? '✓ Copied' : '📋 Copy'}</button>
+            <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>🖨 Print</button>
+            <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕</button>
+          </div>
+        </div>
+
+        <DismissibleNotice storageKey="tx360.cpaBriefingBanner.dismissed">
+          This briefing is auto-generated from the figures you entered. It is an estimate to guide a planning conversation — not a tax return, not tax advice, and not for filing. Verify with your CPA.
+        </DismissibleNotice>
+
+        <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', margin: '14px 0', border: '1px solid #E2E8F0' }}>
+          <div style={sectionTitle}>ENTITY STRUCTURE</div>
+          {entities.length ? entities.map((e, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
+              <span style={cellL}>{e.type || 'Entity'} · {ownPct(e.own)}%</span>
+              <span style={cellR}>net {fmt(getEntityNetProfit(e))}{num(e?.pnl?.officerSalary) > 0 ? ` · salary ${fmt(num(e.pnl.officerSalary))}` : ''}</span>
+            </div>
+          )) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
+              <span style={cellL}>{b.entityType || 'Unknown'}</span><span style={cellR}>{b.ownershipPct || '100'}% ownership</span>
+            </div>
+          )}
+        </div>
+
+        {incomeRows.length > 0 && (
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 20px', marginBottom: 14, border: '1px solid #E2E8F0' }}>
+            <div style={sectionTitle}>INCOME &amp; BUSINESS SUMMARY</div>
+            {incomeRows.map(([l, v]) => (
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9' }}>
+                <span style={cellL}>{l}</span><span style={cellR}>{fmt(v)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '16px 20px', marginBottom: 14 }}>
+          <div style={{ ...sectionTitle, color: '#1D4ED8' }}>ESTIMATED FEDERAL POSITION</div>
+          {[
+            ['Total income (est.)', sign(totalIncome)],
+            [`Standard deduction (${filingLabel})`, sign(-stdDed)],
+            ...(qbi > 0 ? [['§199A QBI deduction (est.)', sign(-qbi)]] : []),
+            ['Taxable income (est.)', fmt(taxable)],
+            ['Estimated federal income tax', fmt(fedTax)],
+            ...(seTax > 0 ? [['Estimated self-employment tax', fmt(seTax)], ['Estimated total federal tax', fmt(totalFedTax)]] : []),
+            ['Estimated effective rate', pct(effectiveRate * 100)],
+            ['Estimated quarterly payment', fmt(quarterly)],
+          ].map(([l, v]) => (
+            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #DBEAFE', fontSize: 13 }}>
+              <span style={{ color: '#475569' }}>{l}</span><span style={{ fontWeight: 700, color: N }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: SL, marginTop: 8 }}>Estimate based on entered figures; see the Tax Tracker for the full calculation.</div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={sectionTitle}>PLANNING DISCUSSION POINTS</div>
+          {points.map((p, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13, lineHeight: 1.6, color: N }}>
+              <span style={{ fontWeight: 800, color: P, flexShrink: 0 }}>{i + 1}.</span><span>{p}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
+          Auto-generated from your TaxStat360 data · Planning estimate only — not professional tax advice and not for filing. Consult a licensed tax professional before filing.
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const taxYear = parseInt(b.year) || 2025
@@ -1214,17 +1423,18 @@ function NarrativeModal({ onClose }) {
 // Three different accent colors on one page with no semantic differentiation confused
 // the hierarchy. All three are equal-priority primary actions — one color is correct.
 // Navy (N) is the app's primary action color (used on "Save This Record", nav buttons, etc.)
-function ReportsTab({ rec, onReport, onSimulator, onNarrative }) {
+function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const tools = [
     { icon: '📋', title: 'CPA Export Pack', desc: 'A print-ready PDF with your financials, K-1 summary, risk alerts, and IRS schedule mapping. Hand this to your accountant instead of explaining everything from scratch.', btn: 'Generate Report', color: N, action: onReport, available: true },
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
+    { icon: '📑', title: 'CPA Briefing', desc: 'An auto-generated planning summary of your tax position — entity structure, estimated federal liability, QBI, reasonable-comp and SE-tax notes, and quarterly estimates — organized as discussion points for your CPA. A planning summary, not a tax return; not for filing.', btn: 'Generate Briefing', color: N, action: onBriefing, available: isEnterprise(), requiredPlan: 'enterprise' },
     { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: isEnterprise(), requiredPlan: 'enterprise' },
   ]
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Reports & Tools</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Three tools built for your CPA relationship and IRS preparedness.</p>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Four tools built for your CPA relationship and IRS preparedness.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {tools.map(t => {
@@ -1262,6 +1472,7 @@ export default function AIAnalysis() {
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
+  const [showBriefing, setShowBriefing] = useState(false)
 
   const rec = getRecord(liveState)
   const score = completeness(rec)
@@ -1372,6 +1583,7 @@ export default function AIAnalysis() {
               onReport={() => setShowReport(true)}
               onSimulator={() => setShowSimulator(true)}
               onNarrative={() => setShowNarrative(true)}
+              onBriefing={() => setShowBriefing(true)}
             />
           )}
         </div>
@@ -1380,6 +1592,7 @@ export default function AIAnalysis() {
       {showReport    && <ReportModal    rec={rec} onClose={() => setShowReport(false)} />}
       {showSimulator && <SimulatorModal rec={rec} onClose={() => setShowSimulator(false)} />}
       {showNarrative && <NarrativeModal           onClose={() => setShowNarrative(false)} />}
+      {showBriefing  && <BriefingModal    rec={rec} onClose={() => setShowBriefing(false)} />}
     </div>
   )
 }
