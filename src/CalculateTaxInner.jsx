@@ -446,9 +446,18 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
               </div>
             )}
+            {/* AUDIT FIX (reasonable-comp ratio): pass POST-salary net profit
+                (= distributions) as `netProfit`. manNetProfit already excludes the
+                officer salary (totalExpenses includes sal), so it IS distributions.
+                The prior `+ sal` made this the pre-salary pool, so the indicator
+                computed salary ÷ (salary + pre-salary profit) — understating the
+                ratio (20% instead of 25%) and overstating the suggested minimum
+                ($215,385 vs the correct $161,538). The component internals
+                (totalComp = sal + netProfit; minTarget = 0.35/0.65 × netProfit)
+                require distributions here — matching reasonableCompAlert in taxCalc.js. */}
             <ReasonableCompIndicator
               officerSal={sal}
-              netProfit={Math.max(0, manNetProfit + sal)}
+              netProfit={Math.max(0, manNetProfit)}
               isSCorp={isSCorp}
             />
           </div>
