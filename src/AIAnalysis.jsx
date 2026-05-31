@@ -908,7 +908,7 @@ function ReportModal({ onClose, rec }) {
             {[
               ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
               ['Gross Revenue', b.grossRevenue ? '$' + parseFloat(b.grossRevenue).toLocaleString() : ''],
-              ['Operating Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
+              ['Total Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
               ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
               ['K-1 Ordinary Income (Box 1)', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
@@ -1027,7 +1027,7 @@ function BriefingModal({ onClose, rec }) {
   const sign = (v) => (v < 0 ? '−' + fmt(Math.abs(v)) : fmt(v))
   const incomeRows = [
     ['Gross revenue', num(b.grossRevenue)],
-    ['Operating expenses', num(b.operatingExpenses)],
+    ['Total expenses', num(b.operatingExpenses)],
     ['Officer W-2 salary', officerSal],
     ['K-1 ordinary income (Box 1)', k1],
     ['W-2 wages', w2],
