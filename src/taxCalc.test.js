@@ -27,16 +27,20 @@ describe('calcQBI §199A(i) OBBBA minimum deduction', () => {
     expect(r.caps.min400).toBeUndefined()
   })
 
-  it('floor wins over TI cap when TI cap would produce less than $400', () => {
+  it('TI cap binds over the $400 minimum: §199A(i) floor cannot exceed taxable income', () => {
+    // OBBBA §70101: the $400 minimum is itself limited by taxable income (§199A(a)/(b)(2)).
+    // With TI=$300, the 20%-of-TI ceiling ($60) binds; the floor surfaces only as eligibility.
     const r = calcQBI(5000, 300, 0, { status: 'single', taxYear: 2026 })
-    expect(r.deduction).toBe(400)
-    expect(r.limitApplied).toBe('min400')
+    expect(r.deduction).toBe(60)
+    expect(r.limitApplied).toBe('income')
+    expect(r.caps.min400).toBe(400)
   })
 
-  it('applies $400 floor when TI ≤ 0 and active QBI ≥ $1,000', () => {
+  it('no QBI deduction when TI ≤ 0, even with active QBI ≥ $1,000 (floor cannot create a deduction below zero TI)', () => {
+    // A QBI deduction cannot reduce taxable income below zero; with TI=$0 there is no benefit.
     const r = calcQBI(5000, 0, 0, { status: 'single', taxYear: 2026 })
-    expect(r.deduction).toBe(400)
-    expect(r.limitApplied).toBe('min400')
+    expect(r.deduction).toBe(0)
+    expect(r.limitApplied).toBe('none')
   })
 
   it('returns regular calc when it exceeds $400 (caps.min400 still surfaces eligibility)', () => {
@@ -53,10 +57,12 @@ describe('calcQBI §199A(i) OBBBA minimum deduction', () => {
     expect(r.caps.min400).toBeUndefined()
   })
 
-  it('respects activeQbi: applicable when activeQbi ≥ $1k, even with TI ≤ 0', () => {
+  it('respects activeQbi eligibility but TI ≤ 0 still yields no deduction (floor is TI-limited)', () => {
+    // activeQbi ≥ $1k makes the filer eligible for the floor, but the §199A(a) taxable-income
+    // ceiling still caps the deduction at $0 when TI ≤ 0.
     const r = calcQBI(500, 0, 0, { status: 'single', taxYear: 2026, activeQbi: 1000 })
-    expect(r.deduction).toBe(400)
-    expect(r.limitApplied).toBe('min400')
+    expect(r.deduction).toBe(0)
+    expect(r.limitApplied).toBe('none')
   })
 
   it('does not apply floor when SSTB is fully phased out (adjQBI = 0)', () => {
