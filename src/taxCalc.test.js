@@ -425,7 +425,7 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.triggered).toBe(true)
     expect(r.reasonableCompAlert.ratio).toBe(18)
-    expect(r.reasonableCompAlert.message).toContain('Rev. Rul. 74-44')
+    expect(r.reasonableCompAlert.message).toContain('Watson v. Commissioner')
   })
 
   it('does not trigger when salary meets the 40% threshold', () => {
@@ -461,7 +461,7 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
   it('alert message includes salary amount and IRS citation', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.message).toContain('30,000')
-    expect(r.reasonableCompAlert.message).toContain('40%')
+    expect(r.reasonableCompAlert.message).toContain('35–45%')
     expect(r.reasonableCompAlert.message).toContain('Watson v. Commissioner')
   })
 })
@@ -661,13 +661,13 @@ describe('calcTaxReturn Partnership Active vs Passive SE tax (§1402(a)(13))', (
     expect(mixed.seTax).toBe(activeOnly.seTax)
   })
 
-  it('legacy partnership type string falls through as non-SE-subject (passive default)', () => {
+  it('legacy partnership type string normalizes to active / SE-subject', () => {
     const r = calcTaxReturn({
       ...BASE, w2: 0, k1Total: 100000,
       entities: [{ type: 'Partnership / Multi-Member LLC', k1: 100000, own: 100 }],
     })
-    expect(r.seNetIncome).toBe(0)
-    expect(r.seTax).toBe(0)
+    expect(r.seNetIncome).toBe(100000)
+    expect(r.seTax).toBeGreaterThan(0)
   })
 })
 
