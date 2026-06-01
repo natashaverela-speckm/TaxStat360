@@ -107,7 +107,7 @@ import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isPassthroughEntity } from './utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
@@ -571,6 +571,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
+  const isRE   = isRealEstateEntity(entity.type)   // REG-01: §469 rental
 
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
   // §1366(d) suspension badge — only when basis is entered and there is a loss.
@@ -915,6 +916,83 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           )}
           {/* ── end PASS4B-02b ── */}
 
+          {/* ── REG-01: §469 Passive Activity Status (Real Estate / Schedule E) ── */}
+          {isRE && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
+                  §469 Passive Activity Status — Schedule E Rental
+                </div>
+
+                {/* Real Estate Professional (§469(c)(7)) */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    id={'rep_' + idx}
+                    checked={!!entity.isREP}
+                    onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked })}
+                    style={{ marginTop: 2 }}
+                  />
+                  <label htmlFor={'rep_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                    Real Estate Professional (REP) — IRC §469(c)(7)
+                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nWhen you qualify as a REP, your rental losses are NONPASSIVE — currently deductible against your other income (still subject to stock/at-risk basis and the §461(l) excess-business-loss limitation).\n\nIf you do NOT qualify, rental losses are passive and suspended under §469(a) until you have passive income or sell the property (Form 8582).'} wide />
+                  </label>
+                </div>
+
+                {/* §469(i) $25,000 active-participation allowance (only when not a REP) */}
+                {!entity.isREP && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <input
+                      type="checkbox"
+                      id={'active_' + idx}
+                      checked={!!entity.isActiveParticipant}
+                      onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })}
+                      style={{ marginTop: 2 }}
+                    />
+                    <label htmlFor={'active_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                      Active Participant — §469(i) $25,000 allowance
+                      <InfoTip text={'Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000, and is fully gone at $150,000 MAGI (and is generally $0 for MFS who lived with their spouse).\n\nLeave unchecked if you do not actively participate — the loss is then fully passive and suspended.'} wide />
+                    </label>
+                  </div>
+                )}
+
+                {/* Status badge (display-only; taxCalc.js is authoritative) */}
+                {(() => {
+                  const reNet = netProfit
+                  if (reNet >= 0) {
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Rental Income Flows Through</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
+                          Net rental income of {fmt(reNet)} is included in your return. Passive rental income may also be subject to the 3.8% Net Investment Income Tax (§1411) unless you are a real estate professional.
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (entity.isREP) {
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP)</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
+                          As a real estate professional, this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year — still subject to stock/at-risk basis and the §461(l) excess-business-loss limitation.
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                      <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Passive Loss — Suspended This Year (§469)</div>
+                      <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                        This {fmt(Math.abs(reNet))} rental loss is passive. Under IRC §469(a) it is suspended and carried forward on Form 8582 — it does <strong>not</strong> reduce your other income this year{entity.isActiveParticipant ? ', except for any portion allowed by the §469(i) $25,000 active-participation allowance (which phases out between $100K–$150K MAGI)' : ''}. Check Real Estate Professional above only if you meet the §469(c)(7) tests.
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+          {/* ── end REG-01 ── */}
+
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
             <ReasonableCompIndicator
@@ -1120,6 +1198,11 @@ export default function CalculateTaxInner() {
       // user has not yet entered a basis (avoids applying the limitation
       // to users who leave the field blank).
       stockBasis: '', debtBasis: '', distributions: '',
+      // REG-01: §469 rental status for Real Estate (Schedule E) entities.
+      // Default false = passive (loss suspended) until the user marks REP
+      // (§469(c)(7)) or active participation (§469(i)). taxCalc.js routes a
+      // Real Estate entity's net through the §469 block using these flags.
+      isREP: false, isActiveParticipant: false,
     }
     setEntities(prev => {
       const next = [...prev, newEnt]
@@ -1246,6 +1329,8 @@ export default function CalculateTaxInner() {
           box17V_sstb: false,
           // PASS4B-02b: initialise basis fields on CSV import
           stockBasis: '', debtBasis: '', distributions: '',
+          // REG-01: §469 rental status (passive by default)
+          isREP: false, isActiveParticipant: false,
         }
         setEntities(prev => [...prev, importedEnt])
         setExpandedIdx(entities.length)
@@ -1289,6 +1374,8 @@ export default function CalculateTaxInner() {
                 pnl, connectedId: pid, isManual: false,
                 // PASS4B-02b: initialise basis fields on integration sync
                 stockBasis: '', debtBasis: '', distributions: '',
+                // REG-01: §469 rental status (passive by default)
+                isREP: false, isActiveParticipant: false,
               })
             }
             return updated
