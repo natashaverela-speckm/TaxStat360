@@ -8,6 +8,7 @@ import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, ownPct, getEntityNetProfit } from './utils/entityPredicates'
+import BrandLogo from './BrandLogo'
 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,20 +37,7 @@ function getEntityIncomeSplit(rec) {
 }
 
 function Logo() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-      <svg width="34" height="34" viewBox="0 0 34 34" style={{ flexShrink: 0 }}>
-        <rect width="34" height="34" rx="8" fill={N} />
-        <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3" />
-        <rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55" />
-        <rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8" />
-        <rect x="26" y="5" width="4" height="26" rx="1.5" fill="white" />
-      </svg>
-      <div style={{ fontWeight: 800, color: N, fontSize: 18, letterSpacing: '-0.3px', borderBottom: '2px solid ' + B, paddingBottom: 1 }}>
-        TaxStat<span style={{ color: B }}>360</span>
-      </div>
-    </div>
-  )
+  return <BrandLogo size={34} />
 }
 
 function getAllRecords() {
