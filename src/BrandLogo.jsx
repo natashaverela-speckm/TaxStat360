@@ -2,14 +2,15 @@ const N = '#0D1B3E'
 const B = '#2563EB'
 
 /* Single source of truth for the TaxStat360 brand mark (icon tile + wordmark).
-   Matches the public site nav (src/Nav.jsx): navy tile, 4 ascending gradient
-   bars, navy "TaxStat" + blue "360" with a blue underline.
+   Matches the public site nav (src/Nav.jsx) exactly: navy tile, 4 ascending
+   gradient bars, navy "TaxStat" + blue "360" with a blue underline.
 
    Use this everywhere a logo is needed instead of re-defining the SVG inline,
    so the mark can never drift out of sync again.
 
    Props:
-     size  – tile size in px (default 32). The icon and wordmark scale with it.
+     size  - tile size in px (default 32). The icon and wordmark scale with it,
+             matching the site nav's proportions (18px icon, 15px wordmark at 32).
 
    Usage:
      import BrandLogo from './BrandLogo'
@@ -19,8 +20,8 @@ const B = '#2563EB'
      <div onClick={() => nav('/dashboard')} style={{ cursor: 'pointer' }}><BrandLogo /></div>
 */
 export default function BrandLogo({ size = 32 }) {
-  const icon = Math.round(size * 0.5625) // 32 -> 18, same ratio as the site nav
-  const font = Math.round(size * 0.5625)
+  const icon = Math.round(size * 0.5625)  // 32 -> 18, same icon size as the site nav
+  const font = Math.round(size * 0.46875) // 32 -> 15, same wordmark size as the site nav
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ width: size, height: size, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -31,9 +32,9 @@ export default function BrandLogo({ size = 32 }) {
           <rect x="17.5" y="1" width="4" height="20" rx="1" fill="#2563EB"/>
         </svg>
       </div>
-      <span style={{ display: 'inline-block', fontWeight: 800, fontSize: font, color: N, borderBottom: '2px solid ' + B, paddingBottom: 1, lineHeight: 1, letterSpacing: '-0.5px' }}>
-        TaxStat<span style={{ color: B }}>360</span>
-      </span>
+      <div style={{ display: 'inline-block', borderBottom: '2px solid ' + B, paddingBottom: 1 }}>
+        <span style={{ fontWeight: 800, fontSize: font, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+      </div>
     </div>
   )
 }
