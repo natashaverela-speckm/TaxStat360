@@ -1,24 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BrandLogo from './BrandLogo'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 const API = 'https://app.taxstat360.com'
 
 function Logo() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-      <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="12" width="4" height="9" fill="white" rx="1"/>
-          <rect x="10" y="7" width="4" height="14" fill="white" rx="1"/>
-          <rect x="17" y="3" width="4" height="18" fill="white" rx="1"/>
-        </svg>
-      </div>
-      <span style={{ fontWeight: 800, fontSize: 18, color: N, letterSpacing: '-0.5px' }}>
-        TaxStat<span style={{ color: B }}>360</span>
-      </span>
-    </div>
-  )
+  return <div style={{ marginBottom: 24 }}><BrandLogo size={32} /></div>
 }
 
 export default function ForgotPassword() {
