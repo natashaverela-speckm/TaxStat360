@@ -40,7 +40,7 @@ import {
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isPassthroughEntity, SE_SUBJECT_TYPES } from './utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity, SE_SUBJECT_TYPES } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -342,6 +342,18 @@ export default function TaxReturn() {
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
+  // REG-01: identify Step-1 Real Estate (Schedule E) entities. Their net is
+  // routed through the §469 passive-activity block in taxCalc.js, so they are
+  // displayed separately from K-1 trade-or-business entities below.
+  const step1Rentals       = entityList.filter(e => e && isRealEstateEntity(e.type))
+  const hasStep1Rental     = step1Rentals.length > 0
+  const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
+  // Double-count guard: a rental was entered as a Step-1 entity AND in the
+  // Step-2 Schedule E fields below. Both feed the same §469 pool, so the user
+  // is likely entering the same property twice.
+  const step2RentalEntered = nf(rentalIncome) !== 0 || nf(rentalExpenses) !== 0
+  const rentalDoubleCount  = hasStep1Rental && step2RentalEntered
+
   const YEARS = [2024, 2025, 2026]
   const FS_OPTIONS = [
     { value: 'single', label: 'Single' },
@@ -438,24 +450,69 @@ export default function TaxReturn() {
           {entityList.length > 0 && (
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', letterSpacing: '0.5px', marginBottom: 8 }}>FROM STEP 1 — BUSINESS ENTITIES</div>
-              {entityList.map((e, i) => {
+              {k1Entities.map((e, i) => {
                 const pnl = e.pnl || {}
                 const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
                 const own = ownPct(e.own) / 100
                 const k1  = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
                 return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: i < entityList.length - 1 ? '1px solid #BFDBFE' : 'none' }}>
+                  <div key={'k1' + i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: i < k1Entities.length - 1 ? '1px solid #BFDBFE' : 'none' }}>
                     <span style={{ color: '#1D4ED8' }}>{e.name || e.type} ({e.own || 100}%)</span>
                     <span style={{ fontWeight: 700, color: k1 >= 0 ? '#1D4ED8' : R }}>{fmt(k1)}</span>
                   </div>
                 )
               })}
-              {entityList.length > 1 && (
+              {k1Entities.length > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 13, fontWeight: 700, borderTop: '1px solid #BFDBFE', marginTop: 4 }}>
                   <span style={{ color: '#1D4ED8' }}>Total K-1</span>
-                  <span style={{ color: '#1D4ED8' }}>{fmt(sessionK1 || 0)}</span>
+                  <span style={{ color: '#1D4ED8' }}>{fmt(k1Entities.reduce((s, e) => {
+                    const pnl = e.pnl || {}
+                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+                    return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
+                  }, 0))}</span>
                 </div>
               )}
+
+              {/* REG-01: Step-1 Real Estate entities — shown separately. These are
+                  rental activities subject to §469 passive-loss rules, not K-1
+                  trade-or-business income. Each entity's REP / active-participation
+                  status is set on its Step-1 card. */}
+              {hasStep1Rental && (
+                <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', letterSpacing: '0.5px', marginBottom: 6 }}>RENTAL REAL ESTATE (SCHEDULE E) — §469</div>
+                  {step1Rentals.map((e, i) => {
+                    const pnl = e.pnl || {}
+                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+                    const own = ownPct(e.own) / 100
+                    const reNet = Math.round(net * own) - nf(e.box11_12) - nf(e.box12_13)
+                    const status = reNet >= 0
+                      ? 'income'
+                      : e.isREP ? 'Nonpassive (REP)'
+                      : e.isActiveParticipant ? 'Passive · §469(i)'
+                      : 'Passive · suspended'
+                    return (
+                      <div key={'re' + i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', fontSize: 13 }}>
+                        <span style={{ color: '#6D28D9' }}>
+                          {e.name || 'Rental'} ({e.own || 100}%)
+                          {reNet < 0 && <span style={{ fontSize: 10, color: e.isREP ? G : '#92400E', marginLeft: 6, fontWeight: 600 }}>{status}</span>}
+                        </span>
+                        <span style={{ fontWeight: 700, color: reNet >= 0 ? '#6D28D9' : R }}>{fmt(reNet)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REG-01: double-count guard — same rental likely entered twice */}
+          {rentalDoubleCount && (
+            <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
+              <strong>⚠ Possible double-counted rental.</strong> You entered a Real Estate
+              (Schedule E) entity in Step 1 <em>and</em> rental figures in the Rental Real
+              Estate section below. Both flow into the same §469 calculation, so the same
+              property may be counted twice. Enter each rental in only one place — either as a
+              Step-1 entity or in the Step-2 section below, not both.
             </div>
           )}
 
@@ -540,6 +597,13 @@ export default function TaxReturn() {
 
           {/* Rental real estate */}
           <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(nf(rentalIncome) - nf(rentalExpenses)) : undefined} accent="#7C3AED">
+            {hasStep1Rental && (
+              <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
+                You already entered {step1Rentals.length === 1 ? 'a rental property' : `${step1Rentals.length} rental properties`} as
+                Real Estate {step1Rentals.length === 1 ? 'entity' : 'entities'} in Step 1 (shown above, with REP / active-participant status set on each card).
+                Only use the fields below for <em>additional</em> rentals not already entered in Step 1 — do not re-enter the same property here.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-rental-income" style={inputLbl}>Rental Income</label>
@@ -813,7 +877,7 @@ export default function TaxReturn() {
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },
                 { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
                 { label: 'W-2 Wages',                   value: result.totalW2ForFICA || 0,                sign: 1, hide: !(result.totalW2ForFICA > 0) },
-                { label: 'Rental Income (net)',          value: nf(rentalIncome) - nf(rentalExpenses),     sign: 1, hide: nf(rentalIncome) === 0 },
+                { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? (nf(rentalIncome) - nf(rentalExpenses)), sign: 1, hide: (result.rentalNetCombined ?? (nf(rentalIncome) - nf(rentalExpenses))) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
@@ -881,6 +945,16 @@ export default function TaxReturn() {
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
                   <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                </div>
+              )}
+
+              {/* REG-01: §469 passive rental loss suspension (incl. Step-1 rentals).
+                  palSuspendedRental is POSITIVE = (allowed − actual) when a loss is
+                  suspended (e.g. allowed 0 − actual −91,599 = +91,599). */}
+              {result.palSuspendedRental > 0 && (
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
+                  <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582 until you have passive income or dispose of the property.
+                  {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
                 </div>
               )}
             </div>
