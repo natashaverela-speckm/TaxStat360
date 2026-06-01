@@ -23,6 +23,18 @@ export const isPassthroughEntity = (t) =>
   /partnership|llc|s.?corp|sole/i.test(t || '')
 
 /**
+ * Real Estate (Schedule E) — personally-held rental property, NOT a K-1
+ * trade-or-business. Added for REG-01 (§469 Step-1 rental routing): the tax
+ * engine uses this to pull Real Estate entities out of the K-1 income stream
+ * and route their net through the §469 passive-activity-loss machinery instead
+ * of treating the loss as fully deductible nonpassive income.
+ *
+ * Matches the same labels normalizeEntityType() leaves unchanged for rentals
+ * ("Real Estate (Schedule E)", "Schedule E", etc.).
+ */
+export const isRealEstateEntity = (t) => /real.?estate|schedule.?e/i.test(t || '')
+
+/**
  * Map any entity-type label (Step-1 UI values, legacy strings) to the canonical
  * ENTITY_TYPES string the tax engine keys on. The Step-1 dropdown emits friendly
  * labels ("Sole Proprietor / SMLLC", "Partnership / LLC") that do NOT match the
