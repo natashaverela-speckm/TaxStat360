@@ -64,7 +64,7 @@ function ArticleCard({ article, onClick }) {
 
       {/* Title */}
       <h2 style={{
-        fontSize: 17, fontWeight: 700, color: N, margin: 0, lineHeight: 1.4,
+        fontSize: 17, fontWeight: 700, margin: 0, lineHeight: 1.4,
         color: hovered ? B : N, transition: 'color 0.15s',
       }}>
         {article.title}
