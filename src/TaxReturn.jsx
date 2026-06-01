@@ -761,11 +761,11 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-tax" style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
-                <MoneyInput id="tr-prior-tax" id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
+                <MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-agi" style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
-                <MoneyInput id="tr-prior-agi" id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
+                <MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
               </div>
             </div>
           </CollapsibleSection>
