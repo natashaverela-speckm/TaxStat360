@@ -984,7 +984,7 @@ describe('calcAMT PASS4B-01 — MFS 2026 bracket26_28 typo fix', () => {
     isoBargainElement: 0,
     ltGain: 0,
     qualDiv: 0,
-    regularTax: 252000, // approx. high enough that AMT add-on is realistic
+    regularTax: 14000, // deliberately low so tentative min tax exceeds it (AMT applies)
     status: 'mfs',
     taxYear: 2026,
     useItemized: false,
