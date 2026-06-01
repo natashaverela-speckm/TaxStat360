@@ -34,6 +34,7 @@ import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State } 
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
 import {
+import BrandLogo from './BrandLogo'
   PASSTHROUGH_ENTITY_TYPES,
   C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
@@ -194,20 +195,7 @@ function buildRecs(biz, calc) {
   return recs
 }
 
-const LOGO = () => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-    <svg width="30" height="30" viewBox="0 0 34 34" fill="none">
-      <rect width="34" height="34" rx="8" fill={N}/>
-      <rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/>
-      <rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/>
-      <rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/>
-      <rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/>
-    </svg>
-    <span style={{ fontWeight: 800, fontSize: 18, color: N, borderBottom: '2px solid ' + B, paddingBottom: '1px' }}>
-      TaxStat<span style={{ color: B }}>360</span>
-    </span>
-  </div>
-)
+const LOGO = () => <BrandLogo size={30} />
 
 // ── F-08: One-time onboarding tour ────────────────────────────────────────────
 const ONBOARDING_KEY = 'ts360_onboarding_v1'
