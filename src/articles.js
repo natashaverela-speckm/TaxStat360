@@ -21,7 +21,7 @@ export const ARTICLES = [
     sections: [
       {
         heading: 'Why the Split Matters',
-        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% on the first $176,100 (2026), split evenly between employer and employee. Every dollar you take as a K-1 distribution is not subject to FICA.
+        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% on the first $184,500 (2026), split evenly between employer and employee. Every dollar you take as a K-1 distribution is not subject to FICA.
 
 On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
 
