@@ -107,7 +107,7 @@ import {
   SE_NET_EARNINGS_FACTOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
-import { normalizeEntityType } from './utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity } from './utils/entityPredicates.js'
 
 // ── IRS Tax Tables 2024-2026 ──────────────────────────────────────────────────
 const nv = (v) => parseFloat(v) || 0
@@ -566,7 +566,51 @@ function calcTaxReturn(input) {
   })
 
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
-  const adjustedK1Total    = k1Total + totalSuspendedLoss
+
+  // ── REG-01: §469 Step-1 Real Estate (Schedule E) entity routing ───────────
+  // A "Real Estate (Schedule E)" entity entered in Step 1 is personally-held
+  // rental property, NOT a K-1 trade-or-business. persistStep1() folds its net
+  // into k1Total, where it previously flowed through adjustedK1Total as fully
+  // deductible NONPASSIVE income and was unconditionally swept into the §461(l)
+  // base — bypassing the §469 passive-activity-loss rules entirely.
+  //
+  // Here we measure each Real Estate entity's contribution to k1Total (computed
+  // identically to persistStep1: round(net * own) − §179 − charitable) and pull
+  // it back out of the K-1 stream, then route it through the §469 rental block
+  // below. Default treatment is PASSIVE (IRC §469(a)): a net loss is suspended
+  // unless the taxpayer is a Real Estate Professional (§469(c)(7), e.isREP —
+  // a taxpayer-level status, so OR-combined with the global isREP) or qualifies
+  // for the §469(i) $25,000 active-participation allowance (e.isActiveParticipant).
+  // A net rental GAIN always flows through as (passive) income.
+  //
+  // NOTE: persistStep1() intentionally still includes Real Estate entities in
+  // k1Total; this engine is the single authoritative place that nets them out.
+  // Do not also exclude them upstream or their net will be double-removed.
+  const entityRentalResults = []
+  let step1RentalNet    = 0
+  let step1RentalREP    = false
+  let step1RentalActive = false
+  entities.forEach(e => {
+    if (!e || !isRealEstateEntity(e.type)) return
+    const own = ownPct(e.own) / 100
+    const k1Gross = e.k1 !== undefined
+      ? parseFloat(e.k1) || 0
+      : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
+    const net = k1Gross - nv(e.box11_12) - nv(e.box12_13)
+    step1RentalNet += net
+    if (e.isREP) step1RentalREP = true
+    if (e.isActiveParticipant) step1RentalActive = true
+    entityRentalResults.push({
+      name: e.name || e.id || 'Rental Property',
+      type: e.type,
+      net: Math.round(net),
+      isREP: !!e.isREP,
+      isActiveParticipant: !!e.isActiveParticipant,
+    })
+  })
+
+  // Real Estate net removed from the K-1 income line — handled by §469 below.
+  const adjustedK1Total = k1Total + totalSuspendedLoss - step1RentalNet
 
   // ── PASS4B-02b: §1368(b)(2) S-Corp Distribution Capital Gain ─────────────
   // Distributions reduce stock basis. The portion of distributions that exceeds
@@ -641,22 +685,36 @@ function calcTaxReturn(input) {
   const _ltGain = nv(ltGain) + distributionCapGain
 
   // ── PAL — §469 Passive Activity Loss ──────────────────────────────────────
+  // REG-01: combine the Step-2 rentalNet field with any Step-1 Real Estate
+  // entities into a single §469 pool (the passive-activity rules aggregate all
+  // of a taxpayer's rental activities). REP is a taxpayer-level status, so
+  // OR-combine it. For the §469(i) active-participation allowance, preserve the
+  // exact prior Step-2 behavior when a Step-2 rental is present; otherwise honor
+  // the Step-1 entity flag so a Step-1-only rental is passive-by-default unless
+  // the user marks active participation. When there are no Step-1 rentals,
+  // step1RentalNet === 0 and these collapse to the original Step-2-only values.
+  const hasStep2Rental             = nv(rentalNet) !== 0
+  const combinedRentalNet          = nv(rentalNet) + step1RentalNet
+  const effectiveIsREP             = !!isREP || step1RentalREP
+  const effectiveIsActiveParticipant =
+    (hasStep2Rental ? isActiveParticipant : false) || step1RentalActive
+
   const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
-  const palCarryforwardApplied   = (rentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, rentalNet) : 0
+  const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
-  const rentalNetAfterCF         = rentalNet - palCarryforwardApplied
+  const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
 
   let palAdjustedRental  = rentalNetAfterCF
   let palSuspendedRental = 0
 
-  if (!isREP && rentalNetAfterCF < 0) {
+  if (!effectiveIsREP && rentalNetAfterCF < 0) {
     const preRentalAGI = w2 + adjustedK1Total + f4797Inc + stGain + _ltGain + intInc + divInc + iraIncome
       - Math.min(ytdScale(studentLoanInt), 2500)
       - ytdScale(hsaDeduction)
       - ytdScale(selfEmpRetirement)
       - ytdScale(selfEmpHealthIns)
     const isMFS            = status === 'mfs'
-    const baseAllowance    = (isMFS || !isActiveParticipant) ? 0 : 25000
+    const baseAllowance    = (isMFS || !effectiveIsActiveParticipant) ? 0 : 25000
     const phaseStart       = isMFS ? 0 : 100000
     const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
     palAdjustedRental  = Math.max(rentalNetAfterCF, -specialAllowance)
@@ -664,7 +722,11 @@ function calcTaxReturn(input) {
   }
 
   const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 640000 : 320000)
-  const eblBiz       = adjustedK1Total + f4797Inc + (isREP ? rentalNet : 0)
+  // §461(l): only allowed (nonpassive) business losses enter the EBL base. A
+  // suspended passive rental loss is NOT an allowed loss, so it is excluded
+  // unless the taxpayer is a Real Estate Professional (then the rental is
+  // nonpassive and the full combined rental net belongs in the base).
+  const eblBiz       = adjustedK1Total + f4797Inc + (effectiveIsREP ? combinedRentalNet : 0)
   const eblNetLoss   = Math.max(0, -eblBiz)
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
 
@@ -701,6 +763,7 @@ function calcTaxReturn(input) {
   // appearing for sole proprietors. Scalar-only callers (no entities) keep prior behavior.
   const nonSEDistributions = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e.type)) return sum
+    if (isRealEstateEntity(e.type)) return sum   // REG-01: rental income is not a K-1 distribution
     return sum + (nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100)))
   }, 0)
   const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nv(adjustedK1Total))
@@ -745,6 +808,7 @@ function calcTaxReturn(input) {
 
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
+    if (isRealEstateEntity(e?.type)) return sum   // REG-01: routed through §469 rental, not K-1
     const k1    = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
@@ -802,7 +866,9 @@ function calcTaxReturn(input) {
   )
 
   // NIIT: use _ltGain (includes §1368 distribution capital gain)
-  const rentalNII  = isREP ? 0 : Math.max(0, rentalNet)
+  // REG-01: passive rental income (incl. Step-1 rental entities) is net
+  // investment income unless the taxpayer is a Real Estate Professional.
+  const rentalNII  = effectiveIsREP ? 0 : Math.max(0, combinedRentalNet)
   const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + stGain + unrec1250 + collectibles) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
 
@@ -857,6 +923,7 @@ function calcTaxReturn(input) {
   const entityIncomeBreakdown = entities.map(e => {
     if (!e) return null
     const isSEType = SE_SUBJECT_TYPES.includes(e.type)
+    const isRE     = isRealEstateEntity(e.type)   // REG-01
     const own      = ownPct(e.own) / 100
     const income   = parseFloat(e.k1 ?? 0) || Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
     return {
@@ -865,8 +932,9 @@ function calcTaxReturn(input) {
       income:       Math.round(income),
       ownership:    ownPct(e.own),
       isSEType,
-      scheduleForm: isSEType ? 'Schedule C' : 'Schedule E, Part II',
+      scheduleForm: isSEType ? 'Schedule C' : isRE ? 'Schedule E (Rental)' : 'Schedule E, Part II',
       taxForm:      isSEType ? '1040 Sch C'
+        : isRE ? 'Schedule E (Rental)'
         : (e.type === 'S Corporation' || e.type === 'C Corporation')
         ? 'K-1 (Form 1120-S)'
         : 'K-1 (Form 1065)',
@@ -946,6 +1014,16 @@ function calcTaxReturn(input) {
     palSuspendedRental,
     palCarryforwardApplied,
     palCarryforwardRemaining,
+
+    // REG-01: §469 rental routing — combined Step-1 (entity) + Step-2 (field) net,
+    // the effective taxpayer-level flags actually applied, and the per-entity
+    // Step-1 rental breakdown for display.
+    rentalNetCombined:        combinedRentalNet,
+    rentalAllowed:            palAdjustedRental,
+    rentalIsREP:              effectiveIsREP,
+    rentalIsActiveParticipant: effectiveIsActiveParticipant,
+    step1RentalNet,
+    entityRentalResults,
 
     scheduleEK1Income,
     scheduleCSEIncome,
