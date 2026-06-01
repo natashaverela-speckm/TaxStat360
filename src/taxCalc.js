@@ -841,12 +841,34 @@ function calcTaxReturn(input) {
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
   const taxableIncome         = taxableAfterQBI
 
+  // ── CG-01 FIX (§1(h) preferential-income aggregate cap) ───────────────────
+  // Preferential-rate income cannot exceed taxable income (the Qualified Dividends
+  // & Capital Gain Tax Worksheet caps the TOTAL preferential amount at taxable
+  // income, then stacks the pieces within that cap). The prior code clamped each
+  // item independently with Math.min(item, taxableAfterQBI), so when more than one
+  // preferential item was present (e.g. LTCG + qualified dividends, or LTCG +
+  // §1250 + collectibles) their SUM could exceed taxable income — overstating the
+  // preferential base and the tax. Example (audit case): LTCG 113,072 + qualDiv 143
+  // against taxable 80,771 produced a base of 80,771 + 143 = 80,914 (>taxable),
+  // i.e. ~$22 too much tax.
+  //
+  // Fix: allocate the single taxableAfterQBI ceiling across the four buckets in
+  // worksheet order — long-term capital gain first, then qualified dividends, then
+  // unrecaptured §1250, then collectibles — each taking only the room remaining
+  // after the prior buckets. The buckets' rate ordering is preserved by
+  // calcPreferentialTax; this only bounds the inputs so they sum to ≤ taxable income.
+  let _prefRoom = taxableAfterQBI
+  const _ltcgClamped         = Math.min(Math.max(0, _ltGain),   _prefRoom); _prefRoom -= _ltcgClamped
+  const _qualDivClamped      = Math.min(Math.max(0, qualDiv),   _prefRoom); _prefRoom -= _qualDivClamped
+  const _unrecap1250Clamped  = Math.min(unrec1250,              _prefRoom); _prefRoom -= _unrecap1250Clamped
+  const _collectiblesClamped = Math.min(collectibles,          _prefRoom); _prefRoom -= _collectiblesClamped
+
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
   const prefTax   = calcPreferentialTax(ordinaryTaxableIncome, {
-    ltcg:         Math.min(Math.max(0, _ltGain),    taxableAfterQBI),
-    qualDiv:      Math.min(Math.max(0, qualDiv),     taxableAfterQBI),
-    unrecap1250:  Math.min(unrec1250,                taxableAfterQBI),
-    collectibles: Math.min(collectibles,             taxableAfterQBI),
+    ltcg:         _ltcgClamped,
+    qualDiv:      _qualDivClamped,
+    unrecap1250:  _unrecap1250Clamped,
+    collectibles: _collectiblesClamped,
   }, taxYear, status)
   const fedTax = ordFedTax + prefTax
 
