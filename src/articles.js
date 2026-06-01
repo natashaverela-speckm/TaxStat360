@@ -21,7 +21,7 @@ export const ARTICLES = [
     sections: [
       {
         heading: 'Why the Split Matters',
-        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% on the first $184,500 (2026), split evenly between employer and employee. Every dollar you take as a K-1 distribution is not subject to FICA.
+        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first $184,500 (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
 
 On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
 
@@ -31,7 +31,7 @@ The IRS knows this. They have been scrutinizing S-Corp salary practices since at
         heading: 'The IRS Reasonable Compensation Requirement',
         body: `IRC §3121(d) defines who is an employee subject to FICA, and S-Corp shareholder-employees fall squarely within it. The IRS's position, codified in Rev. Rul. 74-44, is that an S-Corp cannot reclassify wages as distributions to avoid employment taxes.
 
-The landmark case is Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012), where the court upheld an IRS reclassification of $24,000 in wages — for a CPA who generated $200,000+ for his firm — as $67,000, adding $48,000 in unpaid FICA taxes plus penalties. The message was clear: the IRS will look through artificially low salaries.
+The landmark case is David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the courts upheld the reclassification of a CPA's $24,000 salary — set against more than $200,000 of annual distributions from his firm — to reasonable compensation of $91,044 per year, with the additional wages subject to back FICA plus penalties and interest. The message was clear: the IRS will look through artificially low salaries.
 
 Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross revenues, your training and experience, and what similar businesses pay for comparable roles.`,
       },
@@ -111,7 +111,7 @@ This last point is critical. If your S-Corp generates $300,000 of gross profit a
         heading: 'The W-2 Wage and UBIA Limitation',
         body: `Above certain income thresholds, the §199A deduction is limited by either (a) 50% of W-2 wages paid by the business, or (b) 25% of W-2 wages plus 2.5% of the unadjusted basis in qualified property (UBIA).
 
-For 2026, the phase-in range begins at $201,775 (Single) / $403,550 (MFJ) of taxable income. Between those thresholds and the ceilings ($276,775 Single / $478,550 MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
+For 2026, the phase-in range begins at $201,775 (Single) / $403,500 (MFJ) of taxable income. Between those thresholds and the ceilings ($276,775 Single / $553,500 MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
 
 Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (including your salary). The 50% W-2 limitation = $60,000. If your tentative QBI deduction is $80,000 (20% of $400K), it is capped at $60,000 — a $20,000 reduction. The fix: pay higher officer wages, which both increases the W-2 wage limitation and (for an S-Corp) reduces distributions but maintains the FICA advantage.`,
       },
@@ -119,7 +119,7 @@ Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (includi
         heading: 'Specified Service Trades or Businesses (SSTB)',
         body: `If your business falls into the SSTB category — which includes law, health, consulting, financial services, accounting, and performing arts — the QBI deduction phases out entirely for taxpayers above the income ceiling.
 
-Above $276,775 (Single) / $478,550 (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
+Above $276,775 (Single) / $553,500 (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
 
 Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses — where less than 10% of gross receipts come from SSTB services — may qualify for an allocation of the non-SSTB portion. The regulations are detailed; if your business is on the line, a CPA review of your revenue mix is worth doing before year-end.`,
       },
@@ -166,7 +166,7 @@ The four standard due dates: April 15 (Q1), June 15 (Q2), September 15 (Q3), and
 
 Safe Harbor 1 — 90% of current-year tax: Pay at least 90% of your actual tax liability for the current year, spread across the four quarters. This method requires you to estimate your income accurately throughout the year.
 
-Safe Harbor 2 — 100% (or 110%) of prior-year tax: Pay an amount equal to last year's total tax (Form 1040, Line 24). If your prior-year AGI exceeded $150,000 (MFJ) or $75,000 (all others), the threshold rises to 110% of prior-year tax. This is the most common method for business owners because it requires no current-year estimation — you know exactly what last year's tax was.
+Safe Harbor 2 — 100% (or 110%) of prior-year tax: Pay an amount equal to last year's total tax (Form 1040, Line 24). If your prior-year AGI exceeded $150,000 ($75,000 if married filing separately), the threshold rises to 110% of prior-year tax. This is the most common method for business owners because it requires no current-year estimation — you know exactly what last year's tax was.
 
 Most practitioners use Safe Harbor 2 as the floor and adjust upward if they know this year will be significantly higher. TaxStat360 displays both the safe harbor quarterly amount and the 90%-of-current-year amount so you can choose the lower one.`,
       },
@@ -174,7 +174,7 @@ Most practitioners use Safe Harbor 2 as the floor and adjust upward if they know
         heading: 'The Math: A Worked Example',
         body: `Assume: Single filer, prior-year total tax (Form 1040 Line 24) = $32,000, prior-year AGI = $180,000.
 
-Because prior-year AGI exceeds $75,000, the safe harbor is 110%:
+Because prior-year AGI exceeds $150,000, the safe harbor is 110%:
 Safe harbor total = $32,000 × 110% = $35,200
 Per-quarter payment = $35,200 ÷ 4 = $8,800
 
@@ -233,11 +233,11 @@ There is no bright-line dollar amount or percentage. A dentist generating $800,0
       },
       {
         heading: 'Landmark Cases You Should Know',
-        body: `Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the most cited reasonable compensation case. David Watson was a CPA partner in a firm generating $203,000 of profit for him annually. He paid himself $24,000 in salary. The Tax Court — upheld by the Eighth Circuit — found that $93,000 was reasonable compensation, assessing $48,000 in back FICA taxes plus penalties.
+        body: `David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012) is the most cited reasonable compensation case. Watson, a CPA, routed his interest in an accounting firm through an S-corp that received roughly $200,000 a year in distributions, yet paid himself only $24,000 in salary. A federal district court — affirmed by the Eighth Circuit — found that $91,044 was reasonable compensation for each year, with the difference treated as wages subject to back employment taxes, penalties, and interest.
 
-David E. Watson's case established that courts will look at what comparable employees earn, not at what the shareholder-employee finds advantageous. The court explicitly noted that Watson's attempts to justify the low salary (arguing it reflected his contribution as a non-technical worker) were undermined by the size of his distributions.
+The case established that courts will look at what comparable employees earn, not at what the shareholder-employee finds advantageous. The court explicitly noted that Watson's attempts to justify the low salary (arguing it reflected his contribution as a non-technical worker) were undermined by the size of his distributions.
 
-Glass Blocks Unlimited v. Commissioner, T.C. Memo 2013-180 similarly recharacterized $19,000 of officer distributions as wages in a business generating $126,000 of income, adding self-employment taxes and penalties.`,
+Glass Blocks Unlimited v. Commissioner, T.C. Memo. 2013-180 similarly recharacterized the sole shareholder-officer's distributions as wages — over $30,000 for each of 2007 and 2008 — even though the company's net income was far lower, adding employment taxes and penalties.`,
       },
       {
         heading: 'Industry Benchmarks You Can Use',
@@ -332,7 +332,7 @@ These carryforwards are not lost. They represent a future tax asset with several
 
 2. Passive income: If you acquire a new investment that generates passive income (a limited partnership interest, a rental property with net income), your carryforwards can offset it.
 
-3. REP qualification: If you qualify as a Real Estate Professional in a future year, suspended losses from rental activities in which you materially participate are released in that year.
+3. REP qualification: Qualifying as a Real Estate Professional makes the activity non-passive going forward. Note that this does not by itself release prior suspended losses against all income — under §469(f), those "former passive activity" losses can offset income from that same activity (or other passive income) and are fully freed only on a qualifying disposition.
 
 Tracking your suspended losses by property on Form 8582 is essential. Many investors don't realize the magnitude of their carryforward until they sell — and then are surprised that their tax bill is lower than expected because of deductions they couldn't use years earlier.`,
       },
