@@ -24,8 +24,8 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 // acts as a deterrent; "for verification only" re-frames the card ask as a security
 // step rather than a payment commitment, which is more accurate and less friction.
 // CTA_COPY_FULL is used in the hero; CTA_COPY_SHORT in pricing and bottom CTA.
-const CTA_COPY_FULL  = 'No charge during your 7-day trial · Cancel in one click · No CPA needed'
-const CTA_COPY_SHORT = 'No charge for 7 days · Cancel in one click'
+const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
+const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
 
 // #7 FIX: The site navigation was extracted into a shared <Nav> component
 // (src/Nav.jsx) so Landing, About, Privacy, Terms, and Resources all render the
@@ -90,10 +90,10 @@ export default function Landing() {
           <span style={{ color: B }}>&#10003;</span> No More April Surprises
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          See Exactly What You Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
+          See What You Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your real federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
+          Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your estimated federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
         </p>
         {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, background: '#fff', border: '1.5px solid #dde6f0', borderRadius: 100, padding: '7px 18px' }}>
@@ -328,7 +328,7 @@ export default function Landing() {
             {
               name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790', annualSavings: '$158',
               highlight: false,
-              desc: 'Know exactly what you owe — every month, not just in April.',
+              desc: 'Know what you owe — every month, not just in April.',
               features: [
                 'Year-round federal tax liability tracker',
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
