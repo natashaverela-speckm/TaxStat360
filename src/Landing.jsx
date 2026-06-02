@@ -19,10 +19,12 @@ const EYEBROW = {
 
 const CTA_LABEL = 'Start Free 7-Day Trial'
 
-// UX-06 FIX: Changed "Credit card required" → "Card for verification only" in both
-// the full and short CTA copy strings. The word "required" at the top of the funnel
-// acts as a deterrent; "for verification only" re-frames the card ask as a security
-// step rather than a payment commitment, which is more accurate and less friction.
+// CTA copy intentionally states "Card required" + "No charge during your 7-day trial"
+// + "Cancel in one click". This is the accurate, FTC-friendly framing for a
+// card-on-file free trial: it is clear up front that a card is needed and that
+// billing begins automatically when the trial ends. Do NOT soften this to "card for
+// verification only" — the card is the billing instrument, not a verification-only
+// step, and implying otherwise risks an FTC negative-option / ROSCA disclosure issue.
 // CTA_COPY_FULL is used in the hero; CTA_COPY_SHORT in pricing and bottom CTA.
 const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
 const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
@@ -90,7 +92,7 @@ export default function Landing() {
           <span style={{ color: B }}>&#10003;</span> No More April Surprises
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          See What You Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
+          See What You&apos;re On Track to Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
           Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your estimated federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
@@ -104,7 +106,7 @@ export default function Landing() {
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{CTA_LABEL}</button>
           <button onClick={() => nav('/login')}  style={{ background: '#fff', color: N, border: '2px solid ' + N, borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Sign In to Your Account</button>
         </div>
-        {/* UX-06: CTA_COPY_FULL now uses "Card for verification only" instead of "Credit card required" */}
+        {/* CTA_COPY_FULL: "Card required" + "No charge during your 7-day trial" — accurate up-front trial disclosure */}
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>{CTA_COPY_FULL}</p>
 
         <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
@@ -276,7 +278,7 @@ export default function Landing() {
               // explaining the year-selection mechanic or who controls it.
               // UX-08 FIX: Added explicit "federal tax only — state taxes are not included"
               // statement so users understand the scope of what is calculated.
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in your settings and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
