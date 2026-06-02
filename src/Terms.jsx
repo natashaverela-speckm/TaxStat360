@@ -1,12 +1,8 @@
-import { useNavigate } from 'react-router-dom'
-
 const N  = '#0D1B3E'
 const B  = '#2563EB'
 const SL = '#475569'
 
 export default function Terms() {
-  const nav = useNavigate()
-
   const Section = ({ title, children }) => (
     <div style={{ marginBottom: 32 }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: N, marginBottom: 12, borderBottom: '2px solid #E2E8F0', paddingBottom: 8 }}>{title}</h2>
@@ -92,7 +88,7 @@ export default function Terms() {
         </Section>
 
         <Section title="8. Governing Law">
-          <p>These Terms are governed by the laws of the United States. Any disputes shall be resolved through binding arbitration in accordance with the AAA Commercial Arbitration Rules.</p>
+          <p>These Terms are governed by the laws of the State of Florida, without regard to its conflict-of-laws principles. Any dispute arising out of or relating to these Terms or your use of the Service shall be resolved by binding arbitration administered by the American Arbitration Association under its Commercial Arbitration Rules, with the arbitration seated in the State of Florida. Judgment on the arbitration award may be entered in any court of competent jurisdiction.</p>
         </Section>
 
         <Section title="9. Contact">
