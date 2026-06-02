@@ -331,20 +331,16 @@ and CPA compatibility (not replacing their advisor). */}
 }
 
 function VerifyEmailScreen(){
-const nav=useNavigate()
-const email=localStorage.getItem('pendingEmail')||'your email'
-return(<Page>
-<LOGO/>
-<div style={{textAlign:'center',padding:'20px 0'}}>
-<div style={{fontSize:48,marginBottom:16}}>📧</div>
-<h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Check your email</h2>
-<p style={{color:SL,fontSize:14,margin:'0 0 8px'}}>We sent a verification link to</p>
-<p style={{color:B,fontWeight:700,fontSize:15,margin:'0 0 24px'}}>{email}</p>
-<p style={{color:SL,fontSize:13,margin:'0 0 24px',lineHeight:1.6}}>Click the link in the email to verify your account and continue setting up TaxStat360.</p>
-<button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>I verified my email →</button>
-<p style={{fontSize:12,color:'#94a3b8',margin:0}}>Didn't receive it? Check spam or <span onClick={()=>nav('/signup')} style={{color:B,cursor:'pointer'}}>try a different email</span></p>
-</div>
-</Page>)
+  const nav=useNavigate()
+  return(<Page>
+    <LOGO/>
+    <div style={{textAlign:'center',padding:'20px 0'}}>
+      <div style={{fontSize:48,marginBottom:16}}>✅</div>
+      <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>You're all set!</h2>
+      <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Your TaxStat360 account is ready. Let's finish setting up your profile.</p>
+      <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
+    </div>
+  </Page>)
 }
 
 function LoginScreen(){
