@@ -159,6 +159,13 @@ export default function Aria() {
             />
             <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
           </div>
+          {/* Planning-lane disclaimer — Aria is an AI assistant, so it carries the same
+              federal-planning-only scope the rest of the app shows (FederalScopeBanner,
+              TaxReturn footer). The authoritative guardrails live server-side in the
+              /aria system prompt; this is the user-facing reminder. */}
+          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+            Aria gives general federal tax-planning information for estimates only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
+          </div>
         </div>
       )}
 
