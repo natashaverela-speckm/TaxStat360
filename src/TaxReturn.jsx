@@ -908,12 +908,28 @@ export default function TaxReturn() {
                 { label: result.balance >= 0 ? 'Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
+                // AGI-SIGN-01 FIX (negative AGI / subtotals displayed as positive):
+                // The renderer previously showed fmt(Math.abs(value)) with a leading
+                // '−' only when sign === -1 (subtraction lines). For additive rows
+                // (sign: 1 — Business K-1, AGI, taxable income, etc.) a genuinely
+                // negative value (e.g. AGI of −$25,521 on a loss return) was shown as
+                // a positive number, which is confusing and looks wrong. Now:
+                //  • Subtraction lines (sign === -1: deductions, QBI, payments, credits)
+                //    keep the "−$X" display — they represent an amount being subtracted,
+                //    and their values are always stored as positive magnitudes.
+                //  • Additive lines (sign === 1: income and subtotals) show the value's
+                //    ACTUAL sign, so negatives render as "−$X" and positives as "$X".
+                // The Balance Due / Estimated Refund row passes Math.abs(balance) with an
+                // explicit sign, so it is unaffected.
+                const isSubtraction = row.sign < 0
+                const showMinus = isSubtraction ? row.value !== 0 : row.value < 0
+                const magnitude = Math.abs(row.value)
                 return (
                   <div key={i}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
                       <span style={{ color: row.accent || SL, fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
                       <span style={{ fontWeight: row.bold ? 700 : 500, color: row.accent || N }}>
-                        {row.sign < 0 ? '−' : ''}{fmt(Math.abs(row.value))}
+                        {showMinus ? '−' : ''}{fmt(magnitude)}
                       </span>
                     </div>
                     {row.note && (
