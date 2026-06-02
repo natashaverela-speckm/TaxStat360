@@ -247,7 +247,7 @@ start filling fields, reducing form abandonment anxiety. Step 1 is active
 <div style={{width:26,height:26,borderRadius:'50%',background:'#E2E8F0',color:'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
 <div>
 <div style={{fontSize:12,fontWeight:700,color:'#94A3B8',lineHeight:1.2}}>Trial Setup</div>
-<div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card verification</div>
+<div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card required · no charge until trial ends</div>
 </div>
 </div>
 </div>
