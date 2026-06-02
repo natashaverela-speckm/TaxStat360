@@ -1100,6 +1100,13 @@ function BriefingModal({ onClose, rec }) {
     'PLANNING DISCUSSION POINTS',
     ...points.map((p, i) => `  ${i + 1}. ${p}`),
     '',
+    'ASSUMPTIONS & SCOPE OF THIS ESTIMATE',
+    '  - Federal tax only. State and local income taxes are not included.',
+    `  - Deduction: this briefing applies the ${filingLabel} standard deduction (${fmt(stdDed)}). If you itemize (Schedule A), your actual deduction and tax differ — the Tax Tracker applies the greater of the standard or itemized deduction, including the 7.5%-of-AGI medical floor (IRC §213(a)).`,
+    '  - Simplified estimate: the figures above are federal income tax (plus SE tax where applicable) on taxable income. They do NOT separately model the §461(l) excess-business-loss limitation, the 3.8% Net Investment Income Tax, the 0.9% Additional Medicare Tax, or AMT. The Tax Tracker waterfall computes those — rely on it for the complete federal position.',
+    '  - §1231 categorization: gains from selling business or rental property are §1231 / Form 4797 gains, which offset business losses in the §461(l) calculation. Confirm such gains are categorized as §1231 (not as ordinary long-term capital gains) — the categorization changes the result.',
+    ...(rec.totalTax ? [`  - Tax Tracker full estimate (all applicable federal taxes) for this saved record: ${fmt(rec.totalTax)}.`] : []),
+    '',
     'Figures are auto-generated from data entered in TaxStat360 and are estimates for planning discussion only — not professional tax advice and not for filing. Verify with a licensed CPA, EA, or tax attorney.',
   ].join('\n')
 
