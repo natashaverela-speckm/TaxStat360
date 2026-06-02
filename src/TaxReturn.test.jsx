@@ -296,3 +296,59 @@ describe('TaxReturn — F-06: officer salary aggregation into w2 total', () => {
     expect(args.w2).toBe(0)
   })
 })
+
+// ─── MED-FLOOR: medical passed raw to engine + itemized wiring ────────────────
+//
+// After the IRC §213(a) medical-floor fix, TaxReturn.jsx no longer pre-sums raw
+// medical into itemizedAmt. It passes medical RAW as `medicalExpenses` (the engine
+// applies the 7.5%-of-AGI floor) and sums only the non-medical sub-fields
+// (mortgage + charitable + SALT) into itemizedAmt. These tests pin that wiring,
+// mirroring the F-05/F-06 spy-on-args strategy above. The floor MATH itself is
+// covered in taxCalc.test.js (calcTaxReturn is mocked here).
+
+describe('TaxReturn — MED-FLOOR: medical passed raw, excluded from itemizedAmt', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('passes medicalExpenses raw and keeps it out of itemizedAmt', () => {
+    readPersonalContext.mockReturnValue({
+      useItemized: true, mortgageInt: '10000', charitableContr: '0',
+      saltAmount: '0', medicalAmt: '20000',
+    })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.medicalExpenses).toBe(20000) // raw, pre-floor — engine applies §213(a)
+    expect(args.itemizedAmt).toBe(10000)     // non-medical sub-fields only
+  })
+
+  it('sums non-medical sub-fields into itemizedAmt; medical stays separate', () => {
+    readPersonalContext.mockReturnValue({
+      useItemized: true, mortgageInt: '12000', charitableContr: '5000',
+      saltAmount: '8000', medicalAmt: '3000',
+    })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.itemizedAmt).toBe(25000)     // 12000 + 5000 + 8000
+    expect(args.medicalExpenses).toBe(3000)
+  })
+
+  it('direct-total override (no sub-fields) passes itemizedAmt with medicalExpenses=0', () => {
+    readPersonalContext.mockReturnValue({ useItemized: true, itemizedAmt: '30000' })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.itemizedAmt).toBe(30000)
+    expect(args.medicalExpenses).toBe(0)     // override assumed to already net the floor
+  })
+
+  it('medicalExpenses and itemizedAmt are 0 when itemizing is off', () => {
+    readPersonalContext.mockReturnValue({ useItemized: false, medicalAmt: '20000' })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.medicalExpenses).toBe(0)
+    expect(args.itemizedAmt).toBe(0)
+  })
+})
