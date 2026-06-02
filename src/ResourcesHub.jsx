@@ -11,7 +11,7 @@
 //   <a href="/resources">Resources</a>
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ARTICLES } from './articles.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
@@ -35,11 +35,11 @@ function CategoryPill({ category }) {
   )
 }
 
-function ArticleCard({ article, onClick }) {
+function ArticleCard({ article }) {
   const [hovered, setHovered] = useState(false)
   return (
-    <div
-      onClick={onClick}
+    <Link
+      to={`/resources/${article.slug}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -54,6 +54,8 @@ function ArticleCard({ article, onClick }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+        textDecoration: 'none',
+        color: 'inherit',
       }}
     >
       {/* Emoji + Category */}
@@ -98,12 +100,11 @@ function ArticleCard({ article, onClick }) {
           {article.readMinutes} min read →
         </span>
       </div>
-    </div>
+    </Link>
   )
 }
 
 export default function ResourcesHub() {
-  const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState('All')
 
   const categories = ['All', ...new Set(ARTICLES.map(a => a.category))]
@@ -171,7 +172,7 @@ export default function ResourcesHub() {
           padding: '4px 14px', marginBottom: 20,
         }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600, letterSpacing: '0.5px' }}>
-            🏛️ FROM FORMER IRS AGENTS
+            🏛️ BUILT ON IRS &amp; TAX EXPERTISE
           </span>
         </div>
         <h1 style={{
@@ -185,8 +186,8 @@ export default function ResourcesHub() {
           maxWidth: 560, lineHeight: 1.6,
         }}>
           Practical guides to S-Corp strategy, QBI deductions, estimated taxes,
-          and real estate investing — written by professionals who spent years
-          inside the IRS.
+          and real estate investing — grounded in how the IRS examines returns
+          and how the tax code rewards proactive planning.
         </p>
       </div>
 
@@ -226,7 +227,6 @@ export default function ResourcesHub() {
           <ArticleCard
             key={article.slug}
             article={article}
-            onClick={() => navigate(`/resources/${article.slug}`)}
           />
         ))}
       </div>
