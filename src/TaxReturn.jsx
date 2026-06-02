@@ -191,11 +191,19 @@ export default function TaxReturn() {
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
-  // T-03: Itemized deduction sub-fields — auto-sum into itemizedAmt for calcTaxReturn.
-  const itemizedSubTotal = nf(mortgageInt) + nf(charitableContr) + nf(medicalAmt) + nf(saltAmount)
-  const effectiveItemizedAmt = useItemized
-    ? (itemizedSubTotal > 0 ? itemizedSubTotal : nf(itemizedAmt))
+  // T-03 / MED-FLOOR: Itemized deduction sub-fields. Medical is NOT summed in here —
+  // it is passed to the engine RAW (medicalExpenses) and floored at 7.5% of AGI there
+  // (IRC §213(a)); the engine returns the floored amount as result.deductibleMedical.
+  // The non-medical sub-fields sum directly. A direct-total override (itemizedAmt) is
+  // used only when NO sub-field (including medical) has been entered.
+  const nonMedicalSubTotal  = nf(mortgageInt) + nf(charitableContr) + nf(saltAmount)
+  const anyItemizedSubField = nonMedicalSubTotal > 0 || nf(medicalAmt) > 0
+  const itemizedAmtForEngine = useItemized
+    ? (anyItemizedSubField ? nonMedicalSubTotal : nf(itemizedAmt))
     : 0
+  // Medical passed separately so the engine applies the 7.5%-of-AGI floor. Only when
+  // using sub-fields — a direct-total override is assumed to already net the floor.
+  const medicalForEngine = useItemized && anyItemizedSubField ? nf(medicalAmt) : 0
 
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
@@ -236,7 +244,7 @@ export default function TaxReturn() {
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: nf(priorPAL),
-      useItemized, itemizedAmt: effectiveItemizedAmt,
+      useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
@@ -244,6 +252,7 @@ export default function TaxReturn() {
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
+    mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
   ])
 
@@ -261,7 +270,9 @@ export default function TaxReturn() {
       priorPassiveLossCarryforward: priorPAL,
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
-      useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
+      useItemized, itemizedAmt, saltAmount,
+      mortgageInt, charitableContr, medicalAmt,
+      hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
     })
   }, [
@@ -270,6 +281,7 @@ export default function TaxReturn() {
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
+    mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
   ])
 
@@ -342,6 +354,12 @@ export default function TaxReturn() {
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
+  // Displayed itemized total = non-medical sub-fields + the engine's floored medical
+  // (result.deductibleMedical, after the IRC §213(a) 7.5%-of-AGI floor). Display-only;
+  // the engine computes the authoritative deduction.
+  const displayItemizedTotal = nonMedicalSubTotal + (result?.deductibleMedical ?? 0)
+  const medicalWasFloored    = nf(medicalAmt) > 0 && (result?.deductibleMedical ?? 0) < nf(medicalAmt)
+
   // REG-01: identify Step-1 Real Estate (Schedule E) entities. Their net is
   // routed through the §469 passive-activity block in taxCalc.js, so they are
   // displayed separately from K-1 trade-or-business entities below.
@@ -355,6 +373,13 @@ export default function TaxReturn() {
   const rentalDoubleCount  = hasStep1Rental && step2RentalEntered
 
   const YEARS = [2024, 2025, 2026]
+  // Estimated-payment due dates per tax year (weekend/holiday-adjusted). Q4 falls in
+  // mid-January of the following year. Verify against IRS.gov each year.
+  const ESTIMATE_DUE_DATES = {
+    2024: 'Apr 15, 2024 · Jun 17, 2024 · Sep 16, 2024 · Jan 15, 2025',
+    2025: 'Apr 15, 2025 · Jun 16, 2025 · Sep 15, 2025 · Jan 15, 2026',
+    2026: 'Apr 15, 2026 · Jun 15, 2026 · Sep 15, 2026 · Jan 15, 2027',
+  }
   const FS_OPTIONS = [
     { value: 'single', label: 'Single' },
     { value: 'mfj',    label: 'Married Filing Jointly' },
@@ -787,8 +812,8 @@ export default function TaxReturn() {
                   </div>
                   <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: SL }}>Sub-field total:</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: itemizedSubTotal > stdDed ? G : N }}>{fmt(itemizedSubTotal)}{itemizedSubTotal > stdDed ? ' ✓ exceeds std. ded.' : itemizedSubTotal > 0 ? ` (std. ded. ${fmt(stdDed)} is higher)` : ''}</span>
+                      <span style={{ fontSize: 12, color: SL }}>Sub-field total{medicalWasFloored ? ' (medical after 7.5% AGI floor)' : ''}:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: displayItemizedTotal > stdDed ? G : N }}>{fmt(displayItemizedTotal)}{displayItemizedTotal > stdDed ? ' ✓ exceeds std. ded.' : displayItemizedTotal > 0 ? ` (std. ded. ${fmt(stdDed)} is higher)` : ''}</span>
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
@@ -940,15 +965,33 @@ export default function TaxReturn() {
               })}
 
               {result.ebl > 0 && result.eblThreshold > 0 && (
-                <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} added back to income (threshold: {fmt(result.eblThreshold)}).
-                  Excess business losses are limited to {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}).
+                <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B', lineHeight: 1.55 }}>
+                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} of business loss is disallowed this year and added back to income — your deductible business loss is limited to the {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}) threshold.
+                  {' '}The disallowed {fmt(result.ebl)} is not lost: it carries forward as a net operating loss (NOL) to next year and can offset future income, subject to the 80% NOL limit (IRC §172(a)(2)).
+                </div>
+              )}
+
+              {/* §1231 categorization prompt: a large long-term gain entered alongside a
+                  business/rental loss that triggers an EBL add-back, while the §1231
+                  (Form 4797) field is empty, is often a property / business-asset sale
+                  recorded in the wrong bucket. §1231 gains offset business losses in the
+                  §461(l) base; plain long-term capital gains do not. Phrased as a question
+                  to avoid false positives on genuine investment (stock) gains. */}
+              {result.ebl > 0 && nf(ltGain) > 0 && nf(form4797) === 0 && (
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
+                  <strong>⚠ Is your {fmt(nf(ltGain))} long-term gain from selling business or rental property?</strong> If so it&apos;s a §1231 gain — move it to the &ldquo;Form 4797 Gains (§1231)&rdquo; field above. §1231 gains offset business losses in the excess-business-loss (§461(l)) calculation; a plain long-term capital gain does not, which can sharply inflate the {fmt(result.ebl)} add-back and your tax. Leave it here only if it&apos;s an investment gain (e.g. stocks).
                 </div>
               )}
 
               {result.nolSurplus > 0 && (
                 <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8' }}>
                   <strong>NOL carryforward:</strong> {fmt(result.nolSurplus)} remaining (80% of taxable income cap applied per IRC §172(a)(2)).
+                </div>
+              )}
+
+              {result.qbiCarryforward > 0 && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8', lineHeight: 1.55 }}>
+                  <strong>§199A QBI loss carryforward:</strong> {fmt(result.qbiCarryforward)} carries to next year and reduces your future QBI deduction base (IRC §199A(c)(2)). It does not reduce this year&apos;s tax.
                 </div>
               )}
 
@@ -1024,7 +1067,7 @@ export default function TaxReturn() {
                 </div>
               )}
               <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>
-                Due: Apr 15 · Jun 15 · Sep 15 · Jan 15
+                Due: {ESTIMATE_DUE_DATES[taxYear] || 'Apr 15 · Jun 15 · Sep 15 · Jan 15'}
               </div>
             </div>
           )}
