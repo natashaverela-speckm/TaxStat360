@@ -23,18 +23,18 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 const TEAM_ROLES = [
   {
     icon: '🏛️',
-    title: 'Former IRS Revenue Agents',
-    desc: 'Our team includes professionals who conducted field examinations of businesses, partnerships, and corporations — with direct knowledge of what the IRS looks for, how returns are selected for audit, and where the real exposure sits.',
+    title: 'IRS Examination Insight',
+    desc: 'Built around how the IRS examines businesses, partnerships, and corporations — what examiners look for, how returns are selected for audit, and where the real exposure sits.',
   },
   {
     icon: '📊',
-    title: 'Tax Compliance Specialists',
-    desc: 'Experts in tax reporting requirements across S-Corps, partnerships, LLCs, sole proprietorships, and real estate — the exact structures TaxStat360 is built to serve — ensuring every calculation reflects how the IRS actually reads these returns.',
+    title: 'Tax Compliance',
+    desc: 'Built around tax reporting requirements across S-Corps, partnerships, LLCs, sole proprietorships, and real estate — the exact structures TaxStat360 serves — so every calculation reflects how the IRS actually reads these returns.',
   },
   {
     icon: '⚖️',
-    title: 'Tax Planning Professionals',
-    desc: 'Practitioners focused on legal, proactive strategies to reduce tax liability — not year-end scrambles, but structured decisions made throughout the year, when they still have the power to change the outcome.',
+    title: 'Proactive Tax Planning',
+    desc: 'Focused on legal, proactive strategies to reduce tax liability — not year-end scrambles, but structured decisions made throughout the year, when they still have the power to change the outcome.',
   },
 ]
 
@@ -47,7 +47,7 @@ const APPROACH = [
   {
     icon: '🛡️',
     heading: 'Compliance-First Design',
-    text: 'Every calculation is built on IRS-published tax rates and rules, updated for the tax year you select. Our team knows exactly where the IRS draws lines — and we designed TaxStat360 to keep you on the right side of them.',
+    text: 'Every calculation is built on IRS-published tax rates and rules, updated for the tax year you select. TaxStat360 is designed around exactly where the IRS draws those lines — to help keep you on the right side of them.',
   },
   {
     icon: '🤝',
@@ -67,20 +67,20 @@ export default function About() {
       <section style={{ background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)', padding: '80px 24px 64px', textAlign: 'center' }}>
         <p style={EYEBROW}>About TaxStat360</p>
         <h1 style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 740, color: N }}>
-          Built by Former IRS Agents.<br />Designed for Business Owners.
+          Built on Deep IRS &amp; Tax Expertise.<br />Designed for Business Owners.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 640, margin: '0 auto', lineHeight: 1.8 }}>
-          TaxStat360 was created by a dedicated team of former IRS agents and tax professionals who spent years inside the agency — understanding exactly what triggers audits, how returns are scrutinized, and where legal tax-reduction strategies deliver the most impact.
+          TaxStat360 is built on a deep understanding of how the IRS examines returns and how the tax code rewards proactive planning — encoding what triggers audits, how returns are scrutinized, and where legal tax-reduction strategies deliver the most impact.
         </p>
       </section>
 
       {/* ─── TEAM ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '72px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
-          <p style={EYEBROW}>Our Team</p>
-          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Insider Knowledge, Built Into Every Calculation</h2>
+          <p style={EYEBROW}>The Expertise Behind It</p>
+          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Deep Tax Knowledge, Built Into Every Calculation</h2>
           <p style={{ fontSize: 14, color: '#475569', maxWidth: 600, margin: '0 auto 52px', lineHeight: 1.7 }}>
-            Our team's collective IRS and tax planning experience spans the full spectrum of compliance, examination, and proactive strategy — across the same entity structures our users operate every day.
+            TaxStat360 is built on knowledge spanning the full spectrum of IRS compliance, examination, and proactive tax strategy — across the same entity structures our users operate every day.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(272px, 1fr))', gap: 24 }}>
             {TEAM_ROLES.map((r, i) => (
@@ -98,9 +98,9 @@ export default function About() {
       <section style={{ padding: '72px 24px', background: N }}>
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <p style={{ ...EYEBROW, color: '#93b4d4' }}>Why We Built This</p>
-          <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 28 }}>The Problem We Saw Every Day Inside the IRS</h2>
+          <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 28 }}>The Problem We Set Out to Solve</h2>
           <p style={{ fontSize: 15, color: '#93b4d4', lineHeight: 1.85, marginBottom: 20 }}>
-            During our years examining business returns, one pattern appeared over and over: owners who could have legally reduced their liability by tens of thousands of dollars — but didn't — because they had no visibility into what they owed until it was April and too late to act.
+            One pattern shows up over and over in business tax: owners who could have legally reduced their liability by tens of thousands of dollars — but didn't — because they had no visibility into what they owed until it was April and too late to act.
           </p>
           <p style={{ fontSize: 15, color: '#93b4d4', lineHeight: 1.85, marginBottom: 20 }}>
             S-Corp salary-to-distribution ratios set incorrectly. QBI deductions missed. Quarterly payments underfunded. Depreciation strategies overlooked. Passive loss rules misapplied. These aren't exotic maneuvers — they're legal planning tools every business owner should be using, month by month, not once a year.
@@ -149,7 +149,7 @@ export default function About() {
         >
           {CTA_LABEL}
         </button>
-        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>No charge for 7 days · Card for verification only · Cancel anytime</p>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>No charge for 7 days · Card required · Cancel in one click</p>
       </section>
 
       {/* ─── FOOTER ───────────────────────────────────────────────────── */}
