@@ -384,6 +384,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 
   const isSCorp = isSCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
+  const isRE = isRealEstateEntity(entity.type)   // REG-01: Schedule E rental — drives entity-aware labels
   // AUDIT FIX (phantom salary on entity-type switch): the Officer Salary (W-2) field is
   // only shown for S-Corps. If an entity is switched away from S-Corp, manOfficerSal can
   // still hold a stale value — count it ONLY when the field is actually applicable, so it
@@ -427,15 +428,15 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            Gross Revenue
-            <InfoTip text="Total revenue before any deductions. For S-Corps: enter gross revenue of the entity. Do NOT net out officer salary here — enter that separately below." />
+            {isRE ? 'Rental Income (gross rents received)' : 'Gross Revenue'}
+            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total revenue before any deductions. For S-Corps: enter gross revenue of the entity. Do NOT net out officer salary here — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
-            Operating Expenses (excl. officer salary, depreciation, advertising)
-            <InfoTip text="Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below." />
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Operating Expenses (excl. officer salary, depreciation, advertising)'}
+            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
         </div>
@@ -498,13 +499,13 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>Gross Revenue</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
-            <span style={{ color: N }}>Net Profit{isPartnership ? ' → K-1 Box 1' : ''}</span>
+            <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
           </div>
         </div>
@@ -526,6 +527,15 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               <span style={{ fontWeight: 600 }}>Box 9a — Net §1231 Gain (Loss):</span>{' '}
               Enter K-1 Box 9a in the <span style={{ fontWeight: 700 }}>Capital Gains (Form 4797)</span> field in Step 2. Net §1231 gains are treated as long-term capital gain; net §1231 losses are ordinary.
             </div>
+          </div>
+        </div>
+      )}
+
+      {isRE && (
+        <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
+          <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
+          <div style={{ color: '#334155', lineHeight: 1.5 }}>
+            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer salary does not apply to rental property, so that field is hidden here.
           </div>
         </div>
       )}
@@ -670,7 +680,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>Gross Revenue</span>
+                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -684,7 +694,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
-                <span style={{ color: N }}>Net Profit</span>
+                <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}</span>
                 <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
               </div>
             </div>
