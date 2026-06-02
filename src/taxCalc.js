@@ -64,6 +64,16 @@
 // T-01 FIX (ficaSavings 92.35% SE tax factor): seEarningsOnDist uses SE_NET_EARNINGS_FACTOR.
 // T-06 FIX (mileageRate added to TAX_TABLES).
 //
+// MED-FLOOR (IRC §213(a) medical 7.5%-of-AGI floor):
+// calcTaxReturn now accepts an OPTIONAL `medicalExpenses` input (raw, pre-floor).
+// When provided, only the portion above 7.5% of AGI (figured before the itemized
+// deduction) is added to the itemized total; the result object exposes
+// `deductibleMedical` so the UI can display the floored amount. When omitted, the
+// itemized total is unchanged, so all existing callers and tests are unaffected.
+// Previously TaxReturn.jsx summed raw medical into itemizedAmt and the tooltip
+// claimed the floor was "applied automatically" — it was not, overstating itemized
+// deductions in any positive-AGI year. This fix makes that true.
+//
 // PASS4B-02b-fix (§1368 income-entity distribution gap):
 // The non-limiting branch of the entityBasisResults pass previously omitted
 // stockBasis / debtBasis from the pushed result object. For profitable entities
@@ -493,7 +503,7 @@ function calcTaxReturn(input) {
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
-    useItemized, itemizedAmt, saltAmount,
+    useItemized, itemizedAmt, saltAmount, medicalExpenses,
     hasISO, isoBargainElement,
     isREP,
     isActiveParticipant = true,
@@ -782,12 +792,27 @@ function calcTaxReturn(input) {
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
 
   const stdDed    = getStdDed(taxYear, status)
-  const itemized  = nv(itemizedAmt)
-  const deduction = useItemized ? Math.max(stdDed, itemized) : stdDed
 
   // _ltGain used here and throughout — includes §1368 distribution cap gain.
   const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + _ltGain
     + unrec1250 + collectibles + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
+
+  // ── MED-FLOOR: Medical expense 7.5%-of-AGI floor — IRC §213(a) ─────────────
+  // Only medical/dental expenses ABOVE 7.5% of AGI are deductible. The floor is
+  // applied against AGI figured BEFORE the itemized deduction (Form 1040 line 11
+  // precedes Schedule A), which is grossIncomeBeforeNOL − adjustments. The optional
+  // NOL deduction's effect on that AGI is a second-order, rarely-co-occurring case
+  // and is intentionally NOT fed back here, to avoid a medical↔NOL circular
+  // dependency. `medicalExpenses` is an OPTIONAL input: when omitted (every existing
+  // caller/test, and any caller that pre-sums medical into itemizedAmt), rawMedical
+  // and deductibleMedical are 0 and the itemized total is unchanged — fully
+  // backward compatible. TaxReturn.jsx now passes medical here (raw) instead of
+  // pre-summing it into itemizedAmt, so the floor the tooltip promises is real.
+  const floorAGI          = grossIncomeBeforeNOL - adjustments
+  const rawMedical        = Math.max(0, nv(medicalExpenses))
+  const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
+  const itemized          = nv(itemizedAmt) + deductibleMedical
+  const deduction         = useItemized ? Math.max(stdDed, itemized) : stdDed
 
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction)
   const priorNOL         = Math.max(0, nv(nolCarryforward))
@@ -994,7 +1019,7 @@ function calcTaxReturn(input) {
     employeeFICA, totalW2ForFICA,
     ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
-    stdDed, itemized, deduction,
+    stdDed, itemized, deduction, deductibleMedical,
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
     qbi, qbiLimitApplied, qbiCaps,
