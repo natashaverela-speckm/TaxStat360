@@ -7,7 +7,7 @@ import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, r
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, ownPct, getEntityNetProfit } from './utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
 
 
@@ -27,13 +27,26 @@ function getTotalW2(rec) {
 
 function getEntityIncomeSplit(rec) {
   const entities = Array.isArray(rec?.entities) ? rec.entities : []
+  const shareOf = (e) => Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
+  // AI-MAP-01 FIX (Schedule Map mislabeled the full loss as "S-Corp Box 1"):
+  // sCorp previously meant "everything that isn't Schedule C or C-corp", which
+  // lumped partnerships AND Real Estate (Schedule E) rentals into the S-Corp
+  // bucket. The Schedule Map then labeled the combined figure as the S-Corp
+  // K-1 Box 1 share. Bucket each entity by its actual type so the map can label
+  // S-corp K-1, partnership K-1, and Schedule E rental income separately.
   const sCorp = entities
-    .filter(e => !isScheduleCType(e?.type) && !isCCorpEntity(e?.type))
-    .reduce((s, e) => s + Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100), 0)
+    .filter(e => isSCorpEntity(e?.type))
+    .reduce((s, e) => s + shareOf(e), 0)
+  const partnership = entities
+    .filter(e => !isSCorpEntity(e?.type) && !isScheduleCType(e?.type) && !isCCorpEntity(e?.type) && !isRealEstateEntity(e?.type))
+    .reduce((s, e) => s + shareOf(e), 0)
+  const realEstate = entities
+    .filter(e => isRealEstateEntity(e?.type))
+    .reduce((s, e) => s + shareOf(e), 0)
   const scheduleC = entities
     .filter(e => isScheduleCType(e?.type))
-    .reduce((s, e) => s + Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100), 0)
-  return { sCorp, scheduleC }
+    .reduce((s, e) => s + shareOf(e), 0)
+  return { sCorp, partnership, realEstate, scheduleC }
 }
 
 function Logo() {
@@ -150,6 +163,20 @@ function getRecord(liveState) {
   return null
 }
 
+// AI-DEP-01: total depreciation entered across all entities. Depreciation is
+// stored per-entity in pnl.depreciation; the flattened biz.depreciation scalar
+// only carries the first entity's value, so any check that read biz.depreciation
+// alone falsely reported "no depreciation" for multi-entity records or records
+// whose depreciation lives on a non-first entity. Sum across entities, then fall
+// back to the flattened scalar for legacy single-entity records.
+function recDepreciation(rec) {
+  if (!rec) return 0
+  const fromEntities = (Array.isArray(rec.entities) ? rec.entities : [])
+    .reduce((s, e) => s + (parseFloat(e?.pnl?.depreciation) || 0), 0)
+  if (fromEntities > 0) return fromEntities
+  return parseFloat(rec.biz?.depreciation || 0) || 0
+}
+
 function completeness(rec) {
   if (!rec) return 0
   let s = 30
@@ -161,7 +188,7 @@ function completeness(rec) {
   if (getTotalW2(rec) > 0) s += 10
   if (parseFloat(b.officerSalary) > 0) s += 5
   if (parseFloat(b.operatingExpenses) > 0 || hasK1Data) s += 5
-  if (parseFloat(b.depreciation) > 0) s += 5
+  if (recDepreciation(rec) > 0) s += 5
   if (parseFloat(f.estPaid) > 0) s += 10
   return Math.min(s, 98)
 }
@@ -175,7 +202,7 @@ function missingFields(rec) {
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
   if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
   if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
-  if (!(parseFloat(b.depreciation) > 0)) missing.push('depreciation')
+  if (!(recDepreciation(rec) > 0)) missing.push('depreciation')
   return missing
 }
 
@@ -209,7 +236,8 @@ function RiskScan({ rec }) {
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
-  const dep = parseFloat(b.depreciation || 0) || 0
+  // AI-DEP-01: aggregate depreciation across all entities (see recDepreciation).
+  const dep = recDepreciation(rec)
   const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
 
@@ -482,7 +510,7 @@ function TaxOptimization({ rec }) {
   const b = rec.biz || {}, f = rec.f1040 || {}
   const revenue = parseFloat(b.grossRevenue) || 0
   const opExp = parseFloat(b.operatingExpenses) || 0
-  const dep = parseFloat(b.depreciation) || 0
+  const dep = recDepreciation(rec)   // AI-DEP-01: aggregate across entities
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   const totalOfficerSalary = Math.max(
     sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0),
@@ -680,22 +708,33 @@ function IRSCompliance({ rec }) {
   const year = parseInt(b.year) || 2025
   const today = new Date()
 
-  const { sCorp: sCorpK1Amount, scheduleC: scheduleCAmount } = getEntityIncomeSplit(rec)
-  const hasScheduleC = scheduleCAmount !== 0 || isScheduleCType(entity)
-  const hasSCorpK1 = sCorpK1Amount !== 0 || isSCorpEntity(entity)
+  const { sCorp: sCorpK1Amount, partnership: partnershipK1Amount, realEstate: realEstateAmount, scheduleC: scheduleCAmount } = getEntityIncomeSplit(rec)
+  const entities = Array.isArray(rec?.entities) ? rec.entities : []
+  const hasScheduleC = scheduleCAmount !== 0 || isScheduleCType(entity) || entities.some(e => isScheduleCType(e?.type))
+  // AI-MAP-01: detect each entity class from the actual entities array (not just
+  // the first entity's type), so a multi-entity record maps every form correctly.
+  const hasSCorpK1 = entities.some(e => isSCorpEntity(e?.type)) || isSCorpEntity(entity)
+  const hasPartnershipK1 = entities.some(e => !isSCorpEntity(e?.type) && !isScheduleCType(e?.type) && !isCCorpEntity(e?.type) && !isRealEstateEntity(e?.type)) || /partnership|multi.?member|mmllc/i.test(entity || '')
+  const hasRealEstate = entities.some(e => isRealEstateEntity(e?.type)) || isRealEstateEntity(entity)
 
   const schedules = []
 
   schedules.push({ form: 'Form 1040', title: 'U.S. Individual Income Tax Return', status: 'required', detail: 'Your main personal tax return. All income sources flow here — W-2, K-1, Schedule E, Schedule C.', deadline: `April 15, ${year + 1}` })
 
-  if (isSCorpEntity(entity) || hasSCorpK1) {
+  if (hasSCorpK1) {
     schedules.push({ form: 'Form 1120-S', title: 'S-Corporation Tax Return', status: 'required', detail: `Your S-Corp files its own informational return showing income, deductions, and K-1 allocations to shareholders.`, deadline: `March 15, ${year + 1}` })
-    schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(sCorpK1Amount || k1)} share of S-Corp ordinary business income (Box 1) flows to your personal return via this form. Your K-1 figures are reported on Schedule E, Part II — keep your K-1 as supporting documentation. The IRS does not require you to physically attach it to your 1040.`, deadline: `Issued with Form 1120-S` })
+    schedules.push({ form: 'Schedule K-1 (1120-S)', title: 'Shareholder Share of Income', status: 'required', detail: `Your ${fmt(sCorpK1Amount)} share of S-Corp ordinary business income (Box 1) flows to your personal return via this form. Your K-1 figures are reported on Schedule E, Part II — keep your K-1 as supporting documentation. The IRS does not require you to physically attach it to your 1040.`, deadline: `Issued with Form 1120-S` })
     schedules.push({ form: 'Schedule E (Part II)', title: 'Supplemental Income — S-Corp K-1', status: 'required', detail: 'Reports your K-1 income on your personal return. Passive vs. active participation rules apply.', deadline: 'Filed with Form 1040' })
   }
-  if (/partnership|multi.?member|mmllc/i.test(entity || '')) {
+  if (hasPartnershipK1) {
     schedules.push({ form: 'Form 1065', title: 'Partnership Return', status: 'required', detail: 'Partnership or multi-member LLC files this informational return. Issues K-1s to each partner/member.', deadline: `March 15, ${year + 1}` })
-    schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: 'Your distributive share of partnership income, deductions, and credits. Reported on Schedule E, Part II — keep your K-1 as supporting documentation; the IRS does not require attaching it to your 1040.', deadline: 'Issued with Form 1065' })
+    schedules.push({ form: 'Schedule K-1 (1065)', title: 'Partner Share of Income', status: 'required', detail: `Your ${fmt(partnershipK1Amount)} distributive share of partnership income, deductions, and credits. Reported on Schedule E, Part II — keep your K-1 as supporting documentation; the IRS does not require attaching it to your 1040.`, deadline: 'Issued with Form 1065' })
+  }
+  if (hasRealEstate) {
+    schedules.push({ form: 'Schedule E (Part I)', title: 'Rental Real Estate Income (Loss)', status: 'required', detail: `Your ${fmt(realEstateAmount)} net rental real estate ${realEstateAmount < 0 ? 'loss' : 'income'} is reported here. Rental losses are passive under IRC §469 and suspended (carried forward on Form 8582) unless you qualify as a real estate professional (§469(c)(7)) or use the §469(i) $25,000 active-participation allowance.`, deadline: 'Filed with Form 1040' })
+    if (realEstateAmount < 0) {
+      schedules.push({ form: 'Form 8582', title: 'Passive Activity Loss Limitations', status: 'required', detail: 'Computes the allowed and suspended portions of passive rental losses (IRC §469). Suspended losses carry forward to future years.', deadline: 'Filed with Form 1040' })
+    }
   }
 
   if (isScheduleCType(entity) || hasScheduleC) {
@@ -782,7 +821,7 @@ function IRSCompliance({ rec }) {
     }
   }
 
-  if ((parseFloat(String(b.depreciation || '').replace(/,/g, '')) || 0) > 0) {
+  if (recDepreciation(rec) > 0) {
     schedules.push({ form: 'Form 4562', title: 'Depreciation and Amortization', status: 'required', detail: 'Reports depreciation deductions for business assets and rental property.', deadline: 'Filed with Form 1040' })
   }
 
@@ -898,7 +937,7 @@ function ReportModal({ onClose, rec }) {
               ['Gross Revenue', b.grossRevenue ? '$' + parseFloat(b.grossRevenue).toLocaleString() : ''],
               ['Total Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
               ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
-              ['K-1 Ordinary Income (Box 1)', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
+              ['Net Pass-Through / Schedule E Income', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               ['W-2 Income', totalW2 > 0 ? '$' + totalW2.toLocaleString() : ''],
               ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
@@ -1007,19 +1046,31 @@ function BriefingModal({ onClose, rec }) {
       : `No estimated payments are on file. With ${fmt(totalIncome)} of income, quarterly estimates are likely required — approximately ${fmt(quarterly)} per quarter (due Apr 15, Jun 15, Sep 15, Jan 15) — to avoid §6654 underpayment penalties.`)
   }
   const gather = []
-  if (!(num(b.depreciation) > 0)) gather.push('depreciation / §179 on business assets')
+  if (!(recDepreciation(rec) > 0)) gather.push('depreciation / §179 on business assets')
   if (estPay === 0) gather.push('estimated payments made year-to-date')
   if (gather.length) points.push(`To complete the picture before filing, gather: ${gather.join('; ')}.`)
   if (points.length === 0) points.push('No significant planning flags surfaced from the data entered. Review the figures below with your CPA to confirm completeness.')
 
   const sign = (v) => (v < 0 ? '−' + fmt(Math.abs(v)) : fmt(v))
+  // AI-MAP-01: split the aggregate K-1 into its true components so the briefing
+  // does not label Schedule E rental net as "K-1 ordinary income (Box 1)".
+  const { sCorp: _bSCorp, partnership: _bPartner, realEstate: _bRealEstate } = getEntityIncomeSplit(rec)
+  const _hasEntitySplit = (Array.isArray(rec.entities) ? rec.entities : []).length > 0
   const incomeRows = [
     ['Gross revenue', num(b.grossRevenue)],
     ['Total expenses', num(b.operatingExpenses)],
     ['Officer W-2 salary', officerSal],
-    ['K-1 ordinary income (Box 1)', k1],
+    // When we have the entity breakdown, show S-corp / partnership / rental on
+    // their own lines; otherwise fall back to the single aggregate K-1 figure.
+    ...(_hasEntitySplit
+      ? [
+          ['S-Corp K-1 ordinary income (Box 1)', _bSCorp],
+          ['Partnership K-1 income', _bPartner],
+          ['Rental real estate net (Schedule E)', _bRealEstate],
+        ]
+      : [['K-1 ordinary income (Box 1)', k1]]),
     ['W-2 wages', w2],
-    ['Rental net', rentalNet],
+    ['Rental net (Step 2)', rentalNet],
     ['Interest & dividends', interest + dividends],
   ].filter(([, v]) => v && v !== 0)
 
