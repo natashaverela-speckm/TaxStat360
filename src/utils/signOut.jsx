@@ -27,6 +27,7 @@ const AUTH_KEYS = [
   'ts360_session_start',
   'ts360_email',
   'ts360_email_verified',
+  'ts360_email_confirmed_ack',
   'pendingEmail',
   'ts360_login_history',
   'ts360_plan',

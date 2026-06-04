@@ -1,16 +1,61 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { API_BASE_URL } from '../constants.js'
 
 const B = '#2563EB'
 const N = '#0D1B3E'
+const CONFIRMED_ACK_KEY = 'ts360_email_confirmed_ack'
 
-export default function EmailVerificationBanner({ email, verified, onVerified, onEmailUpdated }) {
+const linkBtn = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  color: B,
+  fontWeight: 600,
+  fontSize: 'inherit',
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  fontFamily: 'inherit',
+}
+
+export default function EmailVerificationBanner({ email, verified, onEmailUpdated }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState(email || '')
 
-  if (!email || verified) return null
+  const showConfirmedAck = () => localStorage.getItem(CONFIRMED_ACK_KEY) === '1'
+
+  useEffect(() => {
+    if (!verified || showConfirmedAck()) return
+    const markSeen = () => localStorage.setItem(CONFIRMED_ACK_KEY, '1')
+    window.addEventListener('beforeunload', markSeen)
+    return () => {
+      markSeen()
+      window.removeEventListener('beforeunload', markSeen)
+    }
+  }, [verified])
+
+  if (!email) return null
+
+  if (verified) {
+    if (showConfirmedAck()) return null
+    return (
+      <div
+        style={{
+          background: '#ECFDF5',
+          borderBottom: '1px solid #A7F3D0',
+          padding: '10px 16px',
+          fontSize: 13,
+          color: '#065F46',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          lineHeight: 1.5,
+          zIndex: 60,
+        }}
+      >
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>✓ Your email is confirmed.</div>
+      </div>
+    )
+  }
 
   async function resend() {
     setBusy(true)
@@ -25,7 +70,7 @@ export default function EmailVerificationBanner({ email, verified, onVerified, o
         const data = await res.json().catch(() => ({}))
         throw new Error(data.detail || 'Could not resend email')
       }
-      setMsg('Confirmation email sent — check your inbox (and spam).')
+      setMsg(`✓ Verification email sent again to ${email}. Check your inbox (and spam).`)
     } catch (e) {
       setMsg(e.message || 'Could not resend email')
     } finally {
@@ -55,7 +100,7 @@ export default function EmailVerificationBanner({ email, verified, onVerified, o
       localStorage.removeItem('ts360_email_verified')
       onEmailUpdated?.(next)
       setEditing(false)
-      setMsg(`We sent a confirmation link to ${next}.`)
+      setMsg(`✓ Verification email sent again to ${next}. Check your inbox (and spam).`)
     } catch (err) {
       setMsg(err.message || 'Could not update email')
     } finally {
@@ -76,49 +121,25 @@ export default function EmailVerificationBanner({ email, verified, onVerified, o
         zIndex: 60,
       }}
     >
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>
-          We sent a confirmation link to <strong>{email}</strong>. Please confirm your email so we can reach you about your account.
-        </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          {!editing ? (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={resend}
-                style={{
-                  padding: '6px 12px',
-                  background: B,
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: busy ? 'wait' : 'pointer',
-                }}
-              >
-                {busy ? 'Sending…' : 'Resend email'}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => { setEditing(true); setNewEmail(email); setMsg('') }}
-                style={{
-                  padding: '6px 12px',
-                  background: '#fff',
-                  color: B,
-                  border: `1px solid ${B}`,
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                }}
-              >
-                Update email
-              </button>
-            </>
-          ) : (
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        {!editing ? (
+          <span>
+            📧 Please confirm your email. We sent a verification link to <strong>{email}</strong>.
+            {' '}Wrong address?{' '}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { setEditing(true); setNewEmail(email); setMsg('') }}
+              style={linkBtn}
+            >
+              Update it
+            </button>
+            {' · '}
+            <button type="button" disabled={busy} onClick={resend} style={linkBtn}>
+              {busy ? 'Sending…' : 'Resend'}
+            </button>
+          </span>
+        ) : (
             <form onSubmit={updateEmail} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               <input
                 type="email"
@@ -140,10 +161,13 @@ export default function EmailVerificationBanner({ email, verified, onVerified, o
                 Cancel
               </button>
             </form>
-          )}
-        </div>
+        )}
       </div>
-      {msg ? <p style={{ margin: '8px 0 0', fontSize: 12, color: '#475569', maxWidth: 1200, marginLeft: 'auto', marginRight: 'auto' }}>{msg}</p> : null}
+      {msg ? (
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#475569', maxWidth: 1200 }}>
+          {msg}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -162,6 +186,7 @@ export async function fetchVerificationStatus(email) {
       const data = await res.json()
       if (data.verified) {
         localStorage.setItem('ts360_email_verified', '1')
+        localStorage.removeItem(CONFIRMED_ACK_KEY)
         return { verified: true, email: data.email || email }
       }
       return { verified: false, email: data.email || email }
