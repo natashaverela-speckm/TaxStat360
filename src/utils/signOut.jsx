@@ -26,6 +26,8 @@ const AUTH_KEYS = [
   'ts360_session',
   'ts360_session_start',
   'ts360_email',
+  'ts360_email_verified',
+  'pendingEmail',
   'ts360_login_history',
   'ts360_plan',
   // Legacy non-prefixed keys written by older code paths
