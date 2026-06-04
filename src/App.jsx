@@ -14,6 +14,7 @@ import Upgrade from './Upgrade'
 import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
+import EmailVerificationBanner, { fetchVerificationStatus } from './components/EmailVerificationBanner'
 import { API_BASE_URL } from './constants.js'
 import { refreshPlanFromServer } from './LockedFeature'
 // AF-02: Resources / blog section for organic SEO traffic
@@ -114,10 +115,22 @@ function RequireAuth({ children }) {
   // or if /auth/me doesn't exist yet. The state bump re-renders gated UI once
   // the server's answer lands.
   const [, setPlanChecked] = useState(0)
+  const [verifyState, setVerifyState] = useState({ email: '', verified: true })
   useEffect(() => {
     if (!sessionOk) return
     let active = true
     refreshPlanFromServer().then(() => { if (active) setPlanChecked(n => n + 1) })
+    return () => { active = false }
+  }, [sessionOk])
+
+  useEffect(() => {
+    if (!sessionOk) return
+    const email = (localStorage.getItem('ts360_email') || '').trim().toLowerCase()
+    if (!email) return
+    let active = true
+    fetchVerificationStatus(email).then((s) => {
+      if (active) setVerifyState({ email: s.email || email, verified: !!s.verified })
+    })
     return () => { active = false }
   }, [sessionOk])
 
@@ -148,6 +161,11 @@ function RequireAuth({ children }) {
 
   return (
     <ErrorBoundary>
+      <EmailVerificationBanner
+        email={verifyState.email}
+        verified={verifyState.verified}
+        onEmailUpdated={(next) => setVerifyState({ email: next, verified: false })}
+      />
       {children}
       <AuthFooter />
     </ErrorBoundary>

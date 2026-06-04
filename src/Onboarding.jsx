@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 // SEC-01 FIX: Stripe live key moved to environment variable (VITE_STRIPE_PK).
 //   Was: const PK='pk_live_51TJmYh...' hardcoded in source.
 //   Now: reads from import.meta.env.VITE_STRIPE_PK.
@@ -144,7 +144,9 @@ if(error)throw new Error(error.message)
 const reg=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password:pass,plan,payment_method_id:setupIntent.payment_method})})
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
+if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
 localStorage.setItem('ts360_email',email)
+localStorage.removeItem('ts360_email_verified')
 localStorage.setItem('ts360_logged_in','1')
 localStorage.setItem('ts360_session_start', String(Date.now()))
 localStorage.setItem('plan',plan)
@@ -332,15 +334,64 @@ and CPA compatibility (not replacing their advisor). */}
 
 function VerifyEmailScreen(){
   const nav=useNavigate()
+  const [searchParams]=useSearchParams()
+  const token=searchParams.get('token')||''
+  const emailParam=searchParams.get('email')||''
+  const [status,setStatus]=useState(token&&emailParam?'loading':'ready')
+  const [err,setErr]=useState('')
+
+  useEffect(()=>{
+    if(!token||!emailParam)return
+    window.history.replaceState(null,'','/verify-email')
+    let cancelled=false
+    ;(async()=>{
+      try{
+        const res=await fetch(API+`/auth/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(emailParam)}`)
+        const data=await res.json().catch(()=>({}))
+        if(!res.ok)throw new Error(data.detail||'Verification failed')
+        if(!cancelled){
+          localStorage.setItem('ts360_email',emailParam)
+          localStorage.setItem('ts360_email_verified','1')
+          setStatus('verified')
+        }
+      }catch(e){
+        if(!cancelled){setStatus('error');setErr(e.message||'Invalid or expired link')}
+      }
+    })()
+    return()=>{cancelled=true}
+  },[token,emailParam])
+
+  if(status==='loading')return(<Page><LOGO/><p style={{color:SL,textAlign:'center'}}>Confirming your email…</p></Page>)
+  if(status==='verified')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
+    <div style={{fontSize:48,marginBottom:16}}>✅</div>
+    <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
+    <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
+    <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
+  </div></Page>)
+  if(status==='error')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
+    <p style={{color:'#DC2626',marginBottom:16}}>{err}</p>
+    <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to app →</button>
+  </div></Page>)
+
+  const displayEmail=localStorage.getItem('ts360_email')||localStorage.getItem('pendingEmail')||''
   return(<Page>
     <LOGO/>
     <div style={{textAlign:'center',padding:'20px 0'}}>
       <div style={{fontSize:48,marginBottom:16}}>✅</div>
       <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>You're all set!</h2>
-      <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Your TaxStat360 account is ready. Let's finish setting up your profile.</p>
+      <p style={{color:SL,fontSize:14,margin:'0 0 12px',lineHeight:1.6}}>Your TaxStat360 account is ready. Let's finish setting up your profile.</p>
+      {displayEmail?(
+        <p style={{color:SL,fontSize:13,margin:'0 0 20px',lineHeight:1.6,background:'#F8FAFC',padding:'10px 12px',borderRadius:8}}>
+          We sent a confirmation link to <strong>{displayEmail}</strong>. Check your inbox to confirm — you can still use the app without verifying.
+        </p>
+      ):null}
       <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
     </div>
   </Page>)
+}
+
+function isValidSession(){
+  return localStorage.getItem('ts360_logged_in')==='1'
 }
 
 function LoginScreen(){
@@ -367,6 +418,7 @@ if (!actualEmail || !actualPass) { setErr('Please enter your email and password.
 const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actualEmail,password:actualPass})})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
+if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
 const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
 const rawPlan = data.plan || 'starter'
 const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
