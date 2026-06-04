@@ -383,7 +383,7 @@ function VerifyEmailScreen(){
       <p style={{color:SL,fontSize:14,margin:'0 0 12px',lineHeight:1.6}}>Your TaxStat360 account is ready. Let's finish setting up your profile.</p>
       {displayEmail?(
         <p style={{color:SL,fontSize:13,margin:'0 0 20px',lineHeight:1.6,background:'#F8FAFC',padding:'10px 12px',borderRadius:8}}>
-          📧 Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. You can still continue into the app without verifying.
+          📧 Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. Check your inbox (and junk/spam). You can still continue into the app without verifying.
         </p>
       ):null}
       <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
