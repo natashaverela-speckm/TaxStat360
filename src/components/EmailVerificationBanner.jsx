@@ -70,7 +70,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
         const data = await res.json().catch(() => ({}))
         throw new Error(data.detail || 'Could not resend email')
       }
-      setMsg(`✓ Verification email sent again to ${email}. Check your inbox (and spam).`)
+      setMsg(`✓ Verification email sent again to ${email}. Check your inbox (and junk/spam).`)
     } catch (e) {
       setMsg(e.message || 'Could not resend email')
     } finally {
@@ -100,7 +100,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
       localStorage.removeItem('ts360_email_verified')
       onEmailUpdated?.(next)
       setEditing(false)
-      setMsg(`✓ Verification email sent again to ${next}. Check your inbox (and spam).`)
+      setMsg(`✓ Verification email sent again to ${next}. Check your inbox (and junk/spam).`)
     } catch (err) {
       setMsg(err.message || 'Could not update email')
     } finally {
@@ -124,7 +124,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         {!editing ? (
           <span>
-            📧 Please confirm your email. We sent a verification link to <strong>{email}</strong>.
+            📧 Please confirm your email. We sent a verification link to <strong>{email}</strong>. Check your inbox (and junk/spam).
             {' '}Wrong address?{' '}
             <button
               type="button"
