@@ -102,7 +102,7 @@ export default function Settings() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ new_email: emailInput })
+        body: JSON.stringify({ email, new_email: emailInput })
       })
       if (res.ok) {
         setEmailSent(true)
