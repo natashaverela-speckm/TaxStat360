@@ -1165,6 +1165,7 @@ export {
   calcQBI,
   QBI_THRESHOLDS,
   QBI_PHASE_IN_RANGE,
+  QBI_MIN_DEDUCTION,
   nv,
   calcTaxReturn,
 }
