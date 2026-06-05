@@ -878,8 +878,18 @@ function calcTaxReturn(input) {
   const rentalQbiContribution = effectiveIsREP ? palAdjustedRental : Math.max(0, palAdjustedRental)
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - priorQBILossCO + k1FallbackForQBI
 
-  // Use _ltGain for QBI capital gains ceiling (§199A(a)(2))
-  const prefIncome = _ltGain + qualDiv
+  // §1231 FIX (IRC §1231(a)(1)): a NET §1231 gain (positive f4797Inc) is long-term
+  // capital gain taxed at 0/15/20%, not ordinary rates. A net §1231 LOSS (negative
+  // f4797Inc) stays ordinary (§1231(a)(2)) and remains in ordinary income via
+  // grossIncomeBeforeNOL — only the positive portion is reclassified as preferential.
+  // Consistent with the EBL block (#11), which already nets f4797Inc as a business
+  // capital gain. This field must carry NET §1231 capital amounts ONLY — any ordinary
+  // Form 4797 recapture (§1245 / ordinary §1250) must be split out upstream, not here.
+  const f4797NetGain = Math.max(0, nv(f4797Inc))
+
+  // Use _ltGain for QBI capital gains ceiling (§199A(a)(2)); net §1231 gain is also
+  // "net capital gain" for §199A(a)(2), so it reduces the 20%-of-taxable-income ceiling.
+  const prefIncome = _ltGain + qualDiv + f4797NetGain
 
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
@@ -895,8 +905,10 @@ function calcTaxReturn(input) {
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
 
-  // Use _ltGain throughout capital gain computations
-  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles
+  // Use _ltGain throughout capital gain computations.
+  // §1231 FIX: f4797NetGain (net §1231 gain) is included so it is removed from
+  // ordinaryTaxableIncome below and taxed at LTCG (0/15/20%) rates, not ordinary rates.
+  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles + f4797NetGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
   const taxableIncome         = taxableAfterQBI
@@ -918,7 +930,10 @@ function calcTaxReturn(input) {
   // after the prior buckets. The buckets' rate ordering is preserved by
   // calcPreferentialTax; this only bounds the inputs so they sum to ≤ taxable income.
   let _prefRoom = taxableAfterQBI
-  const _ltcgClamped         = Math.min(Math.max(0, _ltGain),   _prefRoom); _prefRoom -= _ltcgClamped
+  // §1231 FIX: net §1231 gain joins the regular LTCG bucket (0/15/20%) — NOT §1250 (25%)
+  // or collectibles (28%). Clamped together with _ltGain so the combined preferential
+  // base never exceeds taxable income (§1(h) Qualified Dividends & Cap Gain worksheet).
+  const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797NetGain, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, qualDiv),   _prefRoom); _prefRoom -= _qualDivClamped
   const _unrecap1250Clamped  = Math.min(unrec1250,              _prefRoom); _prefRoom -= _unrecap1250Clamped
   const _collectiblesClamped = Math.min(collectibles,          _prefRoom); _prefRoom -= _collectiblesClamped
@@ -966,7 +981,9 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome, qbi, saltAmount: nv(saltAmount),
     isoBargainElement: hasISO ? nv(isoBargainElement) : 0,
-    ltGain: _ltGain, qualDiv, regularTax: fedTax, status, taxYear,
+    // §1231 FIX: net §1231 gain is preferential inside AMT too — carved out of the
+    // 26/28% AMTI base so it is taxed at cap-gains rates, matching its regular treatment.
+    ltGain: _ltGain + f4797NetGain, qualDiv, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
 
