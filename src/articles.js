@@ -7,7 +7,7 @@
 // Adding a new article: append an object to ARTICLES following the same
 // schema. The Article.jsx template renders any entry automatically.
 
-import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
+import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION } from './taxCalc.js'
 
 // ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
 // Indexed dollar figures quoted in article prose are bound to the engine's
@@ -17,12 +17,19 @@ import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
 // tax year; when 2026's figures are corrected in taxCalc.js the prose follows
 // automatically — there is no second place to update.
 //
-// Bound here: Social Security wage base, §199A phase-in thresholds, and the
-// §199A SSTB / wage-limit phase-out ceilings (threshold + phase-in range).
-// NOT yet bound (separate decisions — see handoff): the §199A $400 minimum
-// deduction (QBI_MIN_DEDUCTION is not exported from taxCalc.js) and the §6654
-// estimated-tax penalty rate (no source-of-truth constant exists; it moves
-// quarterly with the federal short-term rate).
+// Bound here: Social Security wage base, §199A phase-in thresholds, the §199A
+// SSTB / wage-limit phase-out ceilings (threshold + phase-in range), and the
+// §199A $400 minimum deduction.
+//
+// Requires taxCalc.js to export QBI_MIN_DEDUCTION (added alongside this change).
+// Note: the $400 minimum is itself inflation-indexed in $5 increments after 2026
+// (OBBBA §70101), so adding 2027+ keys to QBI_MIN_DEDUCTION will roll this prose
+// forward automatically once the article's worked-year is advanced.
+//
+// NOT bound by design: the §6654 estimated-tax penalty rate. It resets quarterly
+// with the federal short-term rate (it was 7% in Q1 2026, 6% in Q2), so there is
+// no stable value to bind. The prose describes the mechanic instead of quoting a
+// figure that goes stale within a quarter.
 const _ssWageBase2026 = getTable(2026).ssWageBase            // 184500
 const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201775, mfj:403500, ... }
 const _qbiPhaseIn2026 = QBI_PHASE_IN_RANGE[2026]             // { single:75000,  mfj:150000, ... }
@@ -30,6 +37,7 @@ const _qbiCeil2026 = {                                       // full phase-out =
   single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276775
   mfj:    _qbiThresh2026.mfj    + _qbiPhaseIn2026.mfj,        // 553500
 }
+const _qbiMin2026 = QBI_MIN_DEDUCTION[2026]                  // 400
 const usd = (n) => '$' + Math.round(n).toLocaleString('en-US')
 
 export const ARTICLES = [
@@ -118,7 +126,7 @@ TaxStat360's ReasonableCompIndicator flags when your officer salary falls below 
     sections: [
       {
         heading: 'What the §199A Deduction Is',
-        body: `The Tax Cuts and Jobs Act of 2017 created IRC §199A, which allows eligible taxpayers to deduct up to 20% of their Qualified Business Income (QBI) from a pass-through entity — an S-Corporation, partnership, LLC, or sole proprietorship. The One Big Beautiful Bill Act of 2025 (P.L. 119-21) made this deduction permanent and added a $400 minimum deduction for 2026 onward.
+        body: `The Tax Cuts and Jobs Act of 2017 created IRC §199A, which allows eligible taxpayers to deduct up to 20% of their Qualified Business Income (QBI) from a pass-through entity — an S-Corporation, partnership, LLC, or sole proprietorship. The One Big Beautiful Bill Act of 2025 (P.L. 119-21) made this deduction permanent and added a ${usd(_qbiMin2026)} minimum deduction for 2026 onward.
 
 For an S-Corp owner with $200,000 of QBI taxed at the 24% marginal rate, a full QBI deduction is worth $200,000 × 20% × 24% = $9,600 in federal income tax savings. For a taxpayer in the 32% bracket, the same deduction saves $12,800.
 
@@ -160,7 +168,7 @@ Third, entity structuring: a C-Corp generates no QBI and cannot pass through the
         heading: 'How TaxStat360 Handles the QBI Calculation',
         body: `TaxStat360 computes the §199A deduction using the 2026 thresholds updated for P.L. 119-21 and applies all three limitation rules simultaneously: the SSTB phase-out, the W-2/UBIA wage limitation, and the taxable income ceiling. The deduction is shown as a separate line in the Tax Waterfall so you can see exactly what it's worth in the context of your full income picture.
 
-The §199A $400 minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than $400, TaxStat360 uses $400 as the floor. Enter your K-1 Box 17V (W-2 wages), Box 17W (UBIA), and the SSTB checkbox to see the full computation.`,
+The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Enter your K-1 Box 17V (W-2 wages), Box 17W (UBIA), and the SSTB checkbox to see the full computation.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'passive-activity-loss-rules'],
@@ -181,7 +189,7 @@ The §199A $400 minimum deduction (new for 2026) is also applied: if the calcula
         heading: 'Why Business Owners Pay Quarterly',
         body: `W-2 employees have taxes withheld from every paycheck. Business owners — S-Corp shareholders, partners, and sole proprietors — generally do not. The IRS expects taxes on business income to be paid throughout the year, not in a lump sum on April 15.
 
-IRC §6654 imposes an underpayment penalty when a taxpayer does not pay enough tax through withholding and estimated payments during the year. The penalty is calculated as the federal short-term rate plus 3 percentage points, applied to the underpaid amount for the period of underpayment. In 2026, that rate is approximately 7–8% annualized — not catastrophic, but entirely avoidable.
+IRC §6654 imposes an underpayment penalty when a taxpayer does not pay enough tax through withholding and estimated payments during the year. The penalty is calculated as the federal short-term rate plus 3 percentage points, applied to the underpaid amount for the period of underpayment. Because the IRS resets that rate every quarter to track prevailing interest rates, the exact figure shifts through the year — it has run in the mid-to-high single digits in recent years — but the penalty is entirely avoidable.
 
 The four standard due dates: April 15 (Q1), June 15 (Q2), September 15 (Q3), and January 15 of the following year (Q4). Missing a due date means the underpayment penalty accrues from that date forward, even if you pay in full by the next quarter.`,
       },
