@@ -301,7 +301,7 @@ function LandingAtSection({ sectionId }) {
 // ─── Route-level page titles ──────────────────────────────────────────────────
 const ROUTE_TITLES = {
   '/':                 'TaxStat360 — Year-Round Tax Liability Management for Business Owners',
-  '/about':            'About | TaxStat360 | Built by Former IRS Agents',
+  '/about':            'About — Built by a Former IRS Revenue Agent | TaxStat360',
   '/how-it-works':     'How It Works | TaxStat360',
   '/contact':          'Contact | TaxStat360',
   '/login':            'Sign In | TaxStat360',
@@ -342,12 +342,30 @@ function setNoindex(shouldNoindex) {
   }
 }
 
+// #6 FIX: per-route canonical URL. Without this, every SPA route inherited the
+// static homepage canonical baked into index.html (href=".../"), which tells
+// search engines that /about, /privacy, /terms, and every /resources article are
+// duplicates of the homepage — and would drop them from the index (defeating the
+// whole point of the Resources SEO section). Each indexable route now canonicalizes
+// to its OWN trailing-slash-normalized URL, which also dedupes the /privacy vs
+// /privacy/ trailing-slash variants the audit flagged under #6.
+const SITE_ORIGIN = 'https://www.taxstat360.com'
+function setCanonical(path) {
+  let el = document.querySelector('link[rel="canonical"]')
+  if (!el) { el = document.createElement('link'); el.rel = 'canonical'; document.head.appendChild(el) }
+  el.href = SITE_ORIGIN + (path === '/' ? '/' : path)
+}
+
 function RouteTitle() {
   const location = useLocation()
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, '') || '/'
     setNoindex(NOINDEX_PREFIXES.some(p => path.startsWith(p)))
+    // META_OWNED_ROUTES (/features, /pricing, /faq) manage BOTH their title and
+    // their canonical inside useSectionMeta; skip them here so the two effects
+    // don't fight over the <link rel="canonical"> element.
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
+    setCanonical(path)
     if (path.startsWith('/onboarding'))   { document.title = 'Set Up Your Account | TaxStat360'; return }
     if (path.startsWith('/resources/'))   { document.title = 'Tax Planning Resources | TaxStat360'; return }
     if (path.startsWith('/integrations')) return
@@ -428,7 +446,7 @@ export default function App() {
         <Route path="/faq"          element={<LandingAtSection sectionId="faq" />} />
         <Route path="/contact"      element={<LandingAtSection sectionId="contact" />} />
 
-        {/* UX-03: About page — dedicated team of former IRS agents and tax professionals */}
+        {/* UX-03: About page — single founder: an Enrolled Agent and former IRS Revenue Agent */}
         <Route path="/about"        element={<About />} />
 
         <Route path="/signup"       element={<Onboarding screen="signup" />} />
