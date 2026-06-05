@@ -107,7 +107,7 @@ The single best defense is contemporaneous documentation: a board resolution set
         heading: 'Running the Numbers Year-Round',
         body: `The right salary is not a one-time decision. As your S-Corp's revenue grows — or contracts — the appropriate salary level changes. An S-Corp that generated $120,000 last year but is on pace for $280,000 this year should revisit its officer compensation mid-year, before distributions have already been taken at an indefensible ratio.
 
-TaxStat360's ReasonableCompIndicator flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in real time as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
+TaxStat360 flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in real time as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
       },
     ],
     relatedSlugs: ['scorp-reasonable-compensation', 'qbi-deduction-guide', 'quarterly-estimated-taxes'],
@@ -300,7 +300,7 @@ If the amount is material and covers multiple years, a tax attorney review is wa
 
 Review it annually. As the business grows, so should the salary — or you should document why it did not. An S-Corp where revenue doubled but officer compensation held flat requires a written explanation of why that outcome is still arm's-length (perhaps because the company retained earnings for expansion, and a third-party employee would not have received the full benefit of that growth).
 
-TaxStat360's ReasonableCompIndicator flags when officer salary falls below about 40% of total compensation — within the 35–45% range practitioners commonly cite — and surfaces the relevant IRS citations. The percentage is a screening heuristic, not a safe harbor: the final determination always depends on your specific facts and the industry data you document.`,
+TaxStat360 flags when officer salary falls below about 40% of total compensation — within the 35–45% range practitioners commonly cite — and surfaces the relevant IRS citations. The percentage is a screening heuristic, not a safe harbor: the final determination always depends on your specific facts and the industry data you document.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'qbi-deduction-guide'],
