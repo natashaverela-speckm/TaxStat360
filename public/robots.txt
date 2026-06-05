@@ -1,33 +1,54 @@
 # robots.txt for TaxStat360
 # https://www.taxstat360.com
 
+# ── Default policy (all crawlers) ────────────────────────────────────────────
+# Index public marketing/content pages; block authenticated app routes and
+# auth-utility pages. The Disallow list mirrors the NOINDEX_PREFIXES set in
+# App.jsx so robots.txt and the per-route <meta name="robots"> stay in sync.
 User-agent: *
 Allow: /
-
-# Block auth / app routes from indexing — these require login
 Disallow: /login
-Disallow: /signup
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
 Disallow: /dashboard
 Disallow: /calculate-tax
+Disallow: /calculator
 Disallow: /tax-return
 Disallow: /ai-analysis
 Disallow: /settings
+Disallow: /onboarding
+Disallow: /upgrade
+Disallow: /integrations
 Disallow: /auth/
 
-# Allow AI crawlers (adjust based on your policy)
+# ── AI / LLM crawlers ────────────────────────────────────────────────────────
+# Listed explicitly so the stance is easy to adjust. Current stance: ALLOWED on
+# the same public pages as everyone else (the same app-route blocks apply — note
+# these bots do NOT inherit the rules above, so the blocks are repeated here).
+# To deny a bot entirely, replace its block with a single "Disallow: /".
+# Google-Extended is not a crawler — it controls whether Google may use your
+# content for its generative-AI models; keeping it here (not "Disallow: /")
+# means you are opting IN to that use for public pages.
 User-agent: GPTBot
-Allow: /
-
 User-agent: Google-Extended
-Allow: /
-
 User-agent: CCBot
-Allow: /
-
 User-agent: anthropic-ai
-Allow: /
-
 User-agent: ClaudeBot
 Allow: /
+Disallow: /login
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /dashboard
+Disallow: /calculate-tax
+Disallow: /calculator
+Disallow: /tax-return
+Disallow: /ai-analysis
+Disallow: /settings
+Disallow: /onboarding
+Disallow: /upgrade
+Disallow: /integrations
+Disallow: /auth/
 
 Sitemap: https://www.taxstat360.com/sitemap.xml
