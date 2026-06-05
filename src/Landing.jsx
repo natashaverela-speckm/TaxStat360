@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Aria from './Aria'
 import Nav from './Nav'
-import { INTEGRATIONS } from './constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT } from './constants'
 import './Landing.css'
 
 const N = '#0D1B3E'
@@ -17,17 +17,13 @@ const EYEBROW = {
   marginBottom: 10,
 }
 
-const CTA_LABEL = 'Start Free 7-Day Trial'
-
-// CTA copy intentionally states "Card required" + "No charge during your 7-day trial"
-// + "Cancel in one click". This is the accurate, FTC-friendly framing for a
-// card-on-file free trial: it is clear up front that a card is needed and that
-// billing begins automatically when the trial ends. Do NOT soften this to "card for
-// verification only" — the card is the billing instrument, not a verification-only
-// step, and implying otherwise risks an FTC negative-option / ROSCA disclosure issue.
-// CTA_COPY_FULL is used in the hero; CTA_COPY_SHORT in pricing and bottom CTA.
-const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
-const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
+// CTA copy (label + trial microcopy) is centralized in constants.js as the single
+// source of truth — CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT are imported above.
+// The FTC/ROSCA rationale for the exact wording (why it must say "Card required" +
+// "No charge during your 7-day trial" and must NOT be softened to "card for
+// verification only") lives in constants.js. Do NOT reintroduce local copies here:
+// the whole point of centralizing was to stop these strings drifting between
+// Landing, About, Nav, Terms, and ResourcesHub.
 
 // #1 FIX: Credential claim now reflects the founder's actual, substantiated credential —
 // a seasoned tax strategist who is an Enrolled Agent and a former IRS Revenue Agent.
@@ -249,7 +245,7 @@ export default function Landing() {
                 onClick={() => nav('/signup')}
                 style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '13px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
               >
-                Start Free 7-Day Trial as {e.title} →
+                {CTA_LABEL} as {e.title} →
               </button>
             </div>
           )
