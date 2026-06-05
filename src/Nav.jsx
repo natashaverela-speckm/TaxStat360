@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import './Landing.css'
+// #4 FIX: CTA_LABEL now comes from the single source in constants.js (was a local
+// duplicate here, in Landing.jsx, and in About.jsx).
+import { CTA_LABEL } from './constants.js'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
-
-// NOTE (#4): CTA_LABEL is currently duplicated here and in Landing.jsx / About.jsx.
-// The pending #4 pass will move CTA_LABEL + the trial microcopy (CTA_COPY_FULL/SHORT)
-// into constants.js so every page imports one source. Left local for now.
-const CTA_LABEL = 'Start Free 7-Day Trial'
 
 /* Shared site navigation — single source of truth for the marketing/legal pages
    (Landing, About, Privacy, Terms, Resources). Extracted from the former inline
