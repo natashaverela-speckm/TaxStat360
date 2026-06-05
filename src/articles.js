@@ -7,6 +7,31 @@
 // Adding a new article: append an object to ARTICLES following the same
 // schema. The Article.jsx template renders any entry automatically.
 
+import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
+
+// ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
+// Indexed dollar figures quoted in article prose are bound to the engine's
+// single source of truth (taxCalc.js TAX_TABLES / QBI tables) rather than
+// hardcoded inline, so article copy can never silently drift from what the
+// calculator actually computes. These worked examples are pinned to the 2026
+// tax year; when 2026's figures are corrected in taxCalc.js the prose follows
+// automatically — there is no second place to update.
+//
+// Bound here: Social Security wage base, §199A phase-in thresholds, and the
+// §199A SSTB / wage-limit phase-out ceilings (threshold + phase-in range).
+// NOT yet bound (separate decisions — see handoff): the §199A $400 minimum
+// deduction (QBI_MIN_DEDUCTION is not exported from taxCalc.js) and the §6654
+// estimated-tax penalty rate (no source-of-truth constant exists; it moves
+// quarterly with the federal short-term rate).
+const _ssWageBase2026 = getTable(2026).ssWageBase            // 184500
+const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201775, mfj:403500, ... }
+const _qbiPhaseIn2026 = QBI_PHASE_IN_RANGE[2026]             // { single:75000,  mfj:150000, ... }
+const _qbiCeil2026 = {                                       // full phase-out = threshold + phase-in range
+  single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276775
+  mfj:    _qbiThresh2026.mfj    + _qbiPhaseIn2026.mfj,        // 553500
+}
+const usd = (n) => '$' + Math.round(n).toLocaleString('en-US')
+
 export const ARTICLES = [
   {
     slug: 'scorp-salary-vs-distribution',
@@ -21,7 +46,7 @@ export const ARTICLES = [
     sections: [
       {
         heading: 'Why the Split Matters',
-        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first $184,500 (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
+        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first ${usd(_ssWageBase2026)} (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
 
 On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
 
@@ -53,7 +78,7 @@ Employer FICA: $70,000 × 7.65% = $5,355 (deductible)
 Total FICA cost: ~$10,710
 
 Scenario B — $150,000 salary, $150,000 distributions:
-Employee FICA on SS portion: $150,000 × 6.2% = $9,300 (the entire $150,000 salary is below the 2026 Social Security wage base of $184,500, so all of it is subject to the 6.2% Social Security tax)
+Employee FICA on SS portion: $150,000 × 6.2% = $9,300 (the entire $150,000 salary is below the 2026 Social Security wage base of ${usd(_ssWageBase2026)}, so all of it is subject to the 6.2% Social Security tax)
 Employee FICA on Medicare: $150,000 × 1.45% = $2,175
 Total employee: $11,475 | Employer match: $11,475
 Total FICA cost: ~$22,950
@@ -111,7 +136,7 @@ This last point is critical. If your S-Corp generates $300,000 of gross profit a
         heading: 'The W-2 Wage and UBIA Limitation',
         body: `Above certain income thresholds, the §199A deduction is limited by either (a) 50% of W-2 wages paid by the business, or (b) 25% of W-2 wages plus 2.5% of the unadjusted basis in qualified property (UBIA).
 
-For 2026, the phase-in range begins at $201,775 (Single) / $403,500 (MFJ) of taxable income. Between those thresholds and the ceilings ($276,775 Single / $553,500 MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
+For 2026, the phase-in range begins at ${usd(_qbiThresh2026.single)} (Single) / ${usd(_qbiThresh2026.mfj)} (MFJ) of taxable income. Between those thresholds and the ceilings (${usd(_qbiCeil2026.single)} Single / ${usd(_qbiCeil2026.mfj)} MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
 
 Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (including your salary). The 50% W-2 limitation = $60,000. If your tentative QBI deduction is $80,000 (20% of $400K), it is capped at $60,000 — a $20,000 reduction. The fix: pay higher officer wages, which both increases the W-2 wage limitation and (for an S-Corp) reduces distributions but maintains the FICA advantage.`,
       },
@@ -119,7 +144,7 @@ Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (includi
         heading: 'Specified Service Trades or Businesses (SSTB)',
         body: `If your business falls into the SSTB category — which includes law, health, consulting, financial services, accounting, and performing arts — the QBI deduction phases out entirely for taxpayers above the income ceiling.
 
-Above $276,775 (Single) / $553,500 (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
+Above ${usd(_qbiCeil2026.single)} (Single) / ${usd(_qbiCeil2026.mfj)} (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
 
 Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses — where less than 10% of gross receipts come from SSTB services — may qualify for an allocation of the non-SSTB portion. The regulations are detailed; if your business is on the line, a CPA review of your revenue mix is worth doing before year-end.`,
       },
