@@ -13,6 +13,10 @@ import { CTA_LABEL, CTA_COPY_SHORT } from './constants.js'
 // #6 FIX: use the shared site nav instead of a second hand-rolled inline <nav>.
 import Nav from './Nav'
 import Icon from './Icon'
+// CC FIX: the page's hand-rolled inline footer (its own hardcoded disclaimer +
+// dynamic year) is replaced by the shared <Footer>, matching every other page
+// and giving the disclaimer a single source of truth (DISCLAIMER_FULL).
+import Footer from './Footer'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -58,7 +62,7 @@ function ArticleCard({ article }) {
         color: 'inherit',
       }}
     >
-      {/* Emoji + Category */}
+      {/* Icon + Category */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Icon name={article.heroIcon} size={28} color={B} />
         <CategoryPill category={article.category} />
@@ -248,24 +252,9 @@ export default function ResourcesHub() {
         </p>
       </div>
 
-      {/* Footer */}
-      <div style={{
-        background: '#F8FAFC', borderTop: '1px solid #E2E8F0',
-        padding: '20px', textAlign: 'center',
-        fontSize: 11, color: '#94A3B8', lineHeight: 1.6,
-      }}>
-        <p style={{ margin: '0 0 4px' }}>
-          {/* #6 FIX: hardcoded "© 2026" → dynamic year, matching every other footer. */}
-          © {new Date().getFullYear()} TaxStat360 ·{' '}
-          <a href="/terms" style={{ color: '#94A3B8' }}>Terms of Service</a> ·{' '}
-          <a href="/privacy" style={{ color: '#94A3B8' }}>Privacy Policy</a> ·{' '}
-          <a href="mailto:support@taxstat360.com" style={{ color: '#94A3B8' }}>support@taxstat360.com</a>
-        </p>
-        <p style={{ margin: 0 }}>
-          For planning purposes only — not professional tax, legal, or financial advice.
-          Consult a licensed tax professional before making any filing or financial decisions.
-        </p>
-      </div>
+      {/* CC FIX: shared <Footer> replaces the page's own inline footer (which had
+          a hardcoded disclaimer string). Year is dynamic; disclaimer is single-sourced. */}
+      <Footer />
     </div>
   )
 }
