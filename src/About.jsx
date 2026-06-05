@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 
@@ -20,7 +20,17 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 // Works" and used /features-style links) was removed in favor of the shared
 // <Nav> component (src/Nav.jsx), so this page now matches every other page.
 
-const TEAM_ROLES = [
+// #1 FIX (alignment): About now owns the SAME specific, substantiated credential
+// the homepage asserts — an Enrolled Agent and former IRS Revenue Agent — instead
+// of softening to passive "deep expertise." Framing is deliberately SINGULAR (one
+// founder) and intentionally carries NO name, per owner decision. The claim is
+// truthful and substantiable (EA enrollment is verifiable in the IRS directory;
+// Revenue Agent tenure is documented in her service record), which is what FTC
+// substantiation requires — publishing the name is not required, but the homepage
+// and this page MUST tell the same story, and nothing here may imply more than one
+// person. The variable below is FOUNDER_EXPERTISE (not TEAM_ROLES) for that reason:
+// these are three areas of ONE person's background, not three people.
+const FOUNDER_EXPERTISE = [
   {
     icon: '🏛️',
     title: 'IRS Examination Insight',
@@ -59,31 +69,48 @@ const APPROACH = [
 export default function About() {
   const nav = useNavigate()
 
+  // #1 FIX: set the /about <title> to the singular, substantiated credential so it
+  // matches the homepage. The audit flagged the old title tag as carrying the plural
+  // "former IRS Revenue Agents" wording. Setting it here overrides the global default
+  // for this route. NOTE: the default <title> in index.html still needs the same
+  // plural→singular correction for any route that does not set its own title.
+  useEffect(() => {
+    const prev = document.title
+    document.title = 'About — Built by a Former IRS Revenue Agent | TaxStat360'
+    return () => { document.title = prev }
+  }, [])
+
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', color: N, background: '#fff', paddingTop: 64 }}>
       <Nav nav={nav} />
 
       {/* ─── HERO ─────────────────────────────────────────────────────── */}
+      {/* #1 FIX: hero now leads with the specific, substantiated credential (singular,
+          unnamed) to match the homepage, replacing the passive "Built on Deep IRS &
+          Tax Expertise" headline that dropped the claim. */}
       <section style={{ background: 'linear-gradient(135deg, #EEF4FF 0%, #F0F9FF 100%)', padding: '80px 24px 64px', textAlign: 'center' }}>
         <p style={EYEBROW}>About TaxStat360</p>
         <h1 style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 740, color: N }}>
-          Built on Deep IRS &amp; Tax Expertise.<br />Designed for Business Owners.
+          Built by a Former IRS Revenue Agent.<br />Designed for Business Owners.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 640, margin: '0 auto', lineHeight: 1.8 }}>
-          TaxStat360 is built on a deep understanding of how the IRS examines returns and how the tax code rewards proactive planning — encoding what triggers audits, how returns are scrutinized, and where legal tax-reduction strategies deliver the most impact.
+          TaxStat360 was built by a seasoned tax strategist — an Enrolled Agent and former IRS Revenue Agent — who spent years inside the IRS understanding exactly what triggers audits and how returns are scrutinized. That firsthand experience is encoded into every calculation: what the IRS looks for, where the real exposure sits, and where legal tax-reduction strategies deliver the most impact.
         </p>
       </section>
 
-      {/* ─── TEAM ─────────────────────────────────────────────────────── */}
+      {/* ─── FOUNDER EXPERTISE ────────────────────────────────────────── */}
       <section style={{ padding: '72px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
           <p style={EYEBROW}>The Expertise Behind It</p>
-          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Deep Tax Knowledge, Built Into Every Calculation</h2>
-          <p style={{ fontSize: 14, color: '#475569', maxWidth: 600, margin: '0 auto 52px', lineHeight: 1.7 }}>
-            TaxStat360 is built on knowledge spanning the full spectrum of IRS compliance, examination, and proactive tax strategy — across the same entity structures our users operate every day.
+          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>One Background. Built Into Every Calculation.</h2>
+          {/* #1 FIX: intro explicitly attributes this to the single founder and her IRS
+              career, so the three cards below read as one person's areas of expertise —
+              not as a multi-person team. */}
+          <p style={{ fontSize: 14, color: '#475569', maxWidth: 620, margin: '0 auto 52px', lineHeight: 1.7 }}>
+            TaxStat360 is built on one person's career: an Enrolled Agent and former IRS Revenue Agent whose work spans the full arc of business tax — how the IRS examines returns, how compliance actually works across entity types, and how proactive planning legally lowers what you owe. All three are built directly into the product.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(272px, 1fr))', gap: 24 }}>
-            {TEAM_ROLES.map((r, i) => (
+            {FOUNDER_EXPERTISE.map((r, i) => (
               <div key={i} style={{ background: '#F8FAFC', borderRadius: 16, padding: '32px 26px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
                 <div style={{ fontSize: 38, marginBottom: 18 }}>{r.icon}</div>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: N, marginBottom: 10 }}>{r.title}</h3>
