@@ -49,7 +49,7 @@ export const ARTICLES = [
     category: 'S-Corporation',
     readMinutes: 8,
     publishedDate: '2026-04-10',
-    heroEmoji: '💼',
+    heroIcon: 'briefcase',
     tags: ['S-Corp', 'FICA', 'Reasonable Compensation', 'K-1'],
     sections: [
       {
@@ -121,7 +121,7 @@ TaxStat360 flags when your officer salary falls below about 40% of total compens
     category: 'Tax Deductions',
     readMinutes: 9,
     publishedDate: '2026-04-15',
-    heroEmoji: '📉',
+    heroIcon: 'chartDown',
     tags: ['QBI', '§199A', 'S-Corp', 'LLC', 'SSTB'],
     sections: [
       {
@@ -182,7 +182,7 @@ The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied:
     category: 'Estimated Taxes',
     readMinutes: 7,
     publishedDate: '2026-04-20',
-    heroEmoji: '📅',
+    heroIcon: 'calendar',
     tags: ['Estimated Taxes', 'Form 1040-ES', 'Safe Harbor', '§6654'],
     sections: [
       {
@@ -245,7 +245,7 @@ TaxStat360 calculates your recommended quarterly payment based on both safe harb
     category: 'S-Corporation',
     readMinutes: 7,
     publishedDate: '2026-04-25',
-    heroEmoji: '⚖️',
+    heroIcon: 'scales',
     tags: ['Reasonable Compensation', 'S-Corp', 'IRS Audit', 'FICA'],
     sections: [
       {
@@ -314,7 +314,7 @@ TaxStat360 flags when officer salary falls below about 40% of total compensation
     category: 'Real Estate',
     readMinutes: 9,
     publishedDate: '2026-05-01',
-    heroEmoji: '🏠',
+    heroIcon: 'home',
     tags: ['Passive Activity', '§469', 'Real Estate', 'REP Status', 'Form 8582'],
     sections: [
       {
