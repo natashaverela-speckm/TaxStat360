@@ -53,12 +53,12 @@ Employer FICA: $70,000 × 7.65% = $5,355 (deductible)
 Total FICA cost: ~$10,710
 
 Scenario B — $150,000 salary, $150,000 distributions:
-Employee FICA on SS portion: $147,000 × 6.2% = $9,114
+Employee FICA on SS portion: $150,000 × 6.2% = $9,300 (the entire $150,000 salary is below the 2026 Social Security wage base of $184,500, so all of it is subject to the 6.2% Social Security tax)
 Employee FICA on Medicare: $150,000 × 1.45% = $2,175
-Total employee: $11,289 | Employer match: $11,289
-Total FICA cost: ~$22,578
+Total employee: $11,475 | Employer match: $11,475
+Total FICA cost: ~$22,950
 
-The difference is $11,868 in FICA taxes — real cash savings, achieved through a fully legal structure, simply by setting the right salary level.
+The difference is $12,240 in FICA taxes — real cash savings, achieved through a fully legal structure, simply by setting the right salary level.
 
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
