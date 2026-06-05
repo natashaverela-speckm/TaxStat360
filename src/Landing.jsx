@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Aria from './Aria'
 import Nav from './Nav'
 import Footer from './Footer'
 import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT } from './constants'
@@ -599,8 +598,6 @@ export default function Landing() {
 
       {/* ─── FOOTER (shared component — audit Pass 5 consolidation) ─────────────── */}
       <Footer />
-
-      <Aria />
     </div>
   )
 }
