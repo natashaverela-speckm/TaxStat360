@@ -390,6 +390,29 @@ export const IRS_MILEAGE_RATES = {
   2026: 0.725, // IRS Notice 2026-10 (Dec 29, 2025) — 72.5¢/mile for business use (up 2.5¢ from 2025)
 }
 
+// ─── COMPANY IDENTITY / NAP — footer + local SEO ─────────────────────────────
+// Single source of truth for the footer's name / address / contact line, consumed by
+// the shared <Footer> component (src/Footer.jsx). Audit fix (Pass 5, "Footer is
+// implemented at least three different ways"): the NAP previously appeared only on the
+// Landing/About footers and was absent from Privacy/Terms. Keeping it identical
+// site-wide is a local-SEO signal — do not hardcode the address in individual pages.
+export const COMPANY_LEGAL_NAME = 'TaxStat360 LLC'
+export const COMPANY_ADDRESS    = '3065 Daniels Road, Winter Garden, FL 34787'
+export const SUPPORT_EMAIL      = 'support@taxstat360.com'
+
+// ─── CANONICAL DISCLAIMER — single source of truth ───────────────────────────
+// Audit fix (Pass 5, "Disclaimer wording varies"): the site carried at least three
+// disclaimer strings — the Landing/About footer (full), the Privacy/Terms footer
+// (shorter; dropped the "not a tax preparation or filing service" and "federal tax
+// only" clauses), and the inline boxes on About / pricing. These two constants are now
+// the ONLY disclaimer text. <Footer> and every disclaimer box must import from here so
+// the wording can never drift again.
+//   DISCLAIMER_FULL  — footers and standalone disclaimer boxes
+//   DISCLAIMER_SHORT — tight inline spots (e.g. the pricing-section banner)
+// NOTE: this is consumer-facing legal copy. Edit it HERE only; it is owner-approved text.
+export const DISCLAIMER_FULL  = 'TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service. Calculations cover federal tax only (state taxes are not included) and are for planning purposes only. This is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.'
+export const DISCLAIMER_SHORT = 'Planning and estimation tool — not tax preparation or filing. Federal tax only. Not professional tax advice.'
+
 // ─── MARKETING CTA COPY ───────────────────────────────────────────────────────
 // #4 FIX: single source of truth for the trial CTA label + microcopy. Previously
 // hand-written per page (Landing, About, Nav, Terms, ResourcesHub) and it drifted —
@@ -403,5 +426,5 @@ export const IRS_MILEAGE_RATES = {
 //   CTA_COPY_FULL  — used in the Landing hero
 //   CTA_COPY_SHORT — used in pricing, bottom CTA, About, and ResourcesHub
 export const CTA_LABEL      = 'Start Free 7-Day Trial'
-export const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
+export const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click'
 export const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
