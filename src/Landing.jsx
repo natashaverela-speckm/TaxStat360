@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
+import Icon from './Icon'
 import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT } from './constants'
 import './Landing.css'
 
@@ -110,7 +111,7 @@ export default function Landing() {
         {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility.
             #1 FIX: now states the founder's substantiated credential (EA + former IRS Revenue Agent). */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, background: '#fff', border: '1.5px solid #dde6f0', borderRadius: 100, padding: '7px 18px' }}>
-          <span style={{ fontSize: 15 }}>🏛️</span>
+          <Icon name="institution" size={16} color={N} />
           <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{CREDENTIAL_SHORT}</span>
         </div>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
@@ -180,22 +181,22 @@ export default function Landing() {
         <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>Covers federal tax only. State taxes are not included.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 1000, margin: '0 auto' }}>
           {[
-            { icon: '🏢', label: 'K-1',
+            { icon: 'office', label: 'K-1',
               title: 'S-Corporations',
               desc: 'Officer W-2 salary, K-1 distributions, and FICA savings all calculated instantly. See exactly how your salary-to-distribution split affects your estimated federal tax liability.' },
-            { icon: '🤝', label: 'K-1',
+            { icon: 'partners', label: 'K-1',
               title: 'Partnerships and Multi-Member LLCs',
               desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
-            { icon: '📋', label: 'Schedule C',
+            { icon: 'document', label: 'Schedule C',
               title: 'Sole Proprietors and SMLLCs',
               desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
-            { icon: '🏠', label: 'Schedule E',
+            { icon: 'home', label: 'Schedule E',
               title: 'Real Estate Investors',
               desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.' },
-            { icon: '💼', label: 'Combined',
+            { icon: 'briefcase', label: 'Combined',
               title: 'W-2 Plus Business Owner',
               desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
-            { icon: '🏗️', label: 'Multi',
+            { icon: 'layers', label: 'Multi',
               title: 'Multiple Entities',
               desc: 'Run multiple businesses? Our Enterprise plan tracks each entity and shows your consolidated federal tax exposure across all of them in one view.' },
           ].map((e, i) => (
@@ -211,7 +212,7 @@ export default function Landing() {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                <span style={{ fontSize: 32 }}>{e.icon}</span>
+                <Icon name={e.icon} size={32} color={N} />
                 <span style={{ background: selectedEntity === i ? B : N, color: '#fff', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{e.label}</span>
               </div>
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{e.title}</h3>
@@ -225,16 +226,16 @@ export default function Landing() {
         {/* UX-1.3: Contextual CTA appears when user selects their entity type */}
         {selectedEntity !== null && (() => {
           const e = [
-            { icon: '🏢', title: 'S-Corp Owner' },
-            { icon: '🤝', title: 'Partnership / LLC Owner' },
-            { icon: '📋', title: 'Sole Proprietor' },
-            { icon: '🏠', title: 'Real Estate Investor' },
-            { icon: '💼', title: 'W-2 + Business Owner' },
-            { icon: '🏗️', title: 'Multi-Entity Operator' },
+            { icon: 'office', title: 'S-Corp Owner' },
+            { icon: 'partners', title: 'Partnership / LLC Owner' },
+            { icon: 'document', title: 'Sole Proprietor' },
+            { icon: 'home', title: 'Real Estate Investor' },
+            { icon: 'briefcase', title: 'W-2 + Business Owner' },
+            { icon: 'layers', title: 'Multi-Entity Operator' },
           ][selectedEntity]
           return (
             <div style={{ marginTop: 24, padding: '20px 28px', background: '#EFF6FF', border: '1.5px solid ' + B, borderRadius: 14, maxWidth: 540, margin: '24px auto 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 22, marginBottom: 8 }}>{e.icon}</div>
+              <div style={{ marginBottom: 8 }}><Icon name={e.icon} size={28} color={N} /></div>
               <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6 }}>
                 Start tracking your taxes as a {e.title}
               </div>
@@ -542,7 +543,7 @@ export default function Landing() {
           </div>
           {contactSent ? (
             <div style={{ background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ marginBottom: 12 }}><Icon name="checkCircle" size={40} color="#059669" /></div>
               <h3 style={{ color: '#065F46', fontWeight: 700, fontSize: 20, marginBottom: 8 }}>Message Sent!</h3>
               <p style={{ color: '#047857', fontSize: 14 }}>Thank you for reaching out. Our team will get back to you at support@taxstat360.com within one business day.</p>
               <button type="button" onClick={() => setContactSent(false)} style={{ marginTop: 16, padding: '8px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Send Another Message</button>
