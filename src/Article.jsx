@@ -10,6 +10,7 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ARTICLES, getArticle } from './articles.js'
+import Icon from './Icon'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -148,7 +149,7 @@ export default function Article() {
         </a>
 
         {/* Hero */}
-        <div style={{ fontSize: 40, lineHeight: 1, marginBottom: 16 }}>{article.heroEmoji}</div>
+        <div style={{ lineHeight: 1, marginBottom: 16 }}><Icon name={article.heroIcon} size={44} color={B} /></div>
         <div style={{ marginBottom: 16 }}>
           <CategoryPill category={article.category} />
         </div>

@@ -12,6 +12,7 @@ import { ARTICLES } from './articles.js'
 import { CTA_LABEL, CTA_COPY_SHORT } from './constants.js'
 // #6 FIX: use the shared site nav instead of a second hand-rolled inline <nav>.
 import Nav from './Nav'
+import Icon from './Icon'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -59,7 +60,7 @@ function ArticleCard({ article }) {
     >
       {/* Emoji + Category */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 28 }}>{article.heroEmoji}</span>
+        <Icon name={article.heroIcon} size={28} color={B} />
         <CategoryPill category={article.category} />
       </div>
 
@@ -134,7 +135,7 @@ export default function ResourcesHub() {
           padding: '4px 14px', marginBottom: 20,
         }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600, letterSpacing: '0.5px' }}>
-            🏛️ BUILT ON IRS &amp; TAX EXPERTISE
+            <Icon name="institution" size={13} color="rgba(255,255,255,0.85)" style={{ marginRight: 6 }} />BUILT ON IRS &amp; TAX EXPERTISE
           </span>
         </div>
         <h1 style={{
