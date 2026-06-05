@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
+import Icon from './Icon'
 import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from './constants'
 
 const N = '#0D1B3E'
@@ -38,17 +39,17 @@ const EYEBROW = {
 // these are three areas of ONE person's background, not three people.
 const FOUNDER_EXPERTISE = [
   {
-    icon: '🏛️',
+    icon: 'institution',
     title: 'IRS Examination Insight',
     desc: 'Built around how the IRS examines businesses, partnerships, and corporations — what examiners look for, how returns are selected for audit, and where the real exposure sits.',
   },
   {
-    icon: '📊',
+    icon: 'chartBar',
     title: 'Tax Compliance',
     desc: 'Built around tax reporting requirements across S-Corps, partnerships, LLCs, sole proprietorships, and real estate — the exact structures TaxStat360 serves — so every calculation reflects how the IRS actually reads these returns.',
   },
   {
-    icon: '⚖️',
+    icon: 'scales',
     title: 'Proactive Tax Planning',
     desc: 'Focused on legal, proactive strategies to reduce tax liability — not year-end scrambles, but structured decisions made throughout the year, when they still have the power to change the outcome.',
   },
@@ -56,17 +57,17 @@ const FOUNDER_EXPERTISE = [
 
 const APPROACH = [
   {
-    icon: '🎯',
+    icon: 'target',
     heading: 'Real-Time Clarity',
     text: 'Most business owners only learn their federal tax liability in April. We give you that number every day of the year — updated as your income and expenses change — so you can act on it while there is still time.',
   },
   {
-    icon: '🛡️',
+    icon: 'shield',
     heading: 'Compliance-First Design',
     text: 'Every calculation is built on IRS-published tax rates and rules, updated for the tax year you select. TaxStat360 is designed around exactly where the IRS draws those lines — to help keep you on the right side of them.',
   },
   {
-    icon: '🤝',
+    icon: 'partners',
     heading: 'CPA-Compatible, Not CPA-Replacing',
     text: 'TaxStat360 is built to make your relationship with your CPA more productive — not to replace it. Our CPA export tools and a dashboard you can share with your advisor give you both the same real-time visibility.',
   },
@@ -118,7 +119,7 @@ export default function About() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(272px, 1fr))', gap: 24 }}>
             {FOUNDER_EXPERTISE.map((r, i) => (
               <div key={i} style={{ background: '#F8FAFC', borderRadius: 16, padding: '32px 26px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
-                <div style={{ fontSize: 38, marginBottom: 18 }}>{r.icon}</div>
+                <div style={{ marginBottom: 18 }}><Icon name={r.icon} size={36} color={N} /></div>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: N, marginBottom: 10 }}>{r.title}</h3>
                 <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.75, margin: 0 }}>{r.desc}</p>
               </div>
@@ -152,7 +153,7 @@ export default function About() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(272px, 1fr))', gap: 24 }}>
             {APPROACH.map((a, i) => (
               <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '32px 26px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
-                <div style={{ fontSize: 34, marginBottom: 18 }}>{a.icon}</div>
+                <div style={{ marginBottom: 18 }}><Icon name={a.icon} size={34} color={N} /></div>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: N, marginBottom: 10 }}>{a.heading}</h3>
                 <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.75, margin: 0 }}>{a.text}</p>
               </div>
