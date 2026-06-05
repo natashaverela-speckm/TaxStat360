@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
+import { CTA_LABEL, CTA_COPY_SHORT } from './constants'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -14,7 +15,11 @@ const EYEBROW = {
   marginBottom: 10,
 }
 
-const CTA_LABEL = 'Start Free 7-Day Trial'
+// CTA copy (label + trial microcopy) is centralized in constants.js as the single
+// source of truth — CTA_LABEL and CTA_COPY_SHORT are imported above. Do NOT reintroduce
+// local copies or hardcode the trial line inline: the whole point of centralizing was
+// to stop these strings drifting between Landing, About, Nav, Terms, and ResourcesHub.
+// (The FTC/ROSCA rationale for the exact wording lives in constants.js.)
 
 // #7 FIX: the page-specific <AboutNav> (which showed "Home" instead of "How It
 // Works" and used /features-style links) was removed in favor of the shared
@@ -176,7 +181,7 @@ export default function About() {
         >
           {CTA_LABEL}
         </button>
-        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>No charge for 7 days · Card required · Cancel in one click</p>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>{CTA_COPY_SHORT}</p>
       </section>
 
       {/* ─── FOOTER ───────────────────────────────────────────────────── */}
