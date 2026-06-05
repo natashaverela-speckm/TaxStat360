@@ -29,6 +29,14 @@ const CTA_LABEL = 'Start Free 7-Day Trial'
 const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
 const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
 
+// #1 FIX: Credential claim now reflects the founder's actual, substantiated credential —
+// a seasoned tax strategist who is an Enrolled Agent and a former IRS Revenue Agent.
+// This replaces the prior unsubstantiated plural framing ("a dedicated team of former
+// IRS agents", "built by former IRS Revenue Agents"). CREDENTIAL is the full statement;
+// CREDENTIAL_SHORT is the compact form used in the small hero trust-badge pill.
+const CREDENTIAL       = 'Built by a Seasoned Tax Strategist, Enrolled Agent and Former IRS Revenue Agent'
+const CREDENTIAL_SHORT = 'Enrolled Agent & Former IRS Revenue Agent'
+
 // #7 FIX: The site navigation was extracted into a shared <Nav> component
 // (src/Nav.jsx) so Landing, About, Privacy, Terms, and Resources all render the
 // same nav instead of each maintaining its own copy. Import it above and render
@@ -50,6 +58,12 @@ export default function Landing() {
 
   const handleContact = async (e) => {
     e.preventDefault()
+    // #5 FIX: honeypot spam trap. Humans never see/fill the hidden "botcheck" field;
+    // bots auto-fill every field. If it has a value, silently accept and drop.
+    if (e.target && e.target.elements && e.target.elements.botcheck && e.target.elements.botcheck.value) {
+      setContactSent(true)
+      return
+    }
     const _emailRgx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!contactName || !contactName.trim())                   { setContactErr('Please enter your full name.'); return }
     if (!contactEmail || !_emailRgx.test(contactEmail.trim())) { setContactErr('Please enter a valid email address.'); return }
@@ -97,10 +111,11 @@ export default function Landing() {
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
           Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your estimated federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
         </p>
-        {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility */}
+        {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility.
+            #1 FIX: now states the founder's substantiated credential (EA + former IRS Revenue Agent). */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 32, background: '#fff', border: '1.5px solid #dde6f0', borderRadius: 100, padding: '7px 18px' }}>
           <span style={{ fontSize: 15 }}>🏛️</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Built by former IRS Revenue Agents</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{CREDENTIAL_SHORT}</span>
         </div>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 10, padding: '16px 32px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{CTA_LABEL}</button>
@@ -143,17 +158,19 @@ export default function Landing() {
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 9H20L14.5 13L16.5 20L12 16L7.5 20L9.5 13L4 9H10.5L12 2Z" fill="white"/></svg>
         </div>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Built by a Dedicated Team of Former IRS Agents and Tax Professionals</h2>
+        {/* #1 FIX: singular, substantiated credential replaces "Dedicated Team of Former IRS Agents". */}
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>{CREDENTIAL}</h2>
         <p style={{ fontSize: 13, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          TaxStat360 was developed by professionals who spent years inside the IRS, understanding exactly what triggers audits and how to stay compliant. This is insider knowledge transformed into automated tax calculations, AI-powered risk alerts, and audit scenario analysis — purpose-built for business owners.
+          TaxStat360 was built by a seasoned tax strategist &mdash; an Enrolled Agent and former IRS Revenue Agent &mdash; who spent years inside the IRS understanding exactly what triggers audits and how to stay compliant. That firsthand experience is built into the platform&apos;s automated tax calculations, AI-powered risk alerts, and audit scenario analysis &mdash; purpose-built for business owners.
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
             {CTA_LABEL} →
           </button>
-          {/* UX-03: Link to About page from the credentialing section */}
+          {/* #2 FIX: relabeled "Meet Our Team →" to "About →" — the destination /about is the
+              About page (a single-founder story), not a multi-person team roster. */}
           <button onClick={() => nav('/about')} style={{ background: 'transparent', color: B, border: '2px solid ' + B, borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-            Meet Our Team →
+            About →
           </button>
         </div>
       </section>
@@ -344,12 +361,18 @@ export default function Landing() {
               name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490', annualSavings: '$298',
               highlight: true,
               desc: 'AI that catches problems before they become expensive mistakes.',
+              // #8 FIX: surfaced "Ask Aria" (the in-app AI assistant) in the marketing copy.
+              // Previously Aria shipped in the product but was only named in the Privacy Policy.
+              // NOTE: placed on Professional+ to match the other AI features. If Aria is actually
+              // available on Starter too, move this bullet up to the Starter feature list and to
+              // the Starter column in the comparison table below.
               features: [
                 'Everything in Starter plus:',
                 'Risk Alert Engine',
                 'What-If Tax Scenario Simulator',
                 'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
                 'Explainable AI: Why This Number?',
+                'Ask Aria — AI tax assistant',
                 'Audit Risk Indicators',
                 'Unlimited accounting integrations',
                 'Priority support',
@@ -359,11 +382,14 @@ export default function Landing() {
               name: 'Enterprise', price: '$299', annualPrice: '$249', annualTotal: '$2,990', annualSavings: '$598',
               highlight: false,
               desc: 'Built for owners running multiple businesses or entities.',
+              // #7 FIX: reworded "IRS response templates" to make clear these are planning /
+              // documentation aids, not IRS representation. Keeps the tool on the planning side
+              // of its own "not a tax preparation or filing service" disclaimer.
               features: [
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
                 'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
-                'Position Documentation & IRS response templates',
+                'Tax Position Documentation & IRS Notice-Response Templates (documentation — not representation)',
               ],
             },
           ].map((p, i) => (
@@ -451,6 +477,9 @@ export default function Landing() {
                   ['Risk Alert Engine',                      false, true,  true],
                   ['What-If Tax Scenario Simulator',         false, true,  true],
                   ['Explainable AI: Why This Number?',       false, true,  true],
+                  // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
+                  // ships on Starter too, change this row to [..., true, true, true].
+                  ['Ask Aria — AI tax assistant',            false, true,  true],
                   ['Audit Risk Indicators',                  false, true,  true],
                 ]},
                 { group: 'Integrations', rows: [
@@ -460,7 +489,8 @@ export default function Landing() {
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
                   ['Auto-Generated CPA Briefing',           false, false, true],
-                  ['Position Documentation & IRS response templates', false, false, true],
+                  // #7 FIX: reworded to match the pricing card (documentation, not representation).
+                  ['Tax Position Documentation & IRS Notice-Response Templates', false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],
@@ -521,13 +551,24 @@ export default function Landing() {
               <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
               <h3 style={{ color: '#065F46', fontWeight: 700, fontSize: 20, marginBottom: 8 }}>Message Sent!</h3>
               <p style={{ color: '#047857', fontSize: 14 }}>Thank you for reaching out. Our team will get back to you at support@taxstat360.com within one business day.</p>
-              <button onClick={() => setContactSent(false)} style={{ marginTop: 16, padding: '8px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Send Another Message</button>
+              <button type="button" onClick={() => setContactSent(false)} style={{ marginTop: 16, padding: '8px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Send Another Message</button>
             </div>
           ) : (
-            <div style={{ background: '#fff', borderRadius: 16, padding: '40px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #E2E8F0' }}>
+            // #5 FIX: contact inputs are now wrapped in a semantic <form> with onSubmit, so
+            // Enter submits and assistive tech announces it as a form. Inputs carry id + name +
+            // required + autoComplete and are tied to <label htmlFor>. A hidden honeypot
+            // ("botcheck") traps bots. noValidate lets our custom inline messages drive UX while
+            // the required attributes still convey semantics to assistive technology.
+            <form onSubmit={handleContact} noValidate style={{ background: '#fff', borderRadius: 16, padding: '40px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #E2E8F0' }}>
+              {/* honeypot — visually hidden; never filled by humans */}
+              <input
+                type="text" name="botcheck" tabIndex={-1} autoComplete="off" aria-hidden="true"
+                style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+              />
               <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Inquiry Type</label>
+                <label htmlFor="contact-type" style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Inquiry Type</label>
                 <select
+                  id="contact-type" name="contactType"
                   value={contactType}
                   onChange={e => setContactType(e.target.value)}
                   style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', color: N }}
@@ -539,24 +580,24 @@ export default function Landing() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Full Name</label>
-                  <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Jane Smith" style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                  <label htmlFor="contact-name" style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Full Name</label>
+                  <input id="contact-name" name="name" required autoComplete="name" value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Jane Smith" style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Email Address</label>
-                  <input value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="jane@company.com" type="email" style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                  <label htmlFor="contact-email" style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Email Address</label>
+                  <input id="contact-email" name="email" type="email" required autoComplete="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="jane@company.com" style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                 </div>
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Message</label>
-                <textarea value={contactMsg} onChange={e => setContactMsg(e.target.value)} placeholder="Tell us how we can help..." rows={5} style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                <label htmlFor="contact-msg" style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Message</label>
+                <textarea id="contact-msg" name="message" required value={contactMsg} onChange={e => setContactMsg(e.target.value)} placeholder="Tell us how we can help..." rows={5} style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} />
               </div>
-              {contactErr && <p style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{contactErr}</p>}
-              <button onClick={handleContact} disabled={contactSending} style={{ width: '100%', padding: '13px', background: contactSending ? '#94a3b8' : N, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: contactSending ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
+              {contactErr && <p role="alert" style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{contactErr}</p>}
+              <button type="submit" disabled={contactSending} style={{ width: '100%', padding: '13px', background: contactSending ? '#94a3b8' : N, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: contactSending ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
                 {contactSending ? 'Sending...' : 'Send Message →'}
               </button>
               <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, marginTop: 12 }}>Or email us directly at <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a></p>
-            </div>
+            </form>
           )}
         </div>
       </section>
@@ -575,7 +616,8 @@ export default function Landing() {
             <a href="/about"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>About</a>
             <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
             <a href="/terms"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            <a href="#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
+            {/* #6 FIX: absolute "/#contact" so the link also works from non-home pages that reuse this footer */}
+            <a href="/#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
           </div>
           <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.</p>
           <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
