@@ -25,6 +25,10 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //
 // CC-04 FIX: LoginScreen now includes a minimal footer with ToS/Privacy links
 //   and planning-only disclaimer.
+//
+// A11Y FIX: form labels are now programmatically associated with their inputs
+//   (htmlFor/id) in the shared Field component and the two custom inputs
+//   (signup password, business address).
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL } from './constants.js'
 import BrandLogo from './BrandLogo'
@@ -37,7 +41,7 @@ const N='#0D1B3E',B='#2563EB',SL='#475569'
 
 const LOGO = () => <div style={{ marginBottom: 20 }}><BrandLogo size={28} /></div>
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
-const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>(<div style={{marginBottom:mb}}><label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)
+const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>{const _id='fld-'+String(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');return (<div style={{marginBottom:mb}}><label htmlFor={_id} style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input id={_id} type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)}
 
 // FIX (PW-STRENGTH): Password strength scoring and visual indicator.
 function pwStrength(pass) {
@@ -263,8 +267,9 @@ start filling fields, reducing form abandonment anxiety. Step 1 is active
 
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
 <div>
-<label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
+<label htmlFor="signup-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
 <input
+id="signup-password"
 type="password"
 value={pass}
 onChange={e=>setPass(e.target.value)}
@@ -535,8 +540,8 @@ return(<Page>
 <Field label="Business Name" val={biz} set={setBiz} ph="Acme Corp LLC" autoComplete="organization"/>
 <Field label="EIN (optional)" val={ein} set={setEin} ph="XX-XXXXXXX"/>
 <div style={{marginBottom:12}}>
-<label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address</label>
-<input ref={addrRef} type="text" value={addr} onChange={e=>setAddr(e.target.value)} placeholder="Start typing your address..." autoComplete="street-address" style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/>
+<label htmlFor="biz-address" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address</label>
+<input id="biz-address" ref={addrRef} type="text" value={addr} onChange={e=>setAddr(e.target.value)} placeholder="Start typing your address..." autoComplete="street-address" style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/>
 </div>
 <button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue →</button>
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={()=>nav('/onboarding/import')}>Skip for now →</p>
@@ -578,7 +583,7 @@ Takes less than 2 minutes with any authenticator app (Google Authenticator, Auth
 </p>
 <button
 onClick={()=>nav('/settings')}
-style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}
+style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center'}}
 >
 <Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings →
 </button>
