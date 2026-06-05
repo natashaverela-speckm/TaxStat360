@@ -20,6 +20,9 @@ import { refreshPlanFromServer } from './LockedFeature'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
 import Article from './Article'
+// CC FIX: RouteTitle validates /resources/:slug against the article data so that
+// unknown slugs (a soft-404 inside the indexable /resources/ pattern) get noindex.
+import { getArticle } from './articles.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -403,7 +406,24 @@ function RouteTitle() {
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
     setCanonical(path)
     if (path.startsWith('/onboarding'))   { document.title = 'Set Up Your Account | TaxStat360'; return }
-    if (path.startsWith('/resources/'))   { document.title = 'Tax Planning Resources | TaxStat360'; return }
+    // CC FIX: /resources/:slug — validate the slug against the article data. The
+    // /resources/<unknown> case renders <Article>'s "not found" view, which is a
+    // soft-404 INSIDE the indexable /resources/ pattern (so the catch-all NotFound
+    // never matches it). Mark those noindex + canonical→home. Article.jsx only
+    // sets document.title (never robots), so this noindex is the one that sticks,
+    // regardless of parent/child effect ordering. Valid slugs keep index,follow +
+    // their own canonical (already set above); Article.jsx sets the exact title.
+    if (path.startsWith('/resources/')) {
+      const slug = path.slice('/resources/'.length)
+      if (!getArticle(slug)) {
+        setNoindex(true)
+        setCanonical('/')
+        document.title = 'Page Not Found | TaxStat360'
+      } else {
+        document.title = 'Tax Planning Resources | TaxStat360'
+      }
+      return
+    }
     if (path.startsWith('/integrations')) return
     const title = ROUTE_TITLES[path]
     if (title) document.title = title
