@@ -6,11 +6,21 @@
 //
 // Routing (App.jsx):
 //   <Route path="/resources/:slug" element={<Article />} />
+//
+// CC FIX (nav/footer consolidation): this page previously shipped its OWN
+// SiteNav + SiteFooter — the footer hardcoded "© 2026" (stale in 2027) and
+// hand-copied the disclaimer text, which could drift from the canonical wording.
+// Both are now the shared <Nav> and <Footer> used by Landing/About/Terms/Privacy/
+// ResourcesHub, so the year is always dynamic and the disclaimer has one source
+// of truth (DISCLAIMER_FULL in constants.js, rendered by Footer). The shared
+// <Nav> is position:fixed (height 64), so the page wrapper adds paddingTop:64.
 
 import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ARTICLES, getArticle } from './articles.js'
 import Icon from './Icon'
+import Nav from './Nav'
+import Footer from './Footer'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -33,67 +43,14 @@ function CategoryPill({ category }) {
   )
 }
 
-function SiteNav() {
-  return (
-    <nav style={{
-      background: '#fff', borderBottom: '1px solid #E2E8F0',
-      padding: '0 32px', height: 58,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      position: 'sticky', top: 0, zIndex: 100,
-    }}>
-      <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-        <svg width="28" height="28" viewBox="0 0 34 34">
-          <rect width="34" height="34" rx="8" fill={B}/>
-          <rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/>
-          <rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/>
-          <rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/>
-        </svg>
-        <span style={{ fontWeight: 800, fontSize: 17, color: N }}>
-          TaxStat<span style={{ color: B }}>360</span>
-        </span>
-      </a>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        {['How It Works', 'Features', 'Pricing', 'FAQ'].map(l => (
-          <a key={l} href={`/#${l.toLowerCase().replace(/ /g, '-')}`}
-            style={{ fontSize: 13, color: SL, textDecoration: 'none', fontWeight: 500 }}>
-            {l}
-          </a>
-        ))}
-        <a href="/resources" style={{ fontSize: 13, color: B, fontWeight: 700, textDecoration: 'none' }}>
-          Resources
-        </a>
-      </div>
-    </nav>
-  )
-}
-
-function SiteFooter() {
-  return (
-    <div style={{
-      background: '#F8FAFC', borderTop: '1px solid #E2E8F0',
-      padding: '20px', textAlign: 'center',
-      fontSize: 11, color: '#94A3B8', lineHeight: 1.6,
-    }}>
-      <p style={{ margin: '0 0 4px' }}>
-        © 2026 TaxStat360 ·{' '}
-        <a href="/terms" style={{ color: '#94A3B8' }}>Terms of Service</a> ·{' '}
-        <a href="/privacy" style={{ color: '#94A3B8' }}>Privacy Policy</a> ·{' '}
-        <a href="mailto:support@taxstat360.com" style={{ color: '#94A3B8' }}>support@taxstat360.com</a>
-      </p>
-      <p style={{ margin: 0 }}>
-        For planning purposes only — not professional tax, legal, or financial advice.
-        Consult a licensed tax professional before making any filing or financial decisions.
-      </p>
-    </div>
-  )
-}
-
 export default function Article() {
   const { slug } = useParams()
   const navigate = useNavigate()
   const article = getArticle(slug)
 
   // Set document title for SEO; reset scroll on slug change.
+  // (Unknown-slug noindex is handled centrally in App.jsx RouteTitle, which owns
+  // the robots/canonical <head> tags; this effect only manages title + scroll.)
   useEffect(() => {
     document.title = article
       ? `${article.title} | TaxStat360`
@@ -104,8 +61,8 @@ export default function Article() {
   // Unknown slug — graceful fallback back to the hub.
   if (!article) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-        <SiteNav />
+      <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif', paddingTop: 64 }}>
+        <Nav nav={navigate} />
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '80px 20px', textAlign: 'center' }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: N, margin: '0 0 12px' }}>Article not found</h1>
           <p style={{ fontSize: 15, color: SL, margin: '0 0 24px' }}>
@@ -118,7 +75,7 @@ export default function Article() {
             ← Back to Resources
           </a>
         </div>
-        <SiteFooter />
+        <Footer />
       </div>
     )
   }
@@ -136,8 +93,8 @@ export default function Article() {
   })()
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <SiteNav />
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif', paddingTop: 64 }}>
+      <Nav nav={navigate} />
 
       <article style={{ maxWidth: 720, margin: '0 auto', padding: '40px 20px 64px' }}>
         {/* Back link */}
@@ -245,7 +202,7 @@ export default function Article() {
         )}
       </article>
 
-      <SiteFooter />
+      <Footer />
     </div>
   )
 }
