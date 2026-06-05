@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
-import { CTA_LABEL, CTA_COPY_SHORT } from './constants'
+import Footer from './Footer'
+import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from './constants'
 
 const N = '#0D1B3E'
 const B = '#2563EB'
@@ -67,7 +68,7 @@ const APPROACH = [
   {
     icon: '🤝',
     heading: 'CPA-Compatible, Not CPA-Replacing',
-    text: 'TaxStat360 is built to make your relationship with your CPA more productive — not to replace it. Our CPA export tools and collaboration portal give you and your advisor the same real-time visibility.',
+    text: 'TaxStat360 is built to make your relationship with your CPA more productive — not to replace it. Our CPA export tools and a dashboard you can share with your advisor give you both the same real-time visibility.',
   },
 ]
 
@@ -164,7 +165,7 @@ export default function About() {
       <section style={{ padding: '32px 24px', background: '#fff', textAlign: 'center' }}>
         <div style={{ maxWidth: 680, margin: '0 auto', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '20px 28px' }}>
           <p style={{ fontSize: 13, color: '#92400E', lineHeight: 1.6, margin: 0 }}>
-            <strong>Important:</strong> TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service. Calculations cover federal tax only and are for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
+<strong>Important:</strong> {DISCLAIMER_FULL}
           </p>
         </div>
       </section>
@@ -184,30 +185,8 @@ export default function About() {
         <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>{CTA_COPY_SHORT}</p>
       </section>
 
-      {/* ─── FOOTER ───────────────────────────────────────────────────── */}
-      <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
-            <div style={{ width: 28, height: 28, background: B, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>TaxStat<span style={{ color: B }}>360</span></span>
-          </div>
-          <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-            <a href="/about"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>About</a>
-            <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
-            <a href="/terms"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            <a href="/#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
-          </div>
-          <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>
-            TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.
-          </p>
-          <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
-            TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
-          </p>
-          <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
-        </div>
-      </footer>
+      {/* ─── FOOTER (shared component — audit Pass 5 consolidation) ─────── */}
+      <Footer />
     </div>
   )
 }
