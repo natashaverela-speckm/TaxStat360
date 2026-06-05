@@ -699,7 +699,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-form4797" style={inputLbl}>
                   Form 4797 Gains (§1231)
-                  <InfoTip text="Ordinary gains from the sale of business property (Form 4797). This includes §1231 gains from depreciable real property and equipment used in a trade or business." />
+                  <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain" field below (taxed at a max 25%). Only the net §1231 capital amount belongs in this field.'} wide />
                 </label>
                 <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
               </div>
@@ -905,6 +905,8 @@ export default function TaxReturn() {
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? (nf(rentalIncome) - nf(rentalExpenses)), sign: 1, hide: (result.rentalNetCombined ?? (nf(rentalIncome) - nf(rentalExpenses))) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
+                { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
+                  note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
