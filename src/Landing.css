@@ -9,6 +9,7 @@
  *   1. Nav link text-decoration reset (header-nav anchor tags)
  *   2. FAQ accordion toggle icon (details[open] state change + → −)
  *   3. Mobile hamburger navigation (F-02 fix)
+ *   4. "How It Works" grid — responsive (collapses 3→1 column on mobile) [UX-MOBILE]
  */
 
 /* ── Nav link text-decoration reset ──────────────────────────────────────── */
@@ -32,6 +33,21 @@ details summary .faq-toggle-icon::after {
 
 details[open] summary .faq-toggle-icon::after {
   content: '−';
+}
+
+/* ── "How It Works" grid — responsive ─────────────────────────────────────── */
+/* UX-MOBILE FIX: This grid was previously an inline style on the div in
+   Landing.jsx ("gridTemplateColumns: repeat(3, 1fr)"). Inline styles outrank
+   CSS classes, so a media query could not override it and the three step-cards
+   stayed in a cramped 3-column row on phones. The grid template now lives here
+   (Landing.jsx renders <div className="hiw-grid">), so the mobile breakpoint
+   below can collapse it to a single column. */
+.hiw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* ── Mobile navigation (hamburger menu) — F-02 ───────────────────────────── */
@@ -129,5 +145,10 @@ details[open] summary .faq-toggle-icon::after {
   /* Show the hamburger toggle on mobile */
   .nav-hamburger {
     display: flex;
+  }
+
+  /* UX-MOBILE FIX: collapse the 3-up How It Works grid to a single column */
+  .hiw-grid {
+    grid-template-columns: 1fr;
   }
 }
