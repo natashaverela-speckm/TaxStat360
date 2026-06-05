@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Aria from './Aria'
 import Nav from './Nav'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT } from './constants'
+import Footer from './Footer'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT } from './constants'
 import './Landing.css'
 
 const N = '#0D1B3E'
@@ -136,7 +137,7 @@ export default function Landing() {
       {/* ─── VIDEO ────────────────────────────────────────────────────────────── */}
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ ...EYEBROW, color: '#93b4d4' }}>Product Demo</p>
-        <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Management in Action</h2>
+        <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Planning in Action</h2>
         <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
         <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', aspectRatio: '16/9' }}>
           <iframe
@@ -282,8 +283,8 @@ export default function Landing() {
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>Everything you need to know before getting started</p>
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
-            { q: 'Do I need a CPA or accountant to use TaxStat360?',
-              a: 'No. TaxStat360 is built for business owners, not accountants. You connect your accounting software, answer a few questions about your filing situation, and the platform handles all the calculations. That said, many CPAs love TaxStat360 because it saves them time preparing for client meetings.' },
+            { q: 'Do I need a CPA — and does TaxStat360 replace one?',
+              a: "You don't need a CPA to use TaxStat360 — it's built for business owners, not accountants. You connect your accounting software (or enter your numbers manually), answer a few questions about your filing situation, and the platform handles the calculations. But it isn't a replacement for your CPA, and we don't try to be one: TaxStat360 is a tax planning and estimation tool, not a tax filing service. Think of it as the same year-round visibility your CPA has, available to you 365 days a year. Many users share their TaxStat360 dashboard with their CPA to make that relationship more productive — which is why many CPAs like it too." },
             { q: 'How accurate are the tax calculations?',
               // UX-09 FIX: Added explicit mention of the tax year selector — users choose
               // their applicable year from a dropdown and all IRS rates/brackets update
@@ -302,8 +303,6 @@ export default function Landing() {
               a: 'You get full access to all features on your selected plan for 7 days, completely free. You will not be charged until your 7-day trial ends. Cancel in one click before day 7 and you will never be billed. A payment method is required to activate your trial.' },
             { q: 'How current is the data I see?',
               a: "Your numbers reflect the data from your last sync. Hit Refresh or Connect to pull the latest data from your accounting software. If you land a big client in October or make a large purchase in November, just sync and your tax picture updates immediately so you can act on it. We don't auto-sync continuously — it's on-demand to keep your data secure and your control absolute." },
-            { q: 'Does TaxStat360 replace my CPA?',
-              a: 'No, and we do not try to. TaxStat360 is a tax management and planning tool, not a tax filing service. Think of it as giving you the same up-to-date visibility your CPA has, but available to you 365 days a year. Many of our users share their TaxStat360 dashboard with their CPA to make their relationship more productive.' },
           ].map((item, i) => (
             <details key={i} open={i === 0} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
               <summary style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -326,7 +325,7 @@ export default function Landing() {
             Mirrors the banner shown on /login and /register so users evaluating
             plans see the same scope disclosure before committing. */}
         <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 20px', maxWidth: 680, margin: '0 auto 24px', fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
-          <strong>Planning tool only</strong> — TaxStat360 estimates your federal tax liability for planning purposes. This is not a tax preparation or filing service. State taxes are not included.
+{DISCLAIMER_SHORT}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 28 }}>
@@ -598,30 +597,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ─── FOOTER ───────────────────────────────────────────────────────────── */}
-      <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
-            <div style={{ width: 28, height: 28, background: B, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" fill="white" rx="1"/><rect x="10" y="7" width="4" height="14" fill="white" rx="1"/><rect x="17" y="3" width="4" height="18" fill="white" rx="1"/></svg>
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>TaxStat<span style={{ color: B }}>360</span></span>
-          </div>
-          <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-            {/* UX-03: About page link added to footer */}
-            <a href="/about"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>About</a>
-            <a href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Privacy Policy</a>
-            <a href="/terms"   style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Terms of Service</a>
-            {/* #6 FIX: absolute "/#contact" so the link also works from non-home pages that reuse this footer */}
-            <a href="/#contact" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>Contact</a>
-          </div>
-          <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>TaxStat360 is a tax planning and estimation tool — not a tax preparation or filing service — for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.</p>
-          <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>
-            TaxStat360 LLC &middot; 3065 Daniels Road, Winter Garden, FL 34787 &middot; support@taxstat360.com
-          </p>
-          <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
-        </div>
-      </footer>
+      {/* ─── FOOTER (shared component — audit Pass 5 consolidation) ─────────────── */}
+      <Footer />
 
       <Aria />
     </div>
