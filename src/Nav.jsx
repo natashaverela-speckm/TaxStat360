@@ -26,7 +26,18 @@ export default function Nav({ nav }) {
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => nav('/')}>
+      {/* #6 FIX: the logo is a clickable element that navigates home, so it now exposes
+          a link role, is keyboard-focusable (tabIndex 0), activates on Enter/Space, and
+          carries an accessible name. Previously it was a bare <div onClick> — unreachable
+          and unannounced for keyboard and screen-reader users. */}
+      <div
+        role="link"
+        tabIndex={0}
+        aria-label="TaxStat360 — home"
+        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+        onClick={() => nav('/')}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('/') } }}
+      >
         <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="13" width="4" height="8" fill="#475569" rx="1"/><rect x="7.5" y="9" width="4" height="12" fill="#94A3B8" rx="1"/><rect x="12.5" y="5" width="4" height="16" fill="#E2E8F0" rx="1"/><rect x="17.5" y="1" width="4" height="20" fill="#2563EB" rx="1"/></svg>
         </div>
