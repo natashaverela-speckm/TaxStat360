@@ -97,6 +97,15 @@
 // entityDistributionResults with excessCapGain: null (cannot determine taxable portion
 // without basis) — no phantom tax is added. entityDistributionResults is included in
 // the return object so TaxReturn.jsx and AIAnalysis.jsx can surface the disclosure.
+//
+// #11 FIX (§461(l)(3)(B) capital-gain inclusion limit):
+// Business capital gains netted into the EBL base are now capped at the lesser of
+// business capital-gain net income or overall capital-gain net income. See the EBL
+// block in calcTaxReturn. No-op when the limit does not bind (the common case).
+//
+// #12 FIX (§199A rental QBI for REP):
+// REP rentals (a non-passive §162 trade/business) now contribute their full net —
+// income AND loss — to the QBI base, instead of only positive net. See qbiBasis.
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -736,7 +745,24 @@ function calcTaxReturn(input) {
   // suspended passive rental loss is NOT an allowed loss, so it is excluded
   // unless the taxpayer is a Real Estate Professional (then the rental is
   // nonpassive and the full combined rental net belongs in the base).
-  const eblBiz       = adjustedK1Total + f4797Inc + (effectiveIsREP ? combinedRentalNet : 0)
+  //
+  // #11 FIX — §461(l)(3)(B) capital-gain inclusion limit: business capital GAINS
+  // netted into the EBL base are capped at the LESSER OF (i) business capital-gain
+  // net income or (ii) overall capital-gain net income. Any business capital gain
+  // above that cap is pulled back out of the base, enlarging the disallowed loss.
+  // f4797Inc is treated here as the net §1231 capital gain attributable to the
+  // business (it flows to Schedule D as LTCG). If f4797Inc is ever used to carry
+  // ORDINARY Form 4797 income (e.g. §1245/§1250 recapture), that ordinary portion
+  // is NOT a capital gain and must be split out upstream in TaxReturn.jsx before
+  // reaching this field — otherwise it would be incorrectly limited here. When the
+  // limit does not bind (overall CGNI ≥ business capital gain — the common case),
+  // eblBizCapGainExcluded is 0 and the base is unchanged.
+  const eblBizCapGain         = Math.max(0, nv(f4797Inc))
+  const eblOverallCapGainNI   = nv(stGain) + _ltGain + nv(f4797Inc)
+                              + Math.max(0, nv(unrecap1250)) + Math.max(0, nv(collectiblesGain))
+  const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
+  const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
+  const eblBiz       = adjustedK1Total + (nv(f4797Inc) - eblBizCapGainExcluded) + (effectiveIsREP ? combinedRentalNet : 0)
   const eblNetLoss   = Math.max(0, -eblBiz)
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
 
@@ -841,7 +867,16 @@ function calcTaxReturn(input) {
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
 
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + Math.max(0, palAdjustedRental) - priorQBILossCO + k1FallbackForQBI
+  // #12 FIX (§199A rental QBI): for a Real Estate Professional the rentals are a
+  // non-passive §162 trade/business, so the FULL rental net — income AND loss —
+  // belongs in QBI (a qualified business loss reduces QBI / builds the §199A(c)(2)
+  // carryforward). The prior Math.max(0, palAdjustedRental) let rental income into
+  // QBI but silently dropped rental losses, understating the QBI loss carryforward
+  // (e.g. $343,443 instead of $435,042 for a REP with a −$91,599 rental loss).
+  // Non-REP rentals are unchanged: only positive net is included, pending a
+  // separate §162 trade-or-business determination.
+  const rentalQbiContribution = effectiveIsREP ? palAdjustedRental : Math.max(0, palAdjustedRental)
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - priorQBILossCO + k1FallbackForQBI
 
   // Use _ltGain for QBI capital gains ceiling (§199A(a)(2))
   const prefIncome = _ltGain + qualDiv
@@ -1057,6 +1092,8 @@ function calcTaxReturn(input) {
 
     ebl,
     eblThreshold,
+    // #11: amount of business capital gain disallowed from the EBL base by §461(l)(3)(B)
+    eblBizCapGainExcluded,
 
     palSuspendedRental,
     palCarryforwardApplied,
