@@ -389,3 +389,19 @@ export const IRS_MILEAGE_RATES = {
   2025: 0.70,  // IRS Notice 2025-05 — 70¢/mile for business use (5¢ increase from 2024)
   2026: 0.725, // IRS Notice 2026-10 (Dec 29, 2025) — 72.5¢/mile for business use (up 2.5¢ from 2025)
 }
+
+// ─── MARKETING CTA COPY ───────────────────────────────────────────────────────
+// #4 FIX: single source of truth for the trial CTA label + microcopy. Previously
+// hand-written per page (Landing, About, Nav, Terms, ResourcesHub) and it drifted —
+// ResourcesHub said "Card for verification only," contradicting the auto-billing in the
+// Terms and creating an FTC negative-option (ROSCA) disclosure risk. Import these
+// everywhere; never hardcode the trial line.
+//
+// ⚠ Do NOT soften CTA_COPY_* to "card for verification only." The card IS the billing
+// instrument: billing begins automatically when the 7-day trial ends, so the accurate,
+// FTC-friendly framing is "Card required" + "No charge during the trial" + "Cancel ...".
+//   CTA_COPY_FULL  — used in the Landing hero
+//   CTA_COPY_SHORT — used in pricing, bottom CTA, About, and ResourcesHub
+export const CTA_LABEL      = 'Start Free 7-Day Trial'
+export const CTA_COPY_FULL  = 'No charge during your 7-day trial · Card required · Cancel in one click · No CPA needed'
+export const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
