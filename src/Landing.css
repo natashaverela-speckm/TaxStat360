@@ -52,11 +52,15 @@ details[open] summary .faq-toggle-icon::after {
 
 /* ── Mobile navigation (hamburger menu) — F-02 ───────────────────────────── */
 /*
- * Landing.jsx Nav component uses className-based show/hide controlled by a
- * useState(false) hamburger toggle. The nav links div has className set to
- * either 'nav-links' or 'nav-links open' depending on menuOpen state.
- * The hamburger button has className 'nav-hamburger'.
- * The CTA button inside the nav has className 'nav-cta-btn'.
+ * Nav.jsx uses className-based show/hide controlled by a useState(false)
+ * hamburger toggle. The nav links div has className set to either 'nav-links'
+ * or 'nav-links open' depending on menuOpen state. The hamburger button has
+ * className 'nav-hamburger'. The CTA inside the nav has className 'nav-cta-btn'.
+ *
+ * #6 NOTE: the nav's genuine-navigation controls (logo, Sign In, Start Trial)
+ * are now <a> elements, not <button>. The mobile drawer rule below already
+ * targets `.nav-links a`, so they inherit the drawer layout. The only special
+ * case is the CTA — see the .nav-links .nav-cta-btn rule inside the media query.
  *
  * Desktop: full horizontal nav visible, hamburger hidden.
  * Mobile (≤768px): nav links hidden by default, shown as vertical drawer
@@ -132,14 +136,21 @@ details[open] summary .faq-toggle-icon::after {
     border-bottom: none;
   }
 
-  /* CTA button: full width, centred text, standard pill style in mobile drawer */
-  .nav-cta-btn {
+  /* CTA button: full width, centred text, standard pill style in mobile drawer.
+     #6 FIX: this selector is .nav-links .nav-cta-btn (specificity 0,2,0) so it
+     OUTRANKS the .nav-links a / .nav-links button reset above (0,1,1) and can
+     restore the dark pill background + white text. The previous .nav-cta-btn
+     rule (0,1,0) lost to that reset, so the CTA rendered transparent with
+     near-invisible text in the mobile menu. Background + color are now restored. */
+  .nav-links .nav-cta-btn {
     width: 100% !important;
     margin-top: 8px !important;
     border-radius: 8px !important;
     text-align: center !important;
     padding: 13px 22px !important;
     border-bottom: none !important;
+    background: #0D1B3E !important;
+    color: #fff !important;
   }
 
   /* Show the hamburger toggle on mobile */
