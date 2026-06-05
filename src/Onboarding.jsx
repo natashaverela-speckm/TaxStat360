@@ -28,6 +28,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL } from './constants.js'
 import BrandLogo from './BrandLogo'
+import Icon from './Icon'
 
 const PK = import.meta.env.VITE_STRIPE_PK || 'pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e'
 const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY || 'AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
@@ -286,7 +287,7 @@ display:'flex',alignItems:'flex-start',gap:10,
 background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,
 padding:'10px 14px',marginBottom:12,
 }}>
-<span style={{fontSize:16,flexShrink:0,lineHeight:1.4}}>🔒</span>
+<Icon name="lock" size={18} color="#166534" style={{marginTop:1}} />
 <p style={{fontSize:12,color:'#166534',margin:0,lineHeight:1.5}}>
 <strong>No charge for 7 days.</strong> You will <strong>not be charged</strong> until after your free trial ends. Cancel in one click anytime.
 </p>
@@ -316,15 +317,15 @@ Three signals: IRS credential (expertise), encryption (security),
 and CPA compatibility (not replacing their advisor). */}
 <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>
 <div style={{display:'flex',alignItems:'center',gap:6}}>
-<span style={{fontSize:14}}>🏛️</span>
+<Icon name="institution" size={15} color={SL} />
 <span style={{fontSize:11,color:SL,fontWeight:600}}>Built by a Former IRS Revenue Agent</span>
 </div>
 <div style={{display:'flex',alignItems:'center',gap:6}}>
-<span style={{fontSize:14}}>🔐</span>
+<Icon name="lock" size={15} color={SL} />
 <span style={{fontSize:11,color:SL,fontWeight:600}}>256-bit Encryption</span>
 </div>
 <div style={{display:'flex',alignItems:'center',gap:6}}>
-<span style={{fontSize:14}}>✓</span>
+<Icon name="check" size={15} color={SL} />
 <span style={{fontSize:11,color:SL,fontWeight:600}}>CPA-Compatible Export</span>
 </div>
 </div>
@@ -364,7 +365,7 @@ function VerifyEmailScreen(){
 
   if(status==='loading')return(<Page><LOGO/><p style={{color:SL,textAlign:'center'}}>Confirming your email…</p></Page>)
   if(status==='verified')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
-    <div style={{fontSize:48,marginBottom:16}}>✅</div>
+    <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
     <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
     <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
@@ -378,12 +379,12 @@ function VerifyEmailScreen(){
   return(<Page>
     <LOGO/>
     <div style={{textAlign:'center',padding:'20px 0'}}>
-      <div style={{fontSize:48,marginBottom:16}}>✅</div>
+      <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
       <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>You're all set!</h2>
       <p style={{color:SL,fontSize:14,margin:'0 0 12px',lineHeight:1.6}}>Your TaxStat360 account is ready. Let's finish setting up your profile.</p>
       {displayEmail?(
         <p style={{color:SL,fontSize:13,margin:'0 0 20px',lineHeight:1.6,background:'#F8FAFC',padding:'10px 12px',borderRadius:8}}>
-          📧 Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. Check your inbox (and junk/spam). You can still continue into the app without verifying.
+          <Icon name="mail" size={14} color={SL} /> Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. Check your inbox (and junk/spam). You can still continue into the app without verifying.
         </p>
       ):null}
       <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
@@ -567,7 +568,7 @@ return(
 <Page>
 <LOGO/>
 <div style={{textAlign:'center',padding:'8px 0'}}>
-<div style={{fontSize:44,marginBottom:14}}>🔐</div>
+<div style={{marginBottom:14}}><Icon name="lock" size={44} color={B} /></div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 10px'}}>One last thing — protect your account</h2>
 <p style={{color:SL,fontSize:13,margin:'0 0 6px',lineHeight:1.6}}>
 TaxStat360 stores sensitive financial and tax data. Two-factor authentication adds a critical second layer of security — strongly recommended by IRS Publication 4557 for any software handling taxpayer information.
@@ -579,7 +580,7 @@ Takes less than 2 minutes with any authenticator app (Google Authenticator, Auth
 onClick={()=>nav('/settings')}
 style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}
 >
-🔐 Set up 2FA in Settings →
+<Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings →
 </button>
 <button
 onClick={()=>nav('/calculate-tax')}
