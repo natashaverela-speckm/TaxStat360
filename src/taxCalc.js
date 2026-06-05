@@ -106,6 +106,26 @@
 // #12 FIX (§199A rental QBI for REP):
 // REP rentals (a non-passive §162 trade/business) now contribute their full net —
 // income AND loss — to the QBI base, instead of only positive net. See qbiBasis.
+//
+// AMT-FIX (Form 6251 AMTI base — IRC §56(b)(1)(E) and §199A(f)(2)):
+// calcAMT previously (a) ADDED the QBI deduction back into AMTI and (b) NEVER added
+// back the standard deduction. Both are wrong. §199A(f)(2) ALLOWS the QBI deduction
+// for AMT (it must NOT be added back), and §56(b)(1)(E) DISALLOWS the standard
+// deduction for AMT (it MUST be added back when the taxpayer is not itemizing).
+// Net effect of the old code: AMTI overstated by the full QBI deduction for any
+// itemizer with QBI (manufacturing phantom AMT at high income), and understated by
+// the standard deduction for non-itemizers. Fixed in calcAMT.
+//
+// YTD-FIX (year-to-date annualization consistency):
+// In YTD mode (ytdFactor > 1, e.g. "through September" → 12/9 = 1.333) the engine
+// previously annualized ONLY four above-the-line deductions and left ALL income raw.
+// That projected full-year deductions against partial-year income and systematically
+// UNDERSTATED the projected full-year liability — the opposite of what the YTD banner
+// promises. Fix: _annualizeIfYTD() scales every income/expense FLOW (and each entity's
+// income) ONCE, up front, then resets ytdFactor to 1 so the existing ytdScale() calls
+// become no-ops and nothing is scaled twice. Because it runs before the §1366(d) basis
+// pass, the §1368 distribution pass, SE tax, and the QBI base, every downstream figure
+// stays internally consistent. See _annualizeIfYTD for the exact scaled / not-scaled list.
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -307,7 +327,18 @@ function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qu
   const isItemizing  = useItemized && itemized > stdDed
   const saltAddback  = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
   const isoAddback   = Math.max(0, isoBargainElement || 0)
-  const amti         = Math.max(0, taxableIncome) + Math.max(0, qbi) + saltAddback + isoAddback
+  // AMT-FIX — §56(b)(1)(E): the standard deduction is NOT allowed for AMT, so it
+  // must be added back to taxable income when the taxpayer is NOT itemizing. When
+  // itemizing, taxableIncome already reflects itemized deductions and only the
+  // disallowed SALT portion is added back (above).
+  const stdDedAddback = isItemizing ? 0 : Math.max(0, stdDed || 0)
+  // AMT-FIX — §199A(f)(2): the QBI deduction IS allowed for AMT and must NOT be
+  // added back. `taxableIncome` here is already net of QBI (taxableAfterQBI), which
+  // is exactly the correct AMTI starting point. (The prior code added Math.max(0, qbi)
+  // here, overstating AMTI by the full QBI deduction for every itemizer with QBI.)
+  // `qbi` is still accepted in the parameter list for backward compatibility but is
+  // intentionally no longer part of the AMTI base.
+  const amti         = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback
 
   const phaseoutOver = Math.max(0, amti - amtTable.phaseoutStart[status])
   const exemption    = Math.max(0, amtTable.exemption[status] - phaseoutOver * amtTable.phaseoutRate)
@@ -503,7 +534,97 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   )
 }
 
+// ── YTD-FIX: year-to-date annualization ───────────────────────────────────────
+// Fields that are FLOWS — they accrue roughly linearly over the year, so a
+// year-to-date figure is annualized by × ytdFactor (e.g. 12/9 for "through Sep").
+// Everything NOT in this list is deliberately left unscaled (see notes below).
+const _YTD_SCALE_FIELDS = [
+  // Income flows
+  'w2', 'k1Total', 'rentalNet',
+  'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
+  'f4797Inc', 'taxableSS', 'iraIncome',
+  // Above-the-line deduction flows (these were the ONLY things annualized before)
+  'selfEmpHealthIns', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
+]
+
+// Per-entity income fields that are flows and must be annualized so the entity-derived
+// figures (SE tax base, QBI base, §1366(d) basis pass, FICA savings, §1368) stay
+// consistent with the annualized scalar income above.
+const _YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2']
+
+function _scaleNumeric(v, yf) {
+  if (v === undefined || v === null || v === '') return v
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? n * yf : v
+}
+
+// _annualizeIfYTD — returns input unchanged when not in YTD mode (ytdFactor === 1).
+// In YTD mode it returns a NEW input object with every flow annualized and
+// ytdFactor reset to 1, so the existing ytdScale() calls inside calcTaxReturn
+// become no-ops and nothing is scaled twice.
+//
+// SCALED (flows): all _YTD_SCALE_FIELDS above, plus each entity's income fields
+//   (_YTD_SCALE_ENTITY_FIELDS, including pnl.netProfit and pnl.officerSalary).
+//
+// NOT SCALED — deliberate. These are balances, prior-year totals, counts, discrete
+// events, or amounts conventionally entered as full-year figures:
+//   • stockBasis, debtBasis, box17V_ubia  — point-in-time balances (Form 7203 / property basis).
+//   • nolCarryforward, priorYearQBILoss, priorPassiveLossCarryforward — carryforward balances.
+//   • priorYearTax, priorYearAGI — full prior-year amounts (§6654 safe harbor).
+//   • dependents — a count.
+//   • w2Withheld, estPaid — SME DECISION (default: NOT scaled). Annualizing the
+//     liability while taking payments as entered errs toward a HIGHER projected
+//     balance due — the safe direction for a planning tool. Flip by adding these
+//     two keys to _YTD_SCALE_FIELDS if you want full-year payment projection.
+//   • distributions — SME DECISION (default: NOT scaled). Scaling would inflate the
+//     §1368(b)(2) excess-distribution capital gain against an unscaled basis. Add
+//     a 'distributions' scale step in the entity map below to change this.
+//   • isoBargainElement — SME DECISION (default: NOT scaled). An ISO exercise is a
+//     discrete event, not a run-rate. Add 'isoBargainElement' to _YTD_SCALE_FIELDS
+//     if you want it annualized.
+//   • saltAmount, itemizedAmt, medicalExpenses — SME DECISION (default: NOT scaled).
+//     Itemized line items are commonly entered as annual figures (e.g. property
+//     tax). Add them to _YTD_SCALE_FIELDS if your users enter YTD itemized amounts.
+function _annualizeIfYTD(input) {
+  const yf = (input && typeof input.ytdFactor === 'number' && Number.isFinite(input.ytdFactor) && input.ytdFactor > 0)
+    ? input.ytdFactor
+    : 1
+  if (yf === 1) return input
+
+  const out = { ...input }
+
+  for (const k of _YTD_SCALE_FIELDS) {
+    out[k] = _scaleNumeric(out[k], yf)
+  }
+
+  if (Array.isArray(out.entities)) {
+    out.entities = out.entities.map(e => {
+      if (!e) return e
+      const ne = { ...e }
+      for (const k of _YTD_SCALE_ENTITY_FIELDS) {
+        if (k in ne) ne[k] = _scaleNumeric(ne[k], yf)
+      }
+      if (ne.pnl && typeof ne.pnl === 'object') {
+        const np = { ...ne.pnl }
+        np.netProfit    = _scaleNumeric(np.netProfit, yf)
+        np.officerSalary = _scaleNumeric(np.officerSalary, yf)
+        ne.pnl = np
+      }
+      return ne
+    })
+  }
+
+  // Reset so the existing ytdScale() calls below become identity (already annualized).
+  out.ytdFactor = 1
+  return out
+}
+
 function calcTaxReturn(input) {
+  // YTD-FIX: annualize all income/expense flows up front (no-op when not in YTD
+  // mode). Done before any downstream computation so SE tax, the QBI base, the
+  // §1366(d)/§1368 passes, and income tax all see consistent full-year figures.
+  input = _annualizeIfYTD(input)
+
   const {
     taxYear, status, dependents,
     entities: _rawEntities = [],
