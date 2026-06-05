@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
+import Footer from './Footer'
 
 const N  = '#0D1B3E'
 const B  = '#2563EB'
@@ -87,18 +88,8 @@ export default function Privacy() {
         </Section>
       </div>
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: '1px solid #E2E8F0', padding: '24px 32px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <a href='/terms'    style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Terms of Service</a>
-          <a href='/privacy'  style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Privacy Policy</a>
-          <a href='/#contact' style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Contact</a>
-        </div>
-        <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 8px', lineHeight: 1.5 }}>
-          TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.
-        </p>
-        <p style={{ fontSize: 12, color: SL, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
-      </footer>
+      {/* ── Footer (shared component — audit Pass 5 consolidation) ──────────── */}
+      <Footer />
 
     </div>
   )
