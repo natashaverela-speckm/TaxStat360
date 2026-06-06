@@ -1366,7 +1366,7 @@ export default function CalculateTaxInner() {
       const box12  = nf(e.box12_13)
       return s + k1 - sec179 - box12
     }, 0)
-    writeStep1State({ entities, k1Total, isCoopPatron: false })
+    writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
     writeTaxYear(taxYear)
     return k1Total
   }, [entities, taxYear])
