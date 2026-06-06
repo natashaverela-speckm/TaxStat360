@@ -29,6 +29,11 @@
 // PASS4B-02b: Added §1366(d) Basis Limitation UI + §1368 Distribution
 //   Capital Gain panel for S-Corp entities (Form 7203).
 //
+// ── AUDIT REPORT FIXES (Sprint 2) ────────────────────────────────────────────
+// F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
+//   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
+//   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
+//
 // ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
 // F-01 FIX: "Continue to Step 2" button disabled state not visually enforced.
 //   Applied HTML disabled attribute when entity count is 0. Added onClick guard
@@ -231,12 +236,19 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
 }
 
 // ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
-function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
+// F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
+const WATSON_REVENUE_THRESHOLD = 0.30
+
+function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
 
   const totalComp = officerSal + Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
   const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
+
+  // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
+  const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
+  const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
 
   if (officerSal === 0) {
     return (
@@ -261,6 +273,14 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
           including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
           A common starting point: <strong>{fmt(minTarget)}</strong>.
         </div>
+        {watsonWarning && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #FDE68A', color: '#78350F', lineHeight: 1.6, fontSize: 12 }}>
+            Also: salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
+            ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — below the 30% advisory threshold.
+            IRS exam guidelines and Watson-line cases target single-owner service businesses
+            with low salary-to-revenue ratios. <em>Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).</em>
+          </div>
+        )}
       </div>
     )
   }
@@ -273,6 +293,13 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
         practitioner-recommended 35–45% range. Ensure FICA payroll taxes are being withheld and
         remitted quarterly.
       </div>
+      {watsonWarning && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #86EFAC', color: '#166534', lineHeight: 1.6, fontSize: 12 }}>
+          ⚠ Note: salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
+          ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — below the 30% advisory threshold even
+          though the total-comp ratio looks fine. Review under Treas. Reg. §1.162-7 · Watson, 668 F.3d 1008.
+        </div>
+      )}
     </div>
   )
 }
@@ -511,6 +538,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <ReasonableCompIndicator
               officerSal={sal}
               netProfit={Math.max(0, manNetProfit)}
+              grossRevenue={nf(manRev)}
               isSCorp={isSCorp}
             />
           </div>
