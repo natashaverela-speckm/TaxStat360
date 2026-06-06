@@ -182,6 +182,9 @@ export function writePersonalContext({
   form4797 = 0,
   manualK1s = [],
   isREP = false,
+  repHoursRE = 0,          // F-11
+  repHoursTotal = 0,       // F-11
+  priorSuspendedLoss = 0,  // F-01
   useItemized = false,
   itemizedAmt = 0,
   saltAmount = 0,
@@ -200,7 +203,7 @@ export function writePersonalContext({
   sessionStorage.setItem('ts360_f1040', JSON.stringify({
     filingStatus, taxYear, dependents, w2Income, w2Withheld,
     rentalIncome, rentalExpenses, capitalGains, interest, dividends, qualifiedDividends,
-    form4797, manualK1s, isREP,
+    form4797, manualK1s, isREP, repHoursRE, repHoursTotal, priorSuspendedLoss,
     useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid,
     priorYearQBILoss, socialSecurity, iraDistributions,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -256,6 +259,9 @@ export function readPersonalContext() {
     form4797: 0,
     manualK1s: [],
     isREP: false,
+    repHoursRE: 0,
+    repHoursTotal: 0,
+    priorSuspendedLoss: 0,
     useItemized: false,
     itemizedAmt: 0,
     saltAmount: 0,
@@ -306,7 +312,10 @@ export function readPersonalContext() {
     qualifiedDividends: parsed.qualifiedDividends ?? defaults.qualifiedDividends,
     form4797: parsed.form4797 ?? defaults.form4797,
     manualK1s: Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
-    isREP: parsed.isREP ?? defaults.isREP,
+    isREP:              parsed.isREP             ?? defaults.isREP,
+    repHoursRE:         parsed.repHoursRE        ?? defaults.repHoursRE,
+    repHoursTotal:      parsed.repHoursTotal     ?? defaults.repHoursTotal,
+    priorSuspendedLoss: parsed.priorSuspendedLoss ?? defaults.priorSuspendedLoss,
     // Renamed-field migrations — read new name first, fall back to legacy
     // name to preserve choice from pre-migration sessionStorage data.
     useItemized: parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
