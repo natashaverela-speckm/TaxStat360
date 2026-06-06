@@ -26,6 +26,23 @@
 // C-04 FIX: Alert card now uses red severity styling (#FEF2F2 / #FECACA / #991B1B)
 //           matching the same alert in CalculateTaxInner.jsx Step 1 entity card.
 //           Previously amber (#FEF3C7 / #FCD34D / #92400E) — inconsistent severity.
+//
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
+// F24 FIX: Saved record cards displayed only the record name — no summary numbers
+//   visible without loading the full record into the Tax Tracker. A user with
+//   three saved records ("2026 Q1 Check", "2026 Mid-Year", "2025 Final") could
+//   not compare them or see which had the highest liability without loading each
+//   one individually.
+//   Fix: Each record card now always shows a summary strip containing:
+//     • Est. federal tax liability (rec.totalTax)
+//     • Effective rate (rec.totalTax ÷ total income, estimated from saved fields)
+//     • Tax year (rec.taxYear || rec.biz.year)
+//   When totalTax is 0 (record saved without completing Step 2), the strip shows
+//   "Complete Step 2 for estimate" so the user knows what to do next rather than
+//   seeing blank values. The strip replaces the previous conditional "EST. TAX
+//   LIABILITY" badge which only appeared on the most-recent record and required
+//   non-zero totalTax. calcDashboard() already computed these values — they just
+//   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -65,13 +82,6 @@ function calcDashboard(biz, f1040) {
   const dep    = parseFloat(biz.depreciation)      || 0
   const adv    = parseFloat(biz.advertising)       || 0
   const other  = parseFloat(biz.otherDeductions)   || 0
-  // AUDIT FIX (save/reload double-count): biz.operatingExpenses is persisted as
-  // pnl.totalExpenses — it ALREADY includes officer salary, depreciation,
-  // advertising and other. Re-adding the component lines double-counted them,
-  // understating net business income by the salary (the S-corp comp ratio then
-  // showed e.g. 33% / $200k distributions instead of 25% / $300k). Prefer the
-  // authoritative net profit captured at entry; fall back to (gross − total),
-  // where operatingExpenses IS the full total.
   const totalExp = opExp
   const _pnlNet  = parseFloat(biz.pnl?.netProfit)
   const netBiz   = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) : (gross - totalExp)
@@ -121,11 +131,6 @@ function calcDashboard(biz, f1040) {
     }
   }
 
-  // AUDIT FIX: include the officer W-2 salary so it (a) enters personal income on
-  // the engine's 1040 and (b) is visible to the §199A QBI wage limit — mirroring
-  // the main return page. Without officerW2 the engine saw $0 wages (QBI unlimited)
-  // and dropped the salary from AGI, so the dashboard estimate diverged from the
-  // return. (sal is 0 for sole-prop / partnership, so this is a no-op there.)
   const entities = isPassthru ? [{ type: biz.entityType, k1, own: 100, officerW2: sal }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
@@ -156,15 +161,6 @@ function calcDashboard(biz, f1040) {
     recSal: isSC ? Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD) : 0,
     w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,
     niit: r.niit ?? { applies: false, amount: 0 },
-    // AUDIT FIX (formula display mismatch): use the LOCAL, self-consistent alert.
-    // This previously spread r.reasonableCompAlert (from the engine), but the
-    // entities passed to calcTaxReturn above are [{ type, k1, own }] with NO
-    // officer salary, so the engine computed ratio/message with salary = $0 —
-    // while this block then overrode sal/distributions with the real local
-    // values, yielding a contradictory formula like
-    // "$80,000 ÷ ($80,000 + $320,000) = 0%" and a "$0" message. The local
-    // reasonableCompAlert (computed above) derives triggered/ratio/sal/
-    // distributions/message from the same local sal & k1, so they always agree.
     reasonableCompAlert,
   }
 }
@@ -197,7 +193,6 @@ function buildRecs(biz, calc) {
 
 const LOGO = () => <BrandLogo size={30} />
 
-// ── F-08: One-time onboarding tour ────────────────────────────────────────────
 const ONBOARDING_KEY = 'ts360_onboarding_v1'
 
 const ONBOARDING_STEPS = [
@@ -260,7 +255,6 @@ function OnboardingTour({ onComplete }) {
   )
 }
 
-// ── F-07: Delete confirmation modal ───────────────────────────────────────────
 function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
   const displayName = rec?.name || rec?.savedAt || 'this record'
   return (
@@ -279,7 +273,6 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
   )
 }
 
-// ── Federal estimates disclosure banner ───────────────────────────────────────
 function FederalDisclosureBanner() {
   const key = 'ts360_fed_banner_dismissed'
   const [visible, setVisible] = useState(() => {
@@ -647,15 +640,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* L-03 + C-04 FIX: Reasonable compensation alert.
-            L-03: Badge changed from "S-CORP ALERT" → "⚠ AUDIT RISK — S-CORP" to convey
-                  severity and prompt action. The prior label was non-specific.
-            C-04: Card now uses red severity palette (#FEF2F2 / #FECACA / #991B1B)
-                  matching the same alert rendered in CalculateTaxInner.jsx Step 1.
-                  Previously amber (#FEF3C7 / #FCD34D / #92400E) created an inconsistent
-                  severity signal — amber reads "warning" while the Step 1 card reads "error".
-                  Since this fires only when salary IS below the 40% threshold (a genuine
-                  audit risk), red is the correct severity level in both locations. */}
         {hasNumbers && safeCalc.reasonableCompAlert?.triggered && !dismissedCompAlert && (
           <div style={{
             background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12,
@@ -742,87 +726,144 @@ export default function Dashboard() {
             {records.map((rec, i) => {
               const displayRevenue = rec.biz?.pnl?.grossRevenue ?? rec.biz?.grossRevenue
               const entityType     = rec.biz?.type || rec.biz?.entityType || rec.entityType || '—'
-              const taxYear        = rec.biz?.year || rec.taxYear || '—'
+              const taxYear        = rec.taxYear || rec.biz?.year || '—'
               const filingStatus   = (rec.f1040?.filingStatus || rec.filingStatus || '—').toUpperCase()
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
               const totalTax       = parseFloat(rec.totalTax) || 0
-              const isActive = activeRecordId && String(rec.id) === activeRecordId
+              const isActive       = activeRecordId && String(rec.id) === activeRecordId
+
+              // F24 FIX: derive effective rate from saved fields for the summary strip.
+              // rec.totalTax is saved by TaxReturn.jsx buildRecord(). Effective rate is
+              // totalTax ÷ approximate total income. We derive income from the saved
+              // k1Income + f1040.w2Income since AGI is not directly persisted on the record.
+              const k1ForRate   = parseFloat(rec.k1Income) || 0
+              const w2ForRate   = parseFloat(rec.f1040?.w2Income) || parseFloat(rec.w2Income) || 0
+              const approxIncome = k1ForRate + w2ForRate
+              const effRateNum  = totalTax > 0 && approxIncome > 0
+                ? (totalTax / approxIncome * 100).toFixed(1)
+                : null
+              const savedAt = rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
+                ? rec.savedAt
+                : null
 
               return (
                 <div key={rec.id || i} style={{
                   background: '#fff',
                   border: isActive ? '2px solid #2563EB' : '1px solid #E2E8F0',
                   borderRadius: 14,
-                  padding: '20px 24px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '18px 24px',
                   boxShadow: isActive ? '0 0 0 3px rgba(37,99,235,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
                 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
-                      {rec.name || (rec.savedAt && rec.savedAt !== 'Current session (unsaved)' ? new Date(rec.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
-                      {isActive && (
-                        <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
-                          ACTIVE IN TAX TRACKER
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 13, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
-                      <span style={{ fontSize: 13, color: SL }}>Year: <strong style={{ color: N }}>{taxYear}</strong></span>
-                      <span style={{ fontSize: 13, color: SL }}>Revenue: <strong style={{ color: displayRevenue && parseFloat(displayRevenue) > 0 ? N : '#94A3B8' }}>
-                        {displayRevenue && parseFloat(displayRevenue) > 0 ? '$' + parseFloat(displayRevenue).toLocaleString() : 'No data'}
-                      </strong></span>
-                      {w2Income && parseFloat(w2Income) > 0 && (
-                        <span style={{ fontSize: 13, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
-                      )}
-                      <span style={{ fontSize: 13, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                      <span style={{ fontSize: 13, color: SL }}>
-                        Quarterly:{' '}
-                        <strong style={{ color: quarterly > 0 ? N : '#94A3B8' }}>
-                          {quarterly > 0 ? '$' + Math.round(quarterly).toLocaleString() + '/qtr' : 'Complete Step 2 for estimate'}
-                        </strong>
-                        {quarterly > 0 && (
-                          <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 5, fontWeight: 400 }}>
-                            · <a onClick={e => { e.stopPropagation(); loadRecord(rec) }} style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }} title="Open Step 2 to compare 90% current-year vs 110%/100% prior-year safe harbor">safe harbor in Step 2</a>
+                  {/* ── Card header row ── */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
+                        {rec.name || (savedAt ? new Date(savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
+                        {isActive && (
+                          <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
+                            ACTIVE IN TAX TRACKER
                           </span>
                         )}
-                      </span>
+                      </div>
+                      {savedAt && (
+                        <div style={{ fontSize: 11, color: '#94A3B8' }}>Saved {savedAt}</div>
+                      )}
+                    </div>
+
+                    {/* Action buttons — top-right */}
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+                      <button onClick={() => loadRecord(rec)} style={{ padding: '9px 18px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                        Load &amp; Continue →
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(rec, i)}
+                        title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
+                        style={{ padding: '9px 13px', background: '#fff', color: R, border: '1.5px solid #FCA5A5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                      >🗑</button>
                     </div>
                   </div>
 
-                  {totalTax > 0 && (() => {
-                    const prevRec = i === 0 ? records[1] : null
-                    const prevTax = prevRec ? parseFloat(prevRec.totalTax) || 0 : 0
-                    const delta = totalTax - prevTax
-                    const showDelta = i === 0 && prevTax > 0 && Math.abs(delta) >= 100
-                    return (
-                      <div style={{ flexShrink: 0, marginLeft: 20, marginRight: 8, textAlign: 'center', background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12, padding: '10px 18px', minWidth: 120 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', letterSpacing: '0.5px', marginBottom: 3 }}>EST. TAX LIABILITY</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: R, lineHeight: 1 }}>${Math.round(totalTax).toLocaleString()}</div>
-                        {quarterly > 0 && (
-                          <div style={{ fontSize: 10, color: '#991B1B', marginTop: 3 }}>${Math.round(quarterly).toLocaleString()}/qtr</div>
-                        )}
-                        {showDelta && (
-                          <div style={{ marginTop: 5, fontSize: 11, fontWeight: 700, color: delta > 0 ? '#DC2626' : '#16A34A' }}>
-                            {delta > 0 ? '▲' : '▼'} ${Math.abs(Math.round(delta)).toLocaleString()} vs prior
-                          </div>
-                        )}
-                        <div style={{ fontSize: 11, color: '#B91C1C', marginTop: showDelta ? 2 : 5, fontStyle: 'italic' }}>Federal income tax only</div>
-                      </div>
-                    )
-                  })()}
+                  {/* ── F24 FIX: Summary strip — always visible, no loading required ── */}
+                  {/* Shows est. tax liability, effective rate, and tax year derived from
+                      saved record fields. When totalTax is 0 (Step 2 not completed),
+                      shows a prompt instead of blank numbers. */}
+                  <div style={{
+                    display: 'flex', gap: 0, flexWrap: 'wrap',
+                    background: '#F8FAFC', borderRadius: 10,
+                    border: '1px solid #E2E8F0', overflow: 'hidden',
+                    marginBottom: 10,
+                  }}>
+                    {/* Tax year */}
+                    <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 80 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>TAX YEAR</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{taxYear}</div>
+                    </div>
 
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 20, alignItems: 'center' }}>
-                    <button onClick={() => loadRecord(rec)} style={{ padding: '10px 20px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                      Load &amp; Continue →
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(rec, i)}
-                      title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
-                      style={{ padding: '10px 14px', background: '#fff', color: R, border: '1.5px solid #FCA5A5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
-                    >🗑</button>
+                    {/* Est. federal tax liability */}
+                    <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>EST. FEDERAL TAX</div>
+                      {totalTax > 0 ? (
+                        <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{fmt(Math.round(totalTax))}</div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
+                          Complete Step 2 for estimate
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Effective rate */}
+                    <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
+                      {effRateNum !== null ? (
+                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateNum}%</div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#94A3B8' }}>—</div>
+                      )}
+                    </div>
+
+                    {/* Quarterly */}
+                    <div style={{ padding: '10px 18px', minWidth: 130 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
+                      {quarterly > 0 ? (
+                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterly))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#94A3B8' }}>—</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Metadata row ── */}
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
+                    <span style={{ fontSize: 12, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
+                    {displayRevenue && parseFloat(displayRevenue) > 0 && (
+                      <span style={{ fontSize: 12, color: SL }}>Revenue: <strong style={{ color: N }}>${parseFloat(displayRevenue).toLocaleString()}</strong></span>
+                    )}
+                    {w2Income && parseFloat(w2Income) > 0 && (
+                      <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
+                    )}
+                    {quarterly > 0 && (
+                      <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                        · <span
+                          onClick={e => { e.stopPropagation(); loadRecord(rec) }}
+                          style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }}
+                          title="Open Step 2 to compare safe harbor thresholds"
+                        >safe harbor in Step 2</span>
+                      </span>
+                    )}
+                    {/* Delta vs previous record */}
+                    {i === 0 && records[1] && (parseFloat(records[1].totalTax) || 0) > 0 && totalTax > 0 && (() => {
+                      const prevTax = parseFloat(records[1].totalTax) || 0
+                      const delta = totalTax - prevTax
+                      if (Math.abs(delta) < 100) return null
+                      return (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: delta > 0 ? '#DC2626' : '#16A34A' }}>
+                          {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(Math.round(delta)))} vs prior record
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
               )
