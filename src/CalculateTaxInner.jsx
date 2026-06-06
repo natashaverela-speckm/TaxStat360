@@ -789,6 +789,15 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
                 {showQBI ? '▲ Collapse' : '▼ Expand'} §199A QBI Inputs (W-2 Wages, UBIA, SSTB)
               </button>
+              {/* P3c FIX: contextual hint so users know when these fields matter.
+                  Without this, users either ignore the section entirely or enter
+                  values they don't need, creating confusion. The threshold hint
+                  matches the InfoTip tooltips inside each field. */}
+              {!showQBI && (
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ)
+                </div>
+              )}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
@@ -832,6 +841,15 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               >
                 {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions (Form 7203)
               </button>
+              {/* P3c FIX: contextual hint so users know when stock basis matters.
+                  Stock basis limits loss deductibility — irrelevant if the entity
+                  is profitable. Surfacing that context prevents users from
+                  hunting for numbers they don't need. */}
+              {!showBasis && (
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                  Needed only if your S-Corp shows a loss — limits how much is deductible this year
+                </div>
+              )}
               {showBasis && (
                 <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
@@ -1041,7 +1059,9 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                 fontFamily: 'inherit',
               }}
             >
-              {entity.isManual ? '✏ Edit / re-enter data' : '⟳ Disconnect / reconnect software'}
+              {/* P3a FIX: "Edit / re-enter data" implied you had to start from scratch.
+                  "Edit P&L" is shorter, accurate, and less intimidating. */}
+              {entity.isManual ? '✏ Edit P&L' : '⟳ Disconnect / reconnect software'}
             </button>
             <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#EF4444', fontWeight: 600, padding: '6px 0', fontFamily: 'inherit' }}>
               🗑 Remove entity
@@ -1561,6 +1581,23 @@ export default function CalculateTaxInner() {
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
+      {/* Mobile desktop nudge — shown on narrow viewports only via CSS media query equivalent.
+          TaxStat360 is a desktop tool — the Tax Tracker has too many fields and a live
+          side panel to be usable at phone widths. This banner appears on viewports under
+          800px and nudges users to switch to a desktop browser without blocking the app.
+          Uses inline style + a hidden <style> tag since we're in a JSX component. */}
+      <style>{`
+        .ts360-mobile-nudge { display: none; }
+        @media (max-width: 800px) { .ts360-mobile-nudge { display: flex; } }
+      `}</style>
+      <div className="ts360-mobile-nudge" style={{
+        background: '#1e293b', color: '#f1f5f9',
+        padding: '10px 16px', gap: 12, alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 13, lineHeight: 1.5,
+      }}>
+        <span>💻 <strong>TaxStat360 works best on a desktop browser.</strong> Some features may be hard to use on a small screen.</span>
+      </div>
+
       {/* Nav */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
@@ -1637,8 +1674,17 @@ export default function CalculateTaxInner() {
             Connect accounting software
             <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or enter your figures manually using the link below." />
           </div>
-          {/* O1 FIX: subtitle retained; manual path now exists */}
-          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or{' '}
+          {/* P1 FIX: "enter manually" promoted from a small underline link buried in
+              subtitle text to a visible secondary button sitting alongside the subtitle.
+              The previous treatment ("Sync P&L data directly — or enter manually.")
+              was easy to miss for users without accounting software — which is the
+              majority of first-time users. The manual entry path is now surfaced as
+              a proper button with enough visual weight to be discovered on first visit.
+              The inline link is retained for discoverability on re-reads. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+            <p style={{ fontSize: 12, color: SL, margin: 0 }}>
+              Connect your accounting software to sync P&L automatically — or enter figures manually.
+            </p>
             <button
               onClick={() => {
                 // O1 FIX: create a blank S-Corp entity and open the manual panel
@@ -1662,18 +1708,29 @@ export default function CalculateTaxInner() {
                   return next
                 })
                 setExpandedIdx(entities.length)
-                // Scroll into view after render
                 setTimeout(() => {
                   const cards = document.querySelectorAll('[data-entity-card]')
                   const last = cards[cards.length - 1]
                   if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }, 100)
               }}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: B, fontWeight: 700, fontSize: 12, fontFamily: 'inherit', textDecoration: 'underline' }}
+              style={{
+                flexShrink: 0,
+                background: '#fff',
+                border: '1.5px solid ' + B,
+                borderRadius: 8,
+                padding: '7px 14px',
+                cursor: 'pointer',
+                color: B,
+                fontWeight: 700,
+                fontSize: 12,
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}
             >
-              enter manually
+              ✏ Enter manually
             </button>
-          .</p>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {(() => {
               const userIsPro = isPro()
@@ -1756,14 +1813,20 @@ export default function CalculateTaxInner() {
         )}
       </div>
 
-      {/* Fixed footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 80, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 70 }}>
+      {/* P0 FIX: Ask Aria widget is position:fixed bottom-right (~60x60px at bottom:16 right:16).
+          The prior `right: 80` offset left a visual gap on desktop and still caused overlap on
+          mobile because the widget's bottom edge (16 + 60 = 76px) exceeded the footer height
+          (~58px), pushing the widget partially over "Continue to Step 2".
+          Fix: extend footer to full-width (right: 0) and add paddingRight: 90 to the inner
+          button row so the rightmost button always clears the widget regardless of viewport.
+          The footer background still covers the full width so it reads as a clean bar. */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', zIndex: 70 }}>
         {footerError && (
-          <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px' }}>
+          <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px', marginBottom: 6 }}>
             {footerError}
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingRight: 80 }}>
           <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
             {entities.length > 0
               ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
