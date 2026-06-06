@@ -617,13 +617,13 @@ export default function TaxReturn() {
                   {YEARS.map(y => (
                     <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
                   ))}
+                </select>
                 {/* F-NEW-B: OBBBA advisory banner — pending Treasury regulations */}
                 {taxYear === 2026 && (
                   <div role="note" style={{ marginTop: 6, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
                     <strong>⚠ OBBBA provisions apply (P.L. 119-21).</strong> Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
                   </div>
                 )}
-                </select>
                 {taxYear === 2026 && (
                   <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>
                     One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
