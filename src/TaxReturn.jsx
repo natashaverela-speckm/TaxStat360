@@ -1067,8 +1067,8 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qbi-loss" style={inputLbl}>
-                  Prior Year QBI Loss Carryforward
-                  <InfoTip text="If your business generated a net loss last year, that loss reduces your §199A QBI deduction base in the CURRENT year per IRC §199A(c)(2). Enter the absolute value of last year's QBI loss (as a positive number)." />
+                  Prior Year QBI Loss Carryforward (pooled — use entity panel for multi-entity)
+                  <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's §199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. §1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
                 </label>
                 <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
               </div>

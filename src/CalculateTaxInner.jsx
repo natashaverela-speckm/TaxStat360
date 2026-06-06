@@ -30,6 +30,11 @@
 //   Capital Gain panel for S-Corp entities (Form 7203).
 //
 // ── AUDIT REPORT FIXES (Sprint 2) ────────────────────────────────────────────
+// F-05 FIX: Per-entity QBI loss carryforward field added to §199A panel.
+//   Each entity now has a qbiLossCarryforward field persisted via onUpdate.
+//   Replaces the single pooled priorYearQBILoss field for multi-entity filers.
+//   IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii) · Form 8995 lines 3 & 16.
+//
 // F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
 //   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
 //   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
@@ -834,6 +839,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     { label: 'UBIA of Qualified Property (K-1 Box 17W / Box 20AA)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: 'Section 179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions (K-1 Box 12 / Box 13)', key: 'box12_13', tip: 'Charitable contributions passed through from the entity. These flow to Schedule A and also reduce your K-1 basis.' },
+                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995 Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', display: 'block', marginBottom: 3 }}>
@@ -1297,7 +1303,7 @@ export default function CalculateTaxInner() {
       pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
       isManual: true,
       connectedId: null,
-      box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+      box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
       box17V_sstb: false,
       stockBasis: '', debtBasis: '', distributions: '',
       isREP: false, isActiveParticipant: false,
@@ -1424,7 +1430,7 @@ export default function CalculateTaxInner() {
             netProfit:     get(['net profit', 'profit', 'net income'])                        || '',
           },
           isManual: true, connectedId: null,
-          box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+          box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
           box17V_sstb: false,
           stockBasis: '', debtBasis: '', distributions: '',
           isREP: false, isActiveParticipant: false,
@@ -1725,7 +1731,7 @@ export default function CalculateTaxInner() {
                   pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
                   isManual: true,
                   connectedId: null,
-                  box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+                  box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
                   box17V_sstb: false,
                   stockBasis: '', debtBasis: '', distributions: '',
                   isREP: false, isActiveParticipant: false,

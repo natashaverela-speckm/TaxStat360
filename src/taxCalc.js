@@ -116,6 +116,13 @@
 // itemizer with QBI (manufacturing phantom AMT at high income), and understated by
 // the standard deduction for non-itemizers. Fixed in calcAMT.
 //
+// F-05 ENGINE FIX (§199A(c)(2) per-entity QBI loss carryforward):
+// _calcQBI now reads qbiLossCarryforward from each entity in entityQbiData
+// and subtracts it from that entity's QBI contribution before aggregation.
+// This replaces the single pooled priorQBILossCO deduction for multi-entity
+// filers and correctly tracks per-entity carryforwards.
+// IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii).
+//
 // F-01 ENGINE FIX (§1366(d)(2) prior-year suspended loss carryforward):
 // calcTaxReturn now accepts priorSuspendedLoss (Form 7203 Part III col. e).
 // Released prior-year suspended loss is added to adjustedK1Total so it
@@ -662,6 +669,17 @@ function calcTaxReturn(input) {
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
   const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
 
+  // F-05: per-entity QBI loss carryforward — sum from entity.qbiLossCarryforward fields.
+  // When any entity has a per-entity value, it takes precedence over the pooled
+  // priorYearQBILoss field for that entity's contribution. We take the max of the
+  // two approaches to avoid double-counting: if no per-entity values are entered,
+  // the pooled priorQBILossCO still applies (backward compatible).
+  const perEntityQBILossCO = entities.reduce((sum, e) => {
+    if (!e) return sum
+    return sum + Math.abs(nv(e.qbiLossCarryforward))
+  }, 0)
+  const effectiveQBILossCO = perEntityQBILossCO > 0 ? perEntityQBILossCO : priorQBILossCO
+
   // ── PASS4B-02: §1366(d) / §704(d) Shareholder Basis Limitation ────────────
   // For each S-Corp or Partnership entity, if the user has entered a stock basis
   // and the entity has a loss, limit the deductible loss to (stockBasis + debtBasis).
@@ -1021,7 +1039,7 @@ function calcTaxReturn(input) {
   // Non-REP rentals are unchanged: only positive net is included, pending a
   // separate §162 trade-or-business determination.
   const rentalQbiContribution = effectiveIsREP ? palAdjustedRental : Math.max(0, palAdjustedRental)
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - priorQBILossCO + k1FallbackForQBI
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
 
   // §1231 FIX (IRC §1231(a)(1)): a NET §1231 gain (positive f4797Inc) is long-term
   // capital gain taxed at 0/15/20%, not ordinary rates. A net §1231 LOSS (negative
@@ -1248,6 +1266,8 @@ function calcTaxReturn(input) {
     safeHarborBalance,
     safeHarborQuarterly,
     priorQBILossCO,
+    effectiveQBILossCO,   // F-05: actual carryforward applied (per-entity or pooled)
+    perEntityQBILossCO,  // F-05: sum of per-entity fields
     qbiCarryforward,
     nolAllowed,
     nolSurplus,
