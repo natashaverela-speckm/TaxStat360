@@ -158,6 +158,9 @@ import {
   FICA_MEDICARE_RATE,
   SE_NET_EARNINGS_FACTOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
+  UNRECAPTURED_1250_MAX_RATE,
+  COLLECTIBLES_MAX_RATE,
+  CURRENT_TAX_YEAR,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity } from './utils/entityPredicates.js'
 
@@ -273,7 +276,7 @@ const AMT_TABLES = {
 // SALT deduction caps — IRC §164(b)(6) as amended by OBBBA §70106
 const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
 
-function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[2025] }
+function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
@@ -320,8 +323,8 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
     tax += atFifteen * LTCG_RATE_MID
     tax += atTwenty  * LTCG_RATE_HIGH
   }
-  if (unrecap1250 > 0) tax += unrecap1250 * 0.25
-  if (collectibles > 0) tax += collectibles * 0.28
+  if (unrecap1250 > 0) tax += unrecap1250 * UNRECAPTURED_1250_MAX_RATE
+  if (collectibles > 0) tax += collectibles * COLLECTIBLES_MAX_RATE
 
   return Math.round(tax)
 }

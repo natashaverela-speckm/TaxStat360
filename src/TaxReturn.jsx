@@ -86,7 +86,8 @@ import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { API_BASE_URL } from './constants.js'
+import { API_BASE_URL   CURRENT_TAX_YEAR,
+} from './constants.js'
 import { isPro } from './LockedFeature'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -252,7 +253,7 @@ export default function TaxReturn() {
 
   const { entities, k1Total: sessionK1 } = readStep1State()
   const savedCtx = readPersonalContext()
-  const [taxYear, setTaxYear] = useState(() => readTaxYear() || 2025)
+  const [taxYear, setTaxYear] = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
 
   const [filingStatus, setFilingStatus] = useState(savedCtx.filingStatus || 'single')
   const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')

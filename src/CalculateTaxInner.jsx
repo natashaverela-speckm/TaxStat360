@@ -111,7 +111,8 @@ import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL   CURRENT_TAX_YEAR,
+} from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
@@ -1208,7 +1209,7 @@ function CompareModal({ entities, onClose }) {
           ))}
         </div>
         <p style={{ fontSize: 11, color: SL, textAlign: 'center', marginTop: 16 }}>
-          Federal income tax only · {(readTaxYear() || 2025)} · {filing.toUpperCase()} · Estimates — consult a tax professional
+          Federal income tax only · {(readTaxYear() || CURRENT_TAX_YEAR)} · {filing.toUpperCase()} · Estimates — consult a tax professional
         </p>
       </div>
     </div>
@@ -1226,7 +1227,7 @@ export default function CalculateTaxInner() {
   const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,       setSaveStatus]       = useState('idle')
-  const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || 2025)
+  const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
   const [csvImportStatus,  setCsvImportStatus]  = useState(null)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
