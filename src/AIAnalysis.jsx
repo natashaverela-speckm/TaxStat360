@@ -3,12 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
+import { CURRENT_TAX_YEAR } from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
 // F15 FIX: SimulatorModal produced corrupt number outputs and had no reset.
@@ -250,11 +251,7 @@ function missingFields(rec) {
 // Written by Onboarding.jsx BusinessScreen after the O7 patch.
 // Falls back gracefully if not set (pre-patch sessions, skipped step).
 function getOnboardingBizInfo() {
-  return {
-    bizName:    sessionStorage.getItem('ts360_biz_name')    || '',
-    bizEin:     sessionStorage.getItem('ts360_biz_ein')     || '',
-    bizAddress: sessionStorage.getItem('ts360_biz_address') || '',
-  }
+  return readBusinessInfo()
 }
 
 function NoData() {
@@ -299,7 +296,7 @@ function RiskScan({ rec }) {
   const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
   const totalIncome = k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
 
-  const year = parseInt(b.year) || 2025
+  const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
   const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
   const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
@@ -391,7 +388,7 @@ function RiskScan({ rec }) {
   }
 
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
-    const _year = parseInt(b.year) || 2025
+    const _year = parseInt(b.year) || CURRENT_TAX_YEAR
     const _filing = f.filingStatus || 'single'
     const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
     const { deduction: qbi, limitApplied: _limitApplied, caps: _caps, aggregationApplied: _agg, aggregationDisclosure: _aggDisc } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
@@ -565,7 +562,7 @@ function TaxOptimization({ rec }) {
   const k1 = parseFloat(rec.k1Income) || 0
   const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
-  const year = parseInt(b.year) || 2025
+  const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const isPassthrough = isPassthroughEntity(b.entityType)
   const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
   const filing = f.filingStatus || 'single'
@@ -753,7 +750,7 @@ function IRSCompliance({ rec }) {
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = getTotalW2(rec)
   const entity = b.entityType || 'Unknown'
-  const year = parseInt(b.year) || 2025
+  const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const today = new Date()
 
   const { sCorp: sCorpK1Amount, partnership: partnershipK1Amount, realEstate: realEstateAmount, scheduleC: scheduleCAmount } = getEntityIncomeSplit(rec)
@@ -1064,7 +1061,7 @@ function BriefingModal({ onClose, rec }) {
 
   const b = rec.biz || {}, f = rec.f1040 || {}
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  const year = parseInt(b.year) || 2025
+  const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
   const filingLabel = ({ single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' })[filing] || filing
   const num = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0
@@ -1287,7 +1284,7 @@ function BriefingModal({ onClose, rec }) {
 //     so users can compare the simulator output against their Step 2 estimate.
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const taxYear = parseInt(b.year) || 2025
+  const taxYear = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing  = f.filingStatus || 'single'
   const ownerPctVal = ownPct(b.ownershipPct) / 100
   const entity  = b.entityType || 'Unknown'

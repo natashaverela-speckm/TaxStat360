@@ -55,6 +55,7 @@ import {
   PASSTHROUGH_ENTITY_TYPES,
   C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
+  CURRENT_TAX_YEAR,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
 import { fmt, pct } from './utils/formatMoney.js'
@@ -89,7 +90,7 @@ function calcDashboard(biz, f1040) {
   const k1       = Math.round(netBiz * own)
 
   const fs       = f1040.filingStatus || 'single'
-  const year     = parseInt(biz.year) || 2025
+  const year     = parseInt(biz.year) || CURRENT_TAX_YEAR
   const w2       = parseFloat(f1040.w2Income)          || 0
   const otherInc = parseFloat(f1040.otherIncome)       || 0
   const deps     = parseFloat(f1040.dependents)        || 0
@@ -539,7 +540,7 @@ export default function Dashboard() {
       priorYearAGI: parseFloat(saved1040.priorYearAGI) || 0,
       w2Withheld: parseFloat(saved1040.w2Withheld) || 0,
     })
-    writeTaxYear(rec.taxYear || rec.biz?.year || 2025)
+    writeTaxYear(rec.taxYear || rec.biz?.year || CURRENT_TAX_YEAR)
     const activeName = rec.name || rec.savedAt || 'Saved Record'
     sessionStorage.setItem('ts360_active_record_name', activeName)
     sessionStorage.setItem('ts360_active_record_id', String(rec.id || ''))
