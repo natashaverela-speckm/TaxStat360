@@ -491,7 +491,7 @@ export default function TaxReturn() {
   const safeHarborMet = safeHarborGap !== null && safeHarborGap <= 0
 
   // Next estimated tax due date (for Safe Harbor gap message)
-  const NEXT_DUE_DATES: Record<number, string[]> = {
+  const NEXT_DUE_DATES = {
     2024: ['Apr 15, 2024', 'Jun 17, 2024', 'Sep 16, 2024', 'Jan 15, 2025'],
     2025: ['Apr 15, 2025', 'Jun 16, 2025', 'Sep 15, 2025', 'Jan 15, 2026'],
     2026: ['Apr 15, 2026', 'Jun 15, 2026', 'Sep 15, 2026', 'Jan 15, 2027'],
