@@ -11,6 +11,13 @@
 // UX-05 FIX: Micro-text added beneath each save button to disambiguate navigation.
 // PASS5 (Code Consistency): CC-P01–CC-P04 as documented in prior pass.
 //
+// ── AUDIT REPORT FIXES (Sprint 1) ────────────────────────────────────────────
+// F-NEW-A FIX: Safe harbor tooltip — $75K threshold is MFS only (§6654(d)(1)(C)(ii)).
+// F-NEW-B FIX: OBBBA advisory banner when taxYear===2026 selected.
+// F-11 FIX: REP election has §469(c)(7)(B) hours gate before isREP is set.
+// F-01 FIX: Prior-year §1366(d) suspended loss carryforward input (Form 7203 Part III).
+// F-08 FIX: §1250 prompt when Form 4797 gain entered and §1250 blank.
+//
 // ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
 // F-09 FIX: W-2 Income input click redirected to QuickBooks OAuth flow.
 // F-10 FIX: "Save This Record" (Step 2) gave no user feedback.
@@ -269,6 +276,12 @@ export default function TaxReturn() {
   const [isREP,               setIsREP]               = useState(!!(savedCtx.isREP))
   const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant === true)
   const [priorPAL,            setPriorPAL]            = useState(savedCtx.priorPassiveLossCarryforward || '')
+  // F-11: REP hours qualification gate
+  const [repHoursRE,    setRepHoursRE]    = useState(savedCtx.repHoursRE    || '')
+  const [repHoursTotal, setRepHoursTotal] = useState(savedCtx.repHoursTotal || '')
+  const [showRepGate,   setShowRepGate]   = useState(false)
+  // F-01: §1366(d) suspended loss carryforward
+  const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
@@ -363,6 +376,8 @@ export default function TaxReturn() {
       mortgageInt, charitableContr, medicalAmt,
       hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
+      repHoursRE, repHoursTotal,    // F-11
+      priorSuspendedLoss,           // F-01
     })
   }, [
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
@@ -372,6 +387,8 @@ export default function TaxReturn() {
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
+    repHoursRE, repHoursTotal,
+    priorSuspendedLoss,
   ])
 
   const buildRecord = useCallback(() => {
@@ -600,6 +617,12 @@ export default function TaxReturn() {
                   {YEARS.map(y => (
                     <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
                   ))}
+                {/* F-NEW-B: OBBBA advisory banner — pending Treasury regulations */}
+                {taxYear === 2026 && (
+                  <div role="note" style={{ marginTop: 6, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
+                    <strong>⚠ OBBBA provisions apply (P.L. 119-21).</strong> Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
+                  </div>
+                )}
                 </select>
                 {taxYear === 2026 && (
                   <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>
@@ -827,6 +850,14 @@ export default function TaxReturn() {
                 Only use the fields below for <em>additional</em> rentals not already entered in Step 1.
               </div>
             )}
+            {/* F-01: §1366(d) prior-year suspended loss carryforward — Form 7203 Part III col. (e) */}
+            <div style={inpWrap}>
+              <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
+                Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
+                <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+              </label>
+              <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {/* F16 FIX: Rental Income uses IncomeField (nonNegative) with a helper
                   tooltip directing losses to the Rental Expenses field, matching the
@@ -849,12 +880,72 @@ export default function TaxReturn() {
                 <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" nonNegative />
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
-              <input type="checkbox" id="rep" checked={isREP} onChange={e => setIsREP(e.target.checked)} style={{ marginTop: 2 }} />
-              <label htmlFor="rep" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
-                Real Estate Professional (REP) — IRC §469(c)(7)
-                <InfoTip text={'REP status allows unlimited rental loss deductions against all income.\n\nTo qualify, BOTH of the following must be true:\n① More than 750 hours in real property trades/businesses (material participation)\n② More than 50% of ALL your personal service time is in real estate\n\n⚠ If you have a significant W-2 job, qualifying is very difficult. The IRS scrutinizes this heavily. Contemporaneous time logs are required.'} wide />
-              </label>
+            {/* F-11: REP election with §469(c)(7)(B) hours qualification gate */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  id="rep"
+                  checked={isREP}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      setShowRepGate(true)
+                    } else {
+                      setIsREP(false)
+                      setShowRepGate(false)
+                    }
+                  }}
+                  style={{ marginTop: 2 }}
+                />
+                <label htmlFor="rep" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
+                  Real Estate Professional (REP) — IRC §469(c)(7)
+                  <InfoTip text={'REP status allows unlimited rental loss deductions against all income.\n\nTo qualify, BOTH of the following must be true:\n① More than 750 hours in real property trades/businesses (material participation)\n② More than 50% of ALL your personal service time is in real estate\n\n⚠ If you have a significant W-2 job, qualifying is very difficult. The IRS scrutinizes this heavily. Contemporaneous time logs are required.\n\nIRC §469(c)(7)(B) · Treas. Reg. §1.469-9(c)'} wide />
+                </label>
+              </div>
+              {(showRepGate || isREP) && (() => {
+                const reHrs  = parseFloat(repHoursRE)   || 0
+                const totHrs = parseFloat(repHoursTotal) || 0
+                const pass750 = reHrs > 750
+                const pass50  = totHrs > 0 && (reHrs / totHrs) > 0.50
+                const qualifies = pass750 && pass50
+                return (
+                  <div style={{ marginLeft: 22, marginTop: 8, background: qualifies ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${qualifies ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: qualifies ? '#166534' : '#78350F' }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>§469(c)(7)(B) Qualification Test</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <div style={inpWrap}>
+                        <label style={{ ...inputLbl, fontSize: 11 }}>
+                          Hours in RE trades/businesses
+                          <InfoTip text={'Hours personally performed in real property trades or businesses you materially participated in. Must exceed 750. IRC §469(c)(7)(B)(i)'} />
+                        </label>
+                        <input type="number" min="0" step="1" value={repHoursRE} onChange={e => setRepHoursRE(e.target.value)} placeholder="e.g. 800" style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={inpWrap}>
+                        <label style={{ ...inputLbl, fontSize: 11 }}>
+                          Total personal service hours (all work)
+                          <InfoTip text={'Total hours personally performed in ALL trades, businesses, or activities. RE hours must exceed 50% of this. IRC §469(c)(7)(B)(ii)'} />
+                        </label>
+                        <input type="number" min="0" step="1" value={repHoursTotal} onChange={e => setRepHoursTotal(e.target.value)} placeholder="e.g. 1500" style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, lineHeight: 1.7 }}>
+                      {pass750 ? <span style={{ color: '#166534' }}>✓ 750-hour test: {reHrs} hrs &gt; 750</span> : <span style={{ color: '#DC2626' }}>✗ 750-hour test: need &gt; 750 hrs in RE (entered: {reHrs || 0})</span>}
+                      <br />
+                      {pass50 ? <span style={{ color: '#166534' }}>✓ 50% test: {reHrs}/{totHrs} = {totHrs > 0 ? Math.round(reHrs/totHrs*100) : 0}% &gt; 50%</span> : <span style={{ color: '#DC2626' }}>✗ 50% test: RE hours must exceed 50% of all hours ({totHrs > 0 ? Math.round(reHrs/totHrs*100) : 0}%)</span>}
+                    </div>
+                    {qualifies ? (
+                      <div style={{ marginTop: 8, fontWeight: 600 }}>
+                        ✓ Both tests met — REP confirmed. Full rental loss deduction allowed.
+                        {!isREP && <button onClick={() => { setIsREP(true); setShowRepGate(false) }} style={{ marginLeft: 10, background: '#166534', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Confirm REP</button>}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontWeight: 600, color: '#DC2626' }}>
+                        ✗ REP not met — defaulting to §469(i) $25K allowance (if active participant).
+                        <button onClick={() => { setIsREP(false); setShowRepGate(false); setIsActiveParticipant(true) }} style={{ marginLeft: 10, background: '#92400E', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Apply $25K allowance instead</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
             {!isREP && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -918,6 +1009,12 @@ export default function TaxReturn() {
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
                 <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
+                {/* F-08: advisory when Form 4797 gain entered but §1250 blank */}
+                {(parseFloat(String(form4797).replace(/,/g,'')) || 0) > 0 && (parseFloat(String(unrecap1250).replace(/,/g,'')) || 0) === 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    ⚠ You entered a Form 4797 gain. If this included <strong>depreciable real property</strong>, enter accumulated straight-line depreciation here — that amount is taxed at up to 25%, not 20%. Schedule D Unrecaptured §1250 Worksheet · IRC §1(h)(1)(D).
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-collectibles" style={inputLbl}>
@@ -1058,7 +1155,7 @@ export default function TaxReturn() {
           <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
-              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (MFJ) / $75K (others), the safe harbor is 110% of prior year tax.
+              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii).
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
@@ -1099,7 +1196,7 @@ export default function TaxReturn() {
                     </div>
                     {priorYearAGINum === 0 && (
                       <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 6, fontStyle: 'italic' }}>
-                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K MFJ / $75K others).
+                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K for single, HOH, and MFJ filers; $75K for MFS only — IRC §6654(d)(1)(C)(ii)).
                       </div>
                     )}
                   </div>
