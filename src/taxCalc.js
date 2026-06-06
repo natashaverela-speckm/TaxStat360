@@ -774,7 +774,7 @@ function calcTaxReturn(input) {
   })
 
   // Real Estate net removed from the K-1 income line — handled by §469 below.
-  const adjustedK1Total = k1Total + totalSuspendedLoss + priorSuspendedLossApplied - step1RentalNet
+  const adjustedK1Total = k1Total + totalSuspendedLoss - priorSuspendedLossApplied - step1RentalNet
 
   // ── PASS4B-02b: §1368(b)(2) S-Corp Distribution Capital Gain ─────────────
   // Distributions reduce stock basis. The portion of distributions that exceeds
