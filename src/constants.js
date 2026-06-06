@@ -48,6 +48,40 @@
 // AMT exemption dollar amounts and phase-out ranges are inflation-adjusted annually
 // and belong in AMT_TABLES[year] in taxCalc.js — they are NOT defined here.
 // (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ — add to TAX_TABLES.)
+//
+// ── AUDIT PASS 2 FIXES ───────────────────────────────────────────────────────
+// O3 FIX: ENTITY_TYPES was the source of a cross-component mismatch.
+//   Previous values:
+//     'Sole Proprietor / Single-Member LLC'  ← didn't match Tax Tracker's 'Sole Proprietor / SMLLC'
+//     'Partnership / MMLLC — Active'         ← Tax Tracker uses 'Partnership / LLC'
+//     'Partnership / MMLLC — Passive'        ← Tax Tracker uses 'Partnership / LLC'
+//     'S Corporation'                        ← matched
+//     'C Corporation'                        ← not supported in Tax Tracker; caused silent mis-routing
+//     (no Real Estate entry)                 ← Tax Tracker supports 'Real Estate (Schedule E)'
+//
+//   CompareModal in CalculateTaxInner.jsx filters ENTITY_TYPES to build comparison scenarios.
+//   The mismatch meant CompareModal passed unrecognized type strings to calcTaxReturn, which
+//   fell back to Sole Prop behaviour silently — producing incorrect comparison figures.
+//
+//   ENTITY_TYPES now matches the Tax Tracker entity card <select> exactly (4 types).
+//   C Corporation is removed (not supported for tax calculation). Real Estate is added.
+//   SE_SUBJECT_TYPES and PASSTHROUGH_ENTITY_TYPES updated to use the same canonical strings.
+//   Partnership active/passive distinction is handled at the entity level via entity.isREP /
+//   entity.isActiveParticipant flags, not by separate type strings — removing the split
+//   simplifies all consumers and eliminates the silent comparison mis-routing.
+//
+//   Downstream effects:
+//     CompareModal (CalculateTaxInner.jsx): now iterates correct 4-type list. Real Estate
+//       is filtered from SE and comparison scenarios automatically via SE_SUBJECT_TYPES.
+//     entityPredicates.js: isPassthroughEntity, isSCorpEntity, isRealEstateEntity all
+//       already use regex patterns — no change needed.
+//     calcTaxReturn (taxCalc.js): driven by entity.type string matches in entityPredicates.
+//       The regex patterns in entityPredicates already match the new canonical strings.
+//
+// O6 FIX: Added PLAN_FEATURES map — one-line feature summary per plan tier.
+//   Consumed by Onboarding.jsx SignupScreen plan picker so users can choose their
+//   plan without leaving the signup page to consult the pricing table.
+//   Keep these strings short (under 60 chars) — they render at 11px in a constrained card.
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 // Branded CloudFront URL — all components use this constant; do not hardcode the
@@ -82,6 +116,16 @@ export const PLAN_DISPLAY_NAMES = {
   basic:       'Starter',
   pro:         'Professional',
   enterprise:  'Enterprise',
+}
+
+// O6 FIX: One-line feature summary per plan — consumed by Onboarding.jsx SignupScreen
+// plan picker so users understand what each tier includes without leaving the signup page.
+// Keep each string under ~60 characters (renders at 11px in a 150px-wide card column).
+// Update these whenever plan features change; they are display copy, not functional gates.
+export const PLAN_FEATURES = {
+  basic:       '1 entity · core tax tracker · quarterly estimates',
+  pro:         '3 entities · AI analysis · CPA Export tools',
+  enterprise:  'Unlimited entities · multi-user · priority support',
 }
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
@@ -316,33 +360,57 @@ export const CATCHUP_AGE_SUPER_START = 60  // SECURE 2.0 §109 — enhanced catc
 export const CATCHUP_AGE_SUPER_END   = 63  // SECURE 2.0 §109 — enhanced catch-up window end (inclusive)
 
 // ─── ENTITY TYPES ─────────────────────────────────────────────────────────────
-// Display labels — used in dropdowns and entity cards.
-// Partnership / MMLLC is split into Active and Passive per IRC §1402(a)(13):
-//   limited partners' distributive shares are excluded from SE tax (passive variant).
-//   Only Active (general partners / material participants) are SE-subject.
+// O3 FIX: Canonical entity type strings — must match the Tax Tracker entity card
+// <select> options in CalculateTaxInner.jsx exactly. All consumers (CompareModal,
+// onboarding EntityScreen, entityPredicates.js regex patterns, calcTaxReturn) derive
+// their entity classification from these strings.
+//
+// Previous list had five values including 'C Corporation' (unsupported in Tax Tracker),
+// split 'Partnership / MMLLC — Active' / 'Partnership / MMLLC — Passive' (not matching
+// the Tax Tracker's single 'Partnership / LLC' option), and lacked 'Real Estate (Schedule E)'.
+// The mismatch caused CompareModal to pass unrecognized type strings to calcTaxReturn,
+// which fell back to Sole Prop behaviour silently — producing wrong comparison figures.
+//
+// The Active/Passive partnership distinction is now handled via entity-level flags
+// (entity.isREP, entity.isActiveParticipant) rather than separate type strings.
+// entityPredicates.js regex patterns match all four canonical strings correctly.
+// C Corporation is removed from this list — it is not supported for tax calculation.
+// Real Estate (Schedule E) is added — it is a primary use case for the target audience
+// and was already supported by the Tax Tracker but absent from this constant.
+//
+// ⚠ When adding a new entity type: update this array AND the Tax Tracker <select>
+//   options AND the entityPredicates.js pattern functions simultaneously. These three
+//   must stay in sync — this constant is the reference source.
 export const ENTITY_TYPES = [
-  'Sole Proprietor / Single-Member LLC',
-  'Partnership / MMLLC — Active',
-  'Partnership / MMLLC — Passive',
   'S Corporation',
-  'C Corporation',
+  'Partnership / LLC',
+  'Sole Proprietor / SMLLC',
+  'Real Estate (Schedule E)',
 ]
 
 // Pass-through entities: K-1 income flows to the owner's personal 1040.
-// Both Active and Passive partnership variants are pass-through (file Form 1065).
+// All four supported entity types are pass-through. C-Corp (double-taxation)
+// is not supported and therefore not listed.
+// O3 FIX: updated to use canonical strings matching ENTITY_TYPES above.
 export const PASSTHROUGH_ENTITY_TYPES = [
-  'Sole Proprietor / Single-Member LLC',
-  'Partnership / MMLLC — Active',
-  'Partnership / MMLLC — Passive',
   'S Corporation',
+  'Partnership / LLC',
+  'Sole Proprietor / SMLLC',
+  'Real Estate (Schedule E)',
 ]
 
 // SE-subject entity types: drive SE tax calculation in calcTaxReturn.
 // S-Corp distributions are NOT SE-subject (officer W-2 salary is FICA-taxed instead).
-// Per IRC §1402(a)(13), passive partners/members excluded — Active variant only is SE-subject.
+// Real Estate is NOT SE-subject (rental income is passive; SE tax does not apply).
+// Partnership / LLC: SE tax applies to general partners / active members who materially
+//   participate. This is handled at runtime by entity.isActiveParticipant flag in
+//   calcTaxReturn — the type string alone does not determine SE treatment for partnerships.
+//   The type is included here so Sole Prop is correctly identified as always SE-subject.
+// O3 FIX: updated to use canonical strings. 'Partnership / MMLLC — Active' removed;
+//   partnership SE treatment is applied conditionally in calcTaxReturn via entity flags.
 export const SE_SUBJECT_TYPES = [
-  'Sole Proprietor / Single-Member LLC',
-  'Partnership / MMLLC — Active',
+  'Sole Proprietor / SMLLC',
+  'Partnership / LLC',  // SE applies only when entity.isActiveParticipant — checked at runtime
 ]
 
 // ─── ACCOUNTING SOFTWARE INTEGRATIONS ─────────────────────────────────────────
