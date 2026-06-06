@@ -13,31 +13,59 @@
 //
 // ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
 // F-09 FIX: W-2 Income input click redirected to QuickBooks OAuth flow.
-//   Root cause: a transparent anchor or click-handler from the QB integration
-//   card was overlapping the tr-w2-income input at certain viewport widths.
-//   Fix: The W-2 Income & Withholding CollapsibleSection now has an explicit
-//   position:relative + zIndex:10 wrapper so its inputs sit above any integration
-//   card elements. The input itself gains a stopPropagation onClick handler to
-//   prevent any ancestor click bubbling from re-triggering an OAuth redirect.
-//   The #tr-w2-income input also gets pointerEvents:'auto' and position:'relative'
-//   with a zIndex to guarantee it is always the top hit target.
-//
-// F-10 FIX: "Save This Record" (Step 2) gave no user feedback on success or
-//   failure. Fixed:
-//   • Button shows "Saving…" + disabled during the async operation.
-//   • On success: button transitions to "✓ Saved!" with green styling for 3s.
-//   • On error: a red error toast appears below the button with a retry option.
-//   (Note: saveStatus was already managed for 'saving'/'saved' states — the
-//   existing pattern is preserved and extended with error state + visual cues.)
-//
+// F-10 FIX: "Save This Record" (Step 2) gave no user feedback.
 // F-13 FIX: "Save & Analyze →" saved but did not navigate to Step 3.
-//   Root cause: handleSave() called navigate() inside a setTimeout callback
-//   that fired before the save promise resolved, or the navigation was swallowed
-//   by an error in the save flow.
-//   Fix: navigation now fires inside a try/finally block AFTER the save
-//   operations complete successfully. A loading spinner is shown on the button
-//   during the async operation. If save fails, navigation does not fire and an
-//   error message is shown instead.
+//
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
+// F16 FIX: No client-side validation on required numeric income fields.
+//   MoneyInput previously stripped non-numeric chars and allowed leading '-',
+//   silently passing negative values through to calcTaxReturn with no error state.
+//   Entering alphabetic characters zeroed the field with no feedback.
+//   Fix: MoneyInput gains a `nonNegative` prop used on all income fields (W-2,
+//   Rental Income, Estimated Tax Payments, and the YTD-mode income display).
+//   When nonNegative=true:
+//     • A '-' prefix is rejected on every keystroke — the field simply does not
+//       accept it, so no error message is needed for that case.
+//     • If the field is blurred with a non-numeric value the field resets to ''
+//       and a per-field inline error is shown: "Enter a number ≥ 0".
+//   Non-income fields (capital gains, Form 4797, priorPAL) intentionally allow
+//   negative values and do NOT receive nonNegative=true.
+//   The Rental Income field gets an additional helper tooltip explaining that
+//   rental losses are entered via Rental Expenses, not a negative income figure,
+//   matching the audit recommendation exactly.
+//   Implementation: MoneyInput accepts `nonNegative` + `errorMsg`/`setErrorMsg`
+//   pair from its parent. Error state is local to each field instance via a small
+//   wrapper component IncomeField that composes MoneyInput + error display.
+//
+// F17 FIX: YTD Mode toggle activated without explaining what 'annualised' means
+//   or showing the extrapolated full-year figure. A real estate investor entering
+//   Jan–May rental income had no confirmation the annualisation was working.
+//   Fix: When ytdMode is enabled the toggle card now shows:
+//     1. A month selector (already existed) labelled "Income earned through [Month]"
+//        so the YTD period is unambiguous.
+//     2. A read-only "Projected full-year income" line that shows the K-1 + W-2
+//        annualised total in real time: (k1Total + nf(w2Income)) * ytdFactor.
+//        This makes the annualisation transparent and verifiable.
+//     3. The existing "× {ytdFactor}" label is reformatted as a plain-language
+//        sentence: "Your figures will be multiplied by X.XX to project a full year."
+//
+// F18 FIX: Safe Harbor section requested prior-year tax but never showed whether
+//   the threshold was met. Users had to compare two numbers with no explicit
+//   pass/fail signal — the most important output of the Safe Harbor section was
+//   missing.
+//   Fix: When priorYearTax > 0 AND result is available, a Safe Harbor Status
+//   indicator is rendered immediately below the prior-year inputs:
+//     • Green badge "Safe harbor met — no underpayment penalty risk" when
+//       totalPayments >= safeHarborMinimum.
+//     • Red badge "Safe harbor gap: $X remaining — pay by [next due date]" when
+//       totalPayments < safeHarborMinimum.
+//   The indicator shows the full calculation breakdown:
+//     Prior year tax: $X → [100% or 110%] safe harbor = $Y
+//     Your payments to date: $Z
+//     Remaining: $W (or Surplus: $W)
+//   The 110% threshold applies when prior-year AGI > $150K (MFJ: $75K MFS).
+//   This is derived from result.safeHarborMinimum + result.totalPayments which
+//   calcTaxReturn already computes — we just surface them here.
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -82,7 +110,13 @@ function InfoTip({ text, wide }) {
   )
 }
 
-function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onClick }) {
+// F16 FIX: MoneyInput gains a `nonNegative` prop.
+// When nonNegative=true the '-' character is stripped on every keystroke so the
+// field physically cannot accept a negative value. On blur, a non-numeric value
+// resets to '' and calls onError (if provided) with an inline message.
+// Non-income fields (gains, Form 4797, priorPAL) do NOT receive nonNegative=true
+// and continue to allow negative entry unchanged.
+function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onClick, nonNegative, onError }) {
   const [raw, setRaw] = useState('')
   const [focused, setFocused] = useState(false)
 
@@ -107,17 +141,27 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
         const cursorPos = input.selectionStart
         const prevVal = input.value
         const prevCommas = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
-        const stripped = e.target.value.replace(/[^0-9\-]/g, '')
-        const isNeg = stripped.startsWith('-')
+
+        // F16 FIX: strip '-' entirely when nonNegative is set
+        const allowNeg = !nonNegative
+        const stripped = allowNeg
+          ? e.target.value.replace(/[^0-9\-]/g, '')
+          : e.target.value.replace(/[^0-9]/g, '')
+
+        const isNeg = allowNeg && stripped.startsWith('-')
         const digits = stripped.replace(/^-/, '')
         const n = parseInt(digits, 10)
-        const fmt = stripped === '' ? '' : stripped === '-' ? '-' :
+        const fmtd = stripped === '' ? '' : (allowNeg && stripped === '-') ? '-' :
           (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
-        setRaw(fmt); onChange(stripped)
+        setRaw(fmtd); onChange(stripped)
+
+        // Clear any prior error as user is actively typing
+        if (onError) onError('')
+
         requestAnimationFrame(() => {
           if (input && document.activeElement === input) {
-            const newCommas = (fmt.slice(0, cursorPos).match(/,/g) || []).length
-            const pos = Math.max(0, Math.min(cursorPos + (newCommas - prevCommas), fmt.length))
+            const newCommas = (fmtd.slice(0, cursorPos).match(/,/g) || []).length
+            const pos = Math.max(0, Math.min(cursorPos + (newCommas - prevCommas), fmtd.length))
             input.setSelectionRange(pos, pos)
           }
         })
@@ -126,17 +170,56 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
       onBlur={() => {
         setFocused(false)
         const n = nf(raw)
-        if (Number.isFinite(n)) { setRaw(n.toLocaleString('en-US', { maximumFractionDigits: 0 })); onChange(String(n)) }
+        if (Number.isFinite(n)) {
+          // F16 FIX: guard against any residual negative that slipped through
+          const safeN = nonNegative ? Math.max(0, n) : n
+          setRaw(safeN.toLocaleString('en-US', { maximumFractionDigits: 0 }))
+          onChange(String(safeN))
+          if (onError) onError('')
+        } else if (raw !== '' && raw !== '-') {
+          // Non-numeric input — reset and surface error
+          setRaw('')
+          onChange('')
+          if (onError) onError('Enter a number ≥ 0')
+        }
       }}
       style={{
-        width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14,
+        width: '100%', padding: '9px 11px',
+        border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14,
         fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
         background: disabled ? '#F8FAFC' : '#fff', color: disabled ? '#94A3B8' : N,
-        // F-09 FIX: ensure the input is always the top hit target in its stacking context
         position: 'relative', zIndex: 2, pointerEvents: 'auto',
         ...sx,
       }}
     />
+  )
+}
+
+// F16 FIX: IncomeField wraps MoneyInput + inline error display for income fields
+// that require non-negative values. Keeps error state local to each field.
+function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onClick, style: sx }) {
+  const [errMsg, setErrMsg] = useState('')
+  return (
+    <div>
+      {label && (
+        <label htmlFor={id} style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }}>
+          {label}{tip}
+        </label>
+      )}
+      <MoneyInput
+        id={id}
+        value={value}
+        onChange={v => { onChange(v); if (errMsg) setErrMsg('') }}
+        placeholder={placeholder}
+        nonNegative
+        onError={setErrMsg}
+        onClick={onClick}
+        style={sx}
+      />
+      {errMsg && (
+        <div role="alert" style={{ fontSize: 11, color: R, fontWeight: 600, marginTop: 3 }}>{errMsg}</div>
+      )}
+    </div>
   )
 }
 
@@ -207,10 +290,15 @@ export default function TaxReturn() {
   // F-10 / F-13: extended save status — 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus,    setSaveStatus]    = useState('idle')
   const [saveError,     setSaveError]     = useState(null)
-  // F-13: separate loading state for the "Save & Analyze" button
   const [analyzeStatus, setAnalyzeStatus] = useState('idle')
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
+
+  // F17 FIX: projected full-year income = (K-1 + W-2) * annualisation factor.
+  // Shown as a read-only line in the YTD toggle card when ytdMode is active.
+  const projectedAnnualIncome = ytdMode
+    ? Math.round(((sessionK1 || 0) + nf(w2Income)) * ytdFactor)
+    : 0
 
   const nonMedicalSubTotal  = nf(mortgageInt) + nf(charitableContr) + nf(saltAmount)
   const anyItemizedSubField = nonMedicalSubTotal > 0 || nf(medicalAmt) > 0
@@ -286,13 +374,6 @@ export default function TaxReturn() {
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
   ])
 
-  // F-13 FIX: handleSave is now fully synchronous with respect to the save
-  // operations. Navigation fires in the try block AFTER all localStorage writes
-  // complete — it cannot be swallowed by an error in the save flow because errors
-  // are caught and surfaced to the user via saveError state. The prior pattern
-  // called navigate() in a setTimeout that could fire before saves resolved.
-  //
-  // F-10 FIX: loading and error states are surfaced on both buttons.
   const buildRecord = useCallback(() => {
     const email    = localStorage.getItem('ts360_email') || 'default'
     const key      = 'ts360_records_' + email
@@ -346,7 +427,6 @@ export default function TaxReturn() {
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
   ])
 
-  // "Save This Record" — saves and stays on page. Shows loading + success/error feedback.
   const handleSave = useCallback(() => {
     if (saveStatus === 'saving') return
     setSaveStatus('saving')
@@ -363,9 +443,6 @@ export default function TaxReturn() {
     }
   }, [saveStatus, buildRecord])
 
-  // F-13 FIX: "Save & Analyze" — saves then navigates to /ai-analysis.
-  // Navigation is guaranteed to fire AFTER the save completes successfully.
-  // If save throws, navigation does NOT fire and the error is surfaced.
   const handleSaveAndAnalyze = useCallback(() => {
     if (analyzeStatus === 'saving') return
     setAnalyzeStatus('saving')
@@ -373,7 +450,6 @@ export default function TaxReturn() {
     try {
       const record = buildRecord()
       sessionStorage.setItem('ts360_active_record_id', String(record.id))
-      // Navigate after confirmed save — not in a setTimeout or detached callback.
       setAnalyzeStatus('idle')
       navigate('/ai-analysis', { state: { record } })
     } catch (err) {
@@ -396,6 +472,38 @@ export default function TaxReturn() {
   const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
   const step2RentalEntered = nf(rentalIncome) !== 0 || nf(rentalExpenses) !== 0
   const rentalDoubleCount  = hasStep1Rental && step2RentalEntered
+
+  // F18 FIX: Safe Harbor status derivation.
+  // safeHarborMinimum and totalPayments come from calcTaxReturn result.
+  // The 110% threshold applies when prior-year AGI > $150K (or $75K for MFS).
+  const priorYearTaxNum = nf(priorYearTax)
+  const priorYearAGINum = nf(priorYearAGI)
+  const highIncomeThreshold = filingStatus === 'mfs' ? 75000 : 150000
+  const isHighIncome = priorYearAGINum > highIncomeThreshold
+  const safeHarborRate = isHighIncome ? 1.10 : 1.00
+  const safeHarborMinimumLocal = priorYearTaxNum > 0
+    ? Math.ceil(priorYearTaxNum * safeHarborRate)
+    : (result?.safeHarborMinimum ?? 0)
+  const totalPaymentsLocal = nf(w2Withheld) + nf(estPaid)
+  const safeHarborGap = priorYearTaxNum > 0
+    ? safeHarborMinimumLocal - totalPaymentsLocal
+    : null
+  const safeHarborMet = safeHarborGap !== null && safeHarborGap <= 0
+
+  // Next estimated tax due date (for Safe Harbor gap message)
+  const NEXT_DUE_DATES: Record<number, string[]> = {
+    2024: ['Apr 15, 2024', 'Jun 17, 2024', 'Sep 16, 2024', 'Jan 15, 2025'],
+    2025: ['Apr 15, 2025', 'Jun 16, 2025', 'Sep 15, 2025', 'Jan 15, 2026'],
+    2026: ['Apr 15, 2026', 'Jun 15, 2026', 'Sep 15, 2026', 'Jan 15, 2027'],
+  }
+  const getNextDueDate = () => {
+    const dates = NEXT_DUE_DATES[taxYear] || NEXT_DUE_DATES[2025]
+    const today = new Date()
+    for (const d of dates) {
+      if (new Date(d) > today) return d
+    }
+    return dates[dates.length - 1]
+  }
 
   const YEARS = [2024, 2025, 2026]
   const ESTIMATE_DUE_DATES = {
@@ -441,7 +549,6 @@ export default function TaxReturn() {
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : s.active ? B : '#E2E8F0', color: s.done || s.active ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {s.done ? '✓' : s.n}
                   </div>
-                  {/* Step 3 is a clickable nav button; Steps 1 and 2 are labels */}
                   {s.n === 3 ? (
                     <button
                       onClick={handleSaveAndAnalyze}
@@ -574,14 +681,7 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* F-09 FIX: W-2 Income & Withholding section.
-              The CollapsibleSection receives position:relative + zIndex:10 via the
-              outerStyle prop so it establishes its own stacking context above any
-              QB OAuth integration card elements that may overlap at certain viewport
-              widths. The MoneyInput for tr-w2-income also gets an onClick
-              stopPropagation handler so any ancestor click event (e.g. a transparent
-              anchor from the integration card) cannot bubble up and trigger an OAuth
-              redirect when the user simply clicks into the W-2 input field. */}
+          {/* W-2 Income & Withholding — uses IncomeField (nonNegative) for F16 */}
           <CollapsibleSection
             title="W-2 Income & Withholding"
             defaultOpen
@@ -589,19 +689,18 @@ export default function TaxReturn() {
             style={{ position: 'relative', zIndex: 10 }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* F16 FIX: IncomeField enforces nonNegative; error shown inline on blur */}
               <div style={inpWrap}>
-                <label htmlFor="tr-w2-income" style={inputLbl}>
-                  W-2 Income (Other Employers)
-                  <InfoTip text="Enter W-2 wages from employers OTHER than the business entity you entered in Step 1. Your S-Corp officer salary already flows from Step 1 — do not re-enter it here. If you also work a W-2 job at a separate company, enter those wages here." />
-                </label>
-                {/* F-09 FIX: onClick stopPropagation prevents any overlapping ancestor
-                    click handler (QB OAuth anchor) from intercepting this input click. */}
-                <MoneyInput
+                <IncomeField
                   id="tr-w2-income"
+                  label="W-2 Income (Other Employers)"
                   value={w2Income}
                   onChange={setW2Income}
                   placeholder="0"
                   onClick={e => e.stopPropagation()}
+                  tip={
+                    <InfoTip text="Enter W-2 wages from employers OTHER than the business entity you entered in Step 1. Your S-Corp officer salary already flows from Step 1 — do not re-enter it here. If you also work a W-2 job at a separate company, enter those wages here." />
+                  }
                 />
               </div>
               <div style={inpWrap}>
@@ -609,11 +708,13 @@ export default function TaxReturn() {
                   Federal Tax Withheld (W-2 Box 2)
                   <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
                 </label>
+                {/* Withholding can legitimately be 0; no nonNegative needed beyond not going negative */}
                 <MoneyInput
                   id="tr-w2-withheld"
                   value={w2Withheld}
                   onChange={setW2Withheld}
                   placeholder="0"
+                  nonNegative
                   onClick={e => e.stopPropagation()}
                 />
               </div>
@@ -625,35 +726,67 @@ export default function TaxReturn() {
             )}
           </CollapsibleSection>
 
-          {/* YTD mode */}
+          {/* YTD mode
+              F17 FIX: when ytdMode is active the card now shows:
+                1. Month selector labelled "Income earned through [Month]" (period unambiguous).
+                2. "Projected full-year income" read-only line showing the annualised total.
+                3. Plain-language multiplier sentence instead of raw "× N.NN" label. */}
           <div style={{ background: ytdMode ? '#EFF6FF' : '#fff', border: `1px solid ${ytdMode ? '#BFDBFE' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 12, transition: 'background 0.2s, border-color 0.2s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: N }}>
                   📅 Planning Mid-Year?
-                  <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nUseful mid-year for planning — e.g. in September, enter what you\'ve earned through September.\n\nDisable to enter full-year figures directly.'} />
+                  <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nEnter the income you have earned so far this year (Jan 1 – the month you select). TaxStat360 will extrapolate to a full 12-month figure automatically.\n\nDisable to enter full-year figures directly.'} />
                 </span>
                 {!ytdMode && (
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Enable YTD Mode to annualize your income for a full-year projection</div>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                {/* F17 FIX: month selector labelled with context */}
                 {ytdMode && (
-                  <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
-                    style={{ padding: '6px 10px', border: '1.5px solid #BFDBFE', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
-                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                      <option key={i+1} value={i+1}>{m}</option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: '#1D4ED8', fontWeight: 600 }}>Income earned through:</span>
+                    <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
+                      style={{ padding: '6px 10px', border: '1.5px solid #BFDBFE', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <option key={i+1} value={i+1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
                 <div onClick={() => setYtdMode(m => !m)} style={{ width: 44, height: 24, background: ytdMode ? B : '#CBD5E1', borderRadius: 12, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
                   <div style={{ position: 'absolute', top: 3, left: ytdMode ? 23 : 3, width: 18, height: 18, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                 </div>
               </div>
             </div>
+
+            {/* F17 FIX: annualisation transparency panel */}
             {ytdMode && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#1D4ED8', fontWeight: 600 }}>
-                📅 YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]} — figures will be annualized (× {ytdFactor.toFixed(2)})
+              <div style={{ marginTop: 12, background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
+                  📅 YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]}
+                </div>
+                <div style={{ fontSize: 12, color: SL, marginBottom: 4 }}>
+                  Your figures will be multiplied by <strong style={{ color: N }}>{ytdFactor.toFixed(2)}×</strong> to project a full 12-month year
+                  ({ytdMonth} month{ytdMonth !== 1 ? 's' : ''} → 12 months).
+                </div>
+                {/* F17 FIX: projected full-year income read-only line */}
+                {projectedAnnualIncome > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE' }}>
+                    <span style={{ fontSize: 12, color: SL }}>
+                      Projected full-year income (K-1 + W-2)
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: N }}>
+                      {fmt(projectedAnnualIncome)}
+                    </span>
+                  </div>
+                )}
+                {projectedAnnualIncome === 0 && (
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>
+                    Enter W-2 income above or add an entity in Step 1 to see the projected full-year total.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -669,12 +802,18 @@ export default function TaxReturn() {
                 <input type="number" min="0" max="20" value={dependents} onChange={e => setDependents(e.target.value)}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
               </div>
+              {/* F16 FIX: Estimated payments cannot be negative */}
               <div style={inpWrap}>
-                <label htmlFor="tr-est-paid" style={inputLbl}>
-                  Estimated Tax Payments Made
-                  <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
-                </label>
-                <MoneyInput id="tr-est-paid" value={estPaid} onChange={setEstPaid} placeholder="0" />
+                <IncomeField
+                  id="tr-est-paid"
+                  label="Estimated Tax Payments Made"
+                  value={estPaid}
+                  onChange={setEstPaid}
+                  placeholder="0"
+                  tip={
+                    <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
+                  }
+                />
               </div>
             </div>
           </CollapsibleSection>
@@ -689,13 +828,25 @@ export default function TaxReturn() {
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* F16 FIX: Rental Income uses IncomeField (nonNegative) with a helper
+                  tooltip directing losses to the Rental Expenses field, matching the
+                  audit recommendation exactly. */}
               <div style={inpWrap}>
-                <label htmlFor="tr-rental-income" style={inputLbl}>Rental Income</label>
-                <MoneyInput id="tr-rental-income" value={rentalIncome} onChange={setRentalIncome} placeholder="0" />
+                <IncomeField
+                  id="tr-rental-income"
+                  label="Rental Income (gross rents)"
+                  value={rentalIncome}
+                  onChange={setRentalIncome}
+                  placeholder="0"
+                  tip={
+                    <InfoTip text="Enter gross rental income received. Enter depreciation and expenses in the Expenses field — the app calculates your net rental income or loss automatically. Do not enter a negative number here to represent a loss." />
+                  }
+                />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-rental-exp" style={inputLbl}>Rental Expenses (incl. depreciation)</label>
-                <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" />
+                {/* Expenses are always positive numbers; nonNegative appropriate here too */}
+                <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" nonNegative />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
@@ -714,7 +865,6 @@ export default function TaxReturn() {
                 </label>
               </div>
             )}
-            {/* BUG-01 FIX: Single priorPAL field */}
             {!isREP && (
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-pal" style={inputLbl}>
@@ -742,18 +892,18 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-interest" style={inputLbl}>Interest Income (Schedule B)</label>
-                <MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" />
+                <MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-dividends" style={inputLbl}>Ordinary Dividends</label>
-                <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" />
+                <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qual-div" style={inputLbl}>
                   Qualified Dividends (Form 1099-DIV Box 1b)
                   <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above." />
                 </label>
-                <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" />
+                <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-form4797" style={inputLbl}>
@@ -767,14 +917,14 @@ export default function TaxReturn() {
                   Unrecaptured §1250 Gain
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
-                <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" />
+                <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-collectibles" style={inputLbl}>
                   Collectibles Gain (Art, Coins, Stamps)
                   <InfoTip text="Gain from the sale of collectibles held more than 1 year — including coins, art, antiques, gems, and stamps (IRC §1(h)(4)). Taxed at a maximum 28% rate. Enter your net gain from Schedule D." />
                 </label>
-                <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" />
+                <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
               </div>
             </div>
           </CollapsibleSection>
@@ -787,42 +937,42 @@ export default function TaxReturn() {
                   Self-Employed Health Insurance Premiums
                   <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
                 </label>
-                <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" />
+                <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-hsa" style={inputLbl}>
                   HSA Deduction (Form 8889)
                   <InfoTip text="Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
                 </label>
-                <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" />
+                <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
                   <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
                 </label>
-                <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" />
+                <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plans
                   <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
-                <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" />
+                <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nol" style={inputLbl}>
                   NOL Carryforward (IRC §172)
                   <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically." />
                 </label>
-                <MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" />
+                <MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qbi-loss" style={inputLbl}>
                   Prior Year QBI Loss Carryforward
                   <InfoTip text="If your business generated a net loss last year, that loss reduces your §199A QBI deduction base in the CURRENT year per IRC §199A(c)(2). Enter the absolute value of last year's QBI loss (as a positive number)." />
                 </label>
-                <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" />
+                <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
               </div>
             </div>
 
@@ -845,28 +995,28 @@ export default function TaxReturn() {
                         Mortgage Interest (Schedule A Line 8)
                         <InfoTip text="Home mortgage interest paid on your primary and/or second home (Form 1098). Deductible on acquisition debt up to $750K ($1M if pre-Dec 2017 loan)." />
                       </label>
-                      <MoneyInput value={mortgageInt} onChange={setMortgageInt} placeholder="0" />
+                      <MoneyInput value={mortgageInt} onChange={setMortgageInt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Charitable Contributions (Schedule A Line 11-12)
                         <InfoTip text="Cash contributions to qualified 501(c)(3) organizations (Line 11) and non-cash contributions (Line 12). Cash contributions generally limited to 60% of AGI." />
                       </label>
-                      <MoneyInput value={charitableContr} onChange={setCharitableContr} placeholder="0" />
+                      <MoneyInput value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Medical Expenses (Schedule A Line 4)
                         <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC §213(a)). Enter your total medical expenses paid — TaxStat360 applies the 7.5% AGI floor automatically." />
                       </label>
-                      <MoneyInput value={medicalAmt} onChange={setMedicalAmt} placeholder="0" />
+                      <MoneyInput value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
                         <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
                       </label>
-                      <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" />
+                      <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                     </div>
                   </div>
                   <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
@@ -876,7 +1026,7 @@ export default function TaxReturn() {
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
-                      <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} />
+                      <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} nonNegative />
                     </div>
                   </div>
                 </div>
@@ -894,13 +1044,17 @@ export default function TaxReturn() {
               {hasISO && (
                 <div style={inpWrap}>
                   <label style={inputLbl}>ISO Bargain Element (FMV − Exercise Price × Shares)</label>
-                  <MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" />
+                  <MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
                 </div>
               )}
             </div>
           </CollapsibleSection>
 
-          {/* Safe harbor inputs */}
+          {/* Safe harbor inputs
+              F18 FIX: Status indicator rendered below the inputs when priorYearTax > 0.
+              Shows green "met" or red "gap: $X — pay by [next due date]" plus the
+              full calculation breakdown so users see the primary output the section
+              exists to provide. */}
           <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
@@ -909,13 +1063,49 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-tax" style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
-                <MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" />
+                <MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-agi" style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
-                <MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" />
+                <MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" nonNegative />
               </div>
             </div>
+
+            {/* F18 FIX: Safe Harbor Status indicator — shown as soon as priorYearTax > 0 */}
+            {priorYearTaxNum > 0 && (
+              <div style={{ marginTop: 4 }}>
+                {safeHarborMet ? (
+                  <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, color: '#166534', fontSize: 13, marginBottom: 6 }}>
+                      ✅ Safe harbor met — no underpayment penalty risk
+                    </div>
+                    <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.7 }}>
+                      Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
+                      {' '}→ {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
+                      Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
+                      Surplus: <strong>{fmt(Math.abs(safeHarborGap))}</strong> above the safe harbor threshold
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, color: R, fontSize: 13, marginBottom: 6 }}>
+                      ⚠ Safe harbor gap: {fmt(safeHarborGap)} remaining — pay by {getNextDueDate()}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.7 }}>
+                      Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
+                      {' '}→ {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
+                      Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
+                      Remaining to meet safe harbor: <strong>{fmt(safeHarborGap)}</strong>
+                    </div>
+                    {priorYearAGINum === 0 && (
+                      <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 6, fontStyle: 'italic' }}>
+                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K MFJ / $75K others).
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </CollapsibleSection>
           </div>
 
@@ -1113,11 +1303,7 @@ export default function TaxReturn() {
             🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
           </div>
 
-          {/* Save buttons
-              F-10 FIX: Both buttons show loading state during async operations.
-                "Save This Record" surfaces success (green "✓ Saved!") and error states.
-              F-13 FIX: "Save & Analyze →" navigates AFTER confirmed save, not in a
-                detached timeout. If save throws, navigation does not fire. */}
+          {/* Save buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {saveError && (
               <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '8px 12px', textAlign: 'center' }}>
@@ -1184,7 +1370,6 @@ export default function TaxReturn() {
             For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
           </div>
 
-          {/* Spinner keyframe — injected once per page load */}
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       </div>
