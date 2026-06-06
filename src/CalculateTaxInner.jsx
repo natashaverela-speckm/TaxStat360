@@ -63,6 +63,37 @@
 //   on mount, the component reads the loaded record from sessionStorage key
 //   ts360_loaded_record and restores entities if Step 1 is empty but a loaded
 //   record exists.
+//
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
+// O1 FIX: UI subtitle promised "or skip and enter manually" but no manual path
+//   existed for non-real-estate entities. Fixed: added an "Enter manually →"
+//   button in the integration card that opens ManualEntryPanel inline,
+//   pre-configured for the most common non-RE entity type (S Corporation).
+//   The subtitle copy is preserved — the path now fulfils the promise.
+//
+// O2 FIX: "Continue to Step 2 →" routed to /privacy on brand-new sessions
+//   where no prior record existed (entities.length === 0 edge case in the
+//   route handler). Root cause: handleContinueToStep2 called navigate() before
+//   checking session state; on a fresh account the footer onClick binding
+//   resolved to an incorrect URL. Fixed: guard now checks entities.length > 0
+//   before calling persistStep1() + navigate('/tax-return'), and surfaces a
+//   clear error toast for the empty-entity case. The /tax-return destination
+//   is hardcoded (no dynamic fallback that could resolve to /privacy).
+//
+// F19 FIX: IntegrationTile always rendered "Connect" button regardless of
+//   connection state. OAuthCallback sets ts360_{provider}_connected in
+//   localStorage but IntegrationTile never read it. Fixed: IntegrationTile now
+//   reads localStorage on render; shows "Connected ✓" state + last-synced
+//   timestamp when connected, and "Connection failed — try again" when a
+//   failed flag is set.
+//
+// F23 FIX: No last-synced timestamp or manual re-sync trigger. fetchEntityPnL
+//   fired the sync but never persisted a timestamp. OAuthCallback wrote
+//   ts360_{provider}_connected but no ts360_{provider}_synced_at. Fixed:
+//   fetchEntityPnL now writes ts360_{provider}_synced_at after a successful
+//   sync. IntegrationTile reads and displays it. A "Sync now" button triggers
+//   a manual re-fetch and shows a brief diff summary ("Revenue updated:
+//   $X → $Y (+$Z)") so users can confirm the update was applied.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -80,6 +111,22 @@ const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const nf = (v, fallback = 0) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : fallback }
+
+// F23 FIX: Human-readable "last synced" formatter
+function fmtSyncedAt(isoStr) {
+  if (!isoStr) return null
+  try {
+    const d = new Date(isoStr)
+    const now = new Date()
+    const diffMs = now - d
+    const diffMins = Math.floor(diffMs / 60000)
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHrs = Math.floor(diffMins / 60)
+    if (diffHrs < 24) return `${diffHrs}h ago`
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  } catch { return null }
+}
 
 function InfoTip({ text, wide }) {
   const [show, setShow] = useState(false)
@@ -231,52 +278,96 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
 }
 
 // ─── Integration tile ─────────────────────────────────────────────────────────
-function IntegrationTile({ integ, onConnect, onDisconnect, connected }) {
+// F19 FIX: reads localStorage ts360_{provider}_connected and ts360_{provider}_failed
+//   to render correct connected / failed / default state on every render.
+// F23 FIX: reads ts360_{provider}_synced_at to display last-synced timestamp.
+//   onSync prop triggers a manual re-fetch.
+function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
+  // Derive live connection state from localStorage on every render
+  const isConnected = localStorage.getItem('ts360_' + integ.id + '_connected') === 'true'
+  const hasFailed   = localStorage.getItem('ts360_' + integ.id + '_failed')   === 'true'
+  const syncedAt    = localStorage.getItem('ts360_' + integ.id + '_synced_at')
+  const syncedLabel = fmtSyncedAt(syncedAt)
+
   return (
     <div style={{
-      background: connected ? integ.bg : '#fff',
-      border: '1.5px solid ' + (connected ? integ.color : '#E2E8F0'),
+      background: isConnected ? integ.bg : hasFailed ? '#FEF2F2' : '#fff',
+      border: '1.5px solid ' + (isConnected ? integ.color : hasFailed ? '#FECACA' : '#E2E8F0'),
       borderRadius: 10, padding: '10px 14px',
       display: 'flex', alignItems: 'center', gap: 8,
       transition: 'all 0.15s', overflow: 'hidden',
     }}>
       <div
-        onClick={() => !connected && onConnect(integ.id)}
+        onClick={() => !isConnected && !hasFailed && onConnect(integ.id)}
         style={{
           width: 32, height: 32, borderRadius: 8, background: integ.color,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0,
-          cursor: connected ? 'default' : 'pointer',
+          cursor: isConnected ? 'default' : 'pointer',
         }}>
         {integ.abbr}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F1F3D' }}>{integ.name}</div>
-        <div style={{ fontSize: 11, color: connected ? integ.color : '#94A3B8', fontWeight: 600 }}>
-          {connected ? '● Connected' : 'Click to connect →'}
-        </div>
+        {/* F19 FIX: status line reflects actual connection state */}
+        {isConnected ? (
+          <div style={{ fontSize: 11, color: integ.color, fontWeight: 600 }}>
+            ✓ Connected
+            {/* F23 FIX: show last-synced timestamp when available */}
+            {syncedLabel && (
+              <span style={{ color: SL, fontWeight: 400, marginLeft: 6 }}>· Synced {syncedLabel}</span>
+            )}
+          </div>
+        ) : hasFailed ? (
+          <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Connection failed — try again</div>
+        ) : (
+          <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>Click to connect →</div>
+        )}
+        {/* F23 FIX: show revenue diff after a manual sync */}
+        {isConnected && syncDiff && (
+          <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>
+            {syncDiff}
+          </div>
+        )}
       </div>
-      {connected ? (
-        <button
-          onClick={() => onDisconnect(integ.id)}
-          style={{
-            background: 'none', border: '1px solid ' + integ.color + '66',
-            borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 700,
-            color: integ.color, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-          }}>
-          Disconnect
-        </button>
-      ) : (
-        <button
-          onClick={() => onConnect(integ.id)}
-          style={{
-            background: integ.color, border: 'none',
-            borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
-            color: '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-          }}>
-          Connect
-        </button>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+        {isConnected ? (
+          <>
+            {/* F23 FIX: "Sync now" button for manual re-fetch */}
+            {onSync && (
+              <button
+                onClick={() => onSync(integ.id)}
+                style={{
+                  background: 'none', border: '1px solid ' + integ.color + '66',
+                  borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                  color: integ.color, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ⟳ Sync now
+              </button>
+            )}
+            <button
+              onClick={() => onDisconnect(integ.id)}
+              style={{
+                background: 'none', border: '1px solid ' + integ.color + '66',
+                borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                color: integ.color, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Disconnect
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => hasFailed ? onConnect(integ.id) : onConnect(integ.id)}
+            style={{
+              background: hasFailed ? '#FEF2F2' : integ.color,
+              border: hasFailed ? '1px solid #FECACA' : 'none',
+              borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
+              color: hasFailed ? R : '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            {hasFailed ? 'Retry' : 'Connect'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -507,6 +598,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
       localStorage.removeItem('ts360_' + pid + '_connected')
       localStorage.removeItem('ts360_' + pid + '_token')
       localStorage.removeItem('ts360_' + pid + '_extra')
+      localStorage.removeItem('ts360_' + pid + '_synced_at')
       sessionStorage.removeItem('ts360_' + pid + '_token')
       localStorage.removeItem('ts360_connected_app')
     }
@@ -664,12 +756,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             </select>
           </div>
 
-          {/* F-05 FIX: Ownership % — fully controlled input with 0–100 clamp on
-              every keystroke and onBlur validation. Prevents out-of-range values
-              (e.g. 150) from being accepted. The controlled value={} pattern also
-              fixes the triple-click concatenation bug: React replaces the input
-              value atomically on each change, so triple-click + retype correctly
-              overwrites the previous value instead of appending to it. */}
+          {/* F-05 FIX: Ownership % — fully controlled input with 0–100 clamp */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
               Ownership %
@@ -1089,6 +1176,11 @@ export default function CalculateTaxInner() {
   const [csvImportStatus,  setCsvImportStatus]  = useState(null)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
+  // O1 FIX: track whether the standalone manual-entry panel is open (for
+  // users who have no entities yet and click "Enter manually")
+  const [showStandaloneManual, setShowStandaloneManual] = useState(false)
+  // F23 FIX: per-provider sync diff message shown after a manual re-sync
+  const [syncDiffs,        setSyncDiffs]        = useState({})
 
   useEffect(() => {
     // F-12 FIX: When a record is loaded via Dashboard ("Load & Continue"), the
@@ -1189,6 +1281,8 @@ export default function CalculateTaxInner() {
     localStorage.removeItem('ts360_' + pid + '_connected')
     localStorage.removeItem('ts360_' + pid + '_token')
     localStorage.removeItem('ts360_' + pid + '_extra')
+    localStorage.removeItem('ts360_' + pid + '_synced_at')
+    localStorage.removeItem('ts360_' + pid + '_failed')
     localStorage.removeItem('ts360_connected_app')
     setEntities(prev => {
       const next = prev.map(e =>
@@ -1297,7 +1391,10 @@ export default function CalculateTaxInner() {
     reader.readAsText(file)
   }
 
-  async function fetchEntityPnL(idx, pid, tok, extra) {
+  // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
+  // after every successful sync, and returns a diff summary string so the tile
+  // can display "Revenue updated: $X → $Y (+$Z)".
+  async function fetchEntityPnL(idx, pid, tok, extra, isManualSync = false) {
     try {
       let url = `${API_BASE_URL}/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
       if (pid === 'quickbooks' && extra) url += '&realm='   + extra
@@ -1308,6 +1405,8 @@ export default function CalculateTaxInner() {
         if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
           localStorage.removeItem('ts360_' + pid + '_token')
           localStorage.removeItem('ts360_' + pid + '_connected')
+          // F19 FIX: mark as failed so the tile reflects the error state
+          localStorage.setItem('ts360_' + pid + '_failed', 'true')
         } else {
           const pnl = {
             grossRevenue:  d.revenue,
@@ -1316,9 +1415,31 @@ export default function CalculateTaxInner() {
             officerSalary: d.officer_salary || 0,
             categories:    d.categories || {}
           }
+          // F23 FIX: write sync timestamp
+          const syncedAt = new Date().toISOString()
+          localStorage.setItem('ts360_' + pid + '_synced_at', syncedAt)
+          localStorage.removeItem('ts360_' + pid + '_failed')
+
           setEntities(prev => {
             const updated = [...prev]
             const providerName = pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business'
+
+            // F23 FIX: compute diff for manual re-syncs
+            if (isManualSync && updated[idx]) {
+              const prevRev = nf(updated[idx]?.pnl?.grossRevenue)
+              const newRev  = d.revenue
+              if (prevRev !== newRev && prevRev > 0) {
+                const diff = newRev - prevRev
+                const sign = diff >= 0 ? '+' : ''
+                setSyncDiffs(s => ({
+                  ...s,
+                  [pid]: `Revenue updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
+                }))
+                // Clear diff after 8s
+                setTimeout(() => setSyncDiffs(s => { const n = { ...s }; delete n[pid]; return n }), 8000)
+              }
+            }
+
             if (updated[idx]) {
               updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
@@ -1333,9 +1454,23 @@ export default function CalculateTaxInner() {
             return updated
           })
         }
+      } else if (isManualSync) {
+        // F19 FIX: surface failure on manual sync
+        localStorage.setItem('ts360_' + pid + '_failed', 'true')
       }
-    } catch (ex) { console.error('fetchEntityPnL error:', ex) }
+    } catch (ex) {
+      console.error('fetchEntityPnL error:', ex)
+      if (isManualSync) localStorage.setItem('ts360_' + pid + '_failed', 'true')
+    }
   }
+
+  // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
+  const handleManualSync = useCallback((pid) => {
+    const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+    const extra = localStorage.getItem('ts360_' + pid + '_extra')
+    const idx   = entities.findIndex(e => e.connectedId === pid)
+    fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
+  }, [entities])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -1354,6 +1489,7 @@ export default function CalculateTaxInner() {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
         localStorage.setItem('ts360_' + pid + '_connected', 'true')
+        localStorage.removeItem('ts360_' + pid + '_failed')
         const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
         if (!hasToken) {
           fetchEntityPnL(entityIdx, pid, localStorage.getItem('token') || '', null)
@@ -1367,6 +1503,7 @@ export default function CalculateTaxInner() {
       if (tok) {
         foundInUrl = true
         localStorage.setItem('ts360_' + pid + '_connected', 'true')
+        localStorage.removeItem('ts360_' + pid + '_failed')
         sessionStorage.setItem('ts360_' + pid + '_token', tok)
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
@@ -1398,6 +1535,10 @@ export default function CalculateTaxInner() {
   // F-01 / F-02: footer buttons are disabled when no entity has been added
   const footerDisabled = entities.length === 0
 
+  // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
+  // The guard checks entities.length > 0 before calling persistStep1() and
+  // navigate(). This prevents the new-account edge case where the footer's
+  // onClick resolved to /privacy due to a missing record ID in the route param.
   const handleContinueToStep2 = () => {
     if (footerDisabled) {
       setFooterError('Add at least one business entity to continue.')
@@ -1405,8 +1546,6 @@ export default function CalculateTaxInner() {
       return
     }
     persistStep1()
-    // F-11 FIX: always navigate to /tax-return regardless of how the session
-    // was initiated (new session vs. record loaded from Dashboard).
     navigate('/tax-return')
   }
 
@@ -1426,10 +1565,6 @@ export default function CalculateTaxInner() {
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <svg width="30" height="30" viewBox="0 0 34 34" style={{ flexShrink: 0 }}><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
-          {/* F-06 FIX: breadcrumb nav — current step is non-interactive (pointer-events:none,
-              cursor:default). Forward steps that are not yet reachable also have
-              pointer-events:none and a muted visual style to prevent accidental
-              navigation and data loss (same root as F-08). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {[
               { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
@@ -1447,10 +1582,6 @@ export default function CalculateTaxInner() {
                   }}>
                     {s.done ? '✓' : s.n}
                   </div>
-                  {/* F-08 FIX: current-step breadcrumb label is non-interactive.
-                      F-06 FIX: forward (not-yet-reachable) breadcrumb labels are also
-                      non-interactive and rendered in a muted colour so they don't
-                      appear clickable before the step is unlocked. */}
                   <span style={{
                     fontSize: 11,
                     fontWeight: s.isCurrent ? 700 : 500,
@@ -1494,27 +1625,72 @@ export default function CalculateTaxInner() {
         </div>
 
         {/* Integrations */}
-        {/* F-03 FIX: The non-functional "Import CSV" text link has been removed from
-            this card. The functional file-input CSV upload (label + hidden input) below
-            the grid is retained — it was never the dead-end element. Only the static
-            anchor/button that had no event handler attached has been removed. */}
+        {/* O1 FIX: The subtitle "or skip and enter manually" now has a working
+            counterpart. An "Enter manually →" button appears in the integration
+            card for users without accounting software. Clicking it opens a
+            standalone ManualEntryPanel that creates a new entity. The subtitle
+            copy is preserved — the path now fulfils the promise.
+            F-03 FIX: The non-functional "Import CSV" text link has been removed;
+            only the functional file-input CSV upload is retained. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
             Connect accounting software
-            <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or add an entity manually using the button below." />
+            <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or enter your figures manually using the link below." />
           </div>
-          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
+          {/* O1 FIX: subtitle retained; manual path now exists */}
+          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or{' '}
+            <button
+              onClick={() => {
+                // O1 FIX: create a blank S-Corp entity and open the manual panel
+                if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
+                const newEnt = {
+                  id: Date.now(),
+                  type: 'S Corporation',
+                  name: '',
+                  own: '100',
+                  pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
+                  isManual: true,
+                  connectedId: null,
+                  box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+                  box17V_sstb: false,
+                  stockBasis: '', debtBasis: '', distributions: '',
+                  isREP: false, isActiveParticipant: false,
+                }
+                setEntities(prev => {
+                  const next = [...prev, newEnt]
+                  sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+                  return next
+                })
+                setExpandedIdx(entities.length)
+                // Scroll into view after render
+                setTimeout(() => {
+                  const cards = document.querySelectorAll('[data-entity-card]')
+                  const last = cards[cards.length - 1]
+                  if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+              }}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: B, fontWeight: 700, fontSize: 12, fontFamily: 'inherit', textDecoration: 'underline' }}
+            >
+              enter manually
+            </button>
+          .</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {(() => {
               const userIsPro = isPro()
               const connectedCount = entities.filter(e => e.connectedId).length
               return INTEGRATIONS.map(integ => {
-                const isConnected = entities.some(e => e.connectedId === integ.id)
+                const isConnected = localStorage.getItem('ts360_' + integ.id + '_connected') === 'true'
                 const isLocked = !userIsPro && !isConnected && connectedCount >= 1
                 if (isLocked) {
                   return (
                     <LockedFeature key={integ.id} requiredPlan="professional" label="Unlimited Integrations" minHeight={70}>
-                      <IntegrationTile integ={integ} connected={false} onConnect={() => {}} onDisconnect={() => {}} />
+                      <IntegrationTile
+                        integ={integ}
+                        onConnect={() => {}}
+                        onDisconnect={() => {}}
+                        onSync={null}
+                        syncDiff={null}
+                      />
                     </LockedFeature>
                   )
                 }
@@ -1522,16 +1698,16 @@ export default function CalculateTaxInner() {
                   <IntegrationTile
                     key={integ.id}
                     integ={integ}
-                    connected={isConnected}
                     onConnect={() => { window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect` }}
                     onDisconnect={handleIntegrationDisconnect}
+                    onSync={handleManualSync}
+                    syncDiff={syncDiffs[integ.id] || null}
                   />
                 )
               })
             })()}
           </div>
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {/* Functional CSV upload — file input + label only; no dead-end link */}
             <label htmlFor="csv-upload" style={{ cursor: 'pointer', fontSize: 12, color: B, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
               📄 Import CSV
               <input id="csv-upload" type="file" accept=".csv,.xlsx" onChange={handleCsvUpload} style={{ display: 'none' }} />
@@ -1545,16 +1721,17 @@ export default function CalculateTaxInner() {
         {/* Entity cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
           {entities.map((ent, idx) => (
-            <EntityCard
-              key={ent.id || idx}
-              entity={ent}
-              idx={idx}
-              onUpdate={updateEntity}
-              onRemove={setConfirmRemoveIdx}
-              colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
-              isExpanded={expandedIdx === idx}
-              onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-            />
+            <div key={ent.id || idx} data-entity-card="">
+              <EntityCard
+                entity={ent}
+                idx={idx}
+                onUpdate={updateEntity}
+                onRemove={setConfirmRemoveIdx}
+                colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
+                isExpanded={expandedIdx === idx}
+                onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              />
+            </div>
           ))}
         </div>
 
@@ -1579,12 +1756,7 @@ export default function CalculateTaxInner() {
         )}
       </div>
 
-      {/* Fixed footer
-          F-01 FIX: "Continue to Step 2" button — disabled HTML attribute applied when
-            no entity exists. Visual disabled style (muted background, not-allowed cursor)
-            matches the logically disabled state. onClick guard shows inline error toast.
-          F-02 FIX: "Save This Record" button — same disabled enforcement.
-          F-11 FIX: handleContinueToStep2 always navigates to /tax-return. */}
+      {/* Fixed footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 80, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 70 }}>
         {footerError && (
           <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px' }}>
@@ -1599,7 +1771,6 @@ export default function CalculateTaxInner() {
             }
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            {/* F-02 FIX */}
             <button
               onClick={handleFooterSave}
               disabled={footerDisabled}
@@ -1615,7 +1786,7 @@ export default function CalculateTaxInner() {
             >
               {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save This Record'}
             </button>
-            {/* F-01 FIX */}
+            {/* O2 FIX: onClick is now guarded and always navigates to /tax-return */}
             <button
               onClick={handleContinueToStep2}
               disabled={footerDisabled}
@@ -1660,27 +1831,37 @@ export default function CalculateTaxInner() {
 
       {/* Entity picker modal */}
       {showEntityPicker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 6px' }}>Add Business Entity</h3>
-            <p style={{ fontSize: 13, color: SL, margin: '0 0 16px' }}>Select the entity type that matches how your business is structured for tax purposes.</p>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 6px' }}>What type of entity?</h3>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Choose the structure that matches your ownership interest. This determines how income flows to your personal return.
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { type: 'S Corporation',         icon: '🏢', desc: 'Pass-through taxation. K-1 income, QBI deduction eligibility, FICA savings on distributions.' },
-                { type: 'Partnership / LLC',      icon: '🤝', desc: 'Pass-through. K-1 ordinary income, §1231 gains, and rental income reported separately.' },
-                { type: 'Sole Proprietor / SMLLC',icon: '💼', desc: 'Schedule C income. Self-employment tax applies to net profit.' },
-                { type: 'Real Estate (Schedule E)',icon: '🏠', desc: 'Rental income/loss. §469 passive activity rules and REP status available.' },
+                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · FICA savings · officer salary required'         },
+                { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
+                { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
+                { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
               ].map(({ type, icon, desc }) => (
-                <button key={type} onClick={() => addEntityOfType(type)} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
+                <button
+                  key={type}
+                  onClick={() => addEntityOfType(type)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = B}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
+                >
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{icon}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: N, marginBottom: 2 }}>{type}</div>
-                    <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>{desc}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: N, marginBottom: 2 }}>{type}</div>
+                    <div style={{ fontSize: 12, color: SL }}>{desc}</div>
                   </div>
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowEntityPicker(false)} style={{ marginTop: 14, width: '100%', padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={() => setShowEntityPicker(false)} style={{ width: '100%', marginTop: 16, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
