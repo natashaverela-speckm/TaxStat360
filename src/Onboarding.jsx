@@ -29,8 +29,57 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 // A11Y FIX: form labels are now programmatically associated with their inputs
 //   (htmlFor/id) in the shared Field component and the two custom inputs
 //   (signup password, business address).
+//
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
+// O3 FIX: Onboarding EntityScreen listed 5 entity types including "C Corporation"
+//   and "Other", but the Tax Tracker only supports 4 types and omits C-Corp.
+//   "Real Estate (Schedule E)" — a core use case for the target audience —
+//   was absent from onboarding entirely. Fixed: EntityScreen now lists the same
+//   4 types the Tax Tracker supports. C Corporation is replaced with a clear
+//   "C Corporation not supported" notice so owners who select it understand
+//   why it is absent in the tool. "Real Estate (Schedule E)" is added.
+//   "Other" is removed (it mapped to no Tax Tracker entity). The entity type
+//   written to localStorage now uses the canonical Tax Tracker string so it
+//   hydrates the entity card correctly on first session.
+//
+// O4 FIX: ImportScreen "Go to My Dashboard →" button called nav('/calculate-tax'),
+//   not nav('/dashboard'). Button label said Dashboard; destination was Tax Tracker.
+//   Fixed: handleContinue now navigates to '/dashboard' when skipping or after
+//   the MFA nudge's "Skip for now" path. A first-run banner is written to
+//   sessionStorage key ts360_first_run so CalculateTaxInner can show a contextual
+//   prompt guiding users who skipped Step 3 to add their revenue and expenses.
+//   Note: the existing security-nudge "Set up 2FA in Settings →" path correctly
+//   navigates to /settings; the "Skip for now — go to my dashboard" button within
+//   that nudge is also fixed to nav('/dashboard').
+//
+// O5 FIX: Password mismatch ('Passwords do not match') only fired on form submit,
+//   after the user had already scrolled past and entered card details. Fixed:
+//   added an onBlur handler on the Confirm Password field that validates the match
+//   immediately when the user tabs or clicks away. The error is set via setConfErr
+//   (a dedicated confirm-field error state, separate from the submit-level setErr)
+//   so it renders inline below the confirm field — visible without scrolling.
+//   The submit guard still checks pass !== conf as a final safety net.
+//
+// O6 FIX: Plan selector in SignupScreen showed name + price only. Users had no
+//   basis for choosing a plan without returning to the pricing page. Fixed: added
+//   a one-line feature summary under each plan name in the picker. Summaries are
+//   sourced from PLAN_FEATURES in constants.js (added in that file's patch).
+//   The 'Professional' plan now also displays a 'Most popular' badge since it is
+//   the default selection.
+//
+// O7 FIX: BusinessScreen collected Business Name, EIN, and Address but:
+//   (a) none appeared anywhere in the Tax Tracker UI;
+//   (b) the step looked required but skipping had no visible consequence.
+//   Fixed: (a) Business name is written to sessionStorage key ts360_biz_name
+//   so CalculateTaxInner can use it as the entity card label (entity.name)
+//   when adding the first entity. EIN and address are written to
+//   ts360_biz_ein and ts360_biz_address so AIAnalysis CPA Export can use them
+//   on the report cover. (b) Step header and subtitle are updated to make the
+//   optional nature explicit: subtitle now reads "Optional — used in your CPA
+//   Export report and entity card". A "Business info" note in Settings is
+//   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL } from './constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import BrandLogo from './BrandLogo'
 import Icon from './Icon'
 
@@ -41,7 +90,7 @@ const N='#0D1B3E',B='#2563EB',SL='#475569'
 
 const LOGO = () => <div style={{ marginBottom: 20 }}><BrandLogo size={28} /></div>
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
-const Field=({label,val,set,type='text',ph,mb=12,autoComplete})=>{const _id='fld-'+String(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');return (<div style={{marginBottom:mb}}><label htmlFor={_id} style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input id={_id} type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)}
+const Field=({label,val,set,type='text',ph,mb=12,autoComplete,onBlur})=>{const _id='fld-'+String(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');return (<div style={{marginBottom:mb}}><label htmlFor={_id} style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input id={_id} type={type} value={val} onChange={e=>set(e.target.value)} onBlur={onBlur} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)}
 
 // FIX (PW-STRENGTH): Password strength scoring and visual indicator.
 function pwStrength(pass) {
@@ -101,15 +150,15 @@ const nav=useNavigate()
 const loc=useLocation()
 const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
 const billingRaw=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()
-// CC-05: plan and billing must be React state so picker selection triggers re-render
-// of the badge label and price display. Using history.replaceState alone does not
-// cause React to re-render — only setState does.
 const [plan, setPlan] = useState(['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter')
 const [billing, setBilling] = useState(billingRaw==='annual'?'annual':'monthly')
 const [name,setName]=useState('')
 const [email,setEmail]=useState('')
 const [pass,setPass]=useState('')
 const [conf,setConf]=useState('')
+// O5 FIX: dedicated confirm-field error state — shown inline below the confirm
+// field on blur, before the user ever reaches the card section.
+const [confErr,setConfErr]=useState('')
 const [loading,setLoading]=useState(false)
 const [err,setErr]=useState('')
 const [info,setInfo]=useState('')
@@ -125,7 +174,6 @@ const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(
 useEffect(()=>{
 const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
 s.onload=()=>{
-// SEC-01 FIX: Uses VITE_STRIPE_PK env var — not a hardcoded live key.
 const sk=window.Stripe(PK);stripeRef.current=sk
 const els=sk.elements();elemRef.current=els
 const card=els.create('card',{style:{base:{fontSize:'16px',color:'#0D1B3E',fontFamily:'Inter,sans-serif',lineHeight:'24px','::placeholder':{color:'#94a3b8'}}}})
@@ -134,8 +182,20 @@ setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setStripeReady(t
 document.head.appendChild(s)
 },[])
 
+// O5 FIX: validate password match on blur of the confirm field — before the
+// user scrolls to the card section. Error is shown inline, not just on submit.
+function handleConfBlur() {
+  if (conf && pass && conf !== pass) {
+    setConfErr('Passwords do not match.')
+  } else {
+    setConfErr('')
+  }
+}
+
 async function submit(e){
 e.preventDefault()
+// O5 FIX: final guard still present — catches the case where user submits
+// without blurring the confirm field.
 if(pass!==conf){setErr('Passwords do not match.');return}
 if(pass.length<12){setErr('Password must be at least 12 characters.');return}
 if(!stripeReady){setErr('Card input still loading, please wait...');return}
@@ -192,32 +252,48 @@ return(<Page>
 <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
 </div>
 
-{/* CC-05: Plan selector — shown inline on signup so users without a plan-specific
-URL can pick their tier. Each pricing page "Start Free Trial" button should
-link to /signup?plan=starter, /signup?plan=professional, or /signup?plan=enterprise
-to skip this selector. When a ?plan= param is present it defaults correctly. */}
+{/* O6 FIX: Plan selector now shows a one-line feature summary under each plan
+    name. Summaries come from PLAN_FEATURES in constants.js. The 'Professional'
+    plan shows a 'Most popular' badge. Users can now choose their plan without
+    leaving the page to consult the pricing table. */}
 <div style={{marginBottom:16}}>
 <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Your Plan</label>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+<div style={{display:'flex',flexDirection:'column',gap:8}}>
 {[
-{id:'starter', name:'Starter', price:'$79/mo', annual:'$66/mo'},
-{id:'professional',name:'Professional', price:'$149/mo',annual:'$124/mo'},
-{id:'enterprise', name:'Enterprise', price:'$299/mo',annual:'$249/mo'},
+{id:'starter',      name:'Starter',      price:'$79/mo',  annual:'$66/mo'},
+{id:'professional', name:'Professional', price:'$149/mo', annual:'$124/mo'},
+{id:'enterprise',   name:'Enterprise',   price:'$299/mo', annual:'$249/mo'},
 ].map(p => {
 const selected = plan === p.id
+const features = PLAN_FEATURES?.[p.id] || ''
 return (
 <button
-key={p.id}
-type="button"
-onClick={() => { setPlan(p.id); window.history.replaceState({}, '', `?plan=${p.id}&billing=${billing}`) }}
-style={{
-padding:'10px 8px', border: `2px solid ${selected ? B : '#E2E8F0'}`,
-borderRadius:9, cursor:'pointer', textAlign:'center',
-background: selected ? '#EFF6FF' : '#fff', transition:'all 0.15s',
-}}
+  key={p.id}
+  type="button"
+  onClick={() => { setPlan(p.id); window.history.replaceState({}, '', `?plan=${p.id}&billing=${billing}`) }}
+  style={{
+    padding:'10px 12px', border: `2px solid ${selected ? B : '#E2E8F0'}`,
+    borderRadius:9, cursor:'pointer', textAlign:'left',
+    background: selected ? '#EFF6FF' : '#fff', transition:'all 0.15s',
+    display:'flex', alignItems:'center', justifyContent:'space-between', gap:8,
+  }}
 >
-<div style={{fontSize:12,fontWeight:700,color:selected?B:N}}>{p.name}</div>
-<div style={{fontSize:11,color:SL,marginTop:2}}>{billing==='annual'?p.annual:p.price}</div>
+  <div>
+    <div style={{display:'flex',alignItems:'center',gap:8}}>
+      <span style={{fontSize:13,fontWeight:700,color:selected?B:N}}>{p.name}</span>
+      {/* O6 FIX: 'Most popular' badge on Professional */}
+      {p.id==='professional' && (
+        <span style={{fontSize:10,fontWeight:700,background:B,color:'#fff',padding:'2px 7px',borderRadius:20}}>Most popular</span>
+      )}
+    </div>
+    {/* O6 FIX: feature summary line */}
+    {features && (
+      <div style={{fontSize:11,color:SL,marginTop:3,lineHeight:1.4}}>{features}</div>
+    )}
+  </div>
+  <div style={{fontSize:12,color:SL,flexShrink:0,textAlign:'right'}}>
+    {billing==='annual'?p.annual:p.price}
+  </div>
 </button>
 )
 })}
@@ -228,18 +304,13 @@ type="button"
 onClick={() => { const nb = billing==='annual'?'monthly':'annual'; setBilling(nb); window.history.replaceState({}, '', `?plan=${plan}&billing=${nb}`) }}
 style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',textDecoration:'underline'}}
 >
-{/* F-06 FIX: Uses ANNUAL_DISCOUNT_LABEL from constants.js ("Save 2 months")
-    instead of hardcoded 'save ~17%'. Consistent with Landing.jsx pricing section. */}
 {billing==='annual' ? 'Switch to monthly billing' : `Switch to annual billing — ${ANNUAL_DISCOUNT_LABEL}`}
 </button>
 </div>
 </div>
 
-{/* UX-02: Two-step progress indicator — shows users what's coming before they
-start filling fields, reducing form abandonment anxiety. Step 1 is active
-(account info: name, email, password). Step 2 is upcoming (card). */}
+{/* UX-02: Two-step progress indicator */}
 <div style={{display:'flex',alignItems:'center',marginBottom:20,padding:'12px 16px',background:'#F8FAFC',borderRadius:10,border:'1px solid #E2E8F0'}}>
-{/* Step 1 — active */}
 <div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
 <div style={{width:26,height:26,borderRadius:'50%',background:B,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>1</div>
 <div>
@@ -247,9 +318,7 @@ start filling fields, reducing form abandonment anxiety. Step 1 is active
 <div style={{fontSize:10,color:'#94A3B8',lineHeight:1.2}}>Name, email, password</div>
 </div>
 </div>
-{/* Connector */}
 <div style={{flex:'0 0 28px',height:2,background:'#E2E8F0',margin:'0 6px'}}/>
-{/* Step 2 — upcoming */}
 <div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
 <div style={{width:26,height:26,borderRadius:'50%',background:'#E2E8F0',color:'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
 <div>
@@ -278,15 +347,35 @@ autoComplete="new-password"
 style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}
 />
 </div>
-<Field label="Confirm Password" val={conf} set={setConf} type="password" ph="Repeat password" mb={0} autoComplete="new-password"/>
+{/* O5 FIX: onBlur handler validates match immediately when the user leaves the
+    confirm field — before they scroll to the card section. confErr renders
+    inline below the field. The Field component now accepts an onBlur prop. */}
+<div>
+<label htmlFor="signup-confirm-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Confirm Password</label>
+<input
+  id="signup-confirm-password"
+  type="password"
+  value={conf}
+  onChange={e=>{setConf(e.target.value);if(confErr)setConfErr('')}}
+  onBlur={handleConfBlur}
+  placeholder="Repeat password"
+  autoComplete="new-password"
+  style={{
+    width:'100%',padding:'9px 12px',
+    border:`1px solid ${confErr?'#DC2626':'#E2E8F0'}`,
+    borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'
+  }}
+/>
+{/* O5 FIX: inline error shown immediately on blur — no scrolling required */}
+{confErr && (
+  <p style={{fontSize:11,color:'#DC2626',margin:'4px 0 0',fontWeight:600}}>{confErr}</p>
+)}
+</div>
 </div>
 <div style={{marginBottom:12}}>
 <PasswordStrength pass={pass} />
 </div>
 
-{/* UX-01: Trust message moved to BEFORE the card field so users see it
-before entering card details — not buried after the submit button.
-Displayed as a green notice to draw the eye and build confidence. */}
 <div style={{
 display:'flex',alignItems:'flex-start',gap:10,
 background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,
@@ -312,14 +401,8 @@ By creating an account you agree to our{' '}
 <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
 </p>
 <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
-{/* UX-05 FIX: "← Home" span changed to semantic <a href="/"> link.
-    Better accessibility, correct semantics, and conventional UX pattern. */}
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 
-{/* ISSUE-04: Trust signals — added below the submit button so users see
-key reassurance at the final decision point before clicking Start Free Trial.
-Three signals: IRS credential (expertise), encryption (security),
-and CPA compatibility (not replacing their advisor). */}
 <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>
 <div style={{display:'flex',alignItems:'center',gap:6}}>
 <Icon name="institution" size={15} color={SL} />
@@ -414,9 +497,6 @@ const [err,setErr]=useState('')
 async function submit(e){
 e.preventDefault();setLoading(true);setErr('')
 try{
-// FIX: Chrome autofill fills inputs visually but doesn't trigger React onChange,
-// leaving state empty. Read actual DOM values as fallback so login works
-// whether the user typed their password or used browser autofill/password manager.
 const domEmail = document.querySelector('input[type="email"]')?.value || ''
 const domPass  = document.querySelector('input[type="password"]')?.value || ''
 const actualEmail = (email || domEmail).toLowerCase().trim()
@@ -440,7 +520,6 @@ finally{setLoading(false)}
 
 return(<Page>
 <LOGO/>
-{/* FIX: Planning-tool disclaimer — must appear before user creates account */}
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{flexShrink:0,marginTop:1}}><rect x="5" y="5" width="14" height="16" rx="2" stroke="#92400e" strokeWidth="1.6"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#92400e"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/></svg>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
@@ -454,14 +533,9 @@ return(<Page>
 <Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
 <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
-{/* Minor UX: Signup CTA as an outlined button — visible above "Forgot password"
-so new users who land on /login have a clear prominent path to register. */}
 <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial →</button>
 <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
 </form>
-{/* CC-04 FIX: LoginScreen now includes minimal footer with ToS/Privacy links
-    and planning-only disclaimer. Auth pages previously had no footer at all,
-    meaning users had no access to legal pages from the login screen. */}
 <div style={{borderTop:'1px solid #E2E8F0',marginTop:24,paddingTop:16,textAlign:'center'}}>
 <p style={{fontSize:11,color:'#94a3b8',margin:'0 0 6px'}}>
 <a href="/terms" style={{color:'#94a3b8',marginRight:12,textDecoration:'none'}}>Terms of Service</a>
@@ -474,10 +548,33 @@ For planning purposes only — not professional tax, legal, or financial advice.
 </Page>)
 }
 
+// O3 FIX: EntityScreen entity list unified with Tax Tracker's ENTITY_TYPES.
+// Previous list: Sole Proprietor / Single-Member LLC, Partnership / MMLLC,
+//   S Corporation, C Corporation, Other.
+// New list matches Tax Tracker exactly: S Corporation, Partnership / LLC,
+//   Sole Proprietor / SMLLC, Real Estate (Schedule E).
+// C Corporation: replaced with a notice explaining it is not supported for
+//   tax calculation, so users understand the limitation rather than being
+//   silently routed to an incompatible structure.
+// Real Estate (Schedule E): added — it is explicitly called out in marketing
+//   copy and is a primary use case for the real estate investor audience.
+// "Other": removed — it had no corresponding Tax Tracker entity type.
+// Entity type strings now match the canonical Tax Tracker values exactly so
+//   localStorage.getItem('entityType') hydrates the entity card dropdown
+//   correctly on the first Tax Tracker session.
 function EntityScreen(){
 const nav=useNavigate()
 const [selected,setSelected]=useState('')
-const types=['Sole Proprietor / Single-Member LLC','Partnership / MMLLC','S Corporation','C Corporation','Other']
+const [showCCorpNotice,setShowCCorpNotice]=useState(false)
+
+// O3 FIX: 4 entity types, matching Tax Tracker exactly
+const types=[
+  { value:'S Corporation',          icon:'🏢', desc:'K-1 income · officer salary · FICA savings via distributions' },
+  { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
+  { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },
+  { value:'Real Estate (Schedule E)',icon:'🏠', desc:'Rental income/loss · passive activity rules · depreciation' },
+]
+
 return(<Page>
 <LOGO/>
 <div style={{marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -490,13 +587,78 @@ return(<Page>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
 <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
 <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
-{types.map(t=>(<button key={t} type="button" onClick={()=>setSelected(t)} style={{padding:'14px 14px',textAlign:'left',border:'2px solid '+(selected===t?B:'#E2E8F0'),borderRadius:10,cursor:'pointer',fontSize:13,fontWeight:600,color:selected===t?B:N,background:selected===t?'#EFF6FF':'#fff'}}>{t}</button>))}
+{types.map(t=>(
+  <button
+    key={t.value}
+    type="button"
+    onClick={()=>setSelected(t.value)}
+    style={{
+      padding:'12px 14px',textAlign:'left',
+      border:'2px solid '+(selected===t.value?B:'#E2E8F0'),
+      borderRadius:10,cursor:'pointer',
+      background:selected===t.value?'#EFF6FF':'#fff',
+      display:'flex',alignItems:'center',gap:12,
+    }}
+  >
+    <span style={{fontSize:22,flexShrink:0}}>{t.icon}</span>
+    <div>
+      <div style={{fontSize:13,fontWeight:700,color:selected===t.value?B:N,marginBottom:2}}>{t.value}</div>
+      <div style={{fontSize:11,color:SL}}>{t.desc}</div>
+    </div>
+  </button>
+))}
+
+{/* O3 FIX: C-Corp not supported — shown as an informational notice, not a
+    selectable option, so C-Corp owners understand the limitation clearly
+    rather than proceeding into an incompatible flow. */}
+<button
+  type="button"
+  onClick={()=>setShowCCorpNotice(s=>!s)}
+  style={{
+    padding:'12px 14px',textAlign:'left',
+    border:'2px solid #E2E8F0',borderRadius:10,cursor:'pointer',
+    background:'#F8FAFC',display:'flex',alignItems:'center',gap:12,
+    opacity:0.75,
+  }}
+>
+  <span style={{fontSize:22,flexShrink:0}}>🏗️</span>
+  <div>
+    <div style={{fontSize:13,fontWeight:700,color:SL,marginBottom:2}}>C Corporation</div>
+    <div style={{fontSize:11,color:'#94A3B8'}}>Not supported for tax calculation — tap to learn more</div>
+  </div>
+</button>
+{showCCorpNotice && (
+  <div style={{background:'#FEF9C3',border:'1px solid #FDE68A',borderRadius:8,padding:'12px 14px',fontSize:12,color:'#78350F',lineHeight:1.6}}>
+    <strong>C-Corporation income tax is not calculated in TaxStat360.</strong> The tool is designed for pass-through entities — S-Corps, partnerships, and sole proprietors — where income flows directly to your personal return. If you are an S-Corp or LLC that has elected S-Corp status, select <em>S Corporation</em> above. For C-Corp planning, contact us at support@taxstat360.com.
+  </div>
+)}
 </div>
 <p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details — this affects whether self-employment tax applies.</p>
-<button onClick={()=>{if(selected){localStorage.setItem('entityType',selected);nav('/onboarding/business')}}} disabled={!selected} style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}>Continue →</button>
+<button
+  onClick={()=>{
+    if(selected){
+      // O3 FIX: entity type value now matches Tax Tracker canonical string exactly
+      localStorage.setItem('entityType',selected)
+      nav('/onboarding/business')
+    }
+  }}
+  disabled={!selected}
+  style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}
+>
+  Continue →
+</button>
 </Page>)
 }
 
+// O7 FIX: BusinessScreen now:
+// (a) Makes the optional nature explicit in the step subtitle.
+// (b) Writes business name to sessionStorage ts360_biz_name so CalculateTaxInner
+//     can pre-populate the entity card name field on first load.
+// (c) Writes EIN and address to ts360_biz_ein / ts360_biz_address so AIAnalysis
+//     CPA Export can use them on the report cover page.
+// (d) Skip link label updated to "Skip — I'll add this in Settings" to signal
+//     where the data can be entered later (once Settings Business Info section
+//     is added, per the audit recommendation).
 function BusinessScreen(){
 const nav=useNavigate()
 const [biz,setBiz]=useState('')
@@ -509,7 +671,6 @@ if(window.google&&window.google.maps){
 initAutocomplete()
 } else {
 const s=document.createElement('script')
-// SEC-02 FIX: Uses VITE_GMAPS_KEY env var — not a hardcoded API key.
 s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY+'&libraries=places'
 s.onload=initAutocomplete
 document.head.appendChild(s)
@@ -526,45 +687,71 @@ if(p.formatted_address)setAddr(p.formatted_address)
 }
 },[])
 
+// O7 FIX: persist business info to sessionStorage so downstream screens use it
+function persistBizInfo() {
+  if (biz.trim()) sessionStorage.setItem('ts360_biz_name',  biz.trim())
+  if (ein.trim()) sessionStorage.setItem('ts360_biz_ein',   ein.trim())
+  if (addr.trim()) sessionStorage.setItem('ts360_biz_address', addr.trim())
+}
+
 async function submit(e){
 e.preventDefault()
+persistBizInfo()
 try{await fetch(API+'/user/business-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_name:biz,ein,address:addr})})}catch(e){}
 nav('/onboarding/import')
 }
+
 return(<Page>
 <LOGO/>
 <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 2 of 3</span></div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Tell us about your business</h2>
-<p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>Personalizes your IRS compliance and tax analysis.</p>
+{/* O7 FIX: subtitle now tells users exactly where this data is used */}
+<p style={{color:SL,fontSize:13,margin:'0 0 6px'}}>Optional — used in your CPA Export report and entity card label.</p>
+<p style={{color:'#94A3B8',fontSize:12,margin:'0 0 18px',lineHeight:1.5}}>
+  Your business name will appear on your entity card in the Tax Tracker. EIN and address appear on your CPA Export report cover. You can update these anytime in Settings.
+</p>
 <form onSubmit={submit}>
 <Field label="Business Name" val={biz} set={setBiz} ph="Acme Corp LLC" autoComplete="organization"/>
 <Field label="EIN (optional)" val={ein} set={setEin} ph="XX-XXXXXXX"/>
 <div style={{marginBottom:12}}>
-<label htmlFor="biz-address" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address</label>
+<label htmlFor="biz-address" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address <span style={{fontWeight:400,textTransform:'none',letterSpacing:0}}>(optional)</span></label>
 <input id="biz-address" ref={addrRef} type="text" value={addr} onChange={e=>setAddr(e.target.value)} placeholder="Start typing your address..." autoComplete="street-address" style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/>
 </div>
 <button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue →</button>
-<p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={()=>nav('/onboarding/import')}>Skip for now →</p>
+{/* O7 FIX: skip label signals where to return later */}
+<p
+  style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}}
+  onClick={()=>{ persistBizInfo(); nav('/onboarding/import') }}
+>
+  Skip — I'll add this in Settings →
+</p>
 </form>
 </Page>)
 }
 
+// O4 FIX: ImportScreen handleContinue now navigates to '/dashboard' (not
+// '/calculate-tax'). The button label "Go to My Dashboard →" now correctly
+// matches its destination. A ts360_first_run flag is written to sessionStorage
+// so CalculateTaxInner can show a first-run banner to guide users who skipped
+// Step 3 to add their revenue and expenses.
 function ImportScreen(){
 const nav=useNavigate()
 const [showSecurityNudge, setShowSecurityNudge]=useState(false)
 const mfaAlreadyEnabled=localStorage.getItem('ts360_mfa_enabled')==='1'
-// Integration tiles — QuickBooks, FreshBooks, Xero, Wave.
-// INTEGRATION SAFETY: connect URLs use API + '/integrations/' + name.toLowerCase() + '/connect'
-// API resolves to API_BASE_URL ('https://app.taxstat360.com') via the import at top of file.
-// The OAuth callback is handled by App.jsx OAuthCallback component at /integrations/:provider/callback.
-// No integration behaviour changes from this file's security fixes.
 const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
+
+// O4 FIX: set first-run flag then navigate to dashboard
+function goToDashboard(){
+  sessionStorage.setItem('ts360_first_run','1')
+  nav('/dashboard')
+}
 
 function handleContinue(){
 if(!mfaAlreadyEnabled){
 setShowSecurityNudge(true)
 } else {
-nav('/calculate-tax')
+// O4 FIX: nav to /dashboard, not /calculate-tax
+goToDashboard()
 }
 }
 
@@ -587,8 +774,9 @@ style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',bord
 >
 <Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings →
 </button>
+{/* O4 FIX: "go to my dashboard" now actually goes to /dashboard */}
 <button
-onClick={()=>nav('/calculate-tax')}
+onClick={goToDashboard}
 style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',marginBottom:8}}
 >
 Skip for now — go to my dashboard
@@ -609,6 +797,7 @@ return(<Page>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
 {integrations.map(i=>(<button key={i.name} type="button" onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></button>))}
 </div>
+{/* O4 FIX: button label matches destination — both go to /dashboard */}
 <button onClick={handleContinue} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard →</button>
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={handleContinue}>Skip — connect later</p>
 </Page>)
