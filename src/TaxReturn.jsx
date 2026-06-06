@@ -86,8 +86,7 @@ import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { API_BASE_URL   CURRENT_TAX_YEAR,
-} from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
 import { isPro } from './LockedFeature'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
