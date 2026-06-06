@@ -1328,8 +1328,8 @@ export default function TaxReturn() {
                   : 'Save & Analyze →'
                 }
               </button>
-              <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
-                Saves and goes to AI Analysis & Reporting (Step 3)
+              <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                Saves and goes to AI Risk Scan + Reports (Step 3)
               </div>
             </div>
             <div>
@@ -1354,8 +1354,8 @@ export default function TaxReturn() {
                 }
               </button>
               {saveStatus === 'idle' && (
-                <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
-                  Saves your work — stay on this page
+                <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                  Saves your numbers — stays on Step 2
                 </div>
               )}
               {saveStatus === 'saved' && (
