@@ -116,6 +116,12 @@
 // itemizer with QBI (manufacturing phantom AMT at high income), and understated by
 // the standard deduction for non-itemizers. Fixed in calcAMT.
 //
+// F-01 ENGINE FIX (§1366(d)(2) prior-year suspended loss carryforward):
+// calcTaxReturn now accepts priorSuspendedLoss (Form 7203 Part III col. e).
+// Released prior-year suspended loss is added to adjustedK1Total so it
+// reduces taxable income in the current year.
+// IRC §1366(d)(2) · Treas. Reg. §1.1366-2(a)(5).
+//
 // YTD-FIX (year-to-date annualization consistency):
 // In YTD mode (ytdFactor > 1, e.g. "through September" → 12/9 = 1.333) the engine
 // previously annualized ONLY four above-the-line deductions and left ALL income raw.
@@ -643,6 +649,7 @@ function calcTaxReturn(input) {
     priorYearTax,
     priorYearAGI,
     priorPassiveLossCarryforward = 0,
+    priorSuspendedLoss = 0,
   } = input
 
   // AUDIT FIX (entity-type mismatch): the Step-1 UI emits friendly labels
@@ -707,6 +714,23 @@ function calcTaxReturn(input) {
 
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
 
+  // F-01: §1366(d)(2) release prior-year suspended loss against available basis
+  let priorSuspendedLossApplied = 0
+  const _priorSuspended = Math.max(0, nv(priorSuspendedLoss))
+  if (_priorSuspended > 0) {
+    for (const br of entityBasisResults) {
+      if (br.stockBasis === undefined) continue
+      if (!/s.?corp|partner/i.test(br.type || '')) continue
+      const basisAfterAlloc = br.suspended > 0
+        ? Math.max(0, (br.totalBasis || br.stockBasis) - Math.abs(br.k1Allowed))
+        : Math.max(0, br.stockBasis + Math.max(0, br.k1Allowed))
+      const releasable = Math.min(_priorSuspended, basisAfterAlloc)
+      priorSuspendedLossApplied += releasable
+      break
+    }
+  }
+  const priorSuspendedLossRemaining = Math.max(0, _priorSuspended - priorSuspendedLossApplied)
+
   // ── REG-01: §469 Step-1 Real Estate (Schedule E) entity routing ───────────
   // A "Real Estate (Schedule E)" entity entered in Step 1 is personally-held
   // rental property, NOT a K-1 trade-or-business. persistStep1() folds its net
@@ -750,7 +774,7 @@ function calcTaxReturn(input) {
   })
 
   // Real Estate net removed from the K-1 income line — handled by §469 below.
-  const adjustedK1Total = k1Total + totalSuspendedLoss - step1RentalNet
+  const adjustedK1Total = k1Total + totalSuspendedLoss + priorSuspendedLossApplied - step1RentalNet
 
   // ── PASS4B-02b: §1368(b)(2) S-Corp Distribution Capital Gain ─────────────
   // Distributions reduce stock basis. The portion of distributions that exceeds
@@ -1265,6 +1289,8 @@ function calcTaxReturn(input) {
 
     // Effective ltGain used in calculations (ltGain input + distributionCapGain)
     ltGainEffective: _ltGain,
+    priorSuspendedLossApplied,
+    priorSuspendedLossRemaining,
   }
 }
 

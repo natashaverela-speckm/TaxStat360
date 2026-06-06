@@ -346,11 +346,12 @@ export default function TaxReturn() {
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: nf(priorPAL),
+      priorSuspendedLoss: nf(priorSuspendedLoss),   // F-01: §1366(d)(2) engine hookup
       useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
-    sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
@@ -1330,6 +1331,7 @@ export default function TaxReturn() {
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
                   <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                  {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}
 
