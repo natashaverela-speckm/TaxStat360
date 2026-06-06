@@ -3,34 +3,37 @@
 // Step 1 → Step 2 navigation boundary in TaxStat360.
 //
 // Rules:
-// - Every sessionStorage.setItem call in the app goes through a writer here.
-// - Every sessionStorage.getItem call in the app goes through a reader here.
-// - Readers always return a valid default if the key is missing or malformed.
-// - Never write different shapes for the same key from different call sites.
+//   - Every sessionStorage.setItem call in the app goes through a writer here.
+//   - Every sessionStorage.getItem call in the app goes through a reader here.
+//   - Readers always return a valid default if the key is missing or malformed.
+//   - Never write different shapes for the same key from different call sites.
 //
 // Two related entity-list keys:
-// ts360_entities — flat k1Data shape: { name, type, own, netProfit, k1, box11_12, ... }
-// consumed by TaxReturn for tax-math (per-entity K-1 income)
-// ts360_entities_raw — raw entity shape: { name, type, own, ein, formationDate, pnl: {...}, connectedId, isManual }
-// consumed by CalculateTaxInner on mount for entity-management UI
+//   ts360_entities     — flat k1Data shape: { name, type, own, netProfit, k1, box11_12, ... }
+//                        consumed by TaxReturn for tax-math (per-entity K-1 income)
+//   ts360_entities_raw — raw entity shape: { name, type, own, ein, formationDate, pnl: {...}, connectedId, isManual }
+//                        consumed by CalculateTaxInner on mount for entity-management UI
 //
 // Both keys are written together by writeStep1State and Dashboard.loadRecord
 // so the two pages stay in sync. The split exists because the two consumers
 // genuinely need different shapes — flat for math, nested for editable UI.
 //
 // Writers:
-// writeStep1State — called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
-// writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
-// writeTaxYear — called by Dashboard and TaxReturn
-// writeIsCoopPatron — called by CalculateTaxInner (checkbox sync)
-// clearStep1State — called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
+//   writeStep1State     — called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
+//   writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
+//   writeTaxYear        — called by Dashboard and TaxReturn
+//   writeIsCoopPatron   — called by CalculateTaxInner (checkbox sync)
+//   clearStep1State     — called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
+//   writeBusinessInfo   — F-10 FIX: called by Onboarding.jsx BusinessScreen after O7 patch
+//   readBusinessInfo    — F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
 //
 // Readers:
-// readStep1State — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
-// readStep1StateRaw — called by CalculateTaxInner (useState initializer for entities)
-// readPersonalContext — called by TaxReturn on mount, AIAnalysis
-// readTaxYear — called by TaxReturn, EntityCompareModal
-// readIsCoopPatron — called by CalculateTaxInner (useState initializer)
+//   readStep1State      — called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
+//   readStep1StateRaw   — called by CalculateTaxInner (useState initializer for entities)
+//   readPersonalContext — called by TaxReturn on mount, AIAnalysis
+//   readTaxYear         — called by TaxReturn, EntityCompareModal
+//   readIsCoopPatron    — called by CalculateTaxInner (useState initializer)
+//   readBusinessInfo    — F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
 //
 // ── AUDIT PASS 2 ADDITIONS ────────────────────────────────────────────────────
 // F22 ADDITION: ts360_dismissed_risks
@@ -53,6 +56,17 @@
 //   readFirstRun / clearFirstRun are the canonical accessors. The flag is
 //   session-scoped (sessionStorage) because it should only fire once per login
 //   session — reloading the app should not re-show the banner.
+//
+// ── AUDIT PASS 4 ADDITIONS ────────────────────────────────────────────────────
+// F-10 FIX: ts360_biz_name / ts360_biz_ein / ts360_biz_address
+//   AIAnalysis.jsx and CalculateTaxInner.jsx previously called
+//   sessionStorage.getItem('ts360_biz_name') and related keys directly,
+//   bypassing this abstraction layer. If a key is renamed, there is no single
+//   place to update it — a missed rename produces a silent undefined read,
+//   which becomes a $0 business-name field in the CPA export.
+//   writeBusinessInfo / readBusinessInfo are the canonical accessors.
+//   Replace ALL direct sessionStorage.getItem/setItem calls for ts360_biz_*
+//   keys with these helpers.
 
 // ─── Step 1 state (entity list + totals) ──────────────────────────────────
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
@@ -121,9 +135,9 @@ export function clearStep1State() {
 // Read by: TaxReturn on mount, AIAnalysis
 //
 // Canonical field names (no legacy aliases):
-// useItemized — true = itemizing deductions (NOT useStandardDed)
-// itemizedAmt — itemized deduction total (NOT itemizedDed)
-// estPaid — estimated tax payments made (NOT estimatedPayments)
+//   useItemized — true = itemizing deductions (NOT useStandardDed)
+//   itemizedAmt — itemized deduction total (NOT itemizedDed)
+//   estPaid     — estimated tax payments made (NOT estimatedPayments)
 //
 // nolCarryforward is included here so values entered on TaxReturn persist across
 // sessions. Previously the field was read on mount but silently dropped from the
@@ -182,9 +196,9 @@ export function writePersonalContext({
   form4797 = 0,
   manualK1s = [],
   isREP = false,
-  repHoursRE = 0,          // F-11
-  repHoursTotal = 0,       // F-11
-  priorSuspendedLoss = 0,  // F-01
+  repHoursRE = 0,      // F-11
+  repHoursTotal = 0,   // F-11
+  priorSuspendedLoss = 0, // F-01
   useItemized = false,
   itemizedAmt = 0,
   saltAmount = 0,
@@ -299,39 +313,39 @@ export function readPersonalContext() {
   // and can be removed once the app is launched and no stale browser
   // sessions remain. Tracked as a follow-up.
   return {
-    filingStatus: parsed.filingStatus ?? defaults.filingStatus,
-    taxYear: parsed.taxYear ?? defaults.taxYear,
-    dependents: parsed.dependents ?? defaults.dependents,
-    w2Income: parsed.w2Income ?? defaults.w2Income,
-    w2Withheld: parsed.w2Withheld ?? defaults.w2Withheld,
-    rentalIncome: parsed.rentalIncome ?? defaults.rentalIncome,
-    rentalExpenses: parsed.rentalExpenses ?? defaults.rentalExpenses,
-    capitalGains: parsed.capitalGains ?? defaults.capitalGains,
-    interest: parsed.interest ?? defaults.interest,
-    dividends: parsed.dividends ?? defaults.dividends,
+    filingStatus:      parsed.filingStatus      ?? defaults.filingStatus,
+    taxYear:           parsed.taxYear           ?? defaults.taxYear,
+    dependents:        parsed.dependents        ?? defaults.dependents,
+    w2Income:          parsed.w2Income          ?? defaults.w2Income,
+    w2Withheld:        parsed.w2Withheld        ?? defaults.w2Withheld,
+    rentalIncome:      parsed.rentalIncome      ?? defaults.rentalIncome,
+    rentalExpenses:    parsed.rentalExpenses    ?? defaults.rentalExpenses,
+    capitalGains:      parsed.capitalGains      ?? defaults.capitalGains,
+    interest:          parsed.interest          ?? defaults.interest,
+    dividends:         parsed.dividends         ?? defaults.dividends,
     qualifiedDividends: parsed.qualifiedDividends ?? defaults.qualifiedDividends,
-    form4797: parsed.form4797 ?? defaults.form4797,
-    manualK1s: Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
-    isREP:              parsed.isREP             ?? defaults.isREP,
-    repHoursRE:         parsed.repHoursRE        ?? defaults.repHoursRE,
-    repHoursTotal:      parsed.repHoursTotal     ?? defaults.repHoursTotal,
+    form4797:          parsed.form4797          ?? defaults.form4797,
+    manualK1s:         Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
+    isREP:             parsed.isREP             ?? defaults.isREP,
+    repHoursRE:        parsed.repHoursRE        ?? defaults.repHoursRE,
+    repHoursTotal:     parsed.repHoursTotal     ?? defaults.repHoursTotal,
     priorSuspendedLoss: parsed.priorSuspendedLoss ?? defaults.priorSuspendedLoss,
     // Renamed-field migrations — read new name first, fall back to legacy
     // name to preserve choice from pre-migration sessionStorage data.
-    useItemized: parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
-    itemizedAmt: parsed.itemizedAmt ?? parsed.itemizedDed ?? defaults.itemizedAmt,
-    estPaid: parsed.estPaid ?? parsed.estimatedPayments ?? defaults.estPaid,
-    saltAmount: parsed.saltAmount ?? defaults.saltAmount,
-    hasISO: parsed.hasISO ?? defaults.hasISO,
+    useItemized:       parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
+    itemizedAmt:       parsed.itemizedAmt  ?? parsed.itemizedDed       ?? defaults.itemizedAmt,
+    estPaid:           parsed.estPaid      ?? parsed.estimatedPayments  ?? defaults.estPaid,
+    saltAmount:        parsed.saltAmount        ?? defaults.saltAmount,
+    hasISO:            parsed.hasISO            ?? defaults.hasISO,
     isoBargainElement: parsed.isoBargainElement ?? defaults.isoBargainElement,
-    priorYearQBILoss: parsed.priorYearQBILoss ?? defaults.priorYearQBILoss,
-    socialSecurity: parsed.socialSecurity ?? defaults.socialSecurity,
-    iraDistributions: parsed.iraDistributions ?? defaults.iraDistributions,
-    selfEmpHealthIns: parsed.selfEmpHealthIns ?? defaults.selfEmpHealthIns,
-    hsaDeduction: parsed.hsaDeduction ?? defaults.hsaDeduction,
-    studentLoanInt: parsed.studentLoanInt ?? defaults.studentLoanInt,
+    priorYearQBILoss:  parsed.priorYearQBILoss  ?? defaults.priorYearQBILoss,
+    socialSecurity:    parsed.socialSecurity    ?? defaults.socialSecurity,
+    iraDistributions:  parsed.iraDistributions  ?? defaults.iraDistributions,
+    selfEmpHealthIns:  parsed.selfEmpHealthIns  ?? defaults.selfEmpHealthIns,
+    hsaDeduction:      parsed.hsaDeduction      ?? defaults.hsaDeduction,
+    studentLoanInt:    parsed.studentLoanInt    ?? defaults.studentLoanInt,
     selfEmpRetirement: parsed.selfEmpRetirement ?? defaults.selfEmpRetirement,
-    nolCarryforward: parsed.nolCarryforward ?? defaults.nolCarryforward,
+    nolCarryforward:   parsed.nolCarryforward   ?? defaults.nolCarryforward,
   }
 }
 
@@ -358,6 +372,57 @@ export function readIsCoopPatron() {
   return sessionStorage.getItem('ts360_isCoopPatron') === 'true'
 }
 
+// ─── F-10 FIX: Business info (onboarding biz name / EIN / address) ────────
+// Written by: Onboarding.jsx BusinessScreen (O7 patch) via sessionStorage.setItem.
+// Previously, AIAnalysis.jsx called sessionStorage.getItem('ts360_biz_name') etc.
+// directly — bypassing this abstraction. If any key is renamed, every direct call
+// site must be updated manually. A missed rename produces a silent undefined read,
+// which becomes an empty business-name field in the CPA export.
+//
+// Migration: replace all direct sessionStorage.getItem/setItem calls for
+// ts360_biz_* keys with these helpers in AIAnalysis.jsx and any other consumers.
+//
+// Storage key inventory:
+//   ts360_biz_name    — business display name (e.g. "Acme S-Corp LLC")
+//   ts360_biz_ein     — Employer Identification Number (XX-XXXXXXX format)
+//   ts360_biz_address — business mailing address (single-line string)
+//
+// Storage: sessionStorage — business info is session-scoped (tied to the
+// onboarding flow). It persists until the tab is closed or clearStep1State is called.
+
+const BIZ_KEYS = {
+  name:    'ts360_biz_name',
+  ein:     'ts360_biz_ein',
+  address: 'ts360_biz_address',
+}
+
+/**
+ * Write business info captured during onboarding to sessionStorage.
+ * Called by Onboarding.jsx BusinessScreen after the O7 patch.
+ *
+ * @param {{ bizName?: string, bizEin?: string, bizAddress?: string }} info
+ */
+export function writeBusinessInfo({ bizName = '', bizEin = '', bizAddress = '' } = {}) {
+  sessionStorage.setItem(BIZ_KEYS.name,    bizName)
+  sessionStorage.setItem(BIZ_KEYS.ein,     bizEin)
+  sessionStorage.setItem(BIZ_KEYS.address, bizAddress)
+}
+
+/**
+ * Read business info from sessionStorage.
+ * Called by AIAnalysis.jsx in place of direct sessionStorage.getItem calls.
+ * Falls back gracefully to empty strings if not set (pre-patch sessions, skipped step).
+ *
+ * @returns {{ bizName: string, bizEin: string, bizAddress: string }}
+ */
+export function readBusinessInfo() {
+  return {
+    bizName:    sessionStorage.getItem(BIZ_KEYS.name)    || '',
+    bizEin:     sessionStorage.getItem(BIZ_KEYS.ein)     || '',
+    bizAddress: sessionStorage.getItem(BIZ_KEYS.address) || '',
+  }
+}
+
 // ─── F22: Risk Scan dismissals (per record) ───────────────────────────────
 // Storage: localStorage (not sessionStorage) — dismissals must survive
 // page reloads and new sessions. A "reviewed" quarterly deadline should
@@ -377,7 +442,7 @@ const DISMISSED_RISKS_KEY = 'ts360_dismissed_risks'
 
 /**
  * Mark a specific risk finding as dismissed for a given record.
- * @param {string} recordId - rec.id as a string
+ * @param {string} recordId   - rec.id as a string
  * @param {string} findingKey - stable slug for the finding (e.g. 'no-officer-salary')
  */
 export function writeRiskDismissal(recordId, findingKey) {
@@ -431,10 +496,10 @@ export function clearRiskDismissals(recordId) {
 
 // ─── O4: First-run banner flag ────────────────────────────────────────────
 // Written by: Onboarding.jsx ImportScreen goToDashboard() when user skips
-//   Step 3 (accounting software connection) before entering revenue data.
+// Step 3 (accounting software connection) before entering revenue data.
 // Read by: CalculateTaxInner on mount to decide whether to show the
-//   contextual first-run banner: "Your entity is set up — now add your
-//   revenue and expenses to see your tax estimate."
+// contextual first-run banner: "Your entity is set up — now add your
+// revenue and expenses to see your tax estimate."
 //
 // Storage: sessionStorage — the banner should show once per login session.
 // Reloading the browser or starting a new tab should not re-show it. The
@@ -476,39 +541,39 @@ export function clearFirstRun() {
 // field to the contract means adding it here too — track them together.
 export function normalizeF1040(rec = {}) {
   return {
-    filingStatus: rec.filingStatus || 'single',
-    taxYear: parseInt(rec.taxYear) || new Date().getFullYear(),
-    dependents: parseInt(rec.dependents) || 0,
-    w2Income: parseFloat(rec.w2Income) || 0,
-    w2Withheld: parseFloat(rec.w2Withheld) || 0,
-    rentalIncome: parseFloat(rec.rentalIncome) || 0,
-    rentalExpenses: parseFloat(rec.rentalExpenses) || 0,
-    capitalGains: parseFloat(rec.capitalGains) || 0,
-    interest: parseFloat(rec.interest) || 0,
-    dividends: parseFloat(rec.dividends) || 0,
+    filingStatus:      rec.filingStatus || 'single',
+    taxYear:           parseInt(rec.taxYear)           || new Date().getFullYear(),
+    dependents:        parseInt(rec.dependents)        || 0,
+    w2Income:          parseFloat(rec.w2Income)        || 0,
+    w2Withheld:        parseFloat(rec.w2Withheld)      || 0,
+    rentalIncome:      parseFloat(rec.rentalIncome)    || 0,
+    rentalExpenses:    parseFloat(rec.rentalExpenses)  || 0,
+    capitalGains:      parseFloat(rec.capitalGains)    || 0,
+    interest:          parseFloat(rec.interest)        || 0,
+    dividends:         parseFloat(rec.dividends)       || 0,
     qualifiedDividends: parseFloat(rec.qualifiedDividends ?? rec.qualDividends) || 0,
-    form4797: parseFloat(rec.form4797) || 0,
-    manualK1s: Array.isArray(rec.manualK1s) ? rec.manualK1s : [],
-    isREP: !!rec.isREP,
+    form4797:          parseFloat(rec.form4797)        || 0,
+    manualK1s:         Array.isArray(rec.manualK1s) ? rec.manualK1s : [],
+    isREP:             !!rec.isREP,
     // Renamed-field migration: if the saved record was written before the
     // PR #136 contract migration, it contains useStandardDed / itemizedDed /
     // estimatedPayments instead of the canonical names. Read the canonical
     // name first, fall back to the legacy name to preserve user choice.
-    useItemized: rec.useItemized !== undefined
-      ? !!rec.useItemized
-      : (rec.useStandardDed !== undefined ? !rec.useStandardDed : false),
-    itemizedAmt: parseFloat(rec.itemizedAmt ?? rec.itemizedDed) || 0,
-    saltAmount: parseFloat(rec.saltAmount) || 0,
-    hasISO: !!rec.hasISO,
+    useItemized:       rec.useItemized !== undefined
+                         ? !!rec.useItemized
+                         : (rec.useStandardDed !== undefined ? !rec.useStandardDed : false),
+    itemizedAmt:       parseFloat(rec.itemizedAmt ?? rec.itemizedDed)          || 0,
+    saltAmount:        parseFloat(rec.saltAmount)      || 0,
+    hasISO:            !!rec.hasISO,
     isoBargainElement: parseFloat(rec.isoBargainElement) || 0,
-    estPaid: parseFloat(rec.estPaid ?? rec.estimatedPayments) || 0,
-    priorYearQBILoss: parseFloat(rec.priorYearQBILoss) || 0,
-    socialSecurity: parseFloat(rec.socialSecurity) || 0,
-    iraDistributions: parseFloat(rec.iraDistributions) || 0,
-    selfEmpHealthIns: parseFloat(rec.selfEmpHealthIns) || 0,
-    hsaDeduction: parseFloat(rec.hsaDeduction) || 0,
-    studentLoanInt: parseFloat(rec.studentLoanInt) || 0,
+    estPaid:           parseFloat(rec.estPaid ?? rec.estimatedPayments)        || 0,
+    priorYearQBILoss:  parseFloat(rec.priorYearQBILoss) || 0,
+    socialSecurity:    parseFloat(rec.socialSecurity)   || 0,
+    iraDistributions:  parseFloat(rec.iraDistributions) || 0,
+    selfEmpHealthIns:  parseFloat(rec.selfEmpHealthIns) || 0,
+    hsaDeduction:      parseFloat(rec.hsaDeduction)     || 0,
+    studentLoanInt:    parseFloat(rec.studentLoanInt)   || 0,
     selfEmpRetirement: parseFloat(rec.selfEmpRetirement) || 0,
-    nolCarryforward: parseFloat(rec.nolCarryforward) || 0,
+    nolCarryforward:   parseFloat(rec.nolCarryforward)  || 0,
   }
 }
