@@ -579,7 +579,7 @@ export default function TaxReturn() {
                         textDecoration: 'underline', textUnderlineOffset: 2,
                       }}
                     >
-                      {analyzeStatus === 'saving' ? 'Saving…' : 'AI →'}
+                      {analyzeStatus === 'saving' ? 'Saving…' : 'AI Analysis'}
                     </button>
                   ) : (
                     <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
@@ -816,7 +816,7 @@ export default function TaxReturn() {
           </div>
 
           {/* Dependents + estimated payments */}
-          <CollapsibleSection title="Dependents, Withholding & Estimated Payments" defaultOpen>
+          <CollapsibleSection title="Dependents, Federal Withholding & Estimated Payments" defaultOpen>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>
@@ -843,6 +843,23 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Rental real estate */}
+          {/* AUDIT-FIX-4.1: S-Corp suspended loss carryforward moved out of the
+          Rental Real Estate section where it does not belong. Now rendered
+          only when the user has at least one S Corporation entity. */}
+          {Array.isArray(entities) && entities.some(e => e.type === 'S Corporation') && (
+            <CollapsibleSection title="S-Corp Basis Carryforwards (Form 7203)" defaultOpen={false}>
+              <div style={{ padding: '8px 0' }}>
+                {/* F-01: §1366(d) prior-year suspended loss carryforward — Form 7203 Part III col. (e) */}
+                            <div style={inpWrap}>
+                              <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
+                                Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
+                                <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+                              </label>
+                              <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
+                            </div>
+              </div>
+            </CollapsibleSection>
+          )}
           <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(nf(rentalIncome) - nf(rentalExpenses)) : undefined} accent="#7C3AED">
             {hasStep1Rental && (
               <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
@@ -851,14 +868,8 @@ export default function TaxReturn() {
                 Only use the fields below for <em>additional</em> rentals not already entered in Step 1.
               </div>
             )}
-            {/* F-01: §1366(d) prior-year suspended loss carryforward — Form 7203 Part III col. (e) */}
-            <div style={inpWrap}>
-              <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
-                Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
-                <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
-              </label>
-              <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
-            </div>
+            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {/* F16 FIX: Rental Income uses IncomeField (nonNegative) with a helper
                   tooltip directing losses to the Rental Expenses field, matching the
@@ -876,7 +887,7 @@ export default function TaxReturn() {
                 />
               </div>
               <div style={inpWrap}>
-                <label htmlFor="tr-rental-exp" style={inputLbl}>Rental Expenses (incl. depreciation)</label>
+                <label htmlFor="tr-rental-exp" style={inputLbl}>Total Rental Expenses incl. Depreciation (Schedule E, Lines 5–19)</label>
                 {/* Expenses are always positive numbers; nonNegative appropriate here too */}
                 <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" nonNegative />
               </div>
@@ -952,7 +963,7 @@ export default function TaxReturn() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <input type="checkbox" id="active" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
                 <label htmlFor="active" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
-                  Active Participant (§469(i) $25K allowance)
+                  Active Participant — IRC §469(i) $25K Allowance
                   <InfoTip text="If you actively participated in managing the rental (made management decisions, approved tenants, set rental terms, etc.) you may deduct up to $25,000 in rental losses against non-passive income.\n\nPhase-out: The $25K allowance phases out at 50¢ per dollar of AGI above $100,000 and reaches $0 at $150,000 AGI (IRC §469(i)(3)).\n\nMFS filers: $0 allowance regardless of AGI (IRC §469(i)(4)) — do not check this box if filing Married Filing Separately." />
                 </label>
               </div>
@@ -1053,7 +1064,7 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
-                  Self-Employed Retirement Plans
+                  Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
                   <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
                 <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
@@ -1156,7 +1167,7 @@ export default function TaxReturn() {
           <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
-              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii).
+              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change safe harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
@@ -1276,7 +1287,7 @@ export default function TaxReturn() {
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Est. Pmts',     value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: result.balance >= 0 ? 'Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
+                { label: result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 const isSubtraction = row.sign < 0
@@ -1424,11 +1435,11 @@ export default function TaxReturn() {
               >
                 {analyzeStatus === 'saving'
                   ? <><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
-                  : 'Save & Analyze →'
+                  : 'Save & View AI Analysis →'
                 }
               </button>
               <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
-                Saves and goes to AI Risk Scan + Reports (Step 3)
+                Saves and goes to AI Analysis & Reporting (Step 3)
               </div>
             </div>
             <div>
@@ -1449,7 +1460,7 @@ export default function TaxReturn() {
                   ? <><span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: B, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
                   : saveStatus === 'saved' ? '✓ Saved!'
                   : saveStatus === 'error' ? '⚠ Save Failed — Retry'
-                  : '💾 Save This Record'
+                  : 'Save Progress'
                 }
               </button>
               {saveStatus === 'idle' && (

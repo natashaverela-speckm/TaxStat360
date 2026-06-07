@@ -183,7 +183,7 @@ export default function Landing() {
           {[
             { icon: 'office', label: 'K-1',
               title: 'S-Corporations',
-              desc: 'Officer W-2 salary, K-1 distributions, and FICA savings all calculated instantly. See exactly how your salary-to-distribution split affects your estimated federal tax liability.' },
+              desc: 'Officer W-2 salary, K-1 distributions, and SE tax savings on distributions all calculated instantly. See exactly how your salary-to-distribution split affects your estimated federal tax liability.' },
             { icon: 'partners', label: 'K-1',
               title: 'Partnerships and Multi-Member LLCs',
               desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },

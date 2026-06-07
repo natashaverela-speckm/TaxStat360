@@ -213,10 +213,10 @@ function NotFound() {
 const SECTION_META = {
   features: {
     title: 'Features — TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
-    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, FICA savings, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
+    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, SE tax savings on distributions, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
     canonical: 'https://www.taxstat360.com/features',
     ogTitle: 'TaxStat360 Features — Live Tax Calculator for Business Owners',
-    ogDescription: 'K-1 income, QBI deduction, FICA savings, quarterly estimates, and AI risk analysis — all in one place.',
+    ogDescription: 'K-1 income, QBI deduction, SE tax savings on distributions, quarterly estimates, and AI risk analysis — all in one place.',
   },
   pricing: {
     title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',

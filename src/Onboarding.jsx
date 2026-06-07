@@ -569,7 +569,7 @@ const [showCCorpNotice,setShowCCorpNotice]=useState(false)
 
 // O3 FIX: 4 entity types, matching Tax Tracker exactly
 const types=[
-  { value:'S Corporation',          icon:'🏢', desc:'K-1 income · officer salary · FICA savings via distributions' },
+  { value:'S Corporation',          icon:'🏢', desc:'K-1 income · reasonable officer salary · SE tax savings on distributions' },
   { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
   { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },
   { value:'Real Estate (Schedule E)',icon:'🏠', desc:'Rental income/loss · passive activity rules · depreciation' },
