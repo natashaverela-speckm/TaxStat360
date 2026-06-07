@@ -17,26 +17,23 @@
 // getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
 //
 // ── Audit-fix change log ────────────────────────────────────────────────────
-// F6 ENGINE FIX (§469 per-property material participation + §1.469-9(g) aggregation):
-//   calcTaxReturn now supports a per-property §469 regime alongside the legacy
-//   "REP ⇒ all rental nonpassive" path. The new regime engages ONLY when the caller
-//   affirmatively supplies one of: rentalAggregationElection (the §1.469-9(g)
-//   election), step2RentalMaterialParticipation, or a per-entity materiallyParticipates
-//   flag on a Step-1 Real Estate entity. When none are present — every legacy caller
-//   and every existing saved return — perPropertyRegimeActive is false and the LEGACY
-//   branch reproduces prior behavior exactly.
-//   Tri-state participation (no substantive default): material participation is
-//   UNANSWERED by default. Unanswered (undefined) is not "no" and is never inferred
-//   from isREP; it is treated as PASSIVE pending an affirmative answer — the §469(a)
-//   statutory default. A rental becomes nonpassive only on an explicit
-//   materiallyParticipates === true by a REP, or a REP's §1.469-9(g) aggregation
-//   election (a deliberate attestation, never a quiet default). Under §469(c)(2) a
-//   rental is per se passive regardless of participation unless the taxpayer is a REP
-//   (§469(c)(7)), so a non-REP rental stays passive even when materiallyParticipates is
-//   true; its only relief is the §469(i) $25k active-participation allowance, which the
-//   new branch applies to the passive portion. New return fields:
-//   rentalAggregationElectionApplied, rentalNonpassiveNet, rentalPassiveNet.
-//   IRC §469(a),(c)(2),(c)(7),(h),(i) · Treas. Reg. §1.469-9(g).
+// F6 ENGINE FIX (§469 rental treatment — §1.469-9(g) aggregation election):
+//   All rentals default to PASSIVE (§469(a)); a net loss is limited to the §469(i)
+//   $25k active-participation allowance and otherwise suspended. A real estate
+//   professional (§469(c)(7)) makes the whole rental portfolio NONPASSIVE by
+//   AFFIRMATIVELY making the §1.469-9(g) aggregation election (rentalAggregationElection
+//   === true) — i.e. aggregating participation/hours across all properties so the
+//   combined activity meets material participation. REP status ALONE is not enough and
+//   is never assumed (DECISION 2): a REP without the election keeps passive treatment,
+//   so a returning REP may see losses suspended until they elect (surfaced by a one-time
+//   migration prompt in TaxReturn.jsx). perPropertyRegimeActive routes any REP through
+//   the election-governed branch so the election actually controls the result rather
+//   than falling to the legacy "REP ⇒ all nonpassive" path. The engine still honors an
+//   explicit per-entity materiallyParticipates flag or step2RentalMaterialParticipation
+//   if a caller supplies one (forward-compatible), but the UI exposes a single control:
+//   the aggregation election. Non-REP callers with no flags keep the prior legacy path.
+//   New return fields: rentalAggregationElectionApplied, rentalNonpassiveNet,
+//   rentalPassiveNet. IRC §469(a),(c)(2),(c)(7),(h),(i) · Treas. Reg. §1.469-9(g).
 //
 // F5 ENGINE FIX (reasonable-comp advisory framing — Treas. Reg. §1.162-7):
 //   reasonableCompAlert.message reframed as an informational flag rather than a
@@ -743,21 +740,26 @@ function calcTaxReturn(input) {
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
   const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
 
-  // ── F6: §469 per-property material participation + §1.469-9(g) aggregation ──
-  // The per-property regime engages ONLY when the caller affirmatively supplies one
-  // of: the §1.469-9(g) aggregation election, a Step-2 material-participation answer,
-  // or a per-entity materiallyParticipates flag on a Step-1 rental. When none are
-  // present (every legacy caller / existing saved return), perPropertyRegimeActive is
-  // false and the LEGACY branch reproduces the prior behavior byte-for-byte.
+  // ── F6: §469 rental treatment — §1.469-9(g) aggregation election ───────────
+  // Default for ALL rentals is PASSIVE (§469(a)); a net loss is limited to the
+  // §469(i) $25k active-participation allowance and otherwise suspended on Form 8582.
   //
-  // TRI-STATE rule (DECISION 2): material participation is unanswered by default.
-  // Unanswered (undefined) is NOT "no" and is NOT inferred from isREP — it is treated
-  // as PASSIVE pending an affirmative answer, the §469(a) statutory default. Only an
-  // explicit materiallyParticipates === true (or an explicit §1.469-9(g) aggregation
-  // election by a REP) makes a rental nonpassive. A returning REP whose properties are
-  // still unanswered therefore sees those losses suspended until confirmed — the safe
-  // direction (nonpassive is the position that needs support).
+  // A real estate professional (§469(c)(7)) makes the entire rental portfolio
+  // NONPASSIVE by AFFIRMATIVELY making the §1.469-9(g) aggregation election — i.e.
+  // by aggregating participation (hours) across all properties so the combined
+  // activity meets material participation. Absent that election a REP's rentals stay
+  // PASSIVE: REP status alone is never enough, and is never assumed (DECISION 2). A
+  // returning REP who has not yet made the election therefore sees losses suspended
+  // until they do — the safe direction (nonpassive is the position that needs support).
+  //
+  // perPropertyRegimeActive routes a REP through the election-governed branch so the
+  // election actually controls the outcome; without it a REP would fall to the legacy
+  // "REP ⇒ all nonpassive" path and the election would be a no-op. The engine still
+  // honors an explicit per-entity materiallyParticipates flag or a Step-2 answer if a
+  // caller supplies one (forward-compatible), but the UI's single control is the
+  // aggregation election. Non-REP callers with no flags keep the prior legacy path.
   const perPropertyRegimeActive =
+    effectiveIsREP ||
     rentalAggregationElection === true ||
     step2RentalMaterialParticipation !== undefined ||
     entities.some(e => e && isRealEstateEntity(e.type) && e.materiallyParticipates !== undefined)
