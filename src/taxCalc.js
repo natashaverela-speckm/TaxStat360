@@ -732,8 +732,12 @@ function calcTaxReturn(input) {
   const hasStep2Rental             = nv(rentalNet) !== 0
   const combinedRentalNet          = nv(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
+  // §469(i) active-participation applies to whatever rental pool exists. Rentals now
+  // come from Step-1 Real Estate entities (the Step-2 lump is retired), so gate on the
+  // combined rental net rather than the (legacy) Step-2 lump. A per-entity active flag,
+  // if a caller still supplies one, also counts.
   const effectiveIsActiveParticipant =
-    (hasStep2Rental ? isActiveParticipant : false) || step1RentalActive
+    (combinedRentalNet !== 0 ? isActiveParticipant : false) || step1RentalActive
 
   const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
   const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0

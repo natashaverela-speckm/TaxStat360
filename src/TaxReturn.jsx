@@ -234,24 +234,26 @@ export default function TaxReturn() {
   const [collectibles,  setCollectibles]  = useState(savedCtx.collectiblesGain || '')
   const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
 
-  const [rentalIncome,        setRentalIncome]        = useState(savedCtx.rentalIncome   || '')
-  const [rentalExpenses,      setRentalExpenses]      = useState(savedCtx.rentalExpenses || '')
-  const [isREP,               setIsREP]               = useState(!!(savedCtx.isREP))
+  // Rentals are entered in Step 1 as Real Estate (Schedule E) entities. REP status is
+  // established there (per-entity) and flows through the engine; we seed the Step-2
+  // value from the Step-1 entities so the §1.469-9(g) election control is reachable.
+  const step1IsREP = (entities || []).some(e => e && isRealEstateEntity(e.type) && e.isREP)
+  const [isREP,               setIsREP]               = useState(!!savedCtx.isREP || step1IsREP)
   const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant === true)
-  const [priorPAL,            setPriorPAL]            = useState(savedCtx.priorPassiveLossCarryforward || '')
-  // F-11: REP hours qualification gate
-  const [repHoursRE,    setRepHoursRE]    = useState(savedCtx.repHoursRE    || '')
-  const [repHoursTotal, setRepHoursTotal] = useState(savedCtx.repHoursTotal || '')
-  const [showRepGate,   setShowRepGate]   = useState(false)
   // F-01: §1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
-  // F6: §1.469-9(g) aggregation election (tri-state; undefined = not yet elected).
-  const triFromSaved = (v) => (v === true ? true : v === false ? false : undefined)
-  const [rentalAggregationElection, setRentalAggregationElection] = useState(triFromSaved(savedCtx.rentalAggregationElection))
-  // F6 migration: a saved return that had REP set predates this election. Surface a
-  // one-time prompt so the user re-confirms (passive is the safe default; we do NOT
-  // silently inherit nonpassive treatment).
+  // F6: rental §469 inputs now live entirely on the Step-1 Real Estate cards. Derive the
+  // portfolio-level values the engine needs from those entities:
+  //   • rentalAggregationElection — the §1.469-9(g) election is made on the rental card;
+  //     "any elected" treats the aggregated portfolio as nonpassive (a single taxpayer-
+  //     level election — checking it on a card is the affirmative attestation).
+  //   • priorPAL — prior-year suspended passive loss (Form 8582) summed across the cards.
+  const step1REList = (entities || []).filter(e => e && isRealEstateEntity(e.type))
+  const rentalAggregationElection = step1REList.some(e => e.rentalAggregationElection === true)
+  const priorPAL = step1REList.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
+  // F6 migration: a saved return that had REP set before the election existed gets a
+  // one-time prompt so the user re-confirms (passive is the safe default).
   const [showRepMigration, setShowRepMigration] = useState(
     !!savedCtx.isREP &&
     savedCtx.rentalAggregationElection === undefined
@@ -304,7 +306,8 @@ export default function TaxReturn() {
     return {
       taxYear, status: filingStatus, dependents: nf(dependents),
       entities: entityList, w2: w2Total, k1Total: sessionK1 || 0,
-      rentalNet: nf(rentalIncome) - nf(rentalExpenses),
+      // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
+      // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
       divInc: nf(dividends), qualDiv: nf(qualDividends), f4797Inc: form4797Total,
       taxableSS: 0, iraIncome: 0,
@@ -313,20 +316,20 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
-      // F6: the §1.469-9(g) aggregation election. Pass a clean boolean; the engine
-      // treats `true` as the affirmative election that makes a REP's portfolio
+      // F6: the §1.469-9(g) aggregation election, derived from the Step-1 rental cards.
+      // The engine treats `true` as the affirmative election that makes a REP's portfolio
       // nonpassive, and anything else (unelected) as passive.
-      rentalAggregationElection: rentalAggregationElection === true,
+      rentalAggregationElection,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
-      priorPassiveLossCarryforward: nf(priorPAL),
+      priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
       useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
-    sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
+    sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -345,7 +348,7 @@ export default function TaxReturn() {
       filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797,
-      rentalIncome, rentalExpenses, isREP, isActiveParticipant,
+      isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
       rentalAggregationElection,   // F6 (§1.469-9(g) election)
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -354,19 +357,17 @@ export default function TaxReturn() {
       mortgageInt, charitableContr, medicalAmt,
       hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
-      repHoursRE, repHoursTotal,    // F-11
       priorSuspendedLoss,           // F-01
     })
   }, [
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
-    rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
-    repHoursRE, repHoursTotal,
     priorSuspendedLoss,
   ])
 
@@ -398,7 +399,7 @@ export default function TaxReturn() {
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
         unrecap1250, collectiblesGain: collectibles, form4797,
-        rentalIncome, rentalExpenses, isREP, isActiveParticipant,
+        isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
         rentalAggregationElection,   // F6 (§1.469-9(g) election)
         selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -418,7 +419,7 @@ export default function TaxReturn() {
     w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends,
     unrecap1250, collectibles, form4797,
-    rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
@@ -468,9 +469,12 @@ export default function TaxReturn() {
   const step1Rentals       = entityList.filter(e => e && isRealEstateEntity(e.type))
   const hasStep1Rental     = step1Rentals.length > 0
   const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
-  const step2RentalEntered = nf(rentalIncome) !== 0 || nf(rentalExpenses) !== 0
-  const rentalDoubleCount  = hasStep1Rental && step2RentalEntered
-  const step2RentalNet     = nf(rentalIncome) - nf(rentalExpenses)
+  // Combined net of all Step-1 rentals (for display/notes only; the engine recomputes).
+  const step1RentalNetUI   = step1Rentals.reduce((s, e) => {
+    const pnl = e.pnl || {}
+    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+    return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
+  }, 0)
 
   // F18 FIX: Safe Harbor status derivation.
   const priorYearTaxNum = nf(priorYearTax)
@@ -649,7 +653,7 @@ export default function TaxReturn() {
                 <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                     RENTAL REAL ESTATE (SCHEDULE E) — §469
-                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the §1.469-9(g) aggregation election in the Rental section below.'} />
+                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the §1.469-9(g) aggregation election on the rental card in Step 1.'} />
                   </div>
                   {step1Rentals.map((e, i) => {
                     const pnl = e.pnl || {}
@@ -693,15 +697,6 @@ export default function TaxReturn() {
               <div style={{ marginTop: 8 }}>
                 <button onClick={() => setShowRepMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it — I&apos;ll review below</button>
               </div>
-            </div>
-          )}
-
-          {rentalDoubleCount && (
-            <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-              <strong>⚠ Possible double-counted rental.</strong> You entered a Real Estate
-              (Schedule E) entity in Step 1 <em>and</em> rental figures in the Rental Real
-              Estate section below. Both flow into the same §469 calculation, so the same
-              property may be counted twice. Enter each rental in only one place.
             </div>
           )}
 
@@ -846,166 +841,6 @@ export default function TaxReturn() {
               </div>
             </CollapsibleSection>
           )}
-
-          {/* Rental real estate (Schedule E) */}
-          <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(step2RentalNet) : undefined} accent={PURPLE}>
-            {/* F6 / DECISION 1: direct-Schedule-E boundary note */}
-            <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
-              These fields are for <strong>rentals you own directly</strong> (Schedule E, page 1). Rental
-              income from a partnership or LLC comes through on a K-1 — add it as a business entity in Step 1,
-              not here. Its passive character is set at the entity level.
-            </div>
-
-            {hasStep1Rental && (
-              <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
-                You already entered {step1Rentals.length === 1 ? 'a rental property' : `${step1Rentals.length} rental properties`} as
-                Real Estate {step1Rentals.length === 1 ? 'entity' : 'entities'} in Step 1 (shown above, with REP / participation status set on each card).
-                Only use the fields below for <em>additional</em> rentals not already entered in Step 1.
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={inpWrap}>
-                <IncomeField
-                  id="tr-rental-income"
-                  label="Rental Income (gross rents)"
-                  value={rentalIncome}
-                  onChange={setRentalIncome}
-                  placeholder="0"
-                  tip={
-                    <InfoTip text="Enter gross rental income received. Enter depreciation and expenses in the Expenses field — the app calculates your net rental income or loss automatically. Do not enter a negative number here to represent a loss." />
-                  }
-                />
-              </div>
-              <div style={inpWrap}>
-                <label htmlFor="tr-rental-exp" style={inputLbl}>Total Rental Expenses incl. Depreciation (Schedule E, Lines 5–19)</label>
-                <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" nonNegative />
-              </div>
-            </div>
-
-            {/* F-11: REP election with §469(c)(7)(B) hours qualification gate */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  id="rep"
-                  checked={isREP}
-                  onChange={e => {
-                    if (e.target.checked) {
-                      setShowRepGate(true)
-                    } else {
-                      setIsREP(false)
-                      setShowRepGate(false)
-                      // Leaving REP status clears the REP-only election.
-                      setRentalAggregationElection(undefined)
-                    }
-                  }}
-                  style={{ marginTop: 2 }}
-                />
-                <label htmlFor="rep" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
-                  Real Estate Professional (REP) — IRC §469(c)(7)
-                  <InfoTip text={'REP status allows unlimited rental loss deductions against all income.\n\nTo qualify, BOTH of the following must be true:\n① More than 750 hours in real property trades/businesses (material participation)\n② More than 50% of ALL your personal service time is in real estate\n\n⚠ If you have a significant W-2 job, qualifying is very difficult. The IRS scrutinizes this heavily. Contemporaneous time logs are required.\n\nIRC §469(c)(7)(B) · Treas. Reg. §1.469-9(c)'} wide />
-                </label>
-              </div>
-              {(showRepGate || isREP) && (() => {
-                const reHrs  = parseFloat(repHoursRE)   || 0
-                const totHrs = parseFloat(repHoursTotal) || 0
-                const pass750 = reHrs > 750
-                const pass50  = totHrs > 0 && (reHrs / totHrs) > 0.50
-                const qualifies = pass750 && pass50
-                return (
-                  <div style={{ marginLeft: 22, marginTop: 8, background: qualifies ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${qualifies ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: qualifies ? '#166534' : '#78350F' }}>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>§469(c)(7)(B) Qualification Test</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <div style={inpWrap}>
-                        <label style={{ ...inputLbl, fontSize: 11 }}>
-                          Hours in RE trades/businesses
-                          <InfoTip text={'Hours personally performed in real property trades or businesses you materially participated in. Must exceed 750. IRC §469(c)(7)(B)(i)'} />
-                        </label>
-                        <input type="number" min="0" step="1" value={repHoursRE} onChange={e => setRepHoursRE(e.target.value)} placeholder="e.g. 800" style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
-                      </div>
-                      <div style={inpWrap}>
-                        <label style={{ ...inputLbl, fontSize: 11 }}>
-                          Total personal service hours (all work)
-                          <InfoTip text={'Total hours personally performed in ALL trades, businesses, or activities. RE hours must exceed 50% of this. IRC §469(c)(7)(B)(ii)'} />
-                        </label>
-                        <input type="number" min="0" step="1" value={repHoursTotal} onChange={e => setRepHoursTotal(e.target.value)} placeholder="e.g. 1500" style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 11, lineHeight: 1.7 }}>
-                      {pass750 ? <span style={{ color: '#166534' }}>✓ 750-hour test: {reHrs} hrs &gt; 750</span> : <span style={{ color: '#DC2626' }}>✗ 750-hour test: need &gt; 750 hrs in RE (entered: {reHrs || 0})</span>}
-                      <br />
-                      {pass50 ? <span style={{ color: '#166534' }}>✓ 50% test: {reHrs}/{totHrs} = {totHrs > 0 ? Math.round(reHrs/totHrs*100) : 0}% &gt; 50%</span> : <span style={{ color: '#DC2626' }}>✗ 50% test: RE hours must exceed 50% of all hours ({totHrs > 0 ? Math.round(reHrs/totHrs*100) : 0}%)</span>}
-                    </div>
-                    {qualifies ? (
-                      <div style={{ marginTop: 8, fontWeight: 600 }}>
-                        ✓ Both tests met — REP confirmed. Full rental loss deduction allowed.
-                        {!isREP && <button onClick={() => { setIsREP(true); setShowRepGate(false) }} style={{ marginLeft: 10, background: '#166534', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Confirm REP</button>}
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 8, fontWeight: 600, color: '#DC2626' }}>
-                        ✗ REP not met — defaulting to §469(i) $25K allowance (if active participant).
-                        <button onClick={() => { setIsREP(false); setShowRepGate(false); setIsActiveParticipant(true) }} style={{ marginLeft: 10, background: '#92400E', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>Apply $25K allowance instead</button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* F6: §1.469-9(g) aggregation election — REP-gated single rental-treatment switch */}
-            {isREP && (
-              <div style={{ marginBottom: 10, background: '#FBFAFF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    id="agg"
-                    checked={rentalAggregationElection === true}
-                    onChange={e => setRentalAggregationElection(e.target.checked ? true : false)}
-                    style={{ marginTop: 2 }}
-                  />
-                  <label htmlFor="agg" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
-                    Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
-                    <InfoTip wide text={'For a real estate professional, this election treats ALL your rental real estate as a single activity, so you count your participation HOURS across every property together rather than testing each one separately. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset your other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nIt is a deliberate election made on the return and is generally irrevocable; it is never assumed. Leave it unchecked and your rentals stay passive (the default) — REP status by itself is not enough.\n\nNote: this is the §469 aggregation ELECTION, not the separate §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} />
-                  </label>
-                </div>
-                {rentalAggregationElection === true ? (
-                  <div style={{ fontSize: 11, color: '#166534', marginTop: 6, marginLeft: 22 }}>Elected — your whole rental portfolio is treated as nonpassive.</div>
-                ) : (
-                  <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 6, marginLeft: 22 }}>
-                    {rentalAggregationElection === undefined ? 'Not yet elected' : 'Not elected'} — your rentals are treated as passive (losses limited by the §469(i) $25k allowance and otherwise suspended).
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* F6: when a REP has not elected aggregation and entered a Step-2 rental loss,
-                explain why it is suspended (so it doesn't look like a bug). */}
-            {isREP && rentalAggregationElection !== true && step2RentalEntered && step2RentalNet < 0 && (
-              <div style={{ marginBottom: 10, fontSize: 11, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', lineHeight: 1.5 }}>
-                <span aria-hidden="true">⚠</span> This rental loss is treated as passive (and limited/suspended) because you haven&apos;t made the aggregation election above. Check that box if you aggregate your hours across all properties and materially participate in the combined activity.
-              </div>
-            )}
-
-            {!isREP && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <input type="checkbox" id="active" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
-                <label htmlFor="active" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
-                  Active Participant — IRC §469(i) $25K Allowance
-                  <InfoTip text="If you actively participated in managing the rental (made management decisions, approved tenants, set rental terms, etc.) you may deduct up to $25,000 in rental losses against non-passive income.\n\nPhase-out: The $25K allowance phases out at 50¢ per dollar of AGI above $100,000 and reaches $0 at $150,000 AGI (IRC §469(i)(3)).\n\nMFS filers: $0 allowance regardless of AGI (IRC §469(i)(4)) — do not check this box if filing Married Filing Separately." />
-                </label>
-              </div>
-            )}
-            {!isREP && (
-              <div style={inpWrap}>
-                <label htmlFor="tr-prior-pal" style={inputLbl}>
-                  Prior Year Passive Loss Carryforward (Form 8582)
-                  <InfoTip text="Suspended passive losses from prior years (Form 8582, Line 3). These are released when the rental activity generates passive income. Enter the total carryforward, NOT the current-year loss." />
-                </label>
-                <MoneyInput id="tr-prior-pal" value={priorPAL} onChange={setPriorPAL} placeholder="0" />
-              </div>
-            )}
-          </CollapsibleSection>
 
           {/* Capital gains & investment */}
           <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
@@ -1279,7 +1114,7 @@ export default function TaxReturn() {
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },
                 { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
                 { label: 'W-2 Wages',                   value: result.totalW2ForFICA || 0,                sign: 1, hide: !(result.totalW2ForFICA > 0) },
-                { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? (nf(rentalIncome) - nf(rentalExpenses)), sign: 1, hide: (result.rentalNetCombined ?? (nf(rentalIncome) - nf(rentalExpenses))) === 0 },
+                { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
                 { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
@@ -1372,7 +1207,7 @@ export default function TaxReturn() {
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
                   <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
                   {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
-                  {result.rentalIsREP && rentalAggregationElection !== true && step2RentalNet < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box in the Rental section if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
+                  {result.rentalIsREP && rentalAggregationElection !== true && step1RentalNetUI < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box on your rental card in Step 1 if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
                   {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
                 </div>
               )}
