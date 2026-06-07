@@ -419,8 +419,8 @@ describe('calcTaxReturn TAX-06 — federalOnly flag', () => {
 })
 
 describe('calcTaxReturn REP flag (isREP)', () => {
-  it('rentalNII is 0 when isREP=true', () => {
-    const r = calcTaxReturn({ ...BASE, rentalNet: 30000, isREP: true })
+  it('rentalNII is 0 when isREP=true (with §1.469-9(g) aggregation election)', () => {
+    const r = calcTaxReturn({ ...BASE, rentalNet: 30000, isREP: true, rentalAggregationElection: true })
     expect(r.rentalNII).toBe(0)
   })
   it('rentalNII equals rentalNet when isREP=false and rental is positive', () => {
@@ -429,7 +429,7 @@ describe('calcTaxReturn REP flag (isREP)', () => {
   })
   it('REP reduces NIIT vs non-REP when AGI exceeds $200k threshold', () => {
     const nonRep = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: false })
-    const rep    = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: true  })
+    const rep    = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: 50000, isREP: true, rentalAggregationElection: true })
     expect(nonRep.niit.amount).toBeGreaterThan(0)
     expect(rep.niit.amount).toBeLessThan(nonRep.niit.amount)
   })
@@ -661,15 +661,15 @@ describe('calcTaxReturn §461(l) — excess business loss limitation', () => {
     expect(withHighW2.ebl).toBe(withLowW2.ebl)
     expect(withHighW2.ebl).toBe(87000)
   })
-  it('REP rental losses count toward EBL business bucket', () => {
-    const r = calcTaxReturn({ ...BASE, w2: 500000, k1Total: -200000, rentalNet: -200000, isREP: true })
+  it('REP rental losses count toward EBL business bucket (elected/nonpassive)', () => {
+    const r = calcTaxReturn({ ...BASE, w2: 500000, k1Total: -200000, rentalNet: -200000, isREP: true, rentalAggregationElection: true })
     expect(r.ebl).toBe(87000)
   })
-  it('Pass 5 scenario: S-Corp -$343k + REP rental -$85k → EBL $115k', () => {
+  it('Pass 5 scenario: S-Corp -$343k + REP rental -$85k (elected) → EBL $115k', () => {
     const r = calcTaxReturn({
       ...BASE,
       w2: 287500, k1Total: -343443, rentalNet: -84599,
-      ltGain: 113072, isREP: true, taxYear: 2025,
+      ltGain: 113072, isREP: true, rentalAggregationElection: true, taxYear: 2025,
     })
     expect(r.ebl).toBe(115042)
     expect(r.palSuspendedRental).toBe(0)
@@ -720,7 +720,11 @@ describe('calcTaxReturn §199A QBI carryforward output', () => {
     expect(r.qbiCarryforward).toBe(0)
     expect(r.priorQBILossCO).toBe(50000)
   })
-  it('Pass 5 scenario: S-Corp -$343k → qbiCarryforward = $343k', () => {
+  it('Pass 5 scenario: S-Corp -$343k, REP rental NOT elected → qbiCarryforward = $343k', () => {
+    // Without the §1.469-9(g) election the REP rental is passive: its loss is suspended
+    // (Form 8582) and does NOT enter the §199A QBI base, so the carryforward is just the
+    // S-corp loss. (An ELECTED REP would fold the rental loss in → $428,042; see the EBL
+    // Pass-5 test, which elects.)
     const r = calcTaxReturn({ ...BASE, w2: 287500, k1Total: -343443, rentalNet: -84599, isREP: true, taxYear: 2025 })
     expect(r.qbiCarryforward).toBe(343443)
     expect(r.qbi).toBe(0)
@@ -848,12 +852,14 @@ describe('calcAMT PASS4B-01 — MFS 2026 bracket26_28 typo fix', () => {
 describe('calcTaxReturn F6 — per-property material participation + §1.469-9(g) aggregation', () => {
   const RE = (over = {}) => ({ type: 'Real Estate (Schedule E)', own: 100, ...over })
 
-  it('legacy REP, no per-property data: loss stays fully nonpassive (regime inactive)', () => {
+  it('REP without the §1.469-9(g) election: rental stays passive, loss suspended', () => {
+    // REP status alone no longer makes rentals nonpassive — the election is required.
+    // AGI $200k > $150k so the §469(i) allowance is fully phased out → loss suspended.
     const r = calcTaxReturn({ ...BASE, w2: 200000, rentalNet: -50000, isREP: true })
-    expect(r.palSuspendedRental).toBe(0)
-    expect(r.rentalAllowed).toBe(-50000)
-    expect(r.rentalNonpassiveNet).toBe(-50000)
-    expect(r.rentalPassiveNet).toBe(0)
+    expect(r.rentalNonpassiveNet).toBe(0)
+    expect(r.rentalPassiveNet).toBe(-50000)
+    expect(r.palSuspendedRental).toBe(50000)
+    expect(r.rentalAllowed).toBe(0)
   })
 
   it('REP + §1.469-9(g) aggregation election: whole portfolio nonpassive', () => {

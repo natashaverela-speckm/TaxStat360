@@ -28,25 +28,23 @@
 // F17 FIX: YTD Mode shows period + projected full-year income.
 // F18 FIX: Safe Harbor pass/fail status indicator.
 //
-// ── F6 FIX (§469 per-property material participation + §1.469-9(g) aggregation) ─
-// The engine now supports a per-property §469 regime. This screen adds the
-// taxpayer-level inputs that activate it for the Step-2 (single-lump) rental:
-//   • rentalAggregationElection — the §1.469-9(g) election. TRI-STATE
-//     (undefined = unanswered). Shown only when REP is established; it is a
-//     deliberate attestation and is never defaulted to true.
-//   • step2RentalMaterialParticipation — the §469(h) material-participation
-//     answer for the Step-2 rental lump. TRI-STATE (Unanswered / Yes / No),
-//     shown only when REP is on AND aggregation is off. Unanswered is treated as
-//     PASSIVE pending an answer (the §469(a) statutory default) — it is never
-//     inferred from isREP. A non-REP rental stays passive even if the taxpayer
-//     materially participates (§469(c)(2)), so the control is REP-gated.
-//   Both flags are persisted (writePersonalContext + buildRecord.f1040) and fed
-//   into calcInput. A one-time migration prompt appears for a saved return that
-//   had REP set before these questions existed, so the user re-confirms rather
-//   than silently inheriting nonpassive treatment.
-//   Per-PROPERTY participation for Step-1 Real Estate entities is set on each
-//   entity card in CalculateTaxInner.jsx (Step 1); this screen displays their
-//   resulting classification in the read-only summary above.
+// ── F6 FIX (§469 rental treatment — §1.469-9(g) aggregation election) ─────────
+// Rentals are passive by default. A real estate professional makes the whole rental
+// portfolio nonpassive by affirmatively making the §1.469-9(g) aggregation election —
+// the "aggregate your participation hours across all properties" rule. This screen
+// surfaces a single control for it:
+//   • rentalAggregationElection — TRI-STATE (undefined = not yet elected). Shown only
+//     when REP is established (REP-gated); it is a deliberate attestation and is never
+//     defaulted to true. Checking it treats the portfolio as nonpassive; leaving it
+//     unchecked keeps the rentals passive (the §469(a) default) — REP status alone is
+//     not enough, matching the engine.
+//   The flag is persisted (writePersonalContext + buildRecord.f1040) and fed into
+//   calcInput as `rentalAggregationElection === true`. A one-time migration prompt
+//   appears for a saved return that had REP set before this election existed, so the
+//   user re-confirms rather than silently inheriting nonpassive treatment.
+//   (The engine still accepts a per-entity materiallyParticipates flag and a Step-2
+//   participation answer for forward compatibility, but the UI deliberately exposes
+//   only the aggregation election as the single rental-treatment switch.)
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -195,40 +193,6 @@ function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onC
   )
 }
 
-// F6: tri-state segmented control (Unanswered / Yes / No).
-// value is `undefined` | true | false. onChange receives the same tri-state.
-function TriStateParticipation({ value, onChange, idBase }) {
-  const opts = [
-    { label: 'Unanswered', v: undefined },
-    { label: 'Yes', v: true },
-    { label: 'No', v: false },
-  ]
-  return (
-    <div role="radiogroup" aria-label="Material participation" style={{ display: 'inline-flex', border: '1px solid #DDD6FE', borderRadius: 8, overflow: 'hidden' }}>
-      {opts.map((o, i) => {
-        const active = value === o.v
-        return (
-          <button
-            key={o.label}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            id={idBase ? `${idBase}-${i}` : undefined}
-            onClick={() => onChange(o.v)}
-            style={{
-              border: 'none', padding: '5px 12px', fontSize: 12, fontFamily: 'inherit',
-              cursor: 'pointer', background: active ? '#EDE9FE' : '#fff',
-              color: active ? '#5B21B6' : SL, fontWeight: active ? 700 : 500,
-              borderLeft: i > 0 ? '1px solid #DDD6FE' : 'none',
-            }}>
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 function CollapsibleSection({ title, badge, children, defaultOpen = false, accent, style: outerStyle }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
@@ -282,18 +246,15 @@ export default function TaxReturn() {
   // F-01: §1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
-  // F6: §1.469-9(g) aggregation election + Step-2 material participation (tri-state).
-  // undefined = unanswered. Read the saved value back as a true tri-state.
+  // F6: §1.469-9(g) aggregation election (tri-state; undefined = not yet elected).
   const triFromSaved = (v) => (v === true ? true : v === false ? false : undefined)
   const [rentalAggregationElection, setRentalAggregationElection] = useState(triFromSaved(savedCtx.rentalAggregationElection))
-  const [step2MatlPart,             setStep2MatlPart]             = useState(triFromSaved(savedCtx.step2RentalMaterialParticipation))
-  // F6 migration: a saved return that had REP set predates the participation
-  // question. Surface a one-time prompt so the user re-confirms (passive is the
-  // safe default; we do NOT silently inherit nonpassive treatment).
+  // F6 migration: a saved return that had REP set predates this election. Surface a
+  // one-time prompt so the user re-confirms (passive is the safe default; we do NOT
+  // silently inherit nonpassive treatment).
   const [showRepMigration, setShowRepMigration] = useState(
     !!savedCtx.isREP &&
-    savedCtx.rentalAggregationElection === undefined &&
-    savedCtx.step2RentalMaterialParticipation === undefined
+    savedCtx.rentalAggregationElection === undefined
   )
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
@@ -352,12 +313,10 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
-      // F6: the engine activates the per-property regime when the aggregation
-      // election is true OR a Step-2 participation answer is present OR any Step-1
-      // rental carries a materiallyParticipates flag. Pass a clean boolean for the
-      // election and the raw tri-state (undefined/true/false) for the Step-2 lump.
+      // F6: the §1.469-9(g) aggregation election. Pass a clean boolean; the engine
+      // treats `true` as the affirmative election that makes a REP's portfolio
+      // nonpassive, and anything else (unelected) as passive.
       rentalAggregationElection: rentalAggregationElection === true,
-      step2RentalMaterialParticipation: step2MatlPart,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
@@ -368,7 +327,7 @@ export default function TaxReturn() {
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
-    rentalAggregationElection, step2MatlPart,
+    rentalAggregationElection,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
@@ -388,7 +347,7 @@ export default function TaxReturn() {
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797,
       rentalIncome, rentalExpenses, isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
-      rentalAggregationElection, step2RentalMaterialParticipation: step2MatlPart,   // F6
+      rentalAggregationElection,   // F6 (§1.469-9(g) election)
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
       useItemized, itemizedAmt, saltAmount,
@@ -402,7 +361,7 @@ export default function TaxReturn() {
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
-    rentalAggregationElection, step2MatlPart,
+    rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
@@ -441,7 +400,7 @@ export default function TaxReturn() {
         unrecap1250, collectiblesGain: collectibles, form4797,
         rentalIncome, rentalExpenses, isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
-        rentalAggregationElection, step2RentalMaterialParticipation: step2MatlPart,   // F6
+        rentalAggregationElection,   // F6 (§1.469-9(g) election)
         selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
         useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
@@ -460,7 +419,7 @@ export default function TaxReturn() {
     stGain, ltGain, interest, dividends, qualDividends,
     unrecap1250, collectibles, form4797,
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
-    rentalAggregationElection, step2MatlPart,
+    rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
@@ -690,21 +649,21 @@ export default function TaxReturn() {
                 <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                     RENTAL REAL ESTATE (SCHEDULE E) — §469
-                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nEach property\u2019s passive/nonpassive status comes from the material-participation answer set on its card in Step 1 (or the §1.469-9(g) aggregation election). Unanswered properties are treated as passive until confirmed.'} />
+                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the §1.469-9(g) aggregation election in the Rental section below.'} />
                   </div>
                   {step1Rentals.map((e, i) => {
                     const pnl = e.pnl || {}
                     const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
                     const own = ownPct(e.own) / 100
                     const reNet = Math.round(net * own) - nf(e.box11_12) - nf(e.box12_13)
-                    // Tri-state aware status: nonpassive only when REP materially
-                    // participates (or aggregation elected). undefined → unconfirmed.
-                    const mp = e.materiallyParticipates
-                    const nonpassive = (rentalAggregationElection === true && (e.isREP || isREP)) || ((e.isREP || isREP) && mp === true)
+                    // Nonpassive only when a REP has made the §1.469-9(g) aggregation
+                    // election; otherwise passive (the §469(a) default).
+                    const isRepHere  = e.isREP || isREP
+                    const nonpassive = rentalAggregationElection === true && isRepHere
                     const status = reNet >= 0
                       ? 'income'
-                      : nonpassive ? 'Nonpassive'
-                      : (e.isREP || isREP) && mp === undefined ? 'Passive · unconfirmed'
+                      : nonpassive ? 'Nonpassive (elected)'
+                      : isRepHere ? 'Passive · election not made'
                       : e.isActiveParticipant ? 'Passive · §469(i)'
                       : 'Passive · suspended'
                     return (
@@ -937,9 +896,8 @@ export default function TaxReturn() {
                     } else {
                       setIsREP(false)
                       setShowRepGate(false)
-                      // Leaving REP status clears the REP-only elections.
+                      // Leaving REP status clears the REP-only election.
                       setRentalAggregationElection(undefined)
-                      setStep2MatlPart(undefined)
                     }
                   }}
                   style={{ marginTop: 2 }}
@@ -995,7 +953,7 @@ export default function TaxReturn() {
               })()}
             </div>
 
-            {/* F6: §1.469-9(g) aggregation election — REP-gated, deliberate attestation, tri-state default unanswered */}
+            {/* F6: §1.469-9(g) aggregation election — REP-gated single rental-treatment switch */}
             {isREP && (
               <div style={{ marginBottom: 10, background: '#FBFAFF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -1007,31 +965,25 @@ export default function TaxReturn() {
                     style={{ marginTop: 2 }}
                   />
                   <label htmlFor="agg" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
-                    Make the §1.469-9(g) aggregation election
-                    <InfoTip wide text={'Elect to treat ALL your interests in rental real estate as a single activity. For a qualifying real estate professional this makes the entire rental portfolio nonpassive in one step, so you do not test each property separately.\n\nThis is a deliberate, generally irrevocable election made on the return — it is never assumed. Leave unchecked to classify each property individually by material participation.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} />
+                    Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
+                    <InfoTip wide text={'For a real estate professional, this election treats ALL your rental real estate as a single activity, so you count your participation HOURS across every property together rather than testing each one separately. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset your other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nIt is a deliberate election made on the return and is generally irrevocable; it is never assumed. Leave it unchecked and your rentals stay passive (the default) — REP status by itself is not enough.\n\nNote: this is the §469 aggregation ELECTION, not the separate §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} />
                   </label>
                 </div>
-                {rentalAggregationElection === undefined && (
-                  <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 6, marginLeft: 22 }}>Not yet elected — each rental is classified individually below.</div>
+                {rentalAggregationElection === true ? (
+                  <div style={{ fontSize: 11, color: '#166534', marginTop: 6, marginLeft: 22 }}>Elected — your whole rental portfolio is treated as nonpassive.</div>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 6, marginLeft: 22 }}>
+                    {rentalAggregationElection === undefined ? 'Not yet elected' : 'Not elected'} — your rentals are treated as passive (losses limited by the §469(i) $25k allowance and otherwise suspended).
+                  </div>
                 )}
               </div>
             )}
 
-            {/* F6: Step-2 lump material participation — shown only when REP on AND aggregation off AND a Step-2 rental was entered */}
-            {isREP && rentalAggregationElection !== true && step2RentalEntered && (
-              <div style={{ marginBottom: 10, background: '#FBFAFF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                  <span style={{ fontSize: 13, color: N }}>
-                    Do you materially participate in this rental? — §469(h)
-                    <InfoTip wide text={'Material participation means regular, continuous, and substantial involvement in the rental\u2019s operations (one of the seven §1.469-5T tests).\n\nFor a real estate professional, a rental in which you materially participate is nonpassive — its loss offsets other income with no §469(i) cap. Unanswered is treated as passive until you confirm; \u201cNo\u201d keeps it passive (loss limited by §469(i)).\n\nIRC §469(c)(7)(A), §469(h) · Treas. Reg. §1.469-5T.'} />
-                  </span>
-                  <TriStateParticipation value={step2MatlPart} onChange={setStep2MatlPart} idBase="step2-mp" />
-                </div>
-                {step2MatlPart === undefined && step2RentalNet < 0 && (
-                  <div style={{ fontSize: 11, color: '#92400E', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span aria-hidden="true">⚠</span> This loss is treated as passive and suspended only because participation is unconfirmed — not because it failed the test. Answer to deduct it currently.
-                  </div>
-                )}
+            {/* F6: when a REP has not elected aggregation and entered a Step-2 rental loss,
+                explain why it is suspended (so it doesn't look like a bug). */}
+            {isREP && rentalAggregationElection !== true && step2RentalEntered && step2RentalNet < 0 && (
+              <div style={{ marginBottom: 10, fontSize: 11, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', lineHeight: 1.5 }}>
+                <span aria-hidden="true">⚠</span> This rental loss is treated as passive (and limited/suspended) because you haven&apos;t made the aggregation election above. Check that box if you aggregate your hours across all properties and materially participate in the combined activity.
               </div>
             )}
 
@@ -1420,7 +1372,7 @@ export default function TaxReturn() {
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
                   <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
                   {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
-                  {result.rentalIsREP && rentalAggregationElection !== true && step2MatlPart === undefined && step2RentalNet < 0 && ' Part of this is suspended only because material participation is unconfirmed — answer the §469(h) question in the Rental section to deduct it currently.'}
+                  {result.rentalIsREP && rentalAggregationElection !== true && step2RentalNet < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box in the Rental section if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
                   {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
                 </div>
               )}
