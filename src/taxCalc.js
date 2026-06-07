@@ -1004,8 +1004,11 @@ function calcTaxReturn(input) {
   }
 
   const addlMedThreshold   = getAddlMedicareThreshold(taxYear, status)
+  // Cents-safe: e.g. 87,500 × 0.9% = 787.50 must round to 788, but binary float makes
+  // 87500 * 0.009 = 787.4999999999999, which Math.round would drop to 787. Round at the
+  // cent level first to neutralize the representation error, then to whole dollars.
   const additionalMedicare = Math.round(
-    Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE
+    Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
 
   const rentalNII  = rentalForNII
