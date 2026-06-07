@@ -577,6 +577,14 @@ function calcTaxReturn(input) {
     rentalAggregationElection = false,
     step2RentalMaterialParticipation,
     unrecap1250, collectiblesGain,
+    // §461(l): net business §1231/capital gain entered for the EBL business-gain offset.
+    // Decoupled from f4797Inc so a §1231 gain can be entered for RATE purposes via
+    // ltGain + unrecap1250 (preserving the 25% §1250 slice) while still telling the EBL
+    // calc how much of the capital gain is business gain. Default 0 → no effect; existing
+    // callers (f4797Inc-only) are unchanged. Whether to enter the NET §1231 (gain netted
+    // with same-year §1231 losses) or only a gross business gain is a facts determination
+    // the caller makes — the engine represents the position rather than choosing it.
+    bizCapGain1231 = 0,
     w2Withheld, estPaid,
     ytdFactor = 1,
     priorYearTax,
@@ -862,12 +870,17 @@ function calcTaxReturn(input) {
   }
 
   const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 640000 : 320000)
-  const eblBizCapGain         = Math.max(0, nv(f4797Inc))
+  // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
+  // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
+  // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
+  // — it only informs how much of the capital gain offsets business losses in the EBL netting.
+  const extra1231BizGain      = Math.max(0, nv(bizCapGain1231))
+  const eblBizCapGain         = Math.max(0, nv(f4797Inc)) + extra1231BizGain
   const eblOverallCapGainNI   = nv(stGain) + _ltGain + nv(f4797Inc)
                               + Math.max(0, nv(unrecap1250)) + Math.max(0, nv(collectiblesGain))
   const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
   const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
-  const eblBiz       = adjustedK1Total + (nv(f4797Inc) - eblBizCapGainExcluded) + rentalForEBL
+  const eblBiz       = adjustedK1Total + (nv(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + rentalForEBL
   const eblNetLoss   = Math.max(0, -eblBiz)
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
 

@@ -251,13 +251,23 @@ export default function TaxReturn() {
   //   • priorPAL — prior-year suspended passive loss (Form 8582) summed across the cards.
   const step1REList = (entities || []).filter(e => e && isRealEstateEntity(e.type))
   const rentalAggregationElection = step1REList.some(e => e.rentalAggregationElection === true)
-  const priorPAL = step1REList.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
+  const cardPriorPAL = step1REList.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
+  // Migration: returns saved BEFORE rental consolidation stored a single portfolio prior-PAL
+  // in personal context (savedCtx.priorPassiveLossCarryforward); it now lives on the Step-1
+  // rental cards. If the cards carry none but a saved personal value exists, fall back to it
+  // so the carryforward is NOT lost from the calc — and (critically) so the save-path write
+  // of priorPassiveLossCarryforward doesn't clobber the orphan to 0. Once the user enters it
+  // on a card, cardPriorPAL takes over and the fallback stops (no double counting). We flag it
+  // because we can't know which property it belonged to — the user must re-attribute it.
+  const orphanedPriorPAL = cardPriorPAL === 0 ? Math.max(0, nf(savedCtx.priorPassiveLossCarryforward) || 0) : 0
+  const priorPAL = cardPriorPAL > 0 ? cardPriorPAL : orphanedPriorPAL
   // F6 migration: a saved return that had REP set before the election existed gets a
   // one-time prompt so the user re-confirms (passive is the safe default).
   const [showRepMigration, setShowRepMigration] = useState(
     !!savedCtx.isREP &&
     savedCtx.rentalAggregationElection === undefined
   )
+  const [showPriorPALMigration, setShowPriorPALMigration] = useState(orphanedPriorPAL > 0)
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
@@ -696,6 +706,22 @@ export default function TaxReturn() {
               as suspended until you answer.
               <div style={{ marginTop: 8 }}>
                 <button onClick={() => setShowRepMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it — I&apos;ll review below</button>
+              </div>
+            </div>
+          )}
+
+          {/* Migration: orphaned portfolio prior-PAL from a pre-consolidation save. The value
+              is preserved in the calc via the fallback above; this prompts re-attribution to a
+              specific rental card so it isn't stranded in personal context. */}
+          {showPriorPALMigration && (
+            <div role="alert" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.55 }}>
+              <strong>Prior passive-loss carryforward moved.</strong> Your saved return has a
+              prior-year passive-loss carryforward (Form 8582) of {fmt(orphanedPriorPAL)} that
+              used to be entered here. It now belongs on the specific rental property it came from,
+              on the rental card in Step&nbsp;1. We&apos;re still applying it for now, but please
+              re-enter it on the right property so it stays attributed correctly.
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => setShowPriorPALMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it</button>
               </div>
             </div>
           )}
