@@ -1958,4 +1958,42 @@ export default function CalculateTaxInner() {
           </div>
         </div>
       )}
-      {/*
+     {/* Entity picker modal */}
+      {showEntityPicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 6px' }}>What type of entity?</h3>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Choose the structure that matches your ownership interest. This determines how income flows to your personal return.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer salary required'         },
+                { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
+                { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
+                { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
+              ].map(({ type, icon, desc }) => (
+                <button
+                  key={type}
+                  onClick={() => addEntityOfType(type)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = B}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
+                >
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: N, marginBottom: 2 }}>{type}</div>
+                    <div style={{ fontSize: 12, color: SL }}>{desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowEntityPicker(false)} style={{ width: '100%', marginTop: 16, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
