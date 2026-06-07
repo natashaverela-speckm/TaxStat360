@@ -920,6 +920,20 @@ describe('calcTaxReturn F6 — per-property material participation + §1.469-9(g
     expect(r.palSuspendedRental).toBe(50000)
   })
 
+  it('§469(i) allowance applies to a Step-1 rental entity even with NO Step-2 lump', () => {
+    // Rentals now live only in Step 1. A non-REP active participant must still get the
+    // $25k allowance (phased: AGI $120k → 25000 - (120000-100000)*0.5 = 15000 allowed).
+    // Guards the engine change that gates active-participation on combinedRentalNet
+    // rather than the retired Step-2 lump.
+    const r = calcTaxReturn({
+      ...BASE, w2: 120000, k1Total: -40000, isActiveParticipant: true,
+      entities: [{ type: 'Real Estate (Schedule E)', own: 100, k1: -40000 }],
+    })
+    expect(r.rentalPassiveNet).toBe(-40000)
+    expect(r.rentalAllowed).toBe(-15000)
+    expect(r.palSuspendedRental).toBe(25000)
+  })
+
   it('Step-1 per-entity materiallyParticipates=true (REP): that property nonpassive', () => {
     const r = calcTaxReturn({
       ...BASE, w2: 200000, k1Total: -50000, isREP: true,
