@@ -133,6 +133,16 @@
 //   a manual re-fetch and shows a brief diff summary ("Revenue updated:
 //   $X → $Y (+$Z)") so users can confirm the update was applied.
 //
+// REMOVE-PERSIST FIX: removeEntity now writes the updated entity list to
+//   sessionStorage, matching addEntity / updateEntity / handleIntegrationDisconnect.
+//   Previously a removed entity was dropped from React state but NOT from
+//   sessionStorage, so on a page reload or remount the hydrate effect restored
+//   the deleted entity. Now removals persist immediately.
+//
+// CSV-IMPORT REMOVAL: the CSV import control, its handler (handleCsvUpload), and
+//   the csvImportStatus state were removed. Manual entry and accounting-software
+//   sync remain the supported P&L entry paths.
+//
 // F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
 //   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
 //   there is no rental UI in Step 2. The card carries the REP flag, the
@@ -1349,7 +1359,11 @@ export default function CalculateTaxInner() {
     })
   }, [])
   const removeEntity = useCallback((idx) => {
-    setEntities(prev => prev.filter((_, i) => i !== idx))
+    setEntities(prev => {
+      const next = prev.filter((_, i) => i !== idx)
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      return next
+    })
     setExpandedIdx(null)
   }, [])
   const handleIntegrationDisconnect = useCallback((pid) => {
@@ -1674,9 +1688,7 @@ export default function CalculateTaxInner() {
             counterpart. An "Enter manually →" button appears in the integration
             card for users without accounting software. Clicking it opens a
             standalone ManualEntryPanel that creates a new entity. The subtitle
-            copy is preserved — the path now fulfils the promise.
-            F-03 FIX: The non-functional "Import CSV" text link has been removed;
-            only the functional file-input CSV upload is retained. */}
+            copy is preserved — the path now fulfils the promise. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
             Connect accounting software
@@ -1772,7 +1784,6 @@ export default function CalculateTaxInner() {
               })
             })()}
           </div>
-         
         </div>
         {/* Entity cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
@@ -1911,7 +1922,7 @@ export default function CalculateTaxInner() {
           </div>
         </div>
       )}
-     {/* Entity picker modal */}
+      {/* Entity picker modal */}
       {showEntityPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
