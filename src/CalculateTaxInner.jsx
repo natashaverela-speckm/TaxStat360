@@ -104,6 +104,15 @@
 //   sync. IntegrationTile reads and displays it. A "Sync now" button triggers
 //   a manual re-fetch and shows a brief diff summary ("Revenue updated:
 //   $X → $Y (+$Z)") so users can confirm the update was applied.
+//
+// F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
+//   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
+//   there is no rental UI in Step 2. The card carries the REP flag, the
+//   §1.469-9(g) aggregation election, the §469(i) active-participation flag, and
+//   the prior-year passive-loss carryforward (Form 8582). REP status alone does
+//   not make a rental nonpassive: the aggregation election is required, matching
+//   the engine. TaxReturn.jsx derives the portfolio-level election (any card
+//   elected) and prior-PAL (summed across cards) from these entities.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -589,7 +598,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             </div>
             <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
               <span style={{ fontWeight: 600 }}>Box 2 — Net Rental Income (Loss):</span>{' '}
-              Enter K-1 Box 2 income in the <span style={{ fontWeight: 700 }}>Rental Real Estate (Schedule E)</span> section in Step 2. Passive activity rules (IRC §469) apply — including the $25K allowance and REP status.
+              Rental income on this partnership K-1 (Box 2) is passive rental real estate on Schedule E, page 2 — it stays with this partnership entity rather than being entered as a separate Real Estate card. Passive activity rules (IRC §469) apply, including the $25K allowance and REP status.
             </div>
             <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
               <span style={{ fontWeight: 600 }}>Box 9a — Net §1231 Gain (Loss):</span>{' '}
@@ -603,7 +612,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer salary does not apply to rental property, so that field is hidden here.
+            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer salary does not apply to rental property, so that field is hidden here.
           </div>
         </div>
       )}
@@ -1007,7 +1016,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             </div>
           )}
 
-          {/* REG-01: §469 Passive Activity Status */}
+          {/* REG-01 / F6: §469 Passive Activity Status — the single home for rental treatment */}
           {isRE && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
@@ -1015,12 +1024,25 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   §469 Passive Activity Status — Schedule E Rental
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                  <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked })} style={{ marginTop: 2 }} />
+                  <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked, ...(e.target.checked ? {} : { rentalAggregationElection: undefined }) })} style={{ marginTop: 2 }} />
                   <label htmlFor={'rep_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                     Real Estate Professional (REP) — IRC §469(c)(7)
-                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nWhen you qualify as a REP, your rental losses are NONPASSIVE — currently deductible against your other income.'} wide />
+                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
                   </label>
                 </div>
+
+                {/* F6: §1.469-9(g) aggregation election — shown once REP is checked. This is the
+                    single control that makes the rental portfolio nonpassive. */}
+                {entity.isREP && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <input type="checkbox" id={'agg_' + idx} checked={entity.rentalAggregationElection === true} onChange={e => onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false })} style={{ marginTop: 2 }} />
+                    <label htmlFor={'agg_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                      Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
+                      <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
+                    </label>
+                  </div>
+                )}
+
                 {!entity.isREP && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                     <input type="checkbox" id={'active_' + idx} checked={!!entity.isActiveParticipant} onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })} style={{ marginTop: 2 }} />
@@ -1030,6 +1052,21 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     </label>
                   </div>
                 )}
+
+                {/* Prior-year passive loss carryforward (Form 8582) — moved here from Step 2 */}
+                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                  <label htmlFor={'pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                    Prior-Year Passive Loss Carryforward (Form 8582)
+                    <InfoTip text={'Suspended passive losses from prior years on this rental (Form 8582, Line 3). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
+                  </label>
+                  <MoneyInput
+                    value={entity.priorPAL || ''}
+                    onChange={v => onUpdate(idx, { ...entity, priorPAL: v })}
+                    placeholder="0"
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+
                 {(() => {
                   const reNet = netProfit
                   if (reNet >= 0) {
@@ -1042,12 +1079,22 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       </div>
                     )
                   }
-                  if (entity.isREP) {
+                  if (entity.isREP && entity.rentalAggregationElection === true) {
                     return (
                       <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
-                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP)</div>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP + §1.469-9(g) election)</div>
                         <div style={{ color: '#166534', lineHeight: 1.5 }}>
-                          As a real estate professional, this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year.
+                          You are a real estate professional and have elected to aggregate your rentals, so this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year.
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (entity.isREP) {
+                    return (
+                      <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Passive Until You Elect (§1.469-9(g))</div>
+                        <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                          REP status alone does not make this {fmt(Math.abs(reNet))} loss deductible. Check the §1.469-9(g) aggregation election above to treat your portfolio as nonpassive; otherwise it is limited by the §469(i) $25,000 allowance and otherwise suspended on Form 8582.
                         </div>
                       </div>
                     )
