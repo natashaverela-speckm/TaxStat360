@@ -4,6 +4,19 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 // ── Change log ────────────────────────────────────────────────────────────────
+// SAVE-GUARD FIX (Step-1 unsaved-P&L footgun): "Continue to Step 2" now checks for
+//   entities with no committed P&L and warns before proceeding. Such an entity would
+//   otherwise silently count as $0 in the return. The usual cause is typing figures in
+//   the manual panel and clicking Continue WITHOUT "Save P&L →" first — those figures
+//   live in the panel's local state until saved, so the entity reaches Step 2 empty.
+//   The guard names the affected entities and offers Go back / Continue anyway; it never
+//   auto-mutates entity data.
+//
+// QBI-HINT FIX (year-aware §199A threshold): the collapsed §199A QBI hint showed
+//   hard-coded ~2026 figures ("~$202K / ~$404K") regardless of the selected tax year.
+//   It now shows the selected year's actual threshold (e.g. $197,300 / $394,600 for
+//   2025) sourced from the engine's QBI_THRESHOLDS, so the hint matches the return year.
+//
 // M-2 FIX (entity-comparison QBI wage leak): CompareModal previously spread the
 //   user's actual entity (`...entity`) into every hypothetical structure, which
 //   dragged that entity's box17V_wages / officerW2 / pnl.officerSalary into the
@@ -130,7 +143,7 @@
 //   elected) and prior-PAL (summed across cards) from these entities.
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
+import { calcTaxReturn, calcQBI, getStdDed, QBI_THRESHOLDS } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
@@ -606,7 +619,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   )
 }
 // ─── Entity card ──────────────────────────────────────────────────────────────
-function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand, taxYear }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const [showBasis,  setShowBasis]  = useState(false)
@@ -799,13 +812,16 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </button>
               {/* P3c FIX: contextual hint so users know when these fields matter.
                   Without this, users either ignore the section entirely or enter
-                  values they don't need, creating confusion. The threshold hint
-                  matches the InfoTip tooltips inside each field. */}
-              {!showQBI && (
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
-                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
-                </div>
-              )}
+                  values they don't need, creating confusion.
+                  QBI-HINT FIX: threshold is now year-aware (was hard-coded ~2026 figures). */}
+              {!showQBI && (() => {
+                const _qbiTh = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+                return (
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                    Only needed if your {taxYear} taxable income exceeds {fmt(_qbiTh.single)} (single) or {fmt(_qbiTh.mfj)} (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
+                  </div>
+                )
+              })()}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
@@ -1239,6 +1255,9 @@ export default function CalculateTaxInner() {
   const [csvImportStatus,  setCsvImportStatus]  = useState(null)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
+  // SAVE-GUARD FIX: when non-null, holds the list of entity names that have no committed
+  // P&L; the confirmation modal lists them before allowing the user to proceed to Step 2.
+  const [emptyPnLWarning,  setEmptyPnLWarning]  = useState(null)
   // O1 FIX: track whether the standalone manual-entry panel is open (for
   // users who have no entities yet and click "Enter manually")
   const [showStandaloneManual, setShowStandaloneManual] = useState(false)
@@ -1573,6 +1592,19 @@ export default function CalculateTaxInner() {
   })
   // F-01 / F-02: footer buttons are disabled when no entity has been added
   const footerDisabled = entities.length === 0
+  // SAVE-GUARD FIX: an entity with no committed P&L (revenue, expenses, and net all ~0)
+  // contributes $0 silently. The usual cause is typing in the manual panel and clicking
+  // Continue WITHOUT "Save P&L →" first — the typed figures live only in the panel until
+  // saved, so the entity stays empty. Surface those entities before Step 2.
+  const entitiesMissingPnL = () => entities.filter(e => {
+    const pnl = e.pnl || {}
+    return nf(pnl.grossRevenue) === 0 && nf(pnl.totalExpenses) === 0 && nf(pnl.netProfit) === 0
+  })
+  const proceedToStep2 = () => {
+    setEmptyPnLWarning(null)
+    persistStep1()
+    navigate('/tax-return')
+  }
   // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
   // The guard checks entities.length > 0 before calling persistStep1() and
   // navigate(). This prevents the new-account edge case where the footer's
@@ -1583,8 +1615,13 @@ export default function CalculateTaxInner() {
       setTimeout(() => setFooterError(null), 4000)
       return
     }
-    persistStep1()
-    navigate('/tax-return')
+    // SAVE-GUARD FIX: warn (don't block) if any entity has no committed P&L
+    const missing = entitiesMissingPnL()
+    if (missing.length > 0) {
+      setEmptyPnLWarning(missing.map(e => e.name || e.type || 'Unnamed entity'))
+      return
+    }
+    proceedToStep2()
   }
   const handleFooterSave = () => {
     if (footerDisabled) {
@@ -1796,6 +1833,7 @@ export default function CalculateTaxInner() {
                 colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
                 isExpanded={expandedIdx === idx}
                 onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                taxYear={taxYear}
               />
             </div>
           ))}
@@ -1884,6 +1922,30 @@ export default function CalculateTaxInner() {
           onSkip={() => { handleSaveRecord(null); setShowNameModal(false) }}
         />
       )}
+      {/* SAVE-GUARD FIX: warn before Step 2 if any entity has no committed P&L. The most
+          common cause is typing into the manual panel and clicking Continue without
+          "Save P&L →" first — the figures live in the panel until saved, so the entity
+          would otherwise reach Step 2 as $0 with no warning. */}
+      {emptyPnLWarning !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '24px', maxWidth: 440, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
+            <h4 style={{ fontWeight: 800, color: N, margin: '0 0 8px' }}>⚠ Some entities have no P&L entered</h4>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 10px', lineHeight: 1.6 }}>
+              {emptyPnLWarning.length === 1 ? 'This entity has' : 'These entities have'} no saved revenue or expenses and will count as <strong>$0</strong> in your return:
+            </p>
+            <ul style={{ margin: '0 0 10px', paddingLeft: 20, fontSize: 13, color: N }}>
+              {emptyPnLWarning.map((nm, i) => <li key={i} style={{ marginBottom: 2 }}>{nm}</li>)}
+            </ul>
+            <p style={{ fontSize: 12, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
+              If you entered figures in the P&L panel, make sure you clicked <strong>“Save P&L →”</strong> before continuing.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEmptyPnLWarning(null)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Go back &amp; enter P&amp;L</button>
+              <button onClick={proceedToStep2} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Continue anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmRemoveIdx !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: '24px', maxWidth: 380, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
@@ -1896,42 +1958,4 @@ export default function CalculateTaxInner() {
           </div>
         </div>
       )}
-      {/* Entity picker modal */}
-      {showEntityPicker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 6px' }}>What type of entity?</h3>
-            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px', lineHeight: 1.6 }}>
-              Choose the structure that matches your ownership interest. This determines how income flows to your personal return.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer salary required'         },
-                { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
-                { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
-                { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
-              ].map(({ type, icon, desc }) => (
-                <button
-                  key={type}
-                  onClick={() => addEntityOfType(type)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = B}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
-                >
-                  <span style={{ fontSize: 24, flexShrink: 0 }}>{icon}</span>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: N, marginBottom: 2 }}>{type}</div>
-                    <div style={{ fontSize: 12, color: SL }}>{desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowEntityPicker(false)} style={{ width: '100%', marginTop: 16, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+      {/*
