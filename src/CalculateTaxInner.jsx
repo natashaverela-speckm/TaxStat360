@@ -1252,7 +1252,6 @@ export default function CalculateTaxInner() {
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,       setSaveStatus]       = useState('idle')
   const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
-  const [csvImportStatus,  setCsvImportStatus]  = useState(null)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
   // SAVE-GUARD FIX: when non-null, holds the list of entity names that have no committed
@@ -1422,44 +1421,6 @@ export default function CalculateTaxInner() {
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
-  const handleCsvUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!isEnterprise() && entities.length >= 1) { setCsvImportStatus('locked'); e.target.value = ''; return }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      try {
-        const lines  = ev.target.result.split('\n').filter(l => l.trim())
-        if (lines.length < 2) { setCsvImportStatus('error'); return }
-        const header = lines[0].split(',').map(h => h.trim().toLowerCase())
-        const vals   = lines[1].split(',').map(v => v.trim().replace(/"/g, ''))
-        const get    = (keys) => { for (const k of keys) { const i = header.indexOf(k); if (i >= 0) return vals[i] || '' } return '' }
-        const importedEnt = {
-          id:   Date.now(),
-          type: 'S Corporation',
-          name: get(['entity', 'entity name', 'business', 'business name']) || 'Imported Entity',
-          own:  get(['ownership', 'own', 'ownership %', 'pct']) || '100',
-          pnl: {
-            grossRevenue:  get(['revenue', 'gross revenue', 'income', 'gross income'])        || '',
-            totalExpenses: get(['expenses', 'total expenses', 'operating expenses'])          || '',
-            officerSalary: get(['officer salary', 'salary', 'w2', 'officer compensation'])    || '',
-            netProfit:     get(['net profit', 'profit', 'net income'])                        || '',
-          },
-          isManual: true, connectedId: null,
-          box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
-          box17V_sstb: false,
-          stockBasis: '', debtBasis: '', distributions: '',
-          isREP: false, isActiveParticipant: false,
-        }
-        setEntities(prev => [...prev, importedEnt])
-        setExpandedIdx(entities.length)
-        setCsvImportStatus('success')
-      } catch {
-        setCsvImportStatus('error')
-      }
-    }
-    reader.readAsText(file)
-  }
   // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
   // after every successful sync, and returns a diff summary string so the tile
   // can display "Revenue updated: $X → $Y (+$Z)".
@@ -1811,15 +1772,7 @@ export default function CalculateTaxInner() {
               })
             })()}
           </div>
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <label htmlFor="csv-upload" style={{ cursor: 'pointer', fontSize: 12, color: B, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-              📄 Import CSV
-              <input id="csv-upload" type="file" accept=".csv,.xlsx" onChange={handleCsvUpload} style={{ display: 'none' }} />
-            </label>
-            {csvImportStatus === 'success' && <span style={{ fontSize: 12, color: G, fontWeight: 600 }}>✓ Entity imported!</span>}
-            {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R, fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
-            {csvImportStatus === 'locked'  && <span style={{ fontSize: 12, color: B, fontWeight: 600 }}>🔒 Multi-entity import is an Enterprise feature</span>}
-          </div>
+         
         </div>
         {/* Entity cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
