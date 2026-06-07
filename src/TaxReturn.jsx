@@ -24,55 +24,29 @@
 // F-13 FIX: "Save & Analyze →" saved but did not navigate to Step 3.
 //
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
-// F16 FIX: No client-side validation on required numeric income fields.
-//   MoneyInput previously stripped non-numeric chars and allowed leading '-',
-//   silently passing negative values through to calcTaxReturn with no error state.
-//   Entering alphabetic characters zeroed the field with no feedback.
-//   Fix: MoneyInput gains a `nonNegative` prop used on all income fields (W-2,
-//   Rental Income, Estimated Tax Payments, and the YTD-mode income display).
-//   When nonNegative=true:
-//     • A '-' prefix is rejected on every keystroke — the field simply does not
-//       accept it, so no error message is needed for that case.
-//     • If the field is blurred with a non-numeric value the field resets to ''
-//       and a per-field inline error is shown: "Enter a number ≥ 0".
-//   Non-income fields (capital gains, Form 4797, priorPAL) intentionally allow
-//   negative values and do NOT receive nonNegative=true.
-//   The Rental Income field gets an additional helper tooltip explaining that
-//   rental losses are entered via Rental Expenses, not a negative income figure,
-//   matching the audit recommendation exactly.
-//   Implementation: MoneyInput accepts `nonNegative` + `errorMsg`/`setErrorMsg`
-//   pair from its parent. Error state is local to each field instance via a small
-//   wrapper component IncomeField that composes MoneyInput + error display.
+// F16 FIX: client-side validation on required numeric income fields (nonNegative).
+// F17 FIX: YTD Mode shows period + projected full-year income.
+// F18 FIX: Safe Harbor pass/fail status indicator.
 //
-// F17 FIX: YTD Mode toggle activated without explaining what 'annualised' means
-//   or showing the extrapolated full-year figure. A real estate investor entering
-//   Jan–May rental income had no confirmation the annualisation was working.
-//   Fix: When ytdMode is enabled the toggle card now shows:
-//     1. A month selector (already existed) labelled "Income earned through [Month]"
-//        so the YTD period is unambiguous.
-//     2. A read-only "Projected full-year income" line that shows the K-1 + W-2
-//        annualised total in real time: (k1Total + nf(w2Income)) * ytdFactor.
-//        This makes the annualisation transparent and verifiable.
-//     3. The existing "× {ytdFactor}" label is reformatted as a plain-language
-//        sentence: "Your figures will be multiplied by X.XX to project a full year."
-//
-// F18 FIX: Safe Harbor section requested prior-year tax but never showed whether
-//   the threshold was met. Users had to compare two numbers with no explicit
-//   pass/fail signal — the most important output of the Safe Harbor section was
-//   missing.
-//   Fix: When priorYearTax > 0 AND result is available, a Safe Harbor Status
-//   indicator is rendered immediately below the prior-year inputs:
-//     • Green badge "Safe harbor met — no underpayment penalty risk" when
-//       totalPayments >= safeHarborMinimum.
-//     • Red badge "Safe harbor gap: $X remaining — pay by [next due date]" when
-//       totalPayments < safeHarborMinimum.
-//   The indicator shows the full calculation breakdown:
-//     Prior year tax: $X → [100% or 110%] safe harbor = $Y
-//     Your payments to date: $Z
-//     Remaining: $W (or Surplus: $W)
-//   The 110% threshold applies when prior-year AGI > $150K (MFJ: $75K MFS).
-//   This is derived from result.safeHarborMinimum + result.totalPayments which
-//   calcTaxReturn already computes — we just surface them here.
+// ── F6 FIX (§469 per-property material participation + §1.469-9(g) aggregation) ─
+// The engine now supports a per-property §469 regime. This screen adds the
+// taxpayer-level inputs that activate it for the Step-2 (single-lump) rental:
+//   • rentalAggregationElection — the §1.469-9(g) election. TRI-STATE
+//     (undefined = unanswered). Shown only when REP is established; it is a
+//     deliberate attestation and is never defaulted to true.
+//   • step2RentalMaterialParticipation — the §469(h) material-participation
+//     answer for the Step-2 rental lump. TRI-STATE (Unanswered / Yes / No),
+//     shown only when REP is on AND aggregation is off. Unanswered is treated as
+//     PASSIVE pending an answer (the §469(a) statutory default) — it is never
+//     inferred from isREP. A non-REP rental stays passive even if the taxpayer
+//     materially participates (§469(c)(2)), so the control is REP-gated.
+//   Both flags are persisted (writePersonalContext + buildRecord.f1040) and fed
+//   into calcInput. A one-time migration prompt appears for a saved return that
+//   had REP set before these questions existed, so the user re-confirms rather
+//   than silently inheriting nonpassive treatment.
+//   Per-PROPERTY participation for Step-1 Real Estate entities is set on each
+//   entity card in CalculateTaxInner.jsx (Step 1); this screen displays their
+//   resulting classification in the read-only summary above.
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -88,6 +62,8 @@ import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from '
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
 import { isPro } from './LockedFeature'
+
+const PURPLE = '#7C3AED'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const nf = (v, fb = 0) => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : fb }
@@ -118,11 +94,6 @@ function InfoTip({ text, wide }) {
 }
 
 // F16 FIX: MoneyInput gains a `nonNegative` prop.
-// When nonNegative=true the '-' character is stripped on every keystroke so the
-// field physically cannot accept a negative value. On blur, a non-numeric value
-// resets to '' and calls onError (if provided) with an inline message.
-// Non-income fields (gains, Form 4797, priorPAL) do NOT receive nonNegative=true
-// and continue to allow negative entry unchanged.
 function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onClick, nonNegative, onError }) {
   const [raw, setRaw] = useState('')
   const [focused, setFocused] = useState(false)
@@ -149,7 +120,6 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
         const prevVal = input.value
         const prevCommas = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
-        // F16 FIX: strip '-' entirely when nonNegative is set
         const allowNeg = !nonNegative
         const stripped = allowNeg
           ? e.target.value.replace(/[^0-9\-]/g, '')
@@ -162,7 +132,6 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
           (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
         setRaw(fmtd); onChange(stripped)
 
-        // Clear any prior error as user is actively typing
         if (onError) onError('')
 
         requestAnimationFrame(() => {
@@ -178,13 +147,11 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
         setFocused(false)
         const n = nf(raw)
         if (Number.isFinite(n)) {
-          // F16 FIX: guard against any residual negative that slipped through
           const safeN = nonNegative ? Math.max(0, n) : n
           setRaw(safeN.toLocaleString('en-US', { maximumFractionDigits: 0 }))
           onChange(String(safeN))
           if (onError) onError('')
         } else if (raw !== '' && raw !== '-') {
-          // Non-numeric input — reset and surface error
           setRaw('')
           onChange('')
           if (onError) onError('Enter a number ≥ 0')
@@ -202,8 +169,6 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
   )
 }
 
-// F16 FIX: IncomeField wraps MoneyInput + inline error display for income fields
-// that require non-negative values. Keeps error state local to each field.
 function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onClick, style: sx }) {
   const [errMsg, setErrMsg] = useState('')
   return (
@@ -226,6 +191,40 @@ function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onC
       {errMsg && (
         <div role="alert" style={{ fontSize: 11, color: R, fontWeight: 600, marginTop: 3 }}>{errMsg}</div>
       )}
+    </div>
+  )
+}
+
+// F6: tri-state segmented control (Unanswered / Yes / No).
+// value is `undefined` | true | false. onChange receives the same tri-state.
+function TriStateParticipation({ value, onChange, idBase }) {
+  const opts = [
+    { label: 'Unanswered', v: undefined },
+    { label: 'Yes', v: true },
+    { label: 'No', v: false },
+  ]
+  return (
+    <div role="radiogroup" aria-label="Material participation" style={{ display: 'inline-flex', border: '1px solid #DDD6FE', borderRadius: 8, overflow: 'hidden' }}>
+      {opts.map((o, i) => {
+        const active = value === o.v
+        return (
+          <button
+            key={o.label}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            id={idBase ? `${idBase}-${i}` : undefined}
+            onClick={() => onChange(o.v)}
+            style={{
+              border: 'none', padding: '5px 12px', fontSize: 12, fontFamily: 'inherit',
+              cursor: 'pointer', background: active ? '#EDE9FE' : '#fff',
+              color: active ? '#5B21B6' : SL, fontWeight: active ? 700 : 500,
+              borderLeft: i > 0 ? '1px solid #DDD6FE' : 'none',
+            }}>
+            {o.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -283,6 +282,20 @@ export default function TaxReturn() {
   // F-01: §1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
+  // F6: §1.469-9(g) aggregation election + Step-2 material participation (tri-state).
+  // undefined = unanswered. Read the saved value back as a true tri-state.
+  const triFromSaved = (v) => (v === true ? true : v === false ? false : undefined)
+  const [rentalAggregationElection, setRentalAggregationElection] = useState(triFromSaved(savedCtx.rentalAggregationElection))
+  const [step2MatlPart,             setStep2MatlPart]             = useState(triFromSaved(savedCtx.step2RentalMaterialParticipation))
+  // F6 migration: a saved return that had REP set predates the participation
+  // question. Surface a one-time prompt so the user re-confirms (passive is the
+  // safe default; we do NOT silently inherit nonpassive treatment).
+  const [showRepMigration, setShowRepMigration] = useState(
+    !!savedCtx.isREP &&
+    savedCtx.rentalAggregationElection === undefined &&
+    savedCtx.step2RentalMaterialParticipation === undefined
+  )
+
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
   const [mortgageInt,       setMortgageInt]      = useState(savedCtx.mortgageInt          || '')
@@ -300,15 +313,12 @@ export default function TaxReturn() {
   const [priorYearTax,      setPriorYearTax]     = useState(savedCtx.priorYearTax        || '')
   const [priorYearAGI,      setPriorYearAGI]     = useState(savedCtx.priorYearAGI        || '')
 
-  // F-10 / F-13: extended save status — 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus,    setSaveStatus]    = useState('idle')
   const [saveError,     setSaveError]     = useState(null)
   const [analyzeStatus, setAnalyzeStatus] = useState('idle')
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
-  // F17 FIX: projected full-year income = (K-1 + W-2) * annualisation factor.
-  // Shown as a read-only line in the YTD toggle card when ytdMode is active.
   const projectedAnnualIncome = ytdMode
     ? Math.round(((sessionK1 || 0) + nf(w2Income)) * ytdFactor)
     : 0
@@ -342,16 +352,23 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
+      // F6: the engine activates the per-property regime when the aggregation
+      // election is true OR a Step-2 participation answer is present OR any Step-1
+      // rental carries a materiallyParticipates flag. Pass a clean boolean for the
+      // election and the raw tri-state (undefined/true/false) for the Step-2 lump.
+      rentalAggregationElection: rentalAggregationElection === true,
+      step2RentalMaterialParticipation: step2MatlPart,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: nf(priorPAL),
-      priorSuspendedLoss: nf(priorSuspendedLoss),   // F-01: §1366(d)(2) engine hookup
+      priorSuspendedLoss: nf(priorSuspendedLoss),
       useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     sessionK1, rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
+    rentalAggregationElection, step2MatlPart,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
@@ -371,6 +388,7 @@ export default function TaxReturn() {
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797,
       rentalIncome, rentalExpenses, isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
+      rentalAggregationElection, step2RentalMaterialParticipation: step2MatlPart,   // F6
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
       useItemized, itemizedAmt, saltAmount,
@@ -384,6 +402,7 @@ export default function TaxReturn() {
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    rentalAggregationElection, step2MatlPart,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
@@ -422,6 +441,7 @@ export default function TaxReturn() {
         unrecap1250, collectiblesGain: collectibles, form4797,
         rentalIncome, rentalExpenses, isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
+        rentalAggregationElection, step2RentalMaterialParticipation: step2MatlPart,   // F6
         selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
         useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
@@ -440,6 +460,7 @@ export default function TaxReturn() {
     stGain, ltGain, interest, dividends, qualDividends,
     unrecap1250, collectibles, form4797,
     rentalIncome, rentalExpenses, isREP, isActiveParticipant, priorPAL,
+    rentalAggregationElection, step2MatlPart,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
@@ -490,10 +511,9 @@ export default function TaxReturn() {
   const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
   const step2RentalEntered = nf(rentalIncome) !== 0 || nf(rentalExpenses) !== 0
   const rentalDoubleCount  = hasStep1Rental && step2RentalEntered
+  const step2RentalNet     = nf(rentalIncome) - nf(rentalExpenses)
 
   // F18 FIX: Safe Harbor status derivation.
-  // safeHarborMinimum and totalPayments come from calcTaxReturn result.
-  // The 110% threshold applies when prior-year AGI > $150K (or $75K for MFS).
   const priorYearTaxNum = nf(priorYearTax)
   const priorYearAGINum = nf(priorYearAGI)
   const highIncomeThreshold = filingStatus === 'mfs' ? 75000 : 150000
@@ -508,7 +528,6 @@ export default function TaxReturn() {
     : null
   const safeHarborMet = safeHarborGap !== null && safeHarborGap <= 0
 
-  // Next estimated tax due date (for Safe Harbor gap message)
   const NEXT_DUE_DATES = {
     2024: ['Apr 15, 2024', 'Jun 17, 2024', 'Sep 16, 2024', 'Jan 15, 2025'],
     2025: ['Apr 15, 2025', 'Jun 16, 2025', 'Sep 15, 2025', 'Jan 15, 2026'],
@@ -619,7 +638,6 @@ export default function TaxReturn() {
                     <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
                   ))}
                 </select>
-                {/* F-NEW-B: OBBBA advisory banner — pending Treasury regulations */}
                 {taxYear === 2026 && (
                   <div role="note" style={{ marginTop: 6, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
                     <strong>⚠ OBBBA provisions apply (P.L. 119-21).</strong> Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
@@ -670,22 +688,30 @@ export default function TaxReturn() {
 
               {hasStep1Rental && (
                 <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', letterSpacing: '0.5px', marginBottom: 6 }}>RENTAL REAL ESTATE (SCHEDULE E) — §469</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    RENTAL REAL ESTATE (SCHEDULE E) — §469
+                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nEach property\u2019s passive/nonpassive status comes from the material-participation answer set on its card in Step 1 (or the §1.469-9(g) aggregation election). Unanswered properties are treated as passive until confirmed.'} />
+                  </div>
                   {step1Rentals.map((e, i) => {
                     const pnl = e.pnl || {}
                     const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
                     const own = ownPct(e.own) / 100
                     const reNet = Math.round(net * own) - nf(e.box11_12) - nf(e.box12_13)
+                    // Tri-state aware status: nonpassive only when REP materially
+                    // participates (or aggregation elected). undefined → unconfirmed.
+                    const mp = e.materiallyParticipates
+                    const nonpassive = (rentalAggregationElection === true && (e.isREP || isREP)) || ((e.isREP || isREP) && mp === true)
                     const status = reNet >= 0
                       ? 'income'
-                      : e.isREP ? 'Nonpassive (REP)'
+                      : nonpassive ? 'Nonpassive'
+                      : (e.isREP || isREP) && mp === undefined ? 'Passive · unconfirmed'
                       : e.isActiveParticipant ? 'Passive · §469(i)'
                       : 'Passive · suspended'
                     return (
                       <div key={'re' + i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', fontSize: 13 }}>
                         <span style={{ color: '#6D28D9' }}>
                           {e.name || 'Rental'} ({e.own || 100}%)
-                          {reNet < 0 && <span style={{ fontSize: 10, color: e.isREP ? G : '#92400E', marginLeft: 6, fontWeight: 600 }}>{status}</span>}
+                          {reNet < 0 && <span style={{ fontSize: 10, color: nonpassive ? G : '#92400E', marginLeft: 6, fontWeight: 600 }}>{status}</span>}
                         </span>
                         <span style={{ fontWeight: 700, color: reNet >= 0 ? '#6D28D9' : R }}>{fmt(reNet)}</span>
                       </div>
@@ -693,6 +719,21 @@ export default function TaxReturn() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* F6: one-time migration prompt for a saved REP return predating the
+              participation questions. */}
+          {showRepMigration && (
+            <div role="alert" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.55 }}>
+              <strong>One quick confirmation needed.</strong> This saved return has Real Estate Professional
+              status, but the per-property material-participation questions are new. Until you confirm
+              participation on each rental (or make the §1.469-9(g) aggregation election below), those
+              rentals are treated as passive — the safe default. Your previously-deductible losses may show
+              as suspended until you answer.
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => setShowRepMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it — I&apos;ll review below</button>
+              </div>
             </div>
           )}
 
@@ -705,7 +746,7 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* W-2 Income & Withholding — uses IncomeField (nonNegative) for F16 */}
+          {/* W-2 Income & Withholding */}
           <CollapsibleSection
             title="W-2 Income & Withholding"
             defaultOpen
@@ -713,7 +754,6 @@ export default function TaxReturn() {
             style={{ position: 'relative', zIndex: 10 }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {/* F16 FIX: IncomeField enforces nonNegative; error shown inline on blur */}
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-w2-income"
@@ -732,7 +772,6 @@ export default function TaxReturn() {
                   Federal Tax Withheld (W-2 Box 2)
                   <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
                 </label>
-                {/* Withholding can legitimately be 0; no nonNegative needed beyond not going negative */}
                 <MoneyInput
                   id="tr-w2-withheld"
                   value={w2Withheld}
@@ -745,16 +784,12 @@ export default function TaxReturn() {
             </div>
             {entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-                💡 <strong>S-Corp owner:</strong> If you paid yourself a W-2 salary in Step 1, enter the federal income tax withheld here (W-2 Box 2). FICA taxes (Boxes 4 and 6) are separate — don't include those here.
+                💡 <strong>S-Corp owner:</strong> If you paid yourself a W-2 salary in Step 1, enter the federal income tax withheld here (W-2 Box 2). FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here.
               </div>
             )}
           </CollapsibleSection>
 
-          {/* YTD mode
-              F17 FIX: when ytdMode is active the card now shows:
-                1. Month selector labelled "Income earned through [Month]" (period unambiguous).
-                2. "Projected full-year income" read-only line showing the annualised total.
-                3. Plain-language multiplier sentence instead of raw "× N.NN" label. */}
+          {/* YTD mode */}
           <div style={{ background: ytdMode ? '#EFF6FF' : '#fff', border: `1px solid ${ytdMode ? '#BFDBFE' : '#E2E8F0'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 12, transition: 'background 0.2s, border-color 0.2s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div>
@@ -767,7 +802,6 @@ export default function TaxReturn() {
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                {/* F17 FIX: month selector labelled with context */}
                 {ytdMode && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                     <span style={{ fontSize: 10, color: '#1D4ED8', fontWeight: 600 }}>Income earned through:</span>
@@ -785,7 +819,6 @@ export default function TaxReturn() {
               </div>
             </div>
 
-            {/* F17 FIX: annualisation transparency panel */}
             {ytdMode && (
               <div style={{ marginTop: 12, background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
@@ -795,7 +828,6 @@ export default function TaxReturn() {
                   Your figures will be multiplied by <strong style={{ color: N }}>{ytdFactor.toFixed(2)}×</strong> to project a full 12-month year
                   ({ytdMonth} month{ytdMonth !== 1 ? 's' : ''} → 12 months).
                 </div>
-                {/* F17 FIX: projected full-year income read-only line */}
                 {projectedAnnualIncome > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE' }}>
                     <span style={{ fontSize: 12, color: SL }}>
@@ -826,7 +858,6 @@ export default function TaxReturn() {
                 <input type="number" min="0" max="20" value={dependents} onChange={e => setDependents(e.target.value)}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
               </div>
-              {/* F16 FIX: Estimated payments cannot be negative */}
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-est-paid"
@@ -842,38 +873,39 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
-          {/* Rental real estate */}
-          {/* AUDIT-FIX-4.1: S-Corp suspended loss carryforward moved out of the
-          Rental Real Estate section where it does not belong. Now rendered
-          only when the user has at least one S Corporation entity. */}
+          {/* S-Corp basis carryforwards */}
           {Array.isArray(entities) && entities.some(e => e.type === 'S Corporation') && (
             <CollapsibleSection title="S-Corp Basis Carryforwards (Form 7203)" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
-                {/* F-01: §1366(d) prior-year suspended loss carryforward — Form 7203 Part III col. (e) */}
-                            <div style={inpWrap}>
-                              <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
-                                Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
-                                <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
-                              </label>
-                              <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
-                            </div>
+                <div style={inpWrap}>
+                  <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
+                    Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
+                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+                  </label>
+                  <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
+                </div>
               </div>
             </CollapsibleSection>
           )}
-          <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(nf(rentalIncome) - nf(rentalExpenses)) : undefined} accent="#7C3AED">
+
+          {/* Rental real estate (Schedule E) */}
+          <CollapsibleSection title="Rental Real Estate (Schedule E)" badge={nf(rentalIncome) > 0 ? fmt(step2RentalNet) : undefined} accent={PURPLE}>
+            {/* F6 / DECISION 1: direct-Schedule-E boundary note */}
+            <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
+              These fields are for <strong>rentals you own directly</strong> (Schedule E, page 1). Rental
+              income from a partnership or LLC comes through on a K-1 — add it as a business entity in Step 1,
+              not here. Its passive character is set at the entity level.
+            </div>
+
             {hasStep1Rental && (
               <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.5 }}>
                 You already entered {step1Rentals.length === 1 ? 'a rental property' : `${step1Rentals.length} rental properties`} as
-                Real Estate {step1Rentals.length === 1 ? 'entity' : 'entities'} in Step 1 (shown above, with REP / active-participant status set on each card).
+                Real Estate {step1Rentals.length === 1 ? 'entity' : 'entities'} in Step 1 (shown above, with REP / participation status set on each card).
                 Only use the fields below for <em>additional</em> rentals not already entered in Step 1.
               </div>
             )}
-            
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {/* F16 FIX: Rental Income uses IncomeField (nonNegative) with a helper
-                  tooltip directing losses to the Rental Expenses field, matching the
-                  audit recommendation exactly. */}
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-rental-income"
@@ -888,10 +920,10 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-rental-exp" style={inputLbl}>Total Rental Expenses incl. Depreciation (Schedule E, Lines 5–19)</label>
-                {/* Expenses are always positive numbers; nonNegative appropriate here too */}
                 <MoneyInput id="tr-rental-exp" value={rentalExpenses} onChange={setRentalExpenses} placeholder="0" nonNegative />
               </div>
             </div>
+
             {/* F-11: REP election with §469(c)(7)(B) hours qualification gate */}
             <div style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -905,6 +937,9 @@ export default function TaxReturn() {
                     } else {
                       setIsREP(false)
                       setShowRepGate(false)
+                      // Leaving REP status clears the REP-only elections.
+                      setRentalAggregationElection(undefined)
+                      setStep2MatlPart(undefined)
                     }
                   }}
                   style={{ marginTop: 2 }}
@@ -959,6 +994,47 @@ export default function TaxReturn() {
                 )
               })()}
             </div>
+
+            {/* F6: §1.469-9(g) aggregation election — REP-gated, deliberate attestation, tri-state default unanswered */}
+            {isREP && (
+              <div style={{ marginBottom: 10, background: '#FBFAFF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="agg"
+                    checked={rentalAggregationElection === true}
+                    onChange={e => setRentalAggregationElection(e.target.checked ? true : false)}
+                    style={{ marginTop: 2 }}
+                  />
+                  <label htmlFor="agg" style={{ fontSize: 13, color: N, cursor: 'pointer', lineHeight: 1.5 }}>
+                    Make the §1.469-9(g) aggregation election
+                    <InfoTip wide text={'Elect to treat ALL your interests in rental real estate as a single activity. For a qualifying real estate professional this makes the entire rental portfolio nonpassive in one step, so you do not test each property separately.\n\nThis is a deliberate, generally irrevocable election made on the return — it is never assumed. Leave unchecked to classify each property individually by material participation.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} />
+                  </label>
+                </div>
+                {rentalAggregationElection === undefined && (
+                  <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 6, marginLeft: 22 }}>Not yet elected — each rental is classified individually below.</div>
+                )}
+              </div>
+            )}
+
+            {/* F6: Step-2 lump material participation — shown only when REP on AND aggregation off AND a Step-2 rental was entered */}
+            {isREP && rentalAggregationElection !== true && step2RentalEntered && (
+              <div style={{ marginBottom: 10, background: '#FBFAFF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: N }}>
+                    Do you materially participate in this rental? — §469(h)
+                    <InfoTip wide text={'Material participation means regular, continuous, and substantial involvement in the rental\u2019s operations (one of the seven §1.469-5T tests).\n\nFor a real estate professional, a rental in which you materially participate is nonpassive — its loss offsets other income with no §469(i) cap. Unanswered is treated as passive until you confirm; \u201cNo\u201d keeps it passive (loss limited by §469(i)).\n\nIRC §469(c)(7)(A), §469(h) · Treas. Reg. §1.469-5T.'} />
+                  </span>
+                  <TriStateParticipation value={step2MatlPart} onChange={setStep2MatlPart} idBase="step2-mp" />
+                </div>
+                {step2MatlPart === undefined && step2RentalNet < 0 && (
+                  <div style={{ fontSize: 11, color: '#92400E', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span aria-hidden="true">⚠</span> This loss is treated as passive and suspended only because participation is unconfirmed — not because it failed the test. Answer to deduct it currently.
+                  </div>
+                )}
+              </div>
+            )}
+
             {!isREP && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <input type="checkbox" id="active" checked={isActiveParticipant} onChange={e => setIsActiveParticipant(e.target.checked)} />
@@ -1021,7 +1097,6 @@ export default function TaxReturn() {
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
                 <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
-                {/* F-08: advisory when Form 4797 gain entered but §1250 blank */}
                 {(parseFloat(String(form4797).replace(/,/g,'')) || 0) > 0 && (parseFloat(String(unrecap1250).replace(/,/g,'')) || 0) === 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     ⚠ You entered a Form 4797 gain. If this included <strong>depreciable real property</strong>, enter accumulated straight-line depreciation here — that amount is taxed at up to 25%, not 20%. Schedule D Unrecaptured §1250 Worksheet · IRC §1(h)(1)(D).
@@ -1159,11 +1234,7 @@ export default function TaxReturn() {
             </div>
           </CollapsibleSection>
 
-          {/* Safe harbor inputs
-              F18 FIX: Status indicator rendered below the inputs when priorYearTax > 0.
-              Shows green "met" or red "gap: $X — pay by [next due date]" plus the
-              full calculation breakdown so users see the primary output the section
-              exists to provide. */}
+          {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
@@ -1180,7 +1251,6 @@ export default function TaxReturn() {
               </div>
             </div>
 
-            {/* F18 FIX: Safe Harbor Status indicator — shown as soon as priorYearTax > 0 */}
             {priorYearTaxNum > 0 && (
               <div style={{ marginTop: 4 }}>
                 {safeHarborMet ? (
@@ -1349,6 +1419,8 @@ export default function TaxReturn() {
               {result.palSuspendedRental > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
                   <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
+                  {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
+                  {result.rentalIsREP && rentalAggregationElection !== true && step2MatlPart === undefined && step2RentalNet < 0 && ' Part of this is suspended only because material participation is unconfirmed — answer the §469(h) question in the Rental section to deduct it currently.'}
                   {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
                 </div>
               )}
@@ -1375,7 +1447,7 @@ export default function TaxReturn() {
           {/* Underpayment penalty warning */}
           {hasResult && result.balance > 0 && !nf(priorYearTax) && (
             <div role="alert" aria-live="polite" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
-              <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven't entered prior year tax. Enter your prior year total tax in{' '}
+              <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven&apos;t entered prior year tax. Enter your prior year total tax in{' '}
               <button
                 onClick={() => {
                   const el = document.querySelector('[data-section="safe-harbor"]')
