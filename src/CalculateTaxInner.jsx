@@ -504,14 +504,14 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Income (gross rents received)' : 'Gross Revenue'}
-            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total revenue before any deductions. For S-Corps: enter gross revenue of the entity. Do NOT net out officer salary here — enter that separately below.'} />
+            {isRE ? 'Rental Income (gross rents received)' : 'Gross Revenue (Total Receipts)'}
+            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total revenue before any deductions — i.e. your gross receipts before any expenses. For S-Corps and partnerships, enter the entity\'s gross revenue (your taxable share flows via K-1, not the full gross revenue amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer salary — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Operating Expenses (excl. officer salary, depreciation, advertising)'}
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Business Expenses (excl. Officer Salary, Depreciation, Advertising)'}
             <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
@@ -567,7 +567,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue (Total Receipts)'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
@@ -611,7 +611,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button onClick={onCancel} style={{ flex: 1, padding: '9px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
         <button onClick={applyManual} style={{ flex: 2, padding: '9px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          Apply →
+          Save P&L →
         </button>
       </div>
     </div>
@@ -742,7 +742,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span>
+                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue (Total Receipts)'}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -828,7 +828,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
                 <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
-                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ)
+                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
                 </div>
               )}
               {showQBI && (
@@ -838,7 +838,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     { label: 'W-2 Wages (K-1 Box 17V for S-Corp / Box 20Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. From S-Corp K-1 Box 17, Code V.\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
                     { label: 'UBIA of Qualified Property (K-1 Box 17W / Box 20AA)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: 'Section 179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
-                    { label: 'Charitable Contributions (K-1 Box 12 / Box 13)', key: 'box12_13', tip: 'Charitable contributions passed through from the entity. These flow to Schedule A and also reduce your K-1 basis.' },
+                    { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A and also reduce your K-1 basis.' },
                     { label: 'Prior-Year QBI Loss Carryforward (Form 8995 Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
@@ -951,7 +951,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   <div style={{ marginBottom: 6 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Distributions Received This Year (Form 7203, Line 6)
-                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.'} wide />
+                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nAAA note: If your S-Corp has accumulated earnings and profits (E&P) from a prior C-Corp period, AAA ordering rules (§1368(c)) apply — distributions reduce AAA first, then E&P (taxable as an ordinary dividend). Consult your CPA if prior C-Corp E&P exists.'} wide />
                     </label>
                     <MoneyInput
                       value={entity.distributions || ''}
@@ -1487,7 +1487,7 @@ export default function CalculateTaxInner() {
                 const sign = diff >= 0 ? '+' : ''
                 setSyncDiffs(s => ({
                   ...s,
-                  [pid]: `Revenue updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
+                  [pid]: `Gross revenue updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
                 }))
                 // Clear diff after 8s
                 setTimeout(() => setSyncDiffs(s => { const n = { ...s }; delete n[pid]; return n }), 8000)
@@ -1936,7 +1936,7 @@ export default function CalculateTaxInner() {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · FICA savings · officer salary required'         },
+                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer salary required'         },
                 { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
                 { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
                 { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
