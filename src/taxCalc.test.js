@@ -991,3 +991,26 @@ describe('calcTaxReturn F5 — reasonable-comp advisory framing', () => {
     expect(m).toContain('30,000')
   })
 })
+
+describe('calcTaxReturn unrecaptured 1250 - subset of net capital gain, not added income', () => {
+  it('entering unrecaptured 1250 does not inflate income (Verela 2024 double-count guard)', () => {
+    const base2024 = {
+      ...BASE, taxYear: 2024, w2: 293750,
+      k1Total: -293750 - 170473,
+      entities: [
+        { name: 'S', type: 'S Corporation', k1: -293750 },
+        { name: 'R', type: 'Real Estate (Schedule E)', k1: -170473, isREP: true },
+      ],
+      isREP: true, rentalAggregationElection: true,
+      intInc: 9102, divInc: 63, qualDiv: 62,
+      stGain: -393, ltGain: 108, f4797Inc: 234809, nolCarryforward: 337926,
+    }
+    const without1250 = calcTaxReturn({ ...base2024 })
+    const with1250    = calcTaxReturn({ ...base2024, unrecap1250: 76509 })
+    // unrecaptured 1250 is a SUBSET of the 1231 gain already entered; entering it must
+    // not inflate income (the double-count fix). Validated separately: it shifts the
+    // 1250 slice to its lesser-of-25%/regular rate without changing AGI or taxable income.
+    expect(with1250.grossIncome).toBe(without1250.grossIncome)
+    expect(with1250.taxableIncome).toBe(without1250.taxableIncome)
+  })
+})
