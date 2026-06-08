@@ -4,34 +4,6 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 // ── Change log ────────────────────────────────────────────────────────────────
-// SAVE-GUARD FIX (Step-1 unsaved-P&L footgun): "Continue to Step 2" now checks for
-//   entities with no committed P&L and warns before proceeding. Such an entity would
-//   otherwise silently count as $0 in the return. The usual cause is typing figures in
-//   the manual panel and clicking Continue WITHOUT "Save P&L →" first — those figures
-//   live in the panel's local state until saved, so the entity reaches Step 2 empty.
-//   The guard names the affected entities and offers Go back / Continue anyway; it never
-//   auto-mutates entity data.
-//
-// QBI-HINT FIX (year-aware §199A threshold): the collapsed §199A QBI hint showed
-//   hard-coded ~2026 figures ("~$202K / ~$404K") regardless of the selected tax year.
-//   It now shows the selected year's actual threshold (e.g. $197,300 / $394,600 for
-//   2025) sourced from the engine's QBI_THRESHOLDS, so the hint matches the return year.
-//
-// M-2 FIX (entity-comparison QBI wage leak): CompareModal previously spread the
-//   user's actual entity (`...entity`) into every hypothetical structure, which
-//   dragged that entity's box17V_wages / officerW2 / pnl.officerSalary into the
-//   sole-proprietor and partnership scenarios. Because §199A caps the QBI
-//   deduction at (broadly) 50% of W-2 wages above the income threshold, every
-//   structure inherited the same wage figure and the comparison mis-ranked them.
-//   Fix: each scenario now builds a clean `qbiEntity` whose §199A wages are its
-//   OWN — an S-Corp uses its hypothetical officer salary (salGuess); a sole prop
-//   / partnership pays the owner no W-2 wages, so $0 — while UBIA and SSTB status
-//   (genuine attributes of the underlying business) carry over. `strictWageCap:
-//   true` is passed to calcQBI / calcTaxReturn so a wage-less, UBIA-less structure
-//   above the threshold is correctly capped to $0 instead of receiving the
-//   engine's "no wage data entered → full 20%" convenience default. This flag is
-//   comparison-only; filed returns never set it. IRC §199A(b)(2).
-//
 // BUG-02 FIX: EntityCard netProfit formula double-subtracted totalExpenses
 //   when P&L data came from an accounting software integration (QuickBooks,
 //   Xero, Wave, FreshBooks). The integration sets pnl.netProfit directly from
@@ -75,9 +47,9 @@
 // F-02 FIX: "Save This Record" (Step 1) disabled state not visually enforced.
 //   Applied HTML disabled attribute + visual disabled style when no entity exists.
 //
-// F-03 FIX: Removed "Import CSV" dead-end link from the accounting software
-//   connection card. The file input + label (functional CSV upload) is retained;
-//   only the non-functional text link was removed.
+// CSV import removed: the "Import CSV" upload (link, file input, and handler) has
+//   been removed from the accounting-software card. Entities are added by connecting
+//   accounting software or by manual entry.
 //
 // F-05 FIX: Ownership % field accepted out-of-range values (e.g. 150) and had
 //   a concatenation bug on triple-click-retype. Fixed: onChange now clamps to
@@ -133,16 +105,6 @@
 //   a manual re-fetch and shows a brief diff summary ("Revenue updated:
 //   $X → $Y (+$Z)") so users can confirm the update was applied.
 //
-// REMOVE-PERSIST FIX: removeEntity now writes the updated entity list to
-//   sessionStorage, matching addEntity / updateEntity / handleIntegrationDisconnect.
-//   Previously a removed entity was dropped from React state but NOT from
-//   sessionStorage, so on a page reload or remount the hydrate effect restored
-//   the deleted entity. Now removals persist immediately.
-//
-// CSV-IMPORT REMOVAL: the CSV import control, its handler (handleCsvUpload), and
-//   the csvImportStatus state were removed. Manual entry and accounting-software
-//   sync remain the supported P&L entry paths.
-//
 // F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
 //   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
 //   there is no rental UI in Step 2. The card carries the REP flag, the
@@ -151,9 +113,10 @@
 //   not make a rental nonpassive: the aggregation election is required, matching
 //   the engine. TaxReturn.jsx derives the portfolio-level election (any card
 //   elected) and prior-PAL (summed across cards) from these entities.
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, QBI_THRESHOLDS } from './taxCalc'
+import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
@@ -161,10 +124,13 @@ import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR } from './co
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const nf = (v, fallback = 0) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : fallback }
+
 // F23 FIX: Human-readable "last synced" formatter
 function fmtSyncedAt(isoStr) {
   if (!isoStr) return null
@@ -180,6 +146,7 @@ function fmtSyncedAt(isoStr) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   } catch { return null }
 }
+
 function InfoTip({ text, wide }) {
   const [show, setShow] = useState(false)
   const ref = useRef()
@@ -209,28 +176,34 @@ function InfoTip({ text, wide }) {
     </span>
   )
 }
+
 function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
   const [raw, setRaw] = useState(value || '')
   const [focused, setFocused] = useState(false)
+
   useEffect(() => {
     if (!focused) {
       const n = parseFloat(String(value || '').replace(/,/g, ''))
       setRaw(Number.isFinite(n) && n !== 0 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (value || ''))
     }
   }, [value, focused])
+
   const handleChange = (e) => {
     const input = e.target
     const cursorPos = input.selectionStart
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
+
     const stripped = e.target.value.replace(/[^0-9\-]/g, '')
     const isNeg = stripped.startsWith('-')
     const digits = stripped.replace(/^-/, '')
     const n = parseInt(digits, 10)
     const formatted = stripped === '' ? '' : stripped === '-' ? '-' :
       (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
+
     setRaw(formatted)
     onChange(stripped)
+
     requestAnimationFrame(() => {
       if (input && document.activeElement === input) {
         const newCommasBefore = (formatted.slice(0, cursorPos).match(/,/g) || []).length
@@ -240,7 +213,9 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
       }
     })
   }
+
   const handleFocus = () => { setFocused(true) }
+
   const handleBlur = () => {
     setFocused(false)
     const n = parseFloat(String(raw).replace(/,/g, ''))
@@ -250,6 +225,7 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
       onChange(String(n))
     }
   }
+
   return (
     <input
       id={id}
@@ -272,17 +248,22 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
     />
   )
 }
+
 // ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
 // F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
 const WATSON_REVENUE_THRESHOLD = 0.30
+
 function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
+
   const totalComp = officerSal + Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
   const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
+
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
   const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
+
   if (officerSal === 0) {
     return (
       <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
@@ -295,6 +276,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
       </div>
     )
   }
+
   if (ratio < 0.35) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
@@ -316,6 +298,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
       </div>
     )
   }
+
   return (
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
@@ -334,6 +317,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     </div>
   )
 }
+
 // ─── Integration tile ─────────────────────────────────────────────────────────
 // F19 FIX: reads localStorage ts360_{provider}_connected and ts360_{provider}_failed
 //   to render correct connected / failed / default state on every render.
@@ -345,6 +329,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   const hasFailed   = localStorage.getItem('ts360_' + integ.id + '_failed')   === 'true'
   const syncedAt    = localStorage.getItem('ts360_' + integ.id + '_synced_at')
   const syncedLabel = fmtSyncedAt(syncedAt)
+
   return (
     <div style={{
       background: isConnected ? integ.bg : hasFailed ? '#FEF2F2' : '#fff',
@@ -427,6 +412,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
     </div>
   )
 }
+
 // ─── Name record modal ────────────────────────────────────────────────────────
 function NameRecordModal({ defaultName, onConfirm, onSkip }) {
   const [name, setName] = useState(defaultName || '')
@@ -461,6 +447,7 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
     </div>
   )
 }
+
 // ─── Manual entry panel ───────────────────────────────────────────────────────
 function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const pnl = entity.pnl || {}
@@ -476,20 +463,25 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary  || entity.officerW2)   || ''))
   const [manAdv,        setManAdv]        = useState(String(nf(pnl.advertising)                          || ''))
   const [manOther,      setManOther]      = useState(String(nf(pnl.otherDeductions)                      || ''))
+
   const rv  = nf(manRev)
   const ex  = nf(manExp)
   const dep = nf(manDep)
   const sal = nf(manOfficerSal)
   const adv = nf(manAdv)
   const oth = nf(manOther)
+
   const isSCorp = isSCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
   const isRE = isRealEstateEntity(entity.type)
   const effectiveSal = isSCorp ? sal : 0
+
   const totalExpenses = ex + dep + effectiveSal + adv + oth
   const manNetProfit  = rv - totalExpenses
+
   const officerExceedsRevenue   = effectiveSal > rv && effectiveSal > 0 && rv > 0
   const officerExceedsNetProfit = !officerExceedsRevenue && effectiveSal > (rv - ex - dep) && effectiveSal > 0 && rv > 0
+
   function applyManual() {
     if (rv > 0 || totalExpenses > 0) {
       onUpdate(idx, {
@@ -511,8 +503,10 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
     }
     onCancel()
   }
+
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
+
   return (
     <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 18px', marginTop: 10, border: '1px solid #E2E8F0' }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 12 }}>Manual Entry</div>
@@ -578,6 +572,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
         </div>
       </div>
+
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -592,6 +587,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </div>
         </div>
       )}
+
       {isPartnership && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F0F9FF', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#0369A1', marginBottom: 6 }}>📋 K-1 Box Mapping — Partnership / LLC</div>
@@ -611,6 +607,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </div>
         </div>
       )}
+
       {isRE && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
@@ -619,6 +616,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </div>
         </div>
       )}
+
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button onClick={onCancel} style={{ flex: 1, padding: '9px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
         <button onClick={applyManual} style={{ flex: 2, padding: '9px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -628,12 +626,14 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
     </div>
   )
 }
+
 // ─── Entity card ──────────────────────────────────────────────────────────────
-function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand, taxYear }) {
+function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const [showBasis,  setShowBasis]  = useState(false)
   const pnl = entity.pnl || {}
+
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
@@ -647,13 +647,16 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
   }
+
   const netProfit = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+
   const own    = ownPct(entity.own) / 100
   const k1     = Math.round(netProfit * own)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
+
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
   const basisBadge = (() => {
     if (!isSC) return null
@@ -670,6 +673,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     }
     return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within basis.` }
   })()
+
   const distBadge = (() => {
     if (!isSC) return null
     const dist = nf(entity.distributions)
@@ -687,6 +691,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     }
     return { type: 'ok', msg: `§1368: All ${fmt(dist)} distributions are tax-free return of basis.` }
   })()
+
   return (
     <div style={{
       background: '#fff',
@@ -737,9 +742,11 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
         )}
         <div style={{ color: SL, fontSize: 14, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</div>
       </div>
+
       {/* Expanded content */}
       {isExpanded && (
         <div style={{ padding: '14px 18px', borderTop: '1px solid #F1F5F9' }}>
+
           {/* P&L summary */}
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
@@ -763,6 +770,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </div>
             </div>
           )}
+
           {/* Entity Name */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Business Name</label>
@@ -774,6 +782,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
+
           {/* Entity Type */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Entity Type</label>
@@ -788,6 +797,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               <option value="Real Estate (Schedule E)">Real Estate (Schedule E)</option>
             </select>
           </div>
+
           {/* F-05 FIX: Ownership % — fully controlled input with 0–100 clamp */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
@@ -814,6 +824,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N }}
             />
           </div>
+
           {/* QBI fields */}
           {isPT && (
             <div style={{ marginBottom: 10 }}>
@@ -822,16 +833,13 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </button>
               {/* P3c FIX: contextual hint so users know when these fields matter.
                   Without this, users either ignore the section entirely or enter
-                  values they don't need, creating confusion.
-                  QBI-HINT FIX: threshold is now year-aware (was hard-coded ~2026 figures). */}
-              {!showQBI && (() => {
-                const _qbiTh = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
-                return (
-                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
-                    Only needed if your {taxYear} taxable income exceeds {fmt(_qbiTh.single)} (single) or {fmt(_qbiTh.mfj)} (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
-                  </div>
-                )
-              })()}
+                  values they don't need, creating confusion. The threshold hint
+                  matches the InfoTip tooltips inside each field. */}
+              {!showQBI && (
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
+                </div>
+              )}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
@@ -866,6 +874,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               )}
             </div>
           )}
+
           {/* PASS4B-02b: §1366(d) Stock Basis & §1368 Distributions */}
           {isSC && (
             <div style={{ marginBottom: 10 }}>
@@ -889,6 +898,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
                     §1366(d) Basis Limitation · §1368 Distributions — from Form 7203
                   </div>
+
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Stock Basis at Beginning of Year (Form 7203, Line 1)
@@ -901,6 +911,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       style={{ fontSize: 13 }}
                     />
                   </div>
+
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Debt Basis (Form 7203, Part II) — Optional
@@ -913,6 +924,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       style={{ fontSize: 13 }}
                     />
                   </div>
+
                   {(() => {
                     const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
                     const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
@@ -944,6 +956,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       </div>
                     )
                   })()}
+
                   <div style={{ marginBottom: 6 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Distributions Received This Year (Form 7203, Line 6)
@@ -956,6 +969,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       style={{ fontSize: 13 }}
                     />
                   </div>
+
                   {(() => {
                     const dist = nf(entity.distributions)
                     if (dist <= 0) return null
@@ -1001,6 +1015,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               )}
             </div>
           )}
+
           {/* REG-01 / F6: §469 Passive Activity Status — the single home for rental treatment */}
           {isRE && (
             <div style={{ marginBottom: 10 }}>
@@ -1015,6 +1030,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
                   </label>
                 </div>
+
                 {/* F6: §1.469-9(g) aggregation election — shown once REP is checked. This is the
                     single control that makes the rental portfolio nonpassive. */}
                 {entity.isREP && (
@@ -1026,6 +1042,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     </label>
                   </div>
                 )}
+
                 {!entity.isREP && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                     <input type="checkbox" id={'active_' + idx} checked={!!entity.isActiveParticipant} onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })} style={{ marginTop: 2 }} />
@@ -1035,6 +1052,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     </label>
                   </div>
                 )}
+
                 {/* Prior-year passive loss carryforward (Form 8582) — moved here from Step 2 */}
                 <div style={{ marginTop: 8, marginBottom: 4 }}>
                   <label htmlFor={'pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
@@ -1048,6 +1066,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     style={{ fontSize: 13 }}
                   />
                 </div>
+
                 {(() => {
                   const reNet = netProfit
                   if (reNet >= 0) {
@@ -1092,6 +1111,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </div>
             </div>
           )}
+
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
             <ReasonableCompIndicator
@@ -1100,6 +1120,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               isSCorp={isSC}
             />
           )}
+
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
@@ -1127,6 +1148,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               🗑 Remove entity
             </button>
           </div>
+
           {showManual && (
             <ManualEntryPanel
               entity={entity}
@@ -1140,6 +1162,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     </div>
   )
 }
+
 // ─── Compare modal ────────────────────────────────────────────────────────────
 function CompareModal({ entities, onClose }) {
   const personalCtx = readPersonalContext()
@@ -1147,11 +1170,13 @@ function CompareModal({ entities, onClose }) {
   const filing      = personalCtx.filingStatus || 'single'
   const w2          = nf(personalCtx.w2Income)
   const estPaid     = nf(personalCtx.estPaid)
+
   const entity = entities[0] || {}
   const pnl    = entity.pnl || {}
   const rev    = nf(pnl.grossRevenue)
   const opex   = nf(pnl.totalExpenses)
   const netP   = nf(pnl.netProfit ?? (rev - opex))
+
   if (rev <= 0 && netP === 0) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1163,38 +1188,22 @@ function CompareModal({ entities, onClose }) {
       </div>
     )
   }
+
   const stdDed   = getStdDed(taxYear, filing)
   const ownerPct = ownPct(entity.own) / 100
+
   const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
     const isSC     = /s.?corp/i.test(type)
     const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * 0.40)) : 0
     const k1       = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
     const _w2All   = w2 + salGuess
     const taxableRough = Math.max(0, k1 + _w2All - stdDed)
-    // M-2 FIX: each structure must use ITS OWN §199A W-2 wages, not the wages from the
-    // entity the user actually entered. An S-Corp's wage figure is its (hypothetical)
-    // officer salary (salGuess); a sole proprietor / partnership pays the owner no W-2
-    // wages, so its §199A wage figure is $0. Build a clean qbiEntity instead of
-    // spreading `...entity`, which would otherwise drag the original entity's
-    // box17V_wages / officerW2 / pnl.officerSalary into every scenario. UBIA and SSTB
-    // status are genuine attributes of the underlying business, so they carry over.
-    // strictWageCap:true makes calcQBI apply the real §199A(b)(2) wage/UBIA cap above the
-    // threshold (→ $0 for a wage-less, UBIA-less structure) instead of its "no wage data
-    // entered" full-20% convenience default. Comparison-only; real returns never set it.
-    const qbiEntity = {
-      type, k1, own: entity.own,
-      box17V_wages: isSC ? salGuess : 0,
-      officerW2:    isSC ? salGuess : 0,
-      box17V_ubia:  nf(entity.box17V_ubia),
-      box17V_sstb:  !!entity.box17V_sstb,
-      pnl: { officerSalary: isSC ? salGuess : 0 },
-    }
     const { deduction: qbi } = isPassthroughEntity(type)
-      ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, strictWageCap: true, entityQbiData: [qbiEntity] })
+      ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
       : { deduction: 0 }
     const r = calcTaxReturn({
       taxYear, status: filing, dependents: nf(personalCtx.dependents),
-      entities: [qbiEntity],
+      entities: [{ ...entity, type, k1, own: entity.own }],
       w2: _w2All, k1Total: k1, rentalNet: 0, stGain: 0, ltGain: 0,
       intInc: 0, divInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0, iraIncome: 0,
       selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0, selfEmpRetirement: 0,
@@ -1202,11 +1211,12 @@ function CompareModal({ entities, onClose }) {
       isREP: false, unrecap1250: 0, collectiblesGain: 0,
       w2Withheld: nf(personalCtx.w2Withheld), estPaid,
       useItemized: false, itemizedAmt: 0, ytdFactor: 1,
-      strictWageCap: true,
     })
     return { type, qbi, totalTax: r.totalTax, seTax: r.seTax, ficaSavings: r.ficaSavings, k1, salGuess }
   })
+
   const minTax = Math.min(...scenarios.map(s => s.totalTax))
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 740, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
@@ -1251,9 +1261,11 @@ function CompareModal({ entities, onClose }) {
     </div>
   )
 }
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function CalculateTaxInner() {
   const navigate = useNavigate()
+
   const [entities,         setEntities]         = useState([])
   const [expandedIdx,      setExpandedIdx]      = useState(null)
   const [showCompare,      setShowCompare]      = useState(false)
@@ -1264,14 +1276,12 @@ export default function CalculateTaxInner() {
   const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
-  // SAVE-GUARD FIX: when non-null, holds the list of entity names that have no committed
-  // P&L; the confirmation modal lists them before allowing the user to proceed to Step 2.
-  const [emptyPnLWarning,  setEmptyPnLWarning]  = useState(null)
   // O1 FIX: track whether the standalone manual-entry panel is open (for
   // users who have no entities yet and click "Enter manually")
   const [showStandaloneManual, setShowStandaloneManual] = useState(false)
   // F23 FIX: per-provider sync diff message shown after a manual re-sync
   const [syncDiffs,        setSyncDiffs]        = useState({})
+
   useEffect(() => {
     // F-12 FIX: When a record is loaded via Dashboard ("Load & Continue"), the
     // load handler writes the full record to sessionStorage key ts360_loaded_record
@@ -1323,10 +1333,12 @@ export default function CalculateTaxInner() {
       }
     }
   }, [])
+
   const addEntity = useCallback(() => {
     if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
     setShowEntityPicker(true)
   }, [entities.length, navigate])
+
   const addEntityOfType = useCallback((type) => {
     if (!isEnterprise() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
     const newEnt = {
@@ -1350,6 +1362,7 @@ export default function CalculateTaxInner() {
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
   }, [entities.length, navigate])
+
   const updateEntity = useCallback((idx, updated) => {
     setEntities(prev => {
       const next = [...prev]
@@ -1358,14 +1371,12 @@ export default function CalculateTaxInner() {
       return next
     })
   }, [])
+
   const removeEntity = useCallback((idx) => {
-    setEntities(prev => {
-      const next = prev.filter((_, i) => i !== idx)
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
-      return next
-    })
+    setEntities(prev => prev.filter((_, i) => i !== idx))
     setExpandedIdx(null)
   }, [])
+
   const handleIntegrationDisconnect = useCallback((pid) => {
     localStorage.removeItem('ts360_' + pid + '_connected')
     localStorage.removeItem('ts360_' + pid + '_token')
@@ -1389,6 +1400,7 @@ export default function CalculateTaxInner() {
       return next
     })
   }, [])
+
   const persistStep1 = useCallback(() => {
     sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
     const k1Total = entities.reduce((s, e) => {
@@ -1404,12 +1416,14 @@ export default function CalculateTaxInner() {
     writeTaxYear(taxYear)
     return k1Total
   }, [entities, taxYear])
+
   const handleSaveRecord = useCallback((name) => {
     setSaveStatus('saving')
     const k1Total = persistStep1()
     const email   = localStorage.getItem('ts360_email') || 'default'
     const key     = 'ts360_records_' + email
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
+
     const record = {
       id: Date.now(),
       name: name || null,
@@ -1429,12 +1443,14 @@ export default function CalculateTaxInner() {
       },
       f1040: readPersonalContext(),
     }
+
     const updated = [record, ...existing].slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
     localStorage.setItem('ts360_records', JSON.stringify(updated))
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
+
   // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
   // after every successful sync, and returns a diff summary string so the tile
   // can display "Revenue updated: $X → $Y (+$Z)".
@@ -1463,9 +1479,11 @@ export default function CalculateTaxInner() {
           const syncedAt = new Date().toISOString()
           localStorage.setItem('ts360_' + pid + '_synced_at', syncedAt)
           localStorage.removeItem('ts360_' + pid + '_failed')
+
           setEntities(prev => {
             const updated = [...prev]
             const providerName = pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business'
+
             // F23 FIX: compute diff for manual re-syncs
             if (isManualSync && updated[idx]) {
               const prevRev = nf(updated[idx]?.pnl?.grossRevenue)
@@ -1481,6 +1499,7 @@ export default function CalculateTaxInner() {
                 setTimeout(() => setSyncDiffs(s => { const n = { ...s }; delete n[pid]; return n }), 8000)
               }
             }
+
             if (updated[idx]) {
               updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
@@ -1504,6 +1523,7 @@ export default function CalculateTaxInner() {
       if (isManualSync) localStorage.setItem('ts360_' + pid + '_failed', 'true')
     }
   }
+
   // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
   const handleManualSync = useCallback((pid) => {
     const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
@@ -1511,6 +1531,7 @@ export default function CalculateTaxInner() {
     const idx   = entities.findIndex(e => e.connectedId === pid)
     fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
   }, [entities])
+
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     const mp = {
@@ -1523,6 +1544,7 @@ export default function CalculateTaxInner() {
     if (xeroRefresh) localStorage.setItem('ts360_xero_refresh', xeroRefresh)
     const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
     let foundInUrl = false
+
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
@@ -1535,6 +1557,7 @@ export default function CalculateTaxInner() {
         break
       }
     }
+
     for (const [k, pid] of Object.entries(mp)) {
       const tok = p.get(k)
       if (tok) {
@@ -1550,6 +1573,7 @@ export default function CalculateTaxInner() {
         fetchEntityPnL(entityIdx, pid, tok, extra)
       }
     }
+
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
         if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
@@ -1559,27 +1583,18 @@ export default function CalculateTaxInner() {
         }
       }
     }
+
     if (foundInUrl) window.history.replaceState({}, '', window.location.pathname)
   }, [])
+
   const hasData = entities.length > 0 && entities.some(e => {
     const pnl = e.pnl || {}
     return nf(pnl.grossRevenue) > 0 || nf(pnl.netProfit) !== 0
   })
+
   // F-01 / F-02: footer buttons are disabled when no entity has been added
   const footerDisabled = entities.length === 0
-  // SAVE-GUARD FIX: an entity with no committed P&L (revenue, expenses, and net all ~0)
-  // contributes $0 silently. The usual cause is typing in the manual panel and clicking
-  // Continue WITHOUT "Save P&L →" first — the typed figures live only in the panel until
-  // saved, so the entity stays empty. Surface those entities before Step 2.
-  const entitiesMissingPnL = () => entities.filter(e => {
-    const pnl = e.pnl || {}
-    return nf(pnl.grossRevenue) === 0 && nf(pnl.totalExpenses) === 0 && nf(pnl.netProfit) === 0
-  })
-  const proceedToStep2 = () => {
-    setEmptyPnLWarning(null)
-    persistStep1()
-    navigate('/tax-return')
-  }
+
   // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
   // The guard checks entities.length > 0 before calling persistStep1() and
   // navigate(). This prevents the new-account edge case where the footer's
@@ -1590,14 +1605,10 @@ export default function CalculateTaxInner() {
       setTimeout(() => setFooterError(null), 4000)
       return
     }
-    // SAVE-GUARD FIX: warn (don't block) if any entity has no committed P&L
-    const missing = entitiesMissingPnL()
-    if (missing.length > 0) {
-      setEmptyPnLWarning(missing.map(e => e.name || e.type || 'Unnamed entity'))
-      return
-    }
-    proceedToStep2()
+    persistStep1()
+    navigate('/tax-return')
   }
+
   const handleFooterSave = () => {
     if (footerDisabled) {
       setFooterError('Add at least one business entity before saving.')
@@ -1606,8 +1617,10 @@ export default function CalculateTaxInner() {
     }
     setShowNameModal(true)
   }
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
+
       {/* Mobile desktop nudge — shown on narrow viewports only via CSS media query equivalent.
           TaxStat360 is a desktop tool — the Tax Tracker has too many fields and a live
           side panel to be usable at phone widths. This banner appears on viewports under
@@ -1624,6 +1637,7 @@ export default function CalculateTaxInner() {
       }}>
         <span>💻 <strong>TaxStat360 works best on a desktop browser.</strong> Some features may be hard to use on a small screen.</span>
       </div>
+
       {/* Nav */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
@@ -1669,12 +1683,15 @@ export default function CalculateTaxInner() {
           <button onClick={() => navigate('/settings')}    style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Settings</button>
         </div>
       </nav>
+
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 20px 120px' }}>
+
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Revenue, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
         </div>
+
         {/* Tax year selector */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 700, color: N, flexShrink: 0 }}>Tax Year</label>
@@ -1683,12 +1700,15 @@ export default function CalculateTaxInner() {
             {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
+
         {/* Integrations */}
         {/* O1 FIX: The subtitle "or skip and enter manually" now has a working
             counterpart. An "Enter manually →" button appears in the integration
             card for users without accounting software. Clicking it opens a
             standalone ManualEntryPanel that creates a new entity. The subtitle
-            copy is preserved — the path now fulfils the promise. */}
+            copy is preserved — the path now fulfils the promise.
+            CSV import has been removed entirely — entities are added by connecting
+            accounting software or by manual entry. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
             Connect accounting software
@@ -1785,6 +1805,7 @@ export default function CalculateTaxInner() {
             })()}
           </div>
         </div>
+
         {/* Entity cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
           {entities.map((ent, idx) => (
@@ -1797,11 +1818,11 @@ export default function CalculateTaxInner() {
                 colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
                 isExpanded={expandedIdx === idx}
                 onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-                taxYear={taxYear}
               />
             </div>
           ))}
         </div>
+
         {/* Add entity button */}
         {(isEnterprise() || entities.length === 0) ? (
           <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
@@ -1812,6 +1833,7 @@ export default function CalculateTaxInner() {
             🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Enterprise</span>
           </button>
         )}
+
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
           <button
@@ -1821,6 +1843,7 @@ export default function CalculateTaxInner() {
           </button>
         )}
       </div>
+
       {/* P0 FIX: Ask Aria widget is position:fixed bottom-right (~60x60px at bottom:16 right:16).
           The prior `right: 80` offset left a visual gap on desktop and still caused overlap on
           mobile because the widget's bottom edge (16 + 60 = 76px) exceeded the footer height
@@ -1877,6 +1900,7 @@ export default function CalculateTaxInner() {
           </div>
         </div>
       </div>
+
       {/* Modals */}
       {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
       {showNameModal && (
@@ -1885,30 +1909,6 @@ export default function CalculateTaxInner() {
           onConfirm={name => { handleSaveRecord(name); setShowNameModal(false) }}
           onSkip={() => { handleSaveRecord(null); setShowNameModal(false) }}
         />
-      )}
-      {/* SAVE-GUARD FIX: warn before Step 2 if any entity has no committed P&L. The most
-          common cause is typing into the manual panel and clicking Continue without
-          "Save P&L →" first — the figures live in the panel until saved, so the entity
-          would otherwise reach Step 2 as $0 with no warning. */}
-      {emptyPnLWarning !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: '24px', maxWidth: 440, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
-            <h4 style={{ fontWeight: 800, color: N, margin: '0 0 8px' }}>⚠ Some entities have no P&L entered</h4>
-            <p style={{ fontSize: 13, color: SL, margin: '0 0 10px', lineHeight: 1.6 }}>
-              {emptyPnLWarning.length === 1 ? 'This entity has' : 'These entities have'} no saved revenue or expenses and will count as <strong>$0</strong> in your return:
-            </p>
-            <ul style={{ margin: '0 0 10px', paddingLeft: 20, fontSize: 13, color: N }}>
-              {emptyPnLWarning.map((nm, i) => <li key={i} style={{ marginBottom: 2 }}>{nm}</li>)}
-            </ul>
-            <p style={{ fontSize: 12, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
-              If you entered figures in the P&L panel, make sure you clicked <strong>“Save P&L →”</strong> before continuing.
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setEmptyPnLWarning(null)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Go back &amp; enter P&amp;L</button>
-              <button onClick={proceedToStep2} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Continue anyway</button>
-            </div>
-          </div>
-        </div>
       )}
       {confirmRemoveIdx !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1922,6 +1922,7 @@ export default function CalculateTaxInner() {
           </div>
         </div>
       )}
+
       {/* Entity picker modal */}
       {showEntityPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
