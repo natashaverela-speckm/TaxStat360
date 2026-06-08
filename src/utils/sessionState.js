@@ -115,8 +115,8 @@ export function readStep1StateRaw() {
  * a fresh calculation (Dashboard "+ New Calculation" buttons) so a previously-
  * loaded record's entity data doesn't bleed into the new session.
  *
- * Does NOT clear ts360_f1040 or ts360_taxyear — those are Step 2 keys with
- * their own reset semantics owned by TaxReturn / Dashboard's loadRecord.
+ * Also clears ts360_f1040 and ts360_taxyear — those are Step 2 keys with
+ * their own writers; clearing here keeps a fresh "+ New Calculation" from inheriting them.
  */
 export function clearStep1State() {
   sessionStorage.removeItem('ts360_entities')
