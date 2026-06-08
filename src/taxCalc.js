@@ -284,7 +284,7 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
   const [threshold0, threshold15] = getLTCGThresholds(year, fs)
   let tax = 0
-  const totalPref = ltcg + qualDiv
+  const slices = Math.max(0, unrecap1250) + Math.max(0, collectibles); const regularLTCG = Math.max(0, ltcg - slices); const totalPref = regularLTCG + qualDiv
   if (totalPref <= 0 && unrecap1250 <= 0 && collectibles <= 0) return 0
   const ordFloor = Math.max(0, ordinaryIncome)
   if (totalPref > 0) {
@@ -297,8 +297,8 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
     tax += atFifteen * LTCG_RATE_MID
     tax += atTwenty  * LTCG_RATE_HIGH
   }
-  if (unrecap1250 > 0) tax += unrecap1250 * UNRECAPTURED_1250_MAX_RATE
-  if (collectibles > 0) tax += collectibles * COLLECTIBLES_MAX_RATE
+  const cappedSliceTax = (base, amount, cap) => { if (amount <= 0) return 0; const o = calcFederalTax(base + amount, year, fs) - calcFederalTax(base, year, fs); return Math.min(o, amount * cap) }; const _u1250 = Math.max(0, unrecap1250); const _coll = Math.max(0, collectibles); tax += cappedSliceTax(ordFloor, _u1250, UNRECAPTURED_1250_MAX_RATE); tax += cappedSliceTax(ordFloor + _u1250, _coll, COLLECTIBLES_MAX_RATE)
+  
   return Math.round(tax)
 }
 function calcNIIT(nii, agi, year, fs) {
@@ -828,7 +828,7 @@ function calcTaxReturn(input) {
   const extra1231BizGain      = Math.max(0, nv(bizCapGain1231))
   const eblBizCapGain         = Math.max(0, nv(f4797Inc)) + extra1231BizGain
   const eblOverallCapGainNI   = nv(stGain) + _ltGain + nv(f4797Inc)
-                              + Math.max(0, nv(unrecap1250)) + Math.max(0, nv(collectiblesGain))
+                              
   const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
   const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
   const eblBiz       = adjustedK1Total + (nv(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + rentalForEBL
@@ -871,7 +871,7 @@ function calcTaxReturn(input) {
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
   const stdDed    = getStdDed(taxYear, status)
   const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + _ltGain
-    + unrec1250 + collectibles + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
+    + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nv(medicalExpenses))
   const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
@@ -917,15 +917,15 @@ function calcTaxReturn(input) {
   const qbiAggregationApplied    = _qbiResult.aggregationApplied
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
-  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + unrec1250 + collectibles + f4797NetGain
+  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + f4797NetGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
   const taxableIncome         = taxableAfterQBI
   let _prefRoom = taxableAfterQBI
   const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797NetGain, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, qualDiv),   _prefRoom); _prefRoom -= _qualDivClamped
-  const _unrecap1250Clamped  = Math.min(unrec1250,              _prefRoom); _prefRoom -= _unrecap1250Clamped
-  const _collectiblesClamped = Math.min(collectibles,          _prefRoom); _prefRoom -= _collectiblesClamped
+  const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
+  const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
   const prefTax   = calcPreferentialTax(ordinaryTaxableIncome, {
     ltcg:         _ltcgClamped,
@@ -951,7 +951,7 @@ function calcTaxReturn(input) {
     Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
   const rentalNII  = rentalForNII
-  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + stGain + unrec1250 + collectibles) + rentalNII)
+  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + stGain + f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
