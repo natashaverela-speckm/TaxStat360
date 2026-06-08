@@ -127,7 +127,7 @@ export function clearStep1State() {
   // hydrates its entity list on mount from ts360_step1_entities (its own working-copy
   // key), NOT from ts360_entities_raw. Clearing the canonical keys above left this one
   // untouched, so a previously-entered entity bled into every fresh calculation.
-  sessionStorage.removeItem('ts360_step1_entities')
+  sessionStorage.removeItem('ts360_step1_entities'); sessionStorage.removeItem('ts360_f1040'); sessionStorage.removeItem('ts360_taxyear')
 }
 
 // ─── Personal 1040 context (filing status, year, income, deductions, payments) ─
