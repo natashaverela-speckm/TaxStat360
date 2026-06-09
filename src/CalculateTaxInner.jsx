@@ -773,7 +773,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
 
           {/* Entity Name */}
           <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Business Name</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{isRE ? 'Rental Name' : 'Business Name'}</label>
             <input
               type="text"
               value={entity.name || ''}
