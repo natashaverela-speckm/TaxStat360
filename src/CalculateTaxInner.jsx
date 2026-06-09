@@ -1833,6 +1833,7 @@ export default function CalculateTaxInner() {
             🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Enterprise</span>
           </button>
         )}
+        <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
