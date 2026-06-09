@@ -778,7 +778,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               type="text"
               value={entity.name || ''}
               onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
-              placeholder="e.g. ABC Consulting LLC"
+              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. ABC Consulting LLC"}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
