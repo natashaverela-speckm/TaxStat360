@@ -58,7 +58,7 @@ import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
 import { isPro } from './LockedFeature'
 
 const PURPLE = '#7C3AED'
@@ -530,7 +530,7 @@ export default function TaxReturn() {
     return dates[dates.length - 1]
   }
 
-  const YEARS = [2024, 2025, 2026]
+  const YEARS = SUPPORTED_TAX_YEARS
   const ESTIMATE_DUE_DATES = {
     2024: 'Apr 15, 2024 · Jun 17, 2024 · Sep 16, 2024 · Jan 15, 2025',
     2025: 'Apr 15, 2025 · Jun 16, 2025 · Sep 15, 2025 · Jan 15, 2026',
@@ -567,7 +567,7 @@ export default function TaxReturn() {
             {[
               { n: 1, label: 'Entities', active: false, done: true  },
               { n: 2, label: 'Return',   active: true,  done: false },
-              { n: 3, label: 'AI Analysis', active: false, done: false },
+              { n: 3, label: STEP3_LABEL, active: false, done: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -600,7 +600,7 @@ export default function TaxReturn() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Back to Business</button>
           <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
-          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }}>AI Analysis & Reporting{!isPro() ? ' 🔒' : ''}</button>
+          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }}>{STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
           <button onClick={() => signOut(navigate)}         style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
           <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
         </div>

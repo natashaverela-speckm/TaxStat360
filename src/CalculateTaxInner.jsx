@@ -120,7 +120,7 @@ import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
@@ -1738,7 +1738,7 @@ export default function CalculateTaxInner() {
             {[
               { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
               { n: 2, label: 'Return',   done: false,                isCurrent: false, isReachable: false },
-              { n: 3, label: 'AI Analysis', done: false,             isCurrent: false, isReachable: false },
+              { n: 3, label: STEP3_LABEL, done: false,             isCurrent: false, isReachable: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1770,7 +1770,7 @@ export default function CalculateTaxInner() {
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           <button onClick={() => navigate('/dashboard')}   style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Dashboard</button>
-          <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>AI Analysis & Reporting{!isPro() ? ' 🔒' : ''}</button>
+          <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>{STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
           <button onClick={() => signOut(navigate)}        style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Sign Out</button>
           <button onClick={() => navigate('/settings')}    style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Settings</button>
         </div>
@@ -1789,7 +1789,7 @@ export default function CalculateTaxInner() {
           <label style={{ fontSize: 13, fontWeight: 700, color: N, flexShrink: 0 }}>Tax Year</label>
           <select value={taxYear} onChange={e => { setTaxYear(parseInt(e.target.value)); writeTaxYear(parseInt(e.target.value)) }}
             style={{ padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none', flex: 1 }}>
-            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+            {SUPPORTED_TAX_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
 
