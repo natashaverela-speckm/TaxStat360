@@ -117,7 +117,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
@@ -1321,34 +1321,51 @@ export default function CalculateTaxInner() {
         isManual: e.isManual || false,
       })))
     } else {
-      // No Step 1 state — check for a loaded record from Dashboard
+      // No in-progress Step 1 working copy. Hydrate from a one-off loaded record if one
+      // exists, otherwise from the canonical Step-1 state (ts360_entities_raw) written by
+      // Dashboard.loadRecord / AIAnalysis "Calculate Tax" / Dashboard tab-nav.
+      let hydrated = null
+
       const loadedRaw = sessionStorage.getItem('ts360_loaded_record')
       if (loadedRaw) {
         try {
           const loaded = JSON.parse(loadedRaw)
-          if (loaded.entities && loaded.entities.length > 0) {
-            const hydrated = loaded.entities.map(e => ({
-              ...e,
-              pnl: e.pnl || {
-                grossRevenue:  e.grossRevenue  || '',
-                totalExpenses: e.totalExpenses || '',
-                officerSalary: e.officerSalary || '',
-                netProfit:     e.netProfit     || '',
-              },
-              own:      e.own      || '100',
-              isManual: e.isManual !== undefined ? e.isManual : true,
-            }))
-            setEntities(hydrated)
-            // Persist to Step 1 session key so subsequent renders stay hydrated
-            sessionStorage.setItem('ts360_step1_entities', JSON.stringify(hydrated))
-          }
+          if (loaded.entities && loaded.entities.length > 0) hydrated = loaded.entities
           if (loaded.taxYear) {
             setTaxYear(loaded.taxYear)
             writeTaxYear(loaded.taxYear)
           }
         } catch (err) {
-          console.error('CalculateTaxInner: failed to hydrate from loaded record', err)
+          console.error('CalculateTaxInner: failed to parse loaded record', err)
         }
+      }
+
+      // C-04 FIX: loadRecord (and the AIAnalysis "Calculate Tax" / tab-nav paths) persist
+      // the entity list via writeStep1State — which Step 2 reads through readStep1State —
+      // but they do NOT write the ts360_step1_entities working copy that Step 1 reads. The
+      // result was a loaded record showing in Step 2 while Step 1 sat empty ("Add an entity
+      // to continue", Continue disabled). Fall back to the canonical raw entity array so
+      // Step 1 hydrates from the same source of truth as Step 2.
+      if (!hydrated || hydrated.length === 0) {
+        const raw = readStep1StateRaw()
+        if (Array.isArray(raw) && raw.length > 0) hydrated = raw
+      }
+
+      if (hydrated && hydrated.length > 0) {
+        const mapped = hydrated.map(e => ({
+          ...e,
+          pnl: e.pnl || {
+            grossRevenue:  e.grossRevenue  || '',
+            totalExpenses: e.totalExpenses || '',
+            officerSalary: e.officerSalary || '',
+            netProfit:     e.netProfit     || '',
+          },
+          own:      e.own      || '100',
+          isManual: e.isManual !== undefined ? e.isManual : true,
+        }))
+        setEntities(mapped)
+        // Persist to the Step 1 working key so subsequent renders stay hydrated.
+        sessionStorage.setItem('ts360_step1_entities', JSON.stringify(mapped))
       }
     }
   }, [])
