@@ -494,6 +494,26 @@ export function clearRiskDismissals(recordId) {
   }
 }
 
+/**
+ * Remove a single finding's dismissal (undo "mark reviewed").
+ * @param {string} recordId
+ * @param {string} findingKey
+ */
+export function removeRiskDismissal(recordId, findingKey) {
+  if (!recordId || !findingKey) return
+  try {
+    const raw = localStorage.getItem(DISMISSED_RISKS_KEY)
+    if (!raw) return
+    const all = JSON.parse(raw)
+    if (all && all[recordId] && all[recordId][findingKey]) {
+      delete all[recordId][findingKey]
+      localStorage.setItem(DISMISSED_RISKS_KEY, JSON.stringify(all))
+    }
+  } catch (e) {
+    console.error('removeRiskDismissal error:', e)
+  }
+}
+
 // ─── O4: First-run banner flag ────────────────────────────────────────────
 // Written by: Onboarding.jsx ImportScreen goToDashboard() when user skips
 // Step 3 (accounting software connection) before entering revenue data.
