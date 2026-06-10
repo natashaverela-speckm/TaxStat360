@@ -1050,6 +1050,59 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   </label>
                 </div>
 
+                {/* C-11: §469(c)(7)(B) quantitative hours test. Replaces blank self-attestation
+                    with the two-part test applied to the user's own hours. Warn-and-allow: failing
+                    the test surfaces the gap + audit risk but does NOT block the REP election or
+                    change passive treatment (the §1.469-9(g) election below is still the switch). */}
+                {entity.isREP && (() => {
+                  const reHrs    = parseFloat(entity.repHoursRE) || 0
+                  const totalHrs = parseFloat(entity.repHoursTotal) || 0
+                  const entered  = String(entity.repHoursRE ?? '').trim() !== '' && String(entity.repHoursTotal ?? '').trim() !== ''
+                  const pass750  = reHrs > 750
+                  const pass50   = totalHrs > 0 && reHrs > totalHrs / 2
+                  const qualifies = pass750 && pass50
+                  const pctRE    = totalHrs > 0 ? Math.round((reHrs / totalHrs) * 100) : 0
+                  const reasons  = []
+                  if (!pass750) reasons.push(`you entered ${reHrs.toLocaleString()} real-property hours — the statute requires more than 750`)
+                  if (!pass50)  reasons.push(`real-property hours must exceed 50% of your total personal-service hours (currently ${pctRE}%)`)
+                  const hrInput = (key, label, ph) => (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ fontSize: 11, color: '#5B21B6', display: 'block', marginBottom: 3 }}>{label}</label>
+                      <input
+                        type="number" min="0" inputMode="numeric"
+                        value={entity[key] ?? ''}
+                        onChange={e => onUpdate(idx, { ...entity, [key]: e.target.value })}
+                        placeholder={ph}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #DDD6FE', borderRadius: 6, fontSize: 13 }}
+                      />
+                    </div>
+                  )
+                  return (
+                    <div style={{ background: '#fff', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 8 }}>
+                        §469(c)(7)(B) qualification — enter your hours
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+                        {hrInput('repHoursRE', 'Hours in real property trades/businesses', 'e.g. 900')}
+                        {hrInput('repHoursTotal', 'Total hours, ALL your work this year', 'e.g. 1,500')}
+                      </div>
+                      {!entered ? (
+                        <div style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          Enter both figures to confirm the two-part test: more than 750 hours in real property trades or businesses, <strong>and</strong> more than 50% of your total personal-service hours in real estate.
+                        </div>
+                      ) : qualifies ? (
+                        <div style={{ fontSize: 12, color: '#166534', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          ✓ Meets the §469(c)(7)(B) test — {reHrs.toLocaleString()} real-property hours ({'>'} 750) and {pctRE}% of your {totalHrs.toLocaleString()} total hours ({'>'} 50%). Keep contemporaneous daily time logs to support this if examined.
+                        </div>
+                      ) : (
+                        <div role="alert" style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          ⚠ These hours do not meet the §469(c)(7)(B) test: {reasons.join('; ')}. You can still elect REP below, but this is one of the most frequently challenged positions — the IRS expects contemporaneous daily time logs, and significant W-2 employment makes the 50% test hard to satisfy. Confirm with your CPA before relying on it.
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {/* F6: §1.469-9(g) aggregation election — shown once REP is checked. This is the
                     single control that makes the rental portfolio nonpassive. */}
                 {entity.isREP && (
