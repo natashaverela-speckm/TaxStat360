@@ -98,8 +98,22 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 // uses the wrong year's brackets. Update this constant each December when the new
 // year's TAX_TABLES entry is added to taxCalc.js.
 //
-// ⚠ UPDATE ANNUALLY: change to 2027 when adding TAX_TABLES[2027] to taxCalc.js.
-export const CURRENT_TAX_YEAR = 2026
+// ⚠ UPDATE ANNUALLY: when you add TAX_TABLES[2027] to taxCalc.js, add 2027 to
+// SUPPORTED_TAX_YEARS below — that single edit advances both the dropdowns and the
+// default year. SUPPORTED_TAX_YEARS must mirror the years present in TAX_TABLES.
+//
+// C-15: SUPPORTED_TAX_YEARS is the single source of truth for selectable tax years.
+// The Step-1 / Step-2 year dropdowns map over it, and CURRENT_TAX_YEAR (the latest
+// supported year, used as the default + the engine-table fallback) is derived from it
+// so the two can never drift apart.
+export const SUPPORTED_TAX_YEARS = [2024, 2025, 2026]
+export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length - 1]
+
+// C-32:7.1 — single source of truth for the Step-3 ("AI Analysis & Reporting") label.
+// Previously the step-3 breadcrumb read "AI Analysis" in Steps 1–2 but "AI Analysis &
+// Reporting" on the Step-3 page / nav buttons / route title, so the label changed
+// mid-flow. All in-app references now use this constant.
+export const STEP3_LABEL = 'AI Analysis & Reporting'
 
 // ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────
 // C-01 FIX: Canonical plan IDs stored in localStorage['plan'] by the auth Lambda.
