@@ -1383,7 +1383,7 @@ export default function TaxReturn() {
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
-            For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
+            For planning purposes only — not professional tax, legal, or financial advice. These are simplified federal estimates and may not reflect every tax situation, including complex or multi-entity returns and specialized deductions. Consult a licensed tax professional before filing or relying on these figures.
           </div>
 
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
