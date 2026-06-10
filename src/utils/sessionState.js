@@ -68,6 +68,14 @@
 //   Replace ALL direct sessionStorage.getItem/setItem calls for ts360_biz_*
 //   keys with these helpers.
 
+import { CURRENT_TAX_YEAR } from '../constants.js'
+
+// C-15: a new calculation's default Tax Year is the current calendar year, but never
+// beyond the latest year the engine has tax tables for (CURRENT_TAX_YEAR). This keeps the
+// default on a year that exists in the dropdown and has real brackets, instead of silently
+// using substitute tables once the calendar rolls past the last supported year.
+const defaultTaxYear = () => Math.min(new Date().getFullYear(), CURRENT_TAX_YEAR)
+
 // ─── Step 1 state (entity list + totals) ──────────────────────────────────
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
 // Read by: TaxReturn, AIAnalysis
@@ -183,7 +191,7 @@ export function clearStep1State() {
  */
 export function writePersonalContext({
   filingStatus = 'single',
-  taxYear = new Date().getFullYear(),
+  taxYear = defaultTaxYear(),
   dependents = 0,
   w2Income = 0,
   w2Withheld = 0,
@@ -260,7 +268,7 @@ export function writePersonalContext({
 export function readPersonalContext() {
   const defaults = {
     filingStatus: 'single',
-    taxYear: new Date().getFullYear(),
+    taxYear: defaultTaxYear(),
     dependents: 0,
     w2Income: 0,
     w2Withheld: 0,
@@ -351,11 +359,11 @@ export function readPersonalContext() {
 
 // ─── Tax year (standalone, because Dashboard writes it separately) ─────────
 export function writeTaxYear(year) {
-  sessionStorage.setItem('ts360_taxyear', String(parseInt(year) || new Date().getFullYear()))
+  sessionStorage.setItem('ts360_taxyear', String(parseInt(year) || defaultTaxYear()))
 }
 
 export function readTaxYear() {
-  return parseInt(sessionStorage.getItem('ts360_taxyear') || String(new Date().getFullYear())) || new Date().getFullYear()
+  return parseInt(sessionStorage.getItem('ts360_taxyear') || String(defaultTaxYear())) || defaultTaxYear()
 }
 
 // ─── Co-op patron flag ────────────────────────────────────────────────────
@@ -562,7 +570,7 @@ export function clearFirstRun() {
 export function normalizeF1040(rec = {}) {
   return {
     filingStatus:      rec.filingStatus || 'single',
-    taxYear:           parseInt(rec.taxYear)           || new Date().getFullYear(),
+    taxYear:           parseInt(rec.taxYear)           || defaultTaxYear(),
     dependents:        parseInt(rec.dependents)        || 0,
     w2Income:          parseFloat(rec.w2Income)        || 0,
     w2Withheld:        parseFloat(rec.w2Withheld)      || 0,
