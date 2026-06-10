@@ -856,6 +856,28 @@ function calcTaxReturn(input) {
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
   const unrec1250    = Math.max(0, nv(unrecap1250))
   const collectibles = Math.max(0, nv(collectiblesGain))
+  // ─── KNOWN LIMITATION (SE-179) — see KNOWN_LIMITATIONS.md ─────────────────────
+  // seNetIncome uses GROSS net profit and intentionally does NOT subtract the
+  // separately-stated §179 (box11_12) for SE-subject pass-throughs (Sole Proprietor
+  // / SMLLC, active Partnership/LLC). Two consequences:
+  //   1. SE tax (FICA) below is computed on the pre-§179 amount, so it is OVERSTATED
+  //      for a filer whose K-1 separately states §179 (most relevant to an active
+  //      partner with Box 12 §179).
+  //   2. The QBI basis derived from this value (seK1AfterAdjustments → qbiBasis) is
+  //      likewise gross — the same asymmetry fixed for non-SE entities in `nonSEk1`
+  //      above — though the 20%-of-taxable-income QBI cap masks it in many cases.
+  // AGI is NOT affected: it flows from the input k1Total (adjustedK1Total), which
+  // persistStep1 already nets §179 into for every entity type.
+  //
+  // This is deliberately left as-is rather than mirroring the nonSEk1 QBI-179 fix,
+  // because netting §179 here changes SE TAX (what the taxpayer owes), and a correct
+  // fix must (a) net ONLY box11_12 — never box12_13, since pass-through charitable
+  // does not reduce SE earnings; (b) respect the §179(b)(3) business-income
+  // limitation; and (c) treat a sole proprietor (§179 already inside Schedule C net
+  // profit → box11_12 should be blank) differently from a partnership (§179
+  // separately stated). Pending an explicit tax-treatment decision; do not "fix" by
+  // copying the nonSEk1 pattern.
+  // ─────────────────────────────────────────────────────────────────────────────
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     const k1 = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
