@@ -573,6 +573,13 @@ function calcTaxReturn(input) {
     // M-2 FIX: comparison-only opt-in flag, forwarded to calcQBI. Defaults false, so
     // every filed-return caller is unaffected.
     strictWageCap = false,
+    // C-10 FIX (§1366(d)/§704(d) conservative default): opt-in flag. When true, a
+    // limitable entity (S-Corp / partnership) that shows a LOSS but has NO stock/debt
+    // basis entered is treated as having $0 basis — the full loss is suspended and
+    // carried forward (§1366(d)(2)) instead of deducting against other income. Defaults
+    // false so existing engine unit tests (which model losses without basis as fully
+    // allowed) are unaffected; the live app (TaxReturn, CalculateTaxInner) passes true.
+    assumeZeroBasisOnLoss = false,
   } = input
   const entities = _rawEntities.map(e => (e ? { ...e, type: normalizeEntityType(e.type) } : e))
   const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
@@ -591,11 +598,17 @@ function calcTaxReturn(input) {
       : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
     const hasBasisInput = (
-      e.stockBasis !== undefined && e.stockBasis !== null &&
-      e.stockBasis !== '' && e.stockBasis !== 0 ||
+      (e.stockBasis !== undefined && e.stockBasis !== null &&
+       e.stockBasis !== '' && e.stockBasis !== 0) ||
       String(e.stockBasis) === '0'
     )
-    if (!isLimitable || k1Gross >= 0 || !hasBasisInput) {
+    // C-10 FIX: when assumeZeroBasisOnLoss is set, a limitable entity with a LOSS is
+    // run through the §1366(d) limit even with no basis figure entered — basis is
+    // conservatively assumed to be $0 and the full loss is suspended until the
+    // shareholder enters their Form 7203 basis. Without the flag (engine default), a
+    // loss with no basis input still passes through in full, preserving prior behavior.
+    const applyLimit = isLimitable && k1Gross < 0 && (hasBasisInput || assumeZeroBasisOnLoss)
+    if (!applyLimit) {
       const sbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.stockBasis) || 0) : undefined
       const dbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.debtBasis)  || 0) : undefined
       entityBasisResults.push({
@@ -605,6 +618,10 @@ function calcTaxReturn(input) {
       })
       return e
     }
+    // basisAssumedZero distinguishes "you have insufficient entered basis" from
+    // "you entered no basis at all and we conservatively assumed $0" so the UI can
+    // tailor the message (enter Form 7203 basis to release the loss).
+    const basisAssumedZero = !hasBasisInput
     const sb          = Math.max(0, parseFloat(e.stockBasis) || 0)
     const db          = Math.max(0, parseFloat(e.debtBasis)  || 0)
     const totalBasis  = sb + db
@@ -612,7 +629,7 @@ function calcTaxReturn(input) {
     const allowedLoss = Math.min(grossLoss, totalBasis)
     const suspended   = grossLoss - allowedLoss
     const k1Allowed   = allowedLoss > 0 ? -allowedLoss : 0
-    entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed, suspended, stockBasis: sb, debtBasis: db, totalBasis })
+    entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed, suspended, stockBasis: sb, debtBasis: db, totalBasis, basisAssumedZero })
     return suspended > 0 ? { ...e, k1: k1Allowed } : e
   })
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
@@ -671,7 +688,10 @@ function calcTaxReturn(input) {
       return
     }
     const basisResult   = entityBasisResults[idx]
-    const hasBasisEntry = basisResult && basisResult.stockBasis !== undefined
+    // C-10 FIX: a basis we only *assumed* to be $0 (no figure entered) must not silently
+    // convert distributions into capital gain. Keep the prior "basis not entered" note for
+    // the distribution path; only an actually-entered basis drives §1368(b)(2) capital gain.
+    const hasBasisEntry = basisResult && basisResult.stockBasis !== undefined && !basisResult.basisAssumedZero
     if (!hasBasisEntry) {
       entityDistributionResults.push({
         name: e.name || e.id || 'Entity',
