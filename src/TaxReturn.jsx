@@ -486,6 +486,18 @@ export default function TaxReturn() {
     return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
   }, 0)
 
+  // C-10 FIX: S-Corp entities showing a loss with no stock basis entered. Without a basis
+  // figure the engine can't apply the §1366(d) limit, so the full loss is currently
+  // deducting against other income — surface a prompt to enter Form 7203 basis.
+  const step1LossWithoutBasis = entityList.reduce((s, e) => {
+    if (!e || !isSCorpEntity(e.type)) return s
+    const pnl = e.pnl || {}
+    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+    const k1  = Math.round(net * (ownPct(e.own) / 100))
+    const basisEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
+    return (k1 < 0 && !basisEntered) ? s + Math.abs(k1) : s
+  }, 0)
+
   // F18 FIX: Safe Harbor status derivation.
   const priorYearTaxNum = nf(priorYearTax)
   const priorYearAGINum = nf(priorYearAGI)
@@ -1190,6 +1202,18 @@ export default function TaxReturn() {
                   </div>
                 )
               })}
+
+              {result.totalSuspendedLoss > 0 && (
+                <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B', lineHeight: 1.55 }}>
+                  <strong>⚠ §1366(d) Basis Limitation:</strong> {fmt(result.totalSuspendedLoss)} of your S-Corp loss exceeds your stock + debt basis and is suspended this year — it does not reduce your income now. It carries forward until basis is restored (IRC §1366(d)(2), Form 7203, Part III).
+                </div>
+              )}
+
+              {step1LossWithoutBasis > 0 && (
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
+                  <strong>⚠ Enter your S-Corp stock basis (§1366(d)).</strong> This estimate is currently deducting a {fmt(step1LossWithoutBasis)} S-Corp loss in full against your other income. Your deductible loss is capped at your combined stock + debt basis — open the entity in Step 1 and enter your beginning basis (Form 7203, Line 1) to check whether part of this loss must be suspended and carried forward.
+                </div>
+              )}
 
               {result.ebl > 0 && result.eblThreshold > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B', lineHeight: 1.55 }}>

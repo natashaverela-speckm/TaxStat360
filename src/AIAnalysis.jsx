@@ -456,6 +456,25 @@ function RiskScan({ rec }) {
     })
   }
 
+  // C-10 FIX: S-Corp loss with no stock basis entered — the §1366(d) limit can't be
+  // applied, so the full loss is deducting against other income. Fires only when nothing
+  // was suspended (i.e. basis was left blank), so it never overlaps the finding above.
+  const _sCorpLossNoBasis = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => {
+    if (!e || !isSCorpEntity(e?.type)) return s
+    const k1 = Math.round(getEntityNetProfit(e) * (ownPct(e.own) / 100))
+    const basisEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
+    return (k1 < 0 && !basisEntered) ? s + Math.abs(k1) : s
+  }, 0)
+  if (_suspendedLoss === 0 && _sCorpLossNoBasis > 0) {
+    findings.push({
+      level: 'high',
+      icon: '🚨',
+      title: `Enter S-Corp Stock Basis — ${fmt(_sCorpLossNoBasis)} Loss Deducting Without a Basis Check (IRC §1366(d))`,
+      detail: `Your S-Corp K-1 shows a ${fmt(_sCorpLossNoBasis)} loss, but no beginning stock basis has been entered — so this estimate is currently deducting the full loss against your other income. Under IRC §1366(d)(1) your deductible loss is capped at your combined stock + debt basis; any excess must be suspended and carried forward (§1366(d)(2)). Until you enter your basis, this estimate may overstate your deductible loss and understate your tax.`,
+      action: `Open the S-Corp entity in Step 1 → "Stock Basis & Distributions (Form 7203)" and enter your beginning-of-year stock basis (Form 7203, Line 1) plus any debt basis (Part II). With $0 basis the entire loss is suspended; with basis at or above the loss it is fully deductible this year. Your CPA tracks this figure on Form 7203 each year.`,
+    })
+  }
+
   if (isREP) {
     const _entitySalary = (Array.isArray(rec.entities) ? rec.entities : [])
       .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
