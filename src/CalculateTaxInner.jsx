@@ -1735,7 +1735,7 @@ export default function CalculateTaxInner() {
             {[
               { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
               { n: 2, label: 'Return',   done: false,                isCurrent: false, isReachable: false },
-              { n: 3, label: 'AI',       done: false,                isCurrent: false, isReachable: false },
+              { n: 3, label: 'AI Analysis', done: false,             isCurrent: false, isReachable: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
