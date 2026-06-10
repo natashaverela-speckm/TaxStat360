@@ -660,11 +660,16 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
   const basisBadge = (() => {
     if (!isSC) return null
-    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-    if (sb === null) return null
     const lossAmt = Math.abs(Math.min(0, netProfit * own))
     if (lossAmt === 0) return null
+    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
+    // C-10 FIX: when an S-Corp shows a loss but no stock basis has been entered, the
+    // engine cannot apply the §1366(d) limit and the full loss flows to AGI. Prompt for
+    // basis rather than silently allowing a potentially non-deductible loss.
+    if (sb === null) {
+      return { type: 'amber', msg: `§1366(d): enter stock basis — ${fmt(lossAmt)} loss may be limited.` }
+    }
     const totalBasis  = sb + db
     const allowedLoss = Math.min(lossAmt, totalBasis)
     const suspended   = lossAmt - allowedLoss
@@ -720,7 +725,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {!isExpanded && (basisBadge || distBadge) && (
             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
               {basisBadge && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : '#86EFAC') }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : basisBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : basisBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : basisBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
                   {basisBadge.msg}
                 </span>
               )}
@@ -907,7 +912,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     <MoneyInput
                       value={entity.stockBasis || ''}
                       onChange={v => onUpdate(idx, { ...entity, stockBasis: v })}
-                      placeholder="0"
+                      placeholder="Enter basis — leave blank if unsure"
                       style={{ fontSize: 13 }}
                     />
                   </div>
@@ -926,11 +931,25 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                   </div>
 
                   {(() => {
-                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-                    if (sb === null) return null
                     const lossAmt = Math.abs(Math.min(0, netProfit * own))
                     if (lossAmt === 0) return null
+                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
+                    // C-10 FIX: loss present but basis not yet entered — the §1366(d) limit
+                    // can't be computed, so the full loss is currently flowing to AGI. Warn.
+                    if (sb === null) {
+                      return (
+                        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ §1366(d) — Enter Stock Basis</div>
+                          <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                            This entity shows a {fmt(lossAmt)} loss. Your deductible S-Corp loss is capped at your
+                            combined stock + debt basis (IRC §1366(d)(1)). Until you enter your beginning stock basis
+                            above, the full loss is being applied against your other income — if your basis is lower,
+                            part of this loss must be suspended and carried forward (§1366(d)(2)).
+                          </div>
+                        </div>
+                      )
+                    }
                     const totalBasis  = sb + db
                     const allowedLoss = Math.min(lossAmt, totalBasis)
                     const suspended   = lossAmt - allowedLoss
