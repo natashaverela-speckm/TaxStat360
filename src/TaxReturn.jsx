@@ -56,7 +56,7 @@ import {
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+import { ownPct, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -335,6 +335,10 @@ export default function TaxReturn() {
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
+      // C-10 FIX: opt into the conservative §1366(d) default. An S-Corp/partnership loss
+      // with no stock/debt basis entered is treated as $0 basis (full loss suspended and
+      // carried forward) rather than deducting in full against other income.
+      assumeZeroBasisOnLoss: true,
       useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
@@ -486,17 +490,16 @@ export default function TaxReturn() {
     return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
   }, 0)
 
-  // C-10 FIX: S-Corp entities showing a loss with no stock basis entered. Without a basis
-  // figure the engine can't apply the §1366(d) limit, so the full loss is currently
-  // deducting against other income — surface a prompt to enter Form 7203 basis.
-  const step1LossWithoutBasis = entityList.reduce((s, e) => {
-    if (!e || !isSCorpEntity(e.type)) return s
-    const pnl = e.pnl || {}
-    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-    const k1  = Math.round(net * (ownPct(e.own) / 100))
-    const basisEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
-    return (k1 < 0 && !basisEntered) ? s + Math.abs(k1) : s
-  }, 0)
+  // C-10 FIX: the engine now applies the §1366(d) limit conservatively
+  // (assumeZeroBasisOnLoss), suspending an S-Corp/partnership loss when no basis has
+  // been entered. Drive the "enter your basis" prompt off the engine result so it
+  // reflects the amount actually suspended and works regardless of entity shape (the
+  // prior version read e.pnl.netProfit, which the flat Step-1 entity shape lacks, so the
+  // prompt never fired). basisAssumedZero marks losses suspended *only* because no Form
+  // 7203 basis was entered — entering basis can release some or all of them.
+  const assumedZeroBasisSuspended = (result?.entityBasisResults || []).reduce(
+    (s, r) => s + (r && r.basisAssumedZero ? Math.abs(r.suspended || 0) : 0), 0
+  )
 
   // F18 FIX: Safe Harbor status derivation.
   const priorYearTaxNum = nf(priorYearTax)
@@ -1203,9 +1206,9 @@ export default function TaxReturn() {
                 )
               })}
 
-              {step1LossWithoutBasis > 0 && (
+              {assumedZeroBasisSuspended > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ Enter your S-Corp stock basis (§1366(d)).</strong> This estimate is currently deducting a {fmt(step1LossWithoutBasis)} S-Corp loss in full against your other income. Your deductible loss is capped at your combined stock + debt basis — open the entity in Step 1 and enter your beginning basis (Form 7203, Line 1) to check whether part of this loss must be suspended and carried forward.
+                  <strong>⚠ Enter your S-Corp stock basis (§1366(d)).</strong> Because no beginning basis was entered, this estimate has conservatively suspended {fmt(assumedZeroBasisSuspended)} of S-Corp loss — your deductible loss is capped at your combined stock + debt basis. Open the entity in Step 1 and enter your beginning basis (Form 7203, Line 1) to release the portion of this loss your basis supports.
                 </div>
               )}
 

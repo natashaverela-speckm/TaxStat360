@@ -935,17 +935,20 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     if (lossAmt === 0) return null
                     const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
                     const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-                    // C-10 FIX: loss present but basis not yet entered — the §1366(d) limit
-                    // can't be computed, so the full loss is currently flowing to AGI. Warn.
+                    // C-10 FIX: loss present but no basis entered. The engine now applies
+                    // the §1366(d) limit conservatively (assumeZeroBasisOnLoss) — the loss
+                    // is SUSPENDED until a basis figure is entered, rather than flowing to
+                    // AGI in full. Message reflects that conservative default.
                     if (sb === null) {
                       return (
                         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ §1366(d) — Enter Stock Basis</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5 }}>
                             This entity shows a {fmt(lossAmt)} loss. Your deductible S-Corp loss is capped at your
-                            combined stock + debt basis (IRC §1366(d)(1)). Until you enter your beginning stock basis
-                            above, the full loss is being applied against your other income — if your basis is lower,
-                            part of this loss must be suspended and carried forward (§1366(d)(2)).
+                            combined stock + debt basis (IRC §1366(d)(1)). Because no beginning basis has been entered,
+                            this {fmt(lossAmt)} loss is being conservatively suspended and carried forward (§1366(d)(2))
+                            rather than deducted against your other income. Enter your beginning stock basis above
+                            (Form 7203, Line 1) to release the portion your basis supports.
                           </div>
                         </div>
                       )
