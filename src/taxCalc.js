@@ -914,8 +914,17 @@ function calcTaxReturn(input) {
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
     if (isRealEstateEntity(e?.type)) return sum
-    const k1    = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
-    const scale = e.box17V_sstb ? sstbApplicablePct : 1
+    // QBI-179 FIX: net the separately-stated §179 (box11_12) and box12/13 out of the
+    // QBI basis, mirroring the ordinary K-1 net used everywhere else (the rental net
+    // in the §469 blocks above and persistStep1's k1Total = net − box11_12 − box12_13).
+    // Previously this used gross netProfit×ownership, so a pass-through that took §179
+    // had its §199A deduction computed on the pre-§179 amount — overstating the 20%
+    // deduction and disagreeing with AGI (which already nets §179 via k1Total) and with
+    // the AI Analysis tab (which reads the §179-netted k1Income). §179 reduces QBI per
+    // Treas. Reg. §1.199A-3(b)(1)(ii)(A).
+    const k1Gross = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1      = k1Gross - nv(e.box11_12) - nv(e.box12_13)
+    const scale   = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
