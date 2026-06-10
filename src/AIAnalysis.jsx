@@ -1656,6 +1656,8 @@ function NarrativeModal({ onClose }) {
 function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const score = completeness(rec)
   const missing = missingFields(rec)
+  // C-24: require explicit acknowledgment before generating a materially incomplete pack.
+  const [confirmingExport, setConfirmingExport] = useState(false)
 
   // F20 FIX: pre-generation checklist items — positives and negatives
   const checklistItems = rec ? [
@@ -1666,6 +1668,9 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
     { label: 'Estimated tax payments', ok: (parseFloat(rec.f1040?.estPaid)||0) > 0 },
     { label: 'Expenses / deductions', ok: (parseFloat(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
   ] : []
+
+  // C-24: labels of the checklist items still missing — shown verbatim in the confirm gate.
+  const missingChecklist = checklistItems.filter(i => !i.ok).map(i => i.label)
 
   const tools = [
     {
@@ -1680,6 +1685,8 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
       gated: score < 50,
       gateMsg: score < 50 ? 'Add your income data in Step 2 before generating.' : null,
       checklist: score >= 50 && score < 80 ? checklistItems : null,
+      // C-24: in the 50–79% band, generating requires confirming the listed gaps.
+      needsConfirm: score >= 50 && score < 80 && missingChecklist.length > 0,
     },
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
     { icon: '📑', title: 'CPA Briefing', desc: 'An auto-generated planning summary of your tax position — entity structure, estimated federal liability, QBI, reasonable-comp and SE-tax notes, and quarterly estimates — organized as discussion points for your CPA. A planning summary, not a tax return; not for filing.', btn: 'Generate Briefing', color: N, action: onBriefing, available: isEnterprise(), requiredPlan: 'enterprise' },
@@ -1719,9 +1726,36 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
                     </div>
                   </div>
                 )}
+                {/* C-24: confirmation gate for an incomplete pack */}
+                {t.needsConfirm && confirmingExport && (
+                  <div role="alert" style={{ marginTop: 10, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#78350F' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ This pack is incomplete</div>
+                    <div style={{ lineHeight: 1.5 }}>
+                      These will appear as $0 or blank in the report you hand your CPA: <strong>{missingChecklist.join(', ')}</strong>. Add them in Step 2 for a complete pack, or generate the incomplete version now.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button
+                        onClick={() => { setConfirmingExport(false); t.action && t.action() }}
+                        style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: '#D97706', border: 'none', borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
+                      >
+                        Generate incomplete report
+                      </button>
+                      <button
+                        onClick={() => setConfirmingExport(false)}
+                        style={{ fontSize: 12, fontWeight: 600, color: SL, background: '#fff', border: '1px solid #CBD5E1', borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+              {!(t.needsConfirm && confirmingExport) && (
               <button
-                onClick={t.gated ? undefined : t.action}
+                onClick={t.gated ? undefined : () => {
+                  if (t.needsConfirm) { setConfirmingExport(true); return }
+                  t.action && t.action()
+                }}
                 disabled={t.gated}
                 style={{
                   padding: '12px 24px',
@@ -1735,6 +1769,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
               >
                 {t.btn}
               </button>
+              )}
             </div>
           )
           if (!t.available && t.requiredPlan) {
