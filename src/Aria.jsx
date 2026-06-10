@@ -103,6 +103,20 @@ export default function Aria() {
         return
       }
 
+      // FIX (aria-5xx): any other non-2xx response (notably a 503 when the /aria
+      // service is unavailable) previously fell through to r.json() below, threw on
+      // the non-JSON body, and surfaced the generic "Connection error" — which reads
+      // like a client/network problem. Distinguish a server outage so the user knows
+      // it's temporary and to retry, rather than re-checking their connection.
+      if (!r.ok) {
+        const msg = r.status >= 500
+          ? 'Aria is temporarily unavailable. This is on our side — please try again in a moment.'
+          : 'Aria could not process that request. Please try again.'
+        setMsgs(m => [...m, { role: 'assistant', text: msg }])
+        setLoading(false)
+        return
+      }
+
       const d = await r.json()
       setMsgs(m => [...m, { role: 'assistant', text: d.reply || d.response || d.message || 'Sorry, I had trouble responding.' }])
     } catch {

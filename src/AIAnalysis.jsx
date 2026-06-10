@@ -212,10 +212,18 @@ function getRecord(liveState) {
 
 function recDepreciation(rec) {
   if (!rec) return 0
+  // FIX (dep-179): Section 179 expensing IS depreciation for the purpose of the
+  // "No Depreciation Recorded" / "Vehicle — Review Before Filing" risk cards.
+  // Previously this counted only pnl.depreciation (MACRS/bonus). A filer who took
+  // §179 in the K-1 Box 11 field (box11_12) but left the depreciation field blank
+  // — e.g. a 100%-business-use vehicle expensed under §179 — registered as zero,
+  // so the scan falsely told them they had "no depreciation" and "no vehicle
+  // deduction." Count box11_12 (§179) alongside MACRS/bonus depreciation.
+  const numFrom = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0
   const fromEntities = (Array.isArray(rec.entities) ? rec.entities : [])
-    .reduce((s, e) => s + (parseFloat(e?.pnl?.depreciation) || 0), 0)
+    .reduce((s, e) => s + numFrom(e?.pnl?.depreciation) + numFrom(e?.box11_12), 0)
   if (fromEntities > 0) return fromEntities
-  return parseFloat(rec.biz?.depreciation || 0) || 0
+  return numFrom(rec.biz?.depreciation) + numFrom(rec.biz?.section179)
 }
 
 function completeness(rec) {

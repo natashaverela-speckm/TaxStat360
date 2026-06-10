@@ -1509,6 +1509,20 @@ export default function CalculateTaxInner() {
     return k1Total
   }, [entities, taxYear])
 
+  // FIX (k1-sync): keep the persisted Step-1 payload — entities AND the derived
+  // k1Total — current on every edit, not only when "Save P&L"/"Continue" runs.
+  // updateEntity previously refreshed only the sessionStorage working copy, so
+  // editing a field that feeds k1Total (e.g. the QBI §179 box11_12) after an
+  // initial save left writeStep1State's k1Total stale. Step 2/3 reach the data
+  // through readStep1State(), so a user who jumps there via the top nav (instead
+  // of the "Continue to Step 2" button) could see a K-1 total that lagged the
+  // entity edits. Re-persisting whenever entities/taxYear change closes that gap.
+  // Safe: persistStep1 writes storage only and never calls setEntities, so this
+  // cannot loop.
+  useEffect(() => {
+    if (Array.isArray(entities) && entities.length > 0) persistStep1()
+  }, [entities, taxYear, persistStep1])
+
   const handleSaveRecord = useCallback((name) => {
     setSaveStatus('saving')
     const k1Total = persistStep1()
