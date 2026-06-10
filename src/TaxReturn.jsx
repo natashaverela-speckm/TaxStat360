@@ -564,7 +564,7 @@ export default function TaxReturn() {
             {[
               { n: 1, label: 'Entities', active: false, done: true  },
               { n: 2, label: 'Return',   active: true,  done: false },
-              { n: 3, label: 'AI',       active: false, done: false },
+              { n: 3, label: 'AI Analysis', active: false, done: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
