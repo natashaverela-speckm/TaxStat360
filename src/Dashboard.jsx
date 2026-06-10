@@ -524,6 +524,10 @@ export default function Dashboard() {
       k1Total: k1TotalRestored,
       isCoopPatron: false,
     })
+    // C-04 FIX: clear CalculateTaxInner's Step-1 working copy so this freshly loaded record
+    // is what Step 1 hydrates from (via readStep1StateRaw on mount). Without this, a stale
+    // working copy from a previously loaded/edited record would shadow the new selection.
+    sessionStorage.removeItem('ts360_step1_entities')
     writePersonalContext({
       filingStatus: f1040Restored.filingStatus,
       w2Income: parseFloat(f1040Restored.w2Income) || 0,
