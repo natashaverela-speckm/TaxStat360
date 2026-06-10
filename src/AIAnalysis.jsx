@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
@@ -273,6 +273,12 @@ function NoData() {
 
 // ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
 function RiskScan({ rec }) {
+  // C-26: persisted "mark reviewed" state for Risk Scan findings. Hooks must run before
+  // the early return below, so they live at the very top. recordId is the stable saved-
+  // record id written by Dashboard.loadRecord; unsaved sessions share one bucket.
+  const recordId = (typeof window !== 'undefined' && sessionStorage.getItem('ts360_active_record_id')) || 'unsaved-session'
+  const [dismissed, setDismissed] = useState(() => readRiskDismissals(recordId))
+  const [showReviewed, setShowReviewed] = useState(false)
   if (!rec) return <NoData />
   const b = rec.biz || {}, f = rec.f1040 || {}
   const revenue = parseFloat(b.grossRevenue) || 0
@@ -327,20 +333,20 @@ function RiskScan({ rec }) {
 
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   if (sCorpEntities.length > 0) {
-    sCorpEntities.forEach(e => {
+    sCorpEntities.forEach((e, ei) => {
       const entityName = e.name || 'S-Corp'
       const eK1 = Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
-        findings.push({ level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
+        findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer salary recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer salary on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.35) {
-        findings.push({ level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
+        findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
           detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/(eOfficerSal+eK1))*100).toFixed(1)}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Consider increasing ${entityName}'s officer salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0) {
-        findings.push({ level: 'good', icon: '✅', title: `Officer Salary Recorded — ${entityName}`,
+        findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Salary Recorded — ${entityName}`,
           detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
           action: null })
       }
@@ -530,6 +536,15 @@ function RiskScan({ rec }) {
     good:   { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', badge: '#059669' },
   }
 
+  // C-26: stable per-finding key (digits/amounts stripped so it survives input changes).
+  const keyOf = (f) => f.key || ((f.title || '')
+    .toLowerCase().replace(/[$%]/g, '').replace(/[\d.,]/g, '')
+    .replace(/[^a-z]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'finding')
+  const review  = (f) => { const k = keyOf(f); writeRiskDismissal(recordId, k);  setDismissed(d => ({ ...d, [k]: true })) }
+  const restore = (f) => { const k = keyOf(f); removeRiskDismissal(recordId, k); setDismissed(d => { const n = { ...d }; delete n[k]; return n }) }
+  const activeFindings   = findings.filter(f => !dismissed[keyOf(f)])
+  const reviewedFindings = findings.filter(f =>  dismissed[keyOf(f)])
+
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
@@ -540,14 +555,28 @@ function RiskScan({ rec }) {
         </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {findings.map((f, i) => {
+        {activeFindings.length === 0 && reviewedFindings.length > 0 && (
+          <div style={{ fontSize: 13, color: SL, textAlign: 'center', padding: '12px 0', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12 }}>
+            ✓ All findings reviewed. See the reviewed list below to revisit any of them.
+          </div>
+        )}
+        {activeFindings.map((f) => {
           const c = colors[f.level]
           return (
-            <div key={i} style={{ background: c.bg, border: '1px solid ' + c.border, borderRadius: 12, padding: '16px 20px' }}>
+            <div key={keyOf(f)} style={{ background: c.bg, border: '1px solid ' + c.border, borderRadius: 12, padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                 <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: 6 }}>{f.title}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: 6 }}>{f.title}</div>
+                    <button
+                      onClick={() => review(f)}
+                      aria-label={'Mark "' + f.title + '" as reviewed'}
+                      style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: c.text, background: 'rgba(255,255,255,0.7)', border: '1px solid ' + c.border, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      ✓ Mark reviewed
+                    </button>
+                  </div>
                   <div style={{ fontSize: 13, color: c.text, lineHeight: 1.6, marginBottom: f.action ? 8 : 0 }}>{f.detail}</div>
                   {f.action && (
                     <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge, whiteSpace: 'pre-line' }}>
@@ -560,6 +589,33 @@ function RiskScan({ rec }) {
           )
         })}
       </div>
+
+      {reviewedFindings.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <button
+            onClick={() => setShowReviewed(s => !s)}
+            aria-expanded={showReviewed}
+            style={{ fontSize: 12, fontWeight: 700, color: SL, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            {showReviewed ? '▾' : '▸'} Reviewed ({reviewedFindings.length})
+          </button>
+          {showReviewed && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              {reviewedFindings.map((f) => (
+                <div key={keyOf(f)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px 12px' }}>
+                  <span style={{ fontSize: 12, color: SL, textDecoration: 'line-through' }}>{f.icon} {f.title}</span>
+                  <button
+                    onClick={() => restore(f)}
+                    style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: B, background: 'none', border: '1px solid #CBD5E1', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
