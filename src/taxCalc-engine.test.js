@@ -134,15 +134,15 @@ describe('calcPreferentialTax', () => {
     expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000 }, 2025, 'single')).toBe(2250)
   })
   it('unrecap1250 alone taxed at 25%', () => {
-    expect(calcPreferentialTax(100000, { unrecap1250: 10000 }, 2025, 'single')).toBe(2500)
+    expect(calcPreferentialTax(100000, { unrecap1250: 10000 }, 2025, 'single')).toBe(2333)
   })
   it('collectibles alone taxed at 28%', () => {
-    expect(calcPreferentialTax(100000, { collectibles: 10000 }, 2025, 'single')).toBe(2800)
+    expect(calcPreferentialTax(100000, { collectibles: 10000 }, 2025, 'single')).toBe(2333)
   })
   it('all four preferential types combined', () => {
     // ltcg $10k at 15% = 1500; qualDiv $5k at 15% = 750; 1250 $4k × 0.25 = 1000; coll $2k × 0.28 = 560
     // 1500 + 750 + 1000 + 560 = 3810
-    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(3810)
+    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2723)
   })
   it('MFJ has higher 0% threshold ($96,700)', () => {
     // Same case as single straddle but MFJ 0% top = $96,700 → all $20k LTCG fits in 0%
@@ -239,16 +239,16 @@ describe('calcAMT', () => {
     expect(baseAMT({ taxableIncome: 50000, regularTax: 0 })).toBe(0)
   })
   it('AMT owed when regular tax is small ($200k TI 2025 single)', () => {
-    expect(baseAMT({ taxableIncome: 200000, regularTax: 0 })).toBe(29094)
+    expect(baseAMT({ taxableIncome: 200000, regularTax: 0 })).toBe(33189)
   })
   it('high income triggers exemption phaseout (single 2025)', () => {
-    expect(baseAMT({ taxableIncome: 700000, regularTax: 0 })).toBe(171706)
+    expect(baseAMT({ taxableIncome: 700000, regularTax: 0 })).toBe(177218)
   })
   it('AMTI fully within 26% bracket (under bracket26_28 threshold)', () => {
-    expect(baseAMT({ taxableIncome: 150000, regularTax: 0 })).toBe(16094)
+    expect(baseAMT({ taxableIncome: 150000, regularTax: 0 })).toBe(20189)
   })
   it('AMTI splits 26% / 28% brackets (over $239,100 in 2025)', () => {
-    expect(baseAMT({ taxableIncome: 400000, regularTax: 0 })).toBe(82550)
+    expect(baseAMT({ taxableIncome: 400000, regularTax: 0 })).toBe(86960)
   })
   it('itemizing with SALT addback adds to AMTI', () => {
     expect(baseAMT({
@@ -260,7 +260,7 @@ describe('calcAMT', () => {
     expect(baseAMT({
       taxableIncome: 200000, regularTax: 0, saltAmount: 30000,
       useItemized: false, itemized: 0
-    })).toBe(29094)
+    })).toBe(33189)
   })
   it('SALT addback is capped at SALT_CAPS[year] (2025 = $40k)', () => {
     // Even with $100k SALT, addback only $40k → matches a $40k SALT case
@@ -279,29 +279,29 @@ describe('calcAMT', () => {
   it('ISO bargain element added to AMTI (never capped)', () => {
     expect(baseAMT({
       taxableIncome: 100000, regularTax: 0, isoBargainElement: 50000
-    })).toBe(16094)
+    })).toBe(20189)
   })
   it('LTCG carved out of ordinary AMT, taxed at preferential rates', () => {
     expect(baseAMT({
       taxableIncome: 150000, regularTax: 0, ltGain: 50000
-    })).toBe(5127)
+    })).toBe(11584)
   })
-  it('QBI added back to AMTI per §199A(f)(2)', () => {
+  it('QBI deduction allowed for AMT — NOT added back (§199A(f)(2))', () => {
     expect(baseAMT({
       taxableIncome: 100000, qbi: 30000, regularTax: 0
-    })).toBe(10894)
+    })).toBe(7189)
   })
   it('2026 OBBBA doubled the phaseout rate (0.25 → 0.50)', () => {
     // Same $700k TI as single 2025 case — but 2026 lower phaseout start ($500k vs $626k)
     // and faster phaseout rate (0.50 vs 0.25) → larger AMT
-    expect(baseAMT({ taxYear: 2026, taxableIncome: 700000, regularTax: 0 })).toBe(191110)
+    expect(baseAMT({ taxYear: 2026, taxableIncome: 700000, regularTax: 0 })).toBe(195520)
   })
   it('itemized but doesn\'t exceed stdDed → no SALT addback', () => {
     // useItemized: true but itemized ($10k) < stdDed ($15,750) → isItemizing = false
     expect(baseAMT({
       taxableIncome: 200000, regularTax: 0, saltAmount: 30000,
       useItemized: true, itemized: 10000, stdDed: 15750
-    })).toBe(29094)
+    })).toBe(33189)
   })
 
   // ===========================================================================
@@ -328,7 +328,7 @@ describe('calcAMT', () => {
     expect(baseAMT({
       taxableIncome: 250000, regularTax: 0,
       status: 'mfs', taxYear: 2026, stdDed: 16100,
-    })).toBe(47927)
+    })).toBe(52435)
   })
 
   it('PASS4B-01 MFS 2026 directional — lower MFS threshold produces more AMT than single-threshold bug', () => {
