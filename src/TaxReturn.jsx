@@ -426,7 +426,8 @@ export default function TaxReturn() {
     }
     const updated = [record, ...existing].slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
-    localStorage.setItem('ts360_records', JSON.stringify(updated))
+    // (Retired the shared global 'ts360_records' write — records live only in the
+    // per-email bucket now, so accounts can't co-mingle on a shared browser.)
     return record
   }, [
     taxYear, entities, sessionK1, filingStatus, dependents,

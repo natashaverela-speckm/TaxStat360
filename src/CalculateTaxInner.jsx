@@ -1552,7 +1552,8 @@ export default function CalculateTaxInner() {
 
     const updated = [record, ...existing].slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
-    localStorage.setItem('ts360_records', JSON.stringify(updated))
+    // (Retired the shared global 'ts360_records' write — records live only in the
+    // per-email bucket now, so accounts can't co-mingle on a shared browser.)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
