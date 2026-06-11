@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
+import { apiPost, ApiError } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-const API = 'https://app.taxstat360.com'
 
 function Logo() {
   return <BrandLogo size={32} />
@@ -40,20 +40,18 @@ export default function ResetPassword() {
 
     setLoading(true)
     try {
-      const res = await fetch(`${API}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token, new_password: password })
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const detail = data.detail
+      await apiPost('/auth/reset-password', { email, token, new_password: password })
+      setSuccess(true)
+    } catch (e) {
+      // Faithful to the prior fetch logic: a non-ok response WITH a parsed JSON body shows
+      // its `detail` (falling back to the expired-link message); a non-ok response with an
+      // unparseable body, or any network / parse failure, shows the network-error message.
+      if (e instanceof ApiError && e.body != null) {
+        const detail = e.body.detail
         setError(typeof detail === 'string' ? detail : 'Reset failed. The link may have expired.')
       } else {
-        setSuccess(true)
+        setError('Network error. Please try again.')
       }
-    } catch {
-      setError('Network error. Please try again.')
     }
     setLoading(false)
   }
