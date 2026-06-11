@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/signOut'
 import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
+import { apiFetch } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-// M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
-const API = 'https://app.taxstat360.com'
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
 // FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
@@ -123,8 +122,8 @@ export default function Upgrade() {
     setLoading(true)
     setErr('')
     try {
-      const si = await fetch(API + '/stripe/setup-intent', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
+      const si = await apiFetch('/stripe/setup-intent', {
+        method: 'POST', body: {}, raw: true
       }).then(r => r.json())
       if (!si.client_secret) throw new Error('Could not initialize payment')
 
@@ -138,10 +137,11 @@ export default function Upgrade() {
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
       const token = localStorage.getItem('token')
-      const subRes = await fetch(API + '/stripe/subscribe', {
+      const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: { plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method },
+        raw: true,
       })
       if (!subRes.ok) {
         const subData = await subRes.json().catch(() => ({}))
