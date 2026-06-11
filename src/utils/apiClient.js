@@ -6,7 +6,11 @@
 //
 // Design notes:
 //   • Faithful SUPERSET of the existing call patterns, so adoption is behavior-preserving:
-//       - credentials default to 'include' (the dominant pattern) but can be overridden.
+//       - credentials default to 'same-origin' (the fetch default), so a call with no
+//         credentials option behaves exactly like the original raw fetch. The app
+//         (www.taxstat360.com) and API (app.taxstat360.com) are DIFFERENT origins, so
+//         'include' must be passed explicitly only by calls that need the session cookie —
+//         forcing 'include' on others breaks CORS against the API's wildcard responses.
 //       - plain-object bodies are JSON-encoded and get Content-Type: application/json;
 //         FormData / URLSearchParams pass through untouched.
 //       - custom headers and an AbortSignal are supported.
@@ -47,7 +51,7 @@ const hasHeader = (headers, name) =>
  * @param {string}  [options.method='GET']
  * @param {*}       [options.body]            Object → JSON; FormData/URLSearchParams pass through.
  * @param {object}  [options.headers={}]
- * @param {string}  [options.credentials='include']
+ * @param {string}  [options.credentials='same-origin']  Pass 'include' for calls needing the session cookie.
  * @param {AbortSignal} [options.signal]
  * @param {boolean} [options.raw=false]       true → return the raw Response (no ok-check/parse).
  * @returns {Promise<any>} parsed JSON (or null for an empty body), or the Response if raw.
@@ -58,7 +62,7 @@ export async function apiFetch(path, options = {}) {
     method = 'GET',
     body,
     headers = {},
-    credentials = 'include',
+    credentials = 'same-origin',
     signal,
     raw = false,
   } = options
