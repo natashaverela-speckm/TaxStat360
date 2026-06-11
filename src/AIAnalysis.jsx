@@ -1413,7 +1413,7 @@ function SimulatorModal({ onClose, rec }) {
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      sep:     { otherDeductions: Math.min(getTable(year)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : netProfit * ownerPctVal * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
+      sep:     { otherDeductions: Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : netProfit * ownerPctVal * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},

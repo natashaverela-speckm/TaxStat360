@@ -194,7 +194,7 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
-    const stripped = e.target.value.replace(/[^0-9\-]/g, '')
+    const stripped = e.target.value.replace(/[^0-9-]/g, '')
     const isNeg = stripped.startsWith('-')
     const digits = stripped.replace(/^-/, '')
     const n = parseInt(digits, 10)

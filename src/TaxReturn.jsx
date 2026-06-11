@@ -120,7 +120,7 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
 
         const allowNeg = !nonNegative
         const stripped = allowNeg
-          ? e.target.value.replace(/[^0-9\-]/g, '')
+          ? e.target.value.replace(/[^0-9-]/g, '')
           : e.target.value.replace(/[^0-9]/g, '')
 
         const isNeg = allowNeg && stripped.startsWith('-')

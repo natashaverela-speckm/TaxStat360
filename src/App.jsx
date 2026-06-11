@@ -15,7 +15,7 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
 import EmailVerificationBanner, { fetchVerificationStatus } from './components/EmailVerificationBanner'
-import { API_BASE_URL } from './constants.js'
+import { apiPost } from './utils/apiClient.js'
 import { refreshPlanFromServer } from './LockedFeature'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
@@ -75,7 +75,7 @@ function isValidSession() {
   if (start) {
     const startMs = parseInt(start, 10)
     if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
-      fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      apiPost('/auth/logout').catch(() => {})
       AUTH_KEYS.forEach(k => localStorage.removeItem(k))
       return false
     }
