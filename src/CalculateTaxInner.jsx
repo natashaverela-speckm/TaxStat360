@@ -120,7 +120,7 @@ import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
@@ -1269,7 +1269,7 @@ function CompareModal({ entities, onClose }) {
 
   const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
     const isSC     = /s.?corp/i.test(type)
-    const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * 0.40)) : 0
+    const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * DEFAULT_OFFICER_SALARY_FRACTION)) : 0
     const k1       = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
     const _w2All   = w2 + salGuess
     const taxableRough = Math.max(0, k1 + _w2All - stdDed)
