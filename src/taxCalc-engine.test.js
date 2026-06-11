@@ -141,7 +141,7 @@ describe('calcPreferentialTax', () => {
   })
   it('all four preferential types combined', () => {
     // ltcg $10k at 15% = 1500; qualDiv $5k at 15% = 750; 1250 $4k × 0.25 = 1000; coll $2k × 0.28 = 560
-    // 1500 + 750 + 1000 + 560 = 3810
+    // ltcg+qualDiv @15% =2250; unrecap1250+collectibles @ lower-of-cap-or-ordinary =473 → 2723
     expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2723)
   })
   it('MFJ has higher 0% threshold ($96,700)', () => {
@@ -316,15 +316,15 @@ describe('calcAMT', () => {
   // and $244,500 — the entire band that would correctly split 26%/28% under
   // the MFS threshold but was fully taxed at 26% under the buggy single threshold.
   //
-  // Math for pinned assertion (TI=250000, MFS 2026, no deductions/ISO/QBI):
-  //   AMTI = 250000 (no addbacks)
+  //   Math for pinned assertion (TI=250000, MFS 2026, std deduction 16100 taken):
+  //   AMTI = 250000 + 16100 (std deduction added back for AMT) = 266100
   //   MFS 2026 exemption = 70100; phaseout start = 500000 (not reached)
-  //   amtTaxable = 250000 - 70100 = 179900
-  //   CORRECT (mfs = 122250): 122250×0.26 + 57650×0.28 = 31785+16142 = 47927
-  //   BUGGY   (single = 244500 via ??): 179900×0.26 = 46774 (all at 26%)
+  //   amtTaxable = 266100 - 70100 = 196000
+  //   CORRECT (mfs threshold 122250): 122250×0.26 + 73750×0.28 = 31785+20650 = 52435
+  //   BUGGY   (single threshold 244500): 196000×0.26 = 50960 (all at 26%)
   // ===========================================================================
 
-  it('PASS4B-01 MFS 2026 pinned — 47927 (fails at 46774 under the mhs typo)', () => {
+  it('PASS4B-01 MFS 2026 pinned — 52435 (std-ded added back; guards mfs vs mhs status typo)', () => {
     expect(baseAMT({
       taxableIncome: 250000, regularTax: 0,
       status: 'mfs', taxYear: 2026, stdDed: 16100,
@@ -332,8 +332,8 @@ describe('calcAMT', () => {
   })
 
   it('PASS4B-01 MFS 2026 directional — lower MFS threshold produces more AMT than single-threshold bug', () => {
-    // MFS correct (threshold $122,250): 47927
-    // Single/bug (threshold $244,500): 41574 (different exemption too — this is a directional guard)
+    // MFS correct (exemption 70100, threshold 122250): 52435
+    // Single (exemption 90100, threshold 244500): 45760 (directional guard)
     // The MFS result must exceed the single result for this scenario.
     const mfsAmt    = baseAMT({ taxableIncome: 250000, regularTax: 0, status: 'mfs',    taxYear: 2026, stdDed: 16100 })
     const singleAmt = baseAMT({ taxableIncome: 250000, regularTax: 0, status: 'single', taxYear: 2026, stdDed: 16100 })

@@ -312,6 +312,9 @@ function calcNIIT(nii, agi, year, fs) {
   return Math.round(Math.min(nii, excessAGI) * NIIT_RATE)
 }
 function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+  // NOTE: `qbi` is intentionally NOT added back to AMTI. The §199A QBI deduction
+  // is allowed for AMT (§199A(f)(2)) — the same amount used for regular tax flows
+  // into AMTI unchanged. Do not "fix" this by adding qbi back. (Param kept for call symmetry.)
   const amtTable    = AMT_TABLES[taxYear] || AMT_TABLES[2025]
   const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
   const saltCap     = status === 'mfs' ? baseSaltCap / 2 : baseSaltCap
