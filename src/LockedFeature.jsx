@@ -55,11 +55,12 @@ export async function refreshPlanFromServer() {
     const timer = setTimeout(() => ctrl.abort(), 5000)
     try {
       // Non-ok (401/404/5xx) throws ApiError → caught below → keep current plan, same as
-      // the prior explicit `if (!res.ok) return getUserPlan()`. apiGet defaults to
-      // credentials: 'include' (the httpOnly session cookie).
+      // the prior explicit `if (!res.ok) return getUserPlan()`. credentials:'include' sends
+      // the httpOnly session cookie (the API is a different origin from the app).
       const data = await apiGet('/auth/me', {
         headers: { Accept: 'application/json' },
         signal: ctrl.signal,
+        credentials: 'include',
       })
       if (data && data.plan) {
         localStorage.setItem('plan', normalizePlanId(data.plan))
