@@ -815,7 +815,7 @@ describe('calcAMT PASS4B-01 — MFS 2026 bracket26_28 typo fix', () => {
     itemized: 0,
     stdDed: 16100,
   }
-  it('PASS4B-01 pinned: calcAMT(MFS, 2026, TI=300k) = 47,927', () => {
+  it('PASS4B-01 pinned: calcAMT(MFS, 2026, TI=300k) = 52,435', () => {
     const result = calcAMT(MFS_2026_BASE)
     expect(result).toBe(52435)
   })
