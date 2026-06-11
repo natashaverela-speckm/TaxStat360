@@ -605,3 +605,80 @@ export function normalizeF1040(rec = {}) {
     nolCarryforward:   parseFloat(rec.nolCarryforward)  || 0,
   }
 }
+
+// ─── Saved records: per-user scoping + one-time legacy migration ───────────────
+// Records are stored per user under ts360_records_<email>. Historically the app
+// ALSO wrote a shared global key (ts360_records) plus a ts360_records_default
+// bucket (for saves made before ts360_email was set), and the Dashboard /
+// AIAnalysis loaders scanned EVERY ts360_records* key and merged them. That
+// (a) leaked records across different accounts sharing one browser and (b) let a
+// stale copy in another bucket resurrect a deleted record. These helpers make the
+// per-email bucket the single source of truth: reads return only the current
+// user's records, never another account's ts360_records_<otheremail> bucket.
+//
+// IMPORTANT: use the email exactly as the rest of the app does
+// (localStorage 'ts360_email', no case/space normalization) so the key computed
+// here matches the keys the save paths write.
+
+function _recordsEmail() {
+  return localStorage.getItem('ts360_email') || 'default'
+}
+
+function _recordsKeyFor(email) {
+  return 'ts360_records_' + email
+}
+
+function _parseRecArray(raw) {
+  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : [] } catch (e) { return [] }
+}
+
+// One-time-per-user migration of the legacy shared buckets (the global
+// ts360_records key and the pre-login ts360_records_default bucket) into the
+// current user's own bucket. Guarded by a per-email flag so it runs exactly once
+// and NEVER re-merges (re-merging is what used to resurrect deleted records). The
+// shared buckets are removed afterward so they can't leak into a different account
+// on the same browser later. The flag key is deliberately NOT prefixed
+// 'ts360_records_' so it can't be misread as a records bucket or as an email by
+// Settings' email-recovery scan.
+function _migrateLegacyRecordsOnce(email) {
+  if (!email || email === 'default') return // not signed in — leave shared buckets untouched
+  const flag = 'ts360_migrated_records_v2_' + email
+  if (localStorage.getItem(flag)) return
+  const myKey = _recordsKeyFor(email)
+  const byId = new Map(_parseRecArray(localStorage.getItem(myKey)).map(r => [r.id, r]))
+  let changed = false
+  for (const legacyKey of ['ts360_records', 'ts360_records_default']) {
+    if (legacyKey === myKey) continue
+    const legacy = _parseRecArray(localStorage.getItem(legacyKey))
+    if (legacy.length) {
+      for (const rec of legacy) {
+        if (rec && rec.id != null && !byId.has(rec.id)) { byId.set(rec.id, rec); changed = true }
+      }
+    }
+    localStorage.removeItem(legacyKey) // retire the shared bucket regardless
+  }
+  if (changed) localStorage.setItem(myKey, JSON.stringify([...byId.values()]))
+  localStorage.setItem(flag, '1')
+}
+
+/**
+ * Read the current user's saved records — and ONLY theirs — newest first.
+ * Runs the one-time legacy migration on first call per user. Never reads another
+ * account's ts360_records_<otheremail> bucket (that was the cross-account leak).
+ */
+export function readUserRecords() {
+  const email = _recordsEmail()
+  _migrateLegacyRecordsOnce(email)
+  return _parseRecArray(localStorage.getItem(_recordsKeyFor(email)))
+    .sort((a, b) => (b.id || 0) - (a.id || 0))
+}
+
+/**
+ * Persist the current user's saved records to their own bucket only, so writes
+ * never re-create the shared global key. Returns the written list.
+ */
+export function writeUserRecords(recs) {
+  const list = Array.isArray(recs) ? recs : []
+  localStorage.setItem(_recordsKeyFor(_recordsEmail()), JSON.stringify(list))
+  return list
+}
