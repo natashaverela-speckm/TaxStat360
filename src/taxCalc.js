@@ -1114,6 +1114,7 @@ function calcTaxReturn(input) {
     amt,
     totalTax, effectiveRate,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
+    priorYearMultiplier,
     safeHarborCurrentYear,
     safeHarborPriorYear,
     safeHarborMinimum,
