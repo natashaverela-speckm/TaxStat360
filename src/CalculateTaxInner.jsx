@@ -124,7 +124,7 @@ import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
@@ -473,9 +473,10 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const oth = nf(manOther)
 
   const isSCorp = isSCorpEntity(entity.type)
+  const isCCorp = isCCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
   const isRE = isRealEstateEntity(entity.type)
-  const effectiveSal = isSCorp ? sal : 0
+  const effectiveSal = (isSCorp || isCCorp) ? sal : 0
 
   const totalExpenses = ex + dep + effectiveSal + adv + oth
   const manNetProfit  = rv - totalExpenses
@@ -533,11 +534,13 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </label>
           <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
         </div>
-        {isSCorp && (
+        {(isSCorp || isCCorp) && (
           <div>
             <label style={lbl}>
               Officer Salary (W-2)
-              <InfoTip text={'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
+              <InfoTip text={isCCorp
+                ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
+                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
@@ -655,6 +658,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const k1     = Math.round(netProfit * own)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
+  const isCCorp = isCCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
 
@@ -740,7 +744,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, color: SL }}>Net / K-1</div>
+            <div style={{ fontSize: 11, color: SL }}>{isCCorp ? 'Net Profit' : 'Net / K-1'}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
               {k1 >= 0 ? fmt(k1) : '-' + fmt(Math.abs(k1))}
             </div>
@@ -798,6 +802,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, background: '#fff' }}
             >
               <option value="S Corporation">S Corporation</option>
+              <option value="C Corporation">C Corporation</option>
               <option value="Partnership / LLC">Partnership / LLC</option>
               <option value="Sole Proprietor / SMLLC">Sole Proprietor / SMLLC</option>
               <option value="Real Estate (Schedule E)">Real Estate (Schedule E)</option>
@@ -1497,6 +1502,10 @@ export default function CalculateTaxInner() {
   const persistStep1 = useCallback(() => {
     sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
     const k1Total = entities.reduce((s, e) => {
+      // C-Corp profit is taxed at the entity level (21%) and reaches the owner as dividends,
+      // NOT as pass-through K-1 — so it must not be summed into k1Total. TaxReturn computes
+      // its corporate layer and folds the dividends into qualified dividends separately.
+      if (isCCorpEntity(e.type)) return s
       const pnl = e.pnl || {}
       const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
       const own = ownPct(e.own) / 100
