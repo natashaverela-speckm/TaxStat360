@@ -151,6 +151,10 @@ import {
   UNRECAPTURED_1250_MAX_RATE,
   COLLECTIBLES_MAX_RATE,
   CURRENT_TAX_YEAR,
+  CTC_PHASEOUT_THRESHOLD_MFJ,
+  CTC_PHASEOUT_THRESHOLD_OTHER,
+  CTC_PHASEOUT_STEP,
+  CTC_PHASEOUT_REDUCTION_PER_STEP,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity } from './utils/entityPredicates.js'
 const nv = (v) => parseFloat(v) || 0
@@ -1006,9 +1010,9 @@ function calcTaxReturn(input) {
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
-  const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? 400000 : 200000
+  const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? CTC_PHASEOUT_THRESHOLD_MFJ : CTC_PHASEOUT_THRESHOLD_OTHER
   const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
-  const ctcReduction         = Math.ceil(ctcExcess / 1000) * 50
+  const ctcReduction         = Math.ceil(ctcExcess / CTC_PHASEOUT_STEP) * CTC_PHASEOUT_REDUCTION_PER_STEP
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
   const amt = calcAMT({
