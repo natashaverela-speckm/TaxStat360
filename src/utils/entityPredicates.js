@@ -4,7 +4,17 @@
 // CC-M04 (getEntityNetProfit dual-path lookup), and F-M02 (0% ownership
 // treated as 100% due to JS falsy evaluation).
 //
-// All components import from here. One definition, no divergence risk.
+// THIS FILE IS THE SINGLE SOURCE for entity-type classification and normalization.
+// Do not re-implement normalizeEntityType or any is*Entity predicate in a component.
+// Module 1 removed a divergent copy of normalizeEntityType that had been re-added in
+// Dashboard.jsx; if you find yourself writing another, import from here instead.
+//
+// Two representations exist by design (see the representation note in constants.js):
+//   • UI / input labels (Vocabulary A): 'Sole Proprietor / SMLLC', 'Partnership / LLC', …
+//   • Engine-internal canonical form (Vocabulary B): 'Sole Proprietor / Single-Member LLC',
+//     'Partnership / MMLLC — Active' / '— Passive', …
+// normalizeEntityType() is the one-way bridge A → B. The regex predicates below match
+// EITHER representation, so prefer them for any gating test.
 
 // ── Entity type predicates ────────────────────────────────────────────────────
 
