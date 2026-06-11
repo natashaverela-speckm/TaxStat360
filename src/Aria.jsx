@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-// SEC-05 FIX: Route through CloudFront (app.taxstat360.com) instead of raw
-// API Gateway URL. Per constants.js architecture rule: "all components use
-// API_BASE_URL; do not hardcode the raw API Gateway URL — CloudFront / WAF
-// rules apply uniformly only when requests route through app.taxstat360.com."
-import { API_BASE_URL } from './constants.js'
+// SEC-05: requests route through CloudFront (app.taxstat360.com) via the shared apiClient,
+// which builds every URL from API_BASE_URL — never the raw API Gateway URL — so CloudFront /
+// WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
+import { apiFetch } from './utils/apiClient.js'
 
-const ARIA_URL = `${API_BASE_URL}/aria`
 const N = '#0D1B3E'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
@@ -76,11 +74,10 @@ export default function Aria() {
         .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
       const messages = [...history, { role: 'user', content: userMsg }]
 
-      const r = await fetch(ARIA_URL, {
+      const r = await apiFetch('/aria', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages })
+        body: { messages },
+        raw: true,
       })
 
       if (r.status === 401) {
