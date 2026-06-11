@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './constants.js'
+import { apiGet } from './utils/apiClient.js'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
@@ -53,20 +53,22 @@ export async function refreshPlanFromServer() {
   try {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 5000)
-    const res = await fetch(API_BASE_URL + '/auth/me', {
-      method: 'GET',
-      credentials: 'include',          // send the httpOnly session cookie
-      headers: { 'Accept': 'application/json' },
-      signal: ctrl.signal,
-    })
-    clearTimeout(timer)
-    if (!res.ok) return getUserPlan()  // 401/404/5xx → trust nothing new, keep current
-    const data = await res.json()
-    if (data && data.plan) {
-      localStorage.setItem('plan', normalizePlanId(data.plan))
+    try {
+      // Non-ok (401/404/5xx) throws ApiError → caught below → keep current plan, same as
+      // the prior explicit `if (!res.ok) return getUserPlan()`. apiGet defaults to
+      // credentials: 'include' (the httpOnly session cookie).
+      const data = await apiGet('/auth/me', {
+        headers: { Accept: 'application/json' },
+        signal: ctrl.signal,
+      })
+      if (data && data.plan) {
+        localStorage.setItem('plan', normalizePlanId(data.plan))
+      }
+    } finally {
+      clearTimeout(timer)
     }
   } catch (_e) {
-    // network error / timeout / abort → fail safe, keep existing plan
+    // network error / timeout / abort / non-ok → fail safe, keep existing plan
   }
   return getUserPlan()
 }
