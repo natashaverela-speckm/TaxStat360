@@ -80,7 +80,7 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    apiGet('/auth/mfa/status')
+    apiGet('/auth/mfa/status', { credentials: 'include' })
       .then(data => {
         if (data && typeof data.enabled === 'boolean') {
           setMfaEnabled(data.enabled)
@@ -101,7 +101,7 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      await apiPost('/auth/change-email', { email, new_email: emailInput })
+      await apiPost('/auth/change-email', { email, new_email: emailInput }, { credentials: 'include' })
       setEmailSent(true)
       setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
     } catch (e) {
@@ -163,7 +163,7 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const data = await apiPost('/auth/mfa/setup')
+      const data = await apiPost('/auth/mfa/setup', undefined, { credentials: 'include' })
       setMfaSetupData(data)
       setMfaStep('setup')
     } catch(e) {
@@ -184,7 +184,7 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const data = await apiPost('/auth/mfa/verify', { code: mfaCode })
+      const data = await apiPost('/auth/mfa/verify', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(true)
       localStorage.setItem('ts360_mfa_enabled', '1')
       setMfaBackupCodes(data?.backup_codes || mfaSetupData?.backup_codes || [])
@@ -208,7 +208,7 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      await apiPost('/auth/mfa/disable', { code: mfaCode })
+      await apiPost('/auth/mfa/disable', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(false)
       localStorage.setItem('ts360_mfa_enabled', '0')
       setMfaStep('idle')
