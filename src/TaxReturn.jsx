@@ -48,7 +48,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS } from './taxCalc'
+import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpCorporateLayer } from './taxCalc'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -56,7 +56,7 @@ import {
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { fmt, pct } from './utils/formatMoney.js'
-import { ownPct, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+import { ownPct, isPassthroughEntity, isRealEstateEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -303,6 +303,31 @@ export default function TaxReturn() {
     : 0
   const medicalForEngine = useItemized && anyItemizedSubField ? nf(medicalAmt) : 0
 
+  // ── C-Corp corporate layer ───────────────────────────────────────────────────────
+  // A C-Corp does not pass through: its profit is taxed at the entity (21%) and reaches
+  // the owner as dividends. Step 1 already (a) excludes the C-Corp from the pass-through
+  // k1Total and (b) routes its officer salary into officerW2Total below (→ W-2 wages).
+  // Here we compute the entity-level tax and the resulting dividend, per C-Corp entity:
+  //   • dividends fold into the personal return as qualified dividends (taxed AGAIN), and
+  //   • corpTax is added on top of the personal total (it is paid by the corporation,
+  //     separately from the owner's 1040 — so it is NOT part of the quarterly estimate).
+  // Planning model: single owner-employee, full annual distribution. See calcCCorpReturn.
+  const ccorp = useMemo(() => {
+    const list = Array.isArray(entities) ? entities : []
+    return list.reduce((acc, e) => {
+      if (!e || !isCCorpEntity(e.type)) return acc
+      const salary = nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0
+      // Persisted netProfit is AFTER officer salary; the corporate layer needs profit
+      // BEFORE salary (it deducts salary + employer FICA itself).
+      const netBeforeSalary = nf(e.pnl?.netProfit) + salary
+      const layer = calcCCorpCorporateLayer({ netProfit: netBeforeSalary, officerSalary: salary, taxYear })
+      acc.corpTax   += layer.corpTax
+      acc.dividends += layer.dividends
+      acc.count     += 1
+      return acc
+    }, { corpTax: 0, dividends: 0, count: 0 })
+  }, [entities, taxYear])
+
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
     const box17KTotal = entityList.reduce((s, e) => s + (e ? nf(e.box17K) : 0), 0)
@@ -319,7 +344,7 @@ export default function TaxReturn() {
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
-      divInc: nf(dividends), qualDiv: nf(qualDividends), f4797Inc: form4797Total,
+      divInc: nf(dividends) + ccorp.dividends, qualDiv: nf(qualDividends) + ccorp.dividends, f4797Inc: form4797Total,
       taxableSS: 0, iraIncome: 0,
       selfEmpHealthIns: nf(selfEmpHealthIns), hsaDeduction: nf(hsaDeduction),
       studentLoanInt: nf(studentLoanInt), selfEmpRetirement: nf(selfEmpRetirement),
@@ -350,12 +375,30 @@ export default function TaxReturn() {
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
+    ccorp,
   ])
 
   const result = useMemo(() => {
-    try { return calcTaxReturn(calcInput) }
-    catch { return null }
-  }, [calcInput])
+    try {
+      const r = calcTaxReturn(calcInput)
+      if (!r) return r
+      if (ccorp.corpTax > 0 || ccorp.dividends > 0) {
+        // The engine has already (a) taxed the dividends (folded into qualDiv above) and
+        // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
+        // Adding the corporate tax here keeps the headline total, effective rate, waterfall
+        // and saved summary in sync, without inflating the owner's quarterly estimate (the
+        // 21% is paid by the corporation on Form 1120, separately from the 1040).
+        return {
+          ...r,
+          ccorpCorpTax:   ccorp.corpTax,
+          ccorpDividends: ccorp.dividends,
+          totalTax: (r.totalTax || 0) + ccorp.corpTax,
+          balance:  (r.balance  || 0) + ccorp.corpTax,
+        }
+      }
+      return r
+    } catch { return null }
+  }, [calcInput, ccorp])
 
   useEffect(() => {
     writePersonalContext({
@@ -1137,6 +1180,25 @@ export default function TaxReturn() {
             )}
           </div>
 
+          {/* C-Corp double-taxation note + planning disclaimer */}
+          {hasResult && (result.ccorpCorpTax > 0 || ccorp.count > 0) && (
+            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 16px', marginBottom: 12, fontSize: 12.5, color: '#1E3A5F', lineHeight: 1.55 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: '#1D4ED8' }}>🏢 C-Corporation — double taxation applies</div>
+              <div>
+                Your C-Corp&apos;s profit (after officer salary and employer payroll tax) is taxed at the corporate level at a flat 21%
+                {result.ccorpCorpTax > 0 ? <> (<strong>{fmt(result.ccorpCorpTax)}</strong>)</> : null}, and the remaining after-tax profit
+                {result.ccorpDividends > 0 ? <> (<strong>{fmt(result.ccorpDividends)}</strong>)</> : null} is treated as fully distributed and taxed
+                <strong> again</strong> as qualified dividends on your personal return. Officer salary is already included in W-2 wages above.
+                C-Corp distributions are not qualified business income, so no §199A (QBI) deduction applies to them.
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #BFDBFE', fontSize: 11.5, color: '#475569' }}>
+                Planning estimate only. Assumes a single owner-employee and full annual distribution of after-tax profit (no retained-earnings
+                strategy), a flat 21% with no graduated/AMT/accumulated-earnings or personal-holding-company layers, and federal tax only.
+                Not a substitute for a prepared Form 1120 — have a tax professional validate before relying on these figures.
+              </div>
+            </div>
+          )}
+
           {/* Empty state */}
           {hasResult && result.agi === 0 && (
             <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
@@ -1159,6 +1221,7 @@ export default function TaxReturn() {
                 { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
                   note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
+                { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 { label: 'Standard Deduction',          value: result.deduction,                         sign: -1 },
@@ -1180,6 +1243,7 @@ export default function TaxReturn() {
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
                 { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
+                { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Est. Pmts',     value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },

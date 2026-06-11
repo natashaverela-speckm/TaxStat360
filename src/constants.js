@@ -434,9 +434,11 @@ export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 §109 — enhanced cat
 // picks and what gets persisted. The engine does NOT key on these strings directly — it
 // keys on the engine-internal form produced by normalizeEntityType(); see SE_SUBJECT_TYPES.
 //
-// C Corporation is intentionally absent (not a supported planning structure for this
-// audience). Note: several modules still carry C-Corp branches — reconciling that is a
-// separate, tracked item (audit F6 / Module 4), not part of this list.
+// C Corporation IS supported (audit F6 / Module 4 resolved: build out, not remove). It is
+// the one non-pass-through type here — it appears in ENTITY_TYPES (a selectable structure)
+// but NOT in PASSTHROUGH_ENTITY_TYPES below, and its income is computed via the entity-level
+// model in taxCalc.js (calcCCorpCorporateLayer / calcCCorpReturn), never through the
+// pass-through K-1 path.
 //
 // ⚠ When adding a new entity type: update this array, the Tax Tracker <select>, the
 // Onboarding EntityScreen, AND the entityPredicates.js regex patterns / normalizeEntityType
@@ -444,6 +446,7 @@ export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 §109 — enhanced cat
 // classified consistently — run it after any change here.
 export const ENTITY_TYPES = [
   'S Corporation',
+  'C Corporation',
   'Partnership / LLC',
   'Sole Proprietor / SMLLC',
   'Real Estate (Schedule E)',
