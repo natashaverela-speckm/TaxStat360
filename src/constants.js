@@ -464,9 +464,13 @@ export const PASSTHROUGH_ENTITY_TYPES = [
 // The type is included here so Sole Prop is correctly identified as always SE-subject.
 // O3 FIX: updated to use canonical strings. 'Partnership / MMLLC — Active' removed;
 // partnership SE treatment is applied conditionally in calcTaxReturn via entity flags.
+// IMPORTANT: these strings must match the canonical labels normalizeEntityType()
+// (utils/entityPredicates.js) produces, because the engine checks
+// SE_SUBJECT_TYPES.includes(e.type) AFTER normalizing. Passive partnerships
+// normalize to 'Partnership / MMLLC — Passive' and are intentionally excluded here.
 export const SE_SUBJECT_TYPES = [
-  'Sole Proprietor / SMLLC',
-  'Partnership / LLC',  // SE applies only when entity.isActiveParticipant — checked at runtime
+  'Sole Proprietor / Single-Member LLC',
+  'Partnership / MMLLC — Active',
 ]
 
 // ─── ACCOUNTING SOFTWARE INTEGRATIONS ─────────────────────────────────────────
