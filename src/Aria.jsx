@@ -77,6 +77,7 @@ export default function Aria() {
       const r = await apiFetch('/aria', {
         method: 'POST',
         body: { messages },
+        credentials: 'include',
         raw: true,
       })
 
