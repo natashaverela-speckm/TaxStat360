@@ -120,6 +120,7 @@ import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro } from './LockedFeature'
+import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
@@ -1563,11 +1564,11 @@ export default function CalculateTaxInner() {
   // can display "Revenue updated: $X → $Y (+$Z)".
   async function fetchEntityPnL(idx, pid, tok, extra, isManualSync = false) {
     try {
-      let url = `${API_BASE_URL}/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
+      let url = `/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
       if (pid === 'quickbooks' && extra) url += '&realm='   + extra
       if (pid === 'xero'        && extra) url += '&tenant='  + extra
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
-      const d = await (await fetch(url)).json()
+      const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
         if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
           localStorage.removeItem('ts360_' + pid + '_token')
