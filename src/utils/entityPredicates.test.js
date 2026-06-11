@@ -35,10 +35,13 @@ describe('normalizeEntityType — bridge is idempotent', () => {
   })
 })
 
-describe('F1 regression — every supported entity routes through the engine (isPassthru)', () => {
+describe('F1 regression — every PASS-THROUGH entity routes through the engine (isPassthru)', () => {
   // Dashboard computes isPassthru = !isCCorpEntity(normalizeEntityType(biz.entityType)).
   // The bug: sole proprietors and partnerships returned false and were dropped.
-  it.each(ENTITY_TYPES)('UI label %s is NOT a C-Corp after normalization', (label) => {
+  // C Corporation is the one supported type that does NOT route through (entity-level tax),
+  // so it is excluded from this set and checked separately below.
+  const passthroughLabels = ENTITY_TYPES.filter(l => l !== 'C Corporation')
+  it.each(passthroughLabels)('UI label %s is NOT a C-Corp after normalization', (label) => {
     expect(isCCorpEntity(normalizeEntityType(label))).toBe(false)
   })
 
@@ -48,7 +51,8 @@ describe('F1 regression — every supported entity routes through the engine (is
     expect(route('Partnership / LLC')).toBe(true)
   })
 
-  it('C Corporation is correctly excluded from the engine route', () => {
+  it('C Corporation is supported but does NOT route through the pass-through engine', () => {
+    expect(ENTITY_TYPES).toContain('C Corporation')
     expect(isCCorpEntity(normalizeEntityType('C Corporation'))).toBe(true)
   })
 })
