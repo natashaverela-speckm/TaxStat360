@@ -303,6 +303,16 @@ export const DEFAULT_OFFICER_SALARY_FRACTION = 0.30  // Rev. Rul. 74-44 / BLS p2
 // Applies to C-Corps only; S-Corps, partnerships, and sole props are pass-through.
 export const C_CORP_TAX_RATE = 0.21
 
+// ─── CHILD TAX CREDIT — IRC §24 ─────────────────────────────────
+// Per-child credit amount lives in the year tables (taxCalc.js → ctc.perChild).
+// §24(b)(2)/(h)(3): the credit is reduced by $50 for each $1,000 (or fraction) of
+// modified AGI above these thresholds. Statutory under TCJA (P.L. 115-97); NOT
+// inflation-adjusted.
+export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // §24(h)(3) — joint return / surviving spouse
+export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // §24(h)(3) — single, HOH, MFS, all other filers
+export const CTC_PHASEOUT_STEP = 1000              // §24(b)(2) — excess measured per $1,000
+export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reduction per $1,000 step
+
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
