@@ -1083,29 +1083,21 @@ function calcTaxReturn(input) {
   }
 }
 
-// ── C-Corporation estimate (single source of truth; audit F6 / C-Corp support) ───────
-// Mirrors the entity-comparison model so every surface agrees:
-//   • the officer salary and the employer-side payroll tax are deductible to the
-//     corporation → corporate taxable profit = netProfit − salary − employerFICA;
-//   • a flat 21% (IRC §11, post-TCJA) applies to that corporate profit;
-//   • the after-tax profit is treated as FULLY distributed and taxed AGAIN at qualified-
-//     dividend rates (+ possible 3.8% NIIT) on the shareholder's personal return — the
-//     classic double taxation;
-//   • C-Corp distributions are NOT QBI (IRC §199A), so no QBI deduction applies (the
-//     personal return is run with no pass-through entity).
-//
-// PLANNING SIMPLIFICATION — NOT a substitute for a prepared Form 1120. Assumes full
-// annual distribution (no retained-earnings strategy), a flat 21% with no graduated/AMT/
-// accumulated-earnings/personal-holding-company layers, a single owner-employee, and
-// federal tax only. Have a tax professional validate before relying on these figures.
+// ── C-Corporation corporate layer (shared single source of truth) ────────────────────
+// The entity-level computation, used by BOTH the standalone estimate (calcCCorpReturn)
+// and the multi-entity Tax Tracker, where a C-Corp composes with other entities. Returns
+// only the corporate-side figures; the caller folds `dividends` into qualified dividends,
+// routes `officerSalary` to W-2, and adds `corpTax` to the personal total.
+//   • officer salary + employer-side payroll tax are deductible to the corporation;
+//   • corpTax = 21% (IRC §11, post-TCJA) of (netProfit − salary − employerFICA);
+//   • dividends = the after-tax profit (assumes FULL annual distribution).
 //
 // @param {object}  input
-// @param {number}  input.netProfit         Corporate net business profit BEFORE officer salary.
-// @param {number} [input.officerSalary]    W-2 officer salary; default DEFAULT_OFFICER_SALARY_FRACTION × netProfit, capped at netProfit.
-// @param {object} [input.personalContext]  Other calcTaxReturn inputs (filingStatus, taxYear, existing w2/divInc, …) EXCEPT entities/k1Total.
-// @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends, employmentTax, personal, totalTax }}
-function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}) {
-  const taxYear    = personalContext.taxYear
+// @param {number}  input.netProfit       Corporate net business profit BEFORE officer salary.
+// @param {number} [input.officerSalary]  W-2 officer salary; default DEFAULT_OFFICER_SALARY_FRACTION × netProfit, capped at netProfit.
+// @param {number} [input.taxYear]        Tax year (selects the SS wage base).
+// @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends }}
+function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
   const ssWageBase = getTable(taxYear).ssWageBase
   const np         = Math.max(0, Math.round(nv(netProfit)))
 
@@ -1121,6 +1113,32 @@ function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}
   const profitBeforeTax = Math.max(0, np - salary - employerFICA)
   const corpTax         = Math.round(profitBeforeTax * C_CORP_TAX_RATE)
   const dividends       = Math.max(0, profitBeforeTax - corpTax)
+
+  return { officerSalary: salary, employerFICA, profitBeforeTax, corpTax, dividends }
+}
+
+// ── C-Corporation estimate (standalone; single owner-employee) ───────────────────────
+// Wraps the corporate layer with the shareholder's personal return so the full double-
+// taxation picture is captured: salary as W-2 wages, after-tax profit as qualified
+// dividends, then the 21% corporate tax and employment tax added on top. C-Corp
+// distributions are NOT QBI (IRC §199A), so the personal return runs with no pass-through
+// entity. Used by the Dashboard / comparison surfaces.
+//
+// PLANNING SIMPLIFICATION — NOT a substitute for a prepared Form 1120. Assumes full
+// annual distribution (no retained-earnings strategy), a flat 21% with no graduated/AMT/
+// accumulated-earnings/personal-holding-company layers, a single owner-employee, and
+// federal tax only. Have a tax professional validate before relying on these figures.
+//
+// @param {object}  input
+// @param {number}  input.netProfit         Corporate net business profit BEFORE officer salary.
+// @param {number} [input.officerSalary]    W-2 officer salary (see calcCCorpCorporateLayer).
+// @param {object} [input.personalContext]  Other calcTaxReturn inputs (filingStatus, taxYear, existing w2/divInc, …) EXCEPT entities/k1Total.
+// @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends, employmentTax, personal, totalTax }}
+function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}) {
+  const taxYear    = personalContext.taxYear
+  const ssWageBase = getTable(taxYear).ssWageBase
+  const layer = calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear })
+  const { officerSalary: salary, corpTax, dividends } = layer
 
   // Personal return: salary as W-2 wages, after-tax profit as qualified dividends. No
   // pass-through entity (C-Corp income does not flow through), so entities/k1Total empty.
@@ -1139,11 +1157,7 @@ function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}
   )
 
   return {
-    officerSalary: salary,
-    employerFICA,
-    profitBeforeTax,
-    corpTax,
-    dividends,
+    ...layer,
     employmentTax,
     personal,
     totalTax: personal.totalTax + employmentTax + corpTax,
@@ -1166,6 +1180,7 @@ export {
   calcAMT,
   calcQBI,
   calcCCorpReturn,
+  calcCCorpCorporateLayer,
   QBI_THRESHOLDS,
   QBI_PHASE_IN_RANGE,
   QBI_MIN_DEDUCTION,
