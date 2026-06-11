@@ -119,7 +119,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
+import LockedFeature, { isPro } from './LockedFeature'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt } from './utils/formatMoney.js'
@@ -1427,12 +1427,12 @@ export default function CalculateTaxInner() {
   }, [])
 
   const addEntity = useCallback(() => {
-    if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
+    if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
     setShowEntityPicker(true)
   }, [entities.length, navigate])
 
   const addEntityOfType = useCallback((type) => {
-    if (!isEnterprise() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
+    if (!isPro() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
     const newEnt = {
       id: Date.now(),
       type,
@@ -1835,7 +1835,7 @@ export default function CalculateTaxInner() {
             <button
               onClick={() => {
                 // O1 FIX: create a blank S-Corp entity and open the manual panel
-                if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
+                if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
                 const newEnt = {
                   id: Date.now(),
                   type: 'S Corporation',
@@ -1931,13 +1931,13 @@ export default function CalculateTaxInner() {
         </div>
 
         {/* Add entity button */}
-        {(isEnterprise() || entities.length === 0) ? (
+        {(isPro() || entities.length === 0) ? (
           <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
             + Add Business Entity
           </button>
         ) : (
-          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is an Enterprise feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Enterprise</span>
+          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is a Professional feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Professional</span>
           </button>
         )}
         <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
