@@ -80,6 +80,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   outside this file's scope but is called out in the comment below.
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
+import { apiFetch } from './utils/apiClient.js'
 import BrandLogo from './BrandLogo'
 import Icon from './Icon'
 
@@ -201,12 +202,12 @@ if(pass.length<12){setErr('Password must be at least 12 characters.');return}
 if(!stripeReady){setErr('Card input still loading, please wait...');return}
 setLoading(true);setErr('')
 try{
-const si=await fetch(API+'/stripe/setup-intent',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
+const si=await apiFetch('/stripe/setup-intent',{method:'POST',body:{},raw:true}).then(r=>r.json())
 if(!si.client_secret)throw new Error('Payment init failed')
 const card=elemRef.current.getElement('card')
 const {setupIntent,error}=await stripeRef.current.confirmCardSetup(si.client_secret,{payment_method:{card,billing_details:{name,email}}})
 if(error)throw new Error(error.message)
-const reg=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password:pass,plan,payment_method_id:setupIntent.payment_method})})
+const reg=await apiFetch('/auth/register',{method:'POST',body:{name,email,password:pass,plan,payment_method_id:setupIntent.payment_method},raw:true})
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
 if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
@@ -217,7 +218,7 @@ localStorage.setItem('ts360_session_start', String(Date.now()))
 localStorage.setItem('plan',plan)
 localStorage.setItem('billing',billing)
 try{
-await fetch(API+'/stripe/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,plan,billing,payment_method_id:setupIntent.payment_method})})
+await apiFetch('/stripe/subscribe',{method:'POST',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 }catch(e){ console.warn('Subscribe call failed:',e) }
 localStorage.setItem('userName',name)
 localStorage.setItem('pendingEmail',email)
@@ -435,7 +436,7 @@ function VerifyEmailScreen(){
     let cancelled=false
     ;(async()=>{
       try{
-        const res=await fetch(API+`/auth/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(emailParam)}`)
+        const res=await apiFetch(`/auth/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(emailParam)}`,{raw:true})
         const data=await res.json().catch(()=>({}))
         if(!res.ok)throw new Error(data.detail||'Verification failed')
         if(!cancelled){
@@ -502,7 +503,7 @@ const domPass  = document.querySelector('input[type="password"]')?.value || ''
 const actualEmail = (email || domEmail).toLowerCase().trim()
 const actualPass  = pass || domPass
 if (!actualEmail || !actualPass) { setErr('Please enter your email and password.'); setLoading(false); return }
-const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:actualEmail,password:actualPass})})
+const res=await apiFetch('/auth/login',{method:'POST',body:{email:actualEmail,password:actualPass},raw:true})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
 if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
@@ -697,7 +698,7 @@ function persistBizInfo() {
 async function submit(e){
 e.preventDefault()
 persistBizInfo()
-try{await fetch(API+'/user/business-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_name:biz,ein,address:addr})})}catch(e){}
+try{await apiFetch('/user/business-info',{method:'POST',body:{business_name:biz,ein,address:addr},raw:true})}catch(e){}
 nav('/onboarding/import')
 }
 
