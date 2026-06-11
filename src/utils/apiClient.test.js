@@ -27,14 +27,21 @@ describe('apiUrl', () => {
 describe('apiFetch', () => {
   beforeEach(() => { global.fetch = vi.fn() })
 
-  it('defaults to GET with credentials: include', async () => {
+  it('defaults to GET with credentials: same-origin (matching fetch)', async () => {
     global.fetch.mockResolvedValue(jsonResponse(200, { ok: true }))
     await apiFetch('/auth/me')
     const [url, opts] = global.fetch.mock.calls[0]
     expect(url).toBe(`${API_BASE_URL}/auth/me`)
     expect(opts.method).toBe('GET')
-    expect(opts.credentials).toBe('include')
+    expect(opts.credentials).toBe('same-origin')
     expect(opts.body).toBeUndefined()
+  })
+
+  it('sends credentials: include only when explicitly requested', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(200, {}))
+    await apiFetch('/auth/mfa/status', { credentials: 'include' })
+    const [, opts] = global.fetch.mock.calls[0]
+    expect(opts.credentials).toBe('include')
   })
 
   it('JSON-encodes a plain-object body and sets Content-Type', async () => {
