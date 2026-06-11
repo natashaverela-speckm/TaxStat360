@@ -9,7 +9,10 @@ import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, O
 import { fmt, pct } from './utils/formatMoney'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
-import { CURRENT_TAX_YEAR } from './constants.js'
+import {
+  CURRENT_TAX_YEAR,
+  FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
+} from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
 // F15 FIX: SimulatorModal produced corrupt number outputs and had no reset.
@@ -749,7 +752,7 @@ function TaxOptimization({ rec }) {
   })
 
   if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && sCorpK1 > 50000) {
-    const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * 0.0765 * 2)
+    const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * (FICA_SS_RATE + FICA_MEDICARE_RATE) * 2)
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
@@ -1170,8 +1173,8 @@ function BriefingModal({ onClose, rec }) {
   const marginalRate = getMarginalRate(taxable, year, filing)
   const seSubject = isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')
   const ssWageBase = (getTable(year) || {}).ssWageBase || 176100
-  const seBase = seSubject ? Math.max(0, k1) * 0.9235 : 0
-  const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * 0.124 + seBase * 0.029) : 0
+  const seBase = seSubject ? Math.max(0, k1) * SE_NET_EARNINGS_FACTOR : 0
+  const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * (FICA_SS_RATE * 2) + seBase * (FICA_MEDICARE_RATE * 2)) : 0
   const totalFedTax = fedTax + seTax
   const effectiveRate = totalIncome > 0 ? totalFedTax / totalIncome : 0
   const quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(totalFedTax / 4)
