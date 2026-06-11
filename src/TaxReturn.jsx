@@ -502,15 +502,12 @@ export default function TaxReturn() {
     (s, r) => s + (r && r.basisAssumedZero ? Math.abs(r.suspended || 0) : 0), 0
   )
 
-  // F18 FIX: Safe Harbor status derivation.
+  // Safe Harbor status — sourced from the engine (single source of truth for the
+  // 90%-current-year vs. 100%/110%-prior-year rule). See calcTaxReturn in taxCalc.js.
   const priorYearTaxNum = nf(priorYearTax)
   const priorYearAGINum = nf(priorYearAGI)
-  const highIncomeThreshold = filingStatus === 'mfs' ? 75000 : 150000
-  const isHighIncome = priorYearAGINum > highIncomeThreshold
-  const safeHarborRate = isHighIncome ? 1.10 : 1.00
-  const safeHarborMinimumLocal = priorYearTaxNum > 0
-    ? Math.ceil(priorYearTaxNum * safeHarborRate)
-    : (result?.safeHarborMinimum ?? 0)
+  const isHighIncome = (result?.priorYearMultiplier ?? 1) > 1
+  const safeHarborMinimumLocal = result?.safeHarborMinimum ?? 0
   const totalPaymentsLocal = nf(w2Withheld) + nf(estPaid)
   const safeHarborGap = priorYearTaxNum > 0
     ? safeHarborMinimumLocal - totalPaymentsLocal
@@ -1306,7 +1303,7 @@ export default function TaxReturn() {
               </div>
               {result.safeHarborPriorYear != null && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
-                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {nf(priorYearAGI) > (filingStatus === 'mfs' ? 75000 : 150000) ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
+                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {isHighIncome ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
                 </div>
               )}
               <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>
