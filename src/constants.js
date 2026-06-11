@@ -46,8 +46,9 @@
 // ── AMT exemptions and phase-out ranges ─────────────────────────────────────
 // AMT_RATE_LOW and AMT_RATE_HIGH (permanent rates) are defined in this file.
 // AMT exemption dollar amounts and phase-out ranges are inflation-adjusted annually
-// and belong in AMT_TABLES[year] in taxCalc.js — they are NOT defined here.
-// (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ — add to TAX_TABLES.)
+// and live in TAX_TABLES[year].amt in taxCalc.js — they are NOT defined here. (The
+// standalone AMT_TABLES export is a derived view of TAX_TABLES[year].amt.)
+// (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ.)
 //
 // ── ENTITY-TYPE REPRESENTATION (corrected — Module 1) ───────────────────────
 // There are TWO representations of an entity type, by design, and they are NOT the
@@ -320,11 +321,11 @@ export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reducti
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
-// year-specific — see AMT_TABLES[year].bracket26_28 in taxCalc.js.
-// AMT exemptions and phase-out ranges are inflation-adjusted annually and belong
-// in TAX_TABLES[year] in taxCalc.js — they are NOT defined here.
+// year-specific — see TAX_TABLES[year].amt.bracket26_28 in taxCalc.js.
+// AMT exemptions and phase-out ranges are inflation-adjusted annually and live in
+// TAX_TABLES[year].amt in taxCalc.js — they are NOT defined here.
 // (2024 reference values: exemption $85,700 single / $133,300 MFJ;
-// phase-out start $609,350 single / $1,218,700 MFJ — add to TAX_TABLES.)
+// phase-out start $609,350 single / $1,218,700 MFJ.)
 export const AMT_RATE_LOW = 0.26   // IRC §55(b)(1)(A) — 26% on AMTI up to bracket26_28
 export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above bracket26_28
 
@@ -400,6 +401,13 @@ export const UBIA_RATE = 0.025           // IRC §199A(b)(2)(B)(ii) — 2.5% of 
 //     → S-Corp (Form 1120-S): September 15 (NOT October 15 — see LBL-I01 audit fix)
 //     → Sole Prop (Form 1040): October 15
 export const SEP_IRA_RATE = 0.25  // 25% of W-2 compensation — IRC §402(h)(2)(A)
+
+// Sole proprietors contribute on NET self-employment income, which already bears SE tax.
+// The statutory 25%-of-compensation limit becomes an effective ~20% of net profit because
+// the contribution base is net of the deductible half of SE tax and of the contribution
+// itself: 0.25 / (1 + 0.25) = 0.20 exactly. AIAnalysis uses this for the sole-prop estimate
+// so the figure is not hardcoded inline. S-Corp owners use SEP_IRA_RATE (25%) on W-2 salary.
+export const SEP_IRA_SOLE_PROP_EFFECTIVE_RATE = 0.20  // 0.25 / 1.25 — net-of-SE-tax effective rate
 
 // ── Solo 401(k) — IRC §401(k); §415(c); §404(a)(3) ───────────────────────────
 // Employer profit-sharing contribution rate (same as SEP-IRA).

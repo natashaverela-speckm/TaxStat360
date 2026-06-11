@@ -14,6 +14,7 @@ import {
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
   NIIT_THRESHOLD_MFJ, NIIT_THRESHOLD_MFS, NIIT_THRESHOLD_SINGLE,
   ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE,
+  SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
 } from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
@@ -686,12 +687,16 @@ function TaxOptimization({ rec }) {
   const opportunities = []
 
   const sepBase = isSCorpOwner ? totalOfficerSalary : k1
-  const sepRate = isSCorpOwner ? 0.25 : 0.20
-  const maxSEP = Math.min(70000, Math.round(sepBase * sepRate))
+  const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
+  // §415(c) overall limits are year-specific — read from the centralized table, never
+  // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
+  const sepIraMax = getTable(year)?.retirement?.sepIraMax ?? 70000
+  const maxSEP = Math.min(sepIraMax, Math.round(sepBase * sepRate))
 
   const solo401kDeferral = getTable(year)?.retirement?.solo401kDeferral ?? 23500
-  const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? 0.25 : 0.20))
-  const maxSolo401k = Math.min(70000, maxSolo401kEmployer + solo401kDeferral)
+  const solo401kMax = getTable(year)?.retirement?.solo401kMax ?? sepIraMax
+  const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? SOLO_401K_EMPLOYER_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE))
+  const maxSolo401k = Math.min(solo401kMax, maxSolo401kEmployer + solo401kDeferral)
 
   if (isPassthrough) {
     if (isSCorpOwner && totalOfficerSalary === 0) {
@@ -699,13 +704,13 @@ function TaxOptimization({ rec }) {
         icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
         priority: 'high', saving: null,
         detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 salary — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer salary recorded, your current allowable contribution is $0.`,
-        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to 25% of that salary (max $70,000 in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(70000, k1 * 0.40 * 0.25) * marginalRate))} in federal tax.`
+        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_IRA_RATE * 100)}% of that salary (max ${fmt(sepIraMax)} in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
       const sepDetail = isSCorpOwner
-        ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is 25% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max $70,000). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
-        : `You can contribute up to ${fmt(maxSEP)} (~20% of net self-employment income after SE tax deduction, max $70,000) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
+        ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is ${Math.round(SEP_IRA_RATE * 100)}% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max ${fmt(sepIraMax)}). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
+        : `You can contribute up to ${fmt(maxSEP)} (~${Math.round(SEP_IRA_SOLE_PROP_EFFECTIVE_RATE * 100)}% of net self-employment income after SE tax deduction, max ${fmt(sepIraMax)}) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
 
       const sepDeadline = isSCorpOwner
         ? 'your S-Corp\'s tax return due date including extensions — typically September 15 for S-Corporations (Form 1120-S). Note: October 15 (the individual return extension) does NOT extend the S-Corp\'s SEP-IRA funding deadline.'
@@ -759,8 +764,8 @@ function TaxOptimization({ rec }) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
-        detail: `Your S-Corp structure saves SE tax on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary (distributions avoid self-employment tax; FICA still applies to your W-2 officer salary). The FICA rate is 15.3% on wages up to the Social Security wage base ($176,100 for 2025) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
-        howTo: `Estimated SE tax savings on K-1 distributions vs. W-2 wages: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the $176,100 SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary unreasonably low — there is no IRS safe-harbor percentage, but practitioners commonly target 35–45% of total officer compensation (salary + distributions) and document that it is reasonable for the role.`
+        detail: `Your S-Corp structure saves SE tax on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary (distributions avoid self-employment tax; FICA still applies to your W-2 officer salary). The FICA rate is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
+        howTo: `Estimated SE tax savings on K-1 distributions vs. W-2 wages: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the ${fmt(getTable(year).ssWageBase)} SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary unreasonably low — there is no IRS safe-harbor percentage, but practitioners commonly target 35–45% of total officer compensation (salary + distributions) and document that it is reasonable for the role.`
       })
     }
   }
@@ -1174,7 +1179,7 @@ function BriefingModal({ onClose, rec }) {
   const fedTax = calcFederalTax(taxable, year, filing)
   const marginalRate = getMarginalRate(taxable, year, filing)
   const seSubject = isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')
-  const ssWageBase = (getTable(year) || {}).ssWageBase || 176100
+  const ssWageBase = getTable(year).ssWageBase
   const seBase = seSubject ? Math.max(0, k1) * SE_NET_EARNINGS_FACTOR : 0
   const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * (FICA_SS_RATE * 2) + seBase * (FICA_MEDICARE_RATE * 2)) : 0
   const totalFedTax = fedTax + seTax
@@ -1408,7 +1413,7 @@ function SimulatorModal({ onClose, rec }) {
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      sep:     { otherDeductions: Math.min(70000, Math.round(base.officerSalary > 0 ? base.officerSalary * 0.25 : netProfit * ownerPctVal * 0.20)) },
+      sep:     { otherDeductions: Math.min(getTable(year)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : netProfit * ownerPctVal * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},

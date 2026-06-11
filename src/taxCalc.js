@@ -156,9 +156,8 @@ import {
   CTC_PHASEOUT_STEP,
   CTC_PHASEOUT_REDUCTION_PER_STEP,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity } from './utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, ownPct } from './utils/entityPredicates.js'
 const nv = (v) => parseFloat(v) || 0
-const ownPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 100 }
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
@@ -185,6 +184,19 @@ const TAX_TABLES = {
       catchUpIra:        1000,
     },
     mileageRate: 0.67,
+    amt: {
+      exemption:    { single:85700,  mfj:133300, mfs:66650,  hoh:85700,  qss:133300 },
+      phaseoutStart:{ single:609350, mfj:1218700,mfs:609350, hoh:609350, qss:1218700 },
+      phaseoutRate: 0.25,
+      bracket26_28: { single:232600, mfj:232600, mfs:116300, hoh:232600, qss:232600 },
+    },
+    saltCap: 10000,
+    qbi: {
+      threshold:    { single:191950, mfj:383900, hoh:191950, mfs:191950 },
+      phaseIn:      { single:50000,  mfj:100000, hoh:50000,  mfs:50000 },
+      minDeduction: null,
+      minThreshold: null,
+    },
   },
   2025: {
     std: { single: 15750, mfj: 31500, mfs: 15750, hoh: 23625, qss: 31500 },
@@ -211,6 +223,19 @@ const TAX_TABLES = {
       catchUpIra:        1000,
     },
     mileageRate: 0.70,
+    amt: {
+      exemption:    { single:88100,  mfj:137000, mfs:68650,  hoh:88100,  qss:137000 },
+      phaseoutStart:{ single:626350, mfj:1252700,mfs:626350, hoh:626350, qss:1252700 },
+      phaseoutRate: 0.25,
+      bracket26_28: { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
+    },
+    saltCap: 40000,
+    qbi: {
+      threshold:    { single:197300, mfj:394600, hoh:197300, mfs:197300 },
+      phaseIn:      { single:50000,  mfj:100000, hoh:50000,  mfs:50000 },
+      minDeduction: null,
+      minThreshold: null,
+    },
   },
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
@@ -237,29 +262,39 @@ const TAX_TABLES = {
       catchUpIra:        1000,
     },
     mileageRate: 0.725,
+    amt: {
+      exemption:    { single:90100,  mfj:140200, mfs:70100,  hoh:90100,  qss:140200 },
+      phaseoutStart:{ single:500000, mfj:1000000,mfs:500000, hoh:500000, qss:1000000 },
+      phaseoutRate: 0.50,
+      bracket26_28: { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
+    },
+    saltCap: 40400,
+    qbi: {
+      threshold:    { single:201775, mfj:403500, hoh:201775, mfs:201775 },
+      phaseIn:      { single:75000,  mfj:150000, hoh:75000,  mfs:75000 },
+      minDeduction: 400,   // §199A(i) OBBBA minimum deduction (years beginning after 12/31/2025)
+      minThreshold: 1000,  // active QBI floor that triggers the $400 minimum
+    },
   },
 }
-const AMT_TABLES = {
-  2024: {
-    exemption:    { single:85700,  mfj:133300, mfs:66650,  hoh:85700,  qss:133300 },
-    phaseoutStart:{ single:609350, mfj:1218700,mfs:609350, hoh:609350, qss:1218700 },
-    phaseoutRate: 0.25,
-    bracket26_28: { single:232600, mfj:232600, mfs:116300, hoh:232600, qss:232600 },
-  },
-  2025: {
-    exemption:    { single:88100,  mfj:137000, mfs:68650,  hoh:88100,  qss:137000 },
-    phaseoutStart:{ single:626350, mfj:1252700,mfs:626350, hoh:626350, qss:1252700 },
-    phaseoutRate: 0.25,
-    bracket26_28: { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
-  },
-  2026: {
-    exemption:    { single:90100,  mfj:140200, mfs:70100,  hoh:90100,  qss:140200 },
-    phaseoutStart:{ single:500000, mfj:1000000,mfs:500000, hoh:500000, qss:1000000 },
-    phaseoutRate: 0.50,
-    bracket26_28: { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
-  },
-}
-const SALT_CAPS = { 2024: 10000, 2025: 40000, 2026: 40400 }
+// ── Derived per-year views — single source of truth is TAX_TABLES above ───────
+// AMT, SALT, and QBI year figures now live inside each TAX_TABLES[year] (keys: amt,
+// saltCap, qbi). The objects below are DERIVED from TAX_TABLES, so adding a new tax year
+// means editing ONE object (TAX_TABLES[year]) and these views update automatically — they
+// can no longer drift or be forgotten. Shapes/keys are identical to the previous standalone
+// literals, so every consumer (engine internals, articles.js, AIAnalysis.jsx, tests) and the
+// exported API are unchanged. QBI_MIN_* intentionally omit years where the value is null
+// (matching the prior { 2026: ... }-only objects the OBBBA §199A(i) floor relies on).
+const _TAX_YEARS = Object.keys(TAX_TABLES)
+const _byYear = (sel) => Object.fromEntries(_TAX_YEARS.map(y => [y, sel(TAX_TABLES[y])]))
+const _byYearDefined = (sel) =>
+  Object.fromEntries(_TAX_YEARS.map(y => [y, sel(TAX_TABLES[y])]).filter(([, v]) => v != null))
+const AMT_TABLES         = _byYear(t => t.amt)
+const SALT_CAPS          = _byYear(t => t.saltCap)
+const QBI_THRESHOLDS     = _byYear(t => t.qbi.threshold)
+const QBI_PHASE_IN_RANGE = _byYear(t => t.qbi.phaseIn)
+const QBI_MIN_DEDUCTION  = _byYearDefined(t => t.qbi.minDeduction)
+const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
@@ -341,18 +376,8 @@ function calcAMT({ taxableIncome, qbi, saltAmount, isoBargainElement, ltGain, qu
   const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
 }
-const QBI_THRESHOLDS = {
-  2024: { single:191950, mfj:383900, hoh:191950, mfs:191950 },
-  2025: { single:197300, mfj:394600, hoh:197300, mfs:197300 },
-  2026: { single:201775, mfj:403500, hoh:201775, mfs:201775 },
-}
-const QBI_PHASE_IN_RANGE = {
-  2024: { single:50000, mfj:100000, hoh:50000, mfs:50000 },
-  2025: { single:50000, mfj:100000, hoh:50000, mfs:50000 },
-  2026: { single:75000, mfj:150000, hoh:75000, mfs:75000 },
-}
-const QBI_MIN_DEDUCTION = { 2026: 400 }
-const QBI_MIN_THRESHOLD = { 2026: 1000 }
+// QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION, QBI_MIN_THRESHOLD are derived
+// from TAX_TABLES above (each year's .qbi sub-object). Do not redefine them here.
 function _applyMinQBI(result, activeQbiForFloor, taxYear, taxableBeforeQBI = Infinity) {
   const floor     = QBI_MIN_DEDUCTION[taxYear]
   const threshold = QBI_MIN_THRESHOLD[taxYear]
@@ -890,7 +915,7 @@ function calcTaxReturn(input) {
     const k1 = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     return sum + Math.max(0, k1)
   }, 0)
-  const ssWageBase = TAX_TABLES[taxYear]?.ssWageBase || 176100
+  const ssWageBase = getTable(taxYear).ssWageBase
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
