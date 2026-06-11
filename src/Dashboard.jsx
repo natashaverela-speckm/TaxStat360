@@ -558,13 +558,38 @@ export default function Dashboard() {
     if (!deleteConfirm) return
     const { idx } = deleteConfirm
     setDeleteConfirm(null)
-    const email = localStorage.getItem('ts360_email') || 'default'
-    const key = 'ts360_records_' + email
+    const removedId = records[idx]?.id
+    const wasLoaded = loadedRecord?.id === records[idx]?.id
     const updated = records.filter((_, j) => j !== idx)
     setRecords(updated)
-    localStorage.setItem(key, JSON.stringify(updated))
-    localStorage.setItem('ts360_records', JSON.stringify(updated))
-    if (loadedRecord?.id === records[idx]?.id) setLoadedRecord(null)
+    // DELETE-PERSISTENCE FIX: records are mirrored across several localStorage
+    // buckets — the per-email key (ts360_records_<email>), the legacy global key
+    // (ts360_records), and a ts360_records_default copy written whenever a record
+    // was saved before ts360_email was set. The Dashboard loader re-merges ALL
+    // ts360_records* buckets (deduped by id) on every mount, so deleting from only
+    // the current-email + global keys left a stale copy in another bucket that the
+    // loader resurrected on the next sign-in. Remove the record by id from EVERY
+    // ts360_records* bucket so a delete actually sticks. (Only setItem on existing
+    // keys — never removeItem — so this index-based scan stays stable.)
+    if (removedId != null) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k || !k.startsWith('ts360_records')) continue
+        try {
+          const arr = JSON.parse(localStorage.getItem(k) || '[]')
+          if (Array.isArray(arr)) {
+            const next = arr.filter(r => r && r.id !== removedId)
+            if (next.length !== arr.length) localStorage.setItem(k, JSON.stringify(next))
+          }
+        } catch (e) {}
+      }
+    } else {
+      // Record has no id — fall back to keeping the canonical keys in sync by index.
+      const email = localStorage.getItem('ts360_email') || 'default'
+      localStorage.setItem('ts360_records_' + email, JSON.stringify(updated))
+      localStorage.setItem('ts360_records', JSON.stringify(updated))
+    }
+    if (wasLoaded) setLoadedRecord(null)
   }
 
   const startNewCalc = () => {
