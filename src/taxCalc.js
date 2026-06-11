@@ -48,6 +48,8 @@ import {
   CTC_PHASEOUT_THRESHOLD_OTHER,
   CTC_PHASEOUT_STEP,
   CTC_PHASEOUT_REDUCTION_PER_STEP,
+  C_CORP_TAX_RATE,
+  DEFAULT_OFFICER_SALARY_FRACTION,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, ownPct } from './utils/entityPredicates.js'
 const nv = (v) => parseFloat(v) || 0
@@ -1080,6 +1082,73 @@ function calcTaxReturn(input) {
     priorSuspendedLossRemaining,
   }
 }
+
+// ── C-Corporation estimate (single source of truth; audit F6 / C-Corp support) ───────
+// Mirrors the entity-comparison model so every surface agrees:
+//   • the officer salary and the employer-side payroll tax are deductible to the
+//     corporation → corporate taxable profit = netProfit − salary − employerFICA;
+//   • a flat 21% (IRC §11, post-TCJA) applies to that corporate profit;
+//   • the after-tax profit is treated as FULLY distributed and taxed AGAIN at qualified-
+//     dividend rates (+ possible 3.8% NIIT) on the shareholder's personal return — the
+//     classic double taxation;
+//   • C-Corp distributions are NOT QBI (IRC §199A), so no QBI deduction applies (the
+//     personal return is run with no pass-through entity).
+//
+// PLANNING SIMPLIFICATION — NOT a substitute for a prepared Form 1120. Assumes full
+// annual distribution (no retained-earnings strategy), a flat 21% with no graduated/AMT/
+// accumulated-earnings/personal-holding-company layers, a single owner-employee, and
+// federal tax only. Have a tax professional validate before relying on these figures.
+//
+// @param {object}  input
+// @param {number}  input.netProfit         Corporate net business profit BEFORE officer salary.
+// @param {number} [input.officerSalary]    W-2 officer salary; default DEFAULT_OFFICER_SALARY_FRACTION × netProfit, capped at netProfit.
+// @param {object} [input.personalContext]  Other calcTaxReturn inputs (filingStatus, taxYear, existing w2/divInc, …) EXCEPT entities/k1Total.
+// @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends, employmentTax, personal, totalTax }}
+function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}) {
+  const taxYear    = personalContext.taxYear
+  const ssWageBase = getTable(taxYear).ssWageBase
+  const np         = Math.max(0, Math.round(nv(netProfit)))
+
+  // Default salary mirrors the comparison engine; always capped at available profit.
+  const defaultSalary = Math.round(np * DEFAULT_OFFICER_SALARY_FRACTION)
+  const salary = Math.max(0, Math.min(np, Math.round(officerSalary != null ? officerSalary : defaultSalary)))
+
+  // Employer-side payroll tax (deductible to the corporation): 6.2% SS up to the wage
+  // base + 1.45% Medicare (no cap).
+  const employerFICA = Math.round(
+    Math.min(salary, ssWageBase) * FICA_SS_RATE + salary * FICA_MEDICARE_RATE
+  )
+  const profitBeforeTax = Math.max(0, np - salary - employerFICA)
+  const corpTax         = Math.round(profitBeforeTax * C_CORP_TAX_RATE)
+  const dividends       = Math.max(0, profitBeforeTax - corpTax)
+
+  // Personal return: salary as W-2 wages, after-tax profit as qualified dividends. No
+  // pass-through entity (C-Corp income does not flow through), so entities/k1Total empty.
+  const personal = calcTaxReturn({
+    ...personalContext,
+    entities: [],
+    k1Total:  0,
+    w2:       nv(personalContext.w2)      + salary,
+    qualDiv:  nv(personalContext.qualDiv) + dividends,
+    divInc:   nv(personalContext.divInc)  + dividends,
+  })
+
+  // Total employment tax the owner-employee bears (both employer + employee halves, 15.3%).
+  const employmentTax = Math.round(
+    Math.min(salary, ssWageBase) * FICA_SS_RATE * 2 + salary * FICA_MEDICARE_RATE * 2
+  )
+
+  return {
+    officerSalary: salary,
+    employerFICA,
+    profitBeforeTax,
+    corpTax,
+    dividends,
+    employmentTax,
+    personal,
+    totalTax: personal.totalTax + employmentTax + corpTax,
+  }
+}
 export {
   TAX_TABLES,
   AMT_TABLES,
@@ -1096,6 +1165,7 @@ export {
   calcNIIT,
   calcAMT,
   calcQBI,
+  calcCCorpReturn,
   QBI_THRESHOLDS,
   QBI_PHASE_IN_RANGE,
   QBI_MIN_DEDUCTION,
