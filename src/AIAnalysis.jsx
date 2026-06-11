@@ -12,6 +12,8 @@ import BrandLogo from './BrandLogo'
 import {
   CURRENT_TAX_YEAR,
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
+  NIIT_THRESHOLD_MFJ, NIIT_THRESHOLD_MFS, NIIT_THRESHOLD_SINGLE,
+  ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE,
 } from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
@@ -967,7 +969,7 @@ function IRSCompliance({ rec }) {
   const _niitRentalNet = _isREP ? 0 : Math.max(0, _rentalIncomeSch - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
   const _netInvestmentIncome = _niitInterest + _niitDividends + _niitCapGains + _niitRentalNet
   const _niitMagi = k1 + w2 + _netInvestmentIncome
-  const _niitThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
+  const _niitThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? NIIT_THRESHOLD_MFJ : (f.filingStatus === 'mfs' ? NIIT_THRESHOLD_MFS : NIIT_THRESHOLD_SINGLE)
   if (_niitMagi > _niitThreshold && _netInvestmentIncome > 0) {
     schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', covered: hasCapGains || hasInterest || hasRentalInc, detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold.`, deadline: 'Filed with Form 1040' })
   }
@@ -977,7 +979,7 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', covered: hasItemized, detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
 
-  const _addlMedThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? 250000 : (f.filingStatus === 'mfs' ? 125000 : 200000)
+  const _addlMedThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : (f.filingStatus === 'mfs' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE)
   if (w2 > _addlMedThreshold) {
     schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', covered: hasW2Data, detail: `With ${fmt(w2)} in wages, the 0.9% Additional Medicare Tax applies to wages above ${fmt(_addlMedThreshold)}.`, deadline: 'Filed with Form 1040' })
   }
