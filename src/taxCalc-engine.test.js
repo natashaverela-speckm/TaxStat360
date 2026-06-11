@@ -3,6 +3,7 @@ import {
   getStdDed, getBrackets, calcFederalTax, calcPreferentialTax,
   calcNIIT, calcAMT, getMarginalRate,
 } from './taxCalc.js'
+import { CURRENT_TAX_YEAR } from './constants.js'
 
 // =============================================================================
 // getStdDed — standard deduction lookup by year + filing status
@@ -15,7 +16,7 @@ describe('getStdDed', () => {
   it('2025 qss (= mfj)', () => expect(getStdDed(2025, 'qss')).toBe(31500))
   it('2024 single uses 2024 table ($14,600)', () => expect(getStdDed(2024, 'single')).toBe(14600))
   it('2026 single uses 2026 OBBBA-adjusted ($16,100)', () => expect(getStdDed(2026, 'single')).toBe(16100))
-  it('unknown year falls back to 2025 table', () => expect(getStdDed(2099, 'single')).toBe(15750))
+  it('unknown year falls back to the current-year table', () => expect(getStdDed(2099, 'single')).toBe(getStdDed(CURRENT_TAX_YEAR, 'single')))
   it('unknown filing status falls back to single', () => expect(getStdDed(2025, 'civil_union')).toBe(15750))
 })
 
@@ -38,8 +39,8 @@ describe('getBrackets', () => {
   it('2026 single 22% bracket boundary at $106,900 (post-OBBBA)', () => {
     expect(getBrackets(2026, 'single').find(b => b[1] === 0.22)).toEqual([106900, 0.22])
   })
-  it('unknown year falls back to 2025 brackets', () => {
-    expect(getBrackets(2099, 'single')[0]).toEqual([11925, 0.10])
+  it('unknown year falls back to the current-year brackets', () => {
+    expect(getBrackets(2099, 'single')).toEqual(getBrackets(CURRENT_TAX_YEAR, 'single'))
   })
   it('unknown filing status falls back to single brackets', () => {
     expect(getBrackets(2025, 'civil_union')[0]).toEqual([11925, 0.10])
