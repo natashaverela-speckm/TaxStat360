@@ -47,7 +47,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax } from './taxCalc'
-import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State } from './utils/sessionState.js'
+import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
 import BrandLogo from './BrandLogo'
@@ -358,23 +358,12 @@ export default function Dashboard() {
   const userName = localStorage.getItem('userName') || ''
 
   useEffect(() => {
-    const email = localStorage.getItem('ts360_email') || 'default'
-    const key   = 'ts360_records_' + email
-    const allFound = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k && k.startsWith('ts360_records')) {
-        try {
-          const r = JSON.parse(localStorage.getItem(k) || '[]')
-          r.forEach(rec => { if (!allFound.find(x => x.id === rec.id)) allFound.push(rec) })
-        } catch (e) {}
-      }
-    }
-    const recs = allFound.sort((a, b) => (b.id || 0) - (a.id || 0))
-    if (email !== 'default' && recs.length > 0) {
-      localStorage.setItem(key, JSON.stringify(recs))
-      localStorage.setItem('ts360_records', JSON.stringify(recs))
-    }
+    // CROSS-EMAIL LEAK FIX: read ONLY the current user's records via the shared
+    // helper (which also runs the one-time legacy migration). Previously this
+    // scanned EVERY ts360_records* bucket — including other accounts' buckets —
+    // and merged them, leaking records across users on a shared browser and
+    // re-writing them back to the global key.
+    const recs = readUserRecords()
     setRecords(recs)
 
     if (recs.length > 0) {
@@ -584,10 +573,9 @@ export default function Dashboard() {
         } catch (e) {}
       }
     } else {
-      // Record has no id — fall back to keeping the canonical keys in sync by index.
-      const email = localStorage.getItem('ts360_email') || 'default'
-      localStorage.setItem('ts360_records_' + email, JSON.stringify(updated))
-      localStorage.setItem('ts360_records', JSON.stringify(updated))
+      // Record has no id — fall back to writing the current user's bucket only
+      // (never the retired shared global key).
+      writeUserRecords(updated)
     }
     if (wasLoaded) setLoadedRecord(null)
   }

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
@@ -101,17 +101,10 @@ function Logo() {
 }
 
 function getAllRecords() {
-  const found = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)
-    if (k && k.startsWith('ts360_records')) {
-      try {
-        const recs = JSON.parse(localStorage.getItem(k) || '[]')
-        recs.forEach(r => { if (r.biz && !found.find(x => x.id === r.id)) found.push(r) })
-      } catch(e) {}
-    }
-  }
-  return found.sort((a, b) => (b.id || 0) - (a.id || 0))
+  // CROSS-EMAIL LEAK FIX: return only the current user's records (with biz data),
+  // via the shared helper. Previously this scanned every ts360_records* bucket and
+  // could surface — and analyze — a different account's saved record.
+  return readUserRecords().filter(r => r && r.biz)
 }
 
 function getRecord(liveState) {
