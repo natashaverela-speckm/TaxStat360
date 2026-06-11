@@ -7,11 +7,12 @@
 // F-08: One-time onboarding tour (5 steps) on first login per account.
 //       Stored in localStorage as ts360_onboarding_v1.
 //
-// PASS4B-03: PASSTHROUGH_ENTITY_TYPES, C_CORP_TAX_RATE, and
-// SCORP_REASONABLE_COMP_RATIO_THRESHOLD were previously defined as local consts
-// despite being exported from constants.js. constants-centralization-03 marked
-// this "RESOLVED" but the local definitions were still present. Removed;
-// now imported from the single source of truth.
+// PASS4B-03: C_CORP_TAX_RATE and SCORP_REASONABLE_COMP_RATIO_THRESHOLD were once
+// local consts despite being exported from constants.js; they are now imported from
+// the single source of truth. PASSTHROUGH_ENTITY_TYPES was also imported here and used
+// for runtime gating — Module 1 removed that import: entity routing now uses the shared
+// normalizeEntityType + regex predicates (see the import block below), which fixed the
+// false-negative that dropped SE tax for sole proprietors and partnerships.
 //
 // PASS4B-04: "ACTIVE IN CALCULATOR" renamed to "ACTIVE IN TAX TRACKER"
 // to match the app-wide rename done 3 days ago in Settings.jsx / AIAnalysis.jsx.
@@ -52,27 +53,25 @@ import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
 import BrandLogo from './BrandLogo'
 import {
-  PASSTHROUGH_ENTITY_TYPES,
   C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
   CURRENT_TAX_YEAR,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
 import { fmt, pct } from './utils/formatMoney.js'
-import { ownPct } from './utils/entityPredicates.js'
+import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from './utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 
-const normalizeEntityType = (t) => {
-  if (!t) return ''
-  const s = String(t).trim()
-  if (/^s.?corp/i.test(s))            return 'S Corporation'
-  if (/^c.?corp/i.test(s))            return 'C Corporation'
-  if (/sole|single.?member/i.test(s)) return 'Sole Proprietor / Single-Member LLC'
-  if (/partner.*active/i.test(s))     return 'Partnership / MMLLC — Active'
-  if (/partner.*passive/i.test(s))    return 'Partnership / MMLLC — Passive'
-  if (/partner|mmllc|multi/i.test(s)) return 'Partnership / MMLLC — Active'
-  return s
-}
+// Module-1 fix (F1/F2): the Dashboard previously carried its OWN copy of
+// normalizeEntityType and then gated on PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType).
+// The local normalizer emitted the engine-canonical form ("Sole Proprietor /
+// Single-Member LLC", "Partnership / MMLLC — Active") while PASSTHROUGH_ENTITY_TYPES
+// holds the UI-label form ("Sole Proprietor / SMLLC", "Partnership / LLC"), so the
+// membership test returned false for sole proprietors and partnerships — passing an
+// empty entities[] to calcTaxReturn and silently dropping their self-employment tax.
+// We now import the single shared normalizeEntityType and classify with the
+// vocabulary-agnostic regex predicates (isCCorpEntity / isSCorpEntity), which match
+// either form. "Route to the engine" === "not a C-Corp", so isPassthru = !isCCorp.
 
 function calcDashboard(biz, f1040) {
   const rev    = parseFloat(biz.grossRevenue)      || 0
@@ -95,9 +94,15 @@ function calcDashboard(biz, f1040) {
   const otherInc = parseFloat(f1040.otherIncome)       || 0
   const deps     = parseFloat(f1040.dependents)        || 0
   const estPay   = parseFloat(f1040.estimatedPayments) || 0
-  const isCCorp    = biz.entityType === 'C Corporation'
-  const isSC       = biz.entityType === 'S Corporation'
-  const isPassthru = PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType)
+  // Normalize once to the engine-canonical form, then classify with regex predicates
+  // that match either the UI-label or engine form. isPassthru means "send this entity
+  // through calcTaxReturn" (every supported type except a C-Corp, which has its own
+  // entity-level branch below). This fixes the prior false-negative for sole props /
+  // partnerships (F1) that suppressed their SE tax.
+  const entityType = normalizeEntityType(biz.entityType)
+  const isCCorp    = isCCorpEntity(entityType)
+  const isSC       = isSCorpEntity(entityType)
+  const isPassthru = !isCCorp
 
   const baseInput = {
     taxYear: year, status: fs, dependents: deps,
@@ -132,7 +137,7 @@ function calcDashboard(biz, f1040) {
     }
   }
 
-  const entities = isPassthru ? [{ type: biz.entityType, k1, own: 100, officerW2: sal }] : []
+  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
   const reasonableCompAlert = (() => {

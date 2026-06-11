@@ -49,34 +49,38 @@
 // and belong in AMT_TABLES[year] in taxCalc.js — they are NOT defined here.
 // (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ — add to TAX_TABLES.)
 //
-// ── AUDIT PASS 2 FIXES ───────────────────────────────────────────────────────
-// O3 FIX: ENTITY_TYPES was the source of a cross-component mismatch.
-//   Previous values:
-//     'Sole Proprietor / Single-Member LLC' ← didn't match Tax Tracker's 'Sole Proprietor / SMLLC'
-//     'Partnership / MMLLC — Active'        ← Tax Tracker uses 'Partnership / LLC'
-//     'Partnership / MMLLC — Passive'       ← Tax Tracker uses 'Partnership / LLC'
-//     'S Corporation'                        ← matched
-//     'C Corporation'                        ← not supported in Tax Tracker; caused silent mis-routing
-//     (no Real Estate entry)                 ← Tax Tracker supports 'Real Estate (Schedule E)'
+// ── ENTITY-TYPE REPRESENTATION (corrected — Module 1) ───────────────────────
+// There are TWO representations of an entity type, by design, and they are NOT the
+// same strings. Earlier comments here claimed they had been "unified" to a single
+// canonical set. They were not, and that false claim hid a real bug. The accurate
+// picture:
 //
-//   CompareModal in CalculateTaxInner.jsx filters ENTITY_TYPES to build comparison scenarios.
-//   The mismatch meant CompareModal passed unrecognized type strings to calcTaxReturn, which
-//   fell back to Sole Prop behaviour silently — producing incorrect comparison figures.
+//   1. UI / input layer (Vocabulary A) — what the user picks and what gets stored:
+//        'S Corporation' · 'Partnership / LLC' · 'Sole Proprietor / SMLLC' ·
+//        'Real Estate (Schedule E)'
+//      This is ENTITY_TYPES below (and PASSTHROUGH_ENTITY_TYPES = ENTITY_TYPES minus
+//      C-Corp). It is the canonical set at the boundary.
 //
-//   ENTITY_TYPES now matches the Tax Tracker entity card <select> exactly (4 types).
-//   C Corporation is removed (not supported for tax calculation). Real Estate is added.
-//   SE_SUBJECT_TYPES and PASSTHROUGH_ENTITY_TYPES updated to use the same canonical strings.
-//   Partnership active/passive distinction is handled at the entity level via entity.isREP /
-//   entity.isActiveParticipant flags, not by separate type strings — removing the split
-//   simplifies all consumers and eliminates the silent comparison mis-routing.
+//   2. Engine-internal canonical form — what normalizeEntityType() emits and what the
+//      tax engine keys on:
+//        'S Corporation' · 'Partnership / MMLLC — Active' · 'Partnership / MMLLC —
+//        Passive' · 'Sole Proprietor / Single-Member LLC' · 'Real Estate (Schedule E)'
+//      The partnership Active/Passive split exists ONLY in this layer because SE
+//      treatment depends on it (§1402(a)(13)) and it cannot be expressed in the single
+//      UI 'Partnership / LLC' label. SE_SUBJECT_TYPES is in THIS form.
 //
-//   Downstream effects:
-//     CompareModal (CalculateTaxInner.jsx): now iterates correct 4-type list. Real Estate
-//     is filtered from SE and comparison scenarios automatically via SE_SUBJECT_TYPES.
-//     entityPredicates.js: isPassthroughEntity, isSCorpEntity, isRealEstateEntity all
-//     already use regex patterns — no change needed.
-//     calcTaxReturn (taxCalc.js): driven by entity.type string matches in entityPredicates.
-//     The regex patterns in entityPredicates already match the new canonical strings.
+// normalizeEntityType() (utils/entityPredicates.js) is the single, documented bridge
+// from layer 1 to layer 2. The engine calls it on every entity before any type test,
+// so SE_SUBJECT_TYPES.includes(e.type) only ever sees layer-2 strings — that is why it
+// works despite using different strings than ENTITY_TYPES.
+//
+// RULE: never test an entity type with exact-string .includes() against an array in the
+// OTHER layer's vocabulary. Either normalize first and compare in layer-2 form, or use
+// the regex predicates in entityPredicates.js (isSCorpEntity / isCCorpEntity /
+// isPassthroughEntity / isRealEstateEntity), which match either layer. The Dashboard
+// previously violated this (normalized to layer 2, then membership-tested against the
+// layer-1 PASSTHROUGH_ENTITY_TYPES) and silently dropped SE tax for sole proprietors and
+// partnerships. Dashboard.jsx now normalizes once and gates on !isCCorpEntity().
 //
 // O6 FIX: Added PLAN_FEATURES map — one-line feature summary per plan tier.
 //   Consumed by Onboarding.jsx SignupScreen plan picker so users can choose their
@@ -416,27 +420,20 @@ export const CATCHUP_AGE_SUPER_START = 60   // SECURE 2.0 §109 — enhanced cat
 export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 §109 — enhanced catch-up window end (inclusive)
 
 // ─── ENTITY TYPES ─────────────────────────────────────────────────────────────
-// O3 FIX: Canonical entity type strings — must match the Tax Tracker entity card
-// <select> options in CalculateTaxInner.jsx exactly. All consumers (CompareModal,
-// onboarding EntityScreen, entityPredicates.js regex patterns, calcTaxReturn) derive
-// their entity classification from these strings.
+// UI / input vocabulary (Vocabulary A — "layer 1" in the representation note above).
+// These are the exact <select> options in the Tax Tracker (CalculateTaxInner.jsx) and
+// the Onboarding EntityScreen. This is the canonical set at the boundary: what the user
+// picks and what gets persisted. The engine does NOT key on these strings directly — it
+// keys on the engine-internal form produced by normalizeEntityType(); see SE_SUBJECT_TYPES.
 //
-// Previous list had five values including 'C Corporation' (unsupported in Tax Tracker),
-// split 'Partnership / MMLLC — Active' / 'Partnership / MMLLC — Passive' (not matching
-// the Tax Tracker's single 'Partnership / LLC' option), and lacked 'Real Estate (Schedule E)'.
-// The mismatch caused CompareModal to pass unrecognized type strings to calcTaxReturn,
-// which fell back to Sole Prop behaviour silently — producing wrong comparison figures.
+// C Corporation is intentionally absent (not a supported planning structure for this
+// audience). Note: several modules still carry C-Corp branches — reconciling that is a
+// separate, tracked item (audit F6 / Module 4), not part of this list.
 //
-// The Active/Passive partnership distinction is now handled via entity-level flags
-// (entity.isREP, entity.isActiveParticipant) rather than separate type strings.
-// entityPredicates.js regex patterns match all four canonical strings correctly.
-// C Corporation is removed from this list — it is not supported for tax calculation.
-// Real Estate (Schedule E) is added — it is a primary use case for the target audience
-// and was already supported by the Tax Tracker but absent from this constant.
-//
-// ⚠ When adding a new entity type: update this array AND the Tax Tracker <select>
-// options AND the entityPredicates.js pattern functions simultaneously. These three
-// must stay in sync — this constant is the reference source.
+// ⚠ When adding a new entity type: update this array, the Tax Tracker <select>, the
+// Onboarding EntityScreen, AND the entityPredicates.js regex patterns / normalizeEntityType
+// together. The entityPredicates guard test asserts every value here round-trips and is
+// classified consistently — run it after any change here.
 export const ENTITY_TYPES = [
   'S Corporation',
   'Partnership / LLC',
@@ -444,10 +441,12 @@ export const ENTITY_TYPES = [
   'Real Estate (Schedule E)',
 ]
 
-// Pass-through entities: K-1 income flows to the owner's personal 1040.
-// All four supported entity types are pass-through. C-Corp (double-taxation)
-// is not supported and therefore not listed.
-// O3 FIX: updated to use canonical strings matching ENTITY_TYPES above.
+// Pass-through entities, UI-label form (== ENTITY_TYPES; all four supported types are
+// pass-through, C-Corp excluded). This is a REFERENCE list in the layer-1 vocabulary.
+// Do NOT use it for runtime gating against a value that may already be normalized to the
+// engine form — that mismatch is exactly the bug Module 1 fixed in Dashboard.jsx. For
+// "is this routed through the personal return / engine?", normalize first and use the
+// regex predicate isPassthroughEntity() (or, for "anything but a C-Corp", !isCCorpEntity()).
 export const PASSTHROUGH_ENTITY_TYPES = [
   'S Corporation',
   'Partnership / LLC',
@@ -455,19 +454,19 @@ export const PASSTHROUGH_ENTITY_TYPES = [
   'Real Estate (Schedule E)',
 ]
 
-// SE-subject entity types: drive SE tax calculation in calcTaxReturn.
-// S-Corp distributions are NOT SE-subject (officer W-2 salary is FICA-taxed instead).
-// Real Estate is NOT SE-subject (rental income is passive; SE tax does not apply).
-// Partnership / LLC: SE tax applies to general partners / active members who materially
-// participate. This is handled at runtime by entity.isActiveParticipant flag in
-// calcTaxReturn — the type string alone does not determine SE treatment for partnerships.
-// The type is included here so Sole Prop is correctly identified as always SE-subject.
-// O3 FIX: updated to use canonical strings. 'Partnership / MMLLC — Active' removed;
-// partnership SE treatment is applied conditionally in calcTaxReturn via entity flags.
-// IMPORTANT: these strings must match the canonical labels normalizeEntityType()
-// (utils/entityPredicates.js) produces, because the engine checks
-// SE_SUBJECT_TYPES.includes(e.type) AFTER normalizing. Passive partnerships
-// normalize to 'Partnership / MMLLC — Passive' and are intentionally excluded here.
+// SE-subject entity types — ENGINE-INTERNAL form (Vocabulary B / layer 2), i.e. the
+// strings normalizeEntityType() emits, NOT the ENTITY_TYPES UI labels. This is deliberate
+// and correct: calcTaxReturn normalizes every entity (taxCalc.js) before testing
+// SE_SUBJECT_TYPES.includes(e.type), so this array is only ever compared against
+// normalized values. Do not "align" these to the ENTITY_TYPES labels — doing so would
+// break the engine, which keys on the layer-2 strings.
+//   • Sole Proprietor / Single-Member LLC → always SE-subject (Schedule C).
+//   • Partnership / MMLLC — Active → SE-subject; — Passive → NOT (so the passive variant
+//     is intentionally absent here). The Active/Passive split lives in layer 2 precisely
+//     because the single UI 'Partnership / LLC' label cannot carry it; §1402(a)(13).
+//   • S-Corp (officer W-2 is FICA-taxed instead) and Real Estate (passive rental) are
+//     intentionally NOT SE-subject and therefore absent.
+// The entityPredicates guard test pins this classification so it cannot silently drift.
 export const SE_SUBJECT_TYPES = [
   'Sole Proprietor / Single-Member LLC',
   'Partnership / MMLLC — Active',
