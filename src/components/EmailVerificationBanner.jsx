@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { API_BASE_URL } from '../constants.js'
+import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
 
 const B = '#2563EB'
 const N = '#0D1B3E'
@@ -61,18 +61,16 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setBusy(true)
     setMsg('')
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Could not resend email')
-      }
+      await apiPost('/auth/resend-verification', { email })
       setMsg(`✓ Verification email sent again to ${email}. Check your inbox (and junk/spam).`)
     } catch (e) {
-      setMsg(e.message || 'Could not resend email')
+      // Match the prior logic: server `detail` on a non-ok response, else a generic message;
+      // a network error surfaces its native message (as before).
+      if (e instanceof ApiError) {
+        setMsg((e.body && e.body.detail) || 'Could not resend email')
+      } else {
+        setMsg(e.message || 'Could not resend email')
+      }
     } finally {
       setBusy(false)
     }
@@ -88,13 +86,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setBusy(true)
     setMsg('')
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/change-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, new_email: next }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Could not update email')
+      await apiPost('/auth/change-email', { email, new_email: next })
       localStorage.setItem('ts360_email', next)
       localStorage.setItem('pendingEmail', next)
       localStorage.removeItem('ts360_email_verified')
@@ -102,7 +94,11 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
       setEditing(false)
       setMsg(`✓ Verification email sent again to ${next}. Check your inbox (and junk/spam).`)
     } catch (err) {
-      setMsg(err.message || 'Could not update email')
+      if (err instanceof ApiError) {
+        setMsg((err.body && err.body.detail) || 'Could not update email')
+      } else {
+        setMsg(err.message || 'Could not update email')
+      }
     } finally {
       setBusy(false)
     }
@@ -178,19 +174,18 @@ export async function fetchVerificationStatus(email) {
     return { verified: true, email }
   }
   try {
-    const res = await fetch(
-      `${API_BASE_URL}/auth/verification-status?email=${encodeURIComponent(email)}`,
+    // Non-ok throws → caught below → fail open (returns unverified), same as the prior
+    // code which only acted inside `if (res.ok)` and otherwise fell through.
+    const data = await apiGet(
+      `/auth/verification-status?email=${encodeURIComponent(email)}`,
       { headers: { Accept: 'application/json' } },
     )
-    if (res.ok) {
-      const data = await res.json()
-      if (data.verified) {
-        localStorage.setItem('ts360_email_verified', '1')
-        localStorage.removeItem(CONFIRMED_ACK_KEY)
-        return { verified: true, email: data.email || email }
-      }
-      return { verified: false, email: data.email || email }
+    if (data?.verified) {
+      localStorage.setItem('ts360_email_verified', '1')
+      localStorage.removeItem(CONFIRMED_ACK_KEY)
+      return { verified: true, email: data.email || email }
     }
+    return { verified: false, email: data?.email || email }
   } catch (_e) {
     /* fail open — never block the app */
   }
