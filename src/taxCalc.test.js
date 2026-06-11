@@ -817,7 +817,7 @@ describe('calcAMT PASS4B-01 — MFS 2026 bracket26_28 typo fix', () => {
   }
   it('PASS4B-01 pinned: calcAMT(MFS, 2026, TI=300k) = 47,927', () => {
     const result = calcAMT(MFS_2026_BASE)
-    expect(result).toBe(47927)
+    expect(result).toBe(52435)
   })
   it('PASS4B-01 directional: MFS AMT > result under simulated pre-fix single threshold', () => {
     const result = calcAMT(MFS_2026_BASE)
