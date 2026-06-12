@@ -1097,13 +1097,13 @@ function ReportModal({ onClose, rec }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION{rec.savedAt ? ` — ${rec.savedAt}` : ''}</div>
             {[
               ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
-              ['Gross Revenue', b.grossRevenue ? '$' + parseFloat(b.grossRevenue).toLocaleString() : ''],
-              ['Total Expenses', b.operatingExpenses ? '$' + parseFloat(b.operatingExpenses).toLocaleString() : ''],
-              ['Officer Salary', b.officerSalary ? '$' + parseFloat(b.officerSalary).toLocaleString() : ''],
-              ['Net Pass-Through / Schedule E Income', rec.k1Income ? '$' + parseFloat(rec.k1Income).toLocaleString() : '$0'],
+              ['Gross Revenue', b.grossRevenue ? fmt(b.grossRevenue) : ''],
+              ['Total Expenses', b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
+              ['Officer Salary', b.officerSalary ? fmt(b.officerSalary) : ''],
+              ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
-              ['W-2 Income', totalW2 > 0 ? '$' + totalW2.toLocaleString() : ''],
-              ['Estimated Payments Made', f.estPaid ? '$' + parseFloat(f.estPaid).toLocaleString() : ''],
+              ['W-2 Income', totalW2 > 0 ? fmt(totalW2) : ''],
+              ['Estimated Payments Made', f.estPaid ? fmt(f.estPaid) : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
                 <span style={{ color: SL }}>{label}</span><span style={{ fontWeight: 600, color: N }}>{value}</span>

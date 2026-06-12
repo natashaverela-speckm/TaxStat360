@@ -875,10 +875,10 @@ export default function Dashboard() {
                     <span style={{ fontSize: 12, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
                     <span style={{ fontSize: 12, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
                     {displayRevenue && parseFloat(displayRevenue) > 0 && (
-                      <span style={{ fontSize: 12, color: SL }}>Revenue: <strong style={{ color: N }}>${parseFloat(displayRevenue).toLocaleString()}</strong></span>
+                      <span style={{ fontSize: 12, color: SL }}>Revenue: <strong style={{ color: N }}>{fmt(displayRevenue)}</strong></span>
                     )}
                     {w2Income && parseFloat(w2Income) > 0 && (
-                      <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>${parseFloat(w2Income).toLocaleString()}</strong></span>
+                      <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>{fmt(w2Income)}</strong></span>
                     )}
                     {quarterly > 0 && (
                       <span style={{ fontSize: 11, color: '#94A3B8' }}>

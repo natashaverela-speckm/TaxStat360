@@ -118,6 +118,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
+import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
@@ -130,7 +131,7 @@ import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstate
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const nf = (v, fallback = 0) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : fallback }
+// nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
 
 // F23 FIX: Human-readable "last synced" formatter
 function fmtSyncedAt(isoStr) {
