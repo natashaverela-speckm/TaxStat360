@@ -52,7 +52,7 @@ import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpC
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
-  readStep1State, writeStep1State,
+  readStep1State, writeStep1State, recordsKeyFor,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
@@ -431,7 +431,7 @@ export default function TaxReturn() {
 
   const buildRecord = useCallback(() => {
     const email    = localStorage.getItem('ts360_email') || 'default'
-    const key      = 'ts360_records_' + email
+    const key      = recordsKeyFor(email)
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
     const record = {
       id: Date.now(),
