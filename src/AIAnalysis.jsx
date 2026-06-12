@@ -1821,7 +1821,7 @@ export default function AIAnalysis() {
       <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #cbd5e1', padding: '48px 36px', maxWidth: 480, textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F1F3D', margin: '0 0 10px' }}>AI Analysis & Reporting — Professional Feature</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 10px' }}>AI Analysis & Reporting — Professional Feature</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
             AI Risk Scan, Tax Optimization, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
           </p>

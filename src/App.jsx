@@ -446,7 +446,7 @@ function CookieBanner() {
     setVisible(false)
   }
 
-  const N = '#0F1F3D'
+  const N = '#0D1B3E'
   const B = '#2563EB'
 
   return (
