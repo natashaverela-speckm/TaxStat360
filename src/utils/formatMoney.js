@@ -41,4 +41,10 @@ export function fmtCompact(n) {
   return fmt(v)
 }
 
+// Timestamp label for saved returns ("Mar 5, 2026, 4:30 PM"). Centralized so the
+// two save sites (Tax Tracker step 1 and TaxReturn) stay byte-identical (audit D-4).
+export function formatTimestamp(date = new Date()) {
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 export default fmt
