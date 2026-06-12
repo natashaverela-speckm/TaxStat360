@@ -136,6 +136,13 @@ export function clearStep1State() {
   // key), NOT from ts360_entities_raw. Clearing the canonical keys above left this one
   // untouched, so a previously-entered entity bled into every fresh calculation.
   sessionStorage.removeItem('ts360_step1_entities'); sessionStorage.removeItem('ts360_f1040'); sessionStorage.removeItem('ts360_taxyear')
+  // F-FUNC-02: a fresh calculation is NOT an edit of the previously-loaded record.
+  // Drop the active-record pointer so the next "Save This Record" mints a new
+  // record instead of upserting over (and overwriting) the record last loaded.
+  clearActiveRecord()
+  // F-FUNC-05: drop any stale entity-preset hint so a plain "+ New Calculation"
+  // starts genuinely empty. A preset card re-stashes its hint AFTER calling this.
+  clearPresetEntityType()
 }
 
 // ─── Personal 1040 context (filing status, year, income, deductions, payments) ─
@@ -688,4 +695,93 @@ export function writeUserRecords(recs) {
   const list = Array.isArray(recs) ? recs : []
   localStorage.setItem(recordsKeyFor(_recordsEmail()), JSON.stringify(list))
   return list
+}
+
+// ─── F-FUNC-02: Active / loaded record pointer ─────────────────────────────
+// When a saved record is loaded into the Tax Tracker, Dashboard.loadRecord
+// records WHICH record is live so (a) the Dashboard "Active in Tax Tracker"
+// badge can mark it and (b) a subsequent "Save This Record" can UPSERT that
+// same record instead of forking a brand-new duplicate every save.
+//
+// Storage keys (session-scoped — the active record is per working session):
+//   ts360_active_record_id   — the loaded record's id, as a string
+//   ts360_active_record_name — its display name, so the save modal can prefill
+//
+// Previously these two keys were read/written via raw sessionStorage.getItem/
+// setItem in Dashboard only, and the save handlers never consulted them — which
+// is exactly why every save minted a fresh id (forking duplicates) and the
+// "Active" badge stuck to the stale original. These canonical accessors give the
+// save paths (CalculateTaxInner, TaxReturn) and Dashboard one shared contract,
+// matching the recordsKeyFor / writeUserRecords convention used above.
+//
+// clearStep1State() also clears these, so a "+ New Calculation" starts a genuinely
+// fresh record rather than silently upserting over the previously-loaded one.
+
+const ACTIVE_RECORD_ID_KEY   = 'ts360_active_record_id'
+const ACTIVE_RECORD_NAME_KEY = 'ts360_active_record_name'
+
+/**
+ * Mark a record as the one currently loaded into the Tax Tracker.
+ * @param {string|number} id   - the record's id
+ * @param {string} [name]      - the record's display name (for save-modal prefill)
+ */
+export function writeActiveRecord(id, name) {
+  if (id === null || id === undefined || id === '') {
+    clearActiveRecord()
+    return
+  }
+  sessionStorage.setItem(ACTIVE_RECORD_ID_KEY, String(id))
+  if (name !== undefined) sessionStorage.setItem(ACTIVE_RECORD_NAME_KEY, String(name || ''))
+}
+
+/**
+ * The id of the record currently loaded into the Tax Tracker, or null if the
+ * session is a fresh (unsaved) calculation. Returned as a string so callers can
+ * compare directly against String(rec.id).
+ */
+export function readActiveRecordId() {
+  const v = sessionStorage.getItem(ACTIVE_RECORD_ID_KEY)
+  return v ? v : null
+}
+
+/** Display name of the loaded record, or '' if none / not set. */
+export function readActiveRecordName() {
+  return sessionStorage.getItem(ACTIVE_RECORD_NAME_KEY) || ''
+}
+
+/** Forget the loaded-record pointer (fresh calculation, or record deleted). */
+export function clearActiveRecord() {
+  sessionStorage.removeItem(ACTIVE_RECORD_ID_KEY)
+  sessionStorage.removeItem(ACTIVE_RECORD_NAME_KEY)
+}
+
+// ─── F-FUNC-05: Dashboard entity-preset hand-off ───────────────────────────
+// The Dashboard "S-Corp Owner" / "Sole Proprietor" / etc. preset cards imply
+// "set me up with an entity of this type." Previously they just navigated to the
+// Tax Tracker with no entity, so the "Add an entity to continue" gate still
+// blocked. These cards now stash the matching entity-type string here; the Tax
+// Tracker reads it once on mount and seeds an entity through its existing
+// addEntityOfType() path (the same path the in-app entity picker uses), then
+// clears the hint so a later plain "+ New Calculation" doesn't re-seed.
+//
+// Storage key: ts360_preset_entity_type (session-scoped — a one-shot hand-off).
+// The type string MUST be one the Tax Tracker's entity picker recognizes, e.g.
+// 'S Corporation' | 'Partnership / LLC' | 'Sole Proprietor / SMLLC' |
+// 'Real Estate (Schedule E)'.
+
+const PRESET_ENTITY_TYPE_KEY = 'ts360_preset_entity_type'
+
+/** Stash the preset entity type for the Tax Tracker to seed on next mount. */
+export function writePresetEntityType(type) {
+  if (type) sessionStorage.setItem(PRESET_ENTITY_TYPE_KEY, String(type))
+}
+
+/** Read the pending preset entity type, or '' if none. */
+export function readPresetEntityType() {
+  return sessionStorage.getItem(PRESET_ENTITY_TYPE_KEY) || ''
+}
+
+/** Clear the preset hint once it has been consumed. */
+export function clearPresetEntityType() {
+  sessionStorage.removeItem(PRESET_ENTITY_TYPE_KEY)
 }
