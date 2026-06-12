@@ -7,6 +7,7 @@ import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, r
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney'
+import { nf } from './utils/parseMoney'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
 import {
@@ -218,7 +219,7 @@ function recDepreciation(rec) {
   // — e.g. a 100%-business-use vehicle expensed under §179 — registered as zero,
   // so the scan falsely told them they had "no depreciation" and "no vehicle
   // deduction." Count box11_12 (§179) alongside MACRS/bonus depreciation.
-  const numFrom = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0
+  const numFrom = nf // unified onto canonical parser (audit D-1)
   const fromEntities = (Array.isArray(rec.entities) ? rec.entities : [])
     .reduce((s, e) => s + numFrom(e?.pnl?.depreciation) + numFrom(e?.box11_12), 0)
   if (fromEntities > 0) return fromEntities
@@ -1152,7 +1153,7 @@ function BriefingModal({ onClose, rec }) {
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
   const filingLabel = ({ single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' })[filing] || filing
-  const num = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0
+  const num = nf // unified onto canonical parser (audit D-1)
   // O7 FIX: use onboarding business name on briefing cover if available
   const { bizName, bizEin, bizAddress } = getOnboardingBizInfo()
   const displayName = bizName || b.entityType || 'Business'
