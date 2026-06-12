@@ -1545,7 +1545,7 @@ export default function CalculateTaxInner() {
 
   // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
   const handleManualSync = useCallback((pid) => {
-    const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+    const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || ''
     const extra = localStorage.getItem('ts360_' + pid + '_extra')
     const idx   = entities.findIndex(e => e.connectedId === pid)
     fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
@@ -1571,7 +1571,7 @@ export default function CalculateTaxInner() {
         localStorage.removeItem('ts360_' + pid + '_failed')
         const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
         if (!hasToken) {
-          fetchEntityPnL(entityIdx, pid, localStorage.getItem('token') || '', null)
+          fetchEntityPnL(entityIdx, pid, '', null)
         }
         break
       }
@@ -1596,7 +1596,7 @@ export default function CalculateTaxInner() {
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
         if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
-          const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
+          const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || ''
           const extra = localStorage.getItem('ts360_' + pid + '_extra')
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }

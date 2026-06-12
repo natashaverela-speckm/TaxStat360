@@ -136,7 +136,7 @@ export default function Upgrade() {
       // Previously the response was discarded — if the API returned 402/500, the user
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('ts360_token')
       const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
