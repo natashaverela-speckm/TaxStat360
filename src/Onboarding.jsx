@@ -34,10 +34,11 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 // O3 FIX: Onboarding EntityScreen listed 5 entity types including "C Corporation"
 //   and "Other", but the Tax Tracker only supports 4 types and omits C-Corp.
 //   "Real Estate (Schedule E)" — a core use case for the target audience —
-//   was absent from onboarding entirely. Fixed: EntityScreen now lists the same
-//   4 types the Tax Tracker supports. C Corporation is replaced with a clear
-//   "C Corporation not supported" notice so owners who select it understand
-//   why it is absent in the tool. "Real Estate (Schedule E)" is added.
+//   was absent from onboarding entirely. Fixed: EntityScreen lists the same
+//   types the Tax Tracker supports, plus "Real Estate (Schedule E)".
+//   (Update — C-Corp support has since been built out across the engine, Tax
+//   Tracker, and Dashboard, so C Corporation is now a selectable option and the
+//   former "not supported" notice has been removed.)
 //   "Other" is removed (it mapped to no Tax Tracker entity). The entity type
 //   written to localStorage now uses the canonical Tax Tracker string so it
 //   hydrates the entity card correctly on first session.
@@ -549,28 +550,24 @@ For planning purposes only — not professional tax, legal, or financial advice.
 </Page>)
 }
 
-// O3 FIX: EntityScreen entity list unified with Tax Tracker's ENTITY_TYPES.
-// Previous list: Sole Proprietor / Single-Member LLC, Partnership / MMLLC,
-//   S Corporation, C Corporation, Other.
-// New list matches Tax Tracker exactly: S Corporation, Partnership / LLC,
-//   Sole Proprietor / SMLLC, Real Estate (Schedule E).
-// C Corporation: replaced with a notice explaining it is not supported for
-//   tax calculation, so users understand the limitation rather than being
-//   silently routed to an incompatible structure.
-// Real Estate (Schedule E): added — it is explicitly called out in marketing
-//   copy and is a primary use case for the real estate investor audience.
-// "Other": removed — it had no corresponding Tax Tracker entity type.
-// Entity type strings now match the canonical Tax Tracker values exactly so
+// EntityScreen entity list matches the Tax Tracker's ENTITY_TYPES exactly:
+//   S Corporation, C Corporation, Partnership / LLC, Sole Proprietor / SMLLC,
+//   Real Estate (Schedule E).
+// C Corporation: now a fully selectable option (audit F6 / Module 4 — C-Corp
+//   support built out across the engine, Tax Tracker, and Dashboard). The prior
+//   "not supported" notice has been removed.
+// "Other": not offered — it had no corresponding Tax Tracker entity type.
+// Entity type strings match the canonical Tax Tracker values exactly so
 //   localStorage.getItem('entityType') hydrates the entity card dropdown
 //   correctly on the first Tax Tracker session.
 function EntityScreen(){
 const nav=useNavigate()
 const [selected,setSelected]=useState('')
-const [showCCorpNotice,setShowCCorpNotice]=useState(false)
 
 // O3 FIX: 4 entity types, matching Tax Tracker exactly
 const types=[
   { value:'S Corporation',          icon:'🏢', desc:'K-1 income · reasonable officer salary · SE tax savings on distributions' },
+  { value:'C Corporation',          icon:'🏛️', desc:'Entity-level 21% corporate tax · officer salary is W-2 · profits taxed again as dividends' },
   { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
   { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },
   { value:'Real Estate (Schedule E)',icon:'🏠', desc:'Rental income/loss · passive activity rules · depreciation' },
@@ -608,31 +605,6 @@ return(<Page>
     </div>
   </button>
 ))}
-
-{/* O3 FIX: C-Corp not supported — shown as an informational notice, not a
-    selectable option, so C-Corp owners understand the limitation clearly
-    rather than proceeding into an incompatible flow. */}
-<button
-  type="button"
-  onClick={()=>setShowCCorpNotice(s=>!s)}
-  style={{
-    padding:'12px 14px',textAlign:'left',
-    border:'2px solid #E2E8F0',borderRadius:10,cursor:'pointer',
-    background:'#F8FAFC',display:'flex',alignItems:'center',gap:12,
-    opacity:0.75,
-  }}
->
-  <span style={{fontSize:22,flexShrink:0}}>🏗️</span>
-  <div>
-    <div style={{fontSize:13,fontWeight:700,color:SL,marginBottom:2}}>C Corporation</div>
-    <div style={{fontSize:11,color:'#94A3B8'}}>Not supported for tax calculation — tap to learn more</div>
-  </div>
-</button>
-{showCCorpNotice && (
-  <div style={{background:'#FEF9C3',border:'1px solid #FDE68A',borderRadius:8,padding:'12px 14px',fontSize:12,color:'#78350F',lineHeight:1.6}}>
-    <strong>C-Corporation income tax is not calculated in TaxStat360.</strong> The tool is designed for pass-through entities — S-Corps, partnerships, and sole proprietors — where income flows directly to your personal return. If you are an S-Corp or LLC that has elected S-Corp status, select <em>S Corporation</em> above. For C-Corp planning, contact us at support@taxstat360.com.
-  </div>
-)}
 </div>
 <p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details — this affects whether self-employment tax applies.</p>
 <button
