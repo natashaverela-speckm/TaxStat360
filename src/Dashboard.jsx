@@ -50,6 +50,7 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
+import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/signOut'
 import BrandLogo from './BrandLogo'
 import {
@@ -72,7 +73,10 @@ import { isPro } from './LockedFeature'
 // vocabulary-agnostic regex predicates (isCCorpEntity / isSCorpEntity), which match
 // either form. "Route to the engine" === "not a C-Corp", so isPassthru = !isCCorp.
 
-function calcDashboard(biz, f1040) {
+// Exported for unit testing (see Dashboard.test.jsx). Kept in this file because it is
+// tightly coupled to the Dashboard's biz/f1040 shapes; the export is consumed only by tests.
+// eslint-disable-next-line react-refresh/only-export-components
+export function calcDashboard(biz, f1040) {
   const rev    = parseFloat(biz.grossRevenue)      || 0
   const cogs   = parseFloat(biz.cogs)              || 0
   const gross  = rev - cogs
@@ -410,11 +414,12 @@ export default function Dashboard() {
     if (xeroToken) {
       setConnectedApp('Xero')
       setXeroLoading(true)
-      const apiBase = localStorage.getItem('ts360_api_base') || ''
-      fetch(apiBase + '/auth/xero/data?token=' + xeroToken)
-        .then(r => r.json())
+      // Routes through apiClient → API_BASE_URL, consistent with every other auth call.
+      // (Previously used a ts360_api_base localStorage override that was never set, so it
+      // defaulted to same-origin — the wrong host under the split app/API origins.)
+      apiGet('/auth/xero/data?token=' + encodeURIComponent(xeroToken))
         .then(data => {
-          if (data.grossRevenue) {
+          if (data && data.grossRevenue) {
             setBiz(p => ({
               ...p,
               grossRevenue: String(Math.round(parseFloat(data.grossRevenue) || 0)),
