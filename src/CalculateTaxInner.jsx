@@ -122,7 +122,7 @@ import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
@@ -327,9 +327,9 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
 //   onSync prop triggers a manual re-fetch.
 function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   // Derive live connection state from localStorage on every render
-  const isConnected = localStorage.getItem('ts360_' + integ.id + '_connected') === 'true'
-  const hasFailed   = localStorage.getItem('ts360_' + integ.id + '_failed')   === 'true'
-  const syncedAt    = localStorage.getItem('ts360_' + integ.id + '_synced_at')
+  const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
+  const hasFailed   = localStorage.getItem(integrationKey(integ.id, 'failed'))   === 'true'
+  const syncedAt    = localStorage.getItem(integrationKey(integ.id, 'syncedAt'))
   const syncedLabel = fmtSyncedAt(syncedAt)
 
   return (
@@ -642,11 +642,11 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
-      localStorage.removeItem('ts360_' + pid + '_connected')
-      localStorage.removeItem('ts360_' + pid + '_token')
-      localStorage.removeItem('ts360_' + pid + '_extra')
-      localStorage.removeItem('ts360_' + pid + '_synced_at')
-      sessionStorage.removeItem('ts360_' + pid + '_token')
+      localStorage.removeItem(integrationKey(pid, 'connected'))
+      localStorage.removeItem(integrationKey(pid, 'token'))
+      localStorage.removeItem(integrationKey(pid, 'extra'))
+      localStorage.removeItem(integrationKey(pid, 'syncedAt'))
+      sessionStorage.removeItem(integrationKey(pid, 'token'))
       localStorage.removeItem('ts360_connected_app')
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
@@ -1379,11 +1379,11 @@ export default function CalculateTaxInner() {
   }, [])
 
   const handleIntegrationDisconnect = useCallback((pid) => {
-    localStorage.removeItem('ts360_' + pid + '_connected')
-    localStorage.removeItem('ts360_' + pid + '_token')
-    localStorage.removeItem('ts360_' + pid + '_extra')
-    localStorage.removeItem('ts360_' + pid + '_synced_at')
-    localStorage.removeItem('ts360_' + pid + '_failed')
+    localStorage.removeItem(integrationKey(pid, 'connected'))
+    localStorage.removeItem(integrationKey(pid, 'token'))
+    localStorage.removeItem(integrationKey(pid, 'extra'))
+    localStorage.removeItem(integrationKey(pid, 'syncedAt'))
+    localStorage.removeItem(integrationKey(pid, 'failed'))
     localStorage.removeItem('ts360_connected_app')
     setEntities(prev => {
       const next = prev.map(e =>
@@ -1483,10 +1483,10 @@ export default function CalculateTaxInner() {
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
         if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
-          localStorage.removeItem('ts360_' + pid + '_token')
-          localStorage.removeItem('ts360_' + pid + '_connected')
+          localStorage.removeItem(integrationKey(pid, 'token'))
+          localStorage.removeItem(integrationKey(pid, 'connected'))
           // F19 FIX: mark as failed so the tile reflects the error state
-          localStorage.setItem('ts360_' + pid + '_failed', 'true')
+          localStorage.setItem(integrationKey(pid, 'failed'), 'true')
         } else {
           const pnl = {
             grossRevenue:  d.revenue,
@@ -1497,8 +1497,8 @@ export default function CalculateTaxInner() {
           }
           // F23 FIX: write sync timestamp
           const syncedAt = new Date().toISOString()
-          localStorage.setItem('ts360_' + pid + '_synced_at', syncedAt)
-          localStorage.removeItem('ts360_' + pid + '_failed')
+          localStorage.setItem(integrationKey(pid, 'syncedAt'), syncedAt)
+          localStorage.removeItem(integrationKey(pid, 'failed'))
 
           setEntities(prev => {
             const updated = [...prev]
@@ -1536,18 +1536,18 @@ export default function CalculateTaxInner() {
         }
       } else if (isManualSync) {
         // F19 FIX: surface failure on manual sync
-        localStorage.setItem('ts360_' + pid + '_failed', 'true')
+        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)
-      if (isManualSync) localStorage.setItem('ts360_' + pid + '_failed', 'true')
+      if (isManualSync) localStorage.setItem(integrationKey(pid, 'failed'), 'true')
     }
   }
 
   // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
   const handleManualSync = useCallback((pid) => {
-    const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || ''
-    const extra = localStorage.getItem('ts360_' + pid + '_extra')
+    const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
+    const extra = localStorage.getItem(integrationKey(pid, 'extra'))
     const idx   = entities.findIndex(e => e.connectedId === pid)
     fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
   }, [entities])
@@ -1568,8 +1568,8 @@ export default function CalculateTaxInner() {
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
-        localStorage.setItem('ts360_' + pid + '_connected', 'true')
-        localStorage.removeItem('ts360_' + pid + '_failed')
+        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
+        localStorage.removeItem(integrationKey(pid, 'failed'))
         const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
         if (!hasToken) {
           fetchEntityPnL(entityIdx, pid, '', null)
@@ -1582,23 +1582,23 @@ export default function CalculateTaxInner() {
       const tok = p.get(k)
       if (tok) {
         foundInUrl = true
-        localStorage.setItem('ts360_' + pid + '_connected', 'true')
-        localStorage.removeItem('ts360_' + pid + '_failed')
-        sessionStorage.setItem('ts360_' + pid + '_token', tok)
+        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
+        localStorage.removeItem(integrationKey(pid, 'failed'))
+        sessionStorage.setItem(integrationKey(pid, 'token'), tok)
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
                     : pid === 'freshbooks'  ? p.get('account')
                     : null
-        if (extra) localStorage.setItem('ts360_' + pid + '_extra', extra)
+        if (extra) localStorage.setItem(integrationKey(pid, 'extra'), extra)
         fetchEntityPnL(entityIdx, pid, tok, extra)
       }
     }
 
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
-        if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
-          const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || ''
-          const extra = localStorage.getItem('ts360_' + pid + '_extra')
+        if (localStorage.getItem(integrationKey(pid, 'connected')) === 'true') {
+          const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
+          const extra = localStorage.getItem(integrationKey(pid, 'extra'))
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }
       }
@@ -1796,7 +1796,7 @@ export default function CalculateTaxInner() {
               const userIsPro = isPro()
               const connectedCount = entities.filter(e => e.connectedId).length
               return INTEGRATIONS.map(integ => {
-                const isConnected = localStorage.getItem('ts360_' + integ.id + '_connected') === 'true'
+                const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
                 const isLocked = !userIsPro && !isConnected && connectedCount >= 1
                 if (isLocked) {
                   return (

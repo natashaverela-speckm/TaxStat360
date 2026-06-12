@@ -33,7 +33,7 @@
 // Returns: { scenarios: [{ key, label, totalTax, lineItems[], notes[] }],
 //            best: 'soleProp' | 'sCorp' | 'cCorp', savings: number }
 
-import { calcTaxReturn, TAX_TABLES } from './taxCalc'
+import { calcTaxReturn, TAX_TABLES } from './taxCalc.js'
 
 // Rate constants — single source of truth in src/constants.js.
 // Imported here so scenarioCompare doesn't duplicate what taxCalc.js already uses.

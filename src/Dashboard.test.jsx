@@ -4,7 +4,7 @@
 // and entity comparison use.
 import { describe, it, expect } from 'vitest'
 import { calcDashboard } from './Dashboard'
-import { calcCCorpCorporateLayer } from './taxCalc'
+import { calcCCorpCorporateLayer } from './taxCalc.js'
 
 const f1040 = {
   filingStatus: 'single', w2Income: '0', otherIncome: '0',
