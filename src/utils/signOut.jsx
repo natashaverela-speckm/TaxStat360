@@ -31,7 +31,12 @@ const AUTH_KEYS = [
   'pendingEmail',
   'ts360_login_history',
   'ts360_plan',
-  // Legacy non-prefixed keys written by older code paths
+  'ts360_billing',
+  'ts360_userName',
+  'ts360_pendingEmail',
+  // Legacy non-prefixed keys written by older code paths. The startup migration
+  // (utils/migrateLegacyKeys) renames these to ts360_* on first load, so they will
+  // normally be absent here; kept as belt-and-suspenders for not-yet-migrated state.
   'token',
   'plan',
   'billing',
