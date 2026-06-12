@@ -372,7 +372,7 @@ export default function Dashboard() {
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 
-  const userName = localStorage.getItem('userName') || ''
+  const userName = localStorage.getItem('ts360_userName') || ''
 
   useEffect(() => {
     // CROSS-EMAIL LEAK FIX: read ONLY the current user's records via the shared
