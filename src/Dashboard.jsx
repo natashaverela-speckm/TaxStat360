@@ -47,13 +47,12 @@
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax } from './taxCalc'
+import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { signOut } from './utils/signOut'
 import BrandLogo from './BrandLogo'
 import {
-  C_CORP_TAX_RATE,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
   CURRENT_TAX_YEAR,
 } from './constants.js'
@@ -117,18 +116,27 @@ function calcDashboard(biz, f1040) {
   }
 
   if (isCCorp) {
-    const corpTax = Math.round(Math.max(0, netBiz) * C_CORP_TAX_RATE)
-    const dividends = parseFloat(biz.ccorpDividends || 0)
-    const r = calcTaxReturn({ ...baseInput, entities: [], w2: w2 + sal, divInc: dividends, iraIncome: otherInc })
+    // Align with the Tax Tracker via the shared corporate layer: the flat 21% applies to
+    // corporate profit AFTER officer salary and employer-side payroll tax, and the after-tax
+    // profit is treated as fully distributed and taxed again as qualified dividends. Officer
+    // salary is W-2 wages with no separate employment-tax line (1040-style, like the Tracker).
+    // netBiz is profit BEFORE salary when derived from gross−opExp, but AFTER salary when it
+    // comes from a synced pnl.netProfit — so reconstruct profit-before-salary either way.
+    const cNetBeforeSal = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) + sal : (gross - totalExp)
+    const layer     = calcCCorpCorporateLayer({ netProfit: cNetBeforeSal, officerSalary: sal, taxYear: year })
+    const corpTax   = layer.corpTax
+    const dividends = layer.dividends
+    const r = calcTaxReturn({ ...baseInput, entities: [], w2: w2 + sal, divInc: dividends, qualDiv: dividends, iraIncome: otherInc })
+    const combinedTotal = r.totalTax + corpTax
     return {
       rev, cogs, gross, opExp, sal, dep, adv, other, totalExp, netBiz, k1, own,
       corpTax, divTax: r.prefTax, dividends,
-      combinedTax: corpTax + r.fedTax,
+      combinedTax: combinedTotal,
       agi: r.agi, qbi: 0, seTax: 0, seDed: 0,
       taxableInc: r.taxableAfterQBI, incomeTax: r.fedTax, ctc: r.childCredit,
-      totalTax: r.totalTax, taxOwed: Math.max(0, r.totalTax - estPay),
-      refund: Math.max(0, estPay - r.totalTax),
-      effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
+      totalTax: combinedTotal, taxOwed: Math.max(0, combinedTotal - estPay),
+      refund: Math.max(0, estPay - combinedTotal),
+      effRate: r.agi > 0 ? (combinedTotal / r.agi * 100).toFixed(1) : '0.0',
       quarterly: r.quarterlyRecommended,
       recSal: Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD),
       w2, otherInc, estPay, isPassthru, isSC, isCCorp: true,
@@ -173,13 +181,13 @@ function calcDashboard(biz, f1040) {
 
 function buildRecs(biz, calc) {
   const recs = []
-  const { k1, recSal, isSC, isCCorp, quarterly, qbi, effRate, corpTax, netBiz } = calc
+  const { k1, recSal, isSC, isCCorp, quarterly, qbi, effRate, corpTax, dividends } = calc
   const officerSal = parseFloat(biz.officerSalary) || 0
   const grossRev   = parseFloat(biz.grossRevenue)  || 0
   const dep        = parseFloat(biz.depreciation)  || 0
 
   if (isCCorp && corpTax > 0)
-    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (21% on ${fmt(netBiz)} net profit). Profits distributed as dividends are taxed again on your personal return. Consider an S-Corp election to eliminate entity-level tax.` })
+    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer salary and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
   if (isSC && officerSal === 0 && k1 > 20000)
     recs.push({ type: 'danger', title: 'No Officer Compensation', msg: `S-Corp owners must pay themselves a reasonable salary. The IRS considers this a primary audit trigger. Recommended minimum: ${fmt(recSal)}/yr.` })
   if (isSC && officerSal > 0 && officerSal < recSal && k1 > 20000)
