@@ -121,7 +121,7 @@ export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length -
 export const STEP3_LABEL = 'AI Analysis & Reporting'
 
 // ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────
-// C-01 FIX: Canonical plan IDs stored in localStorage['plan'] by the auth Lambda.
+// C-01 FIX: Canonical plan IDs stored in localStorage['ts360_plan'] by the auth Lambda.
 // ALL plan-gate checks must use these constants — never inline string literals.
 //
 // Storage → display name mapping:
@@ -129,8 +129,8 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 //   PLAN_IDS.PROFESSIONAL = 'pro'
 //   PLAN_IDS.ENTERPRISE   = 'enterprise'
 //
-// LockedFeature.jsx isPro() must compare: localStorage.getItem('plan') === PLAN_IDS.PROFESSIONAL
-// Settings.jsx plan display must use: PLAN_DISPLAY_NAMES[localStorage.getItem('plan') || 'basic']
+// LockedFeature.jsx isPro() must compare: localStorage.getItem('ts360_plan') === PLAN_IDS.PROFESSIONAL
+// Settings.jsx plan display must use: PLAN_DISPLAY_NAMES[localStorage.getItem('ts360_plan') || 'basic']
 //
 // ⚠ Do NOT change the string VALUES — they must match what the Lambda writes.
 // Only rename the JavaScript identifiers (STARTER, PROFESSIONAL, ENTERPRISE) if needed.
@@ -141,7 +141,7 @@ export const PLAN_IDS = {
 }
 
 // Human-readable display names keyed by the storage value.
-// Usage: PLAN_DISPLAY_NAMES[localStorage.getItem('plan')] ?? 'Starter'
+// Usage: PLAN_DISPLAY_NAMES[localStorage.getItem('ts360_plan')] ?? 'Starter'
 export const PLAN_DISPLAY_NAMES = {
   basic: 'Starter',
   pro: 'Professional',
