@@ -73,7 +73,7 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const raw  = localStorage.getItem('plan') || 'starter'
+    const raw  = localStorage.getItem('ts360_plan') || 'starter'
     const plan = normalizePlanId(raw)
     const em = localStorage.getItem('ts360_email') || ''
     setCurrentPlan(plan)
@@ -148,7 +148,7 @@ export default function Upgrade() {
         throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
       }
 
-      localStorage.setItem('plan', selectedPlan)
+      localStorage.setItem('ts360_plan', selectedPlan)
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')
