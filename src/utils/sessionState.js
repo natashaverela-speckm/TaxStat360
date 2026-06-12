@@ -624,7 +624,11 @@ function _recordsEmail() {
   return localStorage.getItem('ts360_email') || 'default'
 }
 
-function _recordsKeyFor(email) {
+// Single source of truth for the per-account records bucket key. Exported so other
+// modules (Tax Tracker, TaxReturn) build the exact same key instead of inlining the
+// 'ts360_records_' + email string, which could silently drift and orphan saved
+// returns under a mismatched bucket (audit D-2).
+export function recordsKeyFor(email) {
   return 'ts360_records_' + email
 }
 
@@ -644,7 +648,7 @@ function _migrateLegacyRecordsOnce(email) {
   if (!email || email === 'default') return // not signed in — leave shared buckets untouched
   const flag = 'ts360_migrated_records_v2_' + email
   if (localStorage.getItem(flag)) return
-  const myKey = _recordsKeyFor(email)
+  const myKey = recordsKeyFor(email)
   const byId = new Map(_parseRecArray(localStorage.getItem(myKey)).map(r => [r.id, r]))
   let changed = false
   for (const legacyKey of ['ts360_records', 'ts360_records_default']) {
@@ -669,7 +673,7 @@ function _migrateLegacyRecordsOnce(email) {
 export function readUserRecords() {
   const email = _recordsEmail()
   _migrateLegacyRecordsOnce(email)
-  return _parseRecArray(localStorage.getItem(_recordsKeyFor(email)))
+  return _parseRecArray(localStorage.getItem(recordsKeyFor(email)))
     .sort((a, b) => (b.id || 0) - (a.id || 0))
 }
 
@@ -679,6 +683,6 @@ export function readUserRecords() {
  */
 export function writeUserRecords(recs) {
   const list = Array.isArray(recs) ? recs : []
-  localStorage.setItem(_recordsKeyFor(_recordsEmail()), JSON.stringify(list))
+  localStorage.setItem(recordsKeyFor(_recordsEmail()), JSON.stringify(list))
   return list
 }
