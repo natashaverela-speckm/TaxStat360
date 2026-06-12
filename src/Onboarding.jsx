@@ -491,6 +491,9 @@ function LoginScreen(){
 const nav=useNavigate()
 const location=useLocation()
 const from=location.state?.from
+// F-FUNC-03: surface a clear "session expired" notice instead of a silent bounce.
+// Set either by RequireAuth's redirect (router state) or the idle-timeout reload (?expired=1).
+const sessionExpired=location.state?.sessionExpired===true||new URLSearchParams(location.search).get('expired')==='1'
 const redirectTo=from?(from.pathname+(from.search||'')):"/dashboard"
 const [email,setEmail]=useState('')
 const [pass,setPass]=useState('')
@@ -531,6 +534,7 @@ return(<Page>
 </div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
 <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>Sign in to your TaxStat360 account</p>
+{sessionExpired&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
 <form onSubmit={submit}>
 <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
 <Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>

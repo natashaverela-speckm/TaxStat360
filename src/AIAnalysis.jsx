@@ -107,6 +107,29 @@ function Logo() {
   return <BrandLogo size={34} />
 }
 
+// F-FUNC-04: the Risk Scan and Schedule Map read revenue/structure from the
+// per-entity data (rec.entities), but the completeness meter and the Optimization
+// tab previously read ONLY the rec.biz summary — which is 0 / '' / 'Unknown' for a
+// multi-entity record whose revenue lives on the entity P&L. That produced
+// "Missing: revenue" and "your Unknown structure" even when an S-Corp with revenue
+// was entered. These helpers give every Step-3 consumer the SAME entity-aware
+// view: prefer the biz summary when it carries a real value, otherwise fall back
+// to the entities, so the whole tab reflects the full session/record consistently.
+function recEntityRevenue(rec) {
+  const fromBiz = parseFloat(rec?.biz?.grossRevenue) || 0
+  if (fromBiz > 0) return fromBiz
+  const ents = Array.isArray(rec?.entities) ? rec.entities : []
+  return ents.reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
+}
+
+function recEntityType(rec) {
+  const fromBiz = rec?.biz?.entityType
+  if (fromBiz && fromBiz !== 'Unknown') return fromBiz
+  const ents = Array.isArray(rec?.entities) ? rec.entities : []
+  const fromEntity = ents.find(e => e && e.type)?.type
+  return fromEntity || fromBiz || ''
+}
+
 function getAllRecords() {
   // CROSS-EMAIL LEAK FIX: return only the current user's records (with biz data),
   // via the shared helper. Previously this scanned every ts360_records* bucket and
@@ -231,8 +254,8 @@ function completeness(rec) {
   let s = 30
   const b = rec.biz || {}, f = rec.f1040 || {}
   const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
-  if (parseFloat(b.grossRevenue) > 0 || hasK1Data) s += 15
-  if (b.entityType) s += 10
+  if (recEntityRevenue(rec) > 0 || hasK1Data) s += 15
+  if (recEntityType(rec)) s += 10
   if (f.filingStatus) s += 10
   if (getTotalW2(rec) > 0) s += 10
   if (parseFloat(b.officerSalary) > 0) s += 5
@@ -247,7 +270,7 @@ function missingFields(rec) {
   const b = rec.biz || {}, f = rec.f1040 || {}
   const missing = []
   const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
-  if (!(parseFloat(b.grossRevenue) > 0) && !hasK1Data) missing.push('revenue')
+  if (!(recEntityRevenue(rec) > 0) && !hasK1Data) missing.push('revenue')
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
   if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
   if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
@@ -635,7 +658,10 @@ function RiskScan({ rec }) {
 function TaxOptimization({ rec }) {
   if (!rec) return <NoData />
   const b = rec.biz || {}, f = rec.f1040 || {}
-  const revenue = parseFloat(b.grossRevenue) || 0
+  // F-FUNC-04: revenue and entity structure fall back to the per-entity data so the
+  // Optimization tab reflects the same figures the Risk Scan and Schedule Map use.
+  const entityType = recEntityType(rec)
+  const revenue = recEntityRevenue(rec)
   const opExp = parseFloat(b.operatingExpenses) || 0
   const dep = recDepreciation(rec)
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
@@ -648,14 +674,14 @@ function TaxOptimization({ rec }) {
   const w2 = getTotalW2(rec)
   const estPay = parseFloat(f.estPaid) || 0
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
-  const isPassthrough = isPassthroughEntity(b.entityType)
-  const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(b.entityType)
+  const isPassthrough = isPassthroughEntity(entityType)
+  const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(entityType)
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
 
   const entityTypes = Array.isArray(rec?.entities) && rec.entities.length > 0
     ? [...new Set(rec.entities.map(e => e?.type).filter(Boolean))]
-    : [b.entityType || 'business']
+    : [entityType || 'business']
   const entitySubtitle = entityTypes.length > 1 ? entityTypes.join(' + ') : entityTypes[0] || 'business'
 
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
@@ -838,7 +864,7 @@ function IRSCompliance({ rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = getTotalW2(rec)
-  const entity = b.entityType || 'Unknown'
+  const entity = recEntityType(rec) || 'Unknown'
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const today = new Date()
 
@@ -1676,8 +1702,8 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   // F20 FIX: pre-generation checklist items — positives and negatives
   const checklistItems = rec ? [
     { label: 'Filing status', ok: !!(rec.f1040?.filingStatus) },
-    { label: 'Entity structure', ok: !!(rec.biz?.entityType) },
-    { label: 'Revenue / K-1 income', ok: (parseFloat(rec.biz?.grossRevenue)||0) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
+    { label: 'Entity structure', ok: !!recEntityType(rec) },
+    { label: 'Revenue / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
     { label: 'W-2 income / withholding', ok: getTotalW2(rec) > 0 },
     { label: 'Estimated tax payments', ok: (parseFloat(rec.f1040?.estPaid)||0) > 0 },
     { label: 'Expenses / deductions', ok: (parseFloat(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },

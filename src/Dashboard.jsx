@@ -48,7 +48,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
-import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords } from './utils/sessionState.js'
+import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/signOut'
@@ -366,7 +366,7 @@ export default function Dashboard() {
   const [loadedRecord, setLoadedRecord] = useState(null)
   const [savedRecordId, setSavedRecordId] = useState(null)
   const [activeRecordId, setActiveRecordId] = useState(() =>
-    sessionStorage.getItem('ts360_active_record_id') || null
+    readActiveRecordId()
   )
   const [connectedApp, setConnectedApp] = useState(null)
   const [xeroLoading, setXeroLoading] = useState(false)
@@ -535,26 +535,19 @@ export default function Dashboard() {
     // is what Step 1 hydrates from (via readStep1StateRaw on mount). Without this, a stale
     // working copy from a previously loaded/edited record would shadow the new selection.
     sessionStorage.removeItem('ts360_step1_entities')
-    writePersonalContext({
-      filingStatus: f1040Restored.filingStatus,
-      w2Income: parseFloat(f1040Restored.w2Income) || 0,
-      dependents: parseInt(f1040Restored.dependents) || 0,
-      estPaid: parseFloat(f1040Restored.estimatedPayments) || 0,
-      useItemized: false,
-      itemizedAmt: 0,
-      isREP: !!(saved1040.isREP || rec.f1040?.isREP),
-      isActiveParticipant: saved1040.isActiveParticipant !== false,
-      priorPassiveLossCarryforward: parseFloat(saved1040.priorPassiveLossCarryforward) || 0,
-      selfEmpRetirement: parseFloat(saved1040.selfEmpRetirement) || 0,
-      nolCarryforward: parseFloat(saved1040.nolCarryforward) || 0,
-      priorYearTax: parseFloat(saved1040.priorYearTax) || 0,
-      priorYearAGI: parseFloat(saved1040.priorYearAGI) || 0,
-      w2Withheld: parseFloat(saved1040.w2Withheld) || 0,
-    })
+    // F-FUNC-01: hydrate the FULL saved f1040 through the canonical normalizeF1040
+    // helper rather than a hand-rolled partial restore. The previous partial path
+    // silently dropped investment-income fields (capitalGains / interest / dividends /
+    // qualifiedDividends) from the editable Step-2 form while those values survived in
+    // the saved record and on the AI Schedule Map — so a loaded return showed (and was
+    // taxed on) income the form never displayed, and the collapsed Capital Gains
+    // section hid it. normalizeF1040 restores exactly the fields the record holds,
+    // coerced to numbers, with nothing merged in and nothing dropped — so the form,
+    // the tax math, and the AI Map all agree on one set of figures.
+    writePersonalContext(normalizeF1040(saved1040))
     writeTaxYear(rec.taxYear || rec.biz?.year || CURRENT_TAX_YEAR)
     const activeName = rec.name || rec.savedAt || 'Saved Record'
-    sessionStorage.setItem('ts360_active_record_name', activeName)
-    sessionStorage.setItem('ts360_active_record_id', String(rec.id || ''))
+    writeActiveRecord(rec.id, activeName)   // F-FUNC-02: canonical loaded-record pointer
     setActiveRecordId(String(rec.id || ''))
     nav('/calculate-tax')
   }
@@ -602,6 +595,26 @@ export default function Dashboard() {
     clearStep1State()
     setSavedRecordId(null)
     setLoadedRecord(null)
+    nav('/calculate-tax')
+  }
+
+  // F-FUNC-05: a preset card means "set me up with an entity of this type." Start a
+  // clean calculation, then stash the matching entity-type string so the Tax Tracker
+  // seeds it via its existing entity-creation path (clearStep1State first, so the
+  // hint it writes survives — clearStep1State clears any prior hint). The type
+  // strings here MUST match the Tax Tracker entity picker's option values.
+  const PRESET_ENTITY_TYPE = {
+    'S-Corp Owner':        'S Corporation',
+    'Sole Proprietor':     'Sole Proprietor / SMLLC',
+    'Real Estate Investor':'Real Estate (Schedule E)',
+    'Partnership / LLC':   'Partnership / LLC',
+  }
+  const startNewCalcWithPreset = (label) => {
+    clearStep1State()
+    setSavedRecordId(null)
+    setLoadedRecord(null)
+    const type = PRESET_ENTITY_TYPE[label]
+    if (type) writePresetEntityType(type)
     nav('/calculate-tax')
   }
 
@@ -746,7 +759,7 @@ export default function Dashboard() {
                 { label: 'Real Estate Investor',   icon: '🏠', desc: 'Rental income + depreciation' },
                 { label: 'Partnership / LLC',      icon: '🤝', desc: 'K-1 distributive share' },
               ].map(p => (
-                <button key={p.label} onClick={startNewCalc} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
+                <button key={p.label} onClick={() => startNewCalcWithPreset(p.label)} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
                   <div style={{ fontSize: 20 }}>{p.icon}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: N, marginTop: 4 }}>{p.label}</div>
                   <div style={{ fontSize: 11, color: SL, marginTop: 2 }}>{p.desc}</div>

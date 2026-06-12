@@ -116,7 +116,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, recordsKeyFor } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, recordsKeyFor, readActiveRecordId, readActiveRecordName, writeActiveRecord, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -633,7 +633,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 }
 
 // ─── Entity card ──────────────────────────────────────────────────────────────
-function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const [showBasis,  setShowBasis]  = useState(false)
@@ -1117,7 +1117,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     single control that makes the rental portfolio nonpassive. */}
                 {entity.isREP && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                    <input type="checkbox" id={'agg_' + idx} checked={entity.rentalAggregationElection === true} onChange={e => onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false })} style={{ marginTop: 2 }} />
+                    <input type="checkbox" id={'agg_' + idx} checked={portfolioAggregationElected === true} onChange={e => (onAggregationElection ? onAggregationElection(e.target.checked) : onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false }))} style={{ marginTop: 2 }} />
                     <label htmlFor={'agg_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                       Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
                       <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
@@ -1356,7 +1356,14 @@ export default function CalculateTaxInner() {
       isREP: false, isActiveParticipant: false,
     }
     setEntities(prev => {
-      const next = [...prev, newEnt]
+      // F-FUNC-07: a newly added rental inherits the portfolio-wide §1.469-9(g)
+      // election so it isn't silently treated as passive while the rest of the
+      // portfolio is elected nonpassive.
+      const portfolioElected = prev.some(e => isRealEstateEntity(e.type) && e.rentalAggregationElection === true)
+      const seeded = (isRealEstateEntity(type) && portfolioElected)
+        ? { ...newEnt, rentalAggregationElection: true }
+        : newEnt
+      const next = [...prev, seeded]
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
@@ -1364,10 +1371,43 @@ export default function CalculateTaxInner() {
     setShowEntityPicker(false)
   }, [entities.length, navigate])
 
+  // F-FUNC-05: consume a Dashboard entity-preset hand-off once on mount. If the
+  // user arrived via a preset card (e.g. "S-Corp Owner") and Step 1 is empty,
+  // seed an entity of that type through the same addEntityOfType path the in-app
+  // picker uses, then clear the hint so it fires exactly once.
+  const presetConsumed = useRef(false)
+  useEffect(() => {
+    if (presetConsumed.current) return
+    const presetType = readPresetEntityType()
+    if (presetType && entities.length === 0) {
+      presetConsumed.current = true
+      addEntityOfType(presetType)
+    }
+    clearPresetEntityType()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const updateEntity = useCallback((idx, updated) => {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  // F-FUNC-07: the §1.469-9(g) aggregation election is a SINGLE taxpayer-level
+  // election covering the entire rental portfolio (the engine already reads it as
+  // "any rental elected"). The label says "across all rental properties," so the
+  // control is now portfolio-wide: toggling it on any rental card applies to every
+  // rental, and newly added rentals inherit the current election. This keeps the
+  // per-card checkboxes consistent with the one portfolio election the label
+  // describes, instead of each rental starting unchecked and needing a re-election.
+  const setRentalAggregationElectionAll = useCallback((value) => {
+    setEntities(prev => {
+      const next = prev.map(e =>
+        isRealEstateEntity(e.type) ? { ...e, rentalAggregationElection: value === true } : e
+      )
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
@@ -1443,9 +1483,24 @@ export default function CalculateTaxInner() {
     const key     = recordsKeyFor(email)
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
 
+    // F-FUNC-02: when a saved record is loaded (Dashboard.loadRecord set the
+    // active-record pointer), UPDATE that record in place instead of minting a
+    // new id on every save — which previously forked an identically-named
+    // duplicate each time. A genuinely new calculation (no active pointer, or
+    // one cleared by clearStep1State) still gets a fresh id.
+    const activeId     = readActiveRecordId()
+    const existingIdx  = activeId != null
+      ? existing.findIndex(r => String(r.id) === String(activeId))
+      : -1
+    const priorName    = existingIdx >= 0 ? (existing[existingIdx].name || null) : null
+    const recordId     = existingIdx >= 0 ? existing[existingIdx].id : Date.now()
+    // Skipping the name (modal "Skip") passes null/'' — keep the record's prior
+    // name rather than blanking it; a new record with no name stays null as before.
+    const finalName    = (name != null && name !== '') ? name : priorName
+
     const record = {
-      id: Date.now(),
-      name: name || null,
+      id: recordId,
+      name: finalName,
       savedAt: formatTimestamp(new Date()),
       taxYear,
       entities,
@@ -1463,10 +1518,19 @@ export default function CalculateTaxInner() {
       f1040: readPersonalContext(),
     }
 
-    const updated = [record, ...existing].slice(0, 50)
+    // Replace-in-place on upsert, then move to the front so the just-saved record
+    // still sorts newest-first; otherwise prepend a brand-new record.
+    const updated = (existingIdx >= 0
+      ? [record, ...existing.filter((_, i) => i !== existingIdx)]
+      : [record, ...existing]
+    ).slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
     // (Retired the shared global 'ts360_records' write — records live only in the
     // per-email bucket now, so accounts can't co-mingle on a shared browser.)
+    // Keep the "Active in Tax Tracker" pointer on the record we just saved, so the
+    // Dashboard badge follows the latest save and the next save upserts this same
+    // record instead of forking a stale original.
+    writeActiveRecord(record.id, record.name || record.savedAt)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
@@ -1834,6 +1898,8 @@ export default function CalculateTaxInner() {
                 entity={ent}
                 idx={idx}
                 onUpdate={updateEntity}
+                onAggregationElection={setRentalAggregationElectionAll}
+                portfolioAggregationElected={entities.some(e => isRealEstateEntity(e.type) && e.rentalAggregationElection === true)}
                 onRemove={setConfirmRemoveIdx}
                 colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
                 isExpanded={expandedIdx === idx}
@@ -1934,7 +2000,7 @@ export default function CalculateTaxInner() {
       />
       {showNameModal && (
         <NameRecordModal
-          defaultName={new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          defaultName={readActiveRecordName() || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           onConfirm={name => { handleSaveRecord(name); setShowNameModal(false) }}
           onSkip={() => { handleSaveRecord(null); setShowNameModal(false) }}
         />
