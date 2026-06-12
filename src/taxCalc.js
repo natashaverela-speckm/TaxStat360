@@ -52,7 +52,12 @@ import {
   DEFAULT_OFFICER_SALARY_FRACTION,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct } from './utils/entityPredicates.js'
-const nv = (v) => parseFloat(v) || 0
+import { nf } from './utils/parseMoney.js'
+// nv: numeric coercion used throughout the engine. Unified onto the canonical nf()
+// (audit D-1) so there is one money parser. nf() additionally strips thousands
+// separators; engine inputs are stored comma-free, so this is identical in practice
+// and strictly more robust.
+const nv = nf
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
