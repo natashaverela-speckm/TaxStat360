@@ -116,10 +116,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import LockedFeature, { isPro } from './LockedFeature'
+import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
@@ -1244,104 +1244,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   )
 }
 
-// ─── Compare modal ────────────────────────────────────────────────────────────
-function CompareModal({ entities, onClose }) {
-  const personalCtx = readPersonalContext()
-  const taxYear     = readTaxYear()
-  const filing      = personalCtx.filingStatus || 'single'
-  const w2          = nf(personalCtx.w2Income)
-  const estPaid     = nf(personalCtx.estPaid)
-
-  const entity = entities[0] || {}
-  const pnl    = entity.pnl || {}
-  const rev    = nf(pnl.grossRevenue)
-  const opex   = nf(pnl.totalExpenses)
-  const netP   = nf(pnl.netProfit ?? (rev - opex))
-
-  if (rev <= 0 && netP === 0) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%' }}>
-          <h3 style={{ fontWeight: 800, color: N, marginBottom: 12 }}>Entity Comparison</h3>
-          <p style={{ color: SL, fontSize: 14, lineHeight: 1.6 }}>Enter revenue and expenses on your entity card first to see a side-by-side comparison across entity structures.</p>
-          <button onClick={onClose} style={{ padding: '10px 24px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginTop: 16 }}>Close</button>
-        </div>
-      </div>
-    )
-  }
-
-  const stdDed   = getStdDed(taxYear, filing)
-  const ownerPct = ownPct(entity.own) / 100
-
-  const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
-    const isSC     = /s.?corp/i.test(type)
-    const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * DEFAULT_OFFICER_SALARY_FRACTION)) : 0
-    const k1       = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
-    const _w2All   = w2 + salGuess
-    const taxableRough = Math.max(0, k1 + _w2All - stdDed)
-    const { deduction: qbi } = isPassthroughEntity(type)
-      ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
-      : { deduction: 0 }
-    const r = calcTaxReturn({
-      taxYear, status: filing, dependents: nf(personalCtx.dependents),
-      entities: [{ ...entity, type, k1, own: entity.own }],
-      w2: _w2All, k1Total: k1, rentalNet: 0, stGain: 0, ltGain: 0,
-      intInc: 0, divInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0, iraIncome: 0,
-      selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0, selfEmpRetirement: 0,
-      nolCarryforward: 0, priorYearQBILoss: 0, saltAmount: 0, hasISO: false, isoBargainElement: 0,
-      isREP: false, unrecap1250: 0, collectiblesGain: 0,
-      w2Withheld: nf(personalCtx.w2Withheld), estPaid,
-      useItemized: false, itemizedAmt: 0, ytdFactor: 1,
-    })
-    return { type, qbi, totalTax: r.totalTax, seTax: r.seTax, ficaSavings: r.ficaSavings, k1, salGuess }
-  })
-
-  const minTax = Math.min(...scenarios.map(s => s.totalTax))
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 740, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-          <div>
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: N, margin: '0 0 4px' }}>Entity Structure Comparison</h3>
-            <p style={{ fontSize: 13, color: SL, margin: 0 }}>Same revenue, different entity — estimated total federal tax liability</p>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: SL }}>✕</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {scenarios.sort((a, b) => a.totalTax - b.totalTax).map((s, i) => (
-            <div key={s.type} style={{ background: s.totalTax === minTax ? '#F0FDF4' : '#F8FAFC', border: '1.5px solid ' + (s.totalTax === minTax ? '#86EFAC' : '#E2E8F0'), borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2 }}>
-                    {s.type}
-                    {s.totalTax === minTax && <span style={{ marginLeft: 8, fontSize: 11, background: G, color: '#fff', borderRadius: 4, padding: '2px 8px', fontWeight: 700 }}>LOWEST TAX</span>}
-                  </div>
-                  <div style={{ fontSize: 12, color: SL }}>
-                    K-1: {fmt(s.k1)}
-                    {s.salGuess > 0 && <> · Officer salary: {fmt(s.salGuess)}</>}
-                    {s.qbi > 0 && <> · QBI deduction: {fmt(s.qbi)}</>}
-                    {s.seTax > 0 && <> · SE tax: {fmt(s.seTax)}</>}
-                    {s.ficaSavings > 0 && <> · SE tax savings: {fmt(s.ficaSavings)}</>}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.totalTax === minTax ? G : N }}>{fmt(s.totalTax)}</div>
-                  {s.totalTax !== minTax && (
-                    <div style={{ fontSize: 12, color: R, fontWeight: 600 }}>+{fmt(s.totalTax - minTax)} more</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: SL, textAlign: 'center', marginTop: 16 }}>
-          Federal income tax only · {(readTaxYear() || CURRENT_TAX_YEAR)} · {filing.toUpperCase()} · Estimates — consult a tax professional
-        </p>
-      </div>
-    </div>
-  )
-}
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function CalculateTaxInner() {
@@ -2021,7 +1923,14 @@ export default function CalculateTaxInner() {
       </div>
 
       {/* Modals */}
-      {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
+      <EntityCompareModal
+        isOpen={showCompare}
+        onClose={() => setShowCompare(false)}
+        entity={entities[0]}
+        entities={entities}
+        entityIdx={0}
+        personalContext={() => readPersonalContext()}
+      />
       {showNameModal && (
         <NameRecordModal
           defaultName={new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
