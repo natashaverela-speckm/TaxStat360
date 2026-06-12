@@ -73,6 +73,12 @@ vi.mock('./utils/sessionState.js', () => ({
   writeStep1State: vi.fn(),
   clearStep1State: vi.fn(),
   normalizeF1040: vi.fn(x => x),
+  // F-FUNC-02: buildRecord now imports these; stub them so a future test that
+  // exercises the save path has a complete mock (the existing 17 tests do not
+  // call buildRecord, so behavior is unchanged).
+  recordsKeyFor: vi.fn(email => 'ts360_records_' + email),
+  readActiveRecordId: vi.fn(() => null),
+  writeActiveRecord: vi.fn(),
 }))
 
 vi.mock('./components/MoneyInput.jsx', () => ({
