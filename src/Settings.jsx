@@ -59,12 +59,12 @@ export default function Settings() {
         }
       }
     }
-    const storedPlan = localStorage.getItem('plan') || 'starter'
+    const storedPlan = localStorage.getItem('ts360_plan') || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
 
-    const storedBilling = localStorage.getItem('billing') || 'monthly'
+    const storedBilling = localStorage.getItem('ts360_billing') || 'monthly'
     setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
 
     const session = localStorage.getItem('ts360_session_start')
