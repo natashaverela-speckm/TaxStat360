@@ -98,7 +98,7 @@ vi.mock('./components/DismissibleNotice', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 import TaxReturn from './TaxReturn'
-import { calcTaxReturn, calcCCorpCorporateLayer } from './taxCalc'
+import { calcTaxReturn, calcCCorpCorporateLayer } from './taxCalc.js'
 import { readStep1State, readPersonalContext } from './utils/sessionState.js'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

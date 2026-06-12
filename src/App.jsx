@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
+import { integrationKey } from './constants.js'
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, Link } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
@@ -40,7 +41,7 @@ function OAuthCallback() {
     }
     const name = p.charAt(0).toUpperCase() + p.slice(1)
     localStorage.setItem('ts360_connected_app', name)
-    localStorage.setItem(`ts360_${p}_connected`, 'true')
+    localStorage.setItem(integrationKey(p, 'connected'), 'true')
     window.location.href = '/calculate-tax'
   }, [provider])
   return (

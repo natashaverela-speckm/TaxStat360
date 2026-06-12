@@ -494,6 +494,23 @@ export const INTEGRATIONS = [
   { id: 'freshbooks', name: 'FreshBooks', color: '#1a9c3e', bg: '#F0FBF4', abbr: 'FB' },
 ]
 
+// Per-integration localStorage/sessionStorage keys follow the shape
+// `ts360_<providerId>_<field>`. The field suffixes live here ONLY (audit E-2), so the
+// connect / sync / disconnect flows never repeat them as inline string literals.
+// Usage: integrationKey('xero', 'connected') -> 'ts360_xero_connected'
+const _INTEGRATION_FIELDS = {
+  connected: '_connected',
+  token:     '_token',
+  extra:     '_extra',
+  syncedAt:  '_synced_at',
+  failed:    '_failed',
+}
+export function integrationKey(providerId, field) {
+  const suffix = _INTEGRATION_FIELDS[field]
+  if (suffix === undefined) throw new Error('integrationKey: unknown field "' + field + '"')
+  return 'ts360_' + providerId + suffix
+}
+
 // ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
 // Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
 // Annual pricing = monthly × ANNUAL_BILLING_MONTHS (10 months billed, 2 months free).
