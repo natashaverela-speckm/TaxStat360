@@ -116,7 +116,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, recordsKeyFor } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -1440,7 +1440,7 @@ export default function CalculateTaxInner() {
     setSaveStatus('saving')
     const k1Total = persistStep1()
     const email   = localStorage.getItem('ts360_email') || 'default'
-    const key     = recordsKeyFor(email)
+    const key     = 'ts360_records_' + email
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
 
     const record = {
