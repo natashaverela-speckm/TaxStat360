@@ -53,7 +53,7 @@ vi.mock('./taxCalc', () => ({
     taxableAfterQBI: 0, ordinaryTaxableIncome: 0, taxableIncome: 0,
     ordFedTax: 0, prefTax: 0, fedTax: 0, marginalRate: 0.22,
     additionalMedicare: 0, niit: 0, childCredit: 0,
-    amt: 0, totalTax: 0, effectiveRate: 0,
+    amt: 0, totalTax: 0, taxToEarnedRatio: 0,
     withheld: 0, estimated: 0, totalPayments: 0, balance: 0,
     rentalNII: 0, nii: 0, quarterlyRecommended: 0,
   })),

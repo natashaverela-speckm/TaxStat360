@@ -950,7 +950,10 @@ function calcTaxReturn(input) {
     useItemized, itemized, stdDed,
   })
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
-  const effectiveRate = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
+  // Ratio of total tax to *earned* income (W-2 + positive pass-through). Named
+  // distinctly from the canonical effectiveRate() display util (which divides by AGI)
+  // to avoid the name collision flagged in audit D-5.
+  const taxToEarnedRatio = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
   const withheld      = nv(w2Withheld)
   const estimated     = nv(estPaid)
   const totalPayments = withheld + estimated
@@ -1044,7 +1047,7 @@ function calcTaxReturn(input) {
     niitAmount,
     numDependents, childCredit, ctcRaw, ctcReduction, ctcPerChild,
     amt,
-    totalTax, effectiveRate,
+    totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     priorYearMultiplier,
     safeHarborCurrentYear,
