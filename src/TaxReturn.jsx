@@ -1326,7 +1326,7 @@ export default function TaxReturn() {
 
           {/* SE Tax Savings panel */}
           {hasResult && result.ficaSavings > 0 && (
-            <div style={{ background: '#0f1f3d', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ background: '#0D1B3E', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
                 SE TAX SAVINGS ON DISTRIBUTIONS
               </div>

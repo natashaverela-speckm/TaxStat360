@@ -351,7 +351,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
         {integ.abbr}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F1F3D' }}>{integ.name}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E' }}>{integ.name}</div>
         {/* F19 FIX: status line reflects actual connection state */}
         {isConnected ? (
           <div style={{ fontSize: 11, color: integ.color, fontWeight: 600 }}>

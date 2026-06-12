@@ -82,6 +82,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { apiFetch } from './utils/apiClient.js'
+import { writeBusinessInfo } from './utils/sessionState.js'
 import BrandLogo from './BrandLogo'
 import Icon from './Icon'
 
@@ -660,11 +661,11 @@ if(p.formatted_address)setAddr(p.formatted_address)
 }
 },[])
 
-// O7 FIX: persist business info to sessionStorage so downstream screens use it
+// O7 FIX: persist business info to sessionStorage so downstream screens use it.
+// Routes through the canonical writeBusinessInfo() accessor (audit E-1) instead of
+// inline ts360_biz_* literals, so the key strings have one source of truth.
 function persistBizInfo() {
-  if (biz.trim()) sessionStorage.setItem('ts360_biz_name',  biz.trim())
-  if (ein.trim()) sessionStorage.setItem('ts360_biz_ein',   ein.trim())
-  if (addr.trim()) sessionStorage.setItem('ts360_biz_address', addr.trim())
+  writeBusinessInfo({ bizName: biz.trim(), bizEin: ein.trim(), bizAddress: addr.trim() })
 }
 
 async function submit(e){
