@@ -153,7 +153,7 @@ function RequireAuth({ children }) {
     const timeoutMins = parseInt(localStorage.getItem('ts360_idle_timeout_mins') || '0')
     if (!timeoutMins) return
     let timer
-    const handleExpiry = () => { AUTH_KEYS.forEach(k => localStorage.removeItem(k)); window.location.href = '/login' }
+    const handleExpiry = () => { AUTH_KEYS.forEach(k => localStorage.removeItem(k)); window.location.href = '/login?expired=1' }
     const resetTimer = () => { clearTimeout(timer); timer = setTimeout(handleExpiry, timeoutMins * 60 * 1000) }
     const EVENTS = ['mousedown','mousemove','keydown','scroll','touchstart','click']
     EVENTS.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))
@@ -161,7 +161,34 @@ function RequireAuth({ children }) {
     return () => { clearTimeout(timer); EVENTS.forEach(e => window.removeEventListener(e, resetTimer)) }
   }, [sessionOk])
 
-  if (!sessionOk) return <Navigate to="/login" state={{ from: location }} replace />
+  // F-FUNC-03: sliding session expiry. isValidSession() ages a session out once the
+  // fixed SESSION_MAX_AGE_MS window from ts360_session_start lapses — which, without
+  // renewal, silently bounces an actively-working user to Sign In mid-session and
+  // discards any not-yet-saved edits. Refresh the start timestamp on genuine activity
+  // (throttled to at most once a minute) so a session that is still in use keeps
+  // sliding forward and only a truly idle session ages out. The httpOnly auth cookie
+  // (SEC-04) remains the real credential; this only keeps the client-side window in
+  // step with continued use. In-progress work already survives a forced re-login
+  // because isValidSession()/handleExpiry clear only AUTH_KEYS, never the ts360_*
+  // session-state keys that hold entity and 1040 data.
+  useEffect(() => {
+    if (!sessionOk) return
+    let last = Date.now()
+    const THROTTLE_MS = 60 * 1000
+    const bump = () => {
+      const now = Date.now()
+      if (now - last < THROTTLE_MS) return
+      last = now
+      localStorage.setItem('ts360_session_start', String(now))
+    }
+    const EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+    EVENTS.forEach(e => window.addEventListener(e, bump, { passive: true }))
+    return () => EVENTS.forEach(e => window.removeEventListener(e, bump))
+  }, [sessionOk])
+
+  // F-FUNC-03: flag the redirect as an expiry (not a fresh visit) so the Sign In
+  // screen can surface a "your session expired" notice instead of bouncing silently.
+  if (!sessionOk) return <Navigate to="/login" state={{ from: location, sessionExpired: true }} replace />
 
   return (
     <ErrorBoundary>
