@@ -53,6 +53,7 @@ import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
   readStep1State, writeStep1State, recordsKeyFor,
+  readActiveRecordId, writeActiveRecord,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
@@ -433,8 +434,17 @@ export default function TaxReturn() {
     const email    = localStorage.getItem('ts360_email') || 'default'
     const key      = recordsKeyFor(email)
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
+    // F-FUNC-02: upsert the loaded record in place rather than forking a new id
+    // on every Step-2 save (mirrors CalculateTaxInner.handleSaveRecord).
+    const activeId    = readActiveRecordId()
+    const existingIdx = activeId != null
+      ? existing.findIndex(r => String(r.id) === String(activeId))
+      : -1
+    const priorName   = existingIdx >= 0 ? (existing[existingIdx].name || null) : null
+    const recordId    = existingIdx >= 0 ? existing[existingIdx].id : Date.now()
     const record = {
-      id: Date.now(),
+      id: recordId,
+      name: priorName,
       savedAt: formatTimestamp(new Date()),
       taxYear,
       entities: Array.isArray(entities) ? entities : [],
@@ -468,10 +478,15 @@ export default function TaxReturn() {
       totalSuspendedLoss: result?.totalSuspendedLoss || 0,
       entityBasisResults: result?.entityBasisResults || [],
     }
-    const updated = [record, ...existing].slice(0, 50)
+    const updated = (existingIdx >= 0
+      ? [record, ...existing.filter((_, i) => i !== existingIdx)]
+      : [record, ...existing]
+    ).slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
     // (Retired the shared global 'ts360_records' write — records live only in the
     // per-email bucket now, so accounts can't co-mingle on a shared browser.)
+    // Keep the Active-record pointer on the just-saved record (id + name).
+    writeActiveRecord(record.id, record.name || record.savedAt)
     return record
   }, [
     taxYear, entities, sessionK1, filingStatus, dependents,
@@ -507,7 +522,8 @@ export default function TaxReturn() {
     setSaveError(null)
     try {
       const record = buildRecord()
-      sessionStorage.setItem('ts360_active_record_id', String(record.id))
+      // buildRecord() already syncs the active-record pointer (id + name) via
+      // writeActiveRecord (F-FUNC-02), so no separate raw write is needed here.
       setAnalyzeStatus('idle')
       navigate('/ai-analysis', { state: { record } })
     } catch (err) {
@@ -1223,6 +1239,12 @@ export default function TaxReturn() {
                   note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
+                // F-FUNC-06: show the §461(l) excess-business-loss addback as an explicit inline
+                // line so the income components above visibly reconcile to AGI. When a business
+                // loss exceeds the §461(l) threshold, the disallowed amount is added back to
+                // income this year (and carries forward as an NOL); previously it only appeared
+                // in a callout below, so the listed rows did not appear to sum to AGI.
+                { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 { label: 'Standard Deduction',          value: result.deduction,                         sign: -1 },
