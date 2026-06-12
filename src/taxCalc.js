@@ -51,7 +51,7 @@ import {
   C_CORP_TAX_RATE,
   DEFAULT_OFFICER_SALARY_FRACTION,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, ownPct } from './utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct } from './utils/entityPredicates.js'
 const nv = (v) => parseFloat(v) || 0
 const TAX_TABLES = {
   2024: {
@@ -984,13 +984,13 @@ function calcTaxReturn(input) {
       scheduleForm: isSEType ? 'Schedule C' : isRE ? 'Schedule E (Rental)' : 'Schedule E, Part II',
       taxForm:      isSEType ? '1040 Sch C'
         : isRE ? 'Schedule E (Rental)'
-        : (e.type === 'S Corporation' || e.type === 'C Corporation')
+        : (isSCorpEntity(e.type) || isCCorpEntity(e.type))
         ? 'K-1 (Form 1120-S)'
         : 'K-1 (Form 1065)',
     }
   }).filter(Boolean)
   const reasonableCompAlert = (() => {
-    const scorp = entities.find(e => e && e.type === 'S Corporation')
+    const scorp = entities.find(e => e && isSCorpEntity(e.type))
     if (!scorp) return { triggered: false, ratio: 100, message: '' }
     const sal = Math.max(0, parseFloat(scorp.pnl?.officerSalary ?? scorp.officerW2 ?? 0) || 0)
     if (sal < 0) return { triggered: false, ratio: 100, message: '' }

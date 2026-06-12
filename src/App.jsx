@@ -210,25 +210,27 @@ function NotFound() {
 }
 
 // ─── Landing Section Scroll Helper ───────────────────────────────────────────
+// Canonical site origin — single source for canonical links and OG image URLs.
+const SITE_ORIGIN = 'https://www.taxstat360.com'
 const SECTION_META = {
   features: {
     title: 'Features — TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
     description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, SE tax savings on distributions, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
-    canonical: 'https://www.taxstat360.com/features',
+    canonical: SITE_ORIGIN + '/features',
     ogTitle: 'TaxStat360 Features — Live Tax Calculator for Business Owners',
     ogDescription: 'K-1 income, QBI deduction, SE tax savings on distributions, quarterly estimates, and AI risk analysis — all in one place.',
   },
   pricing: {
     title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',
     description: 'TaxStat360 plans start at $79/month with a 7-day free trial. Compare Starter, Professional, and Enterprise plans — no hidden fees, cancel anytime.',
-    canonical: 'https://www.taxstat360.com/pricing',
+    canonical: SITE_ORIGIN + '/pricing',
     ogTitle: 'TaxStat360 Pricing — Plans from $79/mo, 7-Day Free Trial',
     ogDescription: 'Start free for 7 days. Starter $79/mo · Professional $149/mo · Enterprise $299/mo.',
   },
   faq: {
     title: 'FAQ — TaxStat360 | Questions About S-Corp, LLC & Real Estate Tax Planning',
     description: 'Answers to common questions about TaxStat360: tax year selection, accuracy of calculations, accounting software integrations, data security, multi-entity support, and how the 7-day free trial works.',
-    canonical: 'https://www.taxstat360.com/faq',
+    canonical: SITE_ORIGIN + '/faq',
     ogTitle: 'TaxStat360 FAQ — Your Tax Planning Questions Answered',
     ogDescription: 'Do I need a CPA? How accurate are the calculations? What software integrates? All your TaxStat360 questions answered.',
   },
@@ -265,7 +267,7 @@ function useSectionMeta(sectionId) {
     setOg('og:title',       meta.ogTitle)
     setOg('og:description', meta.ogDescription)
     setOg('og:url',         meta.canonical)
-    const OG_IMAGE = 'https://www.taxstat360.com/og-image.png'
+    const OG_IMAGE = SITE_ORIGIN + '/og-image.png'
     setOg('og:image', OG_IMAGE)
     const setMeta = (name, val) => {
       let el = document.querySelector(`meta[name="${name}"]`)
@@ -356,7 +358,6 @@ function setNoindex(shouldNoindex) {
 // whole point of the Resources SEO section). Each indexable route now canonicalizes
 // to its OWN trailing-slash-normalized URL, which also dedupes the /privacy vs
 // /privacy/ trailing-slash variants the audit flagged under #6.
-const SITE_ORIGIN = 'https://www.taxstat360.com'
 function setCanonical(path) {
   let el = document.querySelector('link[rel="canonical"]')
   if (!el) { el = document.createElement('link'); el.rel = 'canonical'; document.head.appendChild(el) }

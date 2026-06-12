@@ -58,7 +58,7 @@ import {
   CURRENT_TAX_YEAR,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
-import { fmt, pct } from './utils/formatMoney.js'
+import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from './utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 
@@ -140,7 +140,7 @@ export function calcDashboard(biz, f1040) {
       taxableInc: r.taxableAfterQBI, incomeTax: r.fedTax, ctc: r.childCredit,
       totalTax: combinedTotal, taxOwed: Math.max(0, combinedTotal - estPay),
       refund: Math.max(0, estPay - combinedTotal),
-      effRate: r.agi > 0 ? (combinedTotal / r.agi * 100).toFixed(1) : '0.0',
+      effRate: effectiveRate(combinedTotal, r.agi),
       quarterly: r.quarterlyRecommended,
       recSal: Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD),
       w2, otherInc, estPay, isPassthru, isSC, isCCorp: true,
@@ -174,7 +174,7 @@ export function calcDashboard(biz, f1040) {
     totalTax: r.totalTax, corpTax: 0, divTax: 0, combinedTax: r.totalTax, dividends: 0,
     taxOwed: Math.max(0, r.totalTax - estPay),
     refund:  Math.max(0, estPay - r.totalTax),
-    effRate: r.agi > 0 ? (r.totalTax / r.agi * 100).toFixed(1) : '0.0',
+    effRate: effectiveRate(r.totalTax, r.agi),
     quarterly: r.quarterlyRecommended,
     recSal: isSC ? Math.round(Math.max(0, k1) * SCORP_REASONABLE_COMP_RATIO_THRESHOLD) : 0,
     w2, otherInc, estPay, isPassthru, isSC, isCCorp: false,

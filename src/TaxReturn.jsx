@@ -55,8 +55,8 @@ import {
   readStep1State, writeStep1State,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import { fmt, pct } from './utils/formatMoney.js'
-import { ownPct, isPassthroughEntity, isRealEstateEntity, isCCorpEntity } from './utils/entityPredicates.js'
+import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
+import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -334,7 +334,7 @@ export default function TaxReturn() {
     const form4797Total = nf(form4797) + box17KTotal
     const officerW2Total = entityList.reduce((s, e) => {
       if (!e) return s
-      const isCorp = e.type === 'S Corporation' || e.type === 'C Corporation'
+      const isCorp = isSCorpEntity(e.type) || isCCorpEntity(e.type)
       return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
     }, 0)
     const w2Total = nf(w2Income) + officerW2Total
@@ -910,7 +910,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* S-Corp basis carryforwards */}
-          {Array.isArray(entities) && entities.some(e => e.type === 'S Corporation') && (
+          {Array.isArray(entities) && entities.some(e => isSCorpEntity(e.type)) && (
             <CollapsibleSection title="S-Corp Basis Carryforwards (Form 7203)" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
                 <div style={inpWrap}>
@@ -1175,7 +1175,7 @@ export default function TaxReturn() {
             )}
             {hasResult && (
               <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
-                Effective rate: {pct(result.agi > 0 ? (result.totalTax / result.agi * 100).toFixed(1) : '0.0')}
+                Effective rate: {pct(effectiveRate(result.totalTax, result.agi))}
               </div>
             )}
           </div>
