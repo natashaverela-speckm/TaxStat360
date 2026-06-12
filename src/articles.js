@@ -8,6 +8,7 @@
 // schema. The Article.jsx template renders any entry automatically.
 
 import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION } from './taxCalc.js'
+import { fmt } from './utils/formatMoney.js'
 
 // ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
 // Indexed dollar figures quoted in article prose are bound to the engine's
@@ -38,7 +39,7 @@ const _qbiCeil2026 = {                                       // full phase-out =
   mfj:    _qbiThresh2026.mfj    + _qbiPhaseIn2026.mfj,        // 553500
 }
 const _qbiMin2026 = QBI_MIN_DEDUCTION[2026]                  // 400
-const usd = (n) => '$' + Math.round(n).toLocaleString('en-US')
+const usd = fmt // unified onto canonical money formatter (audit D-4); article amounts are all positive, so identical output
 
 export const ARTICLES = [
   {

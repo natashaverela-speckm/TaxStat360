@@ -56,7 +56,7 @@ import {
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
-import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
+import { fmt, pct, effectiveRate, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
@@ -435,7 +435,7 @@ export default function TaxReturn() {
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
     const record = {
       id: Date.now(),
-      savedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      savedAt: formatTimestamp(new Date()),
       taxYear,
       entities: Array.isArray(entities) ? entities : [],
       k1Income: sessionK1 || 0,
