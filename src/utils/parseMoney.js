@@ -55,6 +55,25 @@ export function parseMoney(input) {
 }
 
 /**
+ * Lightweight numeric coercion for ALREADY-STORED model values (numbers or
+ * comma-formatted strings) used throughout the tax computations. Strips commas,
+ * parses, and returns a finite number (invalid/empty → fallback, default 0).
+ *
+ * Distinct from parseMoney(): parseMoney() parses raw USER INPUT (handling $,
+ * parentheses-negatives, and whitespace) and is preferred for input fields;
+ * nf() is the lighter coercion used when reading stored values inside calcs.
+ * Consolidates the two previously-duplicated nf() definitions (audit C-2).
+ *
+ * @param {string|number|null|undefined} v
+ * @param {number} [fallback=0]
+ * @returns {number}
+ */
+export function nf(v, fallback = 0) {
+  const n = parseFloat(String(v ?? '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
  * Format a Number for DISPLAY in summaries and read-only views.
  * Returns a USD-formatted string with negatives shown as -$X (not parens).
  *
