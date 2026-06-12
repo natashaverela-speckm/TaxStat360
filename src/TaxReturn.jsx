@@ -55,6 +55,7 @@ import {
   readStep1State, writeStep1State,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
+import { nf } from './utils/parseMoney.js'
 import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
@@ -64,7 +65,7 @@ import { isPro } from './LockedFeature'
 const PURPLE = '#7C3AED'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const nf = (v, fb = 0) => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : fb }
+// nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
 
 function InfoTip({ text, wide }) {
   const [show, setShow] = useState(false)
