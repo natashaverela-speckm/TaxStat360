@@ -216,13 +216,13 @@ localStorage.setItem('ts360_email',email)
 localStorage.removeItem('ts360_email_verified')
 localStorage.setItem('ts360_logged_in','1')
 localStorage.setItem('ts360_session_start', String(Date.now()))
-localStorage.setItem('plan',plan)
-localStorage.setItem('billing',billing)
+localStorage.setItem('ts360_plan',plan)
+localStorage.setItem('ts360_billing',billing)
 try{
 await apiFetch('/stripe/subscribe',{method:'POST',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 }catch(e){ console.warn('Subscribe call failed:',e) }
-localStorage.setItem('userName',name)
-localStorage.setItem('pendingEmail',email)
+localStorage.setItem('ts360_userName',name)
+localStorage.setItem('ts360_pendingEmail',email)
 try {
 const mcData = new URLSearchParams()
 mcData.append('EMAIL', email)
@@ -465,7 +465,7 @@ function VerifyEmailScreen(){
     <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to app →</button>
   </div></Page>)
 
-  const displayEmail=localStorage.getItem('ts360_email')||localStorage.getItem('pendingEmail')||''
+  const displayEmail=localStorage.getItem('ts360_email')||localStorage.getItem('ts360_pendingEmail')||''
   return(<Page>
     <LOGO/>
     <div style={{textAlign:'center',padding:'20px 0'}}>
@@ -512,7 +512,7 @@ const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterpris
 const rawPlan = data.plan || 'starter'
 const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
 localStorage.setItem('ts360_email',actualEmail)
-localStorage.setItem('plan', normalizedPlan)
+localStorage.setItem('ts360_plan', normalizedPlan)
 localStorage.setItem('ts360_logged_in','1')
 localStorage.setItem('ts360_session_start', String(Date.now()))
 nav(redirectTo,{replace:true})
@@ -558,7 +558,7 @@ For planning purposes only — not professional tax, legal, or financial advice.
 //   "not supported" notice has been removed.
 // "Other": not offered — it had no corresponding Tax Tracker entity type.
 // Entity type strings match the canonical Tax Tracker values exactly so
-//   localStorage.getItem('entityType') hydrates the entity card dropdown
+//   localStorage.getItem('ts360_entityType') hydrates the entity card dropdown
 //   correctly on the first Tax Tracker session.
 function EntityScreen(){
 const nav=useNavigate()
@@ -611,7 +611,7 @@ return(<Page>
   onClick={()=>{
     if(selected){
       // O3 FIX: entity type value now matches Tax Tracker canonical string exactly
-      localStorage.setItem('entityType',selected)
+      localStorage.setItem('ts360_entityType',selected)
       nav('/onboarding/business')
     }
   }}

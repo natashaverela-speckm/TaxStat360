@@ -34,13 +34,13 @@ export function normalizePlanId(raw) {
 export const PLANS = Object.values(PLAN_IDS)
 
 export function getUserPlan() {
-  const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
+  const raw = (localStorage.getItem('ts360_plan') || 'starter').toLowerCase()
   return PLAN_ALIASES[raw] || raw
 }
 
 // ─── Server-side plan re-validation (SEC-05) ─────────────────────────────────
 // The browser cannot be trusted to report its own plan: anyone can run
-// localStorage.setItem('plan','enterprise') in dev tools. The SERVER is the
+// localStorage.setItem('ts360_plan','enterprise') in dev tools. The SERVER is the
 // source of truth. On every app load we ask GET /auth/me (which reads the
 // httpOnly session cookie and looks up the real plan from Stripe) and stamp the
 // answer back into localStorage, overwriting any tampering.
@@ -63,7 +63,7 @@ export async function refreshPlanFromServer() {
         credentials: 'include',
       })
       if (data && data.plan) {
-        localStorage.setItem('plan', normalizePlanId(data.plan))
+        localStorage.setItem('ts360_plan', normalizePlanId(data.plan))
       }
     } finally {
       clearTimeout(timer)
