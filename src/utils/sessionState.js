@@ -411,9 +411,12 @@ const BIZ_KEYS = {
  * @param {{ bizName?: string, bizEin?: string, bizAddress?: string }} info
  */
 export function writeBusinessInfo({ bizName = '', bizEin = '', bizAddress = '' } = {}) {
-  sessionStorage.setItem(BIZ_KEYS.name,    bizName)
-  sessionStorage.setItem(BIZ_KEYS.ein,     bizEin)
-  sessionStorage.setItem(BIZ_KEYS.address, bizAddress)
+  // Only persist non-empty values, so a blank field never clobbers a previously
+  // stored one. This preserves the skip-if-empty behavior of the inline writes this
+  // replaces in Onboarding (audit E-1); readBusinessInfo() coalesces missing keys to ''.
+  if (bizName)    sessionStorage.setItem(BIZ_KEYS.name,    bizName)
+  if (bizEin)     sessionStorage.setItem(BIZ_KEYS.ein,     bizEin)
+  if (bizAddress) sessionStorage.setItem(BIZ_KEYS.address, bizAddress)
 }
 
 /**
