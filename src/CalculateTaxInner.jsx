@@ -149,9 +149,18 @@ function fmtSyncedAt(isoStr) {
   } catch { return null }
 }
 
-function InfoTip({ text, wide }) {
+// UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
+// (the prior version was click-only with no hover affordance), expose a real
+// accessible name instead of just "?", and the bubble forces sentence-case
+// rendering so it never inherits the uppercase field-label styling. The existing
+// click-outside-to-close behavior is preserved for touch. Pass an optional
+// `label` (e.g. label="depreciation") for a specific help name.
+function InfoTip({ text, wide, label }) {
   const [show, setShow] = useState(false)
   const ref = useRef()
+  const hideTimer = useRef(null)
+  const open = () => { if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null } setShow(true) }
+  const close = () => { hideTimer.current = setTimeout(() => setShow(false), 120) }
   useEffect(() => {
     if (!show) return
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setShow(false) }
@@ -159,17 +168,24 @@ function InfoTip({ text, wide }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [show])
   return (
-    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5 }}>
-      <button onClick={() => setShow(s => !s)}
+    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5 }}
+      onMouseEnter={open} onMouseLeave={close}>
+      <button type="button"
+        aria-label={label ? `Help: ${label}` : 'More information'}
+        aria-expanded={show}
+        onClick={() => setShow(s => !s)}
+        onFocus={open} onBlur={close}
         style={{ width: 16, height: 16, borderRadius: '50%', background: '#E2E8F0', border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: SL, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
         ?
       </button>
       {show && (
-        <div style={{
-          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+        <div role="tooltip" style={{
+          position: 'absolute', bottom: '140%', left: '50%', transform: 'translateX(-50%)',
           background: N, color: '#fff', borderRadius: 8, padding: '10px 14px',
           fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap',
-          width: wide ? 340 : 280, zIndex: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+          textTransform: 'none', fontWeight: 400, letterSpacing: 'normal', textAlign: 'left',
+          width: wide ? 340 : 280, maxWidth: '90vw', zIndex: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
         }}>
           {text}
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid ' + N }} />

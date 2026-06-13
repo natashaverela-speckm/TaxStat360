@@ -46,7 +46,7 @@
 //   participation answer for forward compatibility, but the UI deliberately exposes
 //   only the aggregation election as the single rental-treatment switch.)
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpCorporateLayer } from './taxCalc.js'
 import {
@@ -68,22 +68,39 @@ const PURPLE = '#7C3AED'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
 
-function InfoTip({ text, wide }) {
+// UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
+// (touch), carry a real accessible name (was literally "?"), and the bubble forces
+// sentence-case rendering so it never inherits the uppercase label styling around it.
+// Pass an optional `label` (e.g. label="depreciation") for a specific help name.
+function InfoTip({ text, wide, label }) {
   const [show, setShow] = useState(false)
+  const hideTimer = useRef(null)
+  const open = () => { if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null } setShow(true) }
+  const close = () => { hideTimer.current = setTimeout(() => setShow(false), 120) }
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}>
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
+      onMouseEnter={open}
+      onMouseLeave={close}
+    >
       <button
+        type="button"
+        aria-label={label ? `Help: ${label}` : 'More information'}
+        aria-expanded={show}
         onClick={() => setShow(s => !s)}
-        onBlur={() => setTimeout(() => setShow(false), 150)}
+        onFocus={open}
+        onBlur={close}
         style={{ width: 15, height: 15, borderRadius: '50%', background: '#E2E8F0', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 700, color: SL, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}>
         ?
       </button>
       {show && (
-        <div style={{
-          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+        <div role="tooltip" style={{
+          position: 'absolute', bottom: '140%', left: '50%', transform: 'translateX(-50%)',
           background: N, color: '#fff', borderRadius: 8, padding: '10px 14px',
           fontSize: 12, lineHeight: 1.65, whiteSpace: 'pre-wrap',
-          width: wide ? 360 : 290, zIndex: 300, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          textTransform: 'none', fontWeight: 400, letterSpacing: 'normal', textAlign: 'left',
+          width: wide ? 360 : 290, maxWidth: '90vw', zIndex: 300, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          pointerEvents: 'none',
         }}>
           {text}
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid ' + N }} />
