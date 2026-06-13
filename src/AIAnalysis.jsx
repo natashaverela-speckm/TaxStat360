@@ -679,9 +679,17 @@ function TaxOptimization({ rec }) {
   const filing = f.filingStatus || 'single'
   const stdDed = getStdDed(year, filing)
 
+  // UX audit F8: a raw 'Unknown' placeholder (the fallback used when an entity's
+  // structure can't be resolved) was leaking into the user-facing copy as
+  // "strategies based on your Unknown structure". Filter it out so the subtitle
+  // gracefully falls back to the friendly default ("business") below.
+  const isRealType = (t) => {
+    const s = (t == null ? '' : String(t)).trim()
+    return s !== '' && s.toLowerCase() !== 'unknown'
+  }
   const entityTypes = Array.isArray(rec?.entities) && rec.entities.length > 0
-    ? [...new Set(rec.entities.map(e => e?.type).filter(Boolean))]
-    : [entityType || 'business']
+    ? [...new Set(rec.entities.map(e => e?.type).filter(isRealType))]
+    : [isRealType(entityType) ? entityType : null].filter(Boolean)
   const entitySubtitle = entityTypes.length > 1 ? entityTypes.join(' + ') : entityTypes[0] || 'business'
 
   const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
