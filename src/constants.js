@@ -120,6 +120,32 @@ export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length -
 // mid-flow. All in-app references now use this constant.
 export const STEP3_LABEL = 'AI Analysis & Reporting'
 
+// ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) ─
+// Same rationale as STEP3_LABEL above: these P&L / summary labels were inline
+// literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
+// across screens ("Gross Revenue" vs "Gross Receipts", "Officer Salary" vs "Officer
+// Compensation", "Net Profit" vs "Net Business Income", the federal-tax headline).
+// Centralizing them here makes the same concept read the same everywhere and makes a
+// label change a one-line edit. Change a label HERE — never re-inline it in a component.
+//
+// `*Field` forms carry the parenthetical helper shown next to the input; the plain
+// forms are the short labels used in summaries / exports / the simulator.
+// NOTE: `totalExpenses` is the GRAND TOTAL (operating + officer comp + depreciation +
+// advertising + other) and is deliberately distinct from `operatingExpenses` (the
+// editable operating subset) — they are different figures, not synonyms.
+export const FINANCIAL_LABELS = {
+  grossReceipts:            'Gross Receipts',
+  grossReceiptsField:       'Gross Receipts (Total Revenue)',
+  operatingExpenses:        'Operating Expenses',
+  operatingExpensesField:   'Operating Expenses (excl. Officer Compensation, Depreciation, Advertising)',
+  totalExpenses:            'Total Expenses',
+  officerCompensation:      'Officer Compensation',
+  officerCompensationField: 'Officer Compensation (W-2)',
+  netBusinessIncome:        'Net Business Income',
+  netRentalIncome:          'Net Rental Income',
+  estTotalFederalTax:       'EST. TOTAL FEDERAL TAX',
+}
+
 // ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────
 // C-01 FIX: Canonical plan IDs stored in localStorage['ts360_plan'] by the auth Lambda.
 // ALL plan-gate checks must use these constants — never inline string literals.

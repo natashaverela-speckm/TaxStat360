@@ -16,6 +16,7 @@ import {
   NIIT_THRESHOLD_MFJ, NIIT_THRESHOLD_MFS, NIIT_THRESHOLD_SINGLE,
   ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
+  FINANCIAL_LABELS,
 } from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
@@ -1132,9 +1133,9 @@ function ReportModal({ onClose, rec }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION{rec.savedAt ? ` — ${rec.savedAt}` : ''}</div>
             {[
               ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
-              ['Gross Receipts', b.grossRevenue ? fmt(b.grossRevenue) : ''],
-              ['Total Expenses', b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
-              ['Officer Compensation', b.officerSalary ? fmt(b.officerSalary) : ''],
+              [FINANCIAL_LABELS.grossReceipts, b.grossRevenue ? fmt(b.grossRevenue) : ''],
+              [FINANCIAL_LABELS.totalExpenses, b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
+              [FINANCIAL_LABELS.officerCompensation, b.officerSalary ? fmt(b.officerSalary) : ''],
               ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               ['W-2 Income', totalW2 > 0 ? fmt(totalW2) : ''],
@@ -1254,7 +1255,7 @@ function BriefingModal({ onClose, rec }) {
   const _hasEntitySplit = (Array.isArray(rec.entities) ? rec.entities : []).length > 0
   const incomeRows = [
     ['Gross receipts', num(b.grossRevenue)],
-    ['Total Expenses', num(b.operatingExpenses)],
+    [FINANCIAL_LABELS.totalExpenses, num(b.operatingExpenses)],
     ['Officer W-2 compensation', officerSal],
     ...(_hasEntitySplit
       ? [
@@ -1578,14 +1579,14 @@ function SimulatorModal({ onClose, rec }) {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
               <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>{entity.toUpperCase()} — ENTITY LEVEL</div>
-                {row('Gross Receipts',     baseline.rev,        scenario.rev)}
-                {row('Operating Expenses',baseline.opex,       scenario.opex,     true)}
-                {row('Officer Compensation',    baseline.sal,        scenario.sal,      true)}
+                {row(FINANCIAL_LABELS.grossReceipts,     baseline.rev,        scenario.rev)}
+                {row(FINANCIAL_LABELS.operatingExpenses,baseline.opex,       scenario.opex,     true)}
+                {row(FINANCIAL_LABELS.officerCompensation,    baseline.sal,        scenario.sal,      true)}
                 {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
                 {row('Advertising',       baseline.adv,        scenario.adv,      true)}
                 {row('Other Deductions',  baseline.other,      scenario.other,    true)}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
-                  <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>Net Business Income</span>
+                  <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>{FINANCIAL_LABELS.netBusinessIncome}</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
                     <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.netBizIncome))}</span>
                     {chg(baseline.netBizIncome, scenario.netBizIncome)}
