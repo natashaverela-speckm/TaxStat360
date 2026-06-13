@@ -121,7 +121,7 @@ export function calcDashboard(biz, f1040) {
 
   if (isCCorp) {
     // Align with the Tax Tracker via the shared corporate layer: the flat 21% applies to
-    // corporate profit AFTER officer salary and employer-side payroll tax, and the after-tax
+    // corporate profit AFTER officer compensation and employer-side payroll tax, and the after-tax
     // profit is treated as fully distributed and taxed again as qualified dividends. Officer
     // salary is W-2 wages with no separate employment-tax line (1040-style, like the Tracker).
     // netBiz is profit BEFORE salary when derived from gross−opExp, but AFTER salary when it
@@ -163,7 +163,7 @@ export function calcDashboard(biz, f1040) {
       ratio: Math.round(ratio * 100),
       sal: Math.round(sal),
       distributions: Math.round(Math.max(0, k1)),
-      message: `Officer salary is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+      message: `Officer compensation is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
     }
   })()
 
@@ -191,11 +191,11 @@ function buildRecs(biz, calc) {
   const dep        = parseFloat(biz.depreciation)  || 0
 
   if (isCCorp && corpTax > 0)
-    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer salary and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
+    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
   if (isSC && officerSal === 0 && k1 > 20000)
     recs.push({ type: 'danger', title: 'No Officer Compensation', msg: `S-Corp owners must pay themselves a reasonable salary. The IRS considers this a primary audit trigger. Recommended minimum: ${fmt(recSal)}/yr.` })
   if (isSC && officerSal > 0 && officerSal < recSal && k1 > 20000)
-    recs.push({ type: 'warning', title: 'Officer Compensation May Be Too Low', msg: `Your officer salary of ${fmt(officerSal)} is below the recommended minimum of ${fmt(recSal)}. Consider increasing to reduce audit risk.` })
+    recs.push({ type: 'warning', title: 'Officer Compensation May Be Too Low', msg: `Your officer compensation of ${fmt(officerSal)} is below the recommended minimum of ${fmt(recSal)}. Consider increasing to reduce audit risk.` })
   if (quarterly > 500)
     recs.push({ type: 'warning', title: 'Quarterly Estimated Payments Required', msg: `Pay approximately ${fmt(quarterly)} per quarter. Due: Apr 15, Jun 15, Sep 15, Jan 15.` })
   if (qbi > 0)
@@ -217,7 +217,7 @@ const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
   { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
   { emoji: '📋', badge: 'Step 2 of 2 — Personal Return', title: 'Complete Your Personal Return', body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, §199A QBI deduction, and quarterly estimated payments update live.' },
-  { emoji: '🤖', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan — officer salary audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
+  { emoji: '🤖', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan — officer compensation audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
   { emoji: '✅', title: "You're all set!", body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.", isFinal: true },
 ]
 
@@ -726,7 +726,7 @@ export default function Dashboard() {
                 {safeCalc.reasonableCompAlert.message}
               </div>
               <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
-                <strong>Recommended action:</strong> Consider increasing your officer W-2 salary to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
+                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
                 <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
             </div>
