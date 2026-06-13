@@ -16,6 +16,7 @@ import {
   isScheduleCType,
   isRealEstateEntity,
   isPassthroughEntity,
+  issuesK1Entity,
 } from './entityPredicates.js'
 import { ENTITY_TYPES, SE_SUBJECT_TYPES, PASSTHROUGH_ENTITY_TYPES } from '../constants.js'
 
@@ -75,6 +76,49 @@ describe('predicate self-consistency on UI labels', () => {
     expect(isRealEstateEntity('Real Estate (Schedule E)')).toBe(true)
     // Partnership has no dedicated single predicate but is pass-through and not C-corp.
     expect(isCCorpEntity('Partnership / LLC')).toBe(false)
+  })
+})
+
+describe('issuesK1Entity — TRUE only for K-1 issuers (S-corp + partnership)', () => {
+  // Guards the Category-A fix: the Step-1 entity card and Step-2 "income flows" copy
+  // must say "K-1" ONLY for entities that actually issue one. isPassthroughEntity is
+  // too broad (it also matches sole props), so the card label binds to THIS predicate.
+
+  it('is TRUE for S-corp and partnership UI labels', () => {
+    expect(issuesK1Entity('S Corporation')).toBe(true)
+    expect(issuesK1Entity('Partnership / LLC')).toBe(true)
+  })
+
+  it('is TRUE for both layer-2 partnership forms (passive partner still gets a K-1)', () => {
+    expect(issuesK1Entity(normalizeEntityType('Partnership / LLC'))).toBe(true)
+    expect(issuesK1Entity('Partnership / MMLLC — Active')).toBe(true)
+    expect(issuesK1Entity('Partnership / MMLLC — Passive')).toBe(true)
+  })
+
+  it('is FALSE for sole prop (Sch. C), real estate (Sch. E), and C-corp', () => {
+    expect(issuesK1Entity('Sole Proprietor / SMLLC')).toBe(false)
+    expect(issuesK1Entity(normalizeEntityType('Sole Proprietor / SMLLC'))).toBe(false)
+    expect(issuesK1Entity('Real Estate (Schedule E)')).toBe(false)
+    expect(issuesK1Entity('C Corporation')).toBe(false)
+  })
+
+  it('partitions every ENTITY_TYPES label: K-1 issuers are exactly {S-corp, partnership}', () => {
+    const k1 = ENTITY_TYPES.filter(issuesK1Entity)
+    expect(k1).toEqual(['S Corporation', 'Partnership / LLC'])
+  })
+
+  it('never marks a Schedule C or Schedule E entity as a K-1 issuer', () => {
+    for (const label of ENTITY_TYPES) {
+      if (isScheduleCType(label) || isRealEstateEntity(label)) {
+        expect(issuesK1Entity(label)).toBe(false)
+      }
+    }
+  })
+
+  it('handles empty / nullish input without throwing', () => {
+    expect(issuesK1Entity('')).toBe(false)
+    expect(issuesK1Entity(undefined)).toBe(false)
+    expect(issuesK1Entity(null)).toBe(false)
   })
 })
 

@@ -45,6 +45,25 @@ export const isPassthroughEntity = (t) =>
 export const isRealEstateEntity = (t) => /real.?estate|schedule.?e/i.test(t || '')
 
 /**
+ * Issues a Schedule K-1 to the owner — TRUE only for S corporations (Form 1120-S)
+ * and partnerships / MMLLCs (Form 1065). These are the only entity types whose
+ * results reach the personal return *via a K-1*.
+ *
+ * Deliberately FALSE for:
+ *   • Sole Proprietor / SMLLC — reports on Schedule C; no K-1.
+ *   • Real Estate (Schedule E) — directly-held rental on Schedule E, Part I; no K-1
+ *     (a rental owned *through* a partnership/S-corp is entered as that entity instead).
+ *   • C Corporation — entity-level tax; distributes dividends, not a K-1.
+ *
+ * Use this — not isPassthroughEntity — wherever the UI says "K-1": isPassthroughEntity
+ * also matches sole props (and "income flows to the owner" is true for them, but *not*
+ * through a K-1). Matches EITHER vocabulary: layer-1 "Partnership / LLC" and layer-2
+ * "Partnership / MMLLC — Active/Passive" both qualify (a passive partner still gets a K-1).
+ */
+export const issuesK1Entity = (t) =>
+  isSCorpEntity(t) || /partnership|mmllc|partner/i.test(t || '')
+
+/**
  * Map any entity-type label (Step-1 UI values, legacy strings) to the canonical
  * ENTITY_TYPES string the tax engine keys on. The Step-1 dropdown emits friendly
  * labels ("Sole Proprietor / SMLLC", "Partnership / LLC") that do NOT match the
