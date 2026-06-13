@@ -614,8 +614,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Income (gross rents received)' : 'Gross Revenue (Total Receipts)'}
-            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total revenue before any deductions — i.e. your gross receipts before any expenses. For S-Corps and partnerships, enter the entity\'s gross revenue (your taxable share flows via K-1, not the full gross revenue amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer salary — enter that separately below.'} />
+            {isRE ? 'Rental Income (gross rents received)' : 'Gross Receipts (Total Revenue)'}
+            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer salary — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
@@ -644,7 +644,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
               <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer salary exceeds gross revenue — verify your numbers.
+                ⚠ Officer salary exceeds gross receipts — verify your numbers.
               </div>
             )}
             {officerExceedsNetProfit && !officerExceedsRevenue && (
@@ -679,7 +679,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue (Total Receipts)'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Receipts (Total Revenue)'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
@@ -859,7 +859,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue (Total Receipts)'}</span>
+                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Receipts (Total Revenue)'}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -1674,7 +1674,7 @@ export default function CalculateTaxInner() {
                 const sign = diff >= 0 ? '+' : ''
                 setSyncDiffs(s => ({
                   ...s,
-                  [pid]: `Gross revenue updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
+                  [pid]: `Gross receipts updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
                 }))
                 // Clear diff after 8s
                 setTimeout(() => setSyncDiffs(s => { const n = { ...s }; delete n[pid]; return n }), 8000)
@@ -1870,7 +1870,7 @@ export default function CalculateTaxInner() {
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
-          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Revenue, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
         </div>
 
         {/* Tax year selector */}

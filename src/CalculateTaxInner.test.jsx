@@ -37,7 +37,10 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
       <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} />,
     )
 
-    // First MoneyInput in the panel is Gross Revenue.
+    // First MoneyInput in the panel is Gross Receipts.
+    // Category B: the top-line field leads with "Gross Receipts" (form term), not "Gross Revenue".
+    expect(container.textContent).toContain('Gross Receipts (Total Revenue)')
+    expect(container.textContent).not.toContain('Gross Revenue (Total Receipts)')
     const revenue = container.querySelector('input')
     expect(revenue).toBeTruthy()
     fireEvent.change(revenue, { target: { value: '150000' } })
@@ -59,7 +62,7 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
     )
 
     const inputs = container.querySelectorAll('input')
-    fireEvent.change(inputs[0], { target: { value: '200000' } }) // gross revenue
+    fireEvent.change(inputs[0], { target: { value: '200000' } }) // gross receipts
     fireEvent.change(inputs[1], { target: { value: '50000' } })  // operating expenses
 
     const [, updated] = lastUpdate(onUpdate)

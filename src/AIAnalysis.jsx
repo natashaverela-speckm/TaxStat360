@@ -538,9 +538,9 @@ function RiskScan({ rec }) {
     findings.push({
       level: 'high',
       icon: '🚨',
-      title: `Deductions Exceed Revenue by ${_ratio - 100}% — Common IRS Scrutiny Pattern`,
-      detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross revenue (${fmt(_totEntRev)}). Deductions substantially exceeding revenue place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed revenue in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
-      action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If deductions exceed revenue by >50%, discuss with your CPA before filing.`,
+      title: `Expenses Exceed Gross Receipts by ${_ratio - 100}% — Common IRS Scrutiny Pattern`,
+      detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross receipts (${fmt(_totEntRev)}). Expenses substantially exceeding gross receipts place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed gross receipts in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
+      action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If expenses exceed gross receipts by >50%, discuss with your CPA before filing.`,
     })
   }
 
@@ -1132,7 +1132,7 @@ function ReportModal({ onClose, rec }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 12 }}>LAST SAVED CALCULATION{rec.savedAt ? ` — ${rec.savedAt}` : ''}</div>
             {[
               ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
-              ['Gross Revenue', b.grossRevenue ? fmt(b.grossRevenue) : ''],
+              ['Gross Receipts', b.grossRevenue ? fmt(b.grossRevenue) : ''],
               ['Total Expenses', b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
               ['Officer Salary', b.officerSalary ? fmt(b.officerSalary) : ''],
               ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
@@ -1253,7 +1253,7 @@ function BriefingModal({ onClose, rec }) {
   const { sCorp: _bSCorp, partnership: _bPartner, realEstate: _bRealEstate } = getEntityIncomeSplit(rec)
   const _hasEntitySplit = (Array.isArray(rec.entities) ? rec.entities : []).length > 0
   const incomeRows = [
-    ['Gross revenue', num(b.grossRevenue)],
+    ['Gross receipts', num(b.grossRevenue)],
     ['Total expenses', num(b.operatingExpenses)],
     ['Officer W-2 salary', officerSal],
     ...(_hasEntitySplit
@@ -1503,7 +1503,7 @@ function SimulatorModal({ onClose, rec }) {
     { id:'equip20', icon:'🔧', label:'$20K Equipment',       color:'#2563EB' },
     { id:'equip50', icon:'🏗️', label:'$50K Equipment',       color:'#7C3AED' },
     { id:'sep',     icon:'🏦', label:'Max SEP-IRA',          color:'#059669' },
-    { id:'revenue', icon:'📈', label:'+$50K Revenue',        color:'#0891B2' },
+    { id:'revenue', icon:'📈', label:'+$50K Gross Receipts',        color:'#0891B2' },
     { id:'salary',  icon:'💼', label:'+$20K Salary',         color:'#475569' },
     { id:'custom',  icon:'✏️', label:'Custom',               color:'#94A3B8' },
   ]
@@ -1561,7 +1561,7 @@ function SimulatorModal({ onClose, rec }) {
                 ['Depreciation / Equip ($)', 'depreciation'],
                 ['Operating Expenses ($)', 'operatingExpenses'],
                 ['Other Deductions ($)', 'otherDeductions'],
-                ['Gross Revenue Change ($)', 'grossRevenue'],
+                ['Gross Receipts Change ($)', 'grossRevenue'],
                 ['Officer Salary Change ($)', 'officerSalary'],
               ].map(([label, key]) => (
                 <div key={key}>
@@ -1578,7 +1578,7 @@ function SimulatorModal({ onClose, rec }) {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
               <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>{entity.toUpperCase()} — ENTITY LEVEL</div>
-                {row('Gross Revenue',     baseline.rev,        scenario.rev)}
+                {row('Gross Receipts',     baseline.rev,        scenario.rev)}
                 {row('Operating Expenses',baseline.opex,       scenario.opex,     true)}
                 {row('Officer Salary',    baseline.sal,        scenario.sal,      true)}
                 {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
@@ -1711,7 +1711,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const checklistItems = rec ? [
     { label: 'Filing status', ok: !!(rec.f1040?.filingStatus) },
     { label: 'Entity structure', ok: !!recEntityType(rec) },
-    { label: 'Revenue / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
+    { label: 'Gross receipts / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
     { label: 'W-2 income / withholding', ok: getTotalW2(rec) > 0 },
     { label: 'Estimated tax payments', ok: (parseFloat(rec.f1040?.estPaid)||0) > 0 },
     { label: 'Expenses / deductions', ok: (parseFloat(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
