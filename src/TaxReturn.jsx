@@ -750,7 +750,7 @@ export default function TaxReturn() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
           <p style={{ color: SL, fontSize: 13, margin: '0 0 20px' }}>
-            K-1 income from Step 1 flows automatically. Add personal income, deductions, and withholding to see your complete estimated federal tax liability.
+            Income from your Step 1 entities flows automatically. Add personal income, deductions, and withholding to see your complete estimated federal tax liability.
           </p>
 
           {/* Year + Filing Status */}

@@ -754,7 +754,7 @@ export default function Dashboard() {
             <p style={{ color: SL, fontSize: 14, marginBottom: 20 }}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
               {[
-                { label: 'S-Corp Owner',          icon: '🏢', desc: 'Salary + K-1 distributions' },
+                { label: 'S-Corp Owner',          icon: '🏢', desc: 'Salary + K-1 income' },
                 { label: 'Sole Proprietor',        icon: '💼', desc: 'Schedule C self-employment' },
                 { label: 'Real Estate Investor',   icon: '🏠', desc: 'Rental income + depreciation' },
                 { label: 'Partnership / LLC',      icon: '🤝', desc: 'K-1 distributive share' },
