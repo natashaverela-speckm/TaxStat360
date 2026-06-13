@@ -681,6 +681,28 @@ export default function TaxReturn() {
         </div>
       </nav>
 
+      {/* F16 FIX (UX audit): on mobile the full liability panel stacks BELOW the entire
+          form (single-column reflow), so the live tax number was off-screen while the
+          user typed income at the top. This compact summary sticks just under the nav on
+          mobile so the estimated liability + effective rate stay visible during input.
+          Desktop keeps the full sticky panel in the right column (Finding 3, already in
+          place at the liability card below). */}
+      {isMobile && hasResult && (
+        <div style={{
+          position: 'sticky', top: 58, zIndex: 90,
+          background: N, color: '#fff',
+          padding: '8px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: '0 2px 10px rgba(13,27,62,0.25)',
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', opacity: 0.65 }}>EST. FEDERAL TAX</span>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 19, fontWeight: 900, lineHeight: 1 }}>{fmt(result.totalTax)}</span>
+            <span style={{ fontSize: 11, opacity: 0.7 }}>{pct(effectiveRate(result.totalTax, result.agi))} eff.</span>
+          </span>
+        </div>
+      )}
+
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
@@ -1198,10 +1220,17 @@ export default function TaxReturn() {
         </div>
 
         {/* ── RIGHT: Results panel ─────────────────────────────────────────── */}
-        <div style={{ position: isMobile ? 'relative' : 'sticky', top: isMobile ? 'auto' : 70 }}>
+        {/* F3 FIX (UX audit): this column was position:sticky, but it is taller than
+            the viewport (card + waterfall + quarterly + notes + save buttons), so the
+            headline liability still scrolled off the top while editing lower inputs.
+            The column is now normal-flow and ONLY the compact liability card is pinned
+            (below), so the number + effective rate stay in view during input. */}
+        <div style={{ position: 'relative' }}>
 
-          {/* Main liability card */}
-          <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff' }}>
+          {/* Main liability card — pinned on desktop so the headline number stays visible
+              while the form scrolls (F3). On mobile the sticky summary bar under the nav
+              handles this (F16), so the card sits in normal flow. */}
+          <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff', position: isMobile ? 'static' : 'sticky', top: 70, zIndex: 5 }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>EST. FEDERAL TAX LIABILITY</div>
             <div style={{ fontSize: 42, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>
               {hasResult ? fmt(result.totalTax) : '—'}
