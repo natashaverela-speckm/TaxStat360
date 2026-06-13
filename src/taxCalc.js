@@ -497,6 +497,13 @@ function calcTaxReturn(input) {
     // with same-year §1231 losses) or only a gross business gain is a facts determination
     // the caller makes — the engine represents the position rather than choosing it.
     bizCapGain1231 = 0,
+    // F5 (§1231(c) 5-year lookback): nonrecaptured net §1231 losses from the prior
+    // five years. A net §1231 GAIN this year is recharacterized as ORDINARY income to
+    // the extent of these prior losses (§1231(c)(1)); only the excess keeps long-term
+    // capital-gain treatment. Default 0 → no recharacterization, so existing callers
+    // are unaffected. The caller supplies the prior-5-year figure (Form 4797 line 8 /
+    // the taxpayer's own §1231 loss history); the engine applies the recharacterization.
+    nonrecapturedNet1231Loss = 0,
     w2Withheld, estPaid,
     ytdFactor = 1,
     priorYearTax,
@@ -876,7 +883,13 @@ function calcTaxReturn(input) {
     // deduction and disagreeing with AGI (which already nets §179 via k1Total) and with
     // the AI Analysis tab (which reads the §179-netted k1Income). §179 reduces QBI per
     // Treas. Reg. §1.199A-3(b)(1)(ii)(A).
-    const k1Gross = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    // F3 (§199A × §1366(d)): honor an explicitly-set k1 — including 0 from a fully
+    // basis-suspended loss — instead of the || fallback, which treated k1===0 as
+    // "missing" and fell back to gross netProfit, leaking a basis-suspended loss into
+    // QBI. A §1366(d)-suspended loss is excluded from QBI until the year it is allowed
+    // (Treas. Reg. §1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
+    // QBI loss so it reduces QBI then.
+    const k1Gross = e.k1 !== undefined ? nv(e.k1) : Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     const k1      = k1Gross - nv(e.box11_12) - nv(e.box12_13)
     const scale   = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
@@ -887,7 +900,16 @@ function calcTaxReturn(input) {
   // per-property branch) — do not redeclare here.
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
   const f4797NetGain = Math.max(0, nv(f4797Inc))
-  const prefIncome = _ltGain + qualDiv + f4797NetGain
+  // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
+  // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
+  // long-term capital-gain treatment. The recharacterized slice stays in gross/ordinary
+  // income (it is already in grossIncomeBeforeNOL via f4797Inc) and is simply withheld
+  // from the preferential-rate buckets below. NII is unaffected — §1231(c) changes the
+  // RATE, not whether the gain is investment income.
+  const _nonrecap1231Loss     = Math.max(0, nv(nonrecapturedNet1231Loss))
+  const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
+  const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
+  const prefIncome = _ltGain + qualDiv + f4797PrefGain
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
@@ -900,12 +922,12 @@ function calcTaxReturn(input) {
   const qbiAggregationApplied    = _qbiResult.aggregationApplied
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
-  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + f4797NetGain
+  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + f4797PrefGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
   const taxableIncome         = taxableAfterQBI
   let _prefRoom = taxableAfterQBI
-  const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797NetGain, _prefRoom); _prefRoom -= _ltcgClamped
+  const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797PrefGain, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, qualDiv),   _prefRoom); _prefRoom -= _qualDivClamped
   const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
   const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
@@ -946,7 +968,7 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome, qbi, saltAmount: nv(saltAmount),
     isoBargainElement: hasISO ? nv(isoBargainElement) : 0,
-    ltGain: _ltGain + f4797NetGain, qualDiv, regularTax: fedTax, status, taxYear,
+    ltGain: _ltGain + f4797PrefGain, qualDiv, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
@@ -1064,6 +1086,7 @@ function calcTaxReturn(input) {
     ebl,
     eblThreshold,
     eblBizCapGainExcluded,
+    ordinary1231Recapture,
     palSuspendedRental,
     palCarryforwardApplied,
     palCarryforwardRemaining,
