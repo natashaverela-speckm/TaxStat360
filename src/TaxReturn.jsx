@@ -942,7 +942,11 @@ export default function TaxReturn() {
           )}
 
           {/* Capital gains & investment */}
-          <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
+          {/* F-FUNC-01: auto-expand when the section holds any non-zero investment-income
+              value so a loaded record never hides material figures behind a collapsed
+              header (the audit's "data is hidden from view" concern). Pairs with the
+              full-f1040 hydration in Dashboard.loadRecord. */}
+          <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
