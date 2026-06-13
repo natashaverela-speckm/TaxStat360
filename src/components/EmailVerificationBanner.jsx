@@ -4,6 +4,9 @@ import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
 const B = '#2563EB'
 const N = '#0D1B3E'
 const CONFIRMED_ACK_KEY = 'ts360_email_confirmed_ack'
+// UX audit F10: lets the user collapse the persistent reminder to a small badge
+// so it stops eating vertical space (especially on mobile) on every screen.
+const COLLAPSED_KEY = 'ts360_email_banner_collapsed'
 
 const linkBtn = {
   background: 'none',
@@ -22,6 +25,11 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
   const [msg, setMsg] = useState('')
   const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState(email || '')
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(COLLAPSED_KEY) === '1' } catch (e) { return false }
+  })
+  const collapse = () => { setCollapsed(true); try { localStorage.setItem(COLLAPSED_KEY, '1') } catch (e) { /* noop */ } }
+  const expand = () => { setCollapsed(false); try { localStorage.removeItem(COLLAPSED_KEY) } catch (e) { /* noop */ } }
 
   const showConfirmedAck = () => localStorage.getItem(CONFIRMED_ACK_KEY) === '1'
 
@@ -36,6 +44,26 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
   }, [verified])
 
   if (!email) return null
+
+  // Collapsed state: a compact, reopenable badge instead of the full-width bar.
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 16px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <button
+          type="button"
+          onClick={expand}
+          aria-label="Email not verified — show verification reminder"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 999,
+            padding: '3px 10px', fontSize: 12, color: N, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          📧 Verify email
+        </button>
+      </div>
+    )
+  }
 
   if (verified) {
     if (showConfirmedAck()) return null
@@ -117,7 +145,8 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
         zIndex: 60,
       }}
     >
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
         {!editing ? (
           <span>
             📧 Please confirm your email. We sent a verification link to <strong>{email}</strong>. Check your inbox (and junk/spam).
@@ -158,6 +187,16 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
               </button>
             </form>
         )}
+        </div>
+        <button
+          type="button"
+          onClick={collapse}
+          aria-label="Hide email verification reminder"
+          title="Hide"
+          style={{ flex: '0 0 auto', background: 'transparent', border: 0, color: '#64748B', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 2 }}
+        >
+          ×
+        </button>
       </div>
       {msg ? (
         <p style={{ margin: '8px 0 0', fontSize: 12, color: '#475569', maxWidth: 1200 }}>
