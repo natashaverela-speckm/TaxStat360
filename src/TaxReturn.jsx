@@ -60,7 +60,7 @@ import { nf } from './utils/parseMoney.js'
 import { fmt, pct, effectiveRate, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL } from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS } from './constants.js'
 import { isPro } from './LockedFeature'
 
 const PURPLE = '#7C3AED'
@@ -727,7 +727,7 @@ export default function TaxReturn() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           boxShadow: '0 2px 10px rgba(13,27,62,0.25)',
         }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', opacity: 0.65 }}>EST. TOTAL FEDERAL TAX</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', opacity: 0.65 }}>{FINANCIAL_LABELS.estTotalFederalTax}</span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             {taxFlash !== 0 && taxDelta !== 0 && (
               <span style={{ fontSize: 12, fontWeight: 800, color: taxFlash === 1 ? '#FCA5A5' : '#86EFAC' }}>
@@ -1284,7 +1284,7 @@ export default function TaxReturn() {
               while the form scrolls (F3). On mobile the sticky summary bar under the nav
               handles this (F16), so the card sits in normal flow. */}
           <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff', position: isMobile ? 'static' : 'sticky', top: 70, zIndex: 5 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>EST. TOTAL FEDERAL TAX</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
             <div style={{
               fontSize: 42, fontWeight: 900, lineHeight: 1, marginBottom: 4,
               display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap',

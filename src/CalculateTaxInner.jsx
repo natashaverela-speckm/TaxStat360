@@ -122,7 +122,7 @@ import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
@@ -614,14 +614,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Income (gross rents received)' : 'Gross Receipts (Total Revenue)'}
+            {isRE ? 'Rental Income (gross rents received)' : FINANCIAL_LABELS.grossReceiptsField}
             <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Operating Expenses (excl. Officer Compensation, Depreciation, Advertising)'}
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
             <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
@@ -636,7 +636,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         {(isSCorp || isCCorp) && (
           <div>
             <label style={lbl}>
-              Officer Compensation (W-2)
+              {FINANCIAL_LABELS.officerCompensationField}
               <InfoTip text={isCCorp
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
@@ -679,13 +679,13 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Receipts (Total Revenue)'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
+            <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
-            <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Business Income'}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
+            <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
           </div>
         </div>
@@ -859,11 +859,11 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Receipts (Total Revenue)'}</span>
+                <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>Total Expenses</span>
+                <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span>
                 <span style={{ fontWeight: 600, color: N }}>- {fmt(nf(pnl.totalExpenses))}</span>
               </div>
               {sal > 0 && (
@@ -873,7 +873,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
-                <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Business Income'}</span>
+                <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}</span>
                 <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
               </div>
             </div>
