@@ -41,6 +41,9 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
     // Category B: the top-line field leads with "Gross Receipts" (form term), not "Gross Revenue".
     expect(container.textContent).toContain('Gross Receipts (Total Revenue)')
     expect(container.textContent).not.toContain('Gross Revenue (Total Receipts)')
+    // Category D: officer pay field leads with "Officer Compensation" (1120-S term), not "Salary".
+    expect(container.textContent).toContain('Officer Compensation (W-2)')
+    expect(container.textContent).not.toContain('Officer Salary (W-2)')
     const revenue = container.querySelector('input')
     expect(revenue).toBeTruthy()
     fireEvent.change(revenue, { target: { value: '150000' } })

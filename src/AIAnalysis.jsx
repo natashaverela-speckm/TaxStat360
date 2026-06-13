@@ -369,15 +369,15 @@ function RiskScan({ rec }) {
       const eK1 = Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
       const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
       if (eOfficerSal === 0 && eK1 > 20000) {
-        findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Salary — ${entityName} (Audit Risk)`,
-          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer salary recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
-          action: `Set ${entityName}'s officer salary on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
+        findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
+          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+          action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.35) {
-        findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Salary May Be Too Low — ${entityName}`,
+        findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Compensation May Be Too Low — ${entityName}`,
           detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/(eOfficerSal+eK1))*100).toFixed(1)}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
-          action: `Consider increasing ${entityName}'s officer salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
+          action: `Consider increasing ${entityName}'s officer compensation to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0) {
-        findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Salary Recorded — ${entityName}`,
+        findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Compensation Recorded — ${entityName}`,
           detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
           action: null })
       }
@@ -385,15 +385,15 @@ function RiskScan({ rec }) {
   } else if (isSCorpEntity(b.entityType)) {
     const ownerComp = officerSal > 0 ? officerSal : w2
     if (ownerComp === 0 && k1 > 20000) {
-      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Salary — Audit Risk',
-        detail: `You have ${fmt(k1)} in K-1 income but no officer salary recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
-        action: 'Set a reasonable W-2 officer salary for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of total officer compensation (salary + distributions). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
+      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Compensation — Audit Risk',
+        detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
+        action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of total officer compensation (salary + distributions). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
-      findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Salary May Be Too Low',
+      findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Compensation May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${((ownerComp/(ownerComp+k1))*100).toFixed(1)}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
         action: `Consider increasing your salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
     } else if (ownerComp > 0) {
-      findings.push({ level: 'good', icon: '✅', title: 'Officer Salary Recorded',
+      findings.push({ level: 'good', icon: '✅', title: 'Officer Compensation Recorded',
         detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
         action: null })
     }
@@ -736,15 +736,15 @@ function TaxOptimization({ rec }) {
   if (isPassthrough) {
     if (isSCorpOwner && totalOfficerSalary === 0) {
       opportunities.push({
-        icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Salary First',
+        icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Compensation First',
         priority: 'high', saving: null,
-        detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 salary — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer salary recorded, your current allowable contribution is $0.`,
-        howTo: `Set a reasonable officer salary on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_IRA_RATE * 100)}% of that salary (max ${fmt(sepIraMax)} in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE) * marginalRate))} in federal tax.`
+        detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 compensation — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer compensation recorded, your current allowable contribution is $0.`,
+        howTo: `Set reasonable officer compensation on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_IRA_RATE * 100)}% of that salary (max ${fmt(sepIraMax)} in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
       const sepDetail = isSCorpOwner
-        ? `SEP-IRA contributions are employer-only, based on your W-2 officer salary (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer salary, the max SEP-IRA contribution is ${Math.round(SEP_IRA_RATE * 100)}% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max ${fmt(sepIraMax)}). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
+        ? `SEP-IRA contributions are employer-only, based on your W-2 officer compensation (not K-1 distributions — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer compensation, the max SEP-IRA contribution is ${Math.round(SEP_IRA_RATE * 100)}% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max ${fmt(sepIraMax)}). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
         : `You can contribute up to ${fmt(maxSEP)} (~${Math.round(SEP_IRA_SOLE_PROP_EFFECTIVE_RATE * 100)}% of net self-employment income after SE tax deduction, max ${fmt(sepIraMax)}) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
 
       const sepDeadline = isSCorpOwner
@@ -764,7 +764,7 @@ function TaxOptimization({ rec }) {
           icon: '💰', title: 'Solo 401(k) — Higher Contribution than SEP-IRA',
           priority: 'high',
           saving: solo401kTaxSaved,
-          detail: `Unlike a SEP-IRA (employer contributions only), a Solo 401(k) has two components that stack:\n• Employee elective deferral: up to ${fmt(solo401kDeferral)} (${year} limit, pre-tax or Roth — IRC §401(k))\n• Employer profit-sharing: 25% of your officer W-2 salary = ${fmt(maxSolo401kEmployer)}\n• Combined total: ${fmt(maxSolo401k)} — vs. ${fmt(maxSEP)} under a SEP-IRA alone.\nBoth contributions flow from your S-Corp but are made separately.`,
+          detail: `Unlike a SEP-IRA (employer contributions only), a Solo 401(k) has two components that stack:\n• Employee elective deferral: up to ${fmt(solo401kDeferral)} (${year} limit, pre-tax or Roth — IRC §401(k))\n• Employer profit-sharing: 25% of your officer W-2 compensation = ${fmt(maxSolo401kEmployer)}\n• Combined total: ${fmt(maxSolo401k)} — vs. ${fmt(maxSEP)} under a SEP-IRA alone.\nBoth contributions flow from your S-Corp but are made separately.`,
           howTo: `At your ${pct(marginalRate * 100)} marginal rate, the max Solo 401(k) saves approx. ${fmt(solo401kTaxSaved)} — roughly ${fmt(solo401kTaxSaved - Math.round(maxSEP * marginalRate))} more than a SEP-IRA alone. Requires a plan document established before December 31 of the plan year. Employee deferral comes from your W-2 payroll (must be elected before December 31); employer contribution due by September 15 (S-Corp extension deadline). Available at Fidelity, Schwab, or Vanguard.`
         })
       }
@@ -799,8 +799,8 @@ function TaxOptimization({ rec }) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
-        detail: `Your S-Corp structure saves SE tax on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer salary (distributions avoid self-employment tax; FICA still applies to your W-2 officer salary). The FICA rate is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
-        howTo: `Estimated SE tax savings on K-1 distributions vs. W-2 wages: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer salary already exceeds the ${fmt(getTable(year).ssWageBase)} SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary unreasonably low — there is no IRS safe-harbor percentage, but practitioners commonly target 35–45% of total officer compensation (salary + distributions) and document that it is reasonable for the role.`
+        detail: `Your S-Corp structure saves SE tax on ${fmt(sCorpK1 - totalOfficerSalary)} in K-1 distributions above your officer compensation (distributions avoid self-employment tax; FICA still applies to your W-2 officer compensation). The FICA rate is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and drops to 2.9% Medicare-only above that threshold — K-1 distributions avoid both components entirely, regardless of where you fall relative to the wage base.`,
+        howTo: `Estimated SE tax savings on K-1 distributions vs. W-2 wages: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; may be lower if your combined officer compensation already exceeds the ${fmt(getTable(year).ssWageBase)} SS wage base, since the SS portion no longer applies above that threshold). Maintain documentation showing salary is reasonable for your role. Avoid setting salary unreasonably low — there is no IRS safe-harbor percentage, but practitioners commonly target 35–45% of total officer compensation (salary + distributions) and document that it is reasonable for the role.`
       })
     }
   }
@@ -1134,7 +1134,7 @@ function ReportModal({ onClose, rec }) {
               ['Entity Type', b.entityType],['Tax Year', String(b.year || '')],
               ['Gross Receipts', b.grossRevenue ? fmt(b.grossRevenue) : ''],
               ['Total Expenses', b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
-              ['Officer Salary', b.officerSalary ? fmt(b.officerSalary) : ''],
+              ['Officer Compensation', b.officerSalary ? fmt(b.officerSalary) : ''],
               ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               ['W-2 Income', totalW2 > 0 ? fmt(totalW2) : ''],
@@ -1228,7 +1228,7 @@ function BriefingModal({ onClose, rec }) {
     const ratio = officerSal / (officerSal + k1)
     points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 distributions — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < 0.35 ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
   } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
-    points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 salary on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
+    points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 compensation on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
   }
   if (isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')) {
     points.push(`Net earnings from this ${isScheduleCType(b.entityType) ? 'sole proprietorship / SMLLC' : 'partnership / LLC'} are subject to self-employment tax (IRC §1401) in addition to income tax. One-half of SE tax is deductible above the line (§164(f)).`)
@@ -1255,7 +1255,7 @@ function BriefingModal({ onClose, rec }) {
   const incomeRows = [
     ['Gross receipts', num(b.grossRevenue)],
     ['Total expenses', num(b.operatingExpenses)],
-    ['Officer W-2 salary', officerSal],
+    ['Officer W-2 compensation', officerSal],
     ...(_hasEntitySplit
       ? [
           ['S-Corp K-1 ordinary income (Box 1)', _bSCorp],
@@ -1276,7 +1276,7 @@ function BriefingModal({ onClose, rec }) {
     '',
     'ENTITY STRUCTURE',
     ...(entities.length
-      ? entities.map(e => `  - ${e.type || 'Entity'} (${ownPct(e.own)}%): net ${fmt(getEntityNetProfit(e))}${num(e?.pnl?.officerSalary) > 0 ? `, officer salary ${fmt(num(e.pnl.officerSalary))}` : ''}`)
+      ? entities.map(e => `  - ${e.type || 'Entity'} (${ownPct(e.own)}%): net ${fmt(getEntityNetProfit(e))}${num(e?.pnl?.officerSalary) > 0 ? `, officer compensation ${fmt(num(e.pnl.officerSalary))}` : ''}`)
       : [`  - ${b.entityType || 'Unknown'} (${b.ownershipPct || '100'}%)`]),
     '',
     'INCOME & BUSINESS SUMMARY',
@@ -1562,7 +1562,7 @@ function SimulatorModal({ onClose, rec }) {
                 ['Operating Expenses ($)', 'operatingExpenses'],
                 ['Other Deductions ($)', 'otherDeductions'],
                 ['Gross Receipts Change ($)', 'grossRevenue'],
-                ['Officer Salary Change ($)', 'officerSalary'],
+                ['Officer Compensation Change ($)', 'officerSalary'],
               ].map(([label, key]) => (
                 <div key={key}>
                   <label style={{fontSize:11,fontWeight:700,color:'#64748B',display:'block',marginBottom:3}}>{label}</label>
@@ -1580,7 +1580,7 @@ function SimulatorModal({ onClose, rec }) {
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>{entity.toUpperCase()} — ENTITY LEVEL</div>
                 {row('Gross Receipts',     baseline.rev,        scenario.rev)}
                 {row('Operating Expenses',baseline.opex,       scenario.opex,     true)}
-                {row('Officer Salary',    baseline.sal,        scenario.sal,      true)}
+                {row('Officer Compensation',    baseline.sal,        scenario.sal,      true)}
                 {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
                 {row('Advertising',       baseline.adv,        scenario.adv,      true)}
                 {row('Other Deductions',  baseline.other,      scenario.other,    true)}
@@ -1659,7 +1659,7 @@ function NarrativeModal({ onClose }) {
   const [copied, setCopied] = useState(false)
   const narratives = [
     { title: 'Real Estate Professional Status', tag: 'REP · IRC §469(c)(7)', color: P, text: `Dear IRS Representative,\n\nThis letter responds to your inquiry regarding the taxpayer's Real Estate Professional (REP) classification under IRC Section 469(c)(7) for tax year 2025.\n\nThe taxpayer qualifies as a Real Estate Professional based on the following:\n\n1. MORE THAN 50% OF PERSONAL SERVICES\nThe taxpayer performed more than 50% of all personal services in real property trades or businesses in which they materially participated.\n\n2. MORE THAN 750 HOURS\nThe taxpayer performed more than 750 hours of services during the year satisfying the statutory threshold under IRC §469(c)(7)(B).\n\n3. MATERIAL PARTICIPATION\nThe taxpayer materially participated in each rental activity meeting the 500-hour test under Treas. Reg. §1.469-5T(a)(1).\n\nAs a result, rental real estate losses are treated as non-passive and are fully deductible pursuant to IRC §469(c)(7)(A).\n\nRespectfully submitted,` },
-    { title: 'S-Corp Reasonable Compensation', tag: 'Officer Salary · Rev. Rul. 74-44', color: R, text: `Dear IRS Representative,\n\nThis letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.\n\nThe officer salary represents reasonable compensation based on:\n\n1. INDUSTRY BENCHMARKS — Compensation was determined by reference to comparable salaries consistent with Rev. Rul. 74-44.\n\n2. DUTIES AND RESPONSIBILITIES — The officer-shareholder performs substantial services including business development, client management, and financial oversight.\n\n3. CORPORATE PROFITABILITY — The compensation represents a reasonable percentage of gross revenues consistent with industry norms.\n\nThe S-Corporation maintains complete payroll records and W-2 forms.\n\nRespectfully submitted,` },
+    { title: 'S-Corp Reasonable Compensation', tag: 'Officer Compensation · Rev. Rul. 74-44', color: R, text: `Dear IRS Representative,\n\nThis letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.\n\nThe officer compensation represents reasonable compensation based on:\n\n1. INDUSTRY BENCHMARKS — Compensation was determined by reference to comparable salaries consistent with Rev. Rul. 74-44.\n\n2. DUTIES AND RESPONSIBILITIES — The officer-shareholder performs substantial services including business development, client management, and financial oversight.\n\n3. CORPORATE PROFITABILITY — The compensation represents a reasonable percentage of gross receipts consistent with industry norms.\n\nThe S-Corporation maintains complete payroll records and W-2 forms.\n\nRespectfully submitted,` },
     { title: 'K-1 Loss Deductibility', tag: 'Schedule E · IRC §1366(d)', color: '#0891b2', text: `Dear IRS Representative,\n\nThis letter responds to your inquiry regarding Schedule E losses reported from the taxpayer's S-Corporation K-1 for tax year 2025.\n\nThe K-1 losses are fully deductible for the following reasons:\n\n1. SHAREHOLDER BASIS — The taxpayer maintains sufficient stock basis under IRC §1366(d). Form 7203 is attached.\n\n2. AT-RISK RULES — The taxpayer is at risk for the full amount of the loss under IRC §465.\n\n3. MATERIAL PARTICIPATION — The taxpayer satisfies material participation standards under Treas. Reg. §1.469-5T.\n\nComplete corporate returns (Form 1120-S) and K-1 schedules are available upon request.\n\nRespectfully submitted,` },
   ]
   const current = narratives[selected]
@@ -1860,7 +1860,7 @@ export default function AIAnalysis() {
             AI Risk Scan, Tax Optimization, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
           </p>
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: '16px', marginBottom: 24, textAlign: 'left' }}>
-            {['🚨 Officer salary & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
+            {['🚨 Officer compensation & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
               <div key={f} style={{ fontSize: 13, color: '#374151', padding: '4px 0', display: 'flex', gap: 8 }}>{f}</div>
             ))}
           </div>

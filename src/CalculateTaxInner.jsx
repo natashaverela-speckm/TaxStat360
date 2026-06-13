@@ -321,7 +321,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   if (officerSal === 0) {
     return (
       <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Salary Set</div>
+        <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation Set</div>
         <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
           You haven't entered a W-2 salary. As an S-Corp owner working in the business, pay yourself a
           reasonable salary <em>before</em> taking distributions. A common starting point here is
@@ -340,14 +340,14 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   if (ratio < 0.35) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
+        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
           Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
           {' '}{(ratio * 100).toFixed(0)}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
           a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
           distributions, is what keeps the S-Corp structure defensible.
           {watsonWarning && (
-            <> Your salary is also <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
+            <> Your salary is also <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross receipts
             ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% many advisors watch for in
             single-owner service businesses.</>
           )}
@@ -372,13 +372,13 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         Form 941).
         {watsonWarning && (
           <> One thing to watch: your salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross
-          revenue ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% some advisors flag even when
+          receipts ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% some advisors flag even when
           the total-comp ratio looks fine.</>
         )}
       </div>
       {watsonWarning && (
         <CompSources color="#166534">
-          Treas. Reg. §1.162-7; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). Salary-to-revenue
+          Treas. Reg. §1.162-7; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). Salary-to-receipts
           is one factor the IRS weighs alongside the total-compensation ratio.
         </CompSources>
       )}
@@ -615,14 +615,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Income (gross rents received)' : 'Gross Receipts (Total Revenue)'}
-            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer salary — enter that separately below.'} />
+            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Business Expenses (excl. Officer Salary, Depreciation, Advertising)'}
-            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below.'} />
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Business Expenses (excl. Officer Compensation, Depreciation, Advertising)'}
+            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
         </div>
@@ -636,7 +636,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         {(isSCorp || isCCorp) && (
           <div>
             <label style={lbl}>
-              Officer Salary (W-2)
+              Officer Compensation (W-2)
               <InfoTip text={isCCorp
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
@@ -644,12 +644,12 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
               <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer salary exceeds gross receipts — verify your numbers.
+                ⚠ Officer compensation exceeds gross receipts — verify your numbers.
               </div>
             )}
             {officerExceedsNetProfit && !officerExceedsRevenue && (
               <div style={{ fontSize: 12, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
+                ⚠ Officer compensation exceeds net profit after operating expenses — this entity will show a net loss.
               </div>
             )}
             <ReasonableCompIndicator
@@ -670,7 +670,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             Other Deductions
-            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer salary — those have dedicated fields." />
+            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
         </div>
@@ -715,7 +715,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer salary does not apply to rental property, so that field is hidden here.
+            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer compensation does not apply to rental property, so that field is hidden here.
           </div>
         </div>
       )}
@@ -868,7 +868,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
               </div>
               {sal > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
-                  <span style={{ color: '#94A3B8' }}>incl. Officer Salary</span>
+                  <span style={{ color: '#94A3B8' }}>incl. Officer Compensation</span>
                   <span style={{ color: '#94A3B8' }}>{fmt(sal)}</span>
                 </div>
               )}
@@ -2129,7 +2129,7 @@ export default function CalculateTaxInner() {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer salary required'         },
+                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer compensation required'         },
                 { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
                 { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
                 { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
