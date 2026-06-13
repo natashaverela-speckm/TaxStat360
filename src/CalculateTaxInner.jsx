@@ -1875,65 +1875,69 @@ export default function CalculateTaxInner() {
             accounting software or by manual entry. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
-            Connect accounting software
-            <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or enter your figures manually using the link below." />
+            Add your business income
+            <InfoTip text="Two ways to add an entity: type your revenue, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
           </div>
-          {/* P1 FIX: "enter manually" promoted from a small underline link buried in
-              subtitle text to a visible secondary button sitting alongside the subtitle.
-              The previous treatment ("Sync P&L data directly — or enter manually.")
-              was easy to miss for users without accounting software — which is the
-              majority of first-time users. The manual entry path is now surfaced as
-              a proper button with enough visual weight to be discovered on first visit.
-              The inline link is retained for discoverability on re-reads. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-            <p style={{ fontSize: 12, color: SL, margin: 0 }}>
-              Connect your accounting software to sync P&L automatically — or enter figures manually.
-            </p>
-            <button
-              onClick={() => {
-                // O1 FIX: create a blank S-Corp entity and open the manual panel
-                if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
-                const newEnt = {
-                  id: Date.now(),
-                  type: 'S Corporation',
-                  name: '',
-                  own: '100',
-                  pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
-                  isManual: true,
-                  connectedId: null,
-                  box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
-                  box17V_sstb: false,
-                  stockBasis: '', debtBasis: '', distributions: '',
-                  isREP: false, isActiveParticipant: false,
-                }
-                setEntities(prev => {
-                  const next = [...prev, newEnt]
-                  sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
-                  return next
-                })
-                setExpandedIdx(entities.length)
-                setTimeout(() => {
-                  const cards = document.querySelectorAll('[data-entity-card]')
-                  const last = cards[cards.length - 1]
-                  if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }, 100)
-              }}
-              style={{
-                flexShrink: 0,
-                background: '#fff',
-                border: '1.5px solid ' + B,
-                borderRadius: 8,
-                padding: '7px 14px',
-                cursor: 'pointer',
-                color: B,
-                fontWeight: 700,
-                fontSize: 12,
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              ✏ Enter manually
-            </button>
+          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>
+            Enter your figures yourself, or sync them automatically from accounting software.
+          </p>
+
+          {/* F1 FIX (UX audit): the manual/express path was a small secondary button while
+              the integration tiles dominated — but most first-time users (and real-estate
+              investors) just want to type their numbers. Manual entry is now the PRIMARY,
+              full-width action; connecting software is the "or sync automatically" alternative
+              below the divider. Same one-click behavior: creates a blank entity and opens it. */}
+          <button
+            onClick={() => {
+              // create a blank S-Corp entity and open the manual panel
+              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+              const newEnt = {
+                id: Date.now(),
+                type: 'S Corporation',
+                name: '',
+                own: '100',
+                pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
+                isManual: true,
+                connectedId: null,
+                box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
+                box17V_sstb: false,
+                stockBasis: '', debtBasis: '', distributions: '',
+                isREP: false, isActiveParticipant: false,
+              }
+              setEntities(prev => {
+                const next = [...prev, newEnt]
+                sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+                return next
+              })
+              setExpandedIdx(entities.length)
+              setTimeout(() => {
+                const cards = document.querySelectorAll('[data-entity-card]')
+                const last = cards[cards.length - 1]
+                if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }, 100)
+            }}
+            style={{
+              width: '100%',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              background: B,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px',
+              cursor: 'pointer',
+              color: '#fff',
+              fontFamily: 'inherit',
+              marginBottom: 14,
+            }}
+          >
+            <span style={{ fontWeight: 700, fontSize: 14 }}>✏ Enter my figures manually</span>
+            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your revenue, expenses & salary</span>
+          </button>
+
+          {/* divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
+            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+            <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>or connect accounting software</span>
+            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {(() => {
