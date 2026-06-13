@@ -1254,7 +1254,7 @@ function BriefingModal({ onClose, rec }) {
   const _hasEntitySplit = (Array.isArray(rec.entities) ? rec.entities : []).length > 0
   const incomeRows = [
     ['Gross receipts', num(b.grossRevenue)],
-    ['Total expenses', num(b.operatingExpenses)],
+    ['Total Expenses', num(b.operatingExpenses)],
     ['Officer W-2 compensation', officerSal],
     ...(_hasEntitySplit
       ? [
@@ -1587,7 +1587,7 @@ function SimulatorModal({ onClose, rec }) {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
                   <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>Net Business Income</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(Math.abs(Math.round(scenario.netBizIncome)))}</span>
+                    <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.netBizIncome))}</span>
                     {chg(baseline.netBizIncome, scenario.netBizIncome)}
                   </div>
                 </div>

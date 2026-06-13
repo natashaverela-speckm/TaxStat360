@@ -621,7 +621,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         </div>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Business Expenses (excl. Officer Compensation, Depreciation, Advertising)'}
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Operating Expenses (excl. Officer Compensation, Depreciation, Advertising)'}
             <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
@@ -685,7 +685,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
-            <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
+            <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Business Income'}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
           </div>
         </div>
@@ -844,7 +844,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
-              {k1 >= 0 ? fmt(k1) : '-' + fmt(Math.abs(k1))}
+              {fmt(k1)}
             </div>
           </div>
         )}
@@ -873,7 +873,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
-                <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}</span>
+                <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Business Income'}</span>
                 <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
               </div>
             </div>
