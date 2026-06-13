@@ -271,6 +271,24 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
 // F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
 const WATSON_REVENUE_THRESHOLD = 0.30
 
+// F6 FIX (UX audit): collapsible "Why this matters & sources" used by the
+// reasonable-comp warnings so the plain takeaway + suggested number lead and the
+// case-law / regulation citations are tucked away. Hoisted to module scope (not
+// nested in ReasonableCompIndicator) so it doesn't remount/collapse on re-render.
+// `color` themes the disclosure to match each state's card.
+function CompSources({ color, children }) {
+  return (
+    <details style={{ marginTop: 8 }}>
+      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color, opacity: 0.8 }}>
+        Why this matters &amp; sources
+      </summary>
+      <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.6, color, opacity: 0.92 }}>
+        {children}
+      </div>
+    </details>
+  )
+}
+
 function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
 
@@ -285,12 +303,18 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   if (officerSal === 0) {
     return (
       <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation</div>
+        <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Salary Set</div>
         <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
-          S-Corp owners must receive reasonable W-2 compensation for services rendered (Rev. Rul. 74-44).
-          A common practitioner starting point is <strong>35–45% of total officer compensation</strong>.
-          Suggested minimum: <strong>{fmt(minTarget)}/yr</strong>.
+          You haven't entered a W-2 salary. As an S-Corp owner working in the business, pay yourself a
+          reasonable salary <em>before</em> taking distributions. A common starting point here is
+          about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business).
         </div>
+        <CompSources color="#7F1D1D">
+          Paying $0 salary while taking distributions is the most common S-Corp audit trigger — the IRS
+          can reclassify distributions as wages and assess back FICA plus penalties. Authority:
+          Rev. Rul. 74-44; Treas. Reg. §1.162-7. The 35–45% range is a practitioner heuristic, not a
+          statutory safe harbor — reasonable comp ultimately reflects the value of services you provide.
+        </CompSources>
       </div>
     )
   }
@@ -300,19 +324,23 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
-          Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation (salary ÷ total comp).
-          Tax practitioners commonly recommend 35–45% of total officer compensation based on case law
-          including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
-          A common starting point: <strong>{fmt(minTarget)}</strong>.
+          Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
+          {' '}{(ratio * 100).toFixed(0)}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
+          a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
+          distributions, is what keeps the S-Corp structure defensible.
+          {watsonWarning && (
+            <> Your salary is also <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
+            ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% many advisors watch for in
+            single-owner service businesses.</>
+          )}
         </div>
-        {watsonWarning && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #FDE68A', color: '#78350F', lineHeight: 1.6, fontSize: 12 }}>
-            Also: salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
-            ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — below the 30% advisory threshold.
-            IRS exam guidelines and Watson-line cases target single-owner service businesses
-            with low salary-to-revenue ratios. <em>Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).</em>
-          </div>
-        )}
+        <CompSources color="#78350F">
+          The IRS can recharacterize distributions as wages (with back FICA and penalties) when an
+          owner-employee's salary is unreasonably low. Key authority: Watson v. Commissioner,
+          668 F.3d 1008 (8th Cir. 2012); Treas. Reg. §1.162-7; Rev. Rul. 74-44. The 35–45% range is a
+          practitioner heuristic, not a safe harbor — reasonable comp depends on the value of services
+          you provide.
+        </CompSources>
       </div>
     )
   }
@@ -321,16 +349,20 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
       <div style={{ color: '#166534', lineHeight: 1.6 }}>
-        Salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the
-        practitioner-recommended 35–45% range. Ensure FICA payroll taxes are being withheld and
-        remitted quarterly.
+        Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the commonly
+        recommended 35–45% range. Make sure FICA payroll taxes are withheld and remitted (quarterly
+        Form 941).
+        {watsonWarning && (
+          <> One thing to watch: your salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross
+          revenue ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% some advisors flag even when
+          the total-comp ratio looks fine.</>
+        )}
       </div>
       {watsonWarning && (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #86EFAC', color: '#166534', lineHeight: 1.6, fontSize: 12 }}>
-          ⚠ Note: salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross revenue
-          ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — below the 30% advisory threshold even
-          though the total-comp ratio looks fine. Review under Treas. Reg. §1.162-7 · Watson, 668 F.3d 1008.
-        </div>
+        <CompSources color="#166534">
+          Treas. Reg. §1.162-7; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). Salary-to-revenue
+          is one factor the IRS weighs alongside the total-compensation ratio.
+        </CompSources>
       )}
     </div>
   )
