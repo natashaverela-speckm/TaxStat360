@@ -111,7 +111,10 @@ function InfoTip({ text, wide, label }) {
 }
 
 // F16 FIX: MoneyInput gains a `nonNegative` prop.
-function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onClick, nonNegative, onError }) {
+// F12 FIX: MoneyInput gains an `ariaLabel` prop so inputs without a visible
+// <label htmlFor> (e.g. the itemized-deduction fields) still expose an accessible
+// name to screen readers instead of announcing only their value.
+function MoneyInput({ value, onChange, placeholder, disabled, id, ariaLabel, style: sx, onClick, nonNegative, onError }) {
   const [raw, setRaw] = useState('')
   const [focused, setFocused] = useState(false)
 
@@ -125,6 +128,7 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, style: sx, onC
   return (
     <input
       id={id}
+      aria-label={ariaLabel}
       type="text"
       inputMode="decimal"
       value={raw}
@@ -897,7 +901,7 @@ export default function TaxReturn() {
                 {ytdMode && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                     <span style={{ fontSize: 10, color: '#1D4ED8', fontWeight: 600 }}>Income earned through:</span>
-                    <select value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
+                    <select aria-label="Income earned through (month)" value={ytdMonth} onChange={e => setYtdMonth(parseInt(e.target.value))}
                       style={{ padding: '6px 10px', border: '1.5px solid #BFDBFE', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: N, outline: 'none' }}>
                       {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                         <option key={i+1} value={i+1}>{m}</option>
@@ -947,7 +951,7 @@ export default function TaxReturn() {
                   Qualifying Dependents
                   <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000–$2,200 CTC (2025–2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
                 </label>
-                <input type="number" min="0" max="20" value={dependents} onChange={e => setDependents(e.target.value)}
+                <input type="number" min="0" max="20" aria-label="Qualifying dependents" value={dependents} onChange={e => setDependents(e.target.value)}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
               </div>
               <div style={inpWrap}>
@@ -1108,28 +1112,28 @@ export default function TaxReturn() {
                         Mortgage Interest (Schedule A Line 8)
                         <InfoTip text="Home mortgage interest paid on your primary and/or second home (Form 1098). Deductible on acquisition debt up to $750K ($1M if pre-Dec 2017 loan)." />
                       </label>
-                      <MoneyInput value={mortgageInt} onChange={setMortgageInt} placeholder="0" nonNegative />
+                      <MoneyInput ariaLabel="Mortgage Interest (Schedule A Line 8)" value={mortgageInt} onChange={setMortgageInt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Charitable Contributions (Schedule A Line 11-12)
                         <InfoTip text="Cash contributions to qualified 501(c)(3) organizations (Line 11) and non-cash contributions (Line 12). Cash contributions generally limited to 60% of AGI." />
                       </label>
-                      <MoneyInput value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
+                      <MoneyInput ariaLabel="Charitable Contributions (Schedule A Line 11-12)" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Medical Expenses (Schedule A Line 4)
                         <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC §213(a)). Enter your total medical expenses paid — TaxStat360 applies the 7.5% AGI floor automatically." />
                       </label>
-                      <MoneyInput value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
+                      <MoneyInput ariaLabel="Medical Expenses (Schedule A Line 4)" value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
                         <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
                       </label>
-                      <MoneyInput value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
+                      <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                     </div>
                   </div>
                   <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
@@ -1139,7 +1143,7 @@ export default function TaxReturn() {
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
-                      <MoneyInput value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} nonNegative />
+                      <MoneyInput ariaLabel="Itemized deductions total (overrides sub-fields)" value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} nonNegative />
                     </div>
                   </div>
                 </div>
@@ -1157,7 +1161,7 @@ export default function TaxReturn() {
               {hasISO && (
                 <div style={inpWrap}>
                   <label style={inputLbl}>ISO Bargain Element (FMV − Exercise Price × Shares)</label>
-                  <MoneyInput value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
+                  <MoneyInput ariaLabel="ISO Bargain Element (FMV minus exercise price, times shares)" value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
                 </div>
               )}
             </div>
