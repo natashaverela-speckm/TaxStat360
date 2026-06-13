@@ -44,9 +44,16 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
     // Category D: officer pay field leads with "Officer Compensation" (1120-S term), not "Salary".
     expect(container.textContent).toContain('Officer Compensation (W-2)')
     expect(container.textContent).not.toContain('Officer Salary (W-2)')
+    // Category F: operating-expense input is "Operating Expenses", not "Business Expenses".
+    expect(container.textContent).toContain('Operating Expenses (excl. Officer Compensation, Depreciation, Advertising)')
+    expect(container.textContent).not.toContain('Business Expenses (excl.')
     const revenue = container.querySelector('input')
     expect(revenue).toBeTruthy()
     fireEvent.change(revenue, { target: { value: '150000' } })
+
+    // Category F: the net line reads "Net Business Income" (not "Net Profit") once a figure is entered.
+    expect(container.textContent).toContain('Net Business Income')
+    expect(container.textContent).not.toContain('Net Profit')
 
     // No "Save P&L →" click occurred — the live binding must have committed.
     expect(onUpdate).toHaveBeenCalled()
