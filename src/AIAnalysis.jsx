@@ -1610,7 +1610,7 @@ function SimulatorModal({ onClose, rec }) {
                 {row('Standard Deduction', stdDed,             stdDed)}
                 {row('Taxable Income',    baseline.taxableInc, scenario.taxableInc)}
                 <div style={{background: taxSaving>0?'#F0FDF4':'#FEF2F2',borderRadius:10,padding:'12px 14px',marginTop:10,border:'2px solid '+(taxSaving>0?'#86EFAC':'#FECACA')}}>
-                  <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL TAX</div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL INCOME TAX</div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontSize:11,color:'#94A3B8',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
