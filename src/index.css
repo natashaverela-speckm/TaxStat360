@@ -109,3 +109,15 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ── Accessibility: keyboard focus ring (UX audit F15) ──────────────────────────
+   The app is styled with inline styles and had no app-wide focus style, so keyboard
+   focus relied on the browser default and was easy to lose on dense forms. This adds
+   one consistent, high-visibility ring. :focus-visible only fires for keyboard (not
+   mouse) interaction, so mouse users see no change. !important is used deliberately
+   to override the inline `outline: none` set on a few individual inputs. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #2563EB !important;
+  outline-offset: 2px !important;
+  border-radius: 4px;
+}
