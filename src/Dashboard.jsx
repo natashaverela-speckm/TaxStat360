@@ -852,7 +852,7 @@ export default function Dashboard() {
 
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>EST. FEDERAL TAX</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>EST. TOTAL FEDERAL TAX</div>
                       {totalTax > 0 ? (
                         <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{fmt(Math.round(totalTax))}</div>
                       ) : (

@@ -403,3 +403,27 @@ describe('TaxReturn — C-Corp corporate layer folds into the engine input', () 
     expect(args.qualDiv).toBe(0)
   })
 })
+
+// ─── Category C: tax-total headline label ─────────────────────────────────────
+describe('TaxReturn — Category C: unified "Est. Total Federal Tax" headline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('renders the unified headline and not the old liability/short variants', () => {
+    const { container } = renderTaxReturn()
+    const text = container.textContent
+    expect(text).toContain('EST. TOTAL FEDERAL TAX')
+    expect(text).not.toContain('EST. FEDERAL TAX LIABILITY')
+  })
+
+  it('keeps Balance Due / Refund as a label distinct from the headline', () => {
+    // The headline shows total tax (result.totalTax); Balance Due (result.balance) is a
+    // separate waterfall line. They must not share a label.
+    const { container } = renderTaxReturn()
+    expect(container.textContent).not.toMatch(/FEDERAL TAX LIABILITY/)
+  })
+})
