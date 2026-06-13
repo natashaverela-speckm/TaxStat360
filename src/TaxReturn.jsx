@@ -559,6 +559,26 @@ export default function TaxReturn() {
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
+  // F11 FIX (UX audit): recalculation is instant but was silent — the headline
+  // number just swapped values with no cue, so users (especially with the panel now
+  // pinned) could miss that their edit changed the result. When the estimated tax
+  // changes, briefly flash the number and show an up/down delta chip so cause-and-
+  // effect is unmistakable. The ref seeds on first result without flashing.
+  const [taxFlash, setTaxFlash] = useState(0) // 0 none, 1 up (more tax), -1 down
+  const [taxDelta, setTaxDelta] = useState(0)
+  const prevTotalTaxRef = useRef(null)
+  useEffect(() => {
+    if (!hasResult) return
+    const cur = result.totalTax
+    const prev = prevTotalTaxRef.current
+    prevTotalTaxRef.current = cur
+    if (prev === null || prev === cur) return
+    setTaxDelta(cur - prev)
+    setTaxFlash(cur > prev ? 1 : -1)
+    const t = setTimeout(() => setTaxFlash(0), 1100)
+    return () => clearTimeout(t)
+  }, [result?.totalTax, hasResult])
+
   const displayItemizedTotal = nonMedicalSubTotal + (result?.deductibleMedical ?? 0)
   const medicalWasFloored    = nf(medicalAmt) > 0 && (result?.deductibleMedical ?? 0) < nf(medicalAmt)
 
@@ -701,7 +721,16 @@ export default function TaxReturn() {
         }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', opacity: 0.65 }}>EST. FEDERAL TAX</span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 19, fontWeight: 900, lineHeight: 1 }}>{fmt(result.totalTax)}</span>
+            {taxFlash !== 0 && taxDelta !== 0 && (
+              <span style={{ fontSize: 12, fontWeight: 800, color: taxFlash === 1 ? '#FCA5A5' : '#86EFAC' }}>
+                {taxFlash === 1 ? '▲' : '▼'} {fmt(Math.abs(taxDelta))}
+              </span>
+            )}
+            <span style={{
+              fontSize: 19, fontWeight: 900, lineHeight: 1,
+              transition: 'text-shadow 0.25s ease',
+              textShadow: taxFlash === 1 ? '0 0 14px rgba(252,165,165,0.95)' : taxFlash === -1 ? '0 0 14px rgba(134,239,172,0.95)' : 'none',
+            }}>{fmt(result.totalTax)}</span>
             <span style={{ fontSize: 11, opacity: 0.7 }}>{pct(effectiveRate(result.totalTax, result.agi))} eff.</span>
           </span>
         </div>
@@ -721,7 +750,7 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={inputLbl}>Tax Year</label>
-                <select value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
+                <select aria-label="Tax year" value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {YEARS.map(y => (
                     <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
@@ -740,7 +769,7 @@ export default function TaxReturn() {
               </div>
               <div>
                 <label style={inputLbl}>Filing Status</label>
-                <select value={filingStatus} onChange={e => setFilingStatus(e.target.value)}
+                <select aria-label="Filing status" value={filingStatus} onChange={e => setFilingStatus(e.target.value)}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {FS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -1236,8 +1265,18 @@ export default function TaxReturn() {
               handles this (F16), so the card sits in normal flow. */}
           <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff', position: isMobile ? 'static' : 'sticky', top: 70, zIndex: 5 }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>EST. FEDERAL TAX LIABILITY</div>
-            <div style={{ fontSize: 42, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>
-              {hasResult ? fmt(result.totalTax) : '—'}
+            <div style={{
+              fontSize: 42, fontWeight: 900, lineHeight: 1, marginBottom: 4,
+              display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap',
+              transition: 'text-shadow 0.25s ease',
+              textShadow: taxFlash === 1 ? '0 0 18px rgba(252,165,165,0.9)' : taxFlash === -1 ? '0 0 18px rgba(134,239,172,0.9)' : 'none',
+            }}>
+              <span>{hasResult ? fmt(result.totalTax) : '—'}</span>
+              {taxFlash !== 0 && taxDelta !== 0 && (
+                <span aria-live="polite" style={{ fontSize: 15, fontWeight: 800, color: taxFlash === 1 ? '#FCA5A5' : '#86EFAC' }}>
+                  {taxFlash === 1 ? '▲' : '▼'} {fmt(Math.abs(taxDelta))}
+                </span>
+              )}
             </div>
             {ytdMode && hasResult && (
               <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
