@@ -169,7 +169,7 @@ Third, entity structuring: a C-Corp generates no QBI and cannot pass through the
         heading: 'How TaxStat360 Handles the QBI Calculation',
         body: `TaxStat360 computes the §199A deduction using the 2026 thresholds updated for P.L. 119-21 and applies all three limitation rules simultaneously: the SSTB phase-out, the W-2/UBIA wage limitation, and the taxable income ceiling. The deduction is shown as a separate line in the Tax Waterfall so you can see exactly what it's worth in the context of your full income picture.
 
-The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Enter your K-1 Box 17V (W-2 wages), Box 17W (UBIA), and the SSTB checkbox to see the full computation.`,
+The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V) — and the SSTB checkbox to see the full computation.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'passive-activity-loss-rules'],

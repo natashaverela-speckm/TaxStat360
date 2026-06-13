@@ -432,7 +432,7 @@ function RiskScan({ rec }) {
     const { deduction: qbi, limitApplied: _limitApplied, caps: _caps, aggregationApplied: _agg, aggregationDisclosure: _aggDisc } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
     const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
-    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity (Box 17V) or qualified property (UBIA, Box 17W) could recapture it. `
+    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on the K-1 §199A statement (Box 17 Code V) — could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
