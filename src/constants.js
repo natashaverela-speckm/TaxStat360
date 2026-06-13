@@ -337,13 +337,13 @@ export const LTCG_RATE_LOW = 0.00   // IRC §1(h)(1)(B) — 0% tier
 export const LTCG_RATE_MID = 0.15   // IRC §1(h)(1)(C) — 15% tier
 export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier
 
-// Unrecaptured Section 1250 gain — IRC §1(h)(1)(D) / §1(h)(7)
+// Unrecaptured Section 1250 gain — IRC §1(h)(1)(E) (25% rate) / §1(h)(6) (definition)
 // Depreciation recapture on real property sold at a gain.
 // Taxed at max 25% (the taxpayer pays the lesser of 25% or their ordinary bracket rate;
 // 25% is used as the conservative planning ceiling for mid/high-income filers).
 // F-03 FIX: This constant existed but was NOT imported or used in calcPreferentialTax.
 // Lines ~323-324 of taxCalc.js used raw 0.25 and 0.28 literals instead. Fixed in taxCalc.js.
-export const UNRECAPTURED_1250_MAX_RATE = 0.25  // IRC §1(h)(1)(D), §1(h)(7)
+export const UNRECAPTURED_1250_MAX_RATE = 0.25  // IRC §1(h)(1)(E), §1(h)(6)
 
 // Collectibles gain — IRC §1(h)(4)
 // Coins, art, antiques, gems, stamps — held more than 1 year.
