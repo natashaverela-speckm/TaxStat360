@@ -125,13 +125,31 @@ import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 // nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
+
+/**
+ * Entity-card "result" label (the small caption above the net figure on each Step-1
+ * entity card). Names the line by HOW the result reaches the personal return, so we
+ * only say "K-1" for entities that actually issue one.
+ *
+ * Audit Category A: the old code was `isCCorp ? 'Net Profit' : 'Net / K-1'`, which
+ * labeled a directly-held Schedule E rental AND a Schedule C sole prop as "K-1" — neither
+ * issues one. Binds to issuesK1Entity() (S-corp + partnership only); a positive check so
+ * any future entity type never silently inherits the "K-1" label.
+ */
+export function entityResultLabel(type) {
+  if (issuesK1Entity(type)) return 'Net / K-1'      // S-corp (1120-S) + partnership (1065)
+  if (isRealEstateEntity(type)) return 'Net (Sch. E)' // directly-held rental, Part I — no K-1
+  if (isScheduleCType(type)) return 'Net (Sch. C)'    // sole prop / SMLLC — no K-1
+  if (isCCorpEntity(type)) return 'Net Profit'        // entity-level tax; no personal K-1
+  return 'Net'
+}
 
 // F23 FIX: Human-readable "last synced" formatter
 function fmtSyncedAt(isoStr) {
@@ -739,7 +757,6 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const k1     = Math.round(netProfit * own)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
-  const isCCorp = isCCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
 
@@ -825,7 +842,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, color: SL }}>{isCCorp ? 'Net Profit' : 'Net / K-1'}</div>
+            <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
               {k1 >= 0 ? fmt(k1) : '-' + fmt(Math.abs(k1))}
             </div>

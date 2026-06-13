@@ -25,7 +25,7 @@ vi.mock('./EntityCompareModal', () => ({ default: () => null }))
 vi.mock('./utils/apiClient.js', () => ({ apiFetch: vi.fn() }))
 vi.mock('./utils/signOut', () => ({ signOut: vi.fn() }))
 
-import { ManualEntryPanel } from './CalculateTaxInner.jsx'
+import { ManualEntryPanel, entityResultLabel } from './CalculateTaxInner.jsx'
 
 const lastUpdate = (spy) => spy.mock.calls[spy.mock.calls.length - 1]
 
@@ -66,5 +66,38 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
     expect(updated.pnl.grossRevenue).toBe(200000)
     expect(updated.pnl.totalExpenses).toBe(50000)
     expect(updated.pnl.netProfit).toBe(150000) // 200k − 50k
+  })
+})
+
+describe('Category A — entityResultLabel says "K-1" ONLY for K-1 issuers', () => {
+  // The old code (isCCorp ? 'Net Profit' : 'Net / K-1') labeled directly-held Schedule E
+  // rentals and Schedule C sole props as "K-1" — neither issues one. These pin the fix.
+  it('S-corp and partnership are labeled Net / K-1', () => {
+    expect(entityResultLabel('S Corporation')).toBe('Net / K-1')
+    expect(entityResultLabel('Partnership / LLC')).toBe('Net / K-1')
+    expect(entityResultLabel('Partnership / MMLLC — Passive')).toBe('Net / K-1')
+  })
+
+  it('directly-held rental is Schedule E, NOT K-1', () => {
+    expect(entityResultLabel('Real Estate (Schedule E)')).toBe('Net (Sch. E)')
+  })
+
+  it('sole proprietor is Schedule C, NOT K-1', () => {
+    expect(entityResultLabel('Sole Proprietor / SMLLC')).toBe('Net (Sch. C)')
+  })
+
+  it('C-corp is Net Profit (entity-level tax, no personal K-1)', () => {
+    expect(entityResultLabel('C Corporation')).toBe('Net Profit')
+  })
+
+  it('never labels a non-K-1 entity as "K-1"', () => {
+    for (const t of ['Real Estate (Schedule E)', 'Sole Proprietor / SMLLC', 'C Corporation']) {
+      expect(entityResultLabel(t)).not.toMatch(/K-1/)
+    }
+  })
+
+  it('unknown / empty type falls back to plain "Net" (no K-1)', () => {
+    expect(entityResultLabel('')).toBe('Net')
+    expect(entityResultLabel(undefined)).toBe('Net')
   })
 })
