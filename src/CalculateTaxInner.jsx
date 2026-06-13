@@ -611,7 +611,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             Depreciation (Sec. 179 + MACRS + Bonus)
-            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.'} wide />
+            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
           <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
         </div>
@@ -929,7 +929,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
                 <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
-                  Only needed if your income exceeds ~$202K (single) or ~$404K (MFJ) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
+                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
                 </div>
               )}
               {showQBI && (
