@@ -216,13 +216,18 @@ function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onC
   )
 }
 
-function CollapsibleSection({ title, badge, children, defaultOpen = false, accent, style: outerStyle }) {
+function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = false, accent, style: outerStyle }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 12, ...outerStyle }}>
       <div onClick={() => setOpen(o => !o)} style={{ padding: '13px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: open ? (accent || '#EFF6FF') : '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: N }}>{title}</span>
+          {/* F5 FIX (UX audit): plain-language title leads; form/code reference is
+              demoted to a small subtitle so the section is scannable by non-experts. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: N }}>{title}</span>
+            {subtitle && <span style={{ fontSize: 11, color: SL, fontWeight: 500 }}>{subtitle}</span>}
+          </div>
           {badge && <span style={{ fontSize: 11, fontWeight: 700, background: accent ? accent + '33' : '#EFF6FF', color: accent || B, borderRadius: 10, padding: '2px 9px', border: '1px solid ' + (accent || B) + '44' }}>{badge}</span>}
         </div>
         <span style={{ color: SL, fontSize: 13 }}>{open ? '▲' : '▼'}</span>
@@ -1000,7 +1005,7 @@ export default function TaxReturn() {
 
           {/* S-Corp basis carryforwards */}
           {Array.isArray(entities) && entities.some(e => isSCorpEntity(e.type)) && (
-            <CollapsibleSection title="S-Corp Basis Carryforwards (Form 7203)" defaultOpen={false}>
+            <CollapsibleSection title="S-Corp Stock & Debt Basis" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
@@ -1018,7 +1023,7 @@ export default function TaxReturn() {
               value so a loaded record never hides material figures behind a collapsed
               header (the audit's "data is hidden from view" concern). Pairs with the
               full-f1040 hydration in Dashboard.loadRecord. */}
-          <CollapsibleSection title="Capital Gains & Investment Income (Schedule D / B)" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
+          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -1076,7 +1081,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Above-the-Line Deductions (Schedule 1)">
+          <CollapsibleSection title="Above-the-Line Deductions" subtitle="HSA, SE health & retirement, student-loan interest · Schedule 1">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-health-ins" style={inputLbl}>
@@ -1198,7 +1203,7 @@ export default function TaxReturn() {
 
           {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
-          <CollapsibleSection title="Safe Harbor Inputs (Prior Year)" badge="Optional">
+          <CollapsibleSection title="Avoid Underpayment Penalties" subtitle="Prior-year tax & AGI · safe-harbor test" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
               Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change safe harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
