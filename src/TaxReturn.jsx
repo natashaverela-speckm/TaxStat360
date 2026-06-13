@@ -261,6 +261,8 @@ export default function TaxReturn() {
   const [unrecap1250,   setUnrecap1250]   = useState(savedCtx.unrecap1250    || '')
   const [collectibles,  setCollectibles]  = useState(savedCtx.collectiblesGain || '')
   const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
+  // F5 (§1231(c) lookback): prior-5-year nonrecaptured net §1231 losses
+  const [nonrecap1231,  setNonrecap1231]  = useState(savedCtx.nonrecap1231   || '')
 
   // Rentals are entered in Step 1 as Real Estate (Schedule E) entities. REP status is
   // established there (per-entity) and flows through the engine; we seed the Step-2
@@ -384,6 +386,7 @@ export default function TaxReturn() {
       // nonpassive, and anything else (unelected) as passive.
       rentalAggregationElection,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
+      nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: priorPAL,
@@ -398,7 +401,7 @@ export default function TaxReturn() {
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
@@ -432,7 +435,7 @@ export default function TaxReturn() {
     writePersonalContext({
       filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
-      qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797,
+      qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
       isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
       rentalAggregationElection,   // F6 (§1.469-9(g) election)
@@ -446,7 +449,7 @@ export default function TaxReturn() {
     })
   }, [
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -492,7 +495,7 @@ export default function TaxReturn() {
         filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
-        unrecap1250, collectiblesGain: collectibles, form4797,
+        unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
         isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
         rentalAggregationElection,   // F6 (§1.469-9(g) election)
@@ -518,7 +521,7 @@ export default function TaxReturn() {
     taxYear, entities, sessionK1, filingStatus, dependents,
     w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends,
-    unrecap1250, collectibles, form4797,
+    unrecap1250, collectibles, form4797, nonrecap1231,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -1057,6 +1060,18 @@ export default function TaxReturn() {
                   <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain" field below.'} wide />
                 </label>
                 <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label htmlFor="tr-nonrecap1231" style={inputLbl}>
+                  Nonrecaptured Net §1231 Losses (prior 5 yrs)
+                  <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
+                </label>
+                <MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
+                {(result?.ordinary1231Recapture || 0) > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    §1231(c): {fmt(result.ordinary1231Recapture)} of your §1231 gain is recharacterized as <strong>ordinary income</strong> (taxed at ordinary rates, not 0/15/20%) because of nonrecaptured §1231 losses in the prior five years. IRC §1231(c)(1).
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-unrec1250" style={inputLbl}>
