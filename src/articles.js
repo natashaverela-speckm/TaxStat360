@@ -67,7 +67,7 @@ The IRS knows this. They have been scrutinizing S-Corp salary practices since at
 
 The landmark case is David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the courts upheld the reclassification of a CPA's $24,000 salary — set against more than $200,000 of annual distributions from his firm — to reasonable compensation of $91,044 per year, with the additional wages subject to back FICA plus penalties and interest. The message was clear: the IRS will look through artificially low salaries.
 
-Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross revenues, your training and experience, and what similar businesses pay for comparable roles.`,
+Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross receipts, your training and experience, and what similar businesses pay for comparable roles.`,
       },
       {
         heading: 'The 35/65 Rule of Thumb — and Its Limits',
