@@ -467,7 +467,8 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 }
 
 // ─── Manual entry panel ───────────────────────────────────────────────────────
-function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
+// Exported for the F2 live-commit regression test (CalculateTaxInner.test.jsx).
+export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const pnl = entity.pnl || {}
   const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
   const _reloadOpex = Math.max(0,
@@ -522,6 +523,37 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
     }
     onCancel()
   }
+
+  // F2 FIX (UX audit — Critical): the manual P&L used to commit to the parent
+  // entity ONLY when the user clicked "Save P&L →". If they instead collapsed the
+  // panel (the "Edit P&L" toggle), collapsed the entity card, or advanced to Step 2,
+  // every figure they typed was silently discarded — so the entity reached Step 2/3
+  // with an empty $0 P&L (the "I typed my income and the app says I have none" bug).
+  // Live-bind the fields to the entity (the audit's recommended fix) so revenue and
+  // expenses persist as typed, exactly like the W-2 field in Step 2. The "Save P&L →"
+  // button stays as a confirm-and-close affordance but is no longer the only way the
+  // data is saved. The numeric fields fully determine the committed pnl, so onUpdate /
+  // entity / idx are intentionally excluded from the deps: including the callback or
+  // the entity object would re-fire this on every parent re-render (and could loop).
+  useEffect(() => {
+    onUpdate(idx, {
+      ...entity,
+      officerW2: effectiveSal,
+      pnl: {
+        grossRevenue:    rv,
+        totalExpenses,
+        officerSalary:   effectiveSal,
+        depreciation:    dep,
+        advertising:     adv,
+        otherDeductions: oth,
+        netProfit:       rv - totalExpenses,
+        categories: (entity.pnl && entity.pnl.categories) || {},
+      },
+      connectedId: null,
+      isManual: true,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses])
 
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
