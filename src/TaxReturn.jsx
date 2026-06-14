@@ -1539,7 +1539,7 @@ export default function TaxReturn() {
               >
                 {analyzeStatus === 'saving'
                   ? <><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
-                  : 'Save & View AI Analysis →'
+                  : 'Continue to AI Analysis →'
                 }
               </button>
               <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
@@ -1564,12 +1564,12 @@ export default function TaxReturn() {
                   ? <><span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: B, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
                   : saveStatus === 'saved' ? '✓ Saved!'
                   : saveStatus === 'error' ? '⚠ Save Failed — Retry'
-                  : 'Save Progress'
+                  : 'Save This Record'
                 }
               </button>
               {saveStatus === 'idle' && (
                 <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
-                  Saves your numbers — stays on Step 2
+                  Saves this record — stays on Step 2
                 </div>
               )}
               {saveStatus === 'saved' && (
