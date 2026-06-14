@@ -633,7 +633,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Navigation ── */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 28px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 28px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, overflowX: 'auto', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <LOGO />
           <div style={{ background: '#F1F5F9', color: SL, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Dashboard</div>
