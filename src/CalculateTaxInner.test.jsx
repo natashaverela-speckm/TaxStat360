@@ -10,7 +10,7 @@
  *
  * Fix: the panel now LIVE-BINDS — typing revenue/expenses commits to the entity as the
  * user types (like the W-2 field in Step 2). These tests type into the panel and assert
- * onUpdate received the entered P&L WITHOUT any "Save P&L →" click.
+ * onUpdate received the entered P&L WITHOUT clicking the confirm button ("Done", formerly "Save P&L →").
  *
  * Strategy: render the exported ManualEntryPanel directly with a spy onUpdate. Mock the
  * component-tree-heavy sibling imports that the panel itself does not use, so importing
@@ -29,7 +29,7 @@ import { ManualEntryPanel, entityResultLabel } from './CalculateTaxInner.jsx'
 
 const lastUpdate = (spy) => spy.mock.calls[spy.mock.calls.length - 1]
 
-describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&L"', () => {
+describe('Finding 2 — inline manual P&L live-commits without clicking the confirm button', () => {
   it('commits entered revenue to entity.pnl as the user types (S-Corp)', () => {
     const onUpdate = vi.fn()
     const entity = { type: 'S Corporation', own: '100', pnl: {}, isManual: true }
@@ -55,7 +55,7 @@ describe('Finding 2 — inline manual P&L live-commits without clicking "Save P&
     expect(container.textContent).toContain('Net Business Income')
     expect(container.textContent).not.toContain('Net Profit')
 
-    // No "Save P&L →" click occurred — the live binding must have committed.
+    // No confirm-button ("Done") click occurred — the live binding must have committed.
     expect(onUpdate).toHaveBeenCalled()
     const [idxArg, updated] = lastUpdate(onUpdate)
     expect(idxArg).toBe(0)

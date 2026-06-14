@@ -580,9 +580,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   // every figure they typed was silently discarded — so the entity reached Step 2/3
   // with an empty $0 P&L (the "I typed my income and the app says I have none" bug).
   // Live-bind the fields to the entity (the audit's recommended fix) so revenue and
-  // expenses persist as typed, exactly like the W-2 field in Step 2. The "Save P&L →"
-  // button stays as a confirm-and-close affordance but is no longer the only way the
-  // data is saved. The numeric fields fully determine the committed pnl, so onUpdate /
+  // expenses persist as typed, exactly like the W-2 field in Step 2. The confirm
+  // button (relabeled "Done" in the F9 save-button consolidation; formerly "Save P&L →")
+  // stays as a confirm-and-close affordance but is no longer the only way the data is
+  // saved. The numeric fields fully determine the committed pnl, so onUpdate /
   // entity / idx are intentionally excluded from the deps: including the callback or
   // the entity object would re-fire this on every parent re-render (and could loop).
   useEffect(() => {
@@ -723,7 +724,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button onClick={onCancel} style={{ flex: 1, padding: '9px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
         <button onClick={applyManual} style={{ flex: 2, padding: '9px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          Save P&L →
+          Done
         </button>
       </div>
     </div>
