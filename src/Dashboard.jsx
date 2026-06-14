@@ -255,9 +255,9 @@ function OnboardingTour({ onComplete }) {
         )}
         <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 12px', textAlign: 'center' }}>{s.title}</h2>
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px', textAlign: 'center', lineHeight: 1.75 }}>{s.body}</p>
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginBottom: 20, fontWeight: 600 }}>{step + 1} of {ONBOARDING_STEPS.length}</div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#64748B', marginBottom: 20, fontWeight: 600 }}>{step + 1} of {ONBOARDING_STEPS.length}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={onComplete} style={{ background: 'none', border: 'none', fontSize: 13, color: '#94A3B8', cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>Skip tour</button>
+          <button onClick={onComplete} style={{ background: 'none', border: 'none', fontSize: 13, color: '#64748B', cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>Skip tour</button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 0 && (
               <button onClick={() => setStep(step - 1)} style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>← Back</button>
@@ -307,7 +307,7 @@ function FederalDisclosureBanner() {
           <strong>Federal estimates only.</strong> TaxStat360 calculates federal income tax liability. State income tax is not included — add your state's effective rate separately for a complete picture.
         </span>
       </div>
-      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">×</button>
+      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">×</button>
     </div>
   )
 }
@@ -818,7 +818,7 @@ export default function Dashboard() {
                         )}
                       </div>
                       {savedAt && (
-                        <div style={{ fontSize: 11, color: '#94A3B8' }}>Saved {savedAt}</div>
+                        <div style={{ fontSize: 11, color: '#64748B' }}>Saved {savedAt}</div>
                       )}
                     </div>
 
@@ -847,17 +847,17 @@ export default function Dashboard() {
                   }}>
                     {/* Tax year */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 80 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>TAX YEAR</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>TAX YEAR</div>
                       <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{taxYear}</div>
                     </div>
 
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
                       {totalTax > 0 ? (
                         <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{fmt(Math.round(totalTax))}</div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
+                        <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
                           Complete Step 2 for estimate
                         </div>
                       )}
@@ -865,21 +865,21 @@ export default function Dashboard() {
 
                     {/* Effective rate */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
                       {effRateNum !== null ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateNum}%</div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#94A3B8' }}>—</div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>—</div>
                       )}
                     </div>
 
                     {/* Quarterly */}
                     <div style={{ padding: '10px 18px', minWidth: 130 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
                       {quarterly > 0 ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterly))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#94A3B8' }}>—</div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>—</div>
                       )}
                     </div>
                   </div>
@@ -895,10 +895,10 @@ export default function Dashboard() {
                       <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>{fmt(w2Income)}</strong></span>
                     )}
                     {quarterly > 0 && (
-                      <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                      <span style={{ fontSize: 11, color: '#64748B' }}>
                         · <span
                           onClick={e => { e.stopPropagation(); loadRecord(rec) }}
-                          style={{ color: '#94A3B8', textDecoration: 'underline', cursor: 'pointer' }}
+                          style={{ color: '#64748B', textDecoration: 'underline', cursor: 'pointer' }}
                           title="Open Step 2 to compare safe harbor thresholds"
                         >safe harbor in Step 2</span>
                       </span>

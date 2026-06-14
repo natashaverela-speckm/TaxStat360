@@ -151,7 +151,7 @@ export default function Aria() {
                 </div>
               </div>
             ))}
-            {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#94a3b8' }}>Aria is thinking...</div></div>}
+            {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#64748B' }}>Aria is thinking...</div></div>}
             {planError && (
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1E40AF', textAlign: 'center' }}>
                 <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional →</a>
@@ -175,7 +175,7 @@ export default function Aria() {
               federal-planning-only scope the rest of the app shows (FederalScopeBanner,
               TaxReturn footer). The authoritative guardrails live server-side in the
               /aria system prompt; this is the user-facing reminder. */}
-          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
             Aria gives general federal tax-planning information for estimates only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>
