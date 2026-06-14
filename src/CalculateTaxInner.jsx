@@ -430,7 +430,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
         ) : hasFailed ? (
           <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Connection failed — try again</div>
         ) : (
-          <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>Click to connect →</div>
+          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Click to connect →</div>
         )}
         {/* F23 FIX: show revenue diff after a manual sync */}
         {isConnected && syncDiff && (
@@ -869,8 +869,8 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
               </div>
               {sal > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
-                  <span style={{ color: '#94A3B8' }}>incl. Officer Compensation</span>
-                  <span style={{ color: '#94A3B8' }}>{fmt(sal)}</span>
+                  <span style={{ color: '#64748B' }}>incl. Officer Compensation</span>
+                  <span style={{ color: '#64748B' }}>{fmt(sal)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
@@ -946,7 +946,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   values they don't need, creating confusion. The threshold hint
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
                   Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
                 </div>
               )}
@@ -999,7 +999,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   is profitable. Surfacing that context prevents users from
                   hunting for numbers they don't need. */}
               {!showBasis && (
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: -4, marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
                   Needed only if your S-Corp shows a loss — limits how much is deductible this year
                 </div>
               )}
@@ -1954,7 +1954,7 @@ export default function CalculateTaxInner() {
           {/* divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
             <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
-            <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>or connect accounting software</span>
+            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>or connect accounting software</span>
             <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>

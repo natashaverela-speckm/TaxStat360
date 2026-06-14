@@ -584,7 +584,7 @@ function RiskScan({ rec }) {
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
         <p style={{ fontSize: 13, color: SL, margin: '0 0 8px' }}>Based on your saved record. These findings are specific to your situation.</p>
-        <p style={{ fontSize: 11, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
           These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed tax professional before making any filing decisions.
         </p>
       </div>
@@ -1066,7 +1066,7 @@ function IRSCompliance({ rec }) {
             </div>
             <div style={{ fontWeight: 700, color: N, fontSize: 13, marginBottom: 4 }}>{s.title}</div>
             <div style={{ fontSize: 12, color: SL, lineHeight: 1.5, marginBottom: 6 }}>{s.detail}</div>
-            <div style={{ fontSize: 11, color: '#94A3B8' }}>📅 {s.deadline}</div>
+            <div style={{ fontSize: 11, color: '#64748B' }}>📅 {s.deadline}</div>
           </div>
         ))}
       </div>
@@ -1506,7 +1506,7 @@ function SimulatorModal({ onClose, rec }) {
     { id:'sep',     icon:'🏦', label:'Max SEP-IRA',          color:'#059669' },
     { id:'revenue', icon:'📈', label:'+$50K Gross Receipts',        color:'#0891B2' },
     { id:'salary',  icon:'💼', label:'+$20K Salary',         color:'#475569' },
-    { id:'custom',  icon:'✏️', label:'Custom',               color:'#94A3B8' },
+    { id:'custom',  icon:'✏️', label:'Custom',               color:'#64748B' },
   ]
 
   // F15 FIX: row() uses shared fmt() throughout — not simFmt
@@ -1614,7 +1614,7 @@ function SimulatorModal({ onClose, rec }) {
                   <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL INCOME TAX</div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
-                      <div style={{fontSize:11,color:'#94A3B8',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
+                      <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
                       <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.fedTax))}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
@@ -1635,7 +1635,7 @@ function SimulatorModal({ onClose, rec }) {
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>Difference: <strong style={{color: scenario.fedTax < step2Estimate ? '#059669' : '#DC2626'}}>{scenario.fedTax < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round(scenario.fedTax - step2Estimate)))}</strong></span>
-                <span style={{fontSize:10,color:'#94A3B8'}}>(simulator is income tax only; Step 2 includes SE, NIIT, AMT)</span>
+                <span style={{fontSize:10,color:'#64748B'}}>(simulator is income tax only; Step 2 includes SE, NIIT, AMT)</span>
               </div>
             )}
           </>
@@ -1647,7 +1647,7 @@ function SimulatorModal({ onClose, rec }) {
             <div style={{fontSize:13,color:'#64748B'}}>Select any strategy to instantly see how it flows from your {entity} through to your personal 1040.</div>
           </div>
         )}
-        <div style={{fontSize:11,color:'#94A3B8',textAlign:'center',marginTop:8}}>
+        <div style={{fontSize:11,color:'#64748B',textAlign:'center',marginTop:8}}>
           Uses {taxYear} federal brackets · {filing.toUpperCase()} · {fmt(stdDed)} std deduction · Does not include state tax, FICA, or AMT · Consult a licensed tax professional before implementing.
         </div>
       </div>
@@ -1868,7 +1868,7 @@ export default function AIAnalysis() {
           <button onClick={() => navigate('/upgrade')} style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer', width: '100%' }}>
             Upgrade to Professional →
           </button>
-          <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
+          <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
             ← Back to Dashboard
           </button>
         </div>

@@ -770,7 +770,7 @@ export default function TaxReturn() {
                   </div>
                 )}
                 {taxYear === 2026 && (
-                  <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 10, color: '#64748B', marginTop: 4, lineHeight: 1.5 }}>
                     One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
                   </div>
                 )}
@@ -972,7 +972,7 @@ export default function TaxReturn() {
                   </div>
                 )}
                 {projectedAnnualIncome === 0 && (
-                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: '#64748B', marginTop: 6 }}>
                     Enter W-2 income above or add an entity in Step 1 to see the projected full-year total.
                   </div>
                 )}
@@ -1398,7 +1398,7 @@ export default function TaxReturn() {
                       </span>
                     </div>
                     {row.note && (
-                      <div style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2, paddingLeft: 2 }}>{row.note}</div>
+                      <div style={{ fontSize: 10, color: '#64748B', marginBottom: 2, paddingLeft: 2 }}>{row.note}</div>
                     )}
                   </div>
                 )
@@ -1542,7 +1542,7 @@ export default function TaxReturn() {
                   : 'Continue to AI Analysis →'
                 }
               </button>
-              <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
                 Saves and goes to AI Analysis & Reporting (Step 3)
               </div>
             </div>
@@ -1568,7 +1568,7 @@ export default function TaxReturn() {
                 }
               </button>
               {saveStatus === 'idle' && (
-                <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
                   Saves this record — stays on Step 2
                 </div>
               )}

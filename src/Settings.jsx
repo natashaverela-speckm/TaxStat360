@@ -555,7 +555,7 @@ export default function Settings() {
                         {i===0&&<span style={{marginLeft:8,fontSize:11,fontWeight:700,color:'#059669'}}>Current</span>}
                       </div>
                       {entry.userAgent && (
-                        <div style={{fontSize:11,color:'#94A3B8',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        <div style={{fontSize:11,color:'#64748B',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                           {entry.userAgent}
                         </div>
                       )}
