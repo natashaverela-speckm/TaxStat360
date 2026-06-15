@@ -500,6 +500,22 @@ const [email,setEmail]=useState('')
 const [pass,setPass]=useState('')
 const [loading,setLoading]=useState(false)
 const [err,setErr]=useState('')
+const [mfaStep,setMfaStep]=useState(false)
+const [mfaCode,setMfaCode]=useState('')
+const [loginToken,setLoginToken]=useState('')
+const [pendingEmail,setPendingEmail]=useState('')
+
+function finishLogin(data,actualEmail){
+if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
+const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
+const rawPlan = data.plan || 'starter'
+const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
+localStorage.setItem('ts360_email',actualEmail)
+localStorage.setItem('ts360_plan', normalizedPlan)
+localStorage.setItem('ts360_logged_in','1')
+localStorage.setItem('ts360_session_start', String(Date.now()))
+nav(redirectTo,{replace:true})
+}
 
 async function submit(e){
 e.preventDefault();setLoading(true);setErr('')
@@ -512,15 +528,28 @@ if (!actualEmail || !actualPass) { setErr('Please enter your email and password.
 const res=await apiFetch('/auth/login',{method:'POST',credentials:'include',body:{email:actualEmail,password:actualPass},raw:true})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
-if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
-const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
-const rawPlan = data.plan || 'starter'
-const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
-localStorage.setItem('ts360_email',actualEmail)
-localStorage.setItem('ts360_plan', normalizedPlan)
-localStorage.setItem('ts360_logged_in','1')
-localStorage.setItem('ts360_session_start', String(Date.now()))
-nav(redirectTo,{replace:true})
+if(data.mfa_required){
+setMfaStep(true)
+setLoginToken(data.login_token||'')
+setPendingEmail(data.email||actualEmail)
+setMfaCode('')
+setLoading(false)
+return
+}
+finishLogin(data,actualEmail)
+}catch(e){setErr(e.message)}
+finally{setLoading(false)}
+}
+
+async function submitMfa(e){
+e.preventDefault();setLoading(true);setErr('')
+try{
+const code=mfaCode.trim()
+if(!code){setErr('Enter your 6-digit code or a backup code.');setLoading(false);return}
+const res=await apiFetch('/auth/mfa/challenge',{method:'POST',credentials:'include',body:{email:pendingEmail,login_token:loginToken,code},raw:true})
+const data=await res.json()
+if(!res.ok)throw new Error(data.detail||'Invalid authentication code')
+finishLogin(data,pendingEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
 }
@@ -533,9 +562,26 @@ return(<Page>
 <strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Welcome back</h2>
-<p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>Sign in to your TaxStat360 account</p>
-{sessionExpired&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
+<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>{mfaStep?'Two-factor authentication':'Welcome back'}</h2>
+<p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>{mfaStep?'Enter the 6-digit code from your authenticator app, or a backup code.':'Sign in to your TaxStat360 account'}</p>
+{sessionExpired&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
+{mfaStep?(
+<form onSubmit={submitMfa}>
+<label style={{display:'block',fontSize:12,fontWeight:600,color:N,marginBottom:6}}>Authentication code</label>
+<input
+type="text"
+inputMode="text"
+autoComplete="one-time-code"
+value={mfaCode}
+onChange={e=>setMfaCode(e.target.value.replace(/[^0-9A-Za-z-]/g,'').slice(0,9))}
+placeholder="6-digit code or backup code"
+style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:15,marginBottom:12,boxSizing:'border-box',letterSpacing:'0.08em'}}
+/>
+{err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
+<button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
+</form>
+):(
 <form onSubmit={submit}>
 <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
 <Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>
@@ -544,6 +590,7 @@ return(<Page>
 <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial →</button>
 <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
 </form>
+)}
 <div style={{borderTop:'1px solid #E2E8F0',marginTop:24,paddingTop:16,textAlign:'center'}}>
 <p style={{fontSize:11,color:'#94a3b8',margin:'0 0 6px'}}>
 <a href="/terms" style={{color:'#94a3b8',marginRight:12,textDecoration:'none'}}>Terms of Service</a>
