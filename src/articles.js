@@ -7,6 +7,40 @@
 // Adding a new article: append an object to ARTICLES following the same
 // schema. The Article.jsx template renders any entry automatically.
 
+import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION } from './taxCalc.js'
+import { fmt } from './utils/formatMoney.js'
+
+// ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
+// Indexed dollar figures quoted in article prose are bound to the engine's
+// single source of truth (taxCalc.js TAX_TABLES / QBI tables) rather than
+// hardcoded inline, so article copy can never silently drift from what the
+// calculator actually computes. These worked examples are pinned to the 2026
+// tax year; when 2026's figures are corrected in taxCalc.js the prose follows
+// automatically — there is no second place to update.
+//
+// Bound here: Social Security wage base, §199A phase-in thresholds, the §199A
+// SSTB / wage-limit phase-out ceilings (threshold + phase-in range), and the
+// §199A $400 minimum deduction.
+//
+// Requires taxCalc.js to export QBI_MIN_DEDUCTION (added alongside this change).
+// Note: the $400 minimum is itself inflation-indexed in $5 increments after 2026
+// (OBBBA §70101), so adding 2027+ keys to QBI_MIN_DEDUCTION will roll this prose
+// forward automatically once the article's worked-year is advanced.
+//
+// NOT bound by design: the §6654 estimated-tax penalty rate. It resets quarterly
+// with the federal short-term rate (it was 7% in Q1 2026, 6% in Q2), so there is
+// no stable value to bind. The prose describes the mechanic instead of quoting a
+// figure that goes stale within a quarter.
+const _ssWageBase2026 = getTable(2026).ssWageBase            // 184500
+const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201775, mfj:403500, ... }
+const _qbiPhaseIn2026 = QBI_PHASE_IN_RANGE[2026]             // { single:75000,  mfj:150000, ... }
+const _qbiCeil2026 = {                                       // full phase-out = threshold + phase-in range
+  single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276775
+  mfj:    _qbiThresh2026.mfj    + _qbiPhaseIn2026.mfj,        // 553500
+}
+const _qbiMin2026 = QBI_MIN_DEDUCTION[2026]                  // 400
+const usd = fmt // unified onto canonical money formatter (audit D-4); article amounts are all positive, so identical output
+
 export const ARTICLES = [
   {
     slug: 'scorp-salary-vs-distribution',
@@ -16,12 +50,12 @@ export const ARTICLES = [
     category: 'S-Corporation',
     readMinutes: 8,
     publishedDate: '2026-04-10',
-    heroEmoji: '💼',
+    heroIcon: 'briefcase',
     tags: ['S-Corp', 'FICA', 'Reasonable Compensation', 'K-1'],
     sections: [
       {
         heading: 'Why the Split Matters',
-        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first $184,500 (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
+        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first ${usd(_ssWageBase2026)} (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
 
 On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
 
@@ -33,7 +67,7 @@ The IRS knows this. They have been scrutinizing S-Corp salary practices since at
 
 The landmark case is David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the courts upheld the reclassification of a CPA's $24,000 salary — set against more than $200,000 of annual distributions from his firm — to reasonable compensation of $91,044 per year, with the additional wages subject to back FICA plus penalties and interest. The message was clear: the IRS will look through artificially low salaries.
 
-Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross revenues, your training and experience, and what similar businesses pay for comparable roles.`,
+Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross receipts, your training and experience, and what similar businesses pay for comparable roles.`,
       },
       {
         heading: 'The 35/65 Rule of Thumb — and Its Limits',
@@ -53,12 +87,12 @@ Employer FICA: $70,000 × 7.65% = $5,355 (deductible)
 Total FICA cost: ~$10,710
 
 Scenario B — $150,000 salary, $150,000 distributions:
-Employee FICA on SS portion: $147,000 × 6.2% = $9,114
+Employee FICA on SS portion: $150,000 × 6.2% = $9,300 (the entire $150,000 salary is below the 2026 Social Security wage base of ${usd(_ssWageBase2026)}, so all of it is subject to the 6.2% Social Security tax)
 Employee FICA on Medicare: $150,000 × 1.45% = $2,175
-Total employee: $11,289 | Employer match: $11,289
-Total FICA cost: ~$22,578
+Total employee: $11,475 | Employer match: $11,475
+Total FICA cost: ~$22,950
 
-The difference is $11,868 in FICA taxes — real cash savings, achieved through a fully legal structure, simply by setting the right salary level.
+The difference is $12,240 in FICA taxes — real cash savings, achieved through a fully legal structure, simply by setting the right salary level.
 
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
@@ -74,7 +108,7 @@ The single best defense is contemporaneous documentation: a board resolution set
         heading: 'Running the Numbers Year-Round',
         body: `The right salary is not a one-time decision. As your S-Corp's revenue grows — or contracts — the appropriate salary level changes. An S-Corp that generated $120,000 last year but is on pace for $280,000 this year should revisit its officer compensation mid-year, before distributions have already been taken at an indefensible ratio.
 
-TaxStat360's ReasonableCompIndicator flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in real time as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
+TaxStat360 flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in real time as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
       },
     ],
     relatedSlugs: ['scorp-reasonable-compensation', 'qbi-deduction-guide', 'quarterly-estimated-taxes'],
@@ -88,12 +122,12 @@ TaxStat360's ReasonableCompIndicator flags when your officer salary falls below 
     category: 'Tax Deductions',
     readMinutes: 9,
     publishedDate: '2026-04-15',
-    heroEmoji: '📉',
+    heroIcon: 'chartDown',
     tags: ['QBI', '§199A', 'S-Corp', 'LLC', 'SSTB'],
     sections: [
       {
         heading: 'What the §199A Deduction Is',
-        body: `The Tax Cuts and Jobs Act of 2017 created IRC §199A, which allows eligible taxpayers to deduct up to 20% of their Qualified Business Income (QBI) from a pass-through entity — an S-Corporation, partnership, LLC, or sole proprietorship. The One Big Beautiful Bill Act of 2025 (P.L. 119-21) made this deduction permanent and added a $400 minimum deduction for 2026 onward.
+        body: `The Tax Cuts and Jobs Act of 2017 created IRC §199A, which allows eligible taxpayers to deduct up to 20% of their Qualified Business Income (QBI) from a pass-through entity — an S-Corporation, partnership, LLC, or sole proprietorship. The One Big Beautiful Bill Act of 2025 (P.L. 119-21) made this deduction permanent and added a ${usd(_qbiMin2026)} minimum deduction for 2026 onward.
 
 For an S-Corp owner with $200,000 of QBI taxed at the 24% marginal rate, a full QBI deduction is worth $200,000 × 20% × 24% = $9,600 in federal income tax savings. For a taxpayer in the 32% bracket, the same deduction saves $12,800.
 
@@ -111,7 +145,7 @@ This last point is critical. If your S-Corp generates $300,000 of gross profit a
         heading: 'The W-2 Wage and UBIA Limitation',
         body: `Above certain income thresholds, the §199A deduction is limited by either (a) 50% of W-2 wages paid by the business, or (b) 25% of W-2 wages plus 2.5% of the unadjusted basis in qualified property (UBIA).
 
-For 2026, the phase-in range begins at $201,775 (Single) / $403,500 (MFJ) of taxable income. Between those thresholds and the ceilings ($276,775 Single / $553,500 MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
+For 2026, the phase-in range begins at ${usd(_qbiThresh2026.single)} (Single) / ${usd(_qbiThresh2026.mfj)} (MFJ) of taxable income. Between those thresholds and the ceilings (${usd(_qbiCeil2026.single)} Single / ${usd(_qbiCeil2026.mfj)} MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
 
 Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (including your salary). The 50% W-2 limitation = $60,000. If your tentative QBI deduction is $80,000 (20% of $400K), it is capped at $60,000 — a $20,000 reduction. The fix: pay higher officer wages, which both increases the W-2 wage limitation and (for an S-Corp) reduces distributions but maintains the FICA advantage.`,
       },
@@ -119,7 +153,7 @@ Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (includi
         heading: 'Specified Service Trades or Businesses (SSTB)',
         body: `If your business falls into the SSTB category — which includes law, health, consulting, financial services, accounting, and performing arts — the QBI deduction phases out entirely for taxpayers above the income ceiling.
 
-Above $276,775 (Single) / $553,500 (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
+Above ${usd(_qbiCeil2026.single)} (Single) / ${usd(_qbiCeil2026.mfj)} (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
 
 Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses — where less than 10% of gross receipts come from SSTB services — may qualify for an allocation of the non-SSTB portion. The regulations are detailed; if your business is on the line, a CPA review of your revenue mix is worth doing before year-end.`,
       },
@@ -135,7 +169,7 @@ Third, entity structuring: a C-Corp generates no QBI and cannot pass through the
         heading: 'How TaxStat360 Handles the QBI Calculation',
         body: `TaxStat360 computes the §199A deduction using the 2026 thresholds updated for P.L. 119-21 and applies all three limitation rules simultaneously: the SSTB phase-out, the W-2/UBIA wage limitation, and the taxable income ceiling. The deduction is shown as a separate line in the Tax Waterfall so you can see exactly what it's worth in the context of your full income picture.
 
-The §199A $400 minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than $400, TaxStat360 uses $400 as the floor. Enter your K-1 Box 17V (W-2 wages), Box 17W (UBIA), and the SSTB checkbox to see the full computation.`,
+The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V) — and the SSTB checkbox to see the full computation.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'passive-activity-loss-rules'],
@@ -149,14 +183,14 @@ The §199A $400 minimum deduction (new for 2026) is also applied: if the calcula
     category: 'Estimated Taxes',
     readMinutes: 7,
     publishedDate: '2026-04-20',
-    heroEmoji: '📅',
+    heroIcon: 'calendar',
     tags: ['Estimated Taxes', 'Form 1040-ES', 'Safe Harbor', '§6654'],
     sections: [
       {
         heading: 'Why Business Owners Pay Quarterly',
         body: `W-2 employees have taxes withheld from every paycheck. Business owners — S-Corp shareholders, partners, and sole proprietors — generally do not. The IRS expects taxes on business income to be paid throughout the year, not in a lump sum on April 15.
 
-IRC §6654 imposes an underpayment penalty when a taxpayer does not pay enough tax through withholding and estimated payments during the year. The penalty is calculated as the federal short-term rate plus 3 percentage points, applied to the underpaid amount for the period of underpayment. In 2026, that rate is approximately 7–8% annualized — not catastrophic, but entirely avoidable.
+IRC §6654 imposes an underpayment penalty when a taxpayer does not pay enough tax through withholding and estimated payments during the year. The penalty is calculated as the federal short-term rate plus 3 percentage points, applied to the underpaid amount for the period of underpayment. Because the IRS resets that rate every quarter to track prevailing interest rates, the exact figure shifts through the year — it has run in the mid-to-high single digits in recent years — but the penalty is entirely avoidable.
 
 The four standard due dates: April 15 (Q1), June 15 (Q2), September 15 (Q3), and January 15 of the following year (Q4). Missing a due date means the underpayment penalty accrues from that date forward, even if you pay in full by the next quarter.`,
       },
@@ -212,7 +246,7 @@ TaxStat360 calculates your recommended quarterly payment based on both safe harb
     category: 'S-Corporation',
     readMinutes: 7,
     publishedDate: '2026-04-25',
-    heroEmoji: '⚖️',
+    heroIcon: 'scales',
     tags: ['Reasonable Compensation', 'S-Corp', 'IRS Audit', 'FICA'],
     sections: [
       {
@@ -267,7 +301,7 @@ If the amount is material and covers multiple years, a tax attorney review is wa
 
 Review it annually. As the business grows, so should the salary — or you should document why it did not. An S-Corp where revenue doubled but officer compensation held flat requires a written explanation of why that outcome is still arm's-length (perhaps because the company retained earnings for expansion, and a third-party employee would not have received the full benefit of that growth).
 
-TaxStat360's ReasonableCompIndicator flags when officer salary falls below about 40% of total compensation — within the 35–45% range practitioners commonly cite — and surfaces the relevant IRS citations. The percentage is a screening heuristic, not a safe harbor: the final determination always depends on your specific facts and the industry data you document.`,
+TaxStat360 flags when officer salary falls below about 40% of total compensation — within the 35–45% range practitioners commonly cite — and surfaces the relevant IRS citations. The percentage is a screening heuristic, not a safe harbor: the final determination always depends on your specific facts and the industry data you document.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'qbi-deduction-guide'],
@@ -281,7 +315,7 @@ TaxStat360's ReasonableCompIndicator flags when officer salary falls below about
     category: 'Real Estate',
     readMinutes: 9,
     publishedDate: '2026-05-01',
-    heroEmoji: '🏠',
+    heroIcon: 'home',
     tags: ['Passive Activity', '§469', 'Real Estate', 'REP Status', 'Form 8582'],
     sections: [
       {

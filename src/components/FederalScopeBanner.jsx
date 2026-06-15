@@ -86,7 +86,7 @@ export default function FederalScopeBanner({ variant = 'light' }) {
           <strong>Computed:</strong> Federal income tax, self-employment tax,
           QBI deduction (§199A), Net Investment Income Tax (3.8% §1411),
           Additional Medicare Tax (0.9%), AMT (Form 6251), federal quarterly
-          estimates, FICA savings from S-Corp structure.
+          estimates, SE tax savings on K-1 distributions from S-Corp structure (on distributions not paid as W-2 salary).
           <br />
           <strong>Not computed:</strong> State income tax, local/city tax,
           S Corp stock basis limits (Form 7203), Form 6198 at-risk limits,

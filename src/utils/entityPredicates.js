@@ -4,7 +4,17 @@
 // CC-M04 (getEntityNetProfit dual-path lookup), and F-M02 (0% ownership
 // treated as 100% due to JS falsy evaluation).
 //
-// All components import from here. One definition, no divergence risk.
+// THIS FILE IS THE SINGLE SOURCE for entity-type classification and normalization.
+// Do not re-implement normalizeEntityType or any is*Entity predicate in a component.
+// Module 1 removed a divergent copy of normalizeEntityType that had been re-added in
+// Dashboard.jsx; if you find yourself writing another, import from here instead.
+//
+// Two representations exist by design (see the representation note in constants.js):
+//   • UI / input labels (Vocabulary A): 'Sole Proprietor / SMLLC', 'Partnership / LLC', …
+//   • Engine-internal canonical form (Vocabulary B): 'Sole Proprietor / Single-Member LLC',
+//     'Partnership / MMLLC — Active' / '— Passive', …
+// normalizeEntityType() is the one-way bridge A → B. The regex predicates below match
+// EITHER representation, so prefer them for any gating test.
 
 // ── Entity type predicates ────────────────────────────────────────────────────
 
@@ -33,6 +43,25 @@ export const isPassthroughEntity = (t) =>
  * ("Real Estate (Schedule E)", "Schedule E", etc.).
  */
 export const isRealEstateEntity = (t) => /real.?estate|schedule.?e/i.test(t || '')
+
+/**
+ * Issues a Schedule K-1 to the owner — TRUE only for S corporations (Form 1120-S)
+ * and partnerships / MMLLCs (Form 1065). These are the only entity types whose
+ * results reach the personal return *via a K-1*.
+ *
+ * Deliberately FALSE for:
+ *   • Sole Proprietor / SMLLC — reports on Schedule C; no K-1.
+ *   • Real Estate (Schedule E) — directly-held rental on Schedule E, Part I; no K-1
+ *     (a rental owned *through* a partnership/S-corp is entered as that entity instead).
+ *   • C Corporation — entity-level tax; distributes dividends, not a K-1.
+ *
+ * Use this — not isPassthroughEntity — wherever the UI says "K-1": isPassthroughEntity
+ * also matches sole props (and "income flows to the owner" is true for them, but *not*
+ * through a K-1). Matches EITHER vocabulary: layer-1 "Partnership / LLC" and layer-2
+ * "Partnership / MMLLC — Active/Passive" both qualify (a passive partner still gets a K-1).
+ */
+export const issuesK1Entity = (t) =>
+  isSCorpEntity(t) || /partnership|mmllc|partner/i.test(t || '')
 
 /**
  * Map any entity-type label (Step-1 UI values, legacy strings) to the canonical

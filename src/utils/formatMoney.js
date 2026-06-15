@@ -23,12 +23,28 @@ export function pct(n) {
   return (parseFloat(n) || 0).toFixed(1) + '%'
 }
 
+/**
+ * Effective tax rate as a one-decimal string WITHOUT a percent sign (callers append
+ * "%" via pct() or their own label): effectiveRate(1234, 10000) → "12.3".
+ * Non-positive AGI → "0.0". Centralizes the formula previously duplicated across
+ * Dashboard.jsx and TaxReturn.jsx (audit C-6).
+ */
+export function effectiveRate(totalTax, agi) {
+  return agi > 0 ? (parseFloat(totalTax) / agi * 100).toFixed(1) : '0.0'
+}
+
 /** Compact dollar: 1234567 → "$1.2M", 12345 → "$12K", 1234 → "$1,234" */
 export function fmtCompact(n) {
   const v = Math.round(parseFloat(n) || 0)
   if (Math.abs(v) >= 1_000_000) return '$' + (v / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
   if (Math.abs(v) >= 1_000)     return '$' + Math.round(v / 1_000) + 'K'
   return fmt(v)
+}
+
+// Timestamp label for saved returns ("Mar 5, 2026, 4:30 PM"). Centralized so the
+// two save sites (Tax Tracker step 1 and TaxReturn) stay byte-identical (audit D-4).
+export function formatTimestamp(date = new Date()) {
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export default fmt

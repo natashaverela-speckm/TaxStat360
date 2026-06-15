@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/signOut'
 import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
+import { apiFetch } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-// M3: Canonical API URL — consolidated from raw API Gateway URL to branded domain.
-const API = 'https://app.taxstat360.com'
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
 // FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
@@ -74,7 +73,7 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const raw  = localStorage.getItem('plan') || 'starter'
+    const raw  = localStorage.getItem('ts360_plan') || 'starter'
     const plan = normalizePlanId(raw)
     const em = localStorage.getItem('ts360_email') || ''
     setCurrentPlan(plan)
@@ -123,8 +122,8 @@ export default function Upgrade() {
     setLoading(true)
     setErr('')
     try {
-      const si = await fetch(API + '/stripe/setup-intent', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
+      const si = await apiFetch('/stripe/setup-intent', {
+        method: 'POST', body: {}, raw: true
       }).then(r => r.json())
       if (!si.client_secret) throw new Error('Could not initialize payment')
 
@@ -137,18 +136,19 @@ export default function Upgrade() {
       // Previously the response was discarded — if the API returned 402/500, the user
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
-      const token = localStorage.getItem('token')
-      const subRes = await fetch(API + '/stripe/subscribe', {
+      const token = localStorage.getItem('ts360_token')
+      const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method })
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: { plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method },
+        raw: true,
       })
       if (!subRes.ok) {
         const subData = await subRes.json().catch(() => ({}))
         throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
       }
 
-      localStorage.setItem('plan', selectedPlan)
+      localStorage.setItem('ts360_plan', selectedPlan)
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')
@@ -180,7 +180,7 @@ export default function Upgrade() {
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
       {/* Nav */}
-      <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
+      <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,overflowX:'auto',minWidth:0}}>
         <div onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}><LOGO/></div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>← Back to Settings</button>

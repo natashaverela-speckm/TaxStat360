@@ -2,17 +2,21 @@
 // AF-02: /resources landing page — the entry point for TaxStat360's
 // organic content strategy. Displays article cards for all published
 // articles targeting high-intent tax planning search queries.
-//
-// Integration: add to App.jsx routing:
-//   <Route path="/resources" element={<ResourcesHub />} />
-//   <Route path="/resources/:slug" element={<Article />} />
-//
-// Also add "Resources" link to Landing.jsx nav:
-//   <a href="/resources">Resources</a>
 
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ARTICLES } from './articles.js'
+// #4 FIX: trial CTA label + microcopy now come from the single source in
+// constants.js (was hardcoded here as "Card for verification only" — an FTC
+// negative-option risk that contradicted the auto-billing in the Terms).
+import { CTA_LABEL, CTA_COPY_SHORT } from './constants.js'
+// #6 FIX: use the shared site nav instead of a second hand-rolled inline <nav>.
+import Nav from './Nav'
+import Icon from './Icon'
+// CC FIX: the page's hand-rolled inline footer (its own hardcoded disclaimer +
+// dynamic year) is replaced by the shared <Footer>, matching every other page
+// and giving the disclaimer a single source of truth (DISCLAIMER_FULL).
+import Footer from './Footer'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -58,9 +62,9 @@ function ArticleCard({ article }) {
         color: 'inherit',
       }}
     >
-      {/* Emoji + Category */}
+      {/* Icon + Category */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 28 }}>{article.heroEmoji}</span>
+        <Icon name={article.heroIcon} size={28} color={B} />
         <CategoryPill category={article.category} />
       </div>
 
@@ -105,6 +109,7 @@ function ArticleCard({ article }) {
 }
 
 export default function ResourcesHub() {
+  const nav = useNavigate()
   const [activeCategory, setActiveCategory] = useState('All')
 
   const categories = ['All', ...new Set(ARTICLES.map(a => a.category))]
@@ -113,52 +118,14 @@ export default function ResourcesHub() {
     : ARTICLES.filter(a => a.category === activeCategory)
 
   return (
+    /* #6 FIX: paddingTop 64 offsets the shared fixed <Nav> (height 64). */
     <div style={{
       minHeight: '100vh', background: '#F8FAFC',
-      fontFamily: 'Inter, system-ui, sans-serif',
+      fontFamily: 'Inter, system-ui, sans-serif', paddingTop: 64,
     }}>
-      {/* Nav */}
-      <nav style={{
-        background: '#fff', borderBottom: '1px solid #E2E8F0',
-        padding: '0 32px', height: 58,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 100,
-      }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <svg width="28" height="28" viewBox="0 0 34 34">
-            <rect width="34" height="34" rx="8" fill={B}/>
-            <rect x="8" y="18" width="5" height="8" rx="2" fill="#fff"/>
-            <rect x="15" y="12" width="5" height="14" rx="2" fill="#fff"/>
-            <rect x="22" y="8" width="5" height="18" rx="2" fill="#fff"/>
-          </svg>
-          <span style={{ fontWeight: 800, fontSize: 17, color: N }}>
-            TaxStat<span style={{ color: B }}>360</span>
-          </span>
-        </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          {['How It Works', 'Features', 'Pricing', 'FAQ'].map(l => (
-            <a key={l} href={`/#${l.toLowerCase().replace(/ /g, '-')}`}
-              style={{ fontSize: 13, color: SL, textDecoration: 'none', fontWeight: 500 }}>
-              {l}
-            </a>
-          ))}
-          <a href="/resources" style={{ fontSize: 13, color: B, fontWeight: 700, textDecoration: 'none' }}>
-            Resources
-          </a>
-          <a href="/login" style={{
-            fontSize: 13, color: SL, fontWeight: 600, textDecoration: 'none',
-            padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 7,
-          }}>
-            Sign In
-          </a>
-          <a href="/signup" style={{
-            fontSize: 13, color: '#fff', fontWeight: 700, textDecoration: 'none',
-            padding: '8px 16px', background: N, borderRadius: 8,
-          }}>
-            Start Free 7-Day Trial
-          </a>
-        </div>
-      </nav>
+      {/* #6 FIX: shared <Nav> replaces the page's own inline nav (separate logo,
+          links, Sign In, and a hardcoded "Start Free 7-Day Trial" CTA). */}
+      <Nav nav={nav} />
 
       {/* Hero */}
       <div style={{
@@ -172,7 +139,7 @@ export default function ResourcesHub() {
           padding: '4px 14px', marginBottom: 20,
         }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600, letterSpacing: '0.5px' }}>
-            🏛️ BUILT ON IRS &amp; TAX EXPERTISE
+            <Icon name="institution" size={13} color="rgba(255,255,255,0.85)" style={{ marginRight: 6 }} />BUILT ON IRS &amp; TAX EXPERTISE
           </span>
         </div>
         <h1 style={{
@@ -269,37 +236,25 @@ export default function ResourcesHub() {
         </h2>
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px' }}>
           Connect your accounting software and see your estimated federal tax liability,
-          QBI deduction, and FICA savings updated in real time.
+          QBI deduction, and SE tax savings on distributions updated in real time.
         </p>
         <a href="/signup" style={{
           display: 'inline-block', padding: '13px 32px',
           background: N, color: '#fff', textDecoration: 'none',
           borderRadius: 8, fontWeight: 700, fontSize: 15,
         }}>
-          Start Free 7-Day Trial →
+          {CTA_LABEL} →
         </a>
+        {/* #4 FIX: was "Card for verification only · Cancel anytime" — now the shared,
+            FTC-accurate trial microcopy from constants.js. */}
         <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 10 }}>
-          No charge for 7 days · Card for verification only · Cancel anytime
+          {CTA_COPY_SHORT}
         </p>
       </div>
 
-      {/* Footer */}
-      <div style={{
-        background: '#F8FAFC', borderTop: '1px solid #E2E8F0',
-        padding: '20px', textAlign: 'center',
-        fontSize: 11, color: '#94A3B8', lineHeight: 1.6,
-      }}>
-        <p style={{ margin: '0 0 4px' }}>
-          © 2026 TaxStat360 ·{' '}
-          <a href="/terms" style={{ color: '#94A3B8' }}>Terms of Service</a> ·{' '}
-          <a href="/privacy" style={{ color: '#94A3B8' }}>Privacy Policy</a> ·{' '}
-          <a href="mailto:support@taxstat360.com" style={{ color: '#94A3B8' }}>support@taxstat360.com</a>
-        </p>
-        <p style={{ margin: 0 }}>
-          For planning purposes only — not professional tax, legal, or financial advice.
-          Consult a licensed tax professional before making any filing or financial decisions.
-        </p>
-      </div>
+      {/* CC FIX: shared <Footer> replaces the page's own inline footer (which had
+          a hardcoded disclaimer string). Year is dynamic; disclaimer is single-sourced. */}
+      <Footer />
     </div>
   )
 }

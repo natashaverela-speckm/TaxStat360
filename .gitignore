@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables — never commit real keys.
+# (.env.local is already covered by *.local above; these add the rest.)
+.env
+.env.*
+!.env.example

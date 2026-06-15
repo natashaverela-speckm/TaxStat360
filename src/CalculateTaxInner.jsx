@@ -11,113 +11,174 @@
 //     nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
 //   resolves the ?? to pnl.netProfit when it exists, then STILL subtracts
 //   totalExpenses — double-counting all expenses.
-//   Example: netProfit=-106,507, totalExpenses=312,850 → displayed -419,357.
 //   Fix: parentheses make (grossRevenue - totalExpenses) the fallback used
-//   ONLY when netProfit is absent:
-//     nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-//   When netProfit is present (integration sync), it is used directly.
-//   When netProfit is absent (entity card before manual entry is applied),
-//   it falls back to revenue - expenses as before.
-//   Impact: display only — persistStep1() already used the correct formula,
-//   so the tax calculation in Step 2 was always correct. This fixes the
-//   entity card header K-1 value and the P&L summary Net Profit line.
+//   ONLY when netProfit is absent.
 //
-// L-01 FIX: ReasonableCompIndicator displayed "35% of net profit" as the
-//   description of the recommended officer salary threshold. The math is correct
-//   (Math.round(0.35/0.65 * netProfit) produces the salary that equals 35% of
-//   total comp when total comp = salary + distributions = netProfit), but the
-//   LABEL was wrong. The heuristic is 35% of TOTAL OFFICER COMPENSATION
-//   (salary ÷ (salary + distributions)), NOT 35% of net profit alone.
-//   Fixed: "35% of net profit" → "35% of total officer compensation" in all
-//   instances within ReasonableCompIndicator.
+// L-01 FIX: ReasonableCompIndicator label corrected to "35% of total officer
+//   compensation" (not "35% of net profit").
 //
-// F-05 FIX: No discrete depreciation field in manual entry form. Users with
-//   depreciation deductions (Section 179, MACRS, bonus depreciation) had no
-//   way to enter them separately. AIAnalysis.jsx was flagging "No Depreciation
-//   Recorded" but there was no field to fill. Fix: added manDep state + a
-//   dedicated Depreciation input field (between Operating Expenses and Officer
-//   Salary) in the ManualEntryPanel. applyManual() now includes dep in
-//   totalExpenses so it correctly reduces netProfit and flows to the tax engine.
+// F-05 FIX: Added discrete Depreciation field in ManualEntryPanel.
 //
-// C-02 FIX: Footer "Save Record" button renamed to "Save This Record" to match
-//   the identical button in TaxReturn.jsx Step 2, providing consistent labeling
-//   across both steps of the flow.
+// C-02 FIX: Footer "Save Record" → "Save This Record" for consistency.
 //
-// C-05 FIX: The "✏ Edit / re-enter data" control was styled as a bare text link
-//   (background:none, border:none, textDecoration:underline). This made it
-//   visually indistinguishable from a hyperlink and easy to miss. Restyled as a
-//   small secondary outlined button (border: 1px solid #E2E8F0, borderRadius: 7,
-//   padding: 6px 12px) consistent with secondary action buttons used elsewhere.
+// C-05 FIX: "✏ Edit / re-enter data" restyled as outlined button.
 //
-// L-01 FIX (Pass 3 — Correct Labeling):
-//   QBI field label "Section 179 / Ordinary Income Addback (K-1 Box 11 / Box 12)"
-//   had two errors:
-//   (a) "Addback" is semantically backwards — persistStep1() SUBTRACTS box11_12
-//       from k1Total, reducing K-1 income and QBI. An "addback" implies adding
-//       something back to income. The tooltip even contradicted the label:
-//       "they reduce your allocable K-1 income."
-//   (b) "Ordinary Income Addback" is not an IRS form label. K-1 Box 11
-//       (Form 1120-S) and Box 12 (Form 1065) are both labeled "Section 179
-//       deduction" on the actual forms.
-//   Tooltip also said "reduce your at-risk basis" — at-risk basis is a §465
-//   concept. §179 reduces QBI (Treas. Reg. §1.199A-3(b)(1)(ii)(A)) and
-//   shareholder/partner basis (§1367/§705), not at-risk basis.
-//   Fix: label → "Section 179 Deduction (K-1 Box 11 / Box 12)"; tooltip
-//   rewritten with correct citations and a double-counting warning.
+// L-01 FIX (Pass 3): QBI field label corrected to "Section 179 Deduction
+//   (K-1 Box 11 / Box 12)"; tooltip rewritten with correct IRC citations.
 //
-// PASS4B-02b (§1366(d) Basis Limitation UI + §1368 Distribution Capital Gain):
-//   The calculation engine (taxCalc.js) already implemented §1366(d) loss
-//   limitation via the stockBasis / debtBasis fields on each entity. However,
-//   there were no UI input fields for these values, so the gate was unreachable.
-//   This change adds three new fields to every S-Corp entity:
+// PASS4B-02b: Added §1366(d) Basis Limitation UI + §1368 Distribution
+//   Capital Gain panel for S-Corp entities (Form 7203).
 //
-//   1. stockBasis (Form 7203, Line 1) — beginning-of-year stock basis.
-//      The engine reads e.stockBasis to cap deductible losses; losses in excess
-//      of basis are suspended and carried forward (IRC §1366(d)(2)).
+// ── AUDIT REPORT FIXES (Sprint 2) ────────────────────────────────────────────
+// F-05 FIX: Per-entity QBI loss carryforward field added to §199A panel.
+//   Each entity now has a qbiLossCarryforward field persisted via onUpdate.
+//   Replaces the single pooled priorYearQBILoss field for multi-entity filers.
+//   IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii) · Form 8995 lines 3 & 16.
 //
-//   2. debtBasis (Form 7203, Part II) — loans personally made by the shareholder
-//      to the S-Corp. Absorbs losses after stock basis is exhausted (§1366(d)(1)(B)).
+// F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
+//   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
+//   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
 //
-//   3. distributions (Form 7203, Line 6 / Schedule M-2 Line 7) — cash or
-//      property distributions received from the S-Corp this year. Distributions
-//      in excess of remaining stock basis (after current-year income/loss) are
-//      taxable as long-term capital gain (IRC §1368(b)(2)) and are threaded into
-//      _ltGain in taxCalc.js (PASS4B-02b). This capital gain does not appear on
-//      the K-1 — it is computed at the shareholder level.
+// ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
+// F-01 FIX: "Continue to Step 2" button disabled state not visually enforced.
+//   Applied HTML disabled attribute when entity count is 0. Added onClick guard
+//   that surfaces an inline error toast if clicked in empty state.
 //
-//   UI: A collapsible "Form 7203 Basis & Distributions" panel is added inside
-//   EntityCard for S-Corp entities (after the §199A QBI section). The panel
-//   shows inline warning badges:
-//   • §1366(d) suspension alert when entered loss > basis (red)
-//   • §1366(d) full-loss confirmation when loss ≤ basis (green)
-//   • §1368 capital gain alert when distributions > post-income basis (red)
-//   • §1368 tax-free confirmation when distributions ≤ basis (green)
-//   • "Enter basis to compute" prompt when distributions entered but no basis (amber)
+// F-02 FIX: "Save This Record" (Step 1) disabled state not visually enforced.
+//   Applied HTML disabled attribute + visual disabled style when no entity exists.
 //
-//   All three fields are initialised to '' in addEntityOfType and handleCsvUpload.
-//   The EntityCard badge computations are display-only — taxCalc.js is the
-//   authoritative calculation source.
+// CSV import removed: the "Import CSV" upload (link, file input, and handler) has
+//   been removed from the accounting-software card. Entities are added by connecting
+//   accounting software or by manual entry.
+//
+// F-05 FIX: Ownership % field accepted out-of-range values (e.g. 150) and had
+//   a concatenation bug on triple-click-retype. Fixed: onChange now clamps to
+//   0–100 on every keystroke; onBlur enforces range with validation message.
+//   Input is fully controlled so triple-click correctly replaces the value.
+//
+// F-06 FIX: Forward breadcrumb steps ("2 Return", "3 AI") appeared visually
+//   interactive before prerequisites were met. Fixed: forward breadcrumbs
+//   receive pointer-events:none and a muted/greyed style when not yet reachable.
+//
+// F-08 FIX: Clicking the current-step breadcrumb ("1 Entities") erased unsaved
+//   in-progress entity data without warning. Fixed: current-step breadcrumb is
+//   non-interactive (pointer-events:none, cursor:default).
+//
+// F-11 FIX: "Continue to Step 2" from a record loaded via Dashboard routed to
+//   /dashboard instead of /tax-return. Fixed: navigation target is always
+//   /tax-return regardless of how the session was initiated.
+//
+// F-12 FIX: "Load & Continue" from Dashboard did not hydrate Step 1 entity array
+//   from the saved record. Step 1 always initialised from empty state. Fixed:
+//   on mount, the component reads the loaded record from sessionStorage key
+//   ts360_loaded_record and restores entities if Step 1 is empty but a loaded
+//   record exists.
+//
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
+// O1 FIX: UI subtitle promised "or skip and enter manually" but no manual path
+//   existed for non-real-estate entities. Fixed: added an "Enter manually →"
+//   button in the integration card that opens ManualEntryPanel inline,
+//   pre-configured for the most common non-RE entity type (S Corporation).
+//   The subtitle copy is preserved — the path now fulfils the promise.
+//
+// O2 FIX: "Continue to Step 2 →" routed to /privacy on brand-new sessions
+//   where no prior record existed (entities.length === 0 edge case in the
+//   route handler). Root cause: handleContinueToStep2 called navigate() before
+//   checking session state; on a fresh account the footer onClick binding
+//   resolved to an incorrect URL. Fixed: guard now checks entities.length > 0
+//   before calling persistStep1() + navigate('/tax-return'), and surfaces a
+//   clear error toast for the empty-entity case. The /tax-return destination
+//   is hardcoded (no dynamic fallback that could resolve to /privacy).
+//
+// F19 FIX: IntegrationTile always rendered "Connect" button regardless of
+//   connection state. OAuthCallback sets ts360_{provider}_connected in
+//   localStorage but IntegrationTile never read it. Fixed: IntegrationTile now
+//   reads localStorage on render; shows "Connected ✓" state + last-synced
+//   timestamp when connected, and "Connection failed — try again" when a
+//   failed flag is set.
+//
+// F23 FIX: No last-synced timestamp or manual re-sync trigger. fetchEntityPnL
+//   fired the sync but never persisted a timestamp. OAuthCallback wrote
+//   ts360_{provider}_connected but no ts360_{provider}_synced_at. Fixed:
+//   fetchEntityPnL now writes ts360_{provider}_synced_at after a successful
+//   sync. IntegrationTile reads and displays it. A "Sync now" button triggers
+//   a manual re-fetch and shows a brief diff summary ("Revenue updated:
+//   $X → $Y (+$Z)") so users can confirm the update was applied.
+//
+// F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
+//   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
+//   there is no rental UI in Step 2. The card carries the REP flag, the
+//   §1.469-9(g) aggregation election, the §469(i) active-participation flag, and
+//   the prior-year passive-loss carryforward (Form 8582). REP status alone does
+//   not make a rental nonpassive: the aggregation election is required, matching
+//   the engine. TaxReturn.jsx derives the portfolio-level election (any card
+//   elected) and prior-PAL (summed across cards) from these entities.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed } from './taxCalc'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, recordsKeyFor, readActiveRecordId, readActiveRecordName, writeActiveRecord, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL } from './constants.js'
+import { nf } from './utils/parseMoney.js'
+import LockedFeature, { isPro } from './LockedFeature'
+import EntityCompareModal from './EntityCompareModal'
+import { apiFetch } from './utils/apiClient.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { fmt } from './utils/formatMoney.js'
-import { ownPct, isSCorpEntity, isPassthroughEntity, isRealEstateEntity } from './utils/entityPredicates.js'
+import { fmt, formatTimestamp } from './utils/formatMoney.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const nf = (v, fallback = 0) => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : fallback }
+// nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
 
-function InfoTip({ text, wide }) {
+/**
+ * Entity-card "result" label (the small caption above the net figure on each Step-1
+ * entity card). Names the line by HOW the result reaches the personal return, so we
+ * only say "K-1" for entities that actually issue one.
+ *
+ * Audit Category A: the old code was `isCCorp ? 'Net Profit' : 'Net / K-1'`, which
+ * labeled a directly-held Schedule E rental AND a Schedule C sole prop as "K-1" — neither
+ * issues one. Binds to issuesK1Entity() (S-corp + partnership only); a positive check so
+ * any future entity type never silently inherits the "K-1" label.
+ */
+export function entityResultLabel(type) {
+  if (issuesK1Entity(type)) return 'Net / K-1'      // S-corp (1120-S) + partnership (1065)
+  if (isRealEstateEntity(type)) return 'Net (Sch. E)' // directly-held rental, Part I — no K-1
+  if (isScheduleCType(type)) return 'Net (Sch. C)'    // sole prop / SMLLC — no K-1
+  if (isCCorpEntity(type)) return 'Net Profit'        // entity-level tax; no personal K-1
+  return 'Net'
+}
+
+// F23 FIX: Human-readable "last synced" formatter
+function fmtSyncedAt(isoStr) {
+  if (!isoStr) return null
+  try {
+    const d = new Date(isoStr)
+    const now = new Date()
+    const diffMs = now - d
+    const diffMins = Math.floor(diffMs / 60000)
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHrs = Math.floor(diffMins / 60)
+    if (diffHrs < 24) return `${diffHrs}h ago`
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  } catch { return null }
+}
+
+// UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
+// (the prior version was click-only with no hover affordance), expose a real
+// accessible name instead of just "?", and the bubble forces sentence-case
+// rendering so it never inherits the uppercase field-label styling. The existing
+// click-outside-to-close behavior is preserved for touch. Pass an optional
+// `label` (e.g. label="depreciation") for a specific help name.
+function InfoTip({ text, wide, label }) {
   const [show, setShow] = useState(false)
   const ref = useRef()
+  const hideTimer = useRef(null)
+  const open = () => { if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null } setShow(true) }
+  const close = () => { hideTimer.current = setTimeout(() => setShow(false), 120) }
   useEffect(() => {
     if (!show) return
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setShow(false) }
@@ -125,17 +186,24 @@ function InfoTip({ text, wide }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [show])
   return (
-    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5 }}>
-      <button onClick={() => setShow(s => !s)}
+    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 5 }}
+      onMouseEnter={open} onMouseLeave={close}>
+      <button type="button"
+        aria-label={label ? `Help: ${label}` : 'More information'}
+        aria-expanded={show}
+        onClick={() => setShow(s => !s)}
+        onFocus={open} onBlur={close}
         style={{ width: 16, height: 16, borderRadius: '50%', background: '#E2E8F0', border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: SL, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
         ?
       </button>
       {show && (
-        <div style={{
-          position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)',
+        <div role="tooltip" style={{
+          position: 'absolute', bottom: '140%', left: '50%', transform: 'translateX(-50%)',
           background: N, color: '#fff', borderRadius: 8, padding: '10px 14px',
           fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap',
-          width: wide ? 340 : 280, zIndex: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+          textTransform: 'none', fontWeight: 400, letterSpacing: 'normal', textAlign: 'left',
+          width: wide ? 340 : 280, maxWidth: '90vw', zIndex: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
         }}>
           {text}
           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid ' + N }} />
@@ -162,7 +230,7 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
-    const stripped = e.target.value.replace(/[^0-9\-]/g, '')
+    const stripped = e.target.value.replace(/[^0-9-]/g, '')
     const isNeg = stripped.startsWith('-')
     const digits = stripped.replace(/^-/, '')
     const n = parseInt(digits, 10)
@@ -182,10 +250,7 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
     })
   }
 
-  const handleFocus = () => {
-    setFocused(true)
-    // Keep formatted value on focus — commas remain visible while editing
-  }
+  const handleFocus = () => { setFocused(true) }
 
   const handleBlur = () => {
     setFocused(false)
@@ -221,22 +286,53 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
 }
 
 // ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
-function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
+// F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
+const WATSON_REVENUE_THRESHOLD = 0.30
+
+// F6 FIX (UX audit): collapsible "Why this matters & sources" used by the
+// reasonable-comp warnings so the plain takeaway + suggested number lead and the
+// case-law / regulation citations are tucked away. Hoisted to module scope (not
+// nested in ReasonableCompIndicator) so it doesn't remount/collapse on re-render.
+// `color` themes the disclosure to match each state's card.
+function CompSources({ color, children }) {
+  return (
+    <details style={{ marginTop: 8 }}>
+      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color, opacity: 0.8 }}>
+        Why this matters &amp; sources
+      </summary>
+      <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.6, color, opacity: 0.92 }}>
+        {children}
+      </div>
+    </details>
+  )
+}
+
+function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
 
   const totalComp = officerSal + Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
   const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
 
+  // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
+  const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
+  const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
+
   if (officerSal === 0) {
     return (
       <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation</div>
+        <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation Set</div>
         <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
-          S-Corp owners must receive reasonable W-2 compensation for services rendered (Rev. Rul. 74-44).
-          A common practitioner starting point is <strong>35–45% of total officer compensation</strong>.
-          Suggested minimum: <strong>{fmt(minTarget)}/yr</strong>.
+          You haven't entered a W-2 salary. As an S-Corp owner working in the business, pay yourself a
+          reasonable salary <em>before</em> taking distributions. A common starting point here is
+          about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business).
         </div>
+        <CompSources color="#7F1D1D">
+          Paying $0 salary while taking distributions is the most common S-Corp audit trigger — the IRS
+          can reclassify distributions as wages and assess back FICA plus penalties. Authority:
+          Rev. Rul. 74-44; Treas. Reg. §1.162-7. The 35–45% range is a practitioner heuristic, not a
+          statutory safe harbor — reasonable comp ultimately reflects the value of services you provide.
+        </CompSources>
       </div>
     )
   }
@@ -244,13 +340,25 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
   if (ratio < 0.35) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Salary May Be Too Low</div>
+        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
-          Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation (salary ÷ total comp).
-          Tax practitioners commonly recommend 35–45% of total officer compensation based on case law
-          including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012).
-          A common starting point: <strong>{fmt(minTarget)}</strong>.
+          Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
+          {' '}{(ratio * 100).toFixed(0)}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
+          a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
+          distributions, is what keeps the S-Corp structure defensible.
+          {watsonWarning && (
+            <> Your salary is also <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross receipts
+            ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% many advisors watch for in
+            single-owner service businesses.</>
+          )}
         </div>
+        <CompSources color="#78350F">
+          The IRS can recharacterize distributions as wages (with back FICA and penalties) when an
+          owner-employee's salary is unreasonably low. Key authority: Watson v. Commissioner,
+          668 F.3d 1008 (8th Cir. 2012); Treas. Reg. §1.162-7; Rev. Rul. 74-44. The 35–45% range is a
+          practitioner heuristic, not a safe harbor — reasonable comp depends on the value of services
+          you provide.
+        </CompSources>
       </div>
     )
   }
@@ -259,61 +367,116 @@ function ReasonableCompIndicator({ officerSal, netProfit, isSCorp }) {
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
       <div style={{ color: '#166534', lineHeight: 1.6 }}>
-        Salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the
-        practitioner-recommended 35–45% range. Ensure FICA payroll taxes are being withheld and
-        remitted quarterly.
+        Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the commonly
+        recommended 35–45% range. Make sure FICA payroll taxes are withheld and remitted (quarterly
+        Form 941).
+        {watsonWarning && (
+          <> One thing to watch: your salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross
+          receipts ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% some advisors flag even when
+          the total-comp ratio looks fine.</>
+        )}
       </div>
+      {watsonWarning && (
+        <CompSources color="#166534">
+          Treas. Reg. §1.162-7; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). Salary-to-receipts
+          is one factor the IRS weighs alongside the total-compensation ratio.
+        </CompSources>
+      )}
     </div>
   )
 }
 
 // ─── Integration tile ─────────────────────────────────────────────────────────
-function IntegrationTile({ integ, onConnect, onDisconnect, connected }) {
+// F19 FIX: reads localStorage ts360_{provider}_connected and ts360_{provider}_failed
+//   to render correct connected / failed / default state on every render.
+// F23 FIX: reads ts360_{provider}_synced_at to display last-synced timestamp.
+//   onSync prop triggers a manual re-fetch.
+function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
+  // Derive live connection state from localStorage on every render
+  const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
+  const hasFailed   = localStorage.getItem(integrationKey(integ.id, 'failed'))   === 'true'
+  const syncedAt    = localStorage.getItem(integrationKey(integ.id, 'syncedAt'))
+  const syncedLabel = fmtSyncedAt(syncedAt)
+
   return (
     <div style={{
-      background: connected ? integ.bg : '#fff',
-      border: '1.5px solid ' + (connected ? integ.color : '#E2E8F0'),
+      background: isConnected ? integ.bg : hasFailed ? '#FEF2F2' : '#fff',
+      border: '1.5px solid ' + (isConnected ? integ.color : hasFailed ? '#FECACA' : '#E2E8F0'),
       borderRadius: 10, padding: '10px 14px',
       display: 'flex', alignItems: 'center', gap: 8,
       transition: 'all 0.15s', overflow: 'hidden',
     }}>
       <div
-        onClick={() => !connected && onConnect(integ.id)}
+        onClick={() => !isConnected && !hasFailed && onConnect(integ.id)}
         style={{
           width: 32, height: 32, borderRadius: 8, background: integ.color,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0,
-          cursor: connected ? 'default' : 'pointer',
+          cursor: isConnected ? 'default' : 'pointer',
         }}>
         {integ.abbr}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F1F3D' }}>{integ.name}</div>
-        <div style={{ fontSize: 11, color: connected ? integ.color : '#94A3B8', fontWeight: 600 }}>
-          {connected ? '● Connected' : 'Click to connect →'}
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E' }}>{integ.name}</div>
+        {/* F19 FIX: status line reflects actual connection state */}
+        {isConnected ? (
+          <div style={{ fontSize: 11, color: integ.color, fontWeight: 600 }}>
+            ✓ Connected
+            {/* F23 FIX: show last-synced timestamp when available */}
+            {syncedLabel && (
+              <span style={{ color: SL, fontWeight: 400, marginLeft: 6 }}>· Synced {syncedLabel}</span>
+            )}
+          </div>
+        ) : hasFailed ? (
+          <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Connection failed — try again</div>
+        ) : (
+          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Click to connect →</div>
+        )}
+        {/* F23 FIX: show revenue diff after a manual sync */}
+        {isConnected && syncDiff && (
+          <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>
+            {syncDiff}
+          </div>
+        )}
       </div>
-      {connected ? (
-        <button
-          onClick={() => onDisconnect(integ.id)}
-          style={{
-            background: 'none', border: '1px solid ' + integ.color + '66',
-            borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 700,
-            color: integ.color, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-          }}>
-          Disconnect
-        </button>
-      ) : (
-        <button
-          onClick={() => onConnect(integ.id)}
-          style={{
-            background: integ.color, border: 'none',
-            borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
-            color: '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-          }}>
-          Connect
-        </button>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+        {isConnected ? (
+          <>
+            {/* F23 FIX: "Sync now" button for manual re-fetch */}
+            {onSync && (
+              <button
+                onClick={() => onSync(integ.id)}
+                style={{
+                  background: 'none', border: '1px solid ' + integ.color + '66',
+                  borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                  color: integ.color, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ⟳ Sync now
+              </button>
+            )}
+            <button
+              onClick={() => onDisconnect(integ.id)}
+              style={{
+                background: 'none', border: '1px solid ' + integ.color + '66',
+                borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                color: integ.color, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Disconnect
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => hasFailed ? onConnect(integ.id) : onConnect(integ.id)}
+            style={{
+              background: hasFailed ? '#FEF2F2' : integ.color,
+              border: hasFailed ? '1px solid #FECACA' : 'none',
+              borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
+              color: hasFailed ? R : '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            {hasFailed ? 'Retry' : 'Connect'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -354,15 +517,10 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 }
 
 // ─── Manual entry panel ───────────────────────────────────────────────────────
-function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
+// Exported for the F2 live-commit regression test (CalculateTaxInner.test.jsx).
+export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const pnl = entity.pnl || {}
   const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
-  // AUDIT FIX (save/reload double-count): pnl.totalExpenses is the GRAND total
-  // (pure opex + depreciation + officer salary + advertising + other). This field
-  // is "Operating Expenses EXCLUDING those", so reloading it with the total made
-  // every component get subtracted twice on re-apply (net profit dropped by the
-  // salary). Recover pure operating expenses by removing the separately-reloaded
-  // components — matching exactly how manDep / manOfficerSal / manAdv / manOther init.
   const _reloadOpex = Math.max(0,
     nf(pnl.totalExpenses)
     - nf(entity.depreciation || pnl.depreciation)
@@ -383,13 +541,10 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const oth = nf(manOther)
 
   const isSCorp = isSCorpEntity(entity.type)
+  const isCCorp = isCCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
-  const isRE = isRealEstateEntity(entity.type)   // REG-01: Schedule E rental — drives entity-aware labels
-  // AUDIT FIX (phantom salary on entity-type switch): the Officer Salary (W-2) field is
-  // only shown for S-Corps. If an entity is switched away from S-Corp, manOfficerSal can
-  // still hold a stale value — count it ONLY when the field is actually applicable, so it
-  // cannot silently inflate expenses / understate net profit for a sole prop or partnership.
-  const effectiveSal = isSCorp ? sal : 0
+  const isRE = isRealEstateEntity(entity.type)
+  const effectiveSal = (isSCorp || isCCorp) ? sal : 0
 
   const totalExpenses = ex + dep + effectiveSal + adv + oth
   const manNetProfit  = rv - totalExpenses
@@ -419,6 +574,38 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
     onCancel()
   }
 
+  // F2 FIX (UX audit — Critical): the manual P&L used to commit to the parent
+  // entity ONLY when the user clicked "Save P&L →". If they instead collapsed the
+  // panel (the "Edit P&L" toggle), collapsed the entity card, or advanced to Step 2,
+  // every figure they typed was silently discarded — so the entity reached Step 2/3
+  // with an empty $0 P&L (the "I typed my income and the app says I have none" bug).
+  // Live-bind the fields to the entity (the audit's recommended fix) so revenue and
+  // expenses persist as typed, exactly like the W-2 field in Step 2. The confirm
+  // button (relabeled "Done" in the F9 save-button consolidation; formerly "Save P&L →")
+  // stays as a confirm-and-close affordance but is no longer the only way the data is
+  // saved. The numeric fields fully determine the committed pnl, so onUpdate /
+  // entity / idx are intentionally excluded from the deps: including the callback or
+  // the entity object would re-fire this on every parent re-render (and could loop).
+  useEffect(() => {
+    onUpdate(idx, {
+      ...entity,
+      officerW2: effectiveSal,
+      pnl: {
+        grossRevenue:    rv,
+        totalExpenses,
+        officerSalary:   effectiveSal,
+        depreciation:    dep,
+        advertising:     adv,
+        otherDeductions: oth,
+        netProfit:       rv - totalExpenses,
+        categories: (entity.pnl && entity.pnl.categories) || {},
+      },
+      connectedId: null,
+      isManual: true,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses])
+
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
 
@@ -428,54 +615,48 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Income (gross rents received)' : 'Gross Revenue'}
-            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total revenue before any deductions. For S-Corps: enter gross revenue of the entity. Do NOT net out officer salary here — enter that separately below.'} />
+            {isRE ? 'Rental Income (gross rents received)' : FINANCIAL_LABELS.grossReceiptsField}
+            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
           <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : 'Operating Expenses (excl. officer salary, depreciation, advertising)'}
-            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer salary, depreciation, and advertising — those have their own fields below.'} />
+            {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
+            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
           <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
         </div>
         <div>
           <label style={lbl}>
             Depreciation (Sec. 179 + MACRS + Bonus)
-            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.'} wide />
+            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
           <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
         </div>
-        {isSCorp && (
+        {(isSCorp || isCCorp) && (
           <div>
             <label style={lbl}>
-              Officer Salary (W-2)
-              <InfoTip text={'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
+              {FINANCIAL_LABELS.officerCompensationField}
+              <InfoTip text={isCCorp
+                ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
+                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to salary — K-1 distributions avoid FICA, which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
               <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer salary exceeds gross revenue — verify your numbers.
+                ⚠ Officer compensation exceeds gross receipts — verify your numbers.
               </div>
             )}
             {officerExceedsNetProfit && !officerExceedsRevenue && (
               <div style={{ fontSize: 12, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer salary exceeds net profit after operating expenses — this entity will show a net loss.
+                ⚠ Officer compensation exceeds net profit after operating expenses — this entity will show a net loss.
               </div>
             )}
-            {/* AUDIT FIX (reasonable-comp ratio): pass POST-salary net profit
-                (= distributions) as `netProfit`. manNetProfit already excludes the
-                officer salary (totalExpenses includes sal), so it IS distributions.
-                The prior `+ sal` made this the pre-salary pool, so the indicator
-                computed salary ÷ (salary + pre-salary profit) — understating the
-                ratio (20% instead of 25%) and overstating the suggested minimum
-                ($215,385 vs the correct $161,538). The component internals
-                (totalComp = sal + netProfit; minTarget = 0.35/0.65 × netProfit)
-                require distributions here — matching reasonableCompAlert in taxCalc.js. */}
             <ReasonableCompIndicator
               officerSal={sal}
               netProfit={Math.max(0, manNetProfit)}
+              grossRevenue={nf(manRev)}
               isSCorp={isSCorp}
             />
           </div>
@@ -490,7 +671,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             Other Deductions
-            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer salary — those have dedicated fields." />
+            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
         </div>
@@ -499,13 +680,13 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>Total Expenses</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
+            <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
-            <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
+            <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
           </div>
         </div>
@@ -521,7 +702,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             </div>
             <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
               <span style={{ fontWeight: 600 }}>Box 2 — Net Rental Income (Loss):</span>{' '}
-              Enter K-1 Box 2 income in the <span style={{ fontWeight: 700 }}>Rental Real Estate (Schedule E)</span> section in Step 2. Passive activity rules (IRC §469) apply — including the $25K allowance and REP status.
+              Rental income on this partnership K-1 (Box 2) is passive rental real estate on Schedule E, page 2 — it stays with this partnership entity rather than being entered as a separate Real Estate card. Passive activity rules (IRC §469) apply, including the $25K allowance and REP status.
             </div>
             <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 5 }}>
               <span style={{ fontWeight: 600 }}>Box 9a — Net §1231 Gain (Loss):</span>{' '}
@@ -535,7 +716,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer salary does not apply to rental property, so that field is hidden here.
+            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer compensation does not apply to rental property, so that field is hidden here.
           </div>
         </div>
       )}
@@ -543,7 +724,7 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button onClick={onCancel} style={{ flex: 1, padding: '9px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
         <button onClick={applyManual} style={{ flex: 2, padding: '9px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          Apply →
+          Done
         </button>
       </div>
     </div>
@@ -551,29 +732,26 @@ function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 }
 
 // ─── Entity card ──────────────────────────────────────────────────────────────
-function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
-  // PASS4B-02b: Basis & Distributions panel toggle
   const [showBasis,  setShowBasis]  = useState(false)
   const pnl = entity.pnl || {}
 
-  // BUG-03 FIX: Disconnect button now actually disconnects.
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
-      localStorage.removeItem('ts360_' + pid + '_connected')
-      localStorage.removeItem('ts360_' + pid + '_token')
-      localStorage.removeItem('ts360_' + pid + '_extra')
-      sessionStorage.removeItem('ts360_' + pid + '_token')
+      localStorage.removeItem(integrationKey(pid, 'connected'))
+      localStorage.removeItem(integrationKey(pid, 'token'))
+      localStorage.removeItem(integrationKey(pid, 'extra'))
+      localStorage.removeItem(integrationKey(pid, 'syncedAt'))
+      sessionStorage.removeItem(integrationKey(pid, 'token'))
       localStorage.removeItem('ts360_connected_app')
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
   }
 
-  // BUG-02 FIX: parentheses so (grossRevenue - totalExpenses) is the fallback
-  // only when netProfit is absent.
   const netProfit = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
 
   const own    = ownPct(entity.own) / 100
@@ -581,17 +759,21 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
   const isPT   = isPassthroughEntity(entity.type)
-  const isRE   = isRealEstateEntity(entity.type)   // REG-01: §469 rental
+  const isRE   = isRealEstateEntity(entity.type)
 
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
-  // §1366(d) suspension badge — only when basis is entered and there is a loss.
   const basisBadge = (() => {
     if (!isSC) return null
+    const lossAmt = Math.abs(Math.min(0, netProfit * own))
+    if (lossAmt === 0) return null
     const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
     const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-    if (sb === null) return null                          // basis not entered — no badge
-    const lossAmt = Math.abs(Math.min(0, netProfit * own))
-    if (lossAmt === 0) return null                        // no loss — nothing to limit
+    // C-10 FIX: when an S-Corp shows a loss but no stock basis has been entered, the
+    // engine cannot apply the §1366(d) limit and the full loss flows to AGI. Prompt for
+    // basis rather than silently allowing a potentially non-deductible loss.
+    if (sb === null) {
+      return { type: 'amber', msg: `§1366(d): enter stock basis — ${fmt(lossAmt)} loss may be limited.` }
+    }
     const totalBasis  = sb + db
     const allowedLoss = Math.min(lossAmt, totalBasis)
     const suspended   = lossAmt - allowedLoss
@@ -601,7 +783,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
     return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within basis.` }
   })()
 
-  // §1368 distribution badge — only when distributions are entered.
   const distBadge = (() => {
     if (!isSC) return null
     const dist = nf(entity.distributions)
@@ -645,11 +826,10 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             {entity.connectedId && <span style={{ marginLeft: 8, color: G, fontWeight: 600 }}>● Synced</span>}
             {entity.isManual && <span style={{ marginLeft: 8, color: '#D97706', fontWeight: 600 }}>✏ Manual</span>}
           </div>
-          {/* Collapsed-state basis badges */}
           {!isExpanded && (basisBadge || distBadge) && (
             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
               {basisBadge && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : '#86EFAC') }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : basisBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : basisBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : basisBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
                   {basisBadge.msg}
                 </span>
               )}
@@ -663,9 +843,9 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, color: SL }}>Net / K-1</div>
+            <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
-              {k1 >= 0 ? fmt(k1) : '-' + fmt(Math.abs(k1))}
+              {fmt(k1)}
             </div>
           </div>
         )}
@@ -680,21 +860,21 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>{isRE ? 'Rental Income' : 'Gross Revenue'}</span>
+                <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>Total Expenses</span>
+                <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span>
                 <span style={{ fontWeight: 600, color: N }}>- {fmt(nf(pnl.totalExpenses))}</span>
               </div>
               {sal > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
-                  <span style={{ color: '#94A3B8' }}>incl. Officer Salary</span>
-                  <span style={{ color: '#94A3B8' }}>{fmt(sal)}</span>
+                  <span style={{ color: '#64748B' }}>incl. Officer Compensation</span>
+                  <span style={{ color: '#64748B' }}>{fmt(sal)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
-                <span style={{ color: N }}>{isRE ? 'Net Rental Income' : 'Net Profit'}</span>
+                <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}</span>
                 <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
               </div>
             </div>
@@ -702,12 +882,12 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
 
           {/* Entity Name */}
           <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Business Name</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{isRE ? 'Rental Name' : 'Business Name'}</label>
             <input
               type="text"
               value={entity.name || ''}
               onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
-              placeholder="e.g. ABC Consulting LLC"
+              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. ABC Consulting LLC"}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
@@ -721,21 +901,36 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, background: '#fff' }}
             >
               <option value="S Corporation">S Corporation</option>
+              <option value="C Corporation">C Corporation</option>
               <option value="Partnership / LLC">Partnership / LLC</option>
               <option value="Sole Proprietor / SMLLC">Sole Proprietor / SMLLC</option>
               <option value="Real Estate (Schedule E)">Real Estate (Schedule E)</option>
             </select>
           </div>
 
-          {/* Ownership % */}
+          {/* F-05 FIX: Ownership % — fully controlled input with 0–100 clamp */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
               Ownership %
               <InfoTip text="Your ownership percentage in this entity. K-1 income is allocated proportionally. Example: 75% ownership of a $100K profit = $75K on your personal return." />
             </label>
             <input
-              type="number" min="0" max="100" value={entity.own || '100'}
-              onChange={e => onUpdate(idx, { ...entity, own: e.target.value })}
+              type="number"
+              min="0"
+              max="100"
+              value={entity.own ?? '100'}
+              onChange={e => {
+                const raw = e.target.value
+                if (raw === '' || raw === '-') { onUpdate(idx, { ...entity, own: raw }); return }
+                const clamped = Math.min(100, Math.max(0, parseFloat(raw) || 0))
+                onUpdate(idx, { ...entity, own: String(clamped) })
+              }}
+              onBlur={e => {
+                const v = parseFloat(e.target.value)
+                if (!Number.isFinite(v) || v < 0 || v > 100) {
+                  onUpdate(idx, { ...entity, own: String(Math.min(100, Math.max(0, v || 0))) })
+                }
+              }}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N }}
             />
           </div>
@@ -744,22 +939,26 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
           {isPT && (
             <div style={{ marginBottom: 10 }}>
               <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
-                {showQBI ? '▲ Collapse' : '▼ Expand'} §199A QBI Inputs (W-2 Wages, UBIA, SSTB)
+                {showQBI ? '▲ Collapse' : '▼ Expand'} Pass-Through Deduction (QBI) <span style={{ fontWeight: 500, opacity: 0.7 }}>· §199A — W-2 wages, UBIA, SSTB</span>
               </button>
+              {/* P3c FIX: contextual hint so users know when these fields matter.
+                  Without this, users either ignore the section entirely or enter
+                  values they don't need, creating confusion. The threshold hint
+                  matches the InfoTip tooltips inside each field. */}
+              {!showQBI && (
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
+                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
+                </div>
+              )}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
                   {[
-                    { label: 'W-2 Wages (K-1 Box 17V for S-Corp / Box 20Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. From S-Corp K-1 Box 17, Code V.\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
-                    { label: 'UBIA of Qualified Property (K-1 Box 17W / Box 20AA)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
-                    // L-01 FIX: Label was "Section 179 / Ordinary Income Addback" — "Addback"
-                    // is backwards (persistStep1 SUBTRACTS this, reducing k1Total / QBI) and
-                    // "Ordinary Income Addback" is not an IRS form label. K-1 Box 11 (Form 1120-S)
-                    // and Box 12 (Form 1065) are both labeled "Section 179 deduction" on the
-                    // actual forms. Tooltip fixed: §179 reduces QBI (Treas. Reg. §1.199A-3(b)(1)(ii)(A))
-                    // and shareholder/partner basis — NOT "at-risk basis" (that is §465).
+                    { label: 'W-2 Wages (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
+                    { label: 'UBIA of Qualified Property (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: 'Section 179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
-                    { label: 'Charitable Contributions (K-1 Box 12 / Box 13)', key: 'box12_13', tip: 'Charitable contributions passed through from the entity. These flow to Schedule A and also reduce your K-1 basis.' },
+                    { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A and also reduce your K-1 basis.' },
+                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995 Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', display: 'block', marginBottom: 3 }}>
@@ -786,40 +985,47 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
             </div>
           )}
 
-          {/* ── PASS4B-02b: §1366(d) Stock Basis & §1368 Distributions ── */}
+          {/* PASS4B-02b: §1366(d) Stock Basis & §1368 Distributions */}
           {isSC && (
             <div style={{ marginBottom: 10 }}>
               <button
                 onClick={e => { e.stopPropagation(); setShowBasis(s => !s) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#7C3AED', padding: '4px 0', marginBottom: 6 }}
               >
-                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions (Form 7203)
+                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions <span style={{ fontWeight: 500, opacity: 0.7 }}>· Form 7203 — loss limits & distributions</span>
               </button>
+              {/* P3c FIX: contextual hint so users know when stock basis matters.
+                  Stock basis limits loss deductibility — irrelevant if the entity
+                  is profitable. Surfacing that context prevents users from
+                  hunting for numbers they don't need. */}
+              {!showBasis && (
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
+                  Needed only if your S-Corp shows a loss — limits how much is deductible this year
+                </div>
+              )}
               {showBasis && (
                 <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
                     §1366(d) Basis Limitation · §1368 Distributions — from Form 7203
                   </div>
 
-                  {/* Stock Basis */}
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Stock Basis at Beginning of Year (Form 7203, Line 1)
-                      <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year it increases for income and tax-exempt items allocated to you, and decreases for losses, deductions, and distributions.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nWhen you enter your basis here, TaxStat360 will:\n• Cap the deductible loss at your available basis\n• Show a §1366(d) suspension warning badge on the card\n• Exclude the suspended portion from income automatically\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
+                      <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year it increases for income and tax-exempt items allocated to you, and decreases for losses, deductions, and distributions.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
                     </label>
                     <MoneyInput
                       value={entity.stockBasis || ''}
                       onChange={v => onUpdate(idx, { ...entity, stockBasis: v })}
-                      placeholder="0"
+                      placeholder="Enter basis — leave blank if unsure"
                       style={{ fontSize: 13 }}
                     />
                   </div>
 
-                  {/* Debt Basis */}
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Debt Basis (Form 7203, Part II) — Optional
-                      <InfoTip text={'Debt basis arises from bona fide loans you have personally made to the S-Corp — NOT loans the corporation took from a bank or third party.\n\nDebt basis absorbs losses after stock basis is exhausted (IRC §1366(d)(1)(B)).\n\nExample: $0 stock basis + $50,000 personal loan to the S-Corp = $50,000 debt basis available to absorb losses.\n\nThis is an advanced field. Most shareholders only have stock basis. Leave blank if you have not personally loaned money to your S-Corp.\n\nSee Form 7203, Part II for the calculation.'} wide />
+                      <InfoTip text={'Debt basis arises from bona fide loans you have personally made to the S-Corp — NOT loans the corporation took from a bank or third party.\n\nDebt basis absorbs losses after stock basis is exhausted (IRC §1366(d)(1)(B)).\n\nThis is an advanced field. Most shareholders only have stock basis. Leave blank if you have not personally loaned money to your S-Corp.\n\nSee Form 7203, Part II for the calculation.'} wide />
                     </label>
                     <MoneyInput
                       value={entity.debtBasis || ''}
@@ -829,13 +1035,29 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     />
                   </div>
 
-                  {/* §1366(d) suspension inline badge */}
                   {(() => {
-                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-                    if (sb === null) return null
                     const lossAmt = Math.abs(Math.min(0, netProfit * own))
                     if (lossAmt === 0) return null
+                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
+                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
+                    // C-10 FIX: loss present but no basis entered. The engine now applies
+                    // the §1366(d) limit conservatively (assumeZeroBasisOnLoss) — the loss
+                    // is SUSPENDED until a basis figure is entered, rather than flowing to
+                    // AGI in full. Message reflects that conservative default.
+                    if (sb === null) {
+                      return (
+                        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ §1366(d) — Enter Stock Basis</div>
+                          <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                            This entity shows a {fmt(lossAmt)} loss. Your deductible S-Corp loss is capped at your
+                            combined stock + debt basis (IRC §1366(d)(1)). Because no beginning basis has been entered,
+                            this {fmt(lossAmt)} loss is being conservatively suspended and carried forward (§1366(d)(2))
+                            rather than deducted against your other income. Enter your beginning stock basis above
+                            (Form 7203, Line 1) to release the portion your basis supports.
+                          </div>
+                        </div>
+                      )
+                    }
                     const totalBasis  = sb + db
                     const allowedLoss = Math.min(lossAmt, totalBasis)
                     const suspended   = lossAmt - allowedLoss
@@ -846,8 +1068,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
                             Your {fmt(lossAmt)} K-1 loss exceeds your {fmt(totalBasis)} basis.
                             Only <strong>{fmt(allowedLoss)}</strong> is deductible this year.
-                            <strong> {fmt(suspended)}</strong> is suspended and carries forward to future
-                            years when basis is restored (IRC §1366(d)(2)).
+                            <strong> {fmt(suspended)}</strong> is suspended and carries forward (IRC §1366(d)(2)).
                             Consult your CPA to confirm your exact basis before filing.
                           </div>
                         </div>
@@ -863,11 +1084,10 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     )
                   })()}
 
-                  {/* Distributions */}
                   <div style={{ marginBottom: 6 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Distributions Received This Year (Form 7203, Line 6)
-                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year (Form 7203, Line 6 / Schedule M-2, Line 7).\n\nWhy this matters:\nDistributions reduce your stock basis. If distributions EXCEED your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nExample:\n• Beginning basis: $0\n• K-1 loss: suspended (basis insufficient)\n• Distributions received: $100,000\n• Excess over remaining basis: $100,000 → long-term capital gain\n\nEnter your stock basis above — TaxStat360 computes the taxable portion automatically and includes it in your estimated liability.'} wide />
+                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nAAA note: If your S-Corp has accumulated earnings and profits (E&P) from a prior C-Corp period, AAA ordering rules (§1368(c)) apply — distributions reduce AAA first, then E&P (taxable as an ordinary dividend). Consult your CPA if prior C-Corp E&P exists.'} wide />
                     </label>
                     <MoneyInput
                       value={entity.distributions || ''}
@@ -877,7 +1097,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     />
                   </div>
 
-                  {/* §1368 distribution capital gain inline badge */}
                   {(() => {
                     const dist = nf(entity.distributions)
                     if (dist <= 0) return null
@@ -888,8 +1107,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                           <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Enter Stock Basis to Compute Capital Gain</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5 }}>
                             You have entered {fmt(dist)} in distributions. Enter your stock basis above
-                            to determine whether any portion is taxable as long-term capital gain
-                            (IRC §1368(b)(2)).
+                            to determine whether any portion is taxable as long-term capital gain (IRC §1368(b)(2)).
                           </div>
                         </div>
                       )
@@ -924,49 +1142,111 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               )}
             </div>
           )}
-          {/* ── end PASS4B-02b ── */}
 
-          {/* ── REG-01: §469 Passive Activity Status (Real Estate / Schedule E) ── */}
+          {/* REG-01 / F6: §469 Passive Activity Status — the single home for rental treatment */}
           {isRE && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
                   §469 Passive Activity Status — Schedule E Rental
                 </div>
-
-                {/* Real Estate Professional (§469(c)(7)) */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    id={'rep_' + idx}
-                    checked={!!entity.isREP}
-                    onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked })}
-                    style={{ marginTop: 2 }}
-                  />
+                  <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked, ...(e.target.checked ? {} : { rentalAggregationElection: undefined }) })} style={{ marginTop: 2 }} />
                   <label htmlFor={'rep_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                     Real Estate Professional (REP) — IRC §469(c)(7)
-                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nWhen you qualify as a REP, your rental losses are NONPASSIVE — currently deductible against your other income (still subject to stock/at-risk basis and the §461(l) excess-business-loss limitation).\n\nIf you do NOT qualify, rental losses are passive and suspended under §469(a) until you have passive income or sell the property (Form 8582).'} wide />
+                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
                   </label>
                 </div>
 
-                {/* §469(i) $25,000 active-participation allowance (only when not a REP) */}
-                {!entity.isREP && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                    <input
-                      type="checkbox"
-                      id={'active_' + idx}
-                      checked={!!entity.isActiveParticipant}
-                      onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })}
-                      style={{ marginTop: 2 }}
-                    />
-                    <label htmlFor={'active_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
-                      Active Participant — §469(i) $25,000 allowance
-                      <InfoTip text={'Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000, and is fully gone at $150,000 MAGI (and is generally $0 for MFS who lived with their spouse).\n\nLeave unchecked if you do not actively participate — the loss is then fully passive and suspended.'} wide />
+                {/* C-11: §469(c)(7)(B) quantitative hours test. Replaces blank self-attestation
+                    with the two-part test applied to the user's own hours. Warn-and-allow: failing
+                    the test surfaces the gap + audit risk but does NOT block the REP election or
+                    change passive treatment (the §1.469-9(g) election below is still the switch). */}
+                {entity.isREP && (() => {
+                  const reHrs    = parseFloat(entity.repHoursRE) || 0
+                  const totalHrs = parseFloat(entity.repHoursTotal) || 0
+                  const entered  = String(entity.repHoursRE ?? '').trim() !== '' && String(entity.repHoursTotal ?? '').trim() !== ''
+                  const pass750  = reHrs > 750
+                  const pass50   = totalHrs > 0 && reHrs > totalHrs / 2
+                  const qualifies = pass750 && pass50
+                  const pctRE    = totalHrs > 0 ? Math.round((reHrs / totalHrs) * 100) : 0
+                  const reasons  = []
+                  if (!pass750) reasons.push(`you entered ${reHrs.toLocaleString()} real-property hours — the statute requires more than 750`)
+                  if (!pass50)  reasons.push(`real-property hours must exceed 50% of your total personal-service hours (currently ${pctRE}%)`)
+                  const hrInput = (key, label, ph) => (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ fontSize: 11, color: '#5B21B6', display: 'block', marginBottom: 3 }}>{label}</label>
+                      <input
+                        type="number" min="0" inputMode="numeric"
+                        value={entity[key] ?? ''}
+                        onChange={e => onUpdate(idx, { ...entity, [key]: e.target.value })}
+                        placeholder={ph}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #DDD6FE', borderRadius: 6, fontSize: 13 }}
+                      />
+                    </div>
+                  )
+                  return (
+                    <div style={{ background: '#fff', border: '1px solid #DDD6FE', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 8 }}>
+                        §469(c)(7)(B) qualification — enter your hours
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+                        {hrInput('repHoursRE', 'Hours in real property trades/businesses', 'e.g. 900')}
+                        {hrInput('repHoursTotal', 'Total hours, ALL your work this year', 'e.g. 1,500')}
+                      </div>
+                      {!entered ? (
+                        <div style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          Enter both figures to confirm the two-part test: more than 750 hours in real property trades or businesses, <strong>and</strong> more than 50% of your total personal-service hours in real estate.
+                        </div>
+                      ) : qualifies ? (
+                        <div style={{ fontSize: 12, color: '#166534', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          ✓ Meets the §469(c)(7)(B) test — {reHrs.toLocaleString()} real-property hours ({'>'} 750) and {pctRE}% of your {totalHrs.toLocaleString()} total hours ({'>'} 50%). Keep contemporaneous daily time logs to support this if examined.
+                        </div>
+                      ) : (
+                        <div role="alert" style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                          ⚠ These hours do not meet the §469(c)(7)(B) test: {reasons.join('; ')}. You can still elect REP below, but this is one of the most frequently challenged positions — the IRS expects contemporaneous daily time logs, and significant W-2 employment makes the 50% test hard to satisfy. Confirm with your CPA before relying on it.
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* F6: §1.469-9(g) aggregation election — shown once REP is checked. This is the
+                    single control that makes the rental portfolio nonpassive. */}
+                {entity.isREP && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <input type="checkbox" id={'agg_' + idx} checked={portfolioAggregationElected === true} onChange={e => (onAggregationElection ? onAggregationElection(e.target.checked) : onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false }))} style={{ marginTop: 2 }} />
+                    <label htmlFor={'agg_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                      Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
+                      <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
                     </label>
                   </div>
                 )}
 
-                {/* Status badge (display-only; taxCalc.js is authoritative) */}
+                {!entity.isREP && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <input type="checkbox" id={'active_' + idx} checked={!!entity.isActiveParticipant} onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })} style={{ marginTop: 2 }} />
+                    <label htmlFor={'active_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                      Active Participant — §469(i) $25,000 allowance
+                      <InfoTip text={'Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000.'} wide />
+                    </label>
+                  </div>
+                )}
+
+                {/* Prior-year passive loss carryforward (Form 8582) — moved here from Step 2 */}
+                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                  <label htmlFor={'pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                    Prior-Year Passive Loss Carryforward (Form 8582)
+                    <InfoTip text={'Suspended passive losses from prior years on this rental (Form 8582, Line 3). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
+                  </label>
+                  <MoneyInput
+                    value={entity.priorPAL || ''}
+                    onChange={v => onUpdate(idx, { ...entity, priorPAL: v })}
+                    placeholder="0"
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+
                 {(() => {
                   const reNet = netProfit
                   if (reNet >= 0) {
@@ -974,17 +1254,27 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                       <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
                         <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Rental Income Flows Through</div>
                         <div style={{ color: '#166534', lineHeight: 1.5 }}>
-                          Net rental income of {fmt(reNet)} is included in your return. Passive rental income may also be subject to the 3.8% Net Investment Income Tax (§1411) unless you are a real estate professional.
+                          Net rental income of {fmt(reNet)} is included in your return.
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (entity.isREP && entity.rentalAggregationElection === true) {
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP + §1.469-9(g) election)</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
+                          You are a real estate professional and have elected to aggregate your rentals, so this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year.
                         </div>
                       </div>
                     )
                   }
                   if (entity.isREP) {
                     return (
-                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
-                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP)</div>
-                        <div style={{ color: '#166534', lineHeight: 1.5 }}>
-                          As a real estate professional, this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year — still subject to stock/at-risk basis and the §461(l) excess-business-loss limitation.
+                      <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                        <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Passive Until You Elect (§1.469-9(g))</div>
+                        <div style={{ color: '#78350F', lineHeight: 1.5 }}>
+                          REP status alone does not make this {fmt(Math.abs(reNet))} loss deductible. Check the §1.469-9(g) aggregation election above to treat your portfolio as nonpassive; otherwise it is limited by the §469(i) $25,000 allowance and otherwise suspended on Form 8582.
                         </div>
                       </div>
                     )
@@ -993,7 +1283,7 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                     <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
                       <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Passive Loss — Suspended This Year (§469)</div>
                       <div style={{ color: '#78350F', lineHeight: 1.5 }}>
-                        This {fmt(Math.abs(reNet))} rental loss is passive. Under IRC §469(a) it is suspended and carried forward on Form 8582 — it does <strong>not</strong> reduce your other income this year{entity.isActiveParticipant ? ', except for any portion allowed by the §469(i) $25,000 active-participation allowance (which phases out between $100K–$150K MAGI)' : ''}. Check Real Estate Professional above only if you meet the §469(c)(7) tests.
+                        This {fmt(Math.abs(reNet))} rental loss is passive. Under IRC §469(a) it is suspended and carried forward on Form 8582{entity.isActiveParticipant ? ', except for any portion allowed by the §469(i) $25,000 active-participation allowance (which phases out between $100K–$150K MAGI)' : ''}.
                       </div>
                     </div>
                   )
@@ -1001,7 +1291,6 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
               </div>
             </div>
           )}
-          {/* ── end REG-01 ── */}
 
           {/* Reasonable comp indicator for non-manual S-Corps */}
           {isSC && nf(pnl.grossRevenue) > 0 && !entity.isManual && (
@@ -1031,7 +1320,9 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
                 fontFamily: 'inherit',
               }}
             >
-              {entity.isManual ? '✏ Edit / re-enter data' : '⟳ Disconnect / reconnect software'}
+              {/* P3a FIX: "Edit / re-enter data" implied you had to start from scratch.
+                  "Edit P&L" is shorter, accurate, and less intimidating. */}
+              {entity.isManual ? '✏ Edit P&L' : '⟳ Disconnect / reconnect software'}
             </button>
             <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#EF4444', fontWeight: 600, padding: '6px 0', fontFamily: 'inherit' }}>
               🗑 Remove entity
@@ -1052,123 +1343,36 @@ function EntityCard({ entity, idx, onUpdate, onRemove, colorAccent, isExpanded, 
   )
 }
 
-// ─── Compare modal ────────────────────────────────────────────────────────────
-function CompareModal({ entities, onClose }) {
-  const personalCtx = readPersonalContext()
-  const taxYear     = readTaxYear()
-  const filing      = personalCtx.filingStatus || 'single'
-  const w2          = nf(personalCtx.w2Income)
-  const estPaid     = nf(personalCtx.estPaid)
-
-  const entity = entities[0] || {}
-  const pnl    = entity.pnl || {}
-  const rev    = nf(pnl.grossRevenue)
-  const opex   = nf(pnl.totalExpenses)
-  const netP   = nf(pnl.netProfit ?? (rev - opex))
-
-  if (rev <= 0 && netP === 0) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%' }}>
-          <h3 style={{ fontWeight: 800, color: N, marginBottom: 12 }}>Entity Comparison</h3>
-          <p style={{ color: SL, fontSize: 14, lineHeight: 1.6 }}>Enter revenue and expenses on your entity card first to see a side-by-side comparison across entity structures.</p>
-          <button onClick={onClose} style={{ padding: '10px 24px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginTop: 16 }}>Close</button>
-        </div>
-      </div>
-    )
-  }
-
-  const stdDed   = getStdDed(taxYear, filing)
-  const ownerPct = ownPct(entity.own) / 100
-
-  const scenarios = ENTITY_TYPES.filter(t => !/c.?corp/i.test(t)).map(type => {
-    const isSC     = /s.?corp/i.test(type)
-    const salGuess = isSC ? Math.max(0, Math.round(netP * ownerPct * 0.40)) : 0
-    const k1       = isSC ? Math.max(0, (netP - salGuess) * ownerPct) : Math.max(0, netP * ownerPct)
-    const _w2All   = w2 + salGuess
-    const taxableRough = Math.max(0, k1 + _w2All - stdDed)
-    const { deduction: qbi } = isPassthroughEntity(type)
-      ? calcQBI(k1, taxableRough, 0, { status: filing, taxYear, entityQbiData: [{ ...entity, type, k1, own: entity.own }] })
-      : { deduction: 0 }
-    const r = calcTaxReturn({
-      taxYear, status: filing, dependents: nf(personalCtx.dependents),
-      entities: [{ ...entity, type, k1, own: entity.own }],
-      w2: _w2All, k1Total: k1, rentalNet: 0, stGain: 0, ltGain: 0,
-      intInc: 0, divInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0, iraIncome: 0,
-      selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0, selfEmpRetirement: 0,
-      nolCarryforward: 0, priorYearQBILoss: 0, saltAmount: 0, hasISO: false, isoBargainElement: 0,
-      isREP: false, unrecap1250: 0, collectiblesGain: 0,
-      w2Withheld: nf(personalCtx.w2Withheld), estPaid,
-      useItemized: false, itemizedAmt: 0, ytdFactor: 1,
-    })
-    return { type, qbi, totalTax: r.totalTax, seTax: r.seTax, ficaSavings: r.ficaSavings, k1, salGuess }
-  })
-
-  const minTax = Math.min(...scenarios.map(s => s.totalTax))
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 740, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-          <div>
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: N, margin: '0 0 4px' }}>Entity Structure Comparison</h3>
-            <p style={{ fontSize: 13, color: SL, margin: 0 }}>Same revenue, different entity — estimated total federal tax liability</p>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: SL }}>✕</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {scenarios.sort((a, b) => a.totalTax - b.totalTax).map((s, i) => (
-            <div key={s.type} style={{ background: s.totalTax === minTax ? '#F0FDF4' : '#F8FAFC', border: '1.5px solid ' + (s.totalTax === minTax ? '#86EFAC' : '#E2E8F0'), borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2 }}>
-                    {s.type}
-                    {s.totalTax === minTax && <span style={{ marginLeft: 8, fontSize: 11, background: G, color: '#fff', borderRadius: 4, padding: '2px 8px', fontWeight: 700 }}>LOWEST TAX</span>}
-                  </div>
-                  <div style={{ fontSize: 12, color: SL }}>
-                    K-1: {fmt(s.k1)}
-                    {s.salGuess > 0 && <> · Officer salary: {fmt(s.salGuess)}</>}
-                    {s.qbi > 0 && <> · QBI deduction: {fmt(s.qbi)}</>}
-                    {s.seTax > 0 && <> · SE tax: {fmt(s.seTax)}</>}
-                    {s.ficaSavings > 0 && <> · SE tax savings: {fmt(s.ficaSavings)}</>}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.totalTax === minTax ? G : N }}>{fmt(s.totalTax)}</div>
-                  {s.totalTax !== minTax && (
-                    <div style={{ fontSize: 12, color: R, fontWeight: 600 }}>+{fmt(s.totalTax - minTax)} more</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: SL, textAlign: 'center', marginTop: 16 }}>
-          Federal income tax only · {(readTaxYear() || 2025)} · {filing.toUpperCase()} · Estimates — consult a tax professional
-        </p>
-      </div>
-    </div>
-  )
-}
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function CalculateTaxInner() {
   const navigate = useNavigate()
 
-  const [entities,        setEntities]        = useState([])
-  const [expandedIdx,     setExpandedIdx]     = useState(null)
-  const [showCompare,     setShowCompare]     = useState(false)
+  const [entities,         setEntities]         = useState([])
+  const [expandedIdx,      setExpandedIdx]      = useState(null)
+  const [showCompare,      setShowCompare]      = useState(false)
   const [showNameModal,    setShowNameModal]    = useState(false)
   const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
-  const [saveStatus,      setSaveStatus]      = useState('idle')
-  const [taxYear,         setTaxYear]         = useState(() => readTaxYear() || 2025)
-  const [csvImportStatus, setCsvImportStatus] = useState(null)
+  const [saveStatus,       setSaveStatus]       = useState('idle')
+  const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
+  // F-01 / F-02: inline error toast state for footer button guard
+  const [footerError,      setFooterError]      = useState(null)
+  // O1 FIX: track whether the standalone manual-entry panel is open (for
+  // users who have no entities yet and click "Enter manually")
+  const [showStandaloneManual, setShowStandaloneManual] = useState(false)
+  // F23 FIX: per-provider sync diff message shown after a manual re-sync
+  const [syncDiffs,        setSyncDiffs]        = useState({})
 
   useEffect(() => {
-    const existing = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
-    if (existing.length > 0) {
-      setEntities(existing.map(e => ({
+    // F-12 FIX: When a record is loaded via Dashboard ("Load & Continue"), the
+    // load handler writes the full record to sessionStorage key ts360_loaded_record
+    // before navigating to /calculate. On mount here, if Step 1 entity array is
+    // empty but a loaded record exists, hydrate entities from the record's saved
+    // entity data so Step 1 correctly reflects the loaded state.
+    const existingStep1 = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
+    if (existingStep1.length > 0) {
+      setEntities(existingStep1.map(e => ({
         ...e,
         pnl: e.pnl || {
           grossRevenue:  e.grossRevenue  || '',
@@ -1179,18 +1383,63 @@ export default function CalculateTaxInner() {
         own:      e.own      || '100',
         isManual: e.isManual || false,
       })))
+    } else {
+      // No in-progress Step 1 working copy. Hydrate from a one-off loaded record if one
+      // exists, otherwise from the canonical Step-1 state (ts360_entities_raw) written by
+      // Dashboard.loadRecord / AIAnalysis "Calculate Tax" / Dashboard tab-nav.
+      let hydrated = null
+
+      const loadedRaw = sessionStorage.getItem('ts360_loaded_record')
+      if (loadedRaw) {
+        try {
+          const loaded = JSON.parse(loadedRaw)
+          if (loaded.entities && loaded.entities.length > 0) hydrated = loaded.entities
+          if (loaded.taxYear) {
+            setTaxYear(loaded.taxYear)
+            writeTaxYear(loaded.taxYear)
+          }
+        } catch (err) {
+          console.error('CalculateTaxInner: failed to parse loaded record', err)
+        }
+      }
+
+      // C-04 FIX: loadRecord (and the AIAnalysis "Calculate Tax" / tab-nav paths) persist
+      // the entity list via writeStep1State — which Step 2 reads through readStep1State —
+      // but they do NOT write the ts360_step1_entities working copy that Step 1 reads. The
+      // result was a loaded record showing in Step 2 while Step 1 sat empty ("Add an entity
+      // to continue", Continue disabled). Fall back to the canonical raw entity array so
+      // Step 1 hydrates from the same source of truth as Step 2.
+      if (!hydrated || hydrated.length === 0) {
+        const raw = readStep1StateRaw()
+        if (Array.isArray(raw) && raw.length > 0) hydrated = raw
+      }
+
+      if (hydrated && hydrated.length > 0) {
+        const mapped = hydrated.map(e => ({
+          ...e,
+          pnl: e.pnl || {
+            grossRevenue:  e.grossRevenue  || '',
+            totalExpenses: e.totalExpenses || '',
+            officerSalary: e.officerSalary || '',
+            netProfit:     e.netProfit     || '',
+          },
+          own:      e.own      || '100',
+          isManual: e.isManual !== undefined ? e.isManual : true,
+        }))
+        setEntities(mapped)
+        // Persist to the Step 1 working key so subsequent renders stay hydrated.
+        sessionStorage.setItem('ts360_step1_entities', JSON.stringify(mapped))
+      }
     }
   }, [])
 
   const addEntity = useCallback(() => {
-    // GATE: multi-entity input is an Enterprise feature. Everyone gets one entity;
-    // adding more requires Enterprise (manual, picker, and CSV paths all gated).
-    if (!isEnterprise() && entities.length >= 1) { navigate('/upgrade'); return }
+    if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
     setShowEntityPicker(true)
   }, [entities.length, navigate])
 
   const addEntityOfType = useCallback((type) => {
-    if (!isEnterprise() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
+    if (!isPro() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
     const newEnt = {
       id: Date.now(),
       type,
@@ -1199,29 +1448,42 @@ export default function CalculateTaxInner() {
       pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
       isManual: true,
       connectedId: null,
-      box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
+      box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
       box17V_sstb: false,
-      // PASS4B-02b: §1366(d) basis fields + §1368 distributions field.
-      // taxCalc.js reads these to gate loss deductibility and compute
-      // distribution capital gains. Initialised to '' (not 0) so the
-      // engine's hasBasisInput guard correctly skips entities where the
-      // user has not yet entered a basis (avoids applying the limitation
-      // to users who leave the field blank).
       stockBasis: '', debtBasis: '', distributions: '',
-      // REG-01: §469 rental status for Real Estate (Schedule E) entities.
-      // Default false = passive (loss suspended) until the user marks REP
-      // (§469(c)(7)) or active participation (§469(i)). taxCalc.js routes a
-      // Real Estate entity's net through the §469 block using these flags.
       isREP: false, isActiveParticipant: false,
     }
     setEntities(prev => {
-      const next = [...prev, newEnt]
+      // F-FUNC-07: a newly added rental inherits the portfolio-wide §1.469-9(g)
+      // election so it isn't silently treated as passive while the rest of the
+      // portfolio is elected nonpassive.
+      const portfolioElected = prev.some(e => isRealEstateEntity(e.type) && e.rentalAggregationElection === true)
+      const seeded = (isRealEstateEntity(type) && portfolioElected)
+        ? { ...newEnt, rentalAggregationElection: true }
+        : newEnt
+      const next = [...prev, seeded]
       sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
       return next
     })
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
   }, [entities.length, navigate])
+
+  // F-FUNC-05: consume a Dashboard entity-preset hand-off once on mount. If the
+  // user arrived via a preset card (e.g. "S-Corp Owner") and Step 1 is empty,
+  // seed an entity of that type through the same addEntityOfType path the in-app
+  // picker uses, then clear the hint so it fires exactly once.
+  const presetConsumed = useRef(false)
+  useEffect(() => {
+    if (presetConsumed.current) return
+    const presetType = readPresetEntityType()
+    if (presetType && entities.length === 0) {
+      presetConsumed.current = true
+      addEntityOfType(presetType)
+    }
+    clearPresetEntityType()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updateEntity = useCallback((idx, updated) => {
     setEntities(prev => {
@@ -1232,16 +1494,34 @@ export default function CalculateTaxInner() {
     })
   }, [])
 
+  // F-FUNC-07: the §1.469-9(g) aggregation election is a SINGLE taxpayer-level
+  // election covering the entire rental portfolio (the engine already reads it as
+  // "any rental elected"). The label says "across all rental properties," so the
+  // control is now portfolio-wide: toggling it on any rental card applies to every
+  // rental, and newly added rentals inherit the current election. This keeps the
+  // per-card checkboxes consistent with the one portfolio election the label
+  // describes, instead of each rental starting unchecked and needing a re-election.
+  const setRentalAggregationElectionAll = useCallback((value) => {
+    setEntities(prev => {
+      const next = prev.map(e =>
+        isRealEstateEntity(e.type) ? { ...e, rentalAggregationElection: value === true } : e
+      )
+      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   const removeEntity = useCallback((idx) => {
     setEntities(prev => prev.filter((_, i) => i !== idx))
     setExpandedIdx(null)
   }, [])
 
-  // ─── Integration disconnect ────────────────────────────────────────────────
   const handleIntegrationDisconnect = useCallback((pid) => {
-    localStorage.removeItem('ts360_' + pid + '_connected')
-    localStorage.removeItem('ts360_' + pid + '_token')
-    localStorage.removeItem('ts360_' + pid + '_extra')
+    localStorage.removeItem(integrationKey(pid, 'connected'))
+    localStorage.removeItem(integrationKey(pid, 'token'))
+    localStorage.removeItem(integrationKey(pid, 'extra'))
+    localStorage.removeItem(integrationKey(pid, 'syncedAt'))
+    localStorage.removeItem(integrationKey(pid, 'failed'))
     localStorage.removeItem('ts360_connected_app')
     setEntities(prev => {
       const next = prev.map(e =>
@@ -1263,6 +1543,10 @@ export default function CalculateTaxInner() {
   const persistStep1 = useCallback(() => {
     sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
     const k1Total = entities.reduce((s, e) => {
+      // C-Corp profit is taxed at the entity level (21%) and reaches the owner as dividends,
+      // NOT as pass-through K-1 — so it must not be summed into k1Total. TaxReturn computes
+      // its corporate layer and folds the dividends into qualified dividends separately.
+      if (isCCorpEntity(e.type)) return s
       const pnl = e.pnl || {}
       const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
       const own = ownPct(e.own) / 100
@@ -1271,22 +1555,51 @@ export default function CalculateTaxInner() {
       const box12  = nf(e.box12_13)
       return s + k1 - sec179 - box12
     }, 0)
-    writeStep1State({ entities, k1Total, isCoopPatron: false })
+    writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
     writeTaxYear(taxYear)
     return k1Total
   }, [entities, taxYear])
+
+  // FIX (k1-sync): keep the persisted Step-1 payload — entities AND the derived
+  // k1Total — current on every edit, not only when "Save P&L"/"Continue" runs.
+  // updateEntity previously refreshed only the sessionStorage working copy, so
+  // editing a field that feeds k1Total (e.g. the QBI §179 box11_12) after an
+  // initial save left writeStep1State's k1Total stale. Step 2/3 reach the data
+  // through readStep1State(), so a user who jumps there via the top nav (instead
+  // of the "Continue to Step 2" button) could see a K-1 total that lagged the
+  // entity edits. Re-persisting whenever entities/taxYear change closes that gap.
+  // Safe: persistStep1 writes storage only and never calls setEntities, so this
+  // cannot loop.
+  useEffect(() => {
+    if (Array.isArray(entities) && entities.length > 0) persistStep1()
+  }, [entities, taxYear, persistStep1])
 
   const handleSaveRecord = useCallback((name) => {
     setSaveStatus('saving')
     const k1Total = persistStep1()
     const email   = localStorage.getItem('ts360_email') || 'default'
-    const key     = 'ts360_records_' + email
+    const key     = recordsKeyFor(email)
     const existing = JSON.parse(localStorage.getItem(key) || '[]')
 
+    // F-FUNC-02: when a saved record is loaded (Dashboard.loadRecord set the
+    // active-record pointer), UPDATE that record in place instead of minting a
+    // new id on every save — which previously forked an identically-named
+    // duplicate each time. A genuinely new calculation (no active pointer, or
+    // one cleared by clearStep1State) still gets a fresh id.
+    const activeId     = readActiveRecordId()
+    const existingIdx  = activeId != null
+      ? existing.findIndex(r => String(r.id) === String(activeId))
+      : -1
+    const priorName    = existingIdx >= 0 ? (existing[existingIdx].name || null) : null
+    const recordId     = existingIdx >= 0 ? existing[existingIdx].id : Date.now()
+    // Skipping the name (modal "Skip") passes null/'' — keep the record's prior
+    // name rather than blanking it; a new record with no name stays null as before.
+    const finalName    = (name != null && name !== '') ? name : priorName
+
     const record = {
-      id: Date.now(),
-      name: name || null,
-      savedAt: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      id: recordId,
+      name: finalName,
+      savedAt: formatTimestamp(new Date()),
       taxYear,
       entities,
       k1Income: k1Total,
@@ -1303,67 +1616,39 @@ export default function CalculateTaxInner() {
       f1040: readPersonalContext(),
     }
 
-    const updated = [record, ...existing].slice(0, 50)
+    // Replace-in-place on upsert, then move to the front so the just-saved record
+    // still sorts newest-first; otherwise prepend a brand-new record.
+    const updated = (existingIdx >= 0
+      ? [record, ...existing.filter((_, i) => i !== existingIdx)]
+      : [record, ...existing]
+    ).slice(0, 50)
     localStorage.setItem(key, JSON.stringify(updated))
-    localStorage.setItem('ts360_records', JSON.stringify(updated))
+    // (Retired the shared global 'ts360_records' write — records live only in the
+    // per-email bucket now, so accounts can't co-mingle on a shared browser.)
+    // Keep the "Active in Tax Tracker" pointer on the record we just saved, so the
+    // Dashboard badge follows the latest save and the next save upserts this same
+    // record instead of forking a stale original.
+    writeActiveRecord(record.id, record.name || record.savedAt)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
 
-  const handleCsvUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!isEnterprise() && entities.length >= 1) { setCsvImportStatus('locked'); e.target.value = ''; return }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      try {
-        const lines  = ev.target.result.split('\n').filter(l => l.trim())
-        if (lines.length < 2) { setCsvImportStatus('error'); return }
-        const header = lines[0].split(',').map(h => h.trim().toLowerCase())
-        const vals   = lines[1].split(',').map(v => v.trim().replace(/"/g, ''))
-        const get    = (keys) => { for (const k of keys) { const i = header.indexOf(k); if (i >= 0) return vals[i] || '' } return '' }
-
-        const importedEnt = {
-          id:   Date.now(),
-          type: 'S Corporation',
-          name: get(['entity', 'entity name', 'business', 'business name']) || 'Imported Entity',
-          own:  get(['ownership', 'own', 'ownership %', 'pct']) || '100',
-          pnl: {
-            grossRevenue:  get(['revenue', 'gross revenue', 'income', 'gross income'])        || '',
-            totalExpenses: get(['expenses', 'total expenses', 'operating expenses'])          || '',
-            officerSalary: get(['officer salary', 'salary', 'w2', 'officer compensation'])    || '',
-            netProfit:     get(['net profit', 'profit', 'net income'])                        || '',
-          },
-          isManual: true, connectedId: null,
-          box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '',
-          box17V_sstb: false,
-          // PASS4B-02b: initialise basis fields on CSV import
-          stockBasis: '', debtBasis: '', distributions: '',
-          // REG-01: §469 rental status (passive by default)
-          isREP: false, isActiveParticipant: false,
-        }
-        setEntities(prev => [...prev, importedEnt])
-        setExpandedIdx(entities.length)
-        setCsvImportStatus('success')
-      } catch {
-        setCsvImportStatus('error')
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  // ─── OAuth / integration data fetch ──────────────────────────────────────────
-  async function fetchEntityPnL(idx, pid, tok, extra) {
+  // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
+  // after every successful sync, and returns a diff summary string so the tile
+  // can display "Revenue updated: $X → $Y (+$Z)".
+  async function fetchEntityPnL(idx, pid, tok, extra, isManualSync = false) {
     try {
-      let url = `${API_BASE_URL}/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
+      let url = `/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
       if (pid === 'quickbooks' && extra) url += '&realm='   + extra
       if (pid === 'xero'        && extra) url += '&tenant='  + extra
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
-      const d = await (await fetch(url)).json()
+      const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
         if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
-          localStorage.removeItem('ts360_' + pid + '_token')
-          localStorage.removeItem('ts360_' + pid + '_connected')
+          localStorage.removeItem(integrationKey(pid, 'token'))
+          localStorage.removeItem(integrationKey(pid, 'connected'))
+          // F19 FIX: mark as failed so the tile reflects the error state
+          localStorage.setItem(integrationKey(pid, 'failed'), 'true')
         } else {
           const pnl = {
             grossRevenue:  d.revenue,
@@ -1372,9 +1657,31 @@ export default function CalculateTaxInner() {
             officerSalary: d.officer_salary || 0,
             categories:    d.categories || {}
           }
+          // F23 FIX: write sync timestamp
+          const syncedAt = new Date().toISOString()
+          localStorage.setItem(integrationKey(pid, 'syncedAt'), syncedAt)
+          localStorage.removeItem(integrationKey(pid, 'failed'))
+
           setEntities(prev => {
             const updated = [...prev]
             const providerName = pid.charAt(0).toUpperCase() + pid.slice(1) + ' Business'
+
+            // F23 FIX: compute diff for manual re-syncs
+            if (isManualSync && updated[idx]) {
+              const prevRev = nf(updated[idx]?.pnl?.grossRevenue)
+              const newRev  = d.revenue
+              if (prevRev !== newRev && prevRev > 0) {
+                const diff = newRev - prevRev
+                const sign = diff >= 0 ? '+' : ''
+                setSyncDiffs(s => ({
+                  ...s,
+                  [pid]: `Gross receipts updated: ${fmt(prevRev)} → ${fmt(newRev)} (${sign}${fmt(diff)})`
+                }))
+                // Clear diff after 8s
+                setTimeout(() => setSyncDiffs(s => { const n = { ...s }; delete n[pid]; return n }), 8000)
+              }
+            }
+
             if (updated[idx]) {
               updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
@@ -1382,18 +1689,30 @@ export default function CalculateTaxInner() {
                 name: providerName,
                 type: 'S Corporation', own: '100', ein: '', state: '', formationDate: '',
                 pnl, connectedId: pid, isManual: false,
-                // PASS4B-02b: initialise basis fields on integration sync
                 stockBasis: '', debtBasis: '', distributions: '',
-                // REG-01: §469 rental status (passive by default)
                 isREP: false, isActiveParticipant: false,
               })
             }
             return updated
           })
         }
+      } else if (isManualSync) {
+        // F19 FIX: surface failure on manual sync
+        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
       }
-    } catch (ex) { console.error('fetchEntityPnL error:', ex) }
+    } catch (ex) {
+      console.error('fetchEntityPnL error:', ex)
+      if (isManualSync) localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+    }
   }
+
+  // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
+  const handleManualSync = useCallback((pid) => {
+    const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
+    const extra = localStorage.getItem(integrationKey(pid, 'extra'))
+    const idx   = entities.findIndex(e => e.connectedId === pid)
+    fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
+  }, [entities])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -1411,10 +1730,11 @@ export default function CalculateTaxInner() {
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
-        localStorage.setItem('ts360_' + pid + '_connected', 'true')
+        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
+        localStorage.removeItem(integrationKey(pid, 'failed'))
         const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
         if (!hasToken) {
-          fetchEntityPnL(entityIdx, pid, localStorage.getItem('token') || '', null)
+          fetchEntityPnL(entityIdx, pid, '', null)
         }
         break
       }
@@ -1424,22 +1744,23 @@ export default function CalculateTaxInner() {
       const tok = p.get(k)
       if (tok) {
         foundInUrl = true
-        localStorage.setItem('ts360_' + pid + '_connected', 'true')
-        sessionStorage.setItem('ts360_' + pid + '_token', tok)  // AF-2.2: use sessionStorage (clears on tab close) — full fix is server-side token storage
+        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
+        localStorage.removeItem(integrationKey(pid, 'failed'))
+        sessionStorage.setItem(integrationKey(pid, 'token'), tok)
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
                     : pid === 'freshbooks'  ? p.get('account')
                     : null
-        if (extra) localStorage.setItem('ts360_' + pid + '_extra', extra)
+        if (extra) localStorage.setItem(integrationKey(pid, 'extra'), extra)
         fetchEntityPnL(entityIdx, pid, tok, extra)
       }
     }
 
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
-        if (localStorage.getItem('ts360_' + pid + '_connected') === 'true') {
-          const tok   = sessionStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('ts360_' + pid + '_token') || localStorage.getItem('token') || ''
-          const extra = localStorage.getItem('ts360_' + pid + '_extra')
+        if (localStorage.getItem(integrationKey(pid, 'connected')) === 'true') {
+          const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
+          const extra = localStorage.getItem(integrationKey(pid, 'extra'))
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }
       }
@@ -1453,34 +1774,93 @@ export default function CalculateTaxInner() {
     return nf(pnl.grossRevenue) > 0 || nf(pnl.netProfit) !== 0
   })
 
+  // F-01 / F-02: footer buttons are disabled when no entity has been added
+  const footerDisabled = entities.length === 0
+
+  // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
+  // The guard checks entities.length > 0 before calling persistStep1() and
+  // navigate(). This prevents the new-account edge case where the footer's
+  // onClick resolved to /privacy due to a missing record ID in the route param.
+  const handleContinueToStep2 = () => {
+    if (footerDisabled) {
+      setFooterError('Add at least one business entity to continue.')
+      setTimeout(() => setFooterError(null), 4000)
+      return
+    }
+    persistStep1()
+    navigate('/tax-return')
+  }
+
+  const handleFooterSave = () => {
+    if (footerDisabled) {
+      setFooterError('Add at least one business entity before saving.')
+      setTimeout(() => setFooterError(null), 4000)
+      return
+    }
+    setShowNameModal(true)
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
+      {/* Mobile desktop nudge — shown on narrow viewports only via CSS media query equivalent.
+          TaxStat360 is a desktop tool — the Tax Tracker has too many fields and a live
+          side panel to be usable at phone widths. This banner appears on viewports under
+          800px and nudges users to switch to a desktop browser without blocking the app.
+          Uses inline style + a hidden <style> tag since we're in a JSX component. */}
+      <style>{`
+        .ts360-mobile-nudge { display: none; }
+        @media (max-width: 800px) { .ts360-mobile-nudge { display: flex; } }
+      `}</style>
+      <div className="ts360-mobile-nudge" style={{
+        background: '#1e293b', color: '#f1f5f9',
+        padding: '10px 16px', gap: 12, alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 13, lineHeight: 1.5,
+      }}>
+        <span>💻 <strong>TaxStat360 works best on a desktop browser.</strong> Some features may be hard to use on a small screen.</span>
+      </div>
+
       {/* Nav */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0 }}>
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, minWidth: 0, overflowX: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <svg width="30" height="30" viewBox="0 0 34 34" style={{ flexShrink: 0 }}><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          {[
-            { n: 1, label: 'Entities', done: entities.length > 0 },
-            { n: 2, label: 'Return',   done: false },
-            { n: 3, label: 'AI',       done: false },
-          ].map((s, i) => (
-            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.n === 1 ? B : s.done ? G : '#E2E8F0', color: s.n === 1 || s.done ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {s.done ? '✓' : s.n}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {[
+              { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
+              { n: 2, label: 'Return',   done: false,                isCurrent: false, isReachable: false },
+              { n: 3, label: STEP3_LABEL, done: false,             isCurrent: false, isReachable: false },
+            ].map((s, i) => (
+              <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: s.isCurrent ? B : s.done ? G : '#E2E8F0',
+                    color: s.isCurrent || s.done ? '#fff' : '#94A3B8',
+                    fontSize: 11, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    {s.done ? '✓' : s.n}
+                  </div>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: s.isCurrent ? 700 : 500,
+                    color: s.isCurrent ? N : '#94A3B8',
+                    whiteSpace: 'nowrap',
+                    display: 'inline',
+                    pointerEvents: 'none',
+                    cursor: 'default',
+                  }}>
+                    {s.label}
+                  </span>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: s.n === 1 ? 700 : 500, color: s.n === 1 ? N : '#94A3B8', whiteSpace: 'nowrap', display: 'inline' }}>{s.label}</span>
+                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
               </div>
-              {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           <button onClick={() => navigate('/dashboard')}   style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Dashboard</button>
-          <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>AI Analysis & Reporting{!isPro() ? ' 🔒' : ''}</button>
+          <button onClick={() => navigate('/ai-analysis')} style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>{STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
           <button onClick={() => signOut(navigate)}        style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Sign Out</button>
           <button onClick={() => navigate('/settings')}    style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Settings</button>
         </div>
@@ -1491,7 +1871,7 @@ export default function CalculateTaxInner() {
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
-          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Revenue, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
         </div>
 
         {/* Tax year selector */}
@@ -1499,28 +1879,101 @@ export default function CalculateTaxInner() {
           <label style={{ fontSize: 13, fontWeight: 700, color: N, flexShrink: 0 }}>Tax Year</label>
           <select value={taxYear} onChange={e => { setTaxYear(parseInt(e.target.value)); writeTaxYear(parseInt(e.target.value)) }}
             style={{ padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none', flex: 1 }}>
-            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+            {SUPPORTED_TAX_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
 
         {/* Integrations */}
+        {/* O1 FIX: The subtitle "or skip and enter manually" now has a working
+            counterpart. An "Enter manually →" button appears in the integration
+            card for users without accounting software. Clicking it opens a
+            standalone ManualEntryPanel that creates a new entity. The subtitle
+            copy is preserved — the path now fulfils the promise.
+            CSV import has been removed entirely — entities are added by connecting
+            accounting software or by manual entry. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
-            Connect accounting software
-            <InfoTip text="Connect QuickBooks, Xero, Wave, or FreshBooks to pull your P&L data automatically. Or add an entity manually using the button below." />
+            Add your business income
+            <InfoTip text="Two ways to add an entity: type your revenue, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
           </div>
-          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>Sync P&L data directly — or skip and enter manually.</p>
+          <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>
+            Enter your figures yourself, or sync them automatically from accounting software.
+          </p>
+
+          {/* F1 FIX (UX audit): the manual/express path was a small secondary button while
+              the integration tiles dominated — but most first-time users (and real-estate
+              investors) just want to type their numbers. Manual entry is now the PRIMARY,
+              full-width action; connecting software is the "or sync automatically" alternative
+              below the divider. Same one-click behavior: creates a blank entity and opens it. */}
+          <button
+            onClick={() => {
+              // create a blank S-Corp entity and open the manual panel
+              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+              const newEnt = {
+                id: Date.now(),
+                type: 'S Corporation',
+                name: '',
+                own: '100',
+                pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
+                isManual: true,
+                connectedId: null,
+                box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
+                box17V_sstb: false,
+                stockBasis: '', debtBasis: '', distributions: '',
+                isREP: false, isActiveParticipant: false,
+              }
+              setEntities(prev => {
+                const next = [...prev, newEnt]
+                sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+                return next
+              })
+              setExpandedIdx(entities.length)
+              setTimeout(() => {
+                const cards = document.querySelectorAll('[data-entity-card]')
+                const last = cards[cards.length - 1]
+                if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }, 100)
+            }}
+            style={{
+              width: '100%',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              background: B,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px',
+              cursor: 'pointer',
+              color: '#fff',
+              fontFamily: 'inherit',
+              marginBottom: 14,
+            }}
+          >
+            <span style={{ fontWeight: 700, fontSize: 14 }}>✏ Enter my figures manually</span>
+            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your revenue, expenses & salary</span>
+          </button>
+
+          {/* divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
+            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>or connect accounting software</span>
+            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {(() => {
               const userIsPro = isPro()
               const connectedCount = entities.filter(e => e.connectedId).length
               return INTEGRATIONS.map(integ => {
-                const isConnected = entities.some(e => e.connectedId === integ.id)
+                const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
                 const isLocked = !userIsPro && !isConnected && connectedCount >= 1
                 if (isLocked) {
                   return (
                     <LockedFeature key={integ.id} requiredPlan="professional" label="Unlimited Integrations" minHeight={70}>
-                      <IntegrationTile integ={integ} connected={false} onConnect={() => {}} onDisconnect={() => {}} />
+                      <IntegrationTile
+                        integ={integ}
+                        onConnect={() => {}}
+                        onDisconnect={() => {}}
+                        onSync={null}
+                        syncDiff={null}
+                      />
                     </LockedFeature>
                   )
                 }
@@ -1528,163 +1981,180 @@ export default function CalculateTaxInner() {
                   <IntegrationTile
                     key={integ.id}
                     integ={integ}
-                    connected={isConnected}
                     onConnect={() => { window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect` }}
                     onDisconnect={handleIntegrationDisconnect}
+                    onSync={handleManualSync}
+                    syncDiff={syncDiffs[integ.id] || null}
                   />
                 )
               })
             })()}
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <label htmlFor="csv-upload" style={{ cursor: 'pointer', fontSize: 12, color: B, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-              📄 Import CSV
-              <input id="csv-upload" type="file" accept=".csv,.xlsx" onChange={handleCsvUpload} style={{ display: 'none' }} />
-            </label>
-            {csvImportStatus === 'success' && <span style={{ fontSize: 12, color: G, fontWeight: 600 }}>✓ Entity imported!</span>}
-            {csvImportStatus === 'error'   && <span style={{ fontSize: 12, color: R, fontWeight: 600 }}>✗ Import failed — check CSV format</span>}
-            {csvImportStatus === 'locked'  && <span style={{ fontSize: 12, color: B, fontWeight: 600 }}>🔒 Multi-entity import is an Enterprise feature</span>}
           </div>
         </div>
 
         {/* Entity cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
           {entities.map((ent, idx) => (
-            <EntityCard
-              key={ent.id || idx}
-              entity={ent}
-              idx={idx}
-              onUpdate={updateEntity}
-              onRemove={setConfirmRemoveIdx}
-              colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
-              isExpanded={expandedIdx === idx}
-              onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-            />
+            <div key={ent.id || idx} data-entity-card="">
+              <EntityCard
+                entity={ent}
+                idx={idx}
+                onUpdate={updateEntity}
+                onAggregationElection={setRentalAggregationElectionAll}
+                portfolioAggregationElected={entities.some(e => isRealEstateEntity(e.type) && e.rentalAggregationElection === true)}
+                onRemove={setConfirmRemoveIdx}
+                colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
+                isExpanded={expandedIdx === idx}
+                onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              />
+            </div>
           ))}
         </div>
 
-        {/* Add entity button — multi-entity is an Enterprise feature; everyone gets one entity */}
-        {(isEnterprise() || entities.length === 0) ? (
+        {/* Add entity button */}
+        {(isPro() || entities.length === 0) ? (
           <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
             + Add Business Entity
           </button>
         ) : (
-          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is an Enterprise feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Enterprise</span>
+          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is a Professional feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Professional</span>
           </button>
         )}
+        <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
+        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save This Record below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 
-        {/* Compare button — Pro only */}
+        {/* Compare button */}
         {entities.length > 0 && isPro() && (
           <button
             onClick={() => setShowCompare(true)}
-            title="Compare tax structures — e.g. S-Corp vs. LLC vs. Sole Proprietor."
             style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
             ⚖ Compare Entity Structures
           </button>
         )}
       </div>
 
-      {/* Fixed footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 80, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, zIndex: 70 }}>
-        <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-          {entities.length > 0
-            ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
-            : 'Add an entity to continue'}
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={() => setShowNameModal(true)}
-            disabled={!hasData || saveStatus === 'saving'}
-            style={{
-              padding: '10px 20px',
-              background: saveStatus === 'saved' ? G : hasData ? B : '#94A3B8',
-              color: '#fff', border: 'none', borderRadius: 8,
-              fontSize: 13, fontWeight: 700, cursor: hasData ? 'pointer' : 'default',
-            }}
-          >
-            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved!' : '💾 Save This Record'}
-          </button>
-          <button
-            onClick={() => { persistStep1(); navigate('/tax-return') }}
-            disabled={entities.length === 0}
-            style={{
-              padding: '10px 24px',
-              background: entities.length > 0 ? N : '#94A3B8',
-              color: '#fff', border: 'none', borderRadius: 8,
-              fontSize: 13, fontWeight: 700, cursor: entities.length > 0 ? 'pointer' : 'default',
-            }}
-          >
-            Continue to Step 2 →
-          </button>
+      {/* P0 FIX: Ask Aria widget is position:fixed bottom-right (~60x60px at bottom:16 right:16).
+          The prior `right: 80` offset left a visual gap on desktop and still caused overlap on
+          mobile because the widget's bottom edge (16 + 60 = 76px) exceeded the footer height
+          (~58px), pushing the widget partially over "Continue to Step 2".
+          Fix: extend footer to full-width (right: 0) and add paddingRight: 90 to the inner
+          button row so the rightmost button always clears the widget regardless of viewport.
+          The footer background still covers the full width so it reads as a clean bar. */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '12px 24px', zIndex: 70 }}>
+        {footerError && (
+          <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px', marginBottom: 6 }}>
+            {footerError}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingRight: 80 }}>
+          <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            {entities.length > 0
+              ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
+              : <span style={{ color: R, fontWeight: 600 }}>Add an entity to continue</span>
+            }
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={handleFooterSave}
+              disabled={footerDisabled}
+              style={{
+                padding: '10px 16px',
+                border: '1px solid ' + (footerDisabled ? '#E2E8F0' : '#CBD5E1'),
+                borderRadius: 8, background: '#fff',
+                fontSize: 13, fontWeight: 600,
+                color: footerDisabled ? '#94A3B8' : SL,
+                cursor: footerDisabled ? 'not-allowed' : 'pointer',
+                opacity: footerDisabled ? 0.6 : 1,
+              }}
+            >
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save This Record'}
+            </button>
+            {/* O2 FIX: onClick is now guarded and always navigates to /tax-return */}
+            <button
+              onClick={handleContinueToStep2}
+              disabled={footerDisabled}
+              style={{
+                padding: '10px 20px',
+                border: 'none',
+                borderRadius: 8,
+                background: footerDisabled ? '#94A3B8' : N,
+                color: '#fff',
+                fontSize: 13, fontWeight: 700,
+                cursor: footerDisabled ? 'not-allowed' : 'pointer',
+                opacity: footerDisabled ? 0.6 : 1,
+              }}
+            >
+              Continue to Step 2 →
+            </button>
+          </div>
         </div>
       </div>
 
-      {showCompare && <CompareModal entities={entities} onClose={() => setShowCompare(false)} />}
-
-      {!isPro() && entities.length > 0 && (
-        <div style={{ position: 'fixed', bottom: 70, left: 0, right: 0, zIndex: 65, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-          <div style={{ background: '#F0F6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '6px 14px', fontSize: 11, color: '#1D4ED8', fontWeight: 600, pointerEvents: 'auto' }}>
-            ⚖ Compare entity structures with <button onClick={() => navigate('/upgrade')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Professional →</button>
-          </div>
-        </div>
+      {/* Modals */}
+      <EntityCompareModal
+        isOpen={showCompare}
+        onClose={() => setShowCompare(false)}
+        entity={entities[0]}
+        entities={entities}
+        entityIdx={0}
+        personalContext={() => readPersonalContext()}
+      />
+      {showNameModal && (
+        <NameRecordModal
+          defaultName={readActiveRecordName() || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          onConfirm={name => { handleSaveRecord(name); setShowNameModal(false) }}
+          onSkip={() => { handleSaveRecord(null); setShowNameModal(false) }}
+        />
       )}
-
-      {/* Remove entity confirmation modal */}
       {confirmRemoveIdx !== null && (
-        <div onClick={() => setConfirmRemoveIdx(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '28px 24px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑</div>
-            <h2 style={{ fontSize: 17, fontWeight: 800, color: N, margin: '0 0 8px' }}>Remove This Entity?</h2>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 24px', lineHeight: 1.5 }}>All entered financial data, §199A inputs, and ownership percentages will be permanently lost. This cannot be undone.</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmRemoveIdx(null)} style={{ flex: 1, padding: '11px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: N }}>Cancel</button>
-              <button onClick={() => { removeEntity(confirmRemoveIdx); setConfirmRemoveIdx(null) }} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: 8, background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Remove Entity</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '24px', maxWidth: 380, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
+            <h4 style={{ fontWeight: 800, color: N, margin: '0 0 8px' }}>Remove this entity?</h4>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 16px' }}>This will remove the entity and all its data from Step 1. This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmRemoveIdx(null)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { removeEntity(confirmRemoveIdx); setConfirmRemoveIdx(null) }} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: R, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Entity Type Picker Modal */}
+      {/* Entity picker modal */}
       {showEntityPicker && (
-        <div onClick={() => setShowEntityPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', maxWidth: 560, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 4px' }}>What type of business entity?</h2>
-            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px' }}>Select the structure that matches how your business files taxes.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 6px' }}>What type of entity?</h3>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Choose the structure that matches your ownership interest. This determines how income flows to your personal return.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { type: 'S Corporation',              icon: '🏢', desc: 'Elected S-Corp tax status. Officer salary + K-1 distributions. FICA savings analysis included. LLC with an S-Corp election? Choose this.' },
-                { type: 'Partnership / LLC',           icon: '🤝', desc: 'Multi-member LLC or partnership (Form 1065). Each partner\'s distributive share from K-1. LLC without an S-Corp or C-Corp election? Choose this.' },
-                { type: 'Sole Proprietor / SMLLC',    icon: '💼', desc: 'Schedule C filer. Self-employment income, SE tax, and QBI deduction calculated automatically. Single-member LLC with no tax election? Choose this.' },
-                { type: 'Real Estate (Schedule E)',    icon: '🏠', desc: 'Personally-held rental property. Passive loss rules, depreciation, and REP status. Property held in an LLC or partnership? Use Partnership / LLC above.' },
+                { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income · SE tax savings on distributions · reasonable officer compensation required'         },
+                { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
+                { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
+                { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },
               ].map(({ type, icon, desc }) => (
                 <button
                   key={type}
                   onClick={() => addEntityOfType(type)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = B; e.currentTarget.style.background = '#F0F6FF' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = '#fff' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1.5px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = B}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
                 >
-                  <span style={{ fontSize: 26, flexShrink: 0 }}>{icon}</span>
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{icon}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: N, marginBottom: 2 }}>{type}</div>
-                    <div style={{ fontSize: 12, color: SL, lineHeight: 1.4 }}>{desc}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: N, marginBottom: 2 }}>{type}</div>
+                    <div style={{ fontSize: 12, color: SL }}>{desc}</div>
                   </div>
-                  <span style={{ marginLeft: 'auto', color: '#CBD5E1', fontSize: 18, flexShrink: 0 }}>›</span>
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowEntityPicker(false)} style={{ marginTop: 16, background: 'none', border: 'none', color: SL, fontSize: 13, cursor: 'pointer', width: '100%' }}>Cancel</button>
+            <button onClick={() => setShowEntityPicker(false)} style={{ width: '100%', marginTop: 16, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
+              Cancel
+            </button>
           </div>
         </div>
-      )}
-
-      {showNameModal && (
-        <NameRecordModal
-          defaultName={entities[0]?.name || ''}
-          onConfirm={(name) => { setShowNameModal(false); handleSaveRecord(name) }}
-          onSkip={() => { setShowNameModal(false); handleSaveRecord(null) }}
-        />
       )}
     </div>
   )

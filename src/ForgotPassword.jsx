@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
+import { apiPost } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-const API = 'https://app.taxstat360.com'
 
 function Logo() {
   return <div style={{ marginBottom: 24 }}><BrandLogo size={32} /></div>
@@ -19,12 +19,10 @@ export default function ForgotPassword() {
     if (!email) return
     setLoading(true)
     try {
-      // SECURITY: always show success regardless of outcome — prevents email enumeration
-      await fetch(`${API}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      })
+      // SECURITY: always show success regardless of outcome — prevents email enumeration.
+      // apiPost throws on a non-ok response; we intentionally swallow it (and any network
+      // error) so the UI never reveals whether the address is registered.
+      await apiPost('/auth/forgot-password', { email })
     } catch(e) { /* intentional — always show success */ }
     setSent(true)
     setLoading(false)
