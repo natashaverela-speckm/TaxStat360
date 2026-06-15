@@ -44,6 +44,7 @@ vi.mock('./taxCalc', () => ({
   calcNIIT: vi.fn(() => 0),
   calcAMT: vi.fn(() => 0),
   calcQBI: vi.fn(() => ({ deduction: 0, limitApplied: 'none', caps: {} })),
+  calcCCorpCorporateLayer: vi.fn(() => ({ officerSalary: 0, employerFICA: 0, profitBeforeTax: 0, corpTax: 0, dividends: 0 })),
   nv: vi.fn(v => parseFloat(v) || 0),
   calcTaxReturn: vi.fn(() => ({
     grossIncome: 0, agi: 0, seNetIncome: 0, seTax: 0, halfSE: 0,
@@ -52,7 +53,7 @@ vi.mock('./taxCalc', () => ({
     taxableAfterQBI: 0, ordinaryTaxableIncome: 0, taxableIncome: 0,
     ordFedTax: 0, prefTax: 0, fedTax: 0, marginalRate: 0.22,
     additionalMedicare: 0, niit: 0, childCredit: 0,
-    amt: 0, totalTax: 0, effectiveRate: 0,
+    amt: 0, totalTax: 0, taxToEarnedRatio: 0,
     withheld: 0, estimated: 0, totalPayments: 0, balance: 0,
     rentalNII: 0, nii: 0, quarterlyRecommended: 0,
   })),
@@ -72,6 +73,12 @@ vi.mock('./utils/sessionState.js', () => ({
   writeStep1State: vi.fn(),
   clearStep1State: vi.fn(),
   normalizeF1040: vi.fn(x => x),
+  // F-FUNC-02: buildRecord now imports these; stub them so a future test that
+  // exercises the save path has a complete mock (the existing 17 tests do not
+  // call buildRecord, so behavior is unchanged).
+  recordsKeyFor: vi.fn(email => 'ts360_records_' + email),
+  readActiveRecordId: vi.fn(() => null),
+  writeActiveRecord: vi.fn(),
 }))
 
 vi.mock('./components/MoneyInput.jsx', () => ({
@@ -97,7 +104,7 @@ vi.mock('./components/DismissibleNotice', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 import TaxReturn from './TaxReturn'
-import { calcTaxReturn } from './taxCalc'
+import { calcTaxReturn, calcCCorpCorporateLayer } from './taxCalc.js'
 import { readStep1State, readPersonalContext } from './utils/sessionState.js'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -350,5 +357,73 @@ describe('TaxReturn — MED-FLOOR: medical passed raw, excluded from itemizedAmt
     const args = calcTaxReturn.mock.calls[0][0]
     expect(args.medicalExpenses).toBe(0)
     expect(args.itemizedAmt).toBe(0)
+  })
+})
+
+// ─── C-Corp: corporate layer folds into the personal return ──────────────────
+describe('TaxReturn — C-Corp corporate layer folds into the engine input', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('adds C-Corp dividends to divInc + qualDiv, routes salary to W-2, and keeps it out of k1Total', () => {
+    calcCCorpCorporateLayer.mockReturnValue({
+      officerSalary: 50000, employerFICA: 7650, profitBeforeTax: 42350, corpTax: 8894, dividends: 33456,
+    })
+    readStep1State.mockReturnValue({
+      entities: [
+        { type: 'C Corporation', k1: 0, netProfit: 50000, own: 100, officerW2: 50000,
+          pnl: { officerSalary: 50000, netProfit: 50000 } },
+      ],
+      k1Total: 0, // Step 1 already excludes the C-Corp from pass-through
+      isCoopPatron: false,
+    })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.qualDiv).toBe(33456)
+    expect(args.divInc).toBe(33456)
+    expect(args.w2).toBe(50000)
+    expect(args.k1Total).toBe(0)
+    // Reconstructs profit BEFORE salary: persisted netProfit (50000) + salary (50000).
+    expect(calcCCorpCorporateLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ netProfit: 100000, officerSalary: 50000 })
+    )
+  })
+
+  it('does not invoke the corporate layer for non-C-Corp entities', () => {
+    readStep1State.mockReturnValue({
+      entities: [{ type: 'S Corporation', k1: 80000, netProfit: 80000, own: 100, pnl: { officerSalary: 60000 } }],
+      k1Total: 80000, isCoopPatron: false,
+    })
+    renderTaxReturn()
+    expect(calcCCorpCorporateLayer).not.toHaveBeenCalled()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.qualDiv).toBe(0)
+  })
+})
+
+// ─── Category C: tax-total headline label ─────────────────────────────────────
+describe('TaxReturn — Category C: unified "Est. Total Federal Tax" headline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('renders the unified headline and not the old liability/short variants', () => {
+    const { container } = renderTaxReturn()
+    const text = container.textContent
+    expect(text).toContain('EST. TOTAL FEDERAL TAX')
+    expect(text).not.toContain('EST. FEDERAL TAX LIABILITY')
+  })
+
+  it('keeps Balance Due / Refund as a label distinct from the headline', () => {
+    // The headline shows total tax (result.totalTax); Balance Due (result.balance) is a
+    // separate waterfall line. They must not share a label.
+    const { container } = renderTaxReturn()
+    expect(container.textContent).not.toMatch(/FEDERAL TAX LIABILITY/)
   })
 })

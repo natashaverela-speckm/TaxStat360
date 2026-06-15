@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { signOut } from './utils/signOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
+import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
-const API = 'https://app.taxstat360.com'
 
 function LOGO() {
   return <BrandLogo size={32} />
@@ -59,12 +59,12 @@ export default function Settings() {
         }
       }
     }
-    const storedPlan = localStorage.getItem('plan') || 'starter'
+    const storedPlan = localStorage.getItem('ts360_plan') || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
 
-    const storedBilling = localStorage.getItem('billing') || 'monthly'
+    const storedBilling = localStorage.getItem('ts360_billing') || 'monthly'
     setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
 
     const session = localStorage.getItem('ts360_session_start')
@@ -80,16 +80,19 @@ export default function Settings() {
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
-    fetch(`${API}/auth/mfa/status`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
+    apiGet('/auth/mfa/status', { credentials: 'include' })
       .then(data => {
         if (data && typeof data.enabled === 'boolean') {
           setMfaEnabled(data.enabled)
           localStorage.setItem('ts360_mfa_enabled', data.enabled ? '1' : '0')
         }
       })
-      .catch(() => {
-        setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
+      .catch(err => {
+        // Preserve prior behavior: a non-ok response is a no-op (leave state as-is); only a
+        // network/parse failure falls back to the cached flag.
+        if (!(err instanceof ApiError)) {
+          setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
+        }
       })
   }, [])
 
@@ -98,21 +101,15 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      const res = await fetch(`${API}/auth/change-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, new_email: emailInput })
-      })
-      if (res.ok) {
-        setEmailSent(true)
-        setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
+      await apiPost('/auth/change-email', { email, new_email: emailInput }, { credentials: 'include' })
+      setEmailSent(true)
+      setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setMsg((e.body && e.body.detail) || 'Could not send confirmation email. Please try again.')
       } else {
-        const data = await res.json().catch(() => ({}))
-        setMsg(data.detail || 'Could not send confirmation email. Please try again.')
+        setMsg('Network error — please check your connection and try again.')
       }
-    } catch {
-      setMsg('Network error — please check your connection and try again.')
     }
     setLoading(false)
   }
@@ -121,12 +118,8 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      await fetch(`${API}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      })
-    } catch(e) {}
+      await apiPost('/auth/forgot-password', { email })
+    } catch(e) { /* intentional — always show success */ }
     setPwSent(true)
     setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
     setLoading(false)
@@ -170,20 +163,15 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const res = await fetch(`${API}/auth/mfa/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Could not initialize MFA setup. Please try again.')
-      }
-      const data = await res.json()
+      const data = await apiPost('/auth/mfa/setup', undefined, { credentials: 'include' })
       setMfaSetupData(data)
       setMfaStep('setup')
     } catch(e) {
-      setMfaError(e.message || 'MFA setup failed. Please try again.')
+      if (e instanceof ApiError) {
+        setMfaError((e.body && e.body.detail) || 'Could not initialize MFA setup. Please try again.')
+      } else {
+        setMfaError(e.message || 'MFA setup failed. Please try again.')
+      }
     }
     setMfaLoading(false)
   }
@@ -196,24 +184,18 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const res = await fetch(`${API}/auth/mfa/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ code: mfaCode })
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Invalid code. Please check your authenticator app and try again.')
-      }
-      const data = await res.json()
+      const data = await apiPost('/auth/mfa/verify', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(true)
       localStorage.setItem('ts360_mfa_enabled', '1')
-      setMfaBackupCodes(data.backup_codes || mfaSetupData?.backup_codes || [])
+      setMfaBackupCodes(data?.backup_codes || mfaSetupData?.backup_codes || [])
       setMfaStep('success')
       setMfaCode('')
     } catch(e) {
-      setMfaError(e.message || 'Verification failed. Please try again.')
+      if (e instanceof ApiError) {
+        setMfaError((e.body && e.body.detail) || 'Invalid code. Please check your authenticator app and try again.')
+      } else {
+        setMfaError(e.message || 'Verification failed. Please try again.')
+      }
     }
     setMfaLoading(false)
   }
@@ -226,23 +208,18 @@ export default function Settings() {
     setMfaLoading(true)
     setMfaError('')
     try {
-      const res = await fetch(`${API}/auth/mfa/disable`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ code: mfaCode })
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Invalid code. MFA was not disabled.')
-      }
+      await apiPost('/auth/mfa/disable', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(false)
       localStorage.setItem('ts360_mfa_enabled', '0')
       setMfaStep('idle')
       setMfaCode('')
       setMfaSetupData(null)
     } catch(e) {
-      setMfaError(e.message || 'Could not disable MFA. Please try again.')
+      if (e instanceof ApiError) {
+        setMfaError((e.body && e.body.detail) || 'Invalid code. MFA was not disabled.')
+      } else {
+        setMfaError(e.message || 'Could not disable MFA. Please try again.')
+      }
     }
     setMfaLoading(false)
   }
@@ -272,7 +249,7 @@ export default function Settings() {
           TaxReturn.jsx, Dashboard). Settings.jsx previously never imported isPro,
           so the lock was always absent here regardless of plan. Also dims the
           button color to '#94A3B8' for non-Pro users, consistent with other navs. */}
-      <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100}}>
+      <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,overflowX:'auto',minWidth:0}}>
         <div onClick={()=>nav('/dashboard')}><LOGO/></div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <NavBtn label="Dashboard"    onClick={()=>nav('/dashboard')}/>
@@ -578,7 +555,7 @@ export default function Settings() {
                         {i===0&&<span style={{marginLeft:8,fontSize:11,fontWeight:700,color:'#059669'}}>Current</span>}
                       </div>
                       {entry.userAgent && (
-                        <div style={{fontSize:11,color:'#94A3B8',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        <div style={{fontSize:11,color:'#64748B',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                           {entry.userAgent}
                         </div>
                       )}

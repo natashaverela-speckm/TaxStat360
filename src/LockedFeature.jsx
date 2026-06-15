@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './constants.js'
+import { apiGet } from './utils/apiClient.js'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
@@ -34,13 +34,13 @@ export function normalizePlanId(raw) {
 export const PLANS = Object.values(PLAN_IDS)
 
 export function getUserPlan() {
-  const raw = (localStorage.getItem('plan') || 'starter').toLowerCase()
+  const raw = (localStorage.getItem('ts360_plan') || 'starter').toLowerCase()
   return PLAN_ALIASES[raw] || raw
 }
 
 // ─── Server-side plan re-validation (SEC-05) ─────────────────────────────────
 // The browser cannot be trusted to report its own plan: anyone can run
-// localStorage.setItem('plan','enterprise') in dev tools. The SERVER is the
+// localStorage.setItem('ts360_plan','enterprise') in dev tools. The SERVER is the
 // source of truth. On every app load we ask GET /auth/me (which reads the
 // httpOnly session cookie and looks up the real plan from Stripe) and stamp the
 // answer back into localStorage, overwriting any tampering.
@@ -53,20 +53,23 @@ export async function refreshPlanFromServer() {
   try {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 5000)
-    const res = await fetch(API_BASE_URL + '/auth/me', {
-      method: 'GET',
-      credentials: 'include',          // send the httpOnly session cookie
-      headers: { 'Accept': 'application/json' },
-      signal: ctrl.signal,
-    })
-    clearTimeout(timer)
-    if (!res.ok) return getUserPlan()  // 401/404/5xx → trust nothing new, keep current
-    const data = await res.json()
-    if (data && data.plan) {
-      localStorage.setItem('plan', normalizePlanId(data.plan))
+    try {
+      // Non-ok (401/404/5xx) throws ApiError → caught below → keep current plan, same as
+      // the prior explicit `if (!res.ok) return getUserPlan()`. credentials:'include' sends
+      // the httpOnly session cookie (the API is a different origin from the app).
+      const data = await apiGet('/auth/me', {
+        headers: { Accept: 'application/json' },
+        signal: ctrl.signal,
+        credentials: 'include',
+      })
+      if (data && data.plan) {
+        localStorage.setItem('ts360_plan', normalizePlanId(data.plan))
+      }
+    } finally {
+      clearTimeout(timer)
     }
   } catch (_e) {
-    // network error / timeout / abort → fail safe, keep existing plan
+    // network error / timeout / abort / non-ok → fail safe, keep existing plan
   }
   return getUserPlan()
 }
@@ -109,7 +112,7 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
   if (unlocked) return children
 
   const planLabel = requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)
-  const N = '#0F1F3D'
+  const N = '#0D1B3E'
   const B = '#2563EB'
 
   return (

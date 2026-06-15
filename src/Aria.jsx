@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-// SEC-05 FIX: Route through CloudFront (app.taxstat360.com) instead of raw
-// API Gateway URL. Per constants.js architecture rule: "all components use
-// API_BASE_URL; do not hardcode the raw API Gateway URL — CloudFront / WAF
-// rules apply uniformly only when requests route through app.taxstat360.com."
-import { API_BASE_URL } from './constants.js'
+// SEC-05: requests route through CloudFront (app.taxstat360.com) via the shared apiClient,
+// which builds every URL from API_BASE_URL — never the raw API Gateway URL — so CloudFront /
+// WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
+import { apiFetch } from './utils/apiClient.js'
 
-const ARIA_URL = `${API_BASE_URL}/aria`
 const N = '#0D1B3E'
 
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
@@ -76,11 +74,11 @@ export default function Aria() {
         .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
       const messages = [...history, { role: 'user', content: userMsg }]
 
-      const r = await fetch(ARIA_URL, {
+      const r = await apiFetch('/aria', {
         method: 'POST',
+        body: { messages },
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages })
+        raw: true,
       })
 
       if (r.status === 401) {
@@ -99,6 +97,20 @@ export default function Aria() {
       if (r.status === 403) {
         setPlanError(true)
         setMsgs(m => [...m, { role: 'assistant', text: 'Aria is available on the Professional plan and above. Upgrade to unlock AI tax strategy.' }])
+        setLoading(false)
+        return
+      }
+
+      // FIX (aria-5xx): any other non-2xx response (notably a 503 when the /aria
+      // service is unavailable) previously fell through to r.json() below, threw on
+      // the non-JSON body, and surfaced the generic "Connection error" — which reads
+      // like a client/network problem. Distinguish a server outage so the user knows
+      // it's temporary and to retry, rather than re-checking their connection.
+      if (!r.ok) {
+        const msg = r.status >= 500
+          ? 'Aria is temporarily unavailable. This is on our side — please try again in a moment.'
+          : 'Aria could not process that request. Please try again.'
+        setMsgs(m => [...m, { role: 'assistant', text: msg }])
         setLoading(false)
         return
       }
@@ -139,7 +151,7 @@ export default function Aria() {
                 </div>
               </div>
             ))}
-            {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#94a3b8' }}>Aria is thinking...</div></div>}
+            {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#64748B' }}>Aria is thinking...</div></div>}
             {planError && (
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1E40AF', textAlign: 'center' }}>
                 <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional →</a>
@@ -163,7 +175,7 @@ export default function Aria() {
               federal-planning-only scope the rest of the app shows (FederalScopeBanner,
               TaxReturn footer). The authoritative guardrails live server-side in the
               /aria system prompt; this is the user-facing reminder. */}
-          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
             Aria gives general federal tax-planning information for estimates only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>

@@ -1,8 +1,14 @@
+import { useNavigate } from 'react-router-dom'
+import Nav from './Nav'
+import Footer from './Footer'
+
 const N  = '#0D1B3E'
 const B  = '#2563EB'
 const SL = '#475569'
 
 export default function Terms() {
+  const nav = useNavigate()
+
   const Section = ({ title, children }) => (
     <div style={{ marginBottom: 32 }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: N, marginBottom: 12, borderBottom: '2px solid #E2E8F0', paddingBottom: 8 }}>{title}</h2>
@@ -11,33 +17,14 @@ export default function Terms() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    /* #6 FIX: paddingTop 64 offsets the shared fixed <Nav> (height 64). */
+    <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif', paddingTop: 64 }}>
 
-      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
-      {/* FIX: added How It Works + FAQ links to match Landing.jsx nav.
-          FIX: Sign In /dashboard → /login (unauthenticated users on legal pages).
-          FIX: CTA "Start Free Trial" → "Start Free 7-Day Trial" (CC-02). */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'white', borderBottom: '1px solid #e5e7eb', padding: '0 40px', display: 'flex', alignItems: 'center', height: 64 }}>
-        <a href='/' style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginRight: 'auto' }}>
-          <div style={{ width: 32, height: 32, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width='18' height='18' viewBox='0 0 24 24' fill='none'>
-              <rect x='3' y='12' width='4' height='9' fill='white' rx='1'/>
-              <rect x='10' y='7' width='4' height='14' fill='white' rx='1'/>
-              <rect x='17' y='3' width='4' height='18' fill='white' rx='1'/>
-            </svg>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 18, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
-        </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <a href='/#how-it-works' style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>How It Works</a>
-          <a href='/#features'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Features</a>
-          <a href='/#pricing'      style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Pricing</a>
-          <a href='/#faq'          style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>FAQ</a>
-          <a href='/resources'     style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Resources</a>
-          <a href='/login'         style={{ color: '#374151', textDecoration: 'none', fontSize: 14 }}>Sign In</a>
-          <a href='/signup' style={{ padding: '9px 20px', background: N, color: 'white', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>Start Free 7-Day Trial</a>
-        </div>
-      </nav>
+      {/* #6 FIX: Terms had its own hand-rolled inline <nav> (separate logo, links,
+          Sign In, and a hardcoded "Start Free 7-Day Trial" CTA) — the last page not
+          on the shared component. Replaced with <Nav> so every page stays in sync and
+          the trial CTA copy comes from one source. */}
+      <Nav nav={nav} />
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
@@ -48,7 +35,7 @@ export default function Terms() {
         </div>
 
         <Section title="1. Description of Service">
-          <p>TaxStat360 is a real-time tax liability management platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts.</p>
+          <p>TaxStat360 is a real-time tax liability planning and estimation platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts. TaxStat360 provides visibility and planning only — it is not a tax preparation or filing service.</p>
         </Section>
 
         <Section title="2. Not Professional Tax Advice — Estimation Tool Only">
@@ -96,24 +83,8 @@ export default function Terms() {
         </Section>
       </div>
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      {/* FIX: converted Privacy Policy from onClick+nav() to plain <a> tag
-          (consistent with Privacy.jsx and works without JS).
-          FIX: added Contact link.
-          FIX: added "not professional tax advice" disclaimer.
-          FIX: replaced hardcoded 2026 with {new Date().getFullYear()}.
-          Terms of Service self-link retained for nav symmetry with Privacy.jsx. */}
-      <footer style={{ borderTop: '1px solid #E2E8F0', padding: '24px 32px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <a href='/terms'    style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Terms of Service</a>
-          <a href='/privacy'  style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Privacy Policy</a>
-          <a href='/#contact' style={{ color: SL, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>Contact</a>
-        </div>
-        <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 8px', lineHeight: 1.5 }}>
-          TaxStat360 is a tax planning and estimation tool for informational purposes only. It is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.
-        </p>
-        <p style={{ fontSize: 12, color: SL, margin: 0 }}>© {new Date().getFullYear()} TaxStat360. All rights reserved.</p>
-      </footer>
+      {/* ── Footer (shared component — audit Pass 5 consolidation) ──────────── */}
+      <Footer />
 
     </div>
   )

@@ -126,8 +126,15 @@ function ScenarioCard({ scenario, isBest, isMostExpensive }) {
 }
 
 function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities, entityIdx }) {
+  // Comparison base must be net profit BEFORE officer salary — each scenario applies its
+  // own salary treatment (sole prop: none; S/C-corp: salary + employer FICA). The entity's
+  // persisted pnl.netProfit is AFTER salary (matching the Tax Tracker/Dashboard), so add the
+  // officer salary back to reconstruct before-salary profit, consistent with those surfaces.
   const netProfitShare = entity && entity.pnl
-    ? Math.round(entity.pnl.netProfit * (parseFloat(entity.own) / 100))
+    ? Math.round(
+        ((parseFloat(entity.pnl.netProfit) || 0) + (parseFloat(entity.officerW2 ?? entity.pnl.officerSalary) || 0))
+        * (parseFloat(entity.own) / 100)
+      )
     : 0
 
   const [salary, setSalary] = useState(null)
