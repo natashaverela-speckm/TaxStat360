@@ -48,7 +48,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
-import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, readUserRecords, writeUserRecords, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType } from './utils/sessionState.js'
+import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/signOut'
@@ -376,34 +376,33 @@ export default function Dashboard() {
   const userName = localStorage.getItem('ts360_userName') || ''
 
   useEffect(() => {
-    // CROSS-EMAIL LEAK FIX: read ONLY the current user's records via the shared
-    // helper (which also runs the one-time legacy migration). Previously this
-    // scanned EVERY ts360_records* bucket — including other accounts' buckets —
-    // and merged them, leaking records across users on a shared browser and
-    // re-writing them back to the global key.
-    const recs = readUserRecords()
-    setRecords(recs)
+    let cancelled = false
+    // M2: load from server (one-time local migration + localStorage cache fallback).
+    loadUserRecordsFromServer().then(recs => {
+      if (cancelled) return
+      setRecords(recs)
 
-    if (recs.length > 0) {
-      const r0 = recs[0]
-      if (r0.biz) setBiz(r0.biz)
-      const saved1040 = r0.biz ? (r0.f1040 || {}) : {
-        filingStatus: r0.filingStatus || 'single',
-        w2Income: r0.w2Income || '',
-        estPaid: r0.estPaid || '',
-        dependents: r0.dependents || '0',
+      if (recs.length > 0) {
+        const r0 = recs[0]
+        if (r0.biz) setBiz(r0.biz)
+        const saved1040 = r0.biz ? (r0.f1040 || {}) : {
+          filingStatus: r0.filingStatus || 'single',
+          w2Income: r0.w2Income || '',
+          estPaid: r0.estPaid || '',
+          dependents: r0.dependents || '0',
+        }
+        setF1040({
+          filingStatus: saved1040.filingStatus || 'single',
+          w2Income: saved1040.w2Income || '',
+          otherIncome: saved1040.otherIncome || '',
+          estimatedPayments: saved1040.estPaid || '',
+          dependents: saved1040.dependents || '',
+          useStandardDed: true,
+          itemizedDed: '',
+        })
+        setSavedRecordId(recs[0].id)
       }
-      setF1040({
-        filingStatus: saved1040.filingStatus || 'single',
-        w2Income: saved1040.w2Income || '',
-        otherIncome: saved1040.otherIncome || '',
-        estimatedPayments: saved1040.estPaid || '',
-        dependents: saved1040.dependents || '',
-        useStandardDed: true,
-        itemizedDed: '',
-      })
-      setSavedRecordId(recs[0].id)
-    }
+    })
 
     if (sessionStorage.getItem('ts360_goto_form') === '1') {
       sessionStorage.removeItem('ts360_goto_form')
@@ -432,6 +431,8 @@ export default function Dashboard() {
         })
         .catch(() => { setXeroLoading(false); window.history.replaceState({}, '', '/dashboard') })
     }
+
+    return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasNumbers = parseFloat(biz.grossRevenue) > 0
@@ -563,32 +564,7 @@ export default function Dashboard() {
     const wasLoaded = loadedRecord?.id === records[idx]?.id
     const updated = records.filter((_, j) => j !== idx)
     setRecords(updated)
-    // DELETE-PERSISTENCE FIX: records are mirrored across several localStorage
-    // buckets — the per-email key (ts360_records_<email>), the legacy global key
-    // (ts360_records), and a ts360_records_default copy written whenever a record
-    // was saved before ts360_email was set. The Dashboard loader re-merges ALL
-    // ts360_records* buckets (deduped by id) on every mount, so deleting from only
-    // the current-email + global keys left a stale copy in another bucket that the
-    // loader resurrected on the next sign-in. Remove the record by id from EVERY
-    // ts360_records* bucket so a delete actually sticks. (Only setItem on existing
-    // keys — never removeItem — so this index-based scan stays stable.)
-    if (removedId != null) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i)
-        if (!k || !k.startsWith('ts360_records')) continue
-        try {
-          const arr = JSON.parse(localStorage.getItem(k) || '[]')
-          if (Array.isArray(arr)) {
-            const next = arr.filter(r => r && r.id !== removedId)
-            if (next.length !== arr.length) localStorage.setItem(k, JSON.stringify(next))
-          }
-        } catch (e) {}
-      }
-    } else {
-      // Record has no id — fall back to writing the current user's bucket only
-      // (never the retired shared global key).
-      writeUserRecords(updated)
-    }
+    deleteUserRecord(removedId).then(next => setRecords(next))
     if (wasLoaded) setLoadedRecord(null)
   }
 

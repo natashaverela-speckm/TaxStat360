@@ -77,6 +77,8 @@ vi.mock('./utils/sessionState.js', () => ({
   // exercises the save path has a complete mock (the existing 17 tests do not
   // call buildRecord, so behavior is unchanged).
   recordsKeyFor: vi.fn(email => 'ts360_records_' + email),
+  readUserRecords: vi.fn(() => []),
+  syncRecordToServer: vi.fn(async r => r),
   readActiveRecordId: vi.fn(() => null),
   writeActiveRecord: vi.fn(),
 }))
