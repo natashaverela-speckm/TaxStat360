@@ -52,7 +52,7 @@ import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpC
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
-  readStep1State, writeStep1State, recordsKeyFor,
+  readStep1State, writeStep1State, readUserRecords, syncRecordToServer,
   readActiveRecordId, writeActiveRecord,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
@@ -460,9 +460,7 @@ export default function TaxReturn() {
   ])
 
   const buildRecord = useCallback(() => {
-    const email    = localStorage.getItem('ts360_email') || 'default'
-    const key      = recordsKeyFor(email)
-    const existing = JSON.parse(localStorage.getItem(key) || '[]')
+    const existing = readUserRecords()
     // F-FUNC-02: upsert the loaded record in place rather than forking a new id
     // on every Step-2 save (mirrors CalculateTaxInner.handleSaveRecord).
     const activeId    = readActiveRecordId()
@@ -507,15 +505,6 @@ export default function TaxReturn() {
       totalSuspendedLoss: result?.totalSuspendedLoss || 0,
       entityBasisResults: result?.entityBasisResults || [],
     }
-    const updated = (existingIdx >= 0
-      ? [record, ...existing.filter((_, i) => i !== existingIdx)]
-      : [record, ...existing]
-    ).slice(0, 50)
-    localStorage.setItem(key, JSON.stringify(updated))
-    // (Retired the shared global 'ts360_records' write — records live only in the
-    // per-email bucket now, so accounts can't co-mingle on a shared browser.)
-    // Keep the Active-record pointer on the just-saved record (id + name).
-    writeActiveRecord(record.id, record.name || record.savedAt)
     return record
   }, [
     taxYear, entities, sessionK1, filingStatus, dependents,
@@ -529,12 +518,14 @@ export default function TaxReturn() {
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
   ])
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (saveStatus === 'saving') return
     setSaveStatus('saving')
     setSaveError(null)
     try {
-      buildRecord()
+      const record = buildRecord()
+      await syncRecordToServer(record)
+      writeActiveRecord(record.id, record.name || record.savedAt)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 3000)
     } catch (err) {
@@ -545,14 +536,14 @@ export default function TaxReturn() {
     }
   }, [saveStatus, buildRecord])
 
-  const handleSaveAndAnalyze = useCallback(() => {
+  const handleSaveAndAnalyze = useCallback(async () => {
     if (analyzeStatus === 'saving') return
     setAnalyzeStatus('saving')
     setSaveError(null)
     try {
       const record = buildRecord()
-      // buildRecord() already syncs the active-record pointer (id + name) via
-      // writeActiveRecord (F-FUNC-02), so no separate raw write is needed here.
+      await syncRecordToServer(record)
+      writeActiveRecord(record.id, record.name || record.savedAt)
       setAnalyzeStatus('idle')
       navigate('/ai-analysis', { state: { record } })
     } catch (err) {

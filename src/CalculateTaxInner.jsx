@@ -116,7 +116,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, recordsKeyFor, readActiveRecordId, readActiveRecordName, writeActiveRecord, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -1574,12 +1574,10 @@ export default function CalculateTaxInner() {
     if (Array.isArray(entities) && entities.length > 0) persistStep1()
   }, [entities, taxYear, persistStep1])
 
-  const handleSaveRecord = useCallback((name) => {
+  const handleSaveRecord = useCallback(async (name) => {
     setSaveStatus('saving')
     const k1Total = persistStep1()
-    const email   = localStorage.getItem('ts360_email') || 'default'
-    const key     = recordsKeyFor(email)
-    const existing = JSON.parse(localStorage.getItem(key) || '[]')
+    const existing = readUserRecords()
 
     // F-FUNC-02: when a saved record is loaded (Dashboard.loadRecord set the
     // active-record pointer), UPDATE that record in place instead of minting a
@@ -1616,20 +1614,14 @@ export default function CalculateTaxInner() {
       f1040: readPersonalContext(),
     }
 
-    // Replace-in-place on upsert, then move to the front so the just-saved record
-    // still sorts newest-first; otherwise prepend a brand-new record.
-    const updated = (existingIdx >= 0
-      ? [record, ...existing.filter((_, i) => i !== existingIdx)]
-      : [record, ...existing]
-    ).slice(0, 50)
-    localStorage.setItem(key, JSON.stringify(updated))
-    // (Retired the shared global 'ts360_records' write — records live only in the
-    // per-email bucket now, so accounts can't co-mingle on a shared browser.)
-    // Keep the "Active in Tax Tracker" pointer on the record we just saved, so the
-    // Dashboard badge follows the latest save and the next save upserts this same
-    // record instead of forking a stale original.
-    writeActiveRecord(record.id, record.name || record.savedAt)
-    setSaveStatus('saved')
+    try {
+      await syncRecordToServer(record)
+      writeActiveRecord(record.id, record.name || record.savedAt)
+      setSaveStatus('saved')
+    } catch (err) {
+      console.error('CalculateTaxInner handleSaveRecord error:', err)
+      setSaveStatus('error')
+    }
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
 

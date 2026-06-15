@@ -1,4 +1,11 @@
 // src/utils/sessionState.js
+import {
+  fetchRecordsFromServer,
+  upsertRecordOnServer,
+  deleteRecordOnServer,
+  migrateLocalRecordsToServer,
+} from './recordsApi.js'
+
 // Typed reader/writer functions for all sessionStorage keys used across the
 // Step 1 → Step 2 navigation boundary in TaxStat360.
 //
@@ -695,6 +702,76 @@ export function writeUserRecords(recs) {
   const list = Array.isArray(recs) ? recs : []
   localStorage.setItem(recordsKeyFor(_recordsEmail()), JSON.stringify(list))
   return list
+}
+
+function _upsertRecordInCache(record) {
+  const list = readUserRecords()
+  const idx = list.findIndex(r => r && String(r.id) === String(record.id))
+  const updated = (idx >= 0
+    ? [record, ...list.filter((_, i) => i !== idx)]
+    : [record, ...list]
+  ).slice(0, 50)
+  writeUserRecords(updated)
+  return updated
+}
+
+/** Fetch records from the server (with one-time local migration); fall back to cache. */
+export async function loadUserRecordsFromServer() {
+  const email = _recordsEmail()
+  const local = readUserRecords()
+  if (email === 'default') return local
+  await migrateLocalRecordsToServer(local)
+  try {
+    const server = await fetchRecordsFromServer()
+    const sorted = server.sort((a, b) => (b.id || 0) - (a.id || 0))
+    writeUserRecords(sorted)
+    return sorted
+  } catch (e) {
+    console.warn('records server fetch failed, using local cache', e)
+    return local
+  }
+}
+
+/** Upsert one record on the server and in the per-user localStorage cache. */
+export async function syncRecordToServer(record) {
+  if (!record || record.id == null) return record
+  const email = _recordsEmail()
+  let merged = record
+  if (email !== 'default') {
+    try {
+      const saved = await upsertRecordOnServer(record)
+      merged = { ...record, ...saved }
+    } catch (e) {
+      console.warn('records server upsert failed, cached locally', e)
+    }
+  }
+  _upsertRecordInCache(merged)
+  return merged
+}
+
+/** Delete a record on the server and from every local ts360_records* bucket. */
+export async function deleteUserRecord(recordId) {
+  if (recordId == null) return readUserRecords()
+  const email = _recordsEmail()
+  if (email !== 'default') {
+    try {
+      await deleteRecordOnServer(recordId)
+    } catch (e) {
+      console.warn('records server delete failed', e)
+    }
+  }
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (!k || !k.startsWith('ts360_records')) continue
+    try {
+      const arr = JSON.parse(localStorage.getItem(k) || '[]')
+      if (Array.isArray(arr)) {
+        const next = arr.filter(r => r && r.id !== recordId)
+        if (next.length !== arr.length) localStorage.setItem(k, JSON.stringify(next))
+      }
+    } catch (e) {}
+  }
+  return readUserRecords()
 }
 
 // ─── F-FUNC-02: Active / loaded record pointer ─────────────────────────────
