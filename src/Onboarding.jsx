@@ -84,6 +84,7 @@ import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './con
 import { apiFetch } from './utils/apiClient.js'
 import { writeBusinessInfo } from './utils/sessionState.js'
 import BrandLogo from './BrandLogo'
+import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
 
 const PK = import.meta.env.VITE_STRIPE_PK || 'pk_live_51TJmYhGUoj1XrJQjwM8Wo8tLgTmyQsUISsQw9zUEre4RHmDu9ciJNspQPU43Gjt0uYaDhFJR0Pw5QHUHJx7Ru0op00di8gFL4e'
@@ -341,14 +342,12 @@ style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',tex
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
 <div>
 <label htmlFor="signup-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
-<input
+<PasswordInput
 id="signup-password"
-type="password"
 value={pass}
 onChange={e=>setPass(e.target.value)}
 placeholder="Min. 12 chars"
 autoComplete="new-password"
-style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}
 />
 </div>
 {/* O5 FIX: onBlur handler validates match immediately when the user leaves the
@@ -356,19 +355,14 @@ style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:
     inline below the field. The Field component now accepts an onBlur prop. */}
 <div>
 <label htmlFor="signup-confirm-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Confirm Password</label>
-<input
+<PasswordInput
   id="signup-confirm-password"
-  type="password"
   value={conf}
   onChange={e=>{setConf(e.target.value);if(confErr)setConfErr('')}}
   onBlur={handleConfBlur}
   placeholder="Repeat password"
   autoComplete="new-password"
-  style={{
-    width:'100%',padding:'9px 12px',
-    border:`1px solid ${confErr?'#DC2626':'#E2E8F0'}`,
-    borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'
-  }}
+  hasError={!!confErr}
 />
 {/* O5 FIX: inline error shown immediately on blur — no scrolling required */}
 {confErr && (
@@ -521,9 +515,8 @@ async function submit(e){
 e.preventDefault();setLoading(true);setErr('')
 try{
 const domEmail = document.querySelector('input[type="email"]')?.value || ''
-const domPass  = document.querySelector('input[type="password"]')?.value || ''
 const actualEmail = (email || domEmail).toLowerCase().trim()
-const actualPass  = pass || domPass
+const actualPass  = pass
 if (!actualEmail || !actualPass) { setErr('Please enter your email and password.'); setLoading(false); return }
 const res=await apiFetch('/auth/login',{method:'POST',credentials:'include',body:{email:actualEmail,password:actualPass},raw:true})
 const data=await res.json()
@@ -584,7 +577,10 @@ style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius
 ):(
 <form onSubmit={submit}>
 <Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
-<Field label="Password" val={pass} set={setPass} type="password" ph="Your password" autoComplete="current-password"/>
+<div style={{marginBottom:12}}>
+<label htmlFor="login-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
+<PasswordInput id="login-password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Your password" autoComplete="current-password" />
+</div>
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
 <button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
 <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial →</button>
