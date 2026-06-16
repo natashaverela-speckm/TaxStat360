@@ -1630,10 +1630,14 @@ export default function CalculateTaxInner() {
   // can display "Revenue updated: $X → $Y (+$Z)".
   async function fetchEntityPnL(idx, pid, tok, extra, isManualSync = false) {
     try {
-      let url = `/integrations/${pid}/data?token=${encodeURIComponent(tok)}`
+      let url = `/integrations/${pid}/data?token=${encodeURIComponent(tok)}&year=${encodeURIComponent(taxYear)}`
       if (pid === 'quickbooks' && extra) url += '&realm='   + extra
       if (pid === 'xero'        && extra) url += '&tenant='  + extra
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
+      if (pid === 'xero') {
+        const xeroRefresh = localStorage.getItem('ts360_xero_refresh')
+        if (xeroRefresh) url += '&refresh_token=' + encodeURIComponent(xeroRefresh)
+      }
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
         if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
@@ -1691,6 +1695,10 @@ export default function CalculateTaxInner() {
       } else if (isManualSync) {
         // F19 FIX: surface failure on manual sync
         localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        if (d?.error) {
+          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed — try reconnecting or enter numbers manually.`)
+          setTimeout(() => setFooterError(null), 8000)
+        }
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)
@@ -1704,7 +1712,7 @@ export default function CalculateTaxInner() {
     const extra = localStorage.getItem(integrationKey(pid, 'extra'))
     const idx   = entities.findIndex(e => e.connectedId === pid)
     fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
-  }, [entities])
+  }, [entities, taxYear])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -1738,6 +1746,7 @@ export default function CalculateTaxInner() {
         foundInUrl = true
         localStorage.setItem(integrationKey(pid, 'connected'), 'true')
         localStorage.removeItem(integrationKey(pid, 'failed'))
+        localStorage.setItem(integrationKey(pid, 'token'), tok)
         sessionStorage.setItem(integrationKey(pid, 'token'), tok)
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
