@@ -104,3 +104,6 @@ export const apiGet = (path, opts = {}) => apiFetch(path, { ...opts, method: 'GE
 
 /** POST helper. Pass a plain object for `body` to send JSON. */
 export const apiPost = (path, body, opts = {}) => apiFetch(path, { ...opts, method: 'POST', body })
+
+/** DELETE helper. */
+export const apiDelete = (path, opts = {}) => apiFetch(path, { ...opts, method: 'DELETE' })
