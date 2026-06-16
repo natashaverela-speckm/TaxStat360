@@ -11,6 +11,7 @@ import TaxReturn from './TaxReturn'
 import AIAnalysis from './AIAnalysis'
 import Dashboard from './Dashboard'
 import Settings from './Settings'
+import Admin from './Admin'
 import Upgrade from './Upgrade'
 import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
@@ -353,6 +354,7 @@ const ROUTE_TITLES = {
   '/tax-return':       'Personal Return | TaxStat360',
   '/ai-analysis':      'AI Analysis & Reporting | TaxStat360',
   '/settings':         'Account Settings | TaxStat360',
+  '/admin':            'Admin | TaxStat360',
   '/upgrade':          'Upgrade Plan | TaxStat360',
   '/reset-password':   'Reset Password | TaxStat360',
   '/forgot-password':  'Forgot Password | TaxStat360',
@@ -365,7 +367,7 @@ const ROUTE_TITLES = {
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 const NOINDEX_PREFIXES  = [
   '/dashboard','/calculate-tax','/calculator',
-  '/tax-return','/ai-analysis','/settings',
+  '/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
 ]
 
@@ -556,6 +558,7 @@ export default function App() {
         <Route path="/tax-return"    element={<RequireAuth><TaxReturn /></RequireAuth>} />
         <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
         <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
+        <Route path="/admin"         element={<RequireAuth><Admin /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
 
         {/* Password reset — public */}
