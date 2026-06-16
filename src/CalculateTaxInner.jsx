@@ -1640,11 +1640,14 @@ export default function CalculateTaxInner() {
       }
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
-        if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
+        const empty =
+          d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
+        if (empty) {
           localStorage.removeItem(integrationKey(pid, 'token'))
           localStorage.removeItem(integrationKey(pid, 'connected'))
-          // F19 FIX: mark as failed so the tile reflects the error state
           localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year or enter figures manually.`)
+          setTimeout(() => setFooterError(null), 10000)
         } else {
           const pnl = {
             grossRevenue:  d.revenue,
@@ -1692,13 +1695,14 @@ export default function CalculateTaxInner() {
             return updated
           })
         }
-      } else if (isManualSync) {
-        // F19 FIX: surface failure on manual sync
+      } else if (d?.error) {
         localStorage.setItem(integrationKey(pid, 'failed'), 'true')
-        if (d?.error) {
-          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed — try reconnecting or enter numbers manually.`)
-          setTimeout(() => setFooterError(null), 8000)
-        }
+        localStorage.removeItem(integrationKey(pid, 'connected'))
+        const detail = d.status ? ` (HTTP ${d.status})` : ''
+        setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try reconnecting or enter numbers manually.`)
+        setTimeout(() => setFooterError(null), 10000)
+      } else if (isManualSync) {
+        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)
