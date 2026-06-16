@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signOut } from './utils/signOut'
+import { signOut, wipeAccountLocalData } from './utils/signOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
+import { deleteOwnAccount } from './utils/accountApi.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -37,6 +38,48 @@ export default function Settings() {
   const [idleTimeout, setIdleTimeout] = useState('30')
   const [loginHistory, setLoginHistory] = useState([])
   const [exportDone, setExportDone] = useState(false)
+
+  // Permanent account-deletion (self-service) state
+  const [showDelete, setShowDelete] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteErr, setDeleteErr] = useState('')
+
+  async function handleConfirmDelete() {
+    if (confirmText.trim().toUpperCase() !== 'DELETE') return
+    setDeleting(true)
+    setDeleteErr('')
+    try {
+      await deleteOwnAccount()
+      // Keep support/admin notified as a record — best-effort, never blocks deletion.
+      try {
+        await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            access_key: import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed',
+            subject: 'TaxStat360 — account deleted (self-service)',
+            email: email || 'unknown',
+            message: `User ${email || 'unknown'} permanently deleted their account on ${new Date().toISOString()}.`,
+          }),
+        })
+      } catch (e) {
+        /* notification failure is non-fatal */
+      }
+      // Erase all local data and return to the landing page (also ends the session).
+      wipeAccountLocalData(nav)
+    } catch (e) {
+      setDeleting(false)
+      if (e && e.status === 401) {
+        setDeleteErr('Your session has expired. Please sign in again before deleting your account.')
+      } else {
+        setDeleteErr(
+          (e && (e.body?.detail || e.message)) ||
+            'Deletion failed — your account was not changed. Please try again or contact support.'
+        )
+      }
+    }
+  }
 
   // MFA/2FA state
   const [mfaEnabled, setMfaEnabled] = useState(false)
@@ -605,10 +648,61 @@ export default function Settings() {
               <div style={{fontSize:14,fontWeight:600,color:N}}>Delete account</div>
               <div style={{fontSize:13,color:SL,marginTop:3}}>Permanently delete your account and all data. Cannot be undone.</div>
             </div>
-            <a href={'mailto:support@taxstat360.com?subject=Account%20Deletion%20Request'} style={{padding:'9px 18px',background:'#fff',border:'1.5px solid #DC2626',borderRadius:8,color:'#DC2626',fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>
-              Request deletion
-            </a>
+            <button
+              onClick={() => { setShowDelete(true); setConfirmText(''); setDeleteErr('') }}
+              style={{padding:'9px 18px',background:'#fff',border:'1.5px solid #DC2626',borderRadius:8,color:'#DC2626',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}
+            >
+              Delete account
+            </button>
           </div>
+
+          {showDelete && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Confirm account deletion"
+              style={{position:'fixed',inset:0,background:'rgba(13,27,62,0.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+              onClick={() => { if (!deleting) setShowDelete(false) }}
+            >
+              <div onClick={e => e.stopPropagation()} style={{background:'#fff',borderRadius:14,maxWidth:440,width:'100%',padding:'26px 24px',boxShadow:'0 20px 50px rgba(0,0,0,0.25)'}}>
+                <div style={{fontSize:17,fontWeight:700,color:'#DC2626',marginBottom:10}}>Delete your account?</div>
+                <div style={{fontSize:13.5,color:SL,lineHeight:1.55,marginBottom:8}}>
+                  This permanently deletes your account, cancels your subscription, and erases all of your saved tax records and personal information. <strong>This cannot be undone.</strong>
+                </div>
+                <div style={{fontSize:13,color:N,marginBottom:8}}>Type <strong>DELETE</strong> to confirm:</div>
+                <input
+                  autoFocus
+                  value={confirmText}
+                  onChange={e => setConfirmText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleConfirmDelete() }}
+                  placeholder="DELETE"
+                  disabled={deleting}
+                  style={{width:'100%',boxSizing:'border-box',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,marginBottom:14}}
+                />
+                {deleteErr && (
+                  <div role="alert" style={{fontSize:13,color:'#DC2626',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:8,padding:'8px 12px',marginBottom:14}}>
+                    {deleteErr}
+                  </div>
+                )}
+                <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                  <button
+                    onClick={() => setShowDelete(false)}
+                    disabled={deleting}
+                    style={{padding:'9px 16px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:deleting?'default':'pointer'}}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={deleting || confirmText.trim().toUpperCase() !== 'DELETE'}
+                    style={{padding:'9px 16px',background:(deleting||confirmText.trim().toUpperCase()!=='DELETE')?'#FCA5A5':'#DC2626',color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:(deleting||confirmText.trim().toUpperCase()!=='DELETE')?'default':'pointer'}}
+                  >
+                    {deleting ? 'Deleting…' : 'Permanently delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
