@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
+import PasswordInput from './components/PasswordInput.jsx'
 import { apiPost, ApiError } from './utils/apiClient.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
@@ -85,24 +86,26 @@ export default function ResetPassword() {
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: N, display: 'block', marginBottom: 6 }}>New password</label>
-              <input
-                type="password"
+              <PasswordInput
+                id="reset-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="At least 12 characters"
-                style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, outline: 'none', boxSizing: 'border-box' }}
+                autoComplete="new-password"
+                inputStyle={{ padding: '11px 40px 11px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0' }}
               />
             </div>
 
             <div style={{ marginBottom: 24 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: N, display: 'block', marginBottom: 6 }}>Confirm new password</label>
-              <input
-                type="password"
+              <PasswordInput
+                id="reset-password-confirm"
                 value={confirm}
                 onChange={e => setConfirm(e.target.value)}
                 placeholder="Repeat your new password"
+                autoComplete="new-password"
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, outline: 'none', boxSizing: 'border-box' }}
+                inputStyle={{ padding: '11px 40px 11px 14px', borderRadius: 8, border: '1.5px solid #E2E8F0' }}
               />
             </div>
 
