@@ -857,7 +857,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
         <div style={{ padding: '14px 18px', borderTop: '1px solid #F1F5F9' }}>
 
           {/* P&L summary */}
-          {nf(pnl.grossRevenue) > 0 && (
+          {(nf(pnl.grossRevenue) !== 0 || nf(pnl.totalExpenses) !== 0 || nf(pnl.netProfit) !== 0) && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span>
@@ -1636,7 +1636,9 @@ export default function CalculateTaxInner() {
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
-        if (d.revenue === 0 && d.expenses === 0 && d.net_profit === 0) {
+        const empty =
+          d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
+        if (empty) {
           localStorage.removeItem(integrationKey(pid, 'token'))
           localStorage.removeItem(integrationKey(pid, 'connected'))
           // F19 FIX: mark as failed so the tile reflects the error state
@@ -1688,8 +1690,8 @@ export default function CalculateTaxInner() {
             return updated
           })
         }
-      } else if (isManualSync) {
-        // F19 FIX: surface failure on manual sync
+      } else if (isManualSync || d?.error) {
+        // F19 FIX: surface failure on manual sync or API error payload
         localStorage.setItem(integrationKey(pid, 'failed'), 'true')
       }
     } catch (ex) {
@@ -1718,6 +1720,18 @@ export default function CalculateTaxInner() {
     if (xeroRefresh) localStorage.setItem('ts360_xero_refresh', xeroRefresh)
     const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
     let foundInUrl = false
+
+    for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
+      if (p.get(pid) === 'error') {
+        foundInUrl = true
+        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        localStorage.removeItem(integrationKey(pid, 'connected'))
+        const reason = p.get('reason') || 'connect_failed'
+        setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connect failed (${reason}). Try again or enter numbers manually.`)
+        setTimeout(() => setFooterError(null), 8000)
+        break
+      }
+    }
 
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
