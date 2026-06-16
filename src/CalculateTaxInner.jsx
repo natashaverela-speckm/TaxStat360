@@ -419,7 +419,11 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E' }}>{integ.name}</div>
         {/* F19 FIX: status line reflects actual connection state */}
-        {isConnected ? (
+        {isConnected && hasFailed ? (
+          <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>
+            Sync failed — use ⟳ Sync now
+          </div>
+        ) : isConnected ? (
           <div style={{ fontSize: 11, color: integ.color, fontWeight: 600 }}>
             ✓ Connected
             {/* F23 FIX: show last-synced timestamp when available */}
@@ -587,6 +591,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   // entity / idx are intentionally excluded from the deps: including the callback or
   // the entity object would re-fire this on every parent re-render (and could loop).
   useEffect(() => {
+    // Do not clobber a live software sync when the panel opens with empty defaults.
+    if (entity.connectedId) return
     onUpdate(idx, {
       ...entity,
       officerW2: effectiveSal,
@@ -1363,6 +1369,8 @@ export default function CalculateTaxInner() {
   const [showStandaloneManual, setShowStandaloneManual] = useState(false)
   // F23 FIX: per-provider sync diff message shown after a manual re-sync
   const [syncDiffs,        setSyncDiffs]        = useState({})
+  const [integrationRevision, setIntegrationRevision] = useState(0)
+  const bumpIntegrationUi = () => setIntegrationRevision(n => n + 1)
 
   useEffect(() => {
     // F-12 FIX: When a record is loaded via Dashboard ("Load & Continue"), the
@@ -1643,10 +1651,9 @@ export default function CalculateTaxInner() {
         const empty =
           d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
         if (empty) {
-          localStorage.removeItem(integrationKey(pid, 'token'))
-          localStorage.removeItem(integrationKey(pid, 'connected'))
           localStorage.setItem(integrationKey(pid, 'failed'), 'true')
-          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year or enter figures manually.`)
+          bumpIntegrationUi()
+          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year, Sync now, or enter figures manually.`)
           setTimeout(() => setFooterError(null), 10000)
         } else {
           const pnl = {
@@ -1660,6 +1667,7 @@ export default function CalculateTaxInner() {
           const syncedAt = new Date().toISOString()
           localStorage.setItem(integrationKey(pid, 'syncedAt'), syncedAt)
           localStorage.removeItem(integrationKey(pid, 'failed'))
+          bumpIntegrationUi()
 
           setEntities(prev => {
             const updated = [...prev]
@@ -1697,16 +1705,20 @@ export default function CalculateTaxInner() {
         }
       } else if (d?.error) {
         localStorage.setItem(integrationKey(pid, 'failed'), 'true')
-        localStorage.removeItem(integrationKey(pid, 'connected'))
+        bumpIntegrationUi()
         const detail = d.status ? ` (HTTP ${d.status})` : ''
-        setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try reconnecting or enter numbers manually.`)
+        setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try Sync now or reconnect.`)
         setTimeout(() => setFooterError(null), 10000)
       } else if (isManualSync) {
         localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        bumpIntegrationUi()
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)
-      if (isManualSync) localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+      if (isManualSync) {
+        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        bumpIntegrationUi()
+      }
     }
   }
 
@@ -1984,7 +1996,7 @@ export default function CalculateTaxInner() {
                 }
                 return (
                   <IntegrationTile
-                    key={integ.id}
+                    key={`${integ.id}-${integrationRevision}`}
                     integ={integ}
                     onConnect={() => { window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect` }}
                     onDisconnect={handleIntegrationDisconnect}
