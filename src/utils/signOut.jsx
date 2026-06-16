@@ -59,3 +59,28 @@ export function signOut(nav) {
   AUTH_KEYS.forEach(k => localStorage.removeItem(k))
   nav('/')
 }
+
+// Used after a permanent account DELETION (not a normal sign-out). Unlike signOut,
+// which deliberately preserves saved tax scenarios, this erases EVERYTHING tied to
+// the account on this device — auth, integration tokens, AND the ts360_records_*
+// buckets — so no personal/tax data lingers locally after the account is gone.
+export function wipeAccountLocalData(nav) {
+  try {
+    const remove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k) continue
+      if (k.startsWith('ts360_') || ['token', 'plan', 'billing', 'userName'].includes(k)) {
+        remove.push(k)
+      }
+    }
+    remove.forEach(k => localStorage.removeItem(k))
+  } catch (e) {
+    // Last resort: if enumeration fails, fall back to the known auth keys.
+    AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+  }
+  try {
+    sessionStorage.clear()
+  } catch (e) {}
+  if (nav) nav('/')
+}
