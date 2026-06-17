@@ -139,6 +139,7 @@ export default function Upgrade() {
       const token = localStorage.getItem('ts360_token')
       const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Authorization': `Bearer ${token}` },
         body: { plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method },
         raw: true,
