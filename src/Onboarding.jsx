@@ -222,7 +222,7 @@ localStorage.setItem('ts360_session_start', String(Date.now()))
 localStorage.setItem('ts360_plan',plan)
 localStorage.setItem('ts360_billing',billing)
 try{
-await apiFetch('/stripe/subscribe',{method:'POST',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
+await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 }catch(e){ console.warn('Subscribe call failed:',e) }
 localStorage.setItem('ts360_userName',name)
 localStorage.setItem('ts360_pendingEmail',email)
