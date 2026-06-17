@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { calcQBI, QBI_THRESHOLDS, getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable } from './taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold } from './taxCalc.js'
+import {
+  resolveQbiDeduction,
+  taxableIncomeBeforeQBI,
+  computeSimulatorScenario,
+  qbiDeductionGap,
+  qbiFormSelection,
+  niitApplies,
+  additionalMedicareApplies,
+} from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords } from './utils/sessionState.js'
@@ -13,8 +22,6 @@ import BrandLogo from './BrandLogo'
 import {
   CURRENT_TAX_YEAR,
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
-  NIIT_THRESHOLD_MFJ, NIIT_THRESHOLD_MFS, NIIT_THRESHOLD_SINGLE,
-  ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
   FINANCIAL_LABELS,
 } from './constants.js'
@@ -336,10 +343,15 @@ function RiskScan({ rec }) {
 
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
-  const _taxableBeforeQBI_rough = Math.max(0, totalIncome - getStdDed(year, filing))
-  const { deduction: _qbiRough } = isPassthroughEntity(b.entityType) && k1 > 0
-    ? calcQBI(k1, _taxableBeforeQBI_rough, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
-    : { deduction: 0 }
+  const _taxableBeforeQBI_rough = taxableIncomeBeforeQBI(totalIncome, year, filing)
+  const { deduction: _qbiRough } = resolveQbiDeduction({
+    k1,
+    taxableBeforeQBI: _taxableBeforeQBI_rough,
+    entityType: b.entityType,
+    filing,
+    taxYear: year,
+    entities: rec.entities || [],
+  })
   const _taxable = Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
   const roughTax = calcFederalTax(_taxable, year, filing)
   const _marginalRate = getMarginalRate(_taxable, year, filing)
@@ -428,10 +440,23 @@ function RiskScan({ rec }) {
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const _year = parseInt(b.year) || CURRENT_TAX_YEAR
     const _filing = f.filingStatus || 'single'
-    const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(_year, _filing))
-    const { deduction: qbi, limitApplied: _limitApplied, caps: _caps, aggregationApplied: _agg, aggregationDisclosure: _aggDisc } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: _year, entityQbiData: rec.entities || [] })
+    const _taxableBeforeQBI = taxableIncomeBeforeQBI(k1 + w2, _year, _filing)
+    const {
+      deduction: qbi,
+      limitApplied: _limitApplied,
+      caps: _caps,
+      aggregationApplied: _agg,
+      aggregationDisclosure: _aggDisc,
+    } = resolveQbiDeduction({
+      k1,
+      taxableBeforeQBI: _taxableBeforeQBI,
+      entityType: b.entityType,
+      filing: _filing,
+      taxYear: _year,
+      entities: rec.entities || [],
+    })
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
-    const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - qbi)) : 0
+    const _qbiGap = qbiDeductionGap({ deduction: qbi, caps: _caps })
     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on the K-1 §199A statement (Box 17 Code V) — could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
@@ -700,10 +725,15 @@ function TaxOptimization({ rec }) {
   const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
   const agi = Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
 
-  const _taxableBeforeQBI_opt = Math.max(0, agi - stdDed)
-  const { deduction: _qbiOpt } = isPassthroughEntity(b.entityType) && k1 > 0
-    ? calcQBI(k1, _taxableBeforeQBI_opt, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] })
-    : { deduction: 0 }
+  const _taxableBeforeQBI_opt = taxableIncomeBeforeQBI(agi, year, filing)
+  const { deduction: _qbiOpt } = resolveQbiDeduction({
+    k1,
+    taxableBeforeQBI: _taxableBeforeQBI_opt,
+    entityType: b.entityType,
+    filing,
+    taxYear: year,
+    entities: rec.entities || [],
+  })
   const taxable = Math.max(0, _taxableBeforeQBI_opt - _qbiOpt)
   const marginalRate = getMarginalRate(taxable, year, filing)
 
@@ -923,22 +953,40 @@ function IRSCompliance({ rec }) {
 
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
-    const _taxableBeforeQBI = Math.max(0, k1 + w2 - getStdDed(year, _filing))
-    const { deduction: _qbi, limitApplied: _limitApplied, caps: _caps, aggregationApplied: _agg } = calcQBI(k1, _taxableBeforeQBI, 0, { status: _filing, taxYear: year, entityQbiData: rec.entities || [] })
-    const _qbiGap = _caps ? Math.max(0, Math.round(_caps.qbi - _qbi)) : 0
-    const _qbiThresholds = QBI_THRESHOLDS[year] || QBI_THRESHOLDS[2025]
-    const _qbiThreshold = _qbiThresholds[_filing] || _qbiThresholds.single
+    const _taxableBeforeQBI = taxableIncomeBeforeQBI(k1 + w2, year, _filing)
+    const {
+      deduction: _qbi,
+      limitApplied: _limitApplied,
+      caps: _caps,
+      aggregationApplied: _agg,
+    } = resolveQbiDeduction({
+      k1,
+      taxableBeforeQBI: _taxableBeforeQBI,
+      entityType: entity,
+      filing: _filing,
+      taxYear: year,
+      entities: rec.entities || [],
+    })
+    const _qbiGap = qbiDeductionGap({ deduction: _qbi, caps: _caps })
     const _isCoopPatron = !!f.isCoopPatron
-    const _useForm8995A = _taxableBeforeQBI > _qbiThreshold || _isCoopPatron
-    const _hasSSTB = (Array.isArray(rec.entities) ? rec.entities : []).some(e => !!(e && (e.box17V_sstb || e.sstb)))
+    const {
+      useForm8995A: _useForm8995A,
+      formNum: _formNum,
+      formTitle: _formTitle,
+      threshold: _qbiThreshold,
+    } = qbiFormSelection({
+      taxableBeforeQBI: _taxableBeforeQBI,
+      taxYear: year,
+      filing: _filing,
+      isCoopPatron: _isCoopPatron,
+    })
     const _currentYearQbiLoss = (Array.isArray(rec.entities) ? rec.entities : []).some(e => {
       const np = parseFloat(e?.netProfit ?? e?.pnl?.netProfit ?? 0) || 0
       const own = ownPct(e?.own)
       return (np * own / 100) < 0
     }) || k1 < 0
     const _priorQbiLoss = (parseFloat(f.priorQBILossCO || f.priorYearLosses || 0) || 0) > 0
-    const _formNum = _useForm8995A ? 'Form 8995-A' : 'Form 8995'
-    const _formTitle = _useForm8995A ? 'QBI Deduction — Detailed Computation (IRC §199A)' : 'QBI Deduction (IRC §199A)'
+    const _hasSSTB = (Array.isArray(rec.entities) ? rec.entities : []).some(e => !!(e && (e.box17V_sstb || e.sstb)))
     const _sstbNote = (_useForm8995A && _hasSSTB && _taxableBeforeQBI > _qbiThreshold) ? ' SSTB activity detected at or above the income threshold.' : ''
     const _lossNote = (_useForm8995A && (_currentYearQbiLoss || _priorQbiLoss)) ? ' QBI loss detected — see Form 8995-A Schedule C for loss netting.' : ''
     const _coopNote = (_isCoopPatron && _useForm8995A) ? ' Co-op patron status flagged — see Form 8995-A Schedule D.' : ''
@@ -1010,8 +1058,9 @@ function IRSCompliance({ rec }) {
   const _niitRentalNet = _isREP ? 0 : Math.max(0, _rentalIncomeSch - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
   const _netInvestmentIncome = _niitInterest + _niitDividends + _niitCapGains + _niitRentalNet
   const _niitMagi = k1 + w2 + _netInvestmentIncome
-  const _niitThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? NIIT_THRESHOLD_MFJ : (f.filingStatus === 'mfs' ? NIIT_THRESHOLD_MFS : NIIT_THRESHOLD_SINGLE)
-  if (_niitMagi > _niitThreshold && _netInvestmentIncome > 0) {
+  const _niitFiling = f.filingStatus || 'single'
+  const _niitThreshold = getNIITThreshold(year, _niitFiling)
+  if (niitApplies({ taxYear: year, filing: _niitFiling, magi: _niitMagi, netInvestmentIncome: _netInvestmentIncome })) {
     schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', covered: hasCapGains || hasInterest || hasRentalInc, detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold.`, deadline: 'Filed with Form 1040' })
   }
 
@@ -1020,8 +1069,9 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', covered: hasItemized, detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
 
-  const _addlMedThreshold = (f.filingStatus === 'mfj' || f.filingStatus === 'qss') ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : (f.filingStatus === 'mfs' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE)
-  if (w2 > _addlMedThreshold) {
+  const _addlMedFiling = f.filingStatus || 'single'
+  const _addlMedThreshold = getAddlMedicareThreshold(year, _addlMedFiling)
+  if (additionalMedicareApplies({ taxYear: year, filing: _addlMedFiling, wages: w2 })) {
     schedules.push({ form: 'Form 8959', title: 'Additional Medicare Tax (0.9%)', status: 'required', covered: hasW2Data, detail: `With ${fmt(w2)} in wages, the 0.9% Additional Medicare Tax applies to wages above ${fmt(_addlMedThreshold)}.`, deadline: 'Filed with Form 1040' })
   }
 
@@ -1207,10 +1257,15 @@ function BriefingModal({ onClose, rec }) {
   const totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
 
   const stdDed = getStdDed(year, filing)
-  const taxableBeforeQBI = Math.max(0, totalIncome - stdDed)
-  const qbi = (isPassthroughEntity(b.entityType) && k1 > 0)
-    ? ((calcQBI(k1, taxableBeforeQBI, 0, { status: filing, taxYear: year, entityQbiData: rec.entities || [] }) || {}).deduction || 0)
-    : 0
+  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing)
+  const { deduction: qbi } = resolveQbiDeduction({
+    k1,
+    taxableBeforeQBI,
+    entityType: b.entityType,
+    filing,
+    taxYear: year,
+    entities: rec.entities || [],
+  })
   const taxable = Math.max(0, taxableBeforeQBI - qbi)
   const fedTax = calcFederalTax(taxable, year, filing)
   const marginalRate = getMarginalRate(taxable, year, filing)
@@ -1459,33 +1514,16 @@ function SimulatorModal({ onClose, rec }) {
 
   const stdDed = getStdDed(taxYear, filing)
 
-  const calcScenario = (d) => {
-    const rev   = base.grossRevenue      + (d.grossRevenue      || 0)
-    const cogs  = base.cogs
-    const opex  = base.operatingExpenses + (d.operatingExpenses || 0)
-    const sal   = base.officerSalary     + (d.officerSalary     || 0)
-    const dep   = base.depreciation      + (d.depreciation      || 0)
-    const adv   = base.advertising       + (d.advertising       || 0)
-    const other = base.otherDeductions   + (d.otherDeductions   || 0)
-    const w2    = base.w2Income          + (d.w2Income          || 0) + (d.officerSalary || 0)
-    const grossProfit = rev - cogs
-    const totalBizExp = opex + sal + dep + adv + other
-    const netBizIncome = grossProfit - totalBizExp
-    let k1 = 0
-    if (isPassthroughEntity(entity)) {
-      k1 = Math.max(0, netBizIncome) * ownerPctVal
-    }
-    const totalPersonalIncome = k1 + w2
-    const _taxableBeforeQBI = Math.max(0, totalPersonalIncome - stdDed)
-    const { deduction: qbi } = isPassthroughEntity(entity) ? calcQBI(k1, _taxableBeforeQBI, 0, { status: filing, taxYear, entityQbiData: rec?.entities || [] }) : { deduction: 0 }
-    const agi = Math.max(0, totalPersonalIncome - qbi)
-    const taxableInc = Math.max(0, agi - stdDed)
-    const fedTax = calcFederalTax(taxableInc, taxYear, filing)
-    return { rev, opex, sal, dep, adv, other, netBizIncome, k1, qbi, w2, agi, taxableInc, fedTax }
+  const scenarioContext = {
+    base,
+    entityType: entity,
+    ownerPctVal,
+    filing,
+    taxYear,
+    entities: rec?.entities || [],
   }
-
-  const baseline = calcScenario({ grossRevenue:0, operatingExpenses:0, officerSalary:0, depreciation:0, advertising:0, otherDeductions:0, w2Income:0 })
-  const scenario = calcScenario(delta)
+  const baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
+  const scenario = computeSimulatorScenario({ ...scenarioContext, delta })
   const taxSaving = baseline.fedTax - scenario.fedTax
 
   // F15 FIX: chg() now uses shared fmt() — no local simFmt
