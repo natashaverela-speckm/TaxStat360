@@ -222,8 +222,14 @@ localStorage.setItem('ts360_session_start', String(Date.now()))
 localStorage.setItem('ts360_plan',plan)
 localStorage.setItem('ts360_billing',billing)
 try{
-await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
-}catch(e){ console.warn('Subscribe call failed:',e) }
+const subRes=await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
+if(!subRes||!subRes.ok){
+const subData=subRes?await subRes.json().catch(()=>({})):{}
+console.error('Subscribe setup failed at signup:',subRes&&subRes.status,subData)
+localStorage.setItem('ts360_subscription_incomplete','1')
+try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){}
+}else{ localStorage.removeItem('ts360_subscription_incomplete') }
+}catch(e){ console.error('Subscribe call failed at signup:',e); localStorage.setItem('ts360_subscription_incomplete','1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){} }
 localStorage.setItem('ts360_userName',name)
 localStorage.setItem('ts360_pendingEmail',email)
 try {
