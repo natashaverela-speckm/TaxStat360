@@ -212,6 +212,8 @@ export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009          // IRC §3101(b)(2) /
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ = 250000  // IRC §3101(b)(2)(A)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS = 125000  // IRC §3101(b)(2)(B)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000 // IRC §3101(b)(2)(C)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH = 200000 // IRC §3101(b)(2)(C) — head of household (any other case)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 250000 // preserves prior tax-table value for qualifying surviving spouse
 
 // ─── NET INVESTMENT INCOME TAX (NIIT) — IRC §1411 ────────────────────────────
 // 3.8% on the lesser of:
@@ -235,6 +237,8 @@ export const NIIT_RATE = 0.038              // IRC §1411(a)
 export const NIIT_THRESHOLD_MFJ = 250000    // IRC §1411(b)(1) — joint return / surviving spouse
 export const NIIT_THRESHOLD_MFS = 125000    // IRC §1411(b)(2) — married filing separately (½ of MFJ)
 export const NIIT_THRESHOLD_SINGLE = 200000 // IRC §1411(b)(3) — single, HOH, and all other filers
+export const NIIT_THRESHOLD_HOH = 200000    // IRC §1411(b)(3) — head of household (grouped with single)
+export const NIIT_THRESHOLD_QSS = 250000    // IRC §1411(b)(1) — qualifying surviving spouse (grouped with joint return)
 
 // ─── SELF-EMPLOYMENT TAX DEDUCTION — IRC §164(f) ─────────────────────────────
 // Above-the-line deduction equal to 50% of self-employment tax paid.
