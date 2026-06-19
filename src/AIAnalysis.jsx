@@ -9,6 +9,7 @@ import {
   qbiFormSelection,
   niitApplies,
   additionalMedicareApplies,
+  scorpSeTaxSavingsEstimate,
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
@@ -825,12 +826,19 @@ function TaxOptimization({ rec }) {
   })
 
   if (sCorpEntities.length > 0 && totalOfficerSalary > 0 && sCorpK1 > 50000) {
-    const seTaxSaved = Math.round((sCorpK1 - totalOfficerSalary) * (FICA_SS_RATE + FICA_MEDICARE_RATE) * 2)
+    // pnl.netProfit (hence sCorpK1) is ALREADY net of officer salary across every entry
+    // path — manual P&L folds officer salary into totalExpenses, and synced P&L is stored
+    // after salary (see EntityCompareModal / TaxReturn / Dashboard). So sCorpK1 IS the K-1
+    // ordinary income that escapes SE tax; the savings vs. a sole proprietor is rate × that
+    // income. Subtracting officer salary again (the prior `sCorpK1 - totalOfficerSalary`)
+    // double-counted it and understated the figure, and disagreed with the engine's
+    // ficaSavings (computed on the full K-1 income). Base the estimate on sCorpK1.
+    const seTaxSaved = scorpSeTaxSavingsEstimate(sCorpK1)
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
-        detail: `Your S-Corp structure means your share of the business's ordinary income reported on the K-1 is not subject to self-employment tax — only your W-2 officer wages are. That treatment applies to the K-1 income whether or not you distribute it; it is not a benefit of taking distributions. FICA is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and 2.9% Medicare-only above it. Versus operating as a sole proprietor — who owes SE tax on all net earnings — this saves roughly ${fmt(seTaxSaved)} on the ${fmt(sCorpK1 - totalOfficerSalary)} of K-1 income above your officer wages.`,
+        detail: `Your S-Corp structure means your share of the business's ordinary income reported on the K-1 is not subject to self-employment tax — only your W-2 officer wages are. That treatment applies to the K-1 income whether or not you distribute it; it is not a benefit of taking distributions. FICA is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and 2.9% Medicare-only above it. Versus operating as a sole proprietor — who owes SE tax on all net earnings — this saves roughly ${fmt(seTaxSaved)} on your ${fmt(sCorpK1)} of K-1 income (the profit remaining after your officer wages).`,
         howTo: `Estimated SE-tax savings vs. a sole proprietorship: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; lower if your officer wages already exceed the ${fmt(getTable(year).ssWageBase)} SS wage base, since the SS portion no longer applies above it). The savings comes from the S-Corp structure, not from maximizing distributions — pay yourself reasonable W-2 compensation FIRST and keep documentation showing it is reasonable for your role. There is no IRS safe-harbor percentage; practitioners commonly use 35–45% of total officer compensation (salary ÷ (salary + distributions)) only as a rough starting point. Setting salary too low to enlarge the untaxed portion is the most common S-Corp audit trigger (Rev. Rul. 74-44).`
       })
     }

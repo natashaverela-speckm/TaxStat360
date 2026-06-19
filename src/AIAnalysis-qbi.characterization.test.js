@@ -8,6 +8,7 @@ import {
   qbiDeductionGap,
   qbiFormSelection,
   niitApplies,
+  scorpSeTaxSavingsEstimate,
 } from './aiAnalysisTaxMath.js'
 import { calcQBI } from './taxCalc.js'
 
@@ -240,5 +241,34 @@ describe('AIAnalysis simulator characterization', () => {
     expect(r.k1).toBeGreaterThan(0)
     expect(r.qbi).toBeGreaterThan(0)
     expect(r.fedTax).toBeGreaterThan(0)
+  })
+})
+
+// ─── S-Corp SE-tax savings estimate (no double-subtraction of officer salary) ───
+// pnl.netProfit (hence sCorpK1) is already net of officer salary, so it IS the K-1
+// income that escapes SE tax. The estimate must be rate × that income — NOT
+// rate × (income − salary), which double-counted the salary and understated it.
+describe('scorpSeTaxSavingsEstimate — base is full K-1 income', () => {
+  const RATE = 0.062 + 0.0145 // per side; ×2 = 0.153 combined
+
+  it('is 15.3% of the K-1 income (salary already removed in netProfit)', () => {
+    expect(scorpSeTaxSavingsEstimate(100000)).toBe(Math.round(100000 * RATE * 2)) // 15300
+    expect(scorpSeTaxSavingsEstimate(100000)).toBe(15300)
+  })
+
+  it('does NOT subtract officer salary again (the fixed double-count)', () => {
+    // The helper takes only the K-1 income; with a $200k K-1 it returns the full
+    // 15.3%, never a salary-reduced figure. Guards against reintroducing the
+    // `sCorpK1 - totalOfficerSalary` base, which for, e.g., $60k salary would have
+    // returned 15.3% of $140k (21,420) instead of the correct 15.3% of $200k.
+    expect(scorpSeTaxSavingsEstimate(200000)).toBe(30600)
+    expect(scorpSeTaxSavingsEstimate(200000)).not.toBe(Math.round(140000 * RATE * 2))
+  })
+
+  it('clamps non-positive / invalid input to 0', () => {
+    expect(scorpSeTaxSavingsEstimate(0)).toBe(0)
+    expect(scorpSeTaxSavingsEstimate(-5000)).toBe(0)
+    expect(scorpSeTaxSavingsEstimate(undefined)).toBe(0)
+    expect(scorpSeTaxSavingsEstimate(NaN)).toBe(0)
   })
 })
