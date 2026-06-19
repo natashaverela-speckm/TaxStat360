@@ -476,6 +476,38 @@ function _annualizeIfYTD(input) {
   out.ytdFactor = 1
   return out
 }
+/**
+ * S-Corp SE/FICA savings versus operating the same business as a sole proprietorship.
+ *
+ * Single source of truth for this arithmetic: calcTaxReturn uses it to produce the
+ * `ficaSavings` field shown on the filed-return panel, and the AI strategy finder
+ * (aiAnalysisTaxMath.scorpSeTaxSavingsEstimate) re-exports it so its estimate is, by
+ * construction, identical to the filed-return figure.
+ *
+ * A sole proprietor owes SE tax on the business's net earnings; an S-Corp shareholder
+ * owes FICA only on their W-2 wages, so the K-1 ordinary income (already net of officer
+ * salary) escapes. The savings is that escaped income taxed at SE/FICA, with the IRC
+ * §1402(a)(12) 92.35% net-earnings factor applied and the 12.4% Social Security portion
+ * limited to the wage-base room remaining after the taxpayer's FICA-subject wages
+ * (Medicare's 2.9% is uncapped).
+ *
+ * @param {object} p
+ * @param {number} p.k1Income           K-1 ordinary income (already net of officer salary)
+ * @param {number} [p.ficaSubjectWages] Total FICA-subject W-2 wages (personal + officer salary)
+ * @param {number} [p.ssWageBase]       Social Security wage base for the year
+ * @returns {number} estimated SE/FICA tax saved (rounded)
+ */
+function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = {}) {
+  const k1 = Math.max(0, Number(k1Income) || 0)
+  if (k1 === 0) return 0
+  const seEarnings   = k1 * SE_NET_EARNINGS_FACTOR
+  const wageBaseRoom = Math.max(0, (Number(ssWageBase) || 0) - Math.max(0, Number(ficaSubjectWages) || 0))
+  const ssTaxable    = Math.min(seEarnings, wageBaseRoom)
+  return Math.round(
+    ssTaxable  * (FICA_SS_RATE      * 2) +
+    seEarnings * (FICA_MEDICARE_RATE * 2)
+  )
+}
 function calcTaxReturn(input) {
   input = _annualizeIfYTD(input)
   const {
@@ -928,12 +960,12 @@ function calcTaxReturn(input) {
   }, 0)
   const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nv(adjustedK1Total))
   const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
-  const seEarningsOnDist = k1Distributions * SE_NET_EARNINGS_FACTOR
-  const distSSTaxable    = Math.min(seEarningsOnDist, ssWageBaseRoom)
-  const ficaSavings = Math.round(
-    distSSTaxable    * (FICA_SS_RATE      * 2) +
-    seEarningsOnDist * (FICA_MEDICARE_RATE * 2)
-  )
+  // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
+  const ficaSavings = scorpSeTaxSavings({
+    k1Income: k1Distributions,
+    ficaSubjectWages: totalW2ForFICA,
+    ssWageBase,
+  })
   const selfEmpHealthDed     = ytdScale(selfEmpHealthIns)
   const hsaDed               = ytdScale(hsaDeduction)
   const studentLoanDed       = Math.min(ytdScale(studentLoanInt), 2500)
@@ -1310,4 +1342,5 @@ export {
   QBI_MIN_DEDUCTION,
   nv,
   calcTaxReturn,
+  scorpSeTaxSavings,
 }
