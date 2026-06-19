@@ -9,7 +9,28 @@ import {
   getAddlMedicareThreshold,
   QBI_THRESHOLDS,
 } from './taxCalc.js'
+import { FICA_SS_RATE, FICA_MEDICARE_RATE } from './constants.js'
 import { isPassthroughEntity } from './utils/entityPredicates'
+
+/**
+ * Rough SE-tax savings of operating as an S-Corp vs. a sole proprietorship.
+ *
+ * `k1Income` is the S-Corp shareholder's K-1 ordinary income. Across every entry
+ * path in this app pnl.netProfit is stored AFTER officer salary (manual P&L folds
+ * officer salary into totalExpenses; synced P&L is persisted after salary — see
+ * EntityCompareModal / TaxReturn / Dashboard), so this figure is already the income
+ * that escapes SE/FICA. It must NOT have officer salary subtracted again: a sole
+ * proprietor would owe SE tax on this whole amount, an S-Corp shareholder owes none
+ * (they pay FICA only on their W-2 wages). The savings is therefore rate × k1Income.
+ *
+ * This is a rough 15.3% estimate for the strategy finder; the engine's `ficaSavings`
+ * is the precise figure (it applies the 92.35% §1402(a)(12) net-earnings factor and
+ * the Social Security wage-base cap).
+ */
+export function scorpSeTaxSavingsEstimate(k1Income) {
+  const base = Math.max(0, Number(k1Income) || 0)
+  return Math.round(base * (FICA_SS_RATE + FICA_MEDICARE_RATE) * 2)
+}
 
 const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }
 
