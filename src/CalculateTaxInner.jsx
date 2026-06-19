@@ -767,42 +767,70 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
 
+  // ── Findings 1 + 3 FIX — single source of truth for S-Corp basis math ────────
+  // Mirrors taxCalc.js exactly so every badge and panel on this card agrees with the
+  // engine that produces the filed return:
+  //   • §1367(a)(1): beginning stock basis (7203 Line 1) is raised by current-year
+  //     capital contributions (Line 2) and basis-restoring income (Lines 3a–3m), then
+  //     by current-year income — BEFORE distributions or losses are applied.
+  //   • §1368 BEFORE §1366 (Reg. §1.1368-1(e)): distributions reduce that basis next;
+  //     only the true excess over pre-loss basis is §1368(b)(2) long-term capital gain.
+  //   • §1366(d): the loss is then limited to whatever stock basis remains, plus debt
+  //     basis. Capital contributions/income alone count as a basis entry (Finding 3).
+  const scBasis = (() => {
+    if (!isSC) return null
+    const stockEntered = entity.stockBasis !== '' && entity.stockBasis !== undefined && entity.stockBasis !== null
+    const contrib   = Math.max(0, nf(entity.capitalContributions))
+    const basisInc  = Math.max(0, nf(entity.basisIncomeItems))
+    const hasBasisInput = stockEntered || contrib > 0 || basisInc > 0
+    const sb   = Math.max(0, nf(entity.stockBasis))
+    const db   = entity.debtBasis !== '' && entity.debtBasis !== undefined ? Math.max(0, nf(entity.debtBasis)) : 0
+    const dist = Math.max(0, nf(entity.distributions))
+    const k1Net   = netProfit * own
+    const lossAmt = Math.abs(Math.min(0, k1Net))
+    // §1367(a)(1) income-first basis (a current-year loss is a §1366 item applied LAST).
+    const stockBasisForDist = sb + contrib + basisInc + Math.max(0, k1Net)
+    // §1368 excess gain only on the true excess over pre-loss basis (when basis is known).
+    const distExcessGain = hasBasisInput ? Math.max(0, dist - stockBasisForDist) : 0
+    const stockAfterDist = Math.max(0, stockBasisForDist - dist)
+    // §1366(d): loss capped by stock basis remaining AFTER distributions, plus debt basis.
+    const basisForLoss   = stockAfterDist + db
+    const allowedLoss    = Math.min(lossAmt, basisForLoss)
+    const suspendedLoss  = lossAmt - allowedLoss
+    return {
+      hasBasisInput, sb, db, contrib, basisInc, dist, k1Net, lossAmt,
+      stockBasisForDist, distExcessGain, stockAfterDist, basisForLoss,
+      allowedLoss, suspendedLoss,
+    }
+  })()
+
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
   const basisBadge = (() => {
-    if (!isSC) return null
-    const lossAmt = Math.abs(Math.min(0, netProfit * own))
+    if (!isSC || !scBasis) return null
+    const { lossAmt, hasBasisInput, basisForLoss, suspendedLoss, dist } = scBasis
     if (lossAmt === 0) return null
-    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-    // C-10 FIX: when an S-Corp shows a loss but no stock basis has been entered, the
-    // engine cannot apply the §1366(d) limit and the full loss flows to AGI. Prompt for
-    // basis rather than silently allowing a potentially non-deductible loss.
-    if (sb === null) {
+    // C-10: a loss with no basis figure at all is conservatively suspended — prompt for basis.
+    if (!hasBasisInput) {
       return { type: 'amber', msg: `§1366(d): enter stock basis — ${fmt(lossAmt)} loss may be limited.` }
     }
-    const totalBasis  = sb + db
-    const allowedLoss = Math.min(lossAmt, totalBasis)
-    const suspended   = lossAmt - allowedLoss
-    if (suspended > 0) {
-      return { type: 'warn', msg: `§1366(d): ${fmt(suspended)} of your ${fmt(lossAmt)} loss is suspended — basis insufficient.` }
+    if (suspendedLoss > 0) {
+      const why = dist > 0
+        ? `basis insufficient after §1368 distributions`
+        : `basis insufficient`
+      return { type: 'warn', msg: `§1366(d): ${fmt(suspendedLoss)} of your ${fmt(lossAmt)} loss is suspended — ${why}.` }
     }
-    return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within basis.` }
+    return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within ${fmt(basisForLoss)} basis.` }
   })()
 
   const distBadge = (() => {
-    if (!isSC) return null
-    const dist = nf(entity.distributions)
+    if (!isSC || !scBasis) return null
+    const { dist, hasBasisInput, distExcessGain } = scBasis
     if (dist <= 0) return null
-    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-    if (sb === null) {
+    if (!hasBasisInput) {
       return { type: 'amber', msg: `§1368: ${fmt(dist)} in distributions — enter stock basis to compute capital gain.` }
     }
-    const k1Net = netProfit * own
-    const k1Allowed = k1Net < 0 ? -Math.min(Math.abs(k1Net), sb) : k1Net
-    const postIncomeBasis = Math.max(0, sb + k1Allowed)
-    const excess = Math.max(0, dist - postIncomeBasis)
-    if (excess > 0) {
-      return { type: 'warn', msg: `§1368: ${fmt(excess)} of distributions exceeds basis — treated as capital gain.` }
+    if (distExcessGain > 0) {
+      return { type: 'warn', msg: `§1368: ${fmt(distExcessGain)} of distributions exceeds basis — treated as capital gain.` }
     }
     return { type: 'ok', msg: `§1368: All ${fmt(dist)} distributions are tax-free return of basis.` }
   })()
@@ -1028,6 +1056,39 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                     />
                   </div>
 
+                  {/* Finding 3 FIX: current-year capital contributions (Form 7203, Line 2).
+                      A return funded by current-year contributions — not beginning basis —
+                      previously had none of that basis recognized, understating deductible
+                      loss and overstating §1368 capital gain. This raises stock basis under
+                      §1367(a)(1) before distributions and losses are applied. */}
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Capital Contributions This Year (Form 7203, Line 2) — Optional
+                      <InfoTip text={'Cash or property you contributed to the S-Corp during THIS tax year, plus any additional stock you acquired (Form 7203, Line 2).\n\nThese contributions increase your stock basis under IRC §1367(a)(1) BEFORE the year\'s distributions and losses are applied. If you funded a loss year with new contributions rather than relying on beginning basis, enter that amount here — otherwise the loss may be understated (suspended) and distributions may be incorrectly treated as a capital gain.\n\nLeave blank if you made no contributions this year.'} wide />
+                    </label>
+                    <MoneyInput
+                      value={entity.capitalContributions || ''}
+                      onChange={v => onUpdate(idx, { ...entity, capitalContributions: v })}
+                      placeholder="0 (optional)"
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+
+                  {/* Finding 3 FIX: basis-restoring income items (Form 7203, Lines 3a–3m) —
+                      income/tax-exempt items that raise stock basis under §1367(a)(1). */}
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Other Basis-Restoring Income (Form 7203, Lines 3a–3m) — Optional
+                      <InfoTip text={'Current-year income and tax-exempt items allocated to you that increase stock basis (Form 7203, Lines 3a–3m) — for example separately stated income, interest, dividends, capital gains, or tax-exempt income.\n\nDo NOT include the ordinary business loss here (that is entered as the entity\'s P&L and applied last under §1366). Enter only positive basis-increasing items. These raise basis under §1367(a)(1) before distributions and losses.\n\nLeave blank if not applicable.'} wide />
+                    </label>
+                    <MoneyInput
+                      value={entity.basisIncomeItems || ''}
+                      onChange={v => onUpdate(idx, { ...entity, basisIncomeItems: v })}
+                      placeholder="0 (optional)"
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Debt Basis (Form 7203, Part II) — Optional
@@ -1042,39 +1103,33 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   </div>
 
                   {(() => {
-                    const lossAmt = Math.abs(Math.min(0, netProfit * own))
-                    if (lossAmt === 0) return null
-                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-                    const db = entity.debtBasis  !== '' && entity.debtBasis  !== undefined ? nf(entity.debtBasis)  : 0
-                    // C-10 FIX: loss present but no basis entered. The engine now applies
-                    // the §1366(d) limit conservatively (assumeZeroBasisOnLoss) — the loss
-                    // is SUSPENDED until a basis figure is entered, rather than flowing to
-                    // AGI in full. Message reflects that conservative default.
-                    if (sb === null) {
+                    const { lossAmt, hasBasisInput, basisForLoss, allowedLoss, suspendedLoss, dist } = scBasis || {}
+                    if (!scBasis || lossAmt === 0) return null
+                    // C-10: loss present but no basis figure at all — conservatively suspended.
+                    if (!hasBasisInput) {
                       return (
                         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ §1366(d) — Enter Stock Basis</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5 }}>
                             This entity shows a {fmt(lossAmt)} loss. Your deductible S-Corp loss is capped at your
-                            combined stock + debt basis (IRC §1366(d)(1)). Because no beginning basis has been entered,
-                            this {fmt(lossAmt)} loss is being conservatively suspended and carried forward (§1366(d)(2))
-                            rather than deducted against your other income. Enter your beginning stock basis above
-                            (Form 7203, Line 1) to release the portion your basis supports.
+                            combined stock + debt basis (IRC §1366(d)(1)). Because no beginning basis or contributions
+                            have been entered, this {fmt(lossAmt)} loss is being conservatively suspended and carried
+                            forward (§1366(d)(2)) rather than deducted against your other income. Enter your beginning
+                            stock basis (Line 1) or current-year contributions (Line 2) above to release the portion
+                            your basis supports.
                           </div>
                         </div>
                       )
                     }
-                    const totalBasis  = sb + db
-                    const allowedLoss = Math.min(lossAmt, totalBasis)
-                    const suspended   = lossAmt - allowedLoss
-                    if (suspended > 0) {
+                    if (suspendedLoss > 0) {
                       return (
                         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1366(d) Loss Limitation Active</div>
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
-                            Your {fmt(lossAmt)} K-1 loss exceeds your {fmt(totalBasis)} basis.
+                            Your {fmt(lossAmt)} K-1 loss exceeds the {fmt(basisForLoss)} of basis available to absorb it
+                            {dist > 0 ? ' after this year\u2019s distributions reduce stock basis first (§1368 before §1366)' : ''}.
                             Only <strong>{fmt(allowedLoss)}</strong> is deductible this year.
-                            <strong> {fmt(suspended)}</strong> is suspended and carries forward (IRC §1366(d)(2)).
+                            <strong> {fmt(suspendedLoss)}</strong> is suspended and carries forward (IRC §1366(d)(2)).
                             Consult your CPA to confirm your exact basis before filing.
                           </div>
                         </div>
@@ -1084,7 +1139,8 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
                         <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Full Loss Deductible</div>
                         <div style={{ color: '#166534', lineHeight: 1.5 }}>
-                          Your {fmt(lossAmt)} K-1 loss is within your {fmt(totalBasis)} basis — the full loss is deductible this year.
+                          Your {fmt(lossAmt)} K-1 loss is within the {fmt(basisForLoss)} of basis available
+                          {dist > 0 ? ' (after distributions are applied first under §1368)' : ''} — the full loss is deductible this year.
                         </div>
                       </div>
                     )
@@ -1104,33 +1160,33 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   </div>
 
                   {(() => {
-                    const dist = nf(entity.distributions)
-                    if (dist <= 0) return null
-                    const sb = entity.stockBasis !== '' && entity.stockBasis !== undefined ? nf(entity.stockBasis) : null
-                    if (sb === null) {
+                    const { dist, hasBasisInput, distExcessGain, stockBasisForDist, stockAfterDist } = scBasis || {}
+                    if (!scBasis || dist <= 0) return null
+                    if (!hasBasisInput) {
                       return (
                         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Enter Stock Basis to Compute Capital Gain</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5 }}>
-                            You have entered {fmt(dist)} in distributions. Enter your stock basis above
-                            to determine whether any portion is taxable as long-term capital gain (IRC §1368(b)(2)).
+                            You have entered {fmt(dist)} in distributions. Enter your stock basis (Line 1) or
+                            current-year contributions (Line 2) above to determine whether any portion is taxable
+                            as long-term capital gain (IRC §1368(b)(2)).
                           </div>
                         </div>
                       )
                     }
-                    const k1Net       = netProfit * own
-                    const k1Allowed   = k1Net < 0 ? -Math.min(Math.abs(k1Net), sb) : k1Net
-                    const postBasis   = Math.max(0, sb + k1Allowed)
-                    const excess      = Math.max(0, dist - postBasis)
-                    if (excess > 0) {
+                    // Finding 1: §1368 is applied to pre-loss basis (income-first under
+                    // §1367(a)(1)); a current-year loss does NOT reduce the basis that
+                    // absorbs distributions, so the §1368(b)(2) gain is only the true excess.
+                    if (distExcessGain > 0) {
                       return (
                         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §1368 Capital Gain — Distributions Exceed Basis</div>
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>
-                            <strong>{fmt(excess)}</strong> of your {fmt(dist)} distributions exceeds your
-                            remaining stock basis ({fmt(postBasis)}) and is treated as a{' '}
+                            <strong>{fmt(distExcessGain)}</strong> of your {fmt(dist)} distributions exceeds your
+                            pre-loss stock basis ({fmt(stockBasisForDist)}) and is treated as a{' '}
                             <strong>long-term capital gain</strong> on Schedule D (IRC §1368(b)(2)).
-                            This amount is included in your tax estimate automatically.
+                            Distributions are applied to basis before the year's loss (Reg. §1.1368-1(e)),
+                            so only this true excess is taxed. This amount is included in your tax estimate automatically.
                           </div>
                         </div>
                       )
@@ -1140,6 +1196,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                         <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Distributions Within Basis</div>
                         <div style={{ color: '#166534', lineHeight: 1.5 }}>
                           All {fmt(dist)} in distributions are a tax-free return of basis — no capital gain triggered (IRC §1368(b)(1)).
+                          {stockAfterDist > 0 ? ` Your stock basis after distributions is ${fmt(stockAfterDist)}.` : ''}
                         </div>
                       </div>
                     )
@@ -1266,11 +1323,67 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                     )
                   }
                   if (entity.isREP && entity.rentalAggregationElection === true) {
+                    // ── Finding 2 FIX ──────────────────────────────────────────────
+                    // The §1.469-9(g) election alone no longer green-lights the loss when
+                    // the taxpayer's own §469(c)(7)(B) hours FAIL the quantitative test.
+                    // Mirrors taxCalc.js (repAggregationGatedOut): a failed hours test
+                    // suspends the loss unless the user makes an explicit override
+                    // acknowledgment. Hours left blank stay backward-compatible (allowed),
+                    // but are nudged. A green "currently deductible" state is shown ONLY
+                    // when the test passes or no hours were entered to contradict it.
+                    const reHrs  = parseFloat(entity.repHoursRE)
+                    const totHrs = parseFloat(entity.repHoursTotal)
+                    const hoursProvided = !Number.isNaN(reHrs) && !Number.isNaN(totHrs)
+                    const hoursPass = hoursProvided && reHrs > 750 && reHrs > totHrs / 2
+                    const hoursFail = hoursProvided && !hoursPass
+                    const override  = entity.repAggregationOverride === true
+                    const pctRE     = hoursProvided && totHrs > 0 ? Math.round((reHrs / totHrs) * 100) : 0
+
+                    // Failed test, NOT overridden → suspended. No green state. Offer override.
+                    if (hoursFail && !override) {
+                      return (
+                        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ REP Hours Test Failed — Loss Suspended (§469(c)(7)(B))</div>
+                          <div style={{ color: '#7F1D1D', lineHeight: 1.5, marginBottom: 8 }}>
+                            Your entered hours don't meet the §469(c)(7)(B) test ({reHrs.toLocaleString()} real-property hours{totHrs > 0 ? `, ${pctRE}% of your ${totHrs.toLocaleString()} total` : ''} — the statute requires more than 750 hours <strong>and</strong> more than 50%). Because the test fails, the §1.469-9(g) election does not make this {fmt(Math.abs(reNet))} loss currently deductible — it is treated as passive and suspended on Form 8582. This is the single largest audit-exposure item on a return with significant non-real-estate W-2 income.
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <input type="checkbox" id={'repovr_' + idx} checked={false} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
+                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 12, color: '#7F1D1D', cursor: 'pointer', lineHeight: 1.4 }}>
+                              I understand the hours test is not met and I am electing to deduct this loss anyway. I have contemporaneous daily time logs and have confirmed this position with my CPA. (High audit risk.)
+                            </label>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // Failed test but explicitly overridden → loss IS deducted, flagged high risk.
+                    if (hoursFail && override) {
+                      return (
+                        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Deducting Against a Failed Hours Test — High Audit Risk</div>
+                          <div style={{ color: '#78350F', lineHeight: 1.5, marginBottom: 8 }}>
+                            You've elected to treat this {fmt(Math.abs(reNet))} loss as nonpassive even though your entered hours ({reHrs.toLocaleString()} real-property{totHrs > 0 ? `, ${pctRE}% of total` : ''}) do not meet the §469(c)(7)(B) test. The loss is included in your estimate, but REP status against significant outside W-2 income is one of the most frequently challenged positions — keep contemporaneous daily time logs and confirm with your CPA.
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <input type="checkbox" id={'repovr_' + idx} checked={true} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
+                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 12, color: '#78350F', cursor: 'pointer', lineHeight: 1.4 }}>
+                              Override active — deducting despite the failed hours test. Uncheck to suspend the loss.
+                            </label>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // Hours pass, or none entered (backward-compatible) → currently deductible.
                     return (
                       <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
                         <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Nonpassive — Currently Deductible (REP + §1.469-9(g) election)</div>
                         <div style={{ color: '#166534', lineHeight: 1.5 }}>
                           You are a real estate professional and have elected to aggregate your rentals, so this {fmt(Math.abs(reNet))} loss is nonpassive and deductible against your other income this year.
+                          {hoursPass
+                            ? ` Your ${reHrs.toLocaleString()} real-property hours (${pctRE}% of total) meet the §469(c)(7)(B) test — keep contemporaneous daily time logs to support it.`
+                            : ' Enter your §469(c)(7)(B) hours above to confirm this position — without them, the deduction is unverified and at risk on audit, especially alongside significant W-2 income.'}
                         </div>
                       </div>
                     )

@@ -281,6 +281,22 @@ export default function TaxReturn() {
   //   • priorPAL — prior-year suspended passive loss (Form 8582) summed across the cards.
   const step1REList = (entities || []).filter(e => e && isRealEstateEntity(e.type))
   const rentalAggregationElection = step1REList.some(e => e.rentalAggregationElection === true)
+  // Finding 2 FIX: surface the §469(c)(7)(B) hours the taxpayer entered on the Step-1
+  // rental cards so the engine can apply the quantitative test to the FILED return (not
+  // just the Step-1 preview). The hours are a taxpayer-level figure entered per card; we
+  // take the max across cards (whichever card the user filled in). repAggregationOverride
+  // is the explicit "deduct despite a failed hours test" acknowledgment made on the card.
+  const repHoursRE = step1REList.reduce((m, e) => {
+    const v = parseFloat(e.repHoursRE)
+    if (Number.isNaN(v)) return m
+    return Number.isNaN(m) ? v : Math.max(m, v)
+  }, NaN)
+  const repHoursTotal = step1REList.reduce((m, e) => {
+    const v = parseFloat(e.repHoursTotal)
+    if (Number.isNaN(v)) return m
+    return Number.isNaN(m) ? v : Math.max(m, v)
+  }, NaN)
+  const repAggregationOverride = step1REList.some(e => e.repAggregationOverride === true)
   const cardPriorPAL = step1REList.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
   // Migration: returns saved BEFORE rental consolidation stored a single portfolio prior-PAL
   // in personal context (savedCtx.priorPassiveLossCarryforward); it now lives on the Step-1
@@ -385,6 +401,13 @@ export default function TaxReturn() {
       // The engine treats `true` as the affirmative election that makes a REP's portfolio
       // nonpassive, and anything else (unelected) as passive.
       rentalAggregationElection,
+      // Finding 2: §469(c)(7)(B) quantitative hours test inputs + the explicit override.
+      // The engine suspends a REP aggregation loss when entered hours fail the test unless
+      // repAggregationOverride is true. NaN (no hours entered) passes through as not-provided,
+      // preserving backward-compatible treatment.
+      repHoursRE: Number.isNaN(repHoursRE) ? '' : repHoursRE,
+      repHoursTotal: Number.isNaN(repHoursTotal) ? '' : repHoursTotal,
+      repAggregationOverride,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
@@ -400,7 +423,7 @@ export default function TaxReturn() {
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
-    rentalAggregationElection,
+    rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
