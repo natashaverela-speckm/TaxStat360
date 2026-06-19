@@ -829,17 +829,21 @@ function TaxOptimization({ rec }) {
     // pnl.netProfit (hence sCorpK1) is ALREADY net of officer salary across every entry
     // path — manual P&L folds officer salary into totalExpenses, and synced P&L is stored
     // after salary (see EntityCompareModal / TaxReturn / Dashboard). So sCorpK1 IS the K-1
-    // ordinary income that escapes SE tax; the savings vs. a sole proprietor is rate × that
-    // income. Subtracting officer salary again (the prior `sCorpK1 - totalOfficerSalary`)
-    // double-counted it and understated the figure, and disagreed with the engine's
-    // ficaSavings (computed on the full K-1 income). Base the estimate on sCorpK1.
-    const seTaxSaved = scorpSeTaxSavingsEstimate(sCorpK1)
+    // ordinary income that escapes SE tax. The helper mirrors the engine's ficaSavings
+    // (92.35% §1402(a)(12) factor + SS wage-base cap from the owner's FICA-subject wages),
+    // so this figure matches the filed-return panel — critically, it no longer overstates
+    // for a high-W-2 owner whose wages already consume the Social Security wage base.
+    const seTaxSaved = scorpSeTaxSavingsEstimate({
+      k1Income: sCorpK1,
+      ficaSubjectWages: w2,                    // getTotalW2(rec): personal W-2 + officer salary
+      ssWageBase: getTable(year).ssWageBase,
+    })
     if (seTaxSaved > 1000) {
       opportunities.push({
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
         detail: `Your S-Corp structure means your share of the business's ordinary income reported on the K-1 is not subject to self-employment tax — only your W-2 officer wages are. That treatment applies to the K-1 income whether or not you distribute it; it is not a benefit of taking distributions. FICA is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and 2.9% Medicare-only above it. Versus operating as a sole proprietor — who owes SE tax on all net earnings — this saves roughly ${fmt(seTaxSaved)} on your ${fmt(sCorpK1)} of K-1 income (the profit remaining after your officer wages).`,
-        howTo: `Estimated SE-tax savings vs. a sole proprietorship: ~${fmt(seTaxSaved)} (at the 15.3% combined rate; lower if your officer wages already exceed the ${fmt(getTable(year).ssWageBase)} SS wage base, since the SS portion no longer applies above it). The savings comes from the S-Corp structure, not from maximizing distributions — pay yourself reasonable W-2 compensation FIRST and keep documentation showing it is reasonable for your role. There is no IRS safe-harbor percentage; practitioners commonly use 35–45% of total officer compensation (salary ÷ (salary + distributions)) only as a rough starting point. Setting salary too low to enlarge the untaxed portion is the most common S-Corp audit trigger (Rev. Rul. 74-44).`
+        howTo: `Estimated SE-tax savings vs. a sole proprietorship: ~${fmt(seTaxSaved)}. This figure already reflects the 92.35% net-earnings factor (IRC §1402(a)(12)) and the Social Security wage-base cap — because your W-2 wages count toward that ${fmt(getTable(year).ssWageBase)} cap, only the 2.9% Medicare portion applies to K-1 income once your wages use it up, so the savings is smaller for higher earners. The savings comes from the S-Corp structure, not from maximizing distributions — pay yourself reasonable W-2 compensation FIRST and keep documentation showing it is reasonable for your role. There is no IRS safe-harbor percentage; practitioners commonly use 35–45% of total officer compensation (salary ÷ (salary + distributions)) only as a rough starting point. Setting salary too low to enlarge the untaxed portion is the most common S-Corp audit trigger (Rev. Rul. 74-44).`
       })
     }
   }

@@ -10,7 +10,7 @@ import {
   niitApplies,
   scorpSeTaxSavingsEstimate,
 } from './aiAnalysisTaxMath.js'
-import { calcQBI } from './taxCalc.js'
+import { calcQBI, calcTaxReturn } from './taxCalc.js'
 
 const FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh', 'qss']
 
@@ -244,31 +244,56 @@ describe('AIAnalysis simulator characterization', () => {
   })
 })
 
-// ─── S-Corp SE-tax savings estimate (no double-subtraction of officer salary) ───
+// ─── S-Corp SE-tax savings estimate — precise, mirrors the engine's ficaSavings ──
 // pnl.netProfit (hence sCorpK1) is already net of officer salary, so it IS the K-1
-// income that escapes SE tax. The estimate must be rate × that income — NOT
-// rate × (income − salary), which double-counted the salary and understated it.
-describe('scorpSeTaxSavingsEstimate — base is full K-1 income', () => {
-  const RATE = 0.062 + 0.0145 // per side; ×2 = 0.153 combined
+// income that escapes SE tax (do NOT subtract salary again). The estimate applies the
+// 92.35% §1402(a)(12) factor and caps the SS portion at the Social Security wage-base
+// room left after the owner's FICA-subject wages — so it must match the engine's
+// ficaSavings and must NOT overstate for a high-W-2 owner.
+describe('scorpSeTaxSavingsEstimate — precise, matches engine ficaSavings', () => {
+  const SS = 0.062, MED = 0.0145, FACTOR = 0.9235
+  const WAGE_BASE_2025 = 176100
 
-  it('is 15.3% of the K-1 income (salary already removed in netProfit)', () => {
-    expect(scorpSeTaxSavingsEstimate(100000)).toBe(Math.round(100000 * RATE * 2)) // 15300
-    expect(scorpSeTaxSavingsEstimate(100000)).toBe(15300)
+  // Reproduce the engine's ficaSavings independently for a single S-Corp entity.
+  function engineFica({ w2, k1 }) {
+    return calcTaxReturn({
+      taxYear: 2025, status: 'single', w2,
+      entities: [{ type: 'S Corporation', own: 100, pnl: { netProfit: k1 }, officerW2: w2 }],
+      k1Total: k1,
+    }).ficaSavings
+  }
+
+  it('low earner (wages below the SS wage base): applies the 92.35% factor', () => {
+    const k1 = 120000, w2 = 60000
+    const se = k1 * FACTOR
+    const room = WAGE_BASE_2025 - w2
+    const expected = Math.round(Math.min(se, room) * (SS * 2) + se * (MED * 2))
+    expect(scorpSeTaxSavingsEstimate({ k1Income: k1, ficaSubjectWages: w2, ssWageBase: WAGE_BASE_2025 })).toBe(expected)
   })
 
-  it('does NOT subtract officer salary again (the fixed double-count)', () => {
-    // The helper takes only the K-1 income; with a $200k K-1 it returns the full
-    // 15.3%, never a salary-reduced figure. Guards against reintroducing the
-    // `sCorpK1 - totalOfficerSalary` base, which for, e.g., $60k salary would have
-    // returned 15.3% of $140k (21,420) instead of the correct 15.3% of $200k.
-    expect(scorpSeTaxSavingsEstimate(200000)).toBe(30600)
-    expect(scorpSeTaxSavingsEstimate(200000)).not.toBe(Math.round(140000 * RATE * 2))
+  it('high earner (wages above the SS wage base): SS portion capped — Medicare only', () => {
+    const k1 = 200000, w2 = 287500
+    const se = k1 * FACTOR
+    const expected = Math.round(se * (MED * 2)) // wageBaseRoom = 0 → no SS portion
+    const got = scorpSeTaxSavingsEstimate({ k1Income: k1, ficaSubjectWages: w2, ssWageBase: WAGE_BASE_2025 })
+    expect(got).toBe(expected)
+    // Guard against the old flat-15.3% overstatement (~$30,600).
+    expect(got).toBeLessThan(6000)
+    expect(got).toBeLessThan(Math.round(k1 * (SS + MED) * 2) / 5)
   })
 
-  it('clamps non-positive / invalid input to 0', () => {
-    expect(scorpSeTaxSavingsEstimate(0)).toBe(0)
-    expect(scorpSeTaxSavingsEstimate(-5000)).toBe(0)
-    expect(scorpSeTaxSavingsEstimate(undefined)).toBe(0)
-    expect(scorpSeTaxSavingsEstimate(NaN)).toBe(0)
+  it('matches the engine ficaSavings exactly (low and high earner)', () => {
+    const low  = { w2: 60000,  k1: 120000 }
+    const high = { w2: 287500, k1: 200000 }
+    expect(scorpSeTaxSavingsEstimate({ k1Income: low.k1,  ficaSubjectWages: low.w2,  ssWageBase: WAGE_BASE_2025 })).toBe(engineFica(low))
+    expect(scorpSeTaxSavingsEstimate({ k1Income: high.k1, ficaSubjectWages: high.w2, ssWageBase: WAGE_BASE_2025 })).toBe(engineFica(high))
+  })
+
+  it('clamps non-positive / invalid K-1 income to 0', () => {
+    expect(scorpSeTaxSavingsEstimate({ k1Income: 0, ssWageBase: WAGE_BASE_2025 })).toBe(0)
+    expect(scorpSeTaxSavingsEstimate({ k1Income: -5000, ssWageBase: WAGE_BASE_2025 })).toBe(0)
+    expect(scorpSeTaxSavingsEstimate({ k1Income: undefined, ssWageBase: WAGE_BASE_2025 })).toBe(0)
+    expect(scorpSeTaxSavingsEstimate({})).toBe(0)
   })
 })
+
