@@ -218,8 +218,10 @@ export function writePersonalContext({
   form4797 = 0,
   manualK1s = [],
   isREP = false,
-  repHoursRE = 0,      // F-11
-  repHoursTotal = 0,   // F-11
+  // Note: §469(c)(7)(B) REP hours (repHoursRE / repHoursTotal) are NOT stored here.
+  // They live per-rental-entity (entity.repHoursRE / entity.repHoursTotal) — the single
+  // source of truth consumed by the engine via TaxReturn and the scenario comparison.
+  // A legacy personal-context copy was removed to prevent a stale-read path.
   priorSuspendedLoss = 0, // F-01
   useItemized = false,
   itemizedAmt = 0,
@@ -239,7 +241,7 @@ export function writePersonalContext({
   sessionStorage.setItem('ts360_f1040', JSON.stringify({
     filingStatus, taxYear, dependents, w2Income, w2Withheld,
     rentalIncome, rentalExpenses, capitalGains, interest, dividends, qualifiedDividends,
-    form4797, manualK1s, isREP, repHoursRE, repHoursTotal, priorSuspendedLoss,
+    form4797, manualK1s, isREP, priorSuspendedLoss,
     useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid,
     priorYearQBILoss, socialSecurity, iraDistributions,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -295,8 +297,6 @@ export function readPersonalContext() {
     form4797: 0,
     manualK1s: [],
     isREP: false,
-    repHoursRE: 0,
-    repHoursTotal: 0,
     priorSuspendedLoss: 0,
     useItemized: false,
     itemizedAmt: 0,
@@ -349,8 +349,7 @@ export function readPersonalContext() {
     form4797:          parsed.form4797          ?? defaults.form4797,
     manualK1s:         Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
     isREP:             parsed.isREP             ?? defaults.isREP,
-    repHoursRE:        parsed.repHoursRE        ?? defaults.repHoursRE,
-    repHoursTotal:     parsed.repHoursTotal     ?? defaults.repHoursTotal,
+    // repHoursRE / repHoursTotal intentionally omitted — REP hours live per-rental-entity.
     priorSuspendedLoss: parsed.priorSuspendedLoss ?? defaults.priorSuspendedLoss,
     // Renamed-field migrations — read new name first, fall back to legacy
     // name to preserve choice from pre-migration sessionStorage data.
