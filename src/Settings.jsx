@@ -144,7 +144,7 @@ export default function Settings() {
     setLoading(true)
     setMsg('')
     try {
-      await apiPost('/auth/change-email', { email, new_email: emailInput }, { credentials: 'include' })
+      await apiPost('/auth/change-email', { new_email: emailInput }, { credentials: 'include' })
       setEmailSent(true)
       setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
     } catch (e) {
