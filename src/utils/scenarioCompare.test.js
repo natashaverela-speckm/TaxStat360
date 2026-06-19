@@ -230,3 +230,45 @@ describe('edge cases', () => {
     }
   })
 })
+
+// =============================================================================
+// Finding 2 consistency — the §469(c)(7)(B) hours gate must apply in the
+// comparison the same way it applies in the filed return. A REP rental loss with
+// FAILING hours (and no override) is suspended, so taxable income — and tax — is
+// higher than the same comparison where the hours PASS and the loss is freed.
+// =============================================================================
+describe('Finding 2 — REP hours gate is applied in scenario comparison', () => {
+  function compareWithRental(repHoursRE, repHoursTotal, override = false) {
+    const entities = [
+      { type: 'S Corporation', k1: 120000, own: 100, officerW2: 60000 },
+      {
+        type: 'Real Estate (Schedule E)', own: 100,
+        pnl: { netProfit: -80000 },
+        isREP: true, rentalAggregationElection: true,
+        repHoursRE, repHoursTotal,
+        ...(override ? { repAggregationOverride: true } : {}),
+      },
+    ]
+    return compareEntityScenarios({
+      personalContext: { ...BASE_CTX, w2: 250000, isREP: true, rentalAggregationElection: true },
+      entities,
+      entityIdx: 0,
+      netProfitShare: 120000,
+      officerSalary: 60000,
+    })
+  }
+
+  it('failing hours suspend the rental loss → higher tax than passing hours', () => {
+    const failing = compareWithRental('800', '3000')   // 27% — fails >50%
+    const passing = compareWithRental('1600', '2000')  // 80% — passes
+    const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
+    expect(taxOf(failing)).toBeGreaterThan(taxOf(passing))
+  })
+
+  it('explicit override frees the loss despite failing hours (matches passing-hours tax)', () => {
+    const overridden = compareWithRental('800', '3000', true)
+    const passing    = compareWithRental('1600', '2000')
+    const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
+    expect(taxOf(overridden)).toBe(taxOf(passing))
+  })
+})
