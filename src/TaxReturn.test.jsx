@@ -429,3 +429,105 @@ describe('TaxReturn — Category C: unified "Est. Total Federal Tax" headline', 
     expect(container.textContent).not.toMatch(/FEDERAL TAX LIABILITY/)
   })
 })
+
+// ─── Findings 1–3: filed-return plumbing to calcTaxReturn ─────────────────────
+// Verifies TaxReturn.jsx forwards the new audit-remediation inputs to the engine:
+//   • Finding 2 — §469(c)(7)(B) hours (repHoursRE/repHoursTotal) and the explicit
+//     repAggregationOverride, derived from the Step-1 rental cards.
+//   • Finding 3 — per-entity capital contributions (7203 Line 2) and basis-restoring
+//     income (Lines 3a–3m) flow through on the entity objects.
+describe('TaxReturn — Findings 1–3: engine input plumbing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('forwards REP hours and a false override when hours fail the test (Finding 2)', () => {
+    readStep1State.mockReturnValue({
+      entities: [{
+        type: 'Real Estate (Schedule E)', own: 100,
+        pnl: { netProfit: -91599 },
+        isREP: true, rentalAggregationElection: true,
+        repHoursRE: '800', repHoursTotal: '3000', // 27% — fails the >50% prong
+      }],
+      k1Total: 0, isCoopPatron: false,
+    })
+
+    renderTaxReturn()
+
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.repHoursRE).toBe(800)
+    expect(args.repHoursTotal).toBe(3000)
+    expect(args.repAggregationOverride).toBe(false)
+  })
+
+  it('forwards repAggregationOverride=true when the card override is set (Finding 2)', () => {
+    readStep1State.mockReturnValue({
+      entities: [{
+        type: 'Real Estate (Schedule E)', own: 100,
+        pnl: { netProfit: -91599 },
+        isREP: true, rentalAggregationElection: true,
+        repHoursRE: '800', repHoursTotal: '3000',
+        repAggregationOverride: true,
+      }],
+      k1Total: 0, isCoopPatron: false,
+    })
+
+    renderTaxReturn()
+
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.repAggregationOverride).toBe(true)
+  })
+
+  it('takes the max hours across multiple rental cards (Finding 2)', () => {
+    readStep1State.mockReturnValue({
+      entities: [
+        { type: 'Real Estate (Schedule E)', own: 100, pnl: { netProfit: -10000 }, isREP: true, rentalAggregationElection: true, repHoursRE: '400', repHoursTotal: '1200' },
+        { type: 'Real Estate (Schedule E)', own: 100, pnl: { netProfit: -20000 }, isREP: true, rentalAggregationElection: true, repHoursRE: '900', repHoursTotal: '1500' },
+      ],
+      k1Total: 0, isCoopPatron: false,
+    })
+
+    renderTaxReturn()
+
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.repHoursRE).toBe(900)
+    expect(args.repHoursTotal).toBe(1500)
+  })
+
+  it('passes empty hours through (backward-compatible) when none entered (Finding 2)', () => {
+    readStep1State.mockReturnValue({
+      entities: [{ type: 'Real Estate (Schedule E)', own: 100, pnl: { netProfit: -5000 }, isREP: true, rentalAggregationElection: true }],
+      k1Total: 0, isCoopPatron: false,
+    })
+
+    renderTaxReturn()
+
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.repHoursRE).toBe('')
+    expect(args.repHoursTotal).toBe('')
+    expect(args.repAggregationOverride).toBe(false)
+  })
+
+  it('forwards per-entity capital contributions and basis-restoring income (Finding 3)', () => {
+    readStep1State.mockReturnValue({
+      entities: [{
+        type: 'S Corporation', own: 100,
+        pnl: { netProfit: -343443 },
+        stockBasis: '0', capitalContributions: '264020', basisIncomeItems: '0',
+        distributions: '143881',
+      }],
+      k1Total: -343443, isCoopPatron: false,
+    })
+
+    renderTaxReturn()
+
+    const args = calcTaxReturn.mock.calls[0][0]
+    const ent = (args.entities || []).find(e => /s.?corp/i.test(e.type))
+    expect(ent).toBeTruthy()
+    expect(ent.capitalContributions).toBe('264020')
+    expect(ent.distributions).toBe('143881')
+  })
+})

@@ -497,6 +497,17 @@ function calcTaxReturn(input) {
     // materiallyParticipates flag (see perPropertyRegimeActive below). Legacy callers
     // that supply none of these keep the prior "REP ⇒ all nonpassive" behavior.
     rentalAggregationElection = false,
+    // C-12 (Finding 2 — §469(c)(7)(B) quantitative gate): the aggregation election only
+    // makes the rental portfolio nonpassive when the two-part hours test is actually met
+    // (> 750 real-property hours AND those hours > 50% of total personal-service hours).
+    // When BOTH hour figures are supplied and the test FAILS, the election is treated as
+    // NOT operative — the loss stays passive/suspended — unless the caller affirmatively
+    // sets repAggregationOverride to acknowledge an at-risk position. If the hours are not
+    // supplied at all, behavior is unchanged (the election controls), so legacy callers and
+    // existing tests are unaffected. IRC §469(c)(7)(B); Treas. Reg. §1.469-9.
+    repHoursRE,
+    repHoursTotal,
+    repAggregationOverride = false,
     step2RentalMaterialParticipation,
     unrecap1250, collectiblesGain,
     // §461(l): net business §1231/capital gain entered for the EBL business-gain offset.
@@ -547,11 +558,42 @@ function calcTaxReturn(input) {
       ? parseFloat(e.k1) || 0
       : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
-    const hasBasisInput = (
+    const isSCorpE    = /s.?corp/i.test(e.type || '')
+
+    // ── Form 7203 basis-INCREASE items, applied FIRST (§1367(a)(1)) ──────────────
+    // C-11 FIX (Finding 3): the basis section now accepts current-year capital
+    // contributions (Form 7203, Line 2) and current-year income / tax-exempt items
+    // that restore basis (Lines 3a–3m), not just the beginning stock basis (Line 1).
+    // A return funded by current-year contributions (the audit case) previously had
+    // none of that basis recognized. Both default to 0 and are optional.
+    const contrib     = Math.max(0, parseFloat(e.capitalContributions) || 0)
+    const basisIncome = Math.max(0, parseFloat(e.basisIncomeItems)      || 0)
+
+    const stockEntered = (
       (e.stockBasis !== undefined && e.stockBasis !== null &&
        e.stockBasis !== '' && e.stockBasis !== 0) ||
       String(e.stockBasis) === '0'
     )
+    // Entering contributions or basis-increase income alone is also a basis entry: a
+    // shareholder who funds the year with current-year contributions and leaves the
+    // beginning-basis box blank should still have that basis recognized (Finding 3).
+    const hasBasisInput = stockEntered || contrib > 0 || basisIncome > 0
+
+    const sb   = Math.max(0, parseFloat(e.stockBasis) || 0)
+    const db   = Math.max(0, parseFloat(e.debtBasis)  || 0)
+    const dist = isSCorpE ? Math.max(0, parseFloat(e.distributions) || 0) : 0
+
+    // §1367(a)(1): income RAISES stock basis. A current-year LOSS is a §1366 item
+    // applied LAST and never reduces the basis available to absorb distributions.
+    const stockBasisForDist = sb + contrib + basisIncome + Math.max(0, k1Gross)
+
+    // ── §1368 BEFORE §1366 (Finding 1 — basis waterfall ordering) ────────────────
+    // Distributions reduce stock basis (Reg. §1.1368-1(e)) BEFORE losses. Only the true
+    // excess over the pre-loss basis is §1368(b)(2) long-term capital gain; the loss is
+    // then limited to whatever stock basis remains, plus debt basis.
+    const distExcessGain = (isSCorpE && hasBasisInput) ? Math.max(0, dist - stockBasisForDist) : 0
+    const stockAfterDist = Math.max(0, stockBasisForDist - dist)
+
     // C-10 FIX: when assumeZeroBasisOnLoss is set, a limitable entity with a LOSS is
     // run through the §1366(d) limit even with no basis figure entered — basis is
     // conservatively assumed to be $0 and the full loss is suspended until the
@@ -559,12 +601,19 @@ function calcTaxReturn(input) {
     // loss with no basis input still passes through in full, preserving prior behavior.
     const applyLimit = isLimitable && k1Gross < 0 && (hasBasisInput || assumeZeroBasisOnLoss)
     if (!applyLimit) {
-      const sbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.stockBasis) || 0) : undefined
-      const dbPassthrough = hasBasisInput ? Math.max(0, parseFloat(e.debtBasis)  || 0) : undefined
+      // Income entity (or a loss with no basis figure and no conservative flag): no
+      // §1366(d) limitation. Still surface basis for the §1368 distribution computation
+      // when the shareholder has entered any basis figure.
       entityBasisResults.push({
         name: e.name || e.id || 'Entity', type: e.type,
         k1Gross, k1Allowed: k1Gross, suspended: 0,
-        ...(sbPassthrough !== undefined ? { stockBasis: sbPassthrough, debtBasis: dbPassthrough } : {}),
+        ...(hasBasisInput ? {
+          stockBasis: sb, debtBasis: db, totalBasis: stockAfterDist + db,
+          capitalContributions: contrib, basisIncomeItems: basisIncome,
+          stockBasisForDist, stockBasisAfterDist: stockAfterDist,
+          distributions: dist, distExcessGain,
+          basisAssumedZero: false,
+        } : {}),
       })
       return e
     }
@@ -572,14 +621,22 @@ function calcTaxReturn(input) {
     // "you entered no basis at all and we conservatively assumed $0" so the UI can
     // tailor the message (enter Form 7203 basis to release the loss).
     const basisAssumedZero = !hasBasisInput
-    const sb          = Math.max(0, parseFloat(e.stockBasis) || 0)
-    const db          = Math.max(0, parseFloat(e.debtBasis)  || 0)
-    const totalBasis  = sb + db
-    const grossLoss   = Math.abs(k1Gross)
-    const allowedLoss = Math.min(grossLoss, totalBasis)
-    const suspended   = grossLoss - allowedLoss
-    const k1Allowed   = allowedLoss > 0 ? -allowedLoss : 0
-    entityBasisResults.push({ name: e.name || e.id || 'Entity', type: e.type, k1Gross, k1Allowed, suspended, stockBasis: sb, debtBasis: db, totalBasis, basisAssumedZero })
+    const grossLoss        = Math.abs(k1Gross)
+    // §1366(d): the loss is limited to the stock basis remaining AFTER distributions
+    // (§1368 already took its share above), plus debt basis.
+    const basisForLoss     = stockAfterDist + db
+    const allowedLoss      = Math.min(grossLoss, basisForLoss)
+    const suspended        = grossLoss - allowedLoss
+    const k1Allowed        = allowedLoss > 0 ? -allowedLoss : 0
+    entityBasisResults.push({
+      name: e.name || e.id || 'Entity', type: e.type,
+      k1Gross, k1Allowed, suspended,
+      stockBasis: sb, debtBasis: db, totalBasis: basisForLoss,
+      capitalContributions: contrib, basisIncomeItems: basisIncome,
+      stockBasisForDist, stockBasisAfterDist: stockAfterDist,
+      distributions: dist, distExcessGain,
+      basisAssumedZero,
+    })
     return suspended > 0 ? { ...e, k1: k1Allowed } : e
   })
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
@@ -653,14 +710,19 @@ function calcTaxReturn(input) {
       })
       return
     }
-    const postIncomeBasis = Math.max(0, basisResult.stockBasis + basisResult.k1Allowed)
-    const excess          = Math.max(0, dist - postIncomeBasis)
+    // §1368 ordering (Finding 1): the §1368(b)(2) capital gain is the distribution in
+    // excess of the PRE-LOSS stock basis (beginning basis + current-year contributions
+    // and income, §1367(a)(1)) — computed in the basis map above BEFORE the §1366 loss
+    // reduced basis. Reading it back here keeps distributions ahead of losses in the
+    // waterfall instead of measuring the excess against a loss-depleted basis.
+    const basisBeforeDist = basisResult.stockBasisForDist
+    const excess          = basisResult.distExcessGain
     const taxFreeReturn   = dist - excess
     distributionCapGain += excess
     entityDistributionResults.push({
       name:            e.name || e.id || 'Entity',
       distributions:   dist,
-      basisBeforeDist: postIncomeBasis,
+      basisBeforeDist: Math.round(basisBeforeDist),
       taxFreeReturn:   Math.round(taxFreeReturn),
       excessCapGain:   Math.round(excess),
     })
@@ -678,6 +740,19 @@ function calcTaxReturn(input) {
   const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
   const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
+  // ── C-12 (Finding 2): §469(c)(7)(B) quantitative gate on the aggregation election ──
+  // The election only makes the portfolio nonpassive if the two-part hours test is met:
+  //   (1) more than 750 hours in real-property trades/businesses, AND
+  //   (2) those hours exceed 50% of total personal-service hours for the year.
+  // When BOTH hour figures are supplied and the test fails, the election is treated as
+  // not operative (loss stays passive/suspended) unless repAggregationOverride === true,
+  // which records a deliberate, at-risk election. Hours omitted ⇒ unchanged behavior.
+  const _repReHrs  = parseFloat(repHoursRE)
+  const _repTotHrs = parseFloat(repHoursTotal)
+  const repHoursProvided   = Number.isFinite(_repReHrs) && Number.isFinite(_repTotHrs) && _repTotHrs > 0
+  const repHoursTestPasses = repHoursProvided ? (_repReHrs > 750 && _repReHrs > _repTotHrs / 2) : null
+  const repHoursTestFailed = repHoursProvided && repHoursTestPasses === false
+  const repAggregationGatedOut = repHoursTestFailed && repAggregationOverride !== true
   // ── F6: §469 rental treatment — §1.469-9(g) aggregation election ───────────
   // Default for ALL rentals is PASSIVE (§469(a)); a net loss is limited to the
   // §469(i) $25k active-participation allowance and otherwise suspended on Form 8582.
@@ -735,7 +810,11 @@ function calcTaxReturn(input) {
     // single activity — making the whole portfolio nonpassive in one step. The election
     // is a deliberate attestation (never a quiet default) and is only operative for a
     // qualifying REP (§469(c)(7)).
-    const aggregateNonpassive = effectiveIsREP && rentalAggregationElection === true
+    // C-12 (Finding 2): a failed §469(c)(7)(B) hours test (without an explicit override)
+    // makes the election inoperative — the portfolio is NOT treated as nonpassive here and
+    // falls to the per-property/§469(i) handling below, so the loss is suspended rather
+    // than auto-freed against other income.
+    const aggregateNonpassive = effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
     if (aggregateNonpassive) {
       nonpassiveRentalNet = combinedRentalNet
       passiveRentalNet    = 0
@@ -1103,6 +1182,10 @@ function calcTaxReturn(input) {
     rentalNetCombined:        combinedRentalNet,
     rentalAllowed:            palAdjustedRental,
     rentalAggregationElectionApplied: rentalAggregationElection,
+    repHoursTestProvided:     repHoursProvided,
+    repHoursTestPasses,
+    repHoursTestFailed,
+    repAggregationGatedOut,
     rentalNonpassiveNet:      nonpassiveRentalNet,
     rentalPassiveNet:         passiveRentalNet,
     rentalIsREP:              effectiveIsREP,
