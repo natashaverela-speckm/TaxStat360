@@ -621,7 +621,7 @@ const [selected,setSelected]=useState('')
 
 // O3 FIX: 4 entity types, matching Tax Tracker exactly
 const types=[
-  { value:'S Corporation',          icon:'🏢', desc:'K-1 income · reasonable officer salary · SE tax savings on distributions' },
+  { value:'S Corporation',          icon:'🏢', desc:'K-1 income not subject to SE tax · reasonable officer salary required' },
   { value:'C Corporation',          icon:'🏛️', desc:'Entity-level 21% corporate tax · officer salary is W-2 · profits taxed again as dividends' },
   { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
   { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },

@@ -1473,19 +1473,26 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* SE Tax Savings panel */}
+          {/* SE Tax Savings panel — Finding 4: the savings is the S-Corp's treatment of
+              K-1 BUSINESS INCOME as non-SE (true whether or not it is distributed), NOT a
+              benefit of taking distributions. Framing it as "savings on distributions" both
+              mislabels the figure (result.k1Distributions is K-1 income, not the distribution
+              amount) and nudges toward the low-salary/high-distribution posture that is the
+              top S-Corp audit trigger. */}
           {hasResult && result.ficaSavings > 0 && (
             <div style={{ background: '#0D1B3E', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
-                SE TAX SAVINGS ON DISTRIBUTIONS
+                SE TAX SAVINGS VS. SOLE PROPRIETORSHIP
               </div>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#4ADE80' }}>
                 {fmt(result.ficaSavings)}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, lineHeight: 1.5 }}>
-                Your {fmt(result.k1Distributions || 0)} in K-1 distributions avoid self-employment tax.
-                As a sole proprietor, this income would incur SE tax on 92.35% of earnings
-                (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in avoided SE tax.
+                Your {fmt(result.k1Distributions || 0)} of S-Corp K-1 business income isn't subject to
+                self-employment tax — S-Corp shareholders owe FICA only on their W-2 officer wages, not on
+                their share of business income (whether or not it is distributed). As a sole proprietor, that
+                same income would incur SE tax on 92.35% of earnings (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in
+                SE tax avoided. This relies on paying yourself reasonable W-2 compensation first (Rev. Rul. 74-44).
               </div>
             </div>
           )}
