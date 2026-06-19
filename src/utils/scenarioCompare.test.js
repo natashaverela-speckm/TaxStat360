@@ -271,4 +271,23 @@ describe('Finding 2 — REP hours gate is applied in scenario comparison', () =>
     const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
     expect(taxOf(overridden)).toBe(taxOf(passing))
   })
+
+  it('stale personalContext hours do NOT gate when the rental card has no hours (per-entity is authoritative)', () => {
+    // personalContext carries legacy failing hours, but the rental entity has none.
+    // Per-entity is the single source of truth (matching TaxReturn), so the loss is
+    // NOT gated by the stale context value — it frees, same as the passing-hours case.
+    const entities = [
+      { type: 'S Corporation', k1: 120000, own: 100, officerW2: 60000 },
+      { type: 'Real Estate (Schedule E)', own: 100, pnl: { netProfit: -80000 },
+        isREP: true, rentalAggregationElection: true },  // no per-entity hours
+    ]
+    const stale = compareEntityScenarios({
+      personalContext: { ...BASE_CTX, w2: 250000, isREP: true, rentalAggregationElection: true,
+        repHoursRE: 800, repHoursTotal: 3000 },           // stale failing hours in context
+      entities, entityIdx: 0, netProfitShare: 120000, officerSalary: 60000,
+    })
+    const passing = compareWithRental('1600', '2000')
+    const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
+    expect(taxOf(stale)).toBe(taxOf(passing))
+  })
 })
