@@ -121,8 +121,12 @@ function compareEntityScenarios(input) {
       divInc: (personalContext.divInc || 0) + qualDivBoost,
       k1Total,
       entities: entitiesOverride,
-      ...(Number.isNaN(_repHoursRE)    ? {} : { repHoursRE: _repHoursRE }),
-      ...(Number.isNaN(_repHoursTotal) ? {} : { repHoursTotal: _repHoursTotal }),
+      // Per-entity hours are the SINGLE source of truth (same as TaxReturn.jsx). Set these
+      // explicitly AFTER the spread so a stale personalContext repHoursRE/repHoursTotal can
+      // never leak in and gate the comparison differently from the filed return. `undefined`
+      // ⇒ engine treats hours as not provided (backward-compatible: the election controls).
+      repHoursRE:    Number.isNaN(_repHoursRE)    ? undefined : _repHoursRE,
+      repHoursTotal: Number.isNaN(_repHoursTotal) ? undefined : _repHoursTotal,
       repAggregationOverride: _repOverride,
     })
   }
