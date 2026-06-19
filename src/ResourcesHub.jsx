@@ -236,7 +236,7 @@ export default function ResourcesHub() {
         </h2>
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px' }}>
           Connect your accounting software and see your estimated federal tax liability,
-          QBI deduction, and SE tax savings on distributions updated in real time.
+          QBI deduction, and S-Corp SE-tax savings updated in real time.
         </p>
         <a href="/signup" style={{
           display: 'inline-block', padding: '13px 32px',
