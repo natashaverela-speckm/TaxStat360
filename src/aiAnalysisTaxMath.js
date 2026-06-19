@@ -9,41 +9,12 @@ import {
   getAddlMedicareThreshold,
   QBI_THRESHOLDS,
 } from './taxCalc.js'
-import { FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR } from './constants.js'
 import { isPassthroughEntity } from './utils/entityPredicates'
 
-/**
- * SE-tax savings of operating as an S-Corp vs. a sole proprietorship.
- *
- * `k1Income` is the S-Corp shareholder's K-1 ordinary income. Across every entry
- * path in this app pnl.netProfit is stored AFTER officer salary (manual P&L folds
- * officer salary into totalExpenses; synced P&L is persisted after salary — see
- * EntityCompareModal / TaxReturn / Dashboard), so this figure is already the income
- * that escapes SE/FICA. It must NOT have officer salary subtracted again.
- *
- * This mirrors the engine's `ficaSavings` (taxCalc.js) EXACTLY so the strategy-finder
- * figure matches the filed-return panel: apply the §1402(a)(12) 92.35% net-earnings
- * factor, then tax the SS portion (12.4%) only up to the Social Security wage-base
- * room remaining after the taxpayer's FICA-subject wages, with Medicare (2.9%)
- * uncapped. Without the cap a high-W-2 owner (whose wages already consume the wage
- * base) would see the SS portion massively overstated.
- *
- * @param {object} p
- * @param {number} p.k1Income          K-1 ordinary income (pnl.netProfit, already net of salary)
- * @param {number} [p.ficaSubjectWages] Total FICA-subject W-2 wages (personal + officer salary)
- * @param {number} p.ssWageBase         Social Security wage base for the year
- */
-export function scorpSeTaxSavingsEstimate({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = {}) {
-  const k1 = Math.max(0, Number(k1Income) || 0)
-  if (k1 === 0) return 0
-  const seEarnings   = k1 * SE_NET_EARNINGS_FACTOR
-  const wageBaseRoom = Math.max(0, (Number(ssWageBase) || 0) - Math.max(0, Number(ficaSubjectWages) || 0))
-  const ssTaxable    = Math.min(seEarnings, wageBaseRoom)
-  return Math.round(
-    ssTaxable  * (FICA_SS_RATE      * 2) +
-    seEarnings * (FICA_MEDICARE_RATE * 2)
-  )
-}
+// SE/FICA-savings arithmetic lives in ONE place — scorpSeTaxSavings in taxCalc.js, which
+// also produces the engine's `ficaSavings`. Re-exported here under the name the strategy
+// finder uses so its estimate is, by construction, identical to the filed-return figure.
+export { scorpSeTaxSavings as scorpSeTaxSavingsEstimate } from './taxCalc.js'
 
 const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }
 
