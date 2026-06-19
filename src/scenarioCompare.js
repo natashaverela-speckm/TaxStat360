@@ -100,6 +100,20 @@ function compareEntityScenarios(input) {
       const k1Val = parseFloat(e.k1)
       return sum + (isFinite(k1Val) ? k1Val : 0)
     }, 0)
+    // Finding 2 consistency: the §469(c)(7)(B) hours and the aggregation override live on
+    // the rental entities, NOT in personalContext — so without this they never reach the
+    // engine and the comparison would free a REP rental loss the filed return suspends.
+    // Mirror TaxReturn.jsx: take the max hours across cards and OR the override. Omitted
+    // hours pass through as not-provided (backward-compatible: the election still controls).
+    const maxHr = key => (entitiesOverride || []).reduce((m, e) => {
+      if (!e) return m
+      const v = parseFloat(e[key])
+      if (Number.isNaN(v)) return m
+      return Number.isNaN(m) ? v : Math.max(m, v)
+    }, NaN)
+    const _repHoursRE    = maxHr('repHoursRE')
+    const _repHoursTotal = maxHr('repHoursTotal')
+    const _repOverride   = (entitiesOverride || []).some(e => e && e.repAggregationOverride === true)
     return calcTaxReturn({
       ...personalContext,
       w2:     (personalContext.w2    || 0) + w2Boost,
@@ -107,6 +121,9 @@ function compareEntityScenarios(input) {
       divInc: (personalContext.divInc || 0) + qualDivBoost,
       k1Total,
       entities: entitiesOverride,
+      ...(Number.isNaN(_repHoursRE)    ? {} : { repHoursRE: _repHoursRE }),
+      ...(Number.isNaN(_repHoursTotal) ? {} : { repHoursTotal: _repHoursTotal }),
+      repAggregationOverride: _repOverride,
     })
   }
 
