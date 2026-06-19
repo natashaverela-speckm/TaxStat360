@@ -87,7 +87,7 @@ import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
 
-const PK = import.meta.env.VITE_STRIPE_PK || 'PK_LIVE_KEY_REDACTED'
+const PK = import.meta.env.VITE_STRIPE_PK
 const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY || 'AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
 
 const N='#0D1B3E',B='#2563EB',SL='#475569'

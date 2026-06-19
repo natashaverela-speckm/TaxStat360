@@ -114,7 +114,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setBusy(true)
     setMsg('')
     try {
-      await apiPost('/auth/change-email', { email, new_email: next })
+      await apiPost('/auth/change-email', { new_email: next })
       localStorage.setItem('ts360_email', next)
       localStorage.setItem('ts360_pendingEmail', next)
       localStorage.removeItem('ts360_email_verified')
