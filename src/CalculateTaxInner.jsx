@@ -2037,32 +2037,46 @@ export default function CalculateTaxInner() {
               below the divider. Same one-click behavior: creates a blank entity and opens it. */}
           <button
             onClick={() => {
-              // create a blank S-Corp entity and open the manual panel
-              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
-              const newEnt = {
-                id: Date.now(),
-                type: 'S Corporation',
-                name: '',
-                own: '100',
-                pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
-                isManual: true,
-                connectedId: null,
-                box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
-                box17V_sstb: false,
-                stockBasis: '', debtBasis: '', distributions: '',
-                isREP: false, isActiveParticipant: false,
+              // FINDING 1 FIX: "Enter my figures manually" previously bypassed the
+              // entity-type picker and silently appended a duplicate S-Corp entity each
+              // time it was clicked, with no scroll to the new card.
+              //
+              // New behavior:
+              //   1. If an empty/blank entity already exists, just expand + scroll to it
+              //      rather than creating a second one (dedupe guard).
+              //   2. If no entities exist yet, open the entity-type picker (same as
+              //      "+ Add Business Entity") so the user selects their entity type
+              //      first — avoids hardcoding S-Corp for every user.
+              //   3. If the user already has entities and is Pro, open the picker to
+              //      add another of the correct type.
+              //
+              // The scroll runs after a 100 ms tick to give React time to render the
+              // newly expanded card before we measure its position.
+
+              // Check for an existing entity that has no income entered (blank P&L)
+              const blankIdx = entities.findIndex(e =>
+                e.isManual &&
+                !nf(e.pnl?.grossRevenue) &&
+                !nf(e.pnl?.totalExpenses) &&
+                !nf(e.pnl?.officerSalary)
+              )
+
+              if (blankIdx !== -1) {
+                // Reuse the existing blank entity — just expand and scroll to it
+                setExpandedIdx(blankIdx)
+                setTimeout(() => {
+                  const cards = document.querySelectorAll('[data-entity-card]')
+                  if (cards[blankIdx]) cards[blankIdx].scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+                return
               }
-              setEntities(prev => {
-                const next = [...prev, newEnt]
-                sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
-                return next
-              })
-              setExpandedIdx(entities.length)
-              setTimeout(() => {
-                const cards = document.querySelectorAll('[data-entity-card]')
-                const last = cards[cards.length - 1]
-                if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }, 100)
+
+              // No blank entity exists — gate on Pro before adding another
+              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+
+              // Open the entity-type picker (same path as "+ Add Business Entity")
+              // so the user's entity type is chosen explicitly, not hardcoded to S-Corp
+              setShowEntityPicker(true)
             }}
             style={{
               width: '100%',
