@@ -3,13 +3,12 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 // SEC-01 FIX: Stripe live key moved to environment variable (VITE_STRIPE_PK).
 //   Was: const PK='pk_live_51TJmYh...' hardcoded in source.
 //   Now: reads from import.meta.env.VITE_STRIPE_PK.
-//   Set VITE_STRIPE_PK=pk_live_... in .env.production
-//   Set VITE_STRIPE_PK=pk_test_... in .env.development (use test key locally)
+//   Set VITE_STRIPE_PK in Amplify env vars (live pk_live_...); pk_test_... locally in .env.development
 //
 // SEC-02 FIX: Google Maps key moved to environment variable (VITE_GMAPS_KEY).
 //   Was: const GMAPS_KEY='AIzaSy...' hardcoded in source.
-//   Now: reads from import.meta.env.VITE_GMAPS_KEY.
-//   Restrict key to taxstat360.com/* HTTP referrers in Google Cloud Console.
+//   Now: reads from import.meta.env.VITE_GMAPS_KEY only (no hardcoded fallback).
+//   Set VITE_GMAPS_KEY in Amplify env vars; restrict key to taxstat360.com/* in GCP.
 //
 // SEC-03 FIX: API base URL now imported from constants.js instead of hardcoded.
 //   Was: const API='https://app.taxstat360.com' (violates architecture rule in constants.js)
@@ -88,7 +87,7 @@ import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
 
 const PK = import.meta.env.VITE_STRIPE_PK
-const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY || 'AIzaSyAjJJCGLoRNVWsSH4_mjL2hBuQhLI98Z2k'
+const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY
 
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 
