@@ -338,8 +338,20 @@ export default function TaxReturn() {
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
+  // FINDING 2 FIX: the panel's "Projected full-year income (K-1 + W-2)" previously
+  // only annualized the K-1 + the user-entered W-2 field, omitting the officer salary
+  // (W-2) embedded in each S-Corp / C-Corp entity.  The engine annualizes the full
+  // w2Total = w2Income + officerW2Total.  We now compute the same officerW2Total here
+  // so the displayed headline matches the number driving the tax waterfall exactly.
+  const officerW2ForYTD = Array.isArray(entities)
+    ? entities.reduce((sum, e) => {
+        if (!e) return sum
+        const isCorp = /s.?corp/i.test(e.type || '') || /c.?corp/i.test(e.type || '')
+        return isCorp ? sum + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : sum
+      }, 0)
+    : 0
   const projectedAnnualIncome = ytdMode
-    ? Math.round(((sessionK1 || 0) + nf(w2Income)) * ytdFactor)
+    ? Math.round(((sessionK1 || 0) + nf(w2Income) + officerW2ForYTD) * ytdFactor)
     : 0
 
   const nonMedicalSubTotal  = nf(mortgageInt) + nf(charitableContr) + nf(saltAmount)
@@ -502,6 +514,12 @@ export default function TaxReturn() {
       filingStatus, dependents, w2Income, w2Withheld, estPaid,
       quarterly: result?.quarterlyRecommended || 0,
       totalTax:  result?.totalTax || 0,
+      // FINDING 8 FIX: persist a boolean so the Dashboard can distinguish a
+      // legitimately-computed $0 tax liability from a record that was saved
+      // before Step 2 was completed (where result is null / totalTax is absent).
+      // Without this flag, totalTax === 0 is ambiguous: it could mean the user
+      // has a zero-income / loss year, or it could mean Step 2 was never run.
+      step2Computed: !!result && result.totalTax >= 0,
       biz: {
         entityType:        entities?.[0]?.type || 'S Corporation',
         year:              taxYear,

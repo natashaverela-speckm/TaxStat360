@@ -757,6 +757,12 @@ export default function Dashboard() {
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
               const totalTax       = parseFloat(rec.totalTax) || 0
+              // FINDING 8 FIX: a record saved after Step 2 ran carries step2Computed === true
+              // even when totalTax is $0 (loss year, zero-income scenario).  Without this flag,
+              // totalTax === 0 is ambiguous — the Dashboard was showing "Complete Step 2 for
+              // estimate" for records whose tax was legitimately zero.
+              // Legacy records that predate this flag fall back to the totalTax > 0 heuristic.
+              const step2Computed = rec.step2Computed === true || totalTax > 0
               const isActive       = activeRecordId && String(rec.id) === activeRecordId
 
               // F24 FIX: derive effective rate from saved fields for the summary strip.
@@ -766,9 +772,13 @@ export default function Dashboard() {
               const k1ForRate   = parseFloat(rec.k1Income) || 0
               const w2ForRate   = parseFloat(rec.f1040?.w2Income) || parseFloat(rec.w2Income) || 0
               const approxIncome = k1ForRate + w2ForRate
-              const effRateNum  = totalTax > 0 && approxIncome > 0
+              // FINDING 8 FIX (continued): show 0.0% effective rate for a computed-$0
+              // record rather than hiding it entirely; only omit when Step 2 hasn't run.
+              const effRateNum  = step2Computed && approxIncome > 0
                 ? (totalTax / approxIncome * 100).toFixed(1)
-                : null
+                : step2Computed && approxIncome === 0
+                  ? '0.0'
+                  : null
               const savedAt = rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
                 ? rec.savedAt
                 : null
@@ -830,8 +840,10 @@ export default function Dashboard() {
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
-                      {totalTax > 0 ? (
-                        <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{fmt(Math.round(totalTax))}</div>
+                      {step2Computed ? (
+                        <div style={{ fontSize: 18, fontWeight: 800, color: totalTax > 0 ? R : '#16A34A' }}>
+                          {totalTax > 0 ? fmt(Math.round(totalTax)) : '$0'}
+                        </div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
                           Complete Step 2 for estimate
