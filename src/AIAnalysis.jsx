@@ -425,6 +425,20 @@ function RiskScan({ rec }) {
         findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Compensation Recorded — ${entityName}`,
           detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
           action: null })
+        // AI-3 FIX: Surface reasonable compensation audit risk in the Risk Scan, not just
+        // during data entry. A salary that is within the 35–45% heuristic band (i.e. the
+        // low-salary finding above did NOT fire) is still flagged here as an informational
+        // reminder to document the basis for the salary — the IRS scrutinizes S-Corp comp
+        // under a facts-and-circumstances test regardless of ratio (Rev. Rul. 74-44).
+        const eTotalComp = eOfficerSal + Math.max(0, eK1)
+        if (eTotalComp > 20000) {
+          const eRatio = (eOfficerSal / eTotalComp * 100).toFixed(1)
+          findings.push({ key: 'scorp-comp-doc-' + ei, level: 'info', icon: '📋',
+            title: `Reasonable Compensation — Document the Basis (${entityName})`,
+            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+            action: `Maintain a contemporaneous record showing: (1) a description of the services you personally performed; (2) hours spent; (3) comparable industry salaries for those services (BLS Occupational Employment Stats or a compensation survey); and (4) years of experience and qualifications. If your salary changed from prior years, document why. Your CPA should review the reasonableness determination annually.`,
+          })
+        }
       }
     })
   } else if (isSCorpEntity(b.entityType)) {
@@ -441,6 +455,16 @@ function RiskScan({ rec }) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Compensation Recorded',
         detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
         action: null })
+      // AI-3 FIX: reasonable compensation documentation reminder (see per-entity branch above).
+      const _legacyTotalComp = ownerComp + Math.max(0, k1)
+      if (_legacyTotalComp > 20000) {
+        const _legacyRatio = (ownerComp / _legacyTotalComp * 100).toFixed(1)
+        findings.push({ level: 'info', icon: '📋',
+          title: 'Reasonable Compensation — Document the Basis',
+          detail: `Officer compensation (${fmt(ownerComp)}) is ${_legacyRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+          action: `Maintain records showing: services performed, hours spent, comparable industry salaries (BLS OES or compensation surveys), and your qualifications. Discuss the reasonableness determination with your CPA annually.`,
+        })
+      }
     }
   }
 
@@ -1039,7 +1063,17 @@ function IRSCompliance({ rec }) {
   }
 
   if (w2 > 0) {
-    schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', covered: hasW2Data, detail: `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040.`, deadline: 'Issued by employer Jan 31' })
+    // AI-5 FIX: w2 = getTotalW2(rec) = personal W-2 (other employers) + S-Corp officer
+    // salary, which is correct for the FICA / Additional Medicare Tax calculation. The
+    // detail text now reflects the composition so users and CPAs are not confused by a
+    // number larger than what they entered in the "W-2 Income (Other Employers)" field.
+    const _personalW2     = parseFloat(String((rec?.f1040?.w2Income || '0')).replace(/,/g, '')) || 0
+    const _officerW2Total = (Array.isArray(rec.entities) ? rec.entities : [])
+      .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
+    const _w2Detail = _officerW2Total > 0
+      ? `Your total W-2 wages of ${fmt(w2)} (${fmt(_personalW2)} from other employers + ${fmt(_officerW2Total)} S-Corp officer compensation) are reported on Line 1a of Form 1040.`
+      : `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040.`
+    schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', covered: hasW2Data, detail: _w2Detail, deadline: 'Issued by employer Jan 31' })
   }
 
   if (parseFloat(f.estPaid) > 0) {
@@ -1232,7 +1266,14 @@ function ReportModal({ onClose, rec }) {
               [FINANCIAL_LABELS.officerCompensation, b.officerSalary ? fmt(b.officerSalary) : ''],
               ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
-              ['W-2 Income', totalW2 > 0 ? fmt(totalW2) : ''],
+              // AI-5 FIX: label distinguishes personal W-2 vs. total (incl. officer salary)
+              // so CPAs are not confused by a figure larger than the "Other Employers" field.
+              [(() => {
+                const _persW2 = parseFloat(String(f.w2Income || '0').replace(/,/g, '')) || 0
+                const _offW2  = (Array.isArray(rec.entities) ? rec.entities : [])
+                  .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
+                return _offW2 > 0 ? `W-2 Income (other employers ${fmt(_persW2)} + officer salary ${fmt(_offW2)})` : 'W-2 Income'
+              })(), totalW2 > 0 ? fmt(totalW2) : ''],
               ['Estimated Payments Made', f.estPaid ? fmt(f.estPaid) : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
@@ -1301,7 +1342,18 @@ function BriefingModal({ onClose, rec }) {
   const totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
 
   const stdDed = getStdDed(year, filing)
-  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing)
+  // AI-6 FIX: read the user's itemized-deduction election from the session so the
+  // briefing uses the same deduction the engine does — not always the standard deduction.
+  const briefingUseItemized = !!(f.useItemized)
+  const briefingItemizedAmt = num(f.itemizedAmt) || 0
+  const briefingDeduction   = (briefingUseItemized && briefingItemizedAmt > stdDed) ? briefingItemizedAmt : stdDed
+  const briefingDeductionLabel = (briefingUseItemized && briefingItemizedAmt > stdDed)
+    ? `Itemized deductions (Schedule A)`
+    : `Standard deduction (${filingLabel})`
+  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing, {
+    useItemized: briefingUseItemized,
+    itemizedAmt: briefingItemizedAmt,
+  })
   const { deduction: qbi } = resolveQbiDeduction({
     k1,
     taxableBeforeQBI,
@@ -1384,7 +1436,7 @@ function BriefingModal({ onClose, rec }) {
     '',
     'ESTIMATED FEDERAL POSITION (planning estimate)',
     `  Total income (est.): ${fmt(totalIncome)}`,
-    `  Standard deduction (${filingLabel}): -${fmt(stdDed)}`,
+    `  ${briefingDeductionLabel}: -${fmt(briefingDeduction)}`,
     ...(qbi > 0 ? [`  §199A QBI deduction (est.): -${fmt(qbi)}`] : []),
     `  Taxable income (est.): ${fmt(taxable)}`,
     `  Estimated federal income tax: ${fmt(fedTax)}`,
@@ -1397,7 +1449,7 @@ function BriefingModal({ onClose, rec }) {
     '',
     'ASSUMPTIONS & SCOPE',
     '  - Federal tax only. State and local income taxes are not included.',
-    `  - Deduction: ${filingLabel} standard deduction (${fmt(stdDed)}) applied.`,
+    `  - Deduction: ${briefingDeductionLabel} (${fmt(briefingDeduction)}) applied.`,
     '  - Simplified estimate: does NOT separately model §461(l) EBL, NIIT (3.8%), Additional Medicare Tax (0.9%), or AMT.',
     ...(rec.totalTax ? [`  - Tax Tracker full estimate (all applicable federal taxes): ${fmt(rec.totalTax)}.`] : []),
     '',
@@ -1462,7 +1514,7 @@ function BriefingModal({ onClose, rec }) {
           <div style={{ ...sectionTitle, color: '#1D4ED8' }}>ESTIMATED FEDERAL POSITION</div>
           {[
             ['Total income (est.)', sign(totalIncome)],
-            [`Standard deduction (${filingLabel})`, sign(-stdDed)],
+            [briefingDeductionLabel, sign(-briefingDeduction)],
             ...(qbi > 0 ? [['§199A QBI deduction (est.)', sign(-qbi)]] : []),
             ['Taxable income (est.)', fmt(taxable)],
             ['Estimated federal income tax', fmt(fedTax)],
