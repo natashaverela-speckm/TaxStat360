@@ -622,7 +622,7 @@ style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius
 <input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}} />
 Trust this device for {TRUST_DAYS} days — skip 2FA on this browser
 </label>
-<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
+<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:loading||mfaCode.length<6?'not-allowed':'pointer',opacity:loading||mfaCode.length<6?0.5:1,transition:'opacity 0.15s',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
 <button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>
 ):(
