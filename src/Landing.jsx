@@ -368,7 +368,6 @@ export default function Landing() {
                 'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
                 'Explainable AI: Why This Number?',
                 'Ask Aria — AI tax assistant',
-                FEATURE_AUDIT_RISK_SCAN,
                 'Unlimited accounting integrations',
                 'Priority support',
               ],
@@ -475,7 +474,6 @@ export default function Landing() {
                   // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
                   // ships on Starter too, change this row to [..., true, true, true].
                   ['Ask Aria — AI tax assistant',            false, true,  true],
-                  [FEATURE_AUDIT_RISK_SCAN,                  false, true,  true],
                 ]},
                 { group: 'Integrations', rows: [
                   ['Accounting software integration',         true,  true,  true],
