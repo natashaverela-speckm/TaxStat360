@@ -457,7 +457,7 @@ function RiskScan({ rec }) {
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
-      action: `If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
+      action: `If you own any business assets, enter depreciation under §179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
   }
 
   if (k1 < 0 && isPassthroughEntity(b.entityType)) {
@@ -836,9 +836,9 @@ function TaxOptimization({ rec }) {
 
   if (revenue > 30000 && dep === 0) {
     opportunities.push({
-      icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
+      icon: '🏗️', title: '§179 Equipment Deduction', priority: 'medium',
       saving: null,
-      detail: 'Section 179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
+      detail: '§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }

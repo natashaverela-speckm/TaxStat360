@@ -189,7 +189,7 @@ export default function Landing() {
               desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
             { icon: 'document', label: 'Schedule C',
               title: 'Sole Proprietors and SMLLCs',
-              desc: 'Self-employment tax, QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+              desc: 'Self-employment tax, §199A QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
             { icon: 'home', label: 'Schedule E',
               title: 'Real Estate Investors',
               desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.' },
@@ -261,11 +261,11 @@ export default function Landing() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
             { n: '01', title: 'Connect your software — or enter manually',
-              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your revenue and expenses directly — it takes under 2 minutes.' },
+              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your gross receipts and expenses directly — it takes under 2 minutes.' },
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
-              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and K-1 breakdown update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
+              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and your entity income allocation update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 15, fontWeight: 700, color: N }}>{s.n}</div>
@@ -294,7 +294,7 @@ export default function Landing() {
               // statement so users understand the scope of what is calculated.
               a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?',
-              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your revenue and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
+              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
               a: 'Multiple entities is an Enterprise plan feature. On Enterprise you can track each business separately and see your consolidated federal tax exposure across all of them in one view. The Starter and Professional plans cover a single business entity.' },
             { q: 'Is my financial data secure?',
@@ -348,7 +348,7 @@ export default function Landing() {
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
                 'Schedule C (sole props & SMLLCs)',
                 'Quarterly estimated payments',
-                'Personal tax return (W-2 + business income)',
+                'Personal tax return (W-2 + entity income)',
                 '1 accounting software integration',
               ],
             },
@@ -363,7 +363,7 @@ export default function Landing() {
               // the Starter column in the comparison table below.
               features: [
                 'Everything in Starter plus:',
-                'Risk Alert Engine',
+                FEATURE_AUDIT_RISK_SCAN,
                 FEATURE_WHATIF_SIMULATOR,
                 'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
                 'Explainable AI: Why This Number?',
@@ -465,11 +465,11 @@ export default function Landing() {
                   ['K-1 income (S-Corps, partnerships, Multi-Member LLCs)', true, true, true],
                   ['Schedule C (sole props & SMLLCs)',       true,  true,  true],
                   ['Quarterly estimated payments',           true,  true,  true],
-                  ['Personal tax return (W-2 + business income)', true, true, true],
+                  ['Personal tax return (W-2 + entity income)', true, true, true],
                   ['Multi-entity consolidated tax view',     false, false, true],
                 ]},
                 { group: 'AI & Analysis', rows: [
-                  ['Risk Alert Engine',                      false, true,  true],
+                  [FEATURE_AUDIT_RISK_SCAN,                      false, true,  true],
                   [FEATURE_WHATIF_SIMULATOR,         false, true,  true],
                   ['Explainable AI: Why This Number?',       false, true,  true],
                   // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
