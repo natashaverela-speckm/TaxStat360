@@ -25,6 +25,7 @@ import {
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
   FINANCIAL_LABELS,
+  FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR,
 } from './constants.js'
 
 // ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
@@ -298,13 +299,17 @@ function NoData({ tab = 'risk' }) {
   const tabInfo = {
     risk: {
       icon: '🔍',
-      title: 'Risk Scan',
+      // TERMINOLOGY FIX 9.4: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan".
+      // Canonical name per constants.js FEATURE_AUDIT_RISK_SCAN = "Audit Risk Scan".
+      title: FEATURE_AUDIT_RISK_SCAN,
       desc: 'Flags officer compensation issues, audit triggers, penalty exposure, passive-loss violations, and entity-structure risks — personalized to your numbers.',
     },
     optimize: {
       icon: '💡',
-      title: 'Tax Optimization',
-      desc: 'Surfaces retirement contribution strategies, depreciation opportunities, QBI deduction maximization, and S-Corp SE-tax savings specific to your situation.',
+      // TERMINOLOGY FIX 9.3: pricing page said "What-If Tax Scenario Simulator"; tab label said
+      // "Tax Optimization"; tab desc said "What-If Tax Simulator". Canonical: "What-If Tax Simulator".
+      title: FEATURE_WHATIF_SIMULATOR,
+      desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.',
     },
     compliance: {
       icon: '📋',
@@ -563,7 +568,7 @@ function RiskScan({ rec }) {
       icon: '🚨',
       title: `Enter S-Corp Stock Basis — ${fmt(_sCorpLossNoBasis)} Loss Limited Until Basis Is Entered (IRC §1366(d))`,
       detail: `Your S-Corp K-1 shows a ${fmt(_sCorpLossNoBasis)} loss, but no beginning stock basis has been entered. Under IRC §1366(d)(1) your deductible loss is capped at your combined stock + debt basis, and any excess is suspended and carried forward (§1366(d)(2)). With nothing entered, the Tax Tracker conservatively assumes $0 basis and suspends the full loss — a higher, more conservative tax — until you provide your basis. (An estimate saved before this basis check may still show the loss as fully deducted; re-open and re-save it in the Tax Tracker to refresh.)`,
-      action: `Open the S-Corp entity in Step 1 → "Stock Basis & Distributions (Form 7203)" and enter your beginning-of-year stock basis (Form 7203, Line 1) plus any debt basis (Part II). With $0 basis the entire loss is suspended; with basis at or above the loss it is fully deductible this year. Your CPA tracks this figure on Form 7203 each year.`,
+      action: `Open the S-Corp entity in Step 1 → "Stock & Debt Basis (Form 7203)" and enter your beginning-of-year stock basis (Form 7203, Line 1) plus any debt basis (Part II). With $0 basis the entire loss is suspended; with basis at or above the loss it is fully deductible this year. Your CPA tracks this figure on Form 7203 each year.`,
     })
   }
 
@@ -634,7 +639,7 @@ function RiskScan({ rec }) {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>{FEATURE_AUDIT_RISK_SCAN} Results</h3>
         <p style={{ fontSize: 13, color: SL, margin: '0 0 8px' }}>Based on your saved record. These findings are specific to your situation.</p>
         <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
           These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed tax professional before making any filing decisions.
@@ -1638,7 +1643,7 @@ function SimulatorModal({ onClose, rec }) {
                 ['Advertising ($)', 'advertising'],
                 ['Depreciation / Equip ($)', 'depreciation'],
                 ['Operating Expenses ($)', 'operatingExpenses'],
-                ['Other Deductions ($)', 'otherDeductions'],
+                ['Other Operating Expenses ($)', 'otherDeductions'],
                 ['Gross Receipts Change ($)', 'grossRevenue'],
                 ['Officer Compensation Change ($)', 'officerSalary'],
               ].map(([label, key]) => (
@@ -1661,7 +1666,7 @@ function SimulatorModal({ onClose, rec }) {
                 {row(FINANCIAL_LABELS.officerCompensation,    baseline.sal,        scenario.sal,      true)}
                 {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
                 {row('Advertising',       baseline.adv,        scenario.adv,      true)}
-                {row('Other Deductions',  baseline.other,      scenario.other,    true)}
+                {row('Other Operating Expenses',  baseline.other,      scenario.other,    true)}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
                   <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>{FINANCIAL_LABELS.netBusinessIncome}</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
@@ -1944,7 +1949,7 @@ export default function AIAnalysis() {
           <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 10px' }}>AI Analysis & Reporting — Professional Feature</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
-            AI Risk Scan, Tax Optimization, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
+            Audit Risk Scan, What-If Tax Simulator, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
           </p>
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: '16px', marginBottom: 24, textAlign: 'left' }}>
             {['🚨 Officer compensation & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
@@ -1963,8 +1968,8 @@ export default function AIAnalysis() {
   }
 
   const tabs = [
-    { id: 'risk',       label: '🔍 Risk Scan' },
-    { id: 'optimize',   label: '💡 Tax Optimization' },
+    { id: 'risk',       label: `🔍 ${FEATURE_AUDIT_RISK_SCAN}` },
+    { id: 'optimize',   label: `💡 ${FEATURE_WHATIF_SIMULATOR}` },
     { id: 'compliance', label: '📋 IRS Schedule Map' },
     { id: 'reports',    label: '📄 Reports & Tools' },
   ]

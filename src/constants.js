@@ -120,6 +120,21 @@ export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length -
 // mid-flow. All in-app references now use this constant.
 export const STEP3_LABEL = 'AI Analysis & Reporting'
 
+// ─── CANONICAL FEATURE NAMES — single source of truth (audit Categories 8/9) ──
+// TERMINOLOGY FIX 9.3/9.4: Three surfaces used three different names for the same
+// features. Defining canonical names here so pricing page, nav tabs, and internal
+// descriptions always match. Import these — never inline the feature name strings.
+//
+// Audit Risk: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan"
+//   → canonical: FEATURE_AUDIT_RISK_SCAN (used in tab label AND pricing copy)
+// What-If Simulator: pricing said "What-If Tax Scenario Simulator"; tab label said
+//   "Tax Optimization"; tab desc said "What-If Tax Simulator"
+//   → canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
+export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
+export const FEATURE_WHATIF_SIMULATOR  = 'What-If Tax Simulator'
+export const FEATURE_IRS_SCHEDULE_MAP  = 'IRS Schedule Map'
+export const FEATURE_REPORTS_AND_TOOLS = 'Reports & Tools'
+
 // ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) ─
 // Same rationale as STEP3_LABEL above: these P&L / summary labels were inline
 // literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
@@ -135,7 +150,11 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 // editable operating subset) — they are different figures, not synonyms.
 export const FINANCIAL_LABELS = {
   grossReceipts:            'Gross Receipts',
-  grossReceiptsField:       'Gross Receipts (Total Revenue)',
+  // TERMINOLOGY FIX 1.1: "Gross Receipts (Total Revenue)" conflated two distinct concepts.
+  // "Gross receipts" is the IRS/IRC term (Form 1120-S Line 1a; Schedule C Line 1).
+  // "Revenue" is a GAAP/accounting term. They are not interchangeable. Use the IRS term.
+  // The field label is kept short here; entity-specific form citations live in the tooltips.
+  grossReceiptsField:       'Gross Receipts',
   operatingExpenses:        'Operating Expenses',
   operatingExpensesField:   'Operating Expenses (excl. Officer Compensation, Depreciation, Advertising)',
   totalExpenses:            'Total Expenses',
@@ -144,6 +163,13 @@ export const FINANCIAL_LABELS = {
   netBusinessIncome:        'Net Business Income',
   netRentalIncome:          'Net Rental Income',
   estTotalFederalTax:       'EST. TOTAL FEDERAL TAX',
+  // TERMINOLOGY FIX for Schedule C / real estate — separate citation per form
+  grossReceiptsFieldScheduleC:  'Gross Receipts (Schedule C, Line 1)',
+  grossRentsReceivedField:      'Gross Rents Received (Schedule E, Line 3)',
+  // TERMINOLOGY FIX 3.1: "Other Deductions" → "Other Operating Expenses" in entity P&L forms.
+  // Items entered here are operating expenses that reduce gross income on the entity return,
+  // not "deductions" in the IRC sense (which reduce taxable income on the personal return).
+  otherOperatingExpenses:       'Other Operating Expenses',
 }
 
 // ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────

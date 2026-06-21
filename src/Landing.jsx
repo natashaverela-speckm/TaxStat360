@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT } from './constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants'
 import './Landing.css'
 
 const N = '#0D1B3E'
@@ -265,7 +265,7 @@ export default function Landing() {
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
-              desc: 'Complete estimated federal tax liability, quarterly payments, QBI deduction savings, and K-1 breakdown update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
+              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and K-1 breakdown update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 15, fontWeight: 700, color: N }}>{s.n}</div>
@@ -364,11 +364,11 @@ export default function Landing() {
               features: [
                 'Everything in Starter plus:',
                 'Risk Alert Engine',
-                'What-If Tax Scenario Simulator',
+                FEATURE_WHATIF_SIMULATOR,
                 'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
                 'Explainable AI: Why This Number?',
                 'Ask Aria — AI tax assistant',
-                'Audit Risk Indicators',
+                FEATURE_AUDIT_RISK_SCAN,
                 'Unlimited accounting integrations',
                 'Priority support',
               ],
@@ -470,12 +470,12 @@ export default function Landing() {
                 ]},
                 { group: 'AI & Analysis', rows: [
                   ['Risk Alert Engine',                      false, true,  true],
-                  ['What-If Tax Scenario Simulator',         false, true,  true],
+                  [FEATURE_WHATIF_SIMULATOR,         false, true,  true],
                   ['Explainable AI: Why This Number?',       false, true,  true],
                   // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
                   // ships on Starter too, change this row to [..., true, true, true].
                   ['Ask Aria — AI tax assistant',            false, true,  true],
-                  ['Audit Risk Indicators',                  false, true,  true],
+                  [FEATURE_AUDIT_RISK_SCAN,                  false, true,  true],
                 ]},
                 { group: 'Integrations', rows: [
                   ['Accounting software integration',         true,  true,  true],
