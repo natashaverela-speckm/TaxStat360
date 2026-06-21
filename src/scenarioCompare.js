@@ -183,7 +183,10 @@ function compareEntityScenarios(input) {
     ],
     notes: [
       'Officer salary $' + salary.toLocaleString() + ' subject to 15.3% FICA up to SS wage base.',
-      'K-1 distribution $' + sCorpK1.toLocaleString() + ' avoids FICA but still ordinary income.',
+      // TERMINOLOGY FIX 1.4: "ordinary income" implied W-2/SE-tax treatment. S-Corp distributions
+      // avoid both FICA and SE tax — they are taxable income reported on Schedule E, but explicitly
+      // NOT "ordinary income" in the FICA/self-employment sense. Updated to avoid misleading users.
+      'K-1 distribution $' + sCorpK1.toLocaleString() + ' avoids FICA but is still taxable income (flows to Form 1040, Schedule E).',
       'QBI deduction applies to K-1 only; subject to W-2 wage limit (your salary helps clear it).',
       'Payroll service required (typical $300-1,500/year — NOT included in this comparison).',
     ],

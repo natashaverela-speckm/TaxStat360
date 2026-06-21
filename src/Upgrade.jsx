@@ -29,10 +29,13 @@ const FEATURES = [
   { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
   { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
   { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
-  { label:'Personal tax return (W-2 + business income)',                starter:true,  professional:true,  enterprise:true  },
+  { label:'Personal tax return (W-2 + entity income)',                 starter:true,  professional:true,  enterprise:true  },
   { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
   // ── Professional additions ────────────────────────────────────────────────
-  { label:'Risk Alert Engine',                                          starter:false, professional:true,  enterprise:true  },
+  // TERMINOLOGY FIX 5.1b: "Risk Alert Engine" did not match the in-app tab label "Audit Risk Scan."
+  // A paying user landing in the app could not find the feature they purchased. Using the canonical
+  // FEATURE_AUDIT_RISK_SCAN constant so this name stays in sync with AIAnalysis.jsx tab label.
+  { label:FEATURE_AUDIT_RISK_SCAN,                                          starter:false, professional:true,  enterprise:true  },
   { label:FEATURE_WHATIF_SIMULATOR,                             starter:false, professional:true,  enterprise:true  },
   { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
   { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },

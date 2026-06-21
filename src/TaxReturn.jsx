@@ -732,7 +732,7 @@ export default function TaxReturn() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {[
               { n: 1, label: 'Entities', active: false, done: true  },
-              { n: 2, label: 'Return',   active: true,  done: false },
+              { n: 2, label: 'Personal Return', active: true,  done: false },
               { n: 3, label: STEP3_LABEL, active: false, done: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1078,8 +1078,11 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* S-Corp basis carryforwards */}
+          {/* TERMINOLOGY FIX 5.5: Pass 1 fixed Step 1 to "Stock & Debt Basis (Form 7203)" but Step 2
+              still read "S-Corp Stock & Debt Basis" — two different names for the same concept.
+              Aligned to match Step 1 label and add the Form 7203 citation. */}
           {Array.isArray(entities) && entities.some(e => isSCorpEntity(e.type)) && (
-            <CollapsibleSection title="S-Corp Stock & Debt Basis" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
+            <CollapsibleSection title="Stock & Debt Basis (Form 7203)" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
@@ -1115,7 +1118,14 @@ export default function TaxReturn() {
                 <MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
-                <label htmlFor="tr-dividends" style={inputLbl}>Ordinary Dividends</label>
+                {/* TERMINOLOGY FIX 4.1: Added tooltip to clarify ordinary vs qualified dividends.
+                    The two fields appear adjacent in the same accordion; without a tooltip users
+                    may confuse ordinary dividends (taxed at ordinary rates) with qualified dividends
+                    (taxed at 0/15/20%) or accidentally double-count by entering the same amount in both. */}
+                <label htmlFor="tr-dividends" style={inputLbl}>
+                  Ordinary Dividends
+                  <InfoTip text="Total dividends from Form 1099-DIV, Box 1a. Ordinary dividends are taxed at ordinary income rates — NOT the preferential 0/15/20% rate. Only the qualified dividend portion (Box 1b, entered below) receives preferential treatment. Enter the full Box 1a amount here; enter Box 1b separately in the field below." />
+                </label>
                 <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
@@ -1127,7 +1137,9 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-form4797" style={inputLbl}>
-                  Form 4797 Gains (§1231)
+                  {/* TERMINOLOGY FIX 4.2: Label said "Gains" only; tooltip already explains losses
+                      are entered as negative numbers. Label updated to match the tooltip. */}
+                  Form 4797 Gains / Losses (§1231)
                   <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain" field below.'} wide />
                 </label>
                 <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
@@ -1158,8 +1170,11 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-collectibles" style={inputLbl}>
-                  Collectibles Gain (Art, Coins, Stamps)
-                  <InfoTip text="Gain from the sale of collectibles held more than 1 year — including coins, art, antiques, gems, and stamps (IRC §1(h)(4)). Taxed at a maximum 28% rate. Enter your net gain from Schedule D." />
+                  {/* TERMINOLOGY FIX 4.3: Old label listed 3 of 7+ statutory categories ("Art, Coins, Stamps")
+                      and omitted gems, precious metals, and rugs. Moved examples to tooltip, cite §1(h)(4)
+                      in label for precision. Tooltip now covers the full statutory definition. */}
+                  Collectibles Gain — IRC §1(h)(4)
+                  <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year — losses are entered as negative numbers)." />
                 </label>
                 <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
               </div>
@@ -1206,7 +1221,10 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qbi-loss" style={inputLbl}>
-                  Prior Year QBI Loss Carryforward (pooled — use entity panel for multi-entity)
+                  {/* TERMINOLOGY FIX 4.4: Old label buried a critical instruction ("use entity panel for
+                      multi-entity") inside a parenthetical, and used unexplained "pooled" jargon.
+                      Form 8995 citation added. The tooltip already explains the per-entity distinction. */}
+                  Prior-Year QBI Loss Carryforward (Form 8995, Line 3)
                   <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's §199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. §1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
                 </label>
                 <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
@@ -1291,7 +1309,7 @@ export default function TaxReturn() {
           <div data-section="safe-harbor">
           <CollapsibleSection title="Safe Harbor & Estimated Tax Payments" subtitle="Prior-year tax & AGI · Safe Harbor Test (§6654)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
-              Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change safe harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
+              Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
@@ -1313,9 +1331,9 @@ export default function TaxReturn() {
                     </div>
                     <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.7 }}>
                       Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
-                      {' '}→ {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
+                      {' '}→ {isHighIncome ? '110%' : '100%'} Safe Harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
                       Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
-                      Surplus: <strong>{fmt(Math.abs(safeHarborGap))}</strong> above the safe harbor threshold
+                      Surplus: <strong>{fmt(Math.abs(safeHarborGap))}</strong> above the Safe Harbor threshold
                     </div>
                   </div>
                 ) : (
@@ -1327,7 +1345,7 @@ export default function TaxReturn() {
                       Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
                       {' '}→ {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
                       Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
-                      Remaining to meet safe harbor: <strong>{fmt(safeHarborGap)}</strong>
+                      Remaining to meet Safe Harbor: <strong>{fmt(safeHarborGap)}</strong>
                     </div>
                     {priorYearAGINum === 0 && (
                       <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 6, fontStyle: 'italic' }}>
@@ -1457,13 +1475,17 @@ export default function TaxReturn() {
                 { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
-                { label: 'Standard Deduction',          value: result.deduction,                         sign: -1 },
+                // TERMINOLOGY FIX 2.4: Label was always "Standard Deduction" even when itemized
+                // deductions were active (useItemized=true). result.deduction reflects the itemized
+                // amount when useItemized is true, so the label must be conditional. useItemized is
+                // in scope from line 345. No logic change — label expression only.
+                { label: useItemized ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction,                         sign: -1 },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: 'Taxable Income (before QBI)', value: result.taxableBeforeQBI,                  sign: 1 },
+                { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
                 { label: '§199A QBI Deduction',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
@@ -1478,7 +1500,7 @@ export default function TaxReturn() {
                 { label: '—', value: 0, divider: true },
                 { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
-                { label: 'Withholding & Est. Pmts',     value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
+                { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {

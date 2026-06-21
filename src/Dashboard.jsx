@@ -202,7 +202,7 @@ function buildRecs(biz, calc) {
   if (qbi > 0)
     recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
   if (dep === 0 && grossRev > 50000)
-    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Section 179.' })
+    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under §179.' })
   if (parseFloat(effRate) > 28)
     recs.push({ type: 'warning', title: `High Effective Tax Rate (${pct(effRate)})`, msg: 'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) for 2025.' })
   if (recs.length === 0)
