@@ -373,6 +373,15 @@ export default function Dashboard() {
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 
+  // F-19 UX FIX: responsive nav — collapse labels to icons on narrow viewports
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const userName = localStorage.getItem('ts360_userName') || ''
 
   useEffect(() => {
@@ -618,10 +627,10 @@ export default function Dashboard() {
           {userName && (
             <span style={{ fontSize: 13, color: SL }}>Hi, <strong style={{ color: N }}>{userName.split(' ')[0]}</strong></span>
           )}
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Tax Tracker</button>
-          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? '' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>AI Analysis & Reporting {!isPro() && '🔒'}</button>
-          <button onClick={() => signOut(nav)}         style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
-          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? '🧮' : 'Tax Tracker'}</button>
+          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? '🤖' : 'AI Analysis & Reporting'}{!isPro() && ' 🔒'}</button>
+          {!isMobile && <button onClick={() => signOut(nav)} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
+          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
         </div>
       </nav>
 
@@ -743,9 +752,10 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            <button onClick={startNewCalc} style={{ padding: '10px 24px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              Start New Calculation →
-            </button>
+            <p style={{ color: SL, fontSize: 13, margin: '8px 0 0', textAlign: 'center' }}>
+              Or{' '}
+              <span onClick={startNewCalc} style={{ color: B, cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}>start with a blank calculation</span>
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

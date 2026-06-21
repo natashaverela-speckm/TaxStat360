@@ -19,7 +19,7 @@
 //
 // F-05 FIX: Added discrete Depreciation field in ManualEntryPanel.
 //
-// C-02 FIX: Footer "Save Record" → "Save This Record" for consistency.
+// C-02 FIX: Footer "Save Record" → "Save Progress" for consistency.
 //
 // C-05 FIX: "✏ Edit / re-enter data" restyled as outlined button.
 //
@@ -44,7 +44,7 @@
 //   Applied HTML disabled attribute when entity count is 0. Added onClick guard
 //   that surfaces an inline error toast if clicked in empty state.
 //
-// F-02 FIX: "Save This Record" (Step 1) disabled state not visually enforced.
+// F-02 FIX: "Save Progress" (Step 1) disabled state not visually enforced.
 //   Applied HTML disabled attribute + visual disabled style when no entity exists.
 //
 // CSV import removed: the "Import CSV" upload (link, file input, and handler) has
@@ -720,9 +720,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 
       {isRE && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
-          <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
+          <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 4 }}>🏠 Rental Property — Income, Expenses & Depreciation</div>
+          <div style={{ fontSize: 11, color: '#6D28D9', marginBottom: 6, fontWeight: 500 }}>Schedule E · Passive activity rules (§469) apply</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer compensation does not apply to rental property, so that field is hidden here.
+            Whether a net rental loss is deductible this year depends on your passive-activity status — Real Estate Professional (REP) status plus the §1.469-9(g) aggregation election makes the loss nonpassive, or the $25,000 active-participation allowance applies if you don't qualify as REP. Set your status on this card. Officer compensation doesn't apply to rentals.
           </div>
         </div>
       )}
@@ -2166,7 +2167,7 @@ export default function CalculateTaxInner() {
           </button>
         )}
         <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
-        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save This Record below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
+        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
@@ -2210,9 +2211,15 @@ export default function CalculateTaxInner() {
                 color: footerDisabled ? '#94A3B8' : SL,
                 cursor: footerDisabled ? 'not-allowed' : 'pointer',
                 opacity: footerDisabled ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save This Record'}
+              {/* F-11 UX FIX: dot indicator signals unsaved changes so users don't
+                  need to scroll to the bottom warning to know they need to save. */}
+              {saveStatus !== 'saved' && !footerDisabled && (
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} aria-label="Unsaved changes" />
+              )}
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save Progress'}
             </button>
             {/* O2 FIX: onClick is now guarded and always navigates to /tax-return */}
             <button

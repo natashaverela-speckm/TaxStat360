@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold } from './taxCalc.js'
 import {
@@ -294,17 +294,43 @@ function getOnboardingBizInfo() {
   return readBusinessInfo()
 }
 
-function NoData() {
+function NoData({ tab = 'risk' }) {
+  const tabInfo = {
+    risk: {
+      icon: '🔍',
+      title: 'Risk Scan',
+      desc: 'Flags officer compensation issues, audit triggers, penalty exposure, passive-loss violations, and entity-structure risks — personalized to your numbers.',
+    },
+    optimize: {
+      icon: '💡',
+      title: 'Tax Optimization',
+      desc: 'Surfaces retirement contribution strategies, depreciation opportunities, QBI deduction maximization, and S-Corp SE-tax savings specific to your situation.',
+    },
+    compliance: {
+      icon: '📋',
+      title: 'IRS Schedule Map',
+      desc: 'Shows every form and schedule you\'ll need to file — with status (required / covered / action needed) based on your income structure.',
+    },
+    reports: {
+      icon: '📄',
+      title: 'Reports & Tools',
+      desc: 'Generates a print-ready CPA briefing PDF, a What-If Tax Simulator, and a narrative summary you can hand to your accountant instead of explaining everything from scratch.',
+    },
+  }
+  const info = tabInfo[tab] || tabInfo.risk
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>No data yet</div>
-      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>
-        Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to see your AI analysis.
+      <div style={{ fontSize: 36, marginBottom: 12 }}>{info.icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 6 }}>{info.title}</div>
+      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 420, margin: '0 auto 8px' }}>
+        {info.desc}
+      </div>
+      <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20, lineHeight: 1.5 }}>
+        Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to unlock this — takes about 5 minutes.
       </div>
       <button onClick={() => window.location.href = '/calculate-tax'}
         style={{ padding: '10px 24px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-        Go to Calculator →
+        Go to Tax Tracker →
       </button>
     </div>
   )
@@ -319,7 +345,7 @@ function RiskScan({ rec }) {
   const recordId = (typeof window !== 'undefined' && sessionStorage.getItem('ts360_active_record_id')) || 'unsaved-session'
   const [dismissed, setDismissed] = useState(() => readRiskDismissals(recordId))
   const [showReviewed, setShowReviewed] = useState(false)
-  if (!rec) return <NoData />
+  if (!rec) return <NoData tab="risk" />
   const b = rec.biz || {}, f = rec.f1040 || {}
   const revenue = parseFloat(b.grossRevenue) || 0
   const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
@@ -683,7 +709,7 @@ function RiskScan({ rec }) {
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
 function TaxOptimization({ rec }) {
-  if (!rec) return <NoData />
+  if (!rec) return <NoData tab="optimize" />
   const b = rec.biz || {}, f = rec.f1040 || {}
   // F-FUNC-04: revenue and entity structure fall back to the per-entity data so the
   // Optimization tab reflects the same figures the Risk Scan and Schedule Map use.
@@ -912,6 +938,7 @@ function TaxOptimization({ rec }) {
 // or "⚠ Review needed" (amber). Coverage is derived from record data already
 // available. A summary line at the top counts covered vs total schedules.
 function IRSCompliance({ rec }) {
+  if (!rec) return <NoData tab="compliance" />
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const k1 = parseFloat(rec?.k1Income) || 0
   const w2 = getTotalW2(rec)
@@ -1753,6 +1780,7 @@ function NarrativeModal({ onClose }) {
 // - score 50–79: button enabled, pre-generation checklist shown (✓ / ⚠ per field)
 // - score ≥ 80: button enabled, no warning
 function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
+  if (!rec) return <NoData tab="reports" />
   const score = completeness(rec)
   const missing = missingFields(rec)
   // C-24: require explicit acknowledgment before generating a materially incomplete pack.
@@ -1896,6 +1924,14 @@ export default function AIAnalysis() {
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
   const [showBriefing, setShowBriefing] = useState(false)
+  // F-19 UX FIX: responsive nav
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const rec = getRecord(liveState)
   const score = completeness(rec)
@@ -1942,21 +1978,23 @@ export default function AIAnalysis() {
           </div>
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
-              { label: 'Dashboard',    path: '/dashboard' },
-              { label: 'Tax Tracker', path: '/calculate-tax' },
-              { label: 'AI Analysis & Reporting', path: '/ai-analysis' },
-              { label: 'Settings',    path: '/settings' },
+              { label: 'Dashboard',    mobileLabel: '⊞', path: '/dashboard' },
+              { label: 'Tax Tracker',  mobileLabel: '🧮', path: '/calculate-tax' },
+              { label: 'AI Analysis & Reporting', mobileLabel: '🤖', path: '/ai-analysis' },
+              { label: 'Settings',     mobileLabel: '⚙', path: '/settings' },
             ].map(link => (
-              <button key={link.path} onClick={() => navigate(link.path)} style={{
+              <button key={link.path} onClick={() => navigate(link.path)} title={link.label} style={{
                 padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
                 background: location.pathname === link.path ? '#EFF6FF' : 'transparent',
                 color: location.pathname === link.path ? B : SL,
                 fontWeight: location.pathname === link.path ? 700 : 500,
-              }}>{link.label}</button>
+              }}>{isMobile ? link.mobileLabel : link.label}</button>
             ))}
-            <button onClick={() => signOut(navigate)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: 'transparent', color: SL, fontSize: 13, cursor: 'pointer' }}>
-              Sign Out
-            </button>
+            {!isMobile && (
+              <button onClick={() => signOut(navigate)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: 'transparent', color: SL, fontSize: 13, cursor: 'pointer' }}>
+                Sign Out
+              </button>
+            )}
           </nav>
         </div>
       </div>
@@ -1976,11 +2014,22 @@ export default function AIAnalysis() {
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 6 }}>INPUT COMPLETENESS</div>
             <div style={{ fontSize: 32, fontWeight: 800, color: score >= 80 ? G : score >= 50 ? O : R, lineHeight: 1 }}>{score}%</div>
-            {missing.length > 0 && (
+            {score === 0 ? (
+              <div style={{ fontSize: 11, color: SL, marginTop: 8, maxWidth: 160, lineHeight: 1.5 }}>
+                Add your income in{' '}
+                <span
+                  onClick={() => navigate('/calculate-tax')}
+                  style={{ color: B, cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}
+                >
+                  Tax Tracker
+                </span>{' '}
+                to unlock all analysis — takes about 5 min
+              </div>
+            ) : missing.length > 0 ? (
               <div style={{ fontSize: 11, color: SL, marginTop: 6, maxWidth: 160 }}>
                 Missing: {missing.slice(0, 2).join(', ')}{missing.length > 2 ? ` +${missing.length - 2} more` : ''}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

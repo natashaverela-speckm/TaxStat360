@@ -237,6 +237,33 @@ function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = fa
   )
 }
 
+// ─── F-04 UX FIX: Collapsible OBBBA notice ────────────────────────────────────
+// Collapsed by default — one-line summary always visible, detail on demand.
+// Replaces the always-expanded amber banner that blocked income inputs.
+function OBBBANotice() {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div role="note" style={{ marginTop: 6, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
+      <button
+        type="button"
+        onClick={() => setExpanded(x => !x)}
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 10px', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#78350F', fontSize: 11, fontFamily: 'inherit' }}
+      >
+        <span><strong>⚠ OBBBA provisions apply (P.L. 119-21)</strong> — some thresholds still pending</span>
+        <span style={{ flexShrink: 0, marginLeft: 8 }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div style={{ padding: '0 10px 8px' }}>
+          Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
+          <div style={{ marginTop: 4, fontSize: 10, color: '#64748B' }}>
+            One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function TaxReturn() {
   const navigate = useNavigate()
@@ -736,12 +763,12 @@ export default function TaxReturn() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Back to Business</button>
-          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Dashboard</button>
-          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }}>{STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
-          <button onClick={() => signOut(navigate)}         style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
-          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+        <div style={{ display: 'flex', gap: isMobile ? 4 : 8 }}>
+          {!isMobile && <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Business</button>}
+          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? '⊞' : 'Dashboard'}</button>
+          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? '🤖' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
+          {!isMobile && <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
+          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
         </div>
       </nav>
 
@@ -796,16 +823,7 @@ export default function TaxReturn() {
                     <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
                   ))}
                 </select>
-                {taxYear === 2026 && (
-                  <div role="note" style={{ marginTop: 6, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
-                    <strong>⚠ OBBBA provisions apply (P.L. 119-21).</strong> Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
-                  </div>
-                )}
-                {taxYear === 2026 && (
-                  <div style={{ fontSize: 10, color: '#64748B', marginTop: 4, lineHeight: 1.5 }}>
-                    One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
-                  </div>
-                )}
+                {taxYear === 2026 && <OBBBANotice />}
               </div>
               <div>
                 <label style={inputLbl}>Filing Status</label>
@@ -817,10 +835,30 @@ export default function TaxReturn() {
             </div>
           </div>
 
+          {/* F-13 UX FIX: YTD toggle moved here — immediately after Tax Year/Filing Status,
+              before entity K-1 summary. This is the most-used in-year planning feature
+              and was previously buried mid-scroll. Compact inline version shown here;
+              the full expanded detail card remains below in its original position. */}
+          {!ytdMode && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: N }}>📅 Planning for the rest of the year?</span>
+                <div style={{ fontSize: 11, color: SL, marginTop: 1 }}>Enter YTD figures and we'll project your full-year liability.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setYtdMode(true)}
+                style={{ padding: '7px 14px', background: '#EFF6FF', color: B, border: '1px solid #BFDBFE', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                Enable YTD Mode →
+              </button>
+            </div>
+          )}
+
           {/* K-1 income summary (read-only from Step 1) */}
           {entityList.length > 0 && (
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', letterSpacing: '0.5px', marginBottom: 8 }}>FROM STEP 1 — BUSINESS ENTITIES</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 — Business Entities</div>
               {k1Entities.map((e, i) => {
                 const pnl = e.pnl || {}
                 const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
@@ -846,10 +884,11 @@ export default function TaxReturn() {
 
               {hasStep1Rental && (
                 <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    RENTAL REAL ESTATE (SCHEDULE E) — §469
+                  <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    Rental real estate (Schedule E)
                     <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the §1.469-9(g) aggregation election on the rental card in Step 1.'} />
                   </div>
+                  <div style={{ fontSize: 10, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (§469) apply — losses may be limited</div>
                   {step1Rentals.map((e, i) => {
                     const pnl = e.pnl || {}
                     const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
@@ -1058,7 +1097,7 @@ export default function TaxReturn() {
               value so a loaded record never hides material figures behind a collapsed
               header (the audit's "data is hidden from view" concern). Pairs with the
               full-f1040 hydration in Dashboard.loadRecord. */}
-          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D' : undefined} accent="#0891B2">
+          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -1128,7 +1167,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Above-the-Line Deductions" subtitle="HSA, SE health & retirement, student-loan interest · Schedule 1">
+          <CollapsibleSection title="Deductions That Reduce Your Income" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-health-ins" style={inputLbl}>
@@ -1338,6 +1377,24 @@ export default function TaxReturn() {
             {hasResult && (
               <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
                 Effective rate: {pct(effectiveRate(result.totalTax, result.agi))}
+              </div>
+            )}
+            {/* F-05 UX FIX: Surface "Estimated Balance Due" directly in the hero card.
+                Previously only visible by scrolling the Tax Waterfall below. This is the
+                number a business owner actually acts on — how much they still owe. */}
+            {hasResult && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.8 }}>
+                  {result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund'}
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: result.balance >= 0 ? '#FCA5A5' : '#86EFAC' }}>
+                  {result.balance >= 0 ? fmt(result.balance) : fmt(Math.abs(result.balance))}
+                </span>
+              </div>
+            )}
+            {!hasResult && (
+              <div style={{ fontSize: 11, opacity: 0.55, marginTop: 8, lineHeight: 1.5 }}>
+                Enter your income above to see your tax estimate.
               </div>
             )}
           </div>

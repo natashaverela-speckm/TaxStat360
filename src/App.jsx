@@ -94,7 +94,7 @@ function AuthFooter() {
       position:'fixed',bottom:0,left:0,right:0,background:'#fff',
       borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',
       justifyContent:'center',flexWrap:'wrap',gap:12,padding:'6px 24px',
-      fontSize:11,color:'#64748B',zIndex:50,
+      fontSize:12,color:'#475569',zIndex:50,
       fontFamily:'Inter, system-ui, sans-serif',lineHeight:1.4,minHeight:36,
     }}>
       <span>&#169; {year} TaxStat360</span>
