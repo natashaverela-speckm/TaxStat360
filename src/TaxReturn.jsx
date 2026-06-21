@@ -1475,11 +1475,13 @@ export default function TaxReturn() {
                 { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
-                // TERMINOLOGY FIX 2.4: Label was always "Standard Deduction" even when itemized
-                // deductions were active (useItemized=true). result.deduction reflects the itemized
-                // amount when useItemized is true, so the label must be conditional. useItemized is
-                // in scope from line 345. No logic change — label expression only.
-                { label: useItemized ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction,                         sign: -1 },
+                // TERMINOLOGY FIX 2.4 / PASS 3 CORRECTION: Original fix used `useItemized` (checkbox
+                // state) as the condition, but when the checkbox is checked and no Schedule A amounts
+                // are entered, the engine still applies the standard deduction via Math.max(stdDed, 0).
+                // The label must reflect what was *actually applied*, not what the checkbox says.
+                // result.itemized and result.stdDed are both returned by the engine (line 1093/1171).
+                // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
+                { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
