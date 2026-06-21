@@ -504,6 +504,40 @@ const [mfaCode,setMfaCode]=useState('')
 const [loginToken,setLoginToken]=useState('')
 const [pendingEmail,setPendingEmail]=useState('')
 
+// UX F-01: Only show the planning-tool disclaimer to first-time visitors.
+// Returning users have already seen it — showing it on every login trains
+// dismissal and delays the path to their tax position.
+const isReturningUser = !!(localStorage.getItem('ts360_disclaimer_seen') || localStorage.getItem('ts360_session_start'))
+
+// UX F-02: "Remember this device for 30 days" — bypass 2FA challenge on trusted devices.
+const TRUST_DAYS = 30
+const DEVICE_KEY = 'ts360_trusted_device'
+const [rememberDevice, setRememberDevice] = useState(false)
+
+function getDeviceFingerprint() {
+  try { return btoa([navigator.userAgent, screen.width, screen.height].join('|')).slice(0, 40) } catch { return 'unknown' }
+}
+
+function isTrustedDevice(emailAddr) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null')
+    if (!stored || stored.email !== emailAddr) return false
+    if (stored.fingerprint !== getDeviceFingerprint()) return false
+    if (Date.now() > stored.expires) { localStorage.removeItem(DEVICE_KEY); return false }
+    return true
+  } catch { return false }
+}
+
+function trustThisDevice(emailAddr) {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify({
+      email: emailAddr,
+      fingerprint: getDeviceFingerprint(),
+      expires: Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000,
+    }))
+  } catch {}
+}
+
 function finishLogin(data,actualEmail){
 if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
 const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
@@ -527,6 +561,11 @@ const res=await apiFetch('/auth/login',{method:'POST',credentials:'include',body
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
 if(data.mfa_required){
+// UX F-02: skip MFA challenge if this device is trusted and not expired
+if(isTrustedDevice(actualEmail)){
+finishLogin(data,actualEmail)
+return
+}
 setMfaStep(true)
 setLoginToken(data.login_token||'')
 setPendingEmail(data.email||actualEmail)
@@ -547,6 +586,7 @@ if(!code){setErr('Enter your 6-digit code or a backup code.');setLoading(false);
 const res=await apiFetch('/auth/mfa/challenge',{method:'POST',credentials:'include',body:{email:pendingEmail,login_token:loginToken,code},raw:true})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Invalid authentication code')
+if(rememberDevice) trustThisDevice(pendingEmail)
 finishLogin(data,pendingEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -554,12 +594,14 @@ finally{setLoading(false)}
 
 return(<Page>
 <LOGO/>
+{!isReturningUser && (
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{flexShrink:0,marginTop:1}}><rect x="5" y="5" width="14" height="16" rx="2" stroke="#92400e" strokeWidth="1.6"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#92400e"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/></svg>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
 <strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
+)}
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>{mfaStep?'Two-factor authentication':'Welcome back'}</h2>
 <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>{mfaStep?'Enter the 6-digit code from your authenticator app, or a backup code.':'Sign in to your TaxStat360 account'}</p>
 {sessionExpired&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
@@ -576,6 +618,10 @@ placeholder="6-digit code or backup code"
 style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:15,marginBottom:12,boxSizing:'border-box',letterSpacing:'0.08em'}}
 />
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+<label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:SL,marginBottom:12,cursor:'pointer'}}>
+<input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}} />
+Trust this device for {TRUST_DAYS} days — skip 2FA on this browser
+</label>
 <button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
 <button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>
