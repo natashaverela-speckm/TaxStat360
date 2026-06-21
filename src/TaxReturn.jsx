@@ -1167,7 +1167,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Deductions That Reduce Your Income" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
+          <CollapsibleSection title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-health-ins" style={inputLbl}>
@@ -1289,7 +1289,7 @@ export default function TaxReturn() {
 
           {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
-          <CollapsibleSection title="Avoid Underpayment Penalties" subtitle="Prior-year tax & AGI · safe-harbor test" badge="Optional">
+          <CollapsibleSection title="Safe Harbor & Estimated Tax Payments" subtitle="Prior-year tax & AGI · Safe Harbor Test (§6654)" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
               Enter prior year figures to calculate your safe harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the safe harbor is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change safe harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
@@ -1385,7 +1385,15 @@ export default function TaxReturn() {
             {hasResult && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.8 }}>
-                  {result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund'}
+            {/* TERMINOLOGY FIX 2.1: "Estimated Balance Due" is semantically wrong when
+                withholding and estimated payments have not been entered — at that point
+                the figure equals total tax liability, not balance due (which is liability
+                minus payments). Show "Est. Tax Liability" until the user has entered
+                withholding or payments; switch to "Estimated Balance Due" once they have. */}
+                  {(nf(w2Withheld) > 0 || nf(estPaid) > 0)
+                    ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund')
+                    : 'Est. Tax Liability'
+                  }
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: result.balance >= 0 ? '#FCA5A5' : '#86EFAC' }}>
                   {result.balance >= 0 ? fmt(result.balance) : fmt(Math.abs(result.balance))}
@@ -1472,7 +1480,7 @@ export default function TaxReturn() {
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Est. Pmts',     value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
+                { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 const isSubtraction = row.sign < 0

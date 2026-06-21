@@ -646,7 +646,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               {FINANCIAL_LABELS.officerCompensationField}
               <InfoTip text={isCCorp
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
-                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
+                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
@@ -676,8 +676,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         </div>
         <div>
           <label style={lbl}>
-            Other Deductions
-            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
+            Other Operating Expenses
+            <InfoTip text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
         </div>
@@ -974,7 +974,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {isPT && (
             <div style={{ marginBottom: 10 }}>
               <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
-                {showQBI ? '▲ Collapse' : '▼ Expand'} Pass-Through Deduction (QBI) <span style={{ fontWeight: 500, opacity: 0.7 }}>· §199A — W-2 wages, UBIA, SSTB</span>
+                {showQBI ? '▲ Collapse' : '▼ Expand'} §199A Qualified Business Income (QBI) Deduction <span style={{ fontWeight: 500, opacity: 0.7 }}>· W-2 wages, UBIA, SSTB</span>
               </button>
               {/* P3c FIX: contextual hint so users know when these fields matter.
                   Without this, users either ignore the section entirely or enter
@@ -1027,7 +1027,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 onClick={e => { e.stopPropagation(); setShowBasis(s => !s) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#7C3AED', padding: '4px 0', marginBottom: 6 }}
               >
-                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions <span style={{ fontWeight: 500, opacity: 0.7 }}>· Form 7203 — loss limits & distributions</span>
+                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock & Debt Basis (Form 7203) <span style={{ fontWeight: 500, opacity: 0.7 }}>· §1366(d) loss limits & §1368 distributions</span>
               </button>
               {/* P3c FIX: contextual hint so users know when stock basis matters.
                   Stock basis limits loss deductibility — irrelevant if the entity
@@ -1440,9 +1440,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 fontFamily: 'inherit',
               }}
             >
-              {/* P3a FIX: "Edit / re-enter data" implied you had to start from scratch.
-                  "Edit P&L" is shorter, accurate, and less intimidating. */}
-              {entity.isManual ? '✏ Edit P&L' : '⟳ Disconnect / reconnect software'}
+              {/* TERMINOLOGY FIX 8.1: "Edit P&L" used accounting jargon and "Edit" was wrong on first
+                  use (nothing to edit yet). Use verb-accurate labels: "Enter Financials" when the
+                  entity has no data yet, "Edit Financials" when it does. */}
+              {entity.isManual
+                ? (nf(entity.pnl?.grossRevenue) > 0 || nf(entity.pnl?.totalExpenses) > 0
+                    ? '✏ Edit Financials'
+                    : '✏ Enter Financials')
+                : '⟳ Disconnect / reconnect software'}
             </button>
             <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#EF4444', fontWeight: 600, padding: '6px 0', fontFamily: 'inherit' }}>
               🗑 Remove entity
@@ -2002,7 +2007,7 @@ export default function CalculateTaxInner() {
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
-          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and your share of business income flow to your personal return in Step 2.</p>
         </div>
 
         {/* Tax year selector */}
@@ -2024,8 +2029,8 @@ export default function CalculateTaxInner() {
             accounting software or by manual entry. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
-            Add your business income
-            <InfoTip text="Two ways to add an entity: type your revenue, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
+            Add your business financials
+            <InfoTip text="Two ways to add an entity: type your gross receipts, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
           </div>
           <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>
             Enter your figures yourself, or sync them automatically from accounting software.
@@ -2093,7 +2098,7 @@ export default function CalculateTaxInner() {
             }}
           >
             <span style={{ fontWeight: 700, fontSize: 14 }}>✏ Enter my figures manually</span>
-            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your revenue, expenses & salary</span>
+            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your gross receipts, expenses & salary</span>
           </button>
 
           {/* divider */}

@@ -38,8 +38,11 @@ describe('Finding 2 — inline manual P&L live-commits without clicking the conf
     )
 
     // First MoneyInput in the panel is Gross Receipts.
-    // Category B: the top-line field leads with "Gross Receipts" (form term), not "Gross Revenue".
-    expect(container.textContent).toContain('Gross Receipts (Total Revenue)')
+    // TERMINOLOGY FIX 1.1: label is now 'Gross Receipts' — the IRS term — with no GAAP synonym.
+    // The old label 'Gross Receipts (Total Revenue)' conflated the IRS gross-receipts term with
+    // the GAAP revenue concept. Form-specific citations (1120-S Line 1a, Schedule C Line 1)
+    // live in the tooltip, not the field label, since this component serves all entity types.
+    expect(container.textContent).toContain('Gross Receipts')
     expect(container.textContent).not.toContain('Gross Revenue (Total Receipts)')
     // Category D: officer pay field leads with "Officer Compensation" (1120-S term), not "Salary".
     expect(container.textContent).toContain('Officer Compensation (W-2)')

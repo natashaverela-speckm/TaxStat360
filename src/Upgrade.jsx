@@ -4,6 +4,7 @@ import { signOut as sharedSignOut } from './utils/signOut'
 import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -32,10 +33,10 @@ const FEATURES = [
   { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
   // ── Professional additions ────────────────────────────────────────────────
   { label:'Risk Alert Engine',                                          starter:false, professional:true,  enterprise:true  },
-  { label:'What-If Tax Scenario Simulator',                             starter:false, professional:true,  enterprise:true  },
+  { label:FEATURE_WHATIF_SIMULATOR,                             starter:false, professional:true,  enterprise:true  },
   { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
   { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
-  { label:'Audit Risk Indicators',                                      starter:false, professional:true,  enterprise:true  },
+  { label:FEATURE_AUDIT_RISK_SCAN,                                      starter:false, professional:true,  enterprise:true  },
   { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
   { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
   // ── Enterprise additions ──────────────────────────────────────────────────
