@@ -317,6 +317,12 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
   const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
+  // C-8 FIX: in a loss year the 35-45% gross-receipts heuristic is unreliable — the
+  // denominator (total compensation) is distorted by the negative net income and the
+  // recommended salary figure can be misleading. In that case, surface a loss-year note
+  // instead of a dollar suggestion. netProfit here is the entity's net profit before
+  // officer salary; a negative value signals the entity lost money this year.
+  const isLossYear = netProfit < 0
 
   if (officerSal === 0) {
     return (
@@ -324,8 +330,12 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation Set</div>
         <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
           You haven't entered a W-2 salary. As an S-Corp owner working in the business, pay yourself a
-          reasonable salary <em>before</em> taking distributions. A common starting point here is
-          about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business).
+          reasonable salary <em>before</em> taking distributions.
+          {/* C-8 FIX: don't suggest a gross-receipts-based dollar figure in a loss year */}
+          {isLossYear
+            ? <> In a loss year, reasonable compensation is determined primarily by the <em>value of services you rendered</em> — not by gross receipts or net income. Discuss the appropriate salary with your CPA, who can evaluate comparable market pay for your role.</>
+            : <> A common starting point here is about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business). Note: this is a rough heuristic, not a statutory floor — the correct amount reflects the value of services you personally performed.</>
+          }
         </div>
         <CompSources color="#7F1D1D">
           Paying $0 salary while taking distributions is the most common S-Corp audit trigger — the IRS

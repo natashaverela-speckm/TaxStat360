@@ -19,8 +19,27 @@ export { scorpSeTaxSavings as scorpSeTaxSavingsEstimate } from './taxCalc.js'
 const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }
 
 /** Taxable income before §199A — same formula used across AI Analysis tabs. */
-export function taxableIncomeBeforeQBI(totalIncome, taxYear, filing) {
-  return Math.max(0, totalIncome - getStdDed(taxYear, filing))
+/**
+ * Taxable income before the §199A QBI deduction.
+ *
+ * AI-6 FIX: the CPA Briefing always applied the standard deduction regardless of
+ * whether the user had entered itemized deductions. When the user elects to itemize
+ * (useItemized === true) and the itemized total exceeds the standard deduction, the
+ * larger amount governs (§63(b) / §63(d)). A third parameter, opts, carries
+ * these signals; legacy callers that omit it get the prior behaviour (standard
+ * deduction always — no breaking change to existing call sites).
+ *
+ * @param {number} totalIncome
+ * @param {number|string} taxYear
+ * @param {string} filing  - filing status key
+ * @param {{ useItemized?: boolean, itemizedAmt?: number }} [opts]
+ * @returns {number}
+ */
+export function taxableIncomeBeforeQBI(totalIncome, taxYear, filing, opts = {}) {
+  const stdDed = getStdDed(taxYear, filing)
+  const { useItemized = false, itemizedAmt = 0 } = opts
+  const deduction = (useItemized && itemizedAmt > stdDed) ? itemizedAmt : stdDed
+  return Math.max(0, totalIncome - deduction)
 }
 
 /**

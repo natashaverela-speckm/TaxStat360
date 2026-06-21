@@ -1527,7 +1527,12 @@ export default function TaxReturn() {
 
               {assumedZeroBasisSuspended > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ Enter your S-Corp stock basis (§1366(d)).</strong> Because no beginning basis was entered, this estimate has conservatively suspended {fmt(assumedZeroBasisSuspended)} of S-Corp loss — your deductible loss is capped at your combined stock + debt basis. Open the entity in Step 1 and enter your beginning basis (Form 7203, Line 1) to release the portion of this loss your basis supports.
+                  <strong>⚠ Estimate incomplete — suspended S-Corp loss not included.</strong>{' '}
+                  {fmt(assumedZeroBasisSuspended)} of S-Corp loss is excluded from this estimate because no
+                  Form 7203 stock basis was entered. Your deductible loss is capped at your stock + debt basis
+                  (IRC §1366(d)). This figure will change materially once basis is entered.{' '}
+                  Open the S-Corp entity in Step 1 → "Stock &amp; Debt Basis (Form 7203)" and enter your
+                  beginning basis (Line 1) to release the portion your basis supports.
                 </div>
               )}
 
