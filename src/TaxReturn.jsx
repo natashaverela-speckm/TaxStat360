@@ -503,7 +503,7 @@ export default function TaxReturn() {
       rentalAggregationElection,   // F6 (§1.469-9(g) election)
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
-      useItemized, itemizedAmt, saltAmount,
+      useItemized, itemizedAmt: itemizedAmtForEngine, saltAmount,
       mortgageInt, charitableContr, medicalAmt,
       hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
