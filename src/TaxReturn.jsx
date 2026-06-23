@@ -28,6 +28,18 @@
 // F17 FIX: YTD Mode shows period + projected full-year income.
 // F18 FIX: Safe Harbor pass/fail status indicator.
 //
+// ── INDEPENDENT AUDIT FIXES (June 2026) ──────────────────────────────────────
+// AI-5 FIX: W-2 field guard — S-Corp owners see a blue breakdown box showing the
+//   officer salary flowing automatically from Step 1, and the field label is changed
+//   to "W-2 Income — Other Employer (not your S-Corp)" to prevent double-entry.
+//   Waterfall now shows officer salary and other W-2 as two separate lines so any
+//   double-entry is immediately visible. IRC §3121; IRS Pub. 15.
+// AI-5b FIX: Waterfall W-2 line split into (a) S-Corp officer salary from Step 1
+//   and (b) other-employer W-2 from Step 2, with a note on the Step-1 line.
+// C-10 FIX: Additional Medicare Tax (Form 8959) surfaced as a distinct, always-visible
+//   waterfall line for high-W-2 users (total W-2 ≥ $150K), with IRC citation and rate.
+//   Previously hidden when $0; now shown so users confirm it was computed. IRC §3101(b)(2).
+//
 // ── F6 FIX (§469 rental treatment — §1.469-9(g) aggregation election) ─────────
 // Rentals are passive by default. A real estate professional makes the whole rental
 // portfolio nonpassive by affirmatively making the §1.469-9(g) aggregation election —
@@ -957,17 +969,36 @@ export default function TaxReturn() {
             badge={nf(w2Income) > 0 ? fmt(nf(w2Income)) : undefined}
             style={{ position: 'relative', zIndex: 10 }}
           >
+            {/* AI-5 FIX: show officer salary flowing from Step 1 so user sees the full W-2
+                picture and is never tempted to re-enter their S-Corp salary here.
+                officerW2ForYTD is already computed above for YTD display — reuse it. */}
+            {entityList.some(e => /s.?corp/i.test(e?.type || '')) && officerW2ForYTD > 0 && (
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: '#1E3A5F' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>📋 W-2 Wages — What flows automatically from Step 1</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <span>S-Corp officer salary (Step 1)</span>
+                  <span style={{ fontWeight: 700 }}>${Math.round(officerW2ForYTD).toLocaleString()}</span>
+                </div>
+                <div style={{ borderTop: '1px solid #BFDBFE', paddingTop: 4, marginTop: 4, fontSize: 11, color: '#374151' }}>
+                  This is already included in your tax calculation. Only enter wages below if you have W-2 income from a <em>separate employer</em> (e.g. a day job alongside your S-Corp).
+                </div>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-w2-income"
-                  label="W-2 Income (Other Employers)"
+                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 Income — Other Employer (not your S-Corp)' : 'W-2 Income'}
                   value={w2Income}
                   onChange={setW2Income}
                   placeholder="0"
                   onClick={e => e.stopPropagation()}
                   tip={
-                    <InfoTip text="Enter W-2 wages from employers OTHER than the business entity you entered in Step 1. Your S-Corp officer salary already flows from Step 1 — do not re-enter it here. If you also work a W-2 job at a separate company, enter those wages here." />
+                    <InfoTip text={
+                      entityList.some(e => /s.?corp/i.test(e?.type || ''))
+                        ? 'Enter W-2 wages ONLY from a separate employer — a job, consulting W-2, or second company where you receive a W-2 that is NOT from your S-Corp.\n\nYour S-Corp officer salary already flows automatically from Step 1 and is shown in the blue box above. If you enter your S-Corp salary here as well, it will be counted twice.\n\nMost S-Corp-only owners should enter $0 here.'
+                        : 'Enter W-2 wages from employers OTHER than the business entity you entered in Step 1.'
+                    } />
                   }
                 />
               </div>
@@ -986,9 +1017,11 @@ export default function TaxReturn() {
                 />
               </div>
             </div>
-            {entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
+            {/* AI-5 FIX: withholding notice — retained for non-S-Corp owners; S-Corp owners
+                see the blue breakdown box above which covers the same point more completely. */}
+            {!entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-                💡 <strong>S-Corp owner:</strong> If you paid yourself a W-2 salary in Step 1, enter the federal income tax withheld here (W-2 Box 2). FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here.
+                💡 Enter the federal income tax withheld (W-2 Box 2) in the field above. FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here.
               </div>
             )}
           </CollapsibleSection>
@@ -1459,7 +1492,26 @@ export default function TaxReturn() {
               {[
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },
                 { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
-                { label: 'W-2 Wages',                   value: result.totalW2ForFICA || 0,                sign: 1, hide: !(result.totalW2ForFICA > 0) },
+                // AI-5 FIX: split W-2 into officer salary (Step 1) + other W-2 (Step 2) so
+                // the user can immediately spot a double-entry. Both are included in
+                // result.totalW2ForFICA (= w2Total in the engine); we derive officer salary
+                // from the entity list and other W-2 as the remainder.
+                ...((() => {
+                  const officerSalary = (Array.isArray(entities) ? entities : []).reduce((s, e) => {
+                    if (!e) return s
+                    const isCorp = /s.?corp/i.test(e.type || '') || /c.?corp/i.test(e.type || '')
+                    return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
+                  }, 0)
+                  const otherW2 = Math.max(0, (result.totalW2ForFICA || 0) - officerSalary)
+                  const showSplit = officerSalary > 0 && result.totalW2ForFICA > 0
+                  if (showSplit) {
+                    return [
+                      { label: 'W-2 Wages — S-Corp officer salary (Step 1)', value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 — do not re-enter in Step 2' },
+                      { label: 'W-2 Wages — Other employer (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
+                    ]
+                  }
+                  return [{ label: 'W-2 Wages', value: result.totalW2ForFICA || 0, sign: 1, hide: !(result.totalW2ForFICA > 0) }]
+                })()),
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
@@ -1496,7 +1548,19 @@ export default function TaxReturn() {
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
-                { label: 'Addl. Medicare Tax (0.9%)',   value: result.additionalMedicare,                sign: 1, hide: result.additionalMedicare === 0 },
+                // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
+                // $250K MFJ — IRC §3101(b)(2), §1411) is ALWAYS shown as a distinct waterfall
+                // line for users with W-2 income above $150K, because for many S-Corp owners in
+                // a loss year this IS their entire federal tax obligation. Previously hidden when $0,
+                // but it is more useful to show the line with $0 so the user knows it was computed.
+                { label: 'Addl. Medicare Tax (0.9% — Form 8959)',   value: result.additionalMedicare || 0,
+                  sign: 1,
+                  hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < 150000,
+                  accent: (result.additionalMedicare || 0) > 0 ? '#DC2626' : undefined,
+                  note: (result.additionalMedicare || 0) > 0
+                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? 250000 : 200000).toLocaleString()} threshold (IRC §3101(b)(2))`
+                    : undefined
+                },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
                 { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
