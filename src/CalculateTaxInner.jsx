@@ -35,6 +35,18 @@
 //   Replaces the single pooled priorYearQBILoss field for multi-entity filers.
 //   IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii) · Form 8995 lines 3 & 16.
 //
+// ── INDEPENDENT AUDIT FIXES (June 2026) ──────────────────────────────────────
+// NEW-1 FIX: SSTB auto-suggest — when entity name/type matches common SSTB
+//   keywords (tutor, teach, instruct, consult, coach, education, course, etc.),
+//   a yellow advisory is shown inside the §199A panel prompting the user to
+//   review and check the SSTB checkbox if applicable. IRC §199A(d)(1)(B).
+//   This is an advisory, not a determination; CPA confirmation is recommended.
+// NEW-6 FIX: §199A collapsed-panel hint updated to also say "Also complete this
+//   section in loss years" — the prior text implied the section was irrelevant
+//   when taxable income is below the threshold, but the QBI loss carryforward
+//   (Form 8995 Line 3) must be tracked even when current-year QBI deduction is $0.
+//   IRC §199A(c)(2); Treas. Reg. §1.199A-1(d)(2)(iii).
+//
 // F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
 //   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
 //   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
@@ -995,11 +1007,34 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
-                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except §179 and charitable contributions, which always reduce QBI regardless of income level
+                  {/* NEW-6 FIX: previous text said "only needed if taxable income exceeds
+                      the threshold" — but the prior-year QBI loss carryforward must be
+                      tracked even in LOSS years when current QBI deduction = $0.
+                      Updated text covers both cases. IRC §199A(c)(2). */}
+                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except §179 and charitable contributions, which always reduce QBI regardless of income level. <strong>Also complete this section in loss years</strong> — the QBI loss carryforward (Form 8995 Line 3) must be tracked for future years even when the current-year deduction is $0 (IRC §199A(c)(2)).
                 </div>
               )}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
+                  {/* NEW-1 FIX: SSTB advisory for businesses likely classified as SSTBs.
+                      Teaching, tutoring, instruction, consulting etc. fall under §199A(d)(1)(B).
+                      We warn when entity name/type contains SSTB keywords and the checkbox is
+                      not yet checked — this is an advisory, not a determination. */}
+                  {(() => {
+                    const entityText = ((entity.name || '') + ' ' + (entity.type || '') + ' ' + (entity.pnl?.businessActivity || '')).toLowerCase()
+                    const sstbKeywords = ['tutor', 'teach', 'instruct', 'coach', 'consult', 'legal', 'law ', 'accounting', 'actuar', 'athlet', 'performing', 'brokerage', 'financial service', 'investing', 'trading', 'health', 'medical', 'doctor', 'dentist', 'therapist', 'counsel', 'education', 'course', 'training']
+                    const matchedKeyword = sstbKeywords.find(kw => entityText.includes(kw))
+                    if (!matchedKeyword || entity.box17V_sstb) return null
+                    return (
+                      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: '#78350F' }}>
+                        <strong>⚠ Possible Specified Service Trade or Business (SSTB) — review below.</strong>{' '}
+                        Businesses involving teaching, tutoring, instruction, consulting, coaching, and similar services
+                        commonly qualify as SSTBs under IRC §199A(d)(1)(B). If this is an SSTB, the QBI deduction
+                        phases out above $197,300 AGI (single 2025) and is eliminated above $247,300.
+                        Check the SSTB box at the bottom of this section if applicable. Confirm with your CPA.
+                      </div>
+                    )
+                  })()}
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
                   {[
                     { label: 'W-2 Wages (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
