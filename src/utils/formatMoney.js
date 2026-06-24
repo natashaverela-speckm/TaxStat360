@@ -47,4 +47,33 @@ export function formatTimestamp(date = new Date()) {
   return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+/**
+ * Format an ISO timestamp as a relative-time string for sync labels and
+ * activity feeds. Returns null when isoStr is falsy.
+ *
+ *   < 1 minute ago  → "Just now"
+ *   < 60 minutes    → "5m ago"
+ *   < 24 hours      → "3h ago"
+ *   otherwise       → absolute via formatTimestamp()
+ *
+ * Moved here from CalculateTaxInner.jsx (local fmtSyncedAt) so any component
+ * that needs relative-time display imports a single shared implementation.
+ */
+export function formatRelativeTime(isoStr) {
+  if (!isoStr) return null
+  try {
+    const d = new Date(isoStr)
+    const now = new Date()
+    const diffMs = now - d
+    const diffMins = Math.floor(diffMs / 60000)
+    if (diffMins < 1)  return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHrs = Math.floor(diffMins / 60)
+    if (diffHrs < 24)  return `${diffHrs}h ago`
+    return formatTimestamp(d)
+  } catch {
+    return null
+  }
+}
+
 export default fmt
