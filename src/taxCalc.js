@@ -67,7 +67,11 @@ import { nf } from './utils/parseMoney.js'
 // (audit D-1) so there is one money parser. nf() additionally strips thousands
 // separators; engine inputs are stored comma-free, so this is identical in practice
 // and strictly more robust.
-const nv = nf
+// CC-F2 FIX: nv was a local alias for nf — same function, two names.
+// All internal calls now use nf directly. nv is kept in the export block
+// only for backward-compat (scenarioCompare.js re-exports it, tests import it).
+// When scenarioCompare.js is updated, remove nv from the export block too.
+const nv = nf  // alias retained for export only — do not use nv() in new code
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
@@ -360,7 +364,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const sstbApplicablePct   = Math.max(0, 1 - phasePercent)
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
-    const k1Income = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1Income = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     return s + Math.max(0, k1Income)
   }, 0)
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
@@ -575,11 +579,11 @@ function calcTaxReturn(input) {
     assumeZeroBasisOnLoss = false,
   } = input
   const entities = _rawEntities.map(e => (e ? { ...e, type: normalizeEntityType(e.type) } : e))
-  const ytdScale = (val) => Math.round(nv(val) * ytdFactor)
-  const priorQBILossCO = Math.abs(nv(priorYearQBILoss))
+  const ytdScale = (val) => Math.round(nf(val) * ytdFactor)
+  const priorQBILossCO = Math.abs(nf(priorYearQBILoss))
   const perEntityQBILossCO = entities.reduce((sum, e) => {
     if (!e) return sum
-    return sum + Math.abs(nv(e.qbiLossCarryforward))
+    return sum + Math.abs(nf(e.qbiLossCarryforward))
   }, 0)
   const effectiveQBILossCO = perEntityQBILossCO > 0 ? perEntityQBILossCO : priorQBILossCO
   const entityBasisResults = []
@@ -673,7 +677,7 @@ function calcTaxReturn(input) {
   })
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
   let priorSuspendedLossApplied = 0
-  const _priorSuspended = Math.max(0, nv(priorSuspendedLoss))
+  const _priorSuspended = Math.max(0, nf(priorSuspendedLoss))
   if (_priorSuspended > 0) {
     for (const br of entityBasisResults) {
       if (br.stockBasis === undefined) continue
@@ -697,7 +701,7 @@ function calcTaxReturn(input) {
     const k1Gross = e.k1 !== undefined
       ? parseFloat(e.k1) || 0
       : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
-    const net = k1Gross - nv(e.box11_12) - nv(e.box12_13)
+    const net = k1Gross - nf(e.box11_12) - nf(e.box12_13)
     step1RentalNet += net
     if (e.isREP) step1RentalREP = true
     if (e.isActiveParticipant) step1RentalActive = true
@@ -759,8 +763,8 @@ function calcTaxReturn(input) {
       excessCapGain:   Math.round(excess),
     })
   })
-  const _ltGain = nv(ltGain) + distributionCapGain
-  const combinedRentalNet          = nv(rentalNet) + step1RentalNet
+  const _ltGain = nf(ltGain) + distributionCapGain
+  const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
   // come from Step-1 Real Estate entities (the Step-2 lump is retired), so gate on the
@@ -768,7 +772,7 @@ function calcTaxReturn(input) {
   // if a caller still supplies one, also counts.
   const effectiveIsActiveParticipant =
     (combinedRentalNet !== 0 ? isActiveParticipant : false) || step1RentalActive
-  const priorPAL = Math.max(0, nv(priorPassiveLossCarryforward))
+  const priorPAL = Math.max(0, nf(priorPassiveLossCarryforward))
   const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
   const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
@@ -866,11 +870,11 @@ function calcTaxReturn(input) {
         const k1Gross = e.k1 !== undefined
           ? parseFloat(e.k1) || 0
           : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
-        const net = k1Gross - nv(e.box11_12) - nv(e.box12_13)
+        const net = k1Gross - nf(e.box11_12) - nf(e.box12_13)
         if (effectiveIsREP && e.materiallyParticipates === true) np += net
         else pv += net
       })
-      const step2Net = nv(rentalNet)
+      const step2Net = nf(rentalNet)
       if (step2Net !== 0) {
         if (effectiveIsREP && step2RentalMaterialParticipation === true) np += step2Net
         else pv += step2Net
@@ -905,17 +909,17 @@ function calcTaxReturn(input) {
   // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
   // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
   // — it only informs how much of the capital gain offsets business losses in the EBL netting.
-  const extra1231BizGain      = Math.max(0, nv(bizCapGain1231))
-  const eblBizCapGain         = Math.max(0, nv(f4797Inc)) + extra1231BizGain
-  const eblOverallCapGainNI   = nv(stGain) + _ltGain + nv(f4797Inc)
+  const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
+  const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
+  const eblOverallCapGainNI   = nf(stGain) + _ltGain + nf(f4797Inc)
                               
   const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
   const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
-  const eblBiz       = adjustedK1Total + (nv(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + rentalForEBL
+  const eblBiz       = adjustedK1Total + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + rentalForEBL
   const eblNetLoss   = Math.max(0, -eblBiz)
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
-  const unrec1250    = Math.max(0, nv(unrecap1250))
-  const collectibles = Math.max(0, nv(collectiblesGain))
+  const unrec1250    = Math.max(0, nf(unrecap1250))
+  const collectibles = Math.max(0, nf(collectiblesGain))
   // ─── KNOWN LIMITATION (SE-179) — see KNOWN_LIMITATIONS.md ─────────────────────
   // seNetIncome uses GROSS net profit and intentionally does NOT subtract the
   // separately-stated §179 (box11_12) for SE-subject pass-throughs (Sole Proprietor
@@ -940,7 +944,7 @@ function calcTaxReturn(input) {
   // ─────────────────────────────────────────────────────────────────────────────
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    const k1 = nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1 = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     return sum + Math.max(0, k1)
   }, 0)
   const ssWageBase = getTable(taxYear).ssWageBase
@@ -949,16 +953,16 @@ function calcTaxReturn(input) {
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
   const seTax             = Math.round(ssPortion + medicarePortion)
   const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
-  const totalW2ForFICA = Math.max(0, nv(w2))
+  const totalW2ForFICA = Math.max(0, nf(w2))
   const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
   const employeeFICA   = Math.round(empSS + empMedicare)
   const nonSEDistributions = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e.type)) return sum
     if (isRealEstateEntity(e.type)) return sum
-    return sum + (nv(e.k1) || Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100)))
+    return sum + (nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100)))
   }, 0)
-  const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nv(adjustedK1Total))
+  const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total))
   const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
   // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
   const ficaSavings = scorpSeTaxSavings({
@@ -975,12 +979,12 @@ function calcTaxReturn(input) {
   const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + _ltGain
     + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
-  const rawMedical        = Math.max(0, nv(medicalExpenses))
+  const rawMedical        = Math.max(0, nf(medicalExpenses))
   const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
-  const itemized          = nv(itemizedAmt) + deductibleMedical
+  const itemized          = nf(itemizedAmt) + deductibleMedical
   const deduction         = useItemized ? Math.max(stdDed, itemized) : stdDed
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction)
-  const priorNOL         = Math.max(0, nv(nolCarryforward))
+  const priorNOL         = Math.max(0, nf(nolCarryforward))
   const nolAllowed       = Math.min(priorNOL, Math.floor(taxableBeforeNOL * 0.80))
   const nolSurplus       = priorNOL - nolAllowed
   const grossIncome      = grossIncomeBeforeNOL - nolAllowed
@@ -1010,8 +1014,8 @@ function calcTaxReturn(input) {
     // QBI. A §1366(d)-suspended loss is excluded from QBI until the year it is allowed
     // (Treas. Reg. §1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
     // QBI loss so it reduces QBI then.
-    const k1Gross = e.k1 !== undefined ? nv(e.k1) : Math.round(nv(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
-    const k1      = k1Gross - nv(e.box11_12) - nv(e.box12_13)
+    const k1Gross = e.k1 !== undefined ? nf(e.k1) : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1      = k1Gross - nf(e.box11_12) - nf(e.box12_13)
     const scale   = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
@@ -1020,14 +1024,14 @@ function calcTaxReturn(input) {
   // rentalQbiContribution is computed in the §469 rental block above (legacy or
   // per-property branch) — do not redeclare here.
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
-  const f4797NetGain = Math.max(0, nv(f4797Inc))
+  const f4797NetGain = Math.max(0, nf(f4797Inc))
   // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
   // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
   // long-term capital-gain treatment. The recharacterized slice stays in gross/ordinary
   // income (it is already in grossIncomeBeforeNOL via f4797Inc) and is simply withheld
   // from the preferential-rate buckets below. NII is unaffected — §1231(c) changes the
   // RATE, not whether the gain is investment income.
-  const _nonrecap1231Loss     = Math.max(0, nv(nonrecapturedNet1231Loss))
+  const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
   const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
   const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
   const prefIncome = _ltGain + qualDiv + f4797PrefGain
@@ -1087,8 +1091,8 @@ function calcTaxReturn(input) {
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
   const amt = calcAMT({
-    taxableIncome, qbi, saltAmount: nv(saltAmount),
-    isoBargainElement: hasISO ? nv(isoBargainElement) : 0,
+    taxableIncome, qbi, saltAmount: nf(saltAmount),
+    isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
     ltGain: _ltGain + f4797PrefGain, qualDiv, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
@@ -1097,12 +1101,12 @@ function calcTaxReturn(input) {
   // distinctly from the canonical effectiveRate() display util (which divides by AGI)
   // to avoid the name collision flagged in audit D-5.
   const taxToEarnedRatio = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
-  const withheld      = nv(w2Withheld)
-  const estimated     = nv(estPaid)
+  const withheld      = nf(w2Withheld)
+  const estimated     = nf(estPaid)
   const totalPayments = withheld + estimated
   const balance       = totalTax - totalPayments
-  const priorYearTaxAmt     = Math.max(0, nv(priorYearTax))
-  const priorYearAGIAmt     = Math.max(0, nv(priorYearAGI))
+  const priorYearTaxAmt     = Math.max(0, nf(priorYearTax))
+  const priorYearAGIAmt     = Math.max(0, nf(priorYearAGI))
   const agiBoundary         = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
   const safeHarborCurrentYear = Math.round(totalTax * 0.90)
@@ -1255,7 +1259,7 @@ function calcTaxReturn(input) {
 // @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends }}
 function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
   const ssWageBase = getTable(taxYear).ssWageBase
-  const np         = Math.max(0, Math.round(nv(netProfit)))
+  const np         = Math.max(0, Math.round(nf(netProfit)))
 
   // Default salary mirrors the comparison engine; always capped at available profit.
   const defaultSalary = Math.round(np * DEFAULT_OFFICER_SALARY_FRACTION)
@@ -1302,9 +1306,9 @@ function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}
     ...personalContext,
     entities: [],
     k1Total:  0,
-    w2:       nv(personalContext.w2)      + salary,
-    qualDiv:  nv(personalContext.qualDiv) + dividends,
-    divInc:   nv(personalContext.divInc)  + dividends,
+    w2:       nf(personalContext.w2)      + salary,
+    qualDiv:  nf(personalContext.qualDiv) + dividends,
+    divInc:   nf(personalContext.divInc)  + dividends,
   })
 
   // Total employment tax the owner-employee bears (both employer + employee halves, 15.3%).

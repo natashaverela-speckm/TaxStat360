@@ -608,6 +608,14 @@ export default function TaxReturn() {
       },
       totalSuspendedLoss: result?.totalSuspendedLoss || 0,
       entityBasisResults: result?.entityBasisResults || [],
+      // CC-F1 FIX: persist engine-computed tax components so downstream consumers
+      // (CPA Briefing, AI Analysis) read from the record instead of recomputing
+      // independently. Recomputing SE tax in the briefing diverges for multi-entity
+      // returns because it uses raw k1Income rather than seNetIncome (engine-internal).
+      seTax:       result?.seTax       ?? 0,
+      niitAmount:  result?.niitAmount  ?? 0,
+      amtAmount:   result?.amt         ?? 0,
+      halfSE:      result?.halfSE      ?? 0,
     }
     return record
   }, [
