@@ -9,26 +9,28 @@
 // shape that calcTaxReturn accepts.
 //
 // Scope notes:
-//   - v1 compares Sole Prop, S Corp, C Corp. Partnership deferred to v2.
-//   - Comparison is on the USER'S SHARE of the entity (netProfit × own/100).
-//     Multi-owner entities are modeled as if the user is the sole officer
-//     of their share. Disclaimer surfaces this assumption to the user.
-//   - C Corp scenario assumes full annual distribution as qualified dividends
-//     (no retained-earnings strategy). Disclaimer surfaces this too.
-//   - Personal context (filing status, year, dependents, all non-business
-//     income, all OTHER entities, deduction choice) is held constant across
-//     all three scenarios. Only the entity at `entityIdx` is replaced.
+// - v1 compares Sole Prop, S Corp, C Corp. Partnership deferred to v2.
+// - Comparison is on the USER'S SHARE of the entity (netProfit × own/100).
+//   Multi-owner entities are modeled as if the user is the sole officer
+//   of their share. Disclaimer surfaces this assumption to the user.
+// - C Corp scenario assumes full annual distribution as qualified dividends
+//   (no retained-earnings strategy). Disclaimer surfaces this too.
+// - Personal context (filing status, year, dependents, all non-business
+//   income, all OTHER entities, deduction choice) is held constant across
+//   all three scenarios. Only the entity at `entityIdx` is replaced.
 //
 // What this engine ADDS to calcTaxReturn's output:
-//   - For S Corp & C Corp: officer-salary employment tax (15.3% FICA on
-//     officer salary up to SS wage base, 2.9% Medicare uncapped). The
-//     calc engine doesn't model FICA on W-2 wages directly — it sees only
-//     income tax. We add the FICA layer here so totals are comparable to
-//     Sole Prop's SE tax.
-//   - For C Corp: 21% federal corporate tax on the entity-level profit
-//     (post-officer-W-2, post-employer-FICA). The calc engine has no concept
-//     of corporate-level tax. We compute it here, deduct it from the
-//     dividend pool, and pass the residual into calcTaxReturn as qualDiv.
+// - For S Corp & C Corp: officer-salary employment tax (15.3% FICA on
+//   officer salary up to SS wage base, 2.9% Medicare uncapped). The
+//   calc engine doesn't model FICA on W-2 wages directly — it sees only
+//   income tax. We add the FICA layer here so totals are comparable to
+//   Sole Prop's SE tax.
+// - For C Corp: 21% federal corporate tax on the entity-level profit
+//   (post-officer-W-2, post-employer-FICA). Delegated to calcCCorpCorporateLayer()
+//   in taxCalc.js — the same function used by TaxReturn.jsx and Dashboard.jsx —
+//   so the compare engine and the filed-return engine are always in sync.
+//   (Audit finding: the prior inline C-Corp block here diverged from
+//   calcCCorpCorporateLayer when that function was added in PASS4B-03.)
 //
 // Returns: { scenarios: [{ key, label, totalTax, lineItems[], notes[] }],
 //            best: 'soleProp' | 'sCorp' | 'cCorp', savings: number }
@@ -36,27 +38,23 @@
 // CC-F4 FIX: import getTable so SS wage base uses the year-specific value
 // instead of a hardcoded || 176100 literal (the 2025 base). This ensures
 // the entity comparison stays correct as TAX_TABLES adds future years.
-import { calcTaxReturn, TAX_TABLES, getTable } from './taxCalc.js'
+// Audit fix: added calcCCorpCorporateLayer and calcFICAOnWages so the compare
+// engine delegates to the shared implementations rather than inlining them.
+import { calcTaxReturn, getTable, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCalc.js'
 
 // Rate constants — single source of truth in src/constants.js.
 // Imported here so scenarioCompare doesn't duplicate what taxCalc.js already uses.
 import {
-  FICA_SS_RATE,                    // 6.2% per side — IRC §3101 / §3111
-  FICA_MEDICARE_RATE,              // 1.45% per side — IRC §3101 / §3111
-  C_CORP_TAX_RATE,                 // 21% flat — IRC §11 post-TCJA
+  FICA_SS_RATE,              // 6.2% per side — IRC §3101 / §3111
+  FICA_MEDICARE_RATE,        // 1.45% per side — IRC §3101 / §3111
+  C_CORP_TAX_RATE,           // 21% flat — IRC §11 post-TCJA
   DEFAULT_OFFICER_SALARY_FRACTION, // F-05 FIX: moved from local const to constants.js
 } from './constants'
 
-// Compute employer-side employment tax on a given officer salary (used by S/C Corp).
-// This is the deductible-at-entity-level half. For the comparison, we sum BOTH
-// employer + employee halves into the "Employment tax" line item, since the user
-// ultimately bears both as costs of the W-2 structure.
-function calcEmploymentTaxOnSalary(salary, taxYear) {
-  const ssWageBase = getTable(taxYear).ssWageBase  // CC-F4 FIX: use getTable() — no hardcoded fallback
-  const ssBoth = Math.min(salary, ssWageBase) * FICA_SS_RATE * 2  // employee + employer SS
-  const medBoth = salary * FICA_MEDICARE_RATE * 2                  // employee + employer Medicare
-  return Math.round(ssBoth + medBoth)
-}
+// Audit fix (nv alias): nv was re-exported from here solely because taxCalc.js
+// kept it for backward-compat. Now that the alias is removed from taxCalc.js,
+// scenarioCompare.js no longer re-exports it. Any test that imported nv from
+// scenarioCompare should import nf from utils/parseMoney.js instead.
 
 // Deep-clone an entities[] array, replacing index entityIdx with the synthetic
 // entity that represents the scenario under test.
@@ -69,12 +67,12 @@ function withReplacedEntity(entities, entityIdx, replacement) {
  * Compare three entity structures for one entity in the user's portfolio.
  *
  * @param {object} input
- * @param {object} input.personalContext  All calcTaxReturn inputs EXCEPT entities[].
- * @param {array}  input.entities         All entities; index entityIdx is replaced per scenario.
- * @param {number} input.entityIdx        Which entity is being compared.
- * @param {number} input.netProfitShare   User's share of the entity's net profit.
- * @param {number} [input.officerSalary]  S Corp / C Corp officer salary. Defaults to
- *                                        DEFAULT_OFFICER_SALARY_FRACTION × netProfitShare.
+ * @param {object} input.personalContext All calcTaxReturn inputs EXCEPT entities[].
+ * @param {array}  input.entities        All entities; index entityIdx is replaced per scenario.
+ * @param {number} input.entityIdx       Which entity is being compared.
+ * @param {number} input.netProfitShare  User's share of the entity's net profit.
+ * @param {number} [input.officerSalary] S Corp / C Corp officer salary. Defaults to
+ *                                       DEFAULT_OFFICER_SALARY_FRACTION × netProfitShare.
  *
  * @returns {{ scenarios: object[], best: string, savings: number, salary: number }}
  */
@@ -119,139 +117,119 @@ function compareEntityScenarios(input) {
     const _repOverride   = (entitiesOverride || []).some(e => e && e.repAggregationOverride === true)
     return calcTaxReturn({
       ...personalContext,
-      w2:     (personalContext.w2    || 0) + w2Boost,
-      qualDiv:(personalContext.qualDiv|| 0) + qualDivBoost,
-      divInc: (personalContext.divInc || 0) + qualDivBoost,
+      w2:     (personalContext.w2     || 0) + w2Boost,
+      qualDiv:(personalContext.qualDiv || 0) + qualDivBoost,
+      divInc: (personalContext.divInc  || 0) + qualDivBoost,
       k1Total,
       entities: entitiesOverride,
       // Per-entity hours are the SINGLE source of truth (same as TaxReturn.jsx). Set these
       // explicitly AFTER the spread so a stale personalContext repHoursRE/repHoursTotal can
       // never leak in and gate the comparison differently from the filed return. `undefined`
       // ⇒ engine treats hours as not provided (backward-compatible: the election controls).
-      repHoursRE:    Number.isNaN(_repHoursRE)    ? undefined : _repHoursRE,
-      repHoursTotal: Number.isNaN(_repHoursTotal) ? undefined : _repHoursTotal,
+      repHoursRE:             Number.isNaN(_repHoursRE)    ? undefined : _repHoursRE,
+      repHoursTotal:          Number.isNaN(_repHoursTotal)  ? undefined : _repHoursTotal,
       repAggregationOverride: _repOverride,
     })
   }
 
-  // ── Scenario 1: Sole Proprietorship / Single-Member LLC ──────────────────
-  const soleEntity = { type: 'Sole Proprietor / Single-Member LLC', k1: np, own: 100 }
-  const soleResult = run(withReplacedEntity(entities, entityIdx, soleEntity))
-  const soleScenario = {
-    key: 'soleProp',
-    label: 'Sole Proprietor / Single-Member LLC',
-    totalTax: soleResult.totalTax,
-    lineItems: [
-      { label: 'Federal income tax',  value: soleResult.fedTax },
-      { label: 'Self-employment tax', value: soleResult.seTax },
-      { label: 'Additional Medicare', value: soleResult.additionalMedicare },
-      // FIX (TAX-04): calcTaxReturn returns niit as { applies, amount, explanation }.
-      // niitAmount is the backward-compat number alias. Using .niit here produced an
-      // object in the line item value, which Math.abs() → NaN → filtered out silently,
-      // causing the NIIT line item to disappear from the comparison even when owed.
-      { label: 'NIIT',                value: soleResult.niitAmount },
-      { label: 'AMT',                 value: soleResult.amt },
-      { label: 'Child credit',        value: -soleResult.childCredit },
-    ],
-    notes: [
-      'Net profit flows to Schedule C and is subject to SE tax (15.3% up to SS wage base, 2.9% Medicare thereafter).',
-      'Half of SE tax is deductible above-the-line.',
-      'QBI deduction available (subject to taxable income limit).',
-      'No payroll service required.',
-    ],
+  // ── Sole Proprietor scenario ───────────────────────────────────────────────
+  // SE tax (§1401) is computed by the engine via the Schedule C entity path.
+  // No officer salary in this structure.
+  const spEntity = {
+    type: 'Sole Proprietor / Single-Member LLC',
+    netProfit: np,
+    own: 100,
+    k1: np,
+  }
+  const spEntities = withReplacedEntity(entities, entityIdx, spEntity)
+  const spResult   = run(spEntities)
+  const spTax      = spResult.totalTax
+
+  // ── S Corp scenario ────────────────────────────────────────────────────────
+  // Officer salary is W-2 income; remaining profit is K-1 distribution (no SE tax).
+  // Employment tax on the salary is computed by calcFICAOnWages (both sides, IRC §3101/§3111).
+  const scK1      = Math.max(0, np - salary)
+  const scEntity  = {
+    type: 'S Corporation',
+    netProfit: np,
+    own: 100,
+    k1: scK1,
+    officerSalary: salary,
+    pnl: { officerSalary: salary, netProfit: np },
+  }
+  const scEntities = withReplacedEntity(entities, entityIdx, scEntity)
+  const scResult   = run(scEntities, salary, 0)          // officer salary boosts W-2
+  // calcFICAOnWages: both employer + employee sides on the W-2 salary (IRC §3101 / §3111).
+  const scFICA     = calcFICAOnWages(salary, taxYear)
+  const scTax      = scResult.totalTax + scFICA
+
+  // ── C Corp scenario ────────────────────────────────────────────────────────
+  // Delegates to calcCCorpCorporateLayer() — the SAME function used by TaxReturn.jsx
+  // and Dashboard.jsx — so the compare engine and the filed-return engine cannot diverge.
+  // Audit fix (finding 4.2): the prior inline C-Corp block here did not call
+  // calcCCorpCorporateLayer, creating a formula-duplication risk.
+  const layer        = calcCCorpCorporateLayer({ netProfit: np, officerSalary: salary, taxYear })
+  const corpTax      = layer.corpTax         // IRC §11 entity-level flat tax
+  const dividends    = layer.dividends       // after-tax profit distributed as qualDiv
+  const ccFICA       = calcFICAOnWages(salary, taxYear)
+  // Officer salary is W-2 to the owner; dividends are qualified dividends (0%/15%/20%).
+  const ccEntity     = {
+    type: 'C Corporation',
+    netProfit: np,
+    own: 100,
+    k1: 0,
+    officerSalary: salary,
+  }
+  const ccEntities   = withReplacedEntity(entities, entityIdx, ccEntity)
+  const ccResult     = run(ccEntities, salary, dividends) // salary→W-2, dividends→qualDiv
+  const ccTax        = ccResult.totalTax + corpTax + ccFICA
+
+  // ── Compare & rank ─────────────────────────────────────────────────────────
+  const scenarioMap = {
+    soleProp: { key: 'soleProp', label: 'Sole Proprietor / Schedule C', totalTax: spTax, result: spResult,
+      lineItems: [
+        { label: 'Income tax + SE tax', value: spTax },
+      ],
+      notes: [
+        'Self-employment tax (15.3% on 92.35% of net profit) computed by the engine — IRC §1401.',
+        '20% QBI deduction may apply — IRC §199A.',
+      ],
+    },
+    sCorp: { key: 'sCorp', label: 'S Corporation', totalTax: scTax, result: scResult,
+      lineItems: [
+        { label: 'Income tax on K-1 + salary', value: scResult.totalTax },
+        { label: `Employment tax on $${salary.toLocaleString()} salary (both sides)`, value: scFICA },
+      ],
+      notes: [
+        `Officer salary: $${salary.toLocaleString()} — IRC §3121 reasonable comp requirement.`,
+        'K-1 distributions not subject to SE tax — IRC §1402(a)(2).',
+        '20% QBI deduction may apply on K-1 income — IRC §199A.',
+      ],
+    },
+    cCorp: { key: 'cCorp', label: 'C Corporation', totalTax: ccTax, result: ccResult,
+      lineItems: [
+        { label: `Corporate income tax (${(C_CORP_TAX_RATE * 100).toFixed(0)}% flat)`, value: corpTax },
+        { label: `Employment tax on $${salary.toLocaleString()} salary (both sides)`, value: ccFICA },
+        { label: 'Personal income tax on salary + dividends', value: ccResult.totalTax },
+      ],
+      notes: [
+        'Assumes full after-tax profit distributed as qualified dividends each year.',
+        'No retained-earnings tax deferral modeled — actual result may differ.',
+        `Corporate tax rate: ${(C_CORP_TAX_RATE * 100).toFixed(0)}% flat — IRC §11 (post-TCJA).`,
+      ],
+    },
   }
 
-  // ── Scenario 2: S Corporation ────────────────────────────────────────────
-  const sCorpEmployerFICA = Math.round(
-    Math.min(salary, getTable(taxYear).ssWageBase) * FICA_SS_RATE  // CC-F4 FIX: getTable() not literal
-    + salary * FICA_MEDICARE_RATE
-  )
-  const sCorpK1 = Math.max(0, np - salary - sCorpEmployerFICA)
-  const sCorpEntity = { type: 'S Corporation', k1: sCorpK1, own: 100 }
-  const sCorpResult = run(withReplacedEntity(entities, entityIdx, sCorpEntity), salary)
-  const sCorpEmploymentTax = calcEmploymentTaxOnSalary(salary, taxYear)
-  const sCorpTotalTax = sCorpResult.totalTax + sCorpEmploymentTax
-  const sCorpScenario = {
-    key: 'sCorp',
-    label: 'S Corporation',
-    totalTax: sCorpTotalTax,
-    lineItems: [
-      { label: 'Federal income tax',  value: sCorpResult.fedTax },
-      { label: 'Employment tax (W-2)', value: sCorpEmploymentTax },
-      { label: 'Additional Medicare', value: sCorpResult.additionalMedicare },
-      // FIX (TAX-04): same fix as soleResult above — use niitAmount, not niit.
-      { label: 'NIIT',                value: sCorpResult.niitAmount },
-      { label: 'AMT',                 value: sCorpResult.amt },
-      { label: 'Child credit',        value: -sCorpResult.childCredit },
-    ],
-    notes: [
-      'Officer salary $' + salary.toLocaleString() + ' subject to 15.3% FICA up to SS wage base.',
-      // TERMINOLOGY FIX 1.4: "ordinary income" implied W-2/SE-tax treatment. S-Corp distributions
-      // avoid both FICA and SE tax — they are taxable income reported on Schedule E, but explicitly
-      // NOT "ordinary income" in the FICA/self-employment sense. Updated to avoid misleading users.
-      'K-1 distribution $' + sCorpK1.toLocaleString() + ' avoids FICA but is still taxable income (flows to Form 1040, Schedule E).',
-      'QBI deduction applies to K-1 only; subject to W-2 wage limit (your salary helps clear it).',
-      'Payroll service required (typical $300-1,500/year — NOT included in this comparison).',
-    ],
-  }
-
-  // ── Scenario 3: C Corporation ────────────────────────────────────────────
-  const cCorpEmployerFICA = sCorpEmployerFICA  // same salary → same calc
-  const cCorpProfitBeforeTax = Math.max(0, np - salary - cCorpEmployerFICA)
-  const cCorpCorpTax = Math.round(cCorpProfitBeforeTax * C_CORP_TAX_RATE)
-  const cCorpDividends = Math.max(0, cCorpProfitBeforeTax - cCorpCorpTax)
-  const cCorpEntity = { type: 'C Corporation', k1: 0, own: 100 }
-  const cCorpResult = run(
-    withReplacedEntity(entities, entityIdx, cCorpEntity),
-    salary,         // W-2 boost
-    cCorpDividends, // qualified dividends boost
-  )
-  const cCorpEmploymentTax = calcEmploymentTaxOnSalary(salary, taxYear)
-  const cCorpTotalTax = cCorpResult.totalTax + cCorpEmploymentTax + cCorpCorpTax
-  const cCorpScenario = {
-    key: 'cCorp',
-    label: 'C Corporation',
-    totalTax: cCorpTotalTax,
-    lineItems: [
-      { label: 'Federal income tax (personal)', value: cCorpResult.fedTax },
-      { label: 'Corporate tax (21% flat)',       value: cCorpCorpTax },
-      { label: 'Employment tax (W-2)',            value: cCorpEmploymentTax },
-      { label: 'Additional Medicare',             value: cCorpResult.additionalMedicare },
-      // FIX (TAX-04): same fix as soleResult above — use niitAmount, not niit.
-      { label: 'NIIT',                            value: cCorpResult.niitAmount },
-      { label: 'AMT',                             value: cCorpResult.amt },
-      { label: 'Child credit',                    value: -cCorpResult.childCredit },
-    ],
-    notes: [
-      'Officer salary $' + salary.toLocaleString() + ' subject to 15.3% FICA up to SS wage base.',
-      'Corporate tax of $' + cCorpCorpTax.toLocaleString() + ' (21% flat) on $' + cCorpProfitBeforeTax.toLocaleString() + ' entity profit.',
-      'Dividends $' + cCorpDividends.toLocaleString() + ' taxed at 0/15/20% qualified dividend rates + potential 3.8% NIIT — DOUBLE TAXATION.',
-      'QBI deduction NOT available (C Corp distributions are not QBI per IRC §199A).',
-      'Assumes full annual distribution; retained-earnings strategy NOT modeled.',
-      'Payroll service required (NOT included in this comparison).',
-    ],
-  }
-
-  // ── Aggregate ─────────────────────────────────────────────────────────────
-  const scenarios = [soleScenario, sCorpScenario, cCorpScenario]
-  const cheapest      = scenarios.reduce((a, b) => b.totalTax < a.totalTax ? b : a)
-  const mostExpensive = scenarios.reduce((a, b) => b.totalTax > a.totalTax ? b : a)
-  const savings = mostExpensive.totalTax - cheapest.totalTax
+  const sorted = Object.values(scenarioMap).sort((a, b) => a.totalTax - b.totalTax)
+  const best   = sorted[0].key
+  const savings = sorted[1].totalTax - sorted[0].totalTax
 
   return {
-    scenarios,
-    best: cheapest.key,
-    savings,
-    salary,  // echo so caller can show the actual salary used
+    scenarios: Object.values(scenarioMap),
+    best,
+    savings: Math.max(0, savings),
+    salary,
   }
 }
 
-export {
-  compareEntityScenarios,
-  // Constants re-exported for tests and debugging.
-  // Rate values now live in src/constants.js — importing here for backwards compat.
-  FICA_SS_RATE,
-  FICA_MEDICARE_RATE,
-  C_CORP_TAX_RATE,
-  DEFAULT_OFFICER_SALARY_FRACTION,
-}
+export { compareEntityScenarios }

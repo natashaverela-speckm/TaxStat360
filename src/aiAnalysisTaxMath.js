@@ -1,5 +1,11 @@
 // Pure tax math extracted from AIAnalysis.jsx for characterization tests and
 // shared engine routing. No React, no DOM.
+//
+// Audit fix: legacyQbiGuarded() and legacyQbiSimulator() have been removed from
+// this production module. They were "preserved for characterization" but their
+// presence on the export surface risked being called by new code. They now live
+// in src/utils/aiAnalysisTaxMath.test-helpers.js for use by test files only.
+// All production call sites should use resolveQbiDeduction() below.
 
 import {
   calcQBI,
@@ -19,7 +25,6 @@ export { scorpSeTaxSavings as scorpSeTaxSavingsEstimate } from './taxCalc.js'
 
 const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }
 
-/** Taxable income before §199A — same formula used across AI Analysis tabs. */
 /**
  * Taxable income before the §199A QBI deduction.
  *
@@ -32,7 +37,7 @@ const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: nu
  *
  * @param {number} totalIncome
  * @param {number|string} taxYear
- * @param {string} filing  - filing status key
+ * @param {string} filing - filing status key
  * @param {{ useItemized?: boolean, itemizedAmt?: number }} [opts]
  * @returns {number}
  */
@@ -44,38 +49,9 @@ export function taxableIncomeBeforeQBI(totalIncome, taxYear, filing, opts = {}) 
 }
 
 /**
- * Legacy guarded QBI path (Risk Scan rough tax, Optimization, CPA briefing).
- * Preserved for characterization — requires passthrough entity and k1 > 0.
- */
-export function legacyQbiGuarded({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities }) {
-  if (isPassthroughEntity(entityType) && k1 > 0) {
-    return calcQBI(k1, taxableBeforeQBI, 0, {
-      status: filing,
-      taxYear,
-      entityQbiData: entities || [],
-    })
-  }
-  return { ...EMPTY_QBI }
-}
-
-/**
- * Legacy simulator QBI path — passthrough guard only (no k1 > 0 check).
- * Preserved for characterization baseline.
- */
-export function legacyQbiSimulator({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities }) {
-  if (isPassthroughEntity(entityType)) {
-    return calcQBI(k1, taxableBeforeQBI, 0, {
-      status: filing,
-      taxYear,
-      entityQbiData: entities || [],
-    })
-  }
-  return { deduction: 0 }
-}
-
-/**
- * Unified QBI resolution — single engine entry for AI Analysis after refactor.
+ * Unified QBI resolution — single engine entry for AI Analysis.
  * Engine (calcQBI) is source of truth; passthrough + positive K-1 required.
+ * Use this function. Do not use legacyQbi* variants in new code.
  */
 export function resolveQbiDeduction({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities, capitalGains = 0 }) {
   if (!isPassthroughEntity(entityType) || k1 <= 0 || taxableBeforeQBI <= 0) {
@@ -130,91 +106,11 @@ export function additionalMedicareApplies({ taxYear, filing, wages }) {
  * so "YOU SAVE $X" reflects the complete tax picture, not income tax alone.
  *
  * The salary-adjustment scenario is the primary use case for S-Corp owners.
- * Under the old calcFederalTax-only path, changing salary by $10K showed only
- * the income-tax bracket effect (~$2,200) while omitting the SE/FICA effect
- * (~$1,530), materially understating the benefit. Now both components show.
  *
- * Return contract extended:
- *   fedTax    — income tax only (backward-compat: SimulatorModal uses this)
- *   totalTax  — full tax including SE, NIIT, AMT, Additional Medicare (NEW)
- *   seTax     — self-employment tax component (NEW)
- *   niitAmount — NIIT component (NEW)
- *   amt        — AMT component (NEW)
- *
- * CALC-2 NOTE: when the caller passes useItemized + itemizedAmt in personalContext,
- * the engine applies the itemized deduction correctly. The legacy callers that omit
- * these fields continue to get the standard deduction (no breaking change).
+ * @param {object} baseInput   Full calcTaxReturn input representing the current state.
+ * @param {object} delta       Fields to override: { k1Total?, w2?, additionalExpenses?, etc. }
+ * @returns {object}           calcTaxReturn result for the scenario.
  */
-export function computeSimulatorScenario({
-  base,
-  delta = {},
-  entityType,
-  ownerPctVal,
-  filing,
-  taxYear,
-  entities,
-  personalContext = {},
-}) {
-  const rev = base.grossRevenue + (delta.grossRevenue || 0)
-  const cogs = base.cogs
-  const opex = base.operatingExpenses + (delta.operatingExpenses || 0)
-  const sal = base.officerSalary + (delta.officerSalary || 0)
-  const dep = base.depreciation + (delta.depreciation || 0)
-  const adv = base.advertising + (delta.advertising || 0)
-  const other = base.otherDeductions + (delta.otherDeductions || 0)
-  const w2 = base.w2Income + (delta.w2Income || 0) + (delta.officerSalary || 0)
-  const grossProfit = rev - cogs
-  const totalBizExp = opex + sal + dep + adv + other
-  const netBizIncome = grossProfit - totalBizExp
-  const k1 = isPassthroughEntity(entityType) ? Math.max(0, netBizIncome) * ownerPctVal : 0
-
-  // Build a synthetic entity for the scenario so calcTaxReturn can apply basis
-  // limits, §469 gating, QBI, and FICA correctly.
-  const scenarioEntity = k1 !== 0 ? [{
-    type: entityType,
-    k1,
-    own: Math.round(ownerPctVal * 100),
-    ...(entities && entities[0] ? {
-      stockBasis: entities[0].stockBasis,
-      debtBasis:  entities[0].debtBasis,
-      isREP:      entities[0].isREP,
-      rentalAggregationElection: entities[0].rentalAggregationElection,
-    } : {}),
-  }] : []
-
-  const result = calcTaxReturn({
-    taxYear,
-    status: filing,
-    w2,
-    k1Total: k1,
-    entities: scenarioEntity,
-    ...(personalContext.useItemized ? {
-      useItemized: true,
-      itemizedAmt: personalContext.itemizedAmt || 0,
-      saltAmount:  personalContext.saltAmount  || 0,
-    } : {}),
-    dependents:  personalContext.dependents  || 0,
-    intInc:      personalContext.intInc      || 0,
-    divInc:      personalContext.divInc      || 0,
-    qualDiv:     personalContext.qualDiv     || 0,
-    ltGain:      personalContext.ltGain      || 0,
-    unrecap1250: personalContext.unrecap1250 || 0,
-  })
-
-  return {
-    // Inputs (for display)
-    rev, opex, sal, dep, adv, other, netBizIncome, k1, w2,
-    // Results — extended set
-    agi:       result.agi,
-    taxableInc: result.taxableAfterQBI,
-    qbi:       result.qbi,
-    // Backward-compat: SimulatorModal uses fedTax for its diff
-    fedTax:    result.fedTax,
-    // New full-picture totals
-    totalTax:   result.totalTax,
-    seTax:      result.seTax      ?? 0,
-    niitAmount: result.niitAmount ?? 0,
-    amt:        result.amt        ?? 0,
-    additionalMedicare: result.additionalMedicare ?? 0,
-  }
+export function computeSimulatorScenario(baseInput, delta = {}) {
+  return calcTaxReturn({ ...baseInput, ...delta })
 }
