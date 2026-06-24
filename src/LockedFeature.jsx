@@ -1,10 +1,11 @@
 import { apiGet } from './utils/apiClient.js'
+import { readPlan, writePlan } from './utils/sessionState.js'
 import { NAVY as N, BLUE as B } from './theme.js'
 import { useNavigate } from 'react-router-dom'
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Plan Constants & Normalization Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Plan Constants & Normalization ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // Single source of truth for plan IDs. ALL plan-gate code must import from here.
-// Never compare against raw localStorage values Ã¢ÂÂ always use getUserPlan() which
+// Never compare against raw localStorage values ÃÂ¢ÃÂÃÂ always use getUserPlan() which
 // normalises legacy names via PLAN_ALIASES transparently.
 
 export const PLAN_IDS = {
@@ -13,7 +14,7 @@ export const PLAN_IDS = {
   ENTERPRISE:   'enterprise',
 }
 
-// Legacy plan name aliases Ã¢ÂÂ maps old DB/Lambda values to canonical PLAN_IDS.
+// Legacy plan name aliases ÃÂ¢ÃÂÃÂ maps old DB/Lambda values to canonical PLAN_IDS.
 // "basic" is the pre-migration DB value for Starter accounts (C-01).
 // Add new aliases here; never scatter alias logic across other components.
 const PLAN_ALIASES = {
@@ -24,9 +25,9 @@ const PLAN_ALIASES = {
   'essential': PLAN_IDS.ENTERPRISE,
 }
 
-// normalizePlanId Ã¢ÂÂ converts any raw plan string (from localStorage, Lambda,
+// normalizePlanId ÃÂ¢ÃÂÃÂ converts any raw plan string (from localStorage, Lambda,
 // or DynamoDB) into a canonical PLAN_IDS value. Import and use this anywhere
-// a plan string is read outside of getUserPlan() Ã¢ÂÂ e.g. Upgrade.jsx planMap.
+// a plan string is read outside of getUserPlan() ÃÂ¢ÃÂÃÂ e.g. Upgrade.jsx planMap.
 export function normalizePlanId(raw) {
   const lower = (raw || '').toLowerCase().trim()
   return PLAN_ALIASES[lower] || (Object.values(PLAN_IDS).includes(lower) ? lower : PLAN_IDS.STARTER)
@@ -39,7 +40,7 @@ export function getUserPlan() {
   return PLAN_ALIASES[raw] || raw
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Server-side plan re-validation (SEC-05) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Server-side plan re-validation (SEC-05) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // The browser cannot be trusted to report its own plan: anyone can run
 // writePlan('enterprise') in dev tools. The SERVER is the
 // source of truth. On every app load we ask GET /auth/me (which reads the
@@ -47,7 +48,7 @@ export function getUserPlan() {
 // answer back into localStorage, overwriting any tampering.
 //
 // FAILS SAFE: if the endpoint is missing (404, before backend ships), errors,
-// or times out, we leave the existing plan untouched Ã¢ÂÂ this never locks a real
+// or times out, we leave the existing plan untouched ÃÂ¢ÃÂÃÂ this never locks a real
 // user out, so it is safe to deploy BEFORE /auth/me exists. It begins enforcing
 // automatically the moment the endpoint returns a real plan.
 export async function refreshPlanFromServer() {
@@ -55,7 +56,7 @@ export async function refreshPlanFromServer() {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 5000)
     try {
-      // Non-ok (401/404/5xx) throws ApiError Ã¢ÂÂ caught below Ã¢ÂÂ keep current plan, same as
+      // Non-ok (401/404/5xx) throws ApiError ÃÂ¢ÃÂÃÂ caught below ÃÂ¢ÃÂÃÂ keep current plan, same as
       // the prior explicit `if (!res.ok) return getUserPlan()`. credentials:'include' sends
       // the httpOnly session cookie (the API is a different origin from the app).
       const data = await apiGet('/auth/me', {
@@ -70,7 +71,7 @@ export async function refreshPlanFromServer() {
       clearTimeout(timer)
     }
   } catch (_e) {
-    // network error / timeout / abort / non-ok Ã¢ÂÂ fail safe, keep existing plan
+    // network error / timeout / abort / non-ok ÃÂ¢ÃÂÃÂ fail safe, keep existing plan
   }
   return getUserPlan()
 }
@@ -89,7 +90,7 @@ export function canAccess(requiredPlan) {
   return (rank[getUserPlan()] ?? 0) >= (rank[requiredPlan] ?? 0)
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ LockedFeature Component Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ LockedFeature Component ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // Wraps any feature section with a blurred overlay + upgrade prompt.
 //
 // Usage:
@@ -98,10 +99,10 @@ export function canAccess(requiredPlan) {
 //   </LockedFeature>
 //
 // Props:
-//   requiredPlan  Ã¢ÂÂ 'professional' | 'enterprise'  (default: 'professional')
-//   label         Ã¢ÂÂ Feature name shown in the overlay
-//   minHeight     Ã¢ÂÂ Minimum height for the locked area (default: 120)
-//   children      Ã¢ÂÂ The feature to render (shown blurred when locked)
+//   requiredPlan  ÃÂ¢ÃÂÃÂ 'professional' | 'enterprise'  (default: 'professional')
+//   label         ÃÂ¢ÃÂÃÂ Feature name shown in the overlay
+//   minHeight     ÃÂ¢ÃÂÃÂ Minimum height for the locked area (default: 120)
+//   children      ÃÂ¢ÃÂÃÂ The feature to render (shown blurred when locked)
 //
 // If the user's plan meets the requirement, children render normally.
 // If not, a blurred preview with an upgrade CTA is shown instead.
@@ -135,7 +136,7 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
         padding: 24, textAlign: 'center',
         gap: 6,
       }}>
-        <span style={{ fontSize: 22 }}>Ã°ÂÂÂ</span>
+        <span style={{ fontSize: 22 }}>ÃÂ°ÃÂÃÂÃÂ</span>
         <p style={{ fontWeight: 700, fontSize: 15, color: N, margin: 0 }}>
           {label || `${planLabel} Feature`}
         </p>
@@ -152,7 +153,7 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
             fontFamily: 'Inter, system-ui, sans-serif',
           }}
         >
-          Upgrade to {planLabel} Ã¢ÂÂ
+          Upgrade to {planLabel} ÃÂ¢ÃÂÃÂ
         </button>
       </div>
     </div>
