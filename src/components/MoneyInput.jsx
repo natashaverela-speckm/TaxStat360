@@ -21,7 +21,7 @@
 //   />
 
 import { useState, useEffect } from 'react';
-import { parseMoney, formatMoneyForInput } from '../utils/parseMoney.js';
+import { parseMoney, formatMoneyForInput } from '../utils/money.js';
 
 export default function MoneyInput({
   value,
@@ -34,13 +34,13 @@ export default function MoneyInput({
   disabled = false,
   allowNegative = true,
 }) {
-  // Local string state — what the user sees in the field.
+  // Local string state â what the user sees in the field.
   // The parent state is always a Number (truth lives there).
   const [text, setText] = useState(() => formatMoneyForInput(value ?? 0));
   const [focused, setFocused] = useState(false);
 
   // If parent value changes externally (e.g., loaded record), reflect it.
-  // Skip when the user is typing — don't reformat under their cursor.
+  // Skip when the user is typing â don't reformat under their cursor.
   useEffect(() => {
     if (!focused) {
       setText(formatMoneyForInput(value ?? 0));
