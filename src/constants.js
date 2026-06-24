@@ -508,21 +508,10 @@ export const INTEGRATIONS = [
 ]
 
 // Per-integration localStorage/sessionStorage keys follow the shape
-// `ts360_<providerId>_<field>`. The field suffixes live here ONLY (audit E-2), so the
-// connect / sync / disconnect flows never repeat them as inline string literals.
-// Usage: integrationKey('xero', 'connected') -> 'ts360_xero_connected'
-const _INTEGRATION_FIELDS = {
-  connected: '_connected',
-  token:     '_token',
-  extra:     '_extra',
-  syncedAt:  '_synced_at',
-  failed:    '_failed',
-}
-export function integrationKey(providerId, field) {
-  const suffix = _INTEGRATION_FIELDS[field]
-  if (suffix === undefined) throw new Error('integrationKey: unknown field "' + field + '"')
-  return 'ts360_' + providerId + suffix
-}
+// `ts360_<providerId>_<field>`. The field suffix constants lived here (audit E-2)
+// alongside integrationKey(), which has been moved to src/utils/integrations.js
+// (audit F-09, June 2026). Import integrationKey() from there — never from this file.
+// Credential helpers are environment-specific; tax constants are not.
 
 // ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
 // Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
