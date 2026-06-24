@@ -1,10 +1,10 @@
-// EntityCompareModal (Issue #45, PR-S2) — UI for the Scenario Compare engine.
+// EntityCompareModal (Issue #45, PR-S2) â UI for the Scenario Compare engine.
 // Renders three scenario cards (Sole Prop / S Corp / C Corp) with a single
 // officer-salary slider that drives both S Corp and C Corp scenarios.
 //
 // Engine contract (./scenarioCompare.js):
 //   compareEntityScenarios({ personalContext, entities, entityIdx, netProfitShare, officerSalary })
-//     → { scenarios: [sole, sCorp, cCorp], best: 'soleProp'|'sCorp'|'cCorp', savings, salary }
+//     â { scenarios: [sole, sCorp, cCorp], best: 'soleProp'|'sCorp'|'cCorp', savings, salary }
 //
 // Each scenario: { key, label, totalTax, lineItems: [{label,value}], notes: [string] }
 //
@@ -30,7 +30,7 @@ import {
   BORDER_DEFAULT as CARD_BORDER,
 } from './theme.js'
 // CC-M02: canonical currency formatter.
-import { fmt } from './utils/formatMoney.js'
+import { fmt } from './utils/money.js'
 
 // Component-local tokens not in theme.js
 const SUMMARY_GREEN_BG     = '#DCFCE7'
@@ -80,7 +80,7 @@ function ScenarioCard({ scenario, isBest, isMostExpensive }) {
           letterSpacing: '0.5px',
           textTransform: 'uppercase',
         }}>
-          ⭐ Best
+          â­ Best
         </div>
       )}
       <div>
@@ -103,7 +103,7 @@ function ScenarioCard({ scenario, isBest, isMostExpensive }) {
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', color: N }}>
               <span style={{ color: SL }}>{li.label}</span>
               <span style={{ fontWeight: 600, color: li.value < 0 ? G : N }}>
-                {li.value < 0 ? '−' : ''}{fmt(li.value).replace('(', '').replace(')', '')}
+                {li.value < 0 ? 'â' : ''}{fmt(li.value).replace('(', '').replace(')', '')}
               </span>
             </div>
           ))}
@@ -126,7 +126,7 @@ function ScenarioCard({ scenario, isBest, isMostExpensive }) {
 }
 
 function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities, entityIdx }) {
-  // Comparison base must be net profit BEFORE officer salary — each scenario applies its
+  // Comparison base must be net profit BEFORE officer salary â each scenario applies its
   // own salary treatment (sole prop: none; S/C-corp: salary + employer FICA). The entity's
   // persisted pnl.netProfit is AFTER salary (matching the Tax Tracker/Dashboard), so add the
   // officer salary back to reconstruct before-salary profit, consistent with those surfaces.
@@ -158,8 +158,8 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
       // function (() => { return ctx }) rather than a plain object. This prevents
       // recomputing the context on every CalculateTaxInner render (expensive reads
       // from sessionState). EntityCompareModal must call it if it's a function.
-      // Without this fix, {…personalContext} spread on a function → {}, stripping
-      // all personal tax fields from calcTaxReturn and making totalTax → 0.
+      // Without this fix, {â¦personalContext} spread on a function â {}, stripping
+      // all personal tax fields from calcTaxReturn and making totalTax â 0.
       const pc = typeof personalContext === 'function' ? personalContext() : personalContext
       return compareEntityScenarios({
         personalContext: pc || {},
@@ -203,10 +203,10 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: N }}>Entity Comparison</div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: SL, cursor: 'pointer' }}>×</button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: SL, cursor: 'pointer' }}>Ã</button>
           </div>
           <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '16px 20px', fontSize: 13, color: '#991B1B', lineHeight: 1.6 }}>
-            ⚠ Could not compute the entity comparison. This can occur if your entity data is incomplete.
+            â  Could not compute the entity comparison. This can occur if your entity data is incomplete.
             Please ensure revenue and expenses are entered in Step 1, then try again.
           </div>
         </div>
@@ -283,7 +283,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               Net profit share: <strong style={{ color: N }}>{fmt(netProfitShare)}</strong>
               {entity.pnl && (
                 <span style={{ color: SL }}>
-                  {' '}({fmt(entity.pnl.netProfit)} × {entity.own}%)
+                  {' '}({fmt(entity.pnl.netProfit)} Ã {entity.own}%)
                 </span>
               )}
             </div>
@@ -302,7 +302,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               flexShrink: 0,
             }}
           >
-            ×
+            Ã
           </button>
         </div>
 
@@ -321,7 +321,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               fontSize: 14,
               color: '#1D4ED8',
             }}>
-              <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>ð¡</span>
               <span>Enter your business revenue in Step 1 to see your entity comparison. All scenarios show $0 with no income entered.</span>
             </div>
           ) : summaryText ? (
@@ -337,7 +337,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               fontWeight: 600,
               color: '#14532D',
             }}>
-              <span style={{ fontSize: 22 }}>💰</span>
+              <span style={{ fontSize: 22 }}>ð°</span>
               <span>{summaryText}</span>
             </div>
           ) : null}
@@ -350,7 +350,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             padding: 18,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-              {/* TERMINOLOGY FIX 3.3: "Officer salary" → "Officer Compensation" — matches IRS Form 1120-S
+              {/* TERMINOLOGY FIX 3.3: "Officer salary" â "Officer Compensation" â matches IRS Form 1120-S
                   language and the FINANCIAL_LABELS.officerCompensationField constant used elsewhere. */}
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Officer Compensation (S-Corp / C-Corp)
@@ -373,7 +373,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             <div style={{ fontSize: 12, color: SL, marginTop: 8 }}>
               Drag to model different officer salary levels for the S-Corp and C-Corp scenarios.
               The IRS requires S-Corp owner-employees to pay themselves reasonable compensation
-              comparable to what a similarly qualified employee would earn (IRC §1.162-7;
+              comparable to what a similarly qualified employee would earn (IRC Â§1.162-7;
               Rev. Rul. 74-44). Work with your CPA to set the appropriate amount for your
               role and industry.
             </div>
@@ -390,22 +390,22 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               gap: 12,
             }}>
               <span style={{ fontSize: 18, lineHeight: '24px', flexShrink: 0 }}>
-                {rcRisk.severity === 'high' ? '🚨' : '⚠️'}
+                {rcRisk.severity === 'high' ? 'ð¨' : 'â ï¸'}
               </span>
               <div style={{ fontSize: 13, color: rcRisk.severity === 'high' ? '#7F1D1D' : AMBER_TEXT, lineHeight: 1.5 }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                  Reasonable Compensation Risk — IRS Audit Flag
+                  Reasonable Compensation Risk â IRS Audit Flag
                 </div>
                 <div>
                   At this salary, the S Corp scenario shows {fmt(rcRisk.sCorpProfit)} in net profit
                   but only {fmt(rcRisk.w2Wages)} in W-2 wages
                   ({(rcRisk.ratio * 100).toFixed(1)}% ratio).
                   The IRS requires S Corp owner-employees to pay themselves "reasonable compensation"
-                  per IRC §1366 / §3121. Distributions reclassified as wages by the IRS trigger
+                  per IRC Â§1366 / Â§3121. Distributions reclassified as wages by the IRS trigger
                   payroll tax + penalties + interest.
                   {rcRisk.severity === 'high'
                     ? ' Zero W-2 wages with a profitable S Corp is the highest-risk pattern.'
-                    : ' Industry rule of thumb is 30–60% of profit; below 40% draws scrutiny.'}
+                    : ' Industry rule of thumb is 30â60% of profit; below 40% draws scrutiny.'}
                 </div>
               </div>
             </div>
@@ -427,7 +427,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             ))}
           </div>
 
-          {/* UX-N04: C-Corp full-dividend assumption callout — visible near the cards.
+          {/* UX-N04: C-Corp full-dividend assumption callout â visible near the cards.
               The disclaimer section mentions this assumption but users miss it. This callout
               surfaces it prominently so no one interprets the C-Corp figure at face value
               without understanding the retained-earnings impact. */}
@@ -441,10 +441,10 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               gap: 12,
               alignItems: 'flex-start',
             }}>
-              <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '22px' }}>⚠️</span>
+              <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '22px' }}>â ï¸</span>
               <div style={{ fontSize: 12, color: AMBER_TEXT, lineHeight: 1.6 }}>
                 <strong>C-Corp scenario assumes full distribution of profits as qualified dividends.</strong>{' '}
-                If profits are retained in the corporation instead, the personal-level dividend tax is deferred — reducing the C-Corp's apparent tax cost in this comparison.
+                If profits are retained in the corporation instead, the personal-level dividend tax is deferred â reducing the C-Corp's apparent tax cost in this comparison.
                 Retained earnings can be advantageous for reinvestment-heavy businesses, but the deferred tax becomes due when profits are eventually distributed or the company is sold.
                 Discuss retained-earnings strategy with your CPA before using this comparison to make an entity election.
               </div>
@@ -464,11 +464,11 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             <div style={{ fontWeight: 700, color: N, marginBottom: 6, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               What this comparison does NOT model
             </div>
-            State income tax · Payroll service costs (~$300–1,500/yr for S/C Corp) ·
-            Entity formation and ongoing compliance fees · Retirement plan strategy
-            (Solo 401(k), SEP, defined benefit) · Fringe benefits (health insurance,
-            HRA, §125 plans) · C Corp retained-earnings strategy (assumes full annual
-            distribution) · Multi-owner dynamics (single-officer assumption applies).
+            State income tax Â· Payroll service costs (~$300â1,500/yr for S/C Corp) Â·
+            Entity formation and ongoing compliance fees Â· Retirement plan strategy
+            (Solo 401(k), SEP, defined benefit) Â· Fringe benefits (health insurance,
+            HRA, Â§125 plans) Â· C Corp retained-earnings strategy (assumes full annual
+            distribution) Â· Multi-owner dynamics (single-officer assumption applies).
             Consult a tax professional before changing your entity structure.
           </div>
         </div>
