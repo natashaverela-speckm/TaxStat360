@@ -1,58 +1,58 @@
 // src/constants.js
 // Single source of truth for PERMANENT constants across TaxStat360.
 //
-// ââ Architecture rule ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// This file  â permanent rates, ratios, structural values, and law-defined
+// Ã¢ÂÂÃ¢ÂÂ Architecture rule Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// This file  Ã¢ÂÂ permanent rates, ratios, structural values, and law-defined
 //              thresholds that never change year-to-year (IRC rates, ERISA ages,
 //              FICA structure, and statutory dollar amounts explicitly NOT
 //              inflation-adjusted).
-// taxCalc.js â year-specific dollar figures (brackets, thresholds, limits,
+// taxCalc.js Ã¢ÂÂ year-specific dollar figures (brackets, thresholds, limits,
 //              phase-outs) stored in the TAX_TABLES[year] object.
 //
-// Import from here â never hard-code these values in component or utility files.
+// Import from here Ã¢ÂÂ never hard-code these values in component or utility files.
 // When a new tax year is released, only taxCalc.js TAX_TABLES needs updating.
-// Add the new year to SUPPORTED_TAX_YEARS below â that one edit advances the
+// Add the new year to SUPPORTED_TAX_YEARS below Ã¢ÂÂ that one edit advances the
 // dropdowns and the CURRENT_TAX_YEAR default simultaneously.
 //
-// ââ ENTITY-TYPE REPRESENTATION (two vocabularies by design) âââââââââââââââââââ
-// 1. UI / input layer (Vocabulary A) â what the user picks and what gets stored:
-//    'S Corporation' Â· 'Partnership / LLC' Â· 'Sole Proprietor / SMLLC' Â·
+// Ã¢ÂÂÃ¢ÂÂ ENTITY-TYPE REPRESENTATION (two vocabularies by design) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// 1. UI / input layer (Vocabulary A) Ã¢ÂÂ what the user picks and what gets stored:
+//    'S Corporation' ÃÂ· 'Partnership / LLC' ÃÂ· 'Sole Proprietor / SMLLC' ÃÂ·
 //    'Real Estate (Schedule E)'
 //    This is ENTITY_TYPES below (and PASSTHROUGH_ENTITY_TYPES = ENTITY_TYPES
 //    minus C-Corp). It is the canonical set at the boundary.
 //
-// 2. Engine-internal canonical form (Vocabulary B) â what normalizeEntityType()
+// 2. Engine-internal canonical form (Vocabulary B) Ã¢ÂÂ what normalizeEntityType()
 //    emits and what the tax engine keys on:
-//    'S Corporation' Â· 'Partnership / MMLLC â Active' Â· 'Partnership / MMLLC â
-//    Passive' Â· 'Sole Proprietor / Single-Member LLC' Â· 'Real Estate (Schedule E)'
+//    'S Corporation' ÃÂ· 'Partnership / MMLLC Ã¢ÂÂ Active' ÃÂ· 'Partnership / MMLLC Ã¢ÂÂ
+//    Passive' ÃÂ· 'Sole Proprietor / Single-Member LLC' ÃÂ· 'Real Estate (Schedule E)'
 //    The Active/Passive split exists ONLY in this layer because SE treatment
-//    depends on it (Â§1402(a)(13)) and cannot be expressed in the single UI label.
+//    depends on it (ÃÂ§1402(a)(13)) and cannot be expressed in the single UI label.
 //
-//    normalizeEntityType() (utils/entityPredicates.js) is the one-way bridge AâB.
+//    normalizeEntityType() (utils/entityPredicates.js) is the one-way bridge AÃ¢ÂÂB.
 //    The engine calls it on every entity before any type test. Use the regex
 //    predicates (isSCorpEntity, isCCorpEntity, isPassthroughEntity,
-//    isRealEstateEntity) â they match EITHER vocabulary.
+//    isRealEstateEntity) Ã¢ÂÂ they match EITHER vocabulary.
 //    RULE: never test an entity type with exact-string .includes() against an
 //    array in the OTHER layer's vocabulary.
 //
-// ââ Historical audit notes âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Historical audit notes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // The RESOLVED() centralization notes that formerly appeared in this file header
 // were moved to CHANGELOG.md (audit finding 10.4). See CHANGELOG.md for the
 // full history of CC-01, CC-02, CC-03, F-M02, C-01, F-02, and related fixes.
 //
-// O6 FIX: Added PLAN_FEATURES map â one-line feature summary per plan tier.
+// O6 FIX: Added PLAN_FEATURES map Ã¢ÂÂ one-line feature summary per plan tier.
 // Consumed by Onboarding.jsx SignupScreen plan picker so users can choose their
 // plan without leaving the signup page to consult the pricing table.
-// Keep these strings short (under 60 chars) â they render at 11px in a constrained card.
+// Keep these strings short (under 60 chars) Ã¢ÂÂ they render at 11px in a constrained card.
 
-// âââ API âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// Branded CloudFront URL â all components use this constant; do not hardcode the
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Branded CloudFront URL Ã¢ÂÂ all components use this constant; do not hardcode the
 // raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod)
 // anywhere in the codebase. CloudFront / WAF rules apply uniformly only when
 // requests route through app.taxstat360.com.
 export const API_BASE_URL = 'https://app.taxstat360.com'
 
-// âââ CURRENT TAX YEAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CURRENT TAX YEAR Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // F-02 FIX: Single source of truth for the default tax year fallback.
 // Previously, three files each hard-coded || 2025 independently:
 // taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, CalculateTaxInner.jsx, Dashboard.jsx
@@ -60,8 +60,8 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 // uses the wrong year's brackets. Update this constant each December when the new
 // year's TAX_TABLES entry is added to taxCalc.js.
 //
-// â  UPDATE ANNUALLY: when you add TAX_TABLES[2027] to taxCalc.js, add 2027 to
-// SUPPORTED_TAX_YEARS below â that single edit advances both the dropdowns and the
+// Ã¢ÂÂ  UPDATE ANNUALLY: when you add TAX_TABLES[2027] to taxCalc.js, add 2027 to
+// SUPPORTED_TAX_YEARS below Ã¢ÂÂ that single edit advances both the dropdowns and the
 // default year. SUPPORTED_TAX_YEARS must mirror the years present in TAX_TABLES.
 //
 // C-15: SUPPORTED_TAX_YEARS is the single source of truth for selectable tax years.
@@ -71,40 +71,40 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 export const SUPPORTED_TAX_YEARS = [2024, 2025, 2026]
 export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length - 1]
 
-// C-32:7.1 â single source of truth for the Step-3 ("AI Analysis & Reporting") label.
-// Previously the step-3 breadcrumb read "AI Analysis" in Steps 1â2 but "AI Analysis &
+// C-32:7.1 Ã¢ÂÂ single source of truth for the Step-3 ("AI Analysis & Reporting") label.
+// Previously the step-3 breadcrumb read "AI Analysis" in Steps 1Ã¢ÂÂ2 but "AI Analysis &
 // Reporting" on the Step-3 page / nav buttons / route title, so the label changed
 // mid-flow. All in-app references now use this constant.
 export const STEP3_LABEL = 'AI Analysis & Reporting'
 
-// âââ CANONICAL FEATURE NAMES â single source of truth (audit Categories 8/9) ââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CANONICAL FEATURE NAMES Ã¢ÂÂ single source of truth (audit Categories 8/9) Ã¢ÂÂÃ¢ÂÂ
 // TERMINOLOGY FIX 9.3/9.4: Three surfaces used three different names for the same
 // features. Defining canonical names here so pricing page, nav tabs, and internal
-// descriptions always match. Import these â never inline the feature name strings.
+// descriptions always match. Import these Ã¢ÂÂ never inline the feature name strings.
 //
 // Audit Risk: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan"
-// â canonical: FEATURE_AUDIT_RISK_SCAN (used in tab label AND pricing copy)
+// Ã¢ÂÂ canonical: FEATURE_AUDIT_RISK_SCAN (used in tab label AND pricing copy)
 // What-If Simulator: pricing said "What-If Tax Scenario Simulator"; tab label said
 // "Tax Optimization"; tab desc said "What-If Tax Simulator"
-//   â canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
+//   Ã¢ÂÂ canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
 export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
 export const FEATURE_WHATIF_SIMULATOR  = 'What-If Tax Simulator'
 export const FEATURE_IRS_SCHEDULE_MAP  = 'IRS Schedule Map'
 export const FEATURE_CPA_EXPORT_PACK   = 'CPA Export Pack'
 
-// âââ FINANCIAL LINE LABELS â single source of truth (audit Categories B/C/D/F) â
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ FINANCIAL LINE LABELS Ã¢ÂÂ single source of truth (audit Categories B/C/D/F) Ã¢ÂÂ
 // Same rationale as STEP3_LABEL above: these P&L / summary labels were inline
 // literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
 // across screens ("Gross Revenue" vs "Gross Receipts", "Officer Salary" vs "Officer
 // Compensation", "Net Profit" vs "Net Business Income", the federal-tax headline).
 // Centralizing them here makes the same concept read the same everywhere and makes a
-// label change a one-line edit. Change a label HERE â never re-inline it in a component.
+// label change a one-line edit. Change a label HERE Ã¢ÂÂ never re-inline it in a component.
 //
 // `*Field` forms carry the parenthetical helper shown next to the input; the plain
 // forms are the short labels used in summaries / exports / the simulator.
 // NOTE: `totalExpenses` is the GRAND TOTAL (operating + officer comp + depreciation +
 // advertising + other) and is deliberately distinct from `operatingExpenses` (the
-// editable operating subset) â they are different figures, not synonyms.
+// editable operating subset) Ã¢ÂÂ they are different figures, not synonyms.
 export const FINANCIAL_LABELS = {
   grossReceipts:            'Gross Receipts',
   // TERMINOLOGY FIX 1.1: "Gross Receipts (Total Revenue)" conflated two distinct concepts.
@@ -120,28 +120,28 @@ export const FINANCIAL_LABELS = {
   netBusinessIncome:        'Net Business Income',
   netRentalIncome:          'Net Rental Income',
   estTotalFederalTax:       'EST. TOTAL FEDERAL TAX',
-  // TERMINOLOGY FIX for Schedule C / real estate â separate citation per form
+  // TERMINOLOGY FIX for Schedule C / real estate Ã¢ÂÂ separate citation per form
   grossReceiptsFieldScheduleC:  'Gross Receipts (Schedule C, Line 1)',
   grossRentsReceivedField:      'Gross Rents Received (Schedule E, Line 3)',
-  // TERMINOLOGY FIX 3.1: "Other Deductions" â "Other Operating Expenses" in entity P&L forms.
+  // TERMINOLOGY FIX 3.1: "Other Deductions" Ã¢ÂÂ "Other Operating Expenses" in entity P&L forms.
   // Items entered here are operating expenses that reduce gross income on the entity return,
   // not "deductions" in the IRC sense (which reduce taxable income on the personal return).
   otherOperatingExpenses:       'Other Operating Expenses',
 }
 
-// âââ SUBSCRIPTION PLAN IDENTIFIERS ââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SUBSCRIPTION PLAN IDENTIFIERS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // C-01 FIX: Canonical plan IDs stored in localStorage['ts360_plan'] by the auth Lambda.
-// ALL plan-gate checks must use these constants â never inline string literals.
+// ALL plan-gate checks must use these constants Ã¢ÂÂ never inline string literals.
 //
-// Storage â display name mapping:
-//   PLAN_IDS.STARTER      = 'basic'      â what the auth Lambda writes to localStorage
+// Storage Ã¢ÂÂ display name mapping:
+//   PLAN_IDS.STARTER      = 'basic'      Ã¢ÂÂ what the auth Lambda writes to localStorage
 //   PLAN_IDS.PROFESSIONAL = 'pro'
 //   PLAN_IDS.ENTERPRISE   = 'enterprise'
 //
 // LockedFeature.jsx isPro() must compare: readPlan() === PLAN_IDS.PROFESSIONAL
-// Settings.jsx plan display must use: PLAN_DISPLAY_NAMES[localStorage.getItem('ts360_plan') || 'basic']
+// Settings.jsx plan display must use: PLAN_DISPLAY_NAMES[readPlan() || 'basic']
 //
-// â  Do NOT change the string VALUES â they must match what the Lambda writes.
+// Ã¢ÂÂ  Do NOT change the string VALUES Ã¢ÂÂ they must match what the Lambda writes.
 // Only rename the JavaScript identifiers (STARTER, PROFESSIONAL, ENTERPRISE) if needed.
 export const PLAN_IDS = {
   STARTER: 'basic',       // Free-tier / Starter plan
@@ -150,170 +150,170 @@ export const PLAN_IDS = {
 }
 
 // Human-readable display names keyed by the storage value.
-// Usage: PLAN_DISPLAY_NAMES[localStorage.getItem('ts360_plan')] ?? 'Starter'
+// Usage: PLAN_DISPLAY_NAMES[readPlan()] ?? 'Starter'
 export const PLAN_DISPLAY_NAMES = {
   basic: 'Starter',
   pro: 'Professional',
   enterprise: 'Enterprise',
 }
 
-// O6 FIX: One-line feature summary per plan â consumed by Onboarding.jsx SignupScreen
+// O6 FIX: One-line feature summary per plan Ã¢ÂÂ consumed by Onboarding.jsx SignupScreen
 // plan picker so users understand what each tier includes without leaving the signup page.
 // Keep each string under ~60 characters (renders at 11px in a 150px-wide card column).
 // Update these whenever plan features change; they are display copy, not functional gates.
 export const PLAN_FEATURES = {
-  basic: '1 entity Â· core tax tracker Â· quarterly estimates',
-  pro: '3 entities Â· AI analysis Â· CPA Export tools',
-  enterprise: 'Unlimited entities Â· multi-user Â· priority support',
+  basic: '1 entity ÃÂ· core tax tracker ÃÂ· quarterly estimates',
+  pro: '3 entities ÃÂ· AI analysis ÃÂ· CPA Export tools',
+  enterprise: 'Unlimited entities ÃÂ· multi-user ÃÂ· priority support',
 }
 
-// âââ FICA â IRC Â§3101 / Â§3111 âââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ FICA Ã¢ÂÂ IRC ÃÂ§3101 / ÃÂ§3111 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Employee and employer shares are symmetric (each 6.2% SS + 1.45% Medicare).
 // Social Security portion applies only up to TAX_TABLES[year].ssWageBase (taxCalc.js).
 // Above ssWageBase only Medicare applies (combined 2.9%, uncapped).
 // When advising on FICA savings, always reference ssWageBase:
 //   - Rate is 15.3% (combined) on wages up to ssWageBase
 //   - Rate is 2.9% (Medicare only) on wages above ssWageBase
-export const FICA_SS_RATE = 0.062        // IRC Â§3101(a) / Â§3111(a) â 6.2% per side
-export const FICA_MEDICARE_RATE = 0.0145 // IRC Â§3101(b) / Â§3111(b) â 1.45% per side
+export const FICA_SS_RATE = 0.062        // IRC ÃÂ§3101(a) / ÃÂ§3111(a) Ã¢ÂÂ 6.2% per side
+export const FICA_MEDICARE_RATE = 0.0145 // IRC ÃÂ§3101(b) / ÃÂ§3111(b) Ã¢ÂÂ 1.45% per side
 
-// âââ ADDITIONAL MEDICARE TAX â IRC Â§3101(b)(2) / Â§1401(b)(2) âââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ADDITIONAL MEDICARE TAX Ã¢ÂÂ IRC ÃÂ§3101(b)(2) / ÃÂ§1401(b)(2) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // 0.9% surcharge on wages and SE income above the threshold.
-// Employee-only â no employer match on this portion.
+// Employee-only Ã¢ÂÂ no employer match on this portion.
 //
-// Thresholds (statutory; NOT inflation-adjusted since ACA enactment â Â§3101(b)(2)):
-//   Â§3101(b)(2)(A) â joint return â $250,000
-//   Â§3101(b)(2)(B) â married filing separately â $125,000
-//   Â§3101(b)(2)(C) â any other case (single, HOH) â $200,000
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment Ã¢ÂÂ ÃÂ§3101(b)(2)):
+//   ÃÂ§3101(b)(2)(A) Ã¢ÂÂ joint return Ã¢ÂÂ $250,000
+//   ÃÂ§3101(b)(2)(B) Ã¢ÂÂ married filing separately Ã¢ÂÂ $125,000
+//   ÃÂ§3101(b)(2)(C) Ã¢ÂÂ any other case (single, HOH) Ã¢ÂÂ $200,000
 //
 // Important: employer withholding triggers at $200,000 in wages regardless of filing
 // status. The individual true-up (excess or credit) happens at filing. This differs from
-// NIIT, which has NO withholding mechanism â both taxes share the same dollar values
+// NIIT, which has NO withholding mechanism Ã¢ÂÂ both taxes share the same dollar values
 // but have entirely different collection mechanics. Do not conflate them in calcTaxReturn
 // or clients with investment income will underestimate their estimated payment obligations.
-export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009          // IRC Â§3101(b)(2) / Â§1401(b)(2)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ = 250000  // IRC Â§3101(b)(2)(A)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS = 125000  // IRC Â§3101(b)(2)(B)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000 // IRC Â§3101(b)(2)(C)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH = 200000 // IRC Â§3101(b)(2)(C) â head of household (any other case)
+export const ADDITIONAL_MEDICARE_TAX_RATE = 0.009          // IRC ÃÂ§3101(b)(2) / ÃÂ§1401(b)(2)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ = 250000  // IRC ÃÂ§3101(b)(2)(A)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS = 125000  // IRC ÃÂ§3101(b)(2)(B)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000 // IRC ÃÂ§3101(b)(2)(C)
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH = 200000 // IRC ÃÂ§3101(b)(2)(C) Ã¢ÂÂ head of household (any other case)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 250000 // preserves prior tax-table value for qualifying surviving spouse
 
-// âââ NET INVESTMENT INCOME TAX (NIIT) â IRC Â§1411 ââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ NET INVESTMENT INCOME TAX (NIIT) Ã¢ÂÂ IRC ÃÂ§1411 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // 3.8% on the lesser of:
 //   (a) net investment income, OR
 //   (b) the amount by which MAGI exceeds the applicable threshold.
 //
-// Thresholds (statutory; NOT inflation-adjusted since ACA enactment â Â§1411(b)):
-//   Â§1411(b)(1) â joint return or surviving spouse â $250,000
-//   Â§1411(b)(2) â married filing separately â Â½ of Â§1411(b)(1) â $125,000
+// Thresholds (statutory; NOT inflation-adjusted since ACA enactment Ã¢ÂÂ ÃÂ§1411(b)):
+//   ÃÂ§1411(b)(1) Ã¢ÂÂ joint return or surviving spouse Ã¢ÂÂ $250,000
+//   ÃÂ§1411(b)(2) Ã¢ÂÂ married filing separately Ã¢ÂÂ ÃÂ½ of ÃÂ§1411(b)(1) Ã¢ÂÂ $125,000
 //     Note: the statute cross-references paragraph (1) rather than hardcoding $125,000.
-//     The computed value is used here. If MFJ threshold ever changes, MFS = MFJ Ã· 2.
-//   Â§1411(b)(3) â any other case (single, HOH, QSS) â $200,000
+//     The computed value is used here. If MFJ threshold ever changes, MFS = MFJ ÃÂ· 2.
+//   ÃÂ§1411(b)(3) Ã¢ÂÂ any other case (single, HOH, QSS) Ã¢ÂÂ $200,000
 //
 // Net investment income includes: passive K-1 income, rental income (for non-REPs),
 // capital gains, qualified dividends, interest income.
 // Does NOT include: active S-Corp K-1 income where the shareholder materially participates,
 // wages, self-employment income, distributions from qualified retirement plans.
 //
-// No withholding mechanism â flows entirely through Form 8960 and estimated payments.
-export const NIIT_RATE = 0.038              // IRC Â§1411(a)
-export const NIIT_THRESHOLD_MFJ = 250000    // IRC Â§1411(b)(1) â joint return / surviving spouse
-export const NIIT_THRESHOLD_MFS = 125000    // IRC Â§1411(b)(2) â married filing separately (Â½ of MFJ)
-export const NIIT_THRESHOLD_SINGLE = 200000 // IRC Â§1411(b)(3) â single, HOH, and all other filers
-export const NIIT_THRESHOLD_HOH = 200000    // IRC Â§1411(b)(3) â head of household (grouped with single)
-export const NIIT_THRESHOLD_QSS = 250000    // IRC Â§1411(b)(1) â qualifying surviving spouse (grouped with joint return)
+// No withholding mechanism Ã¢ÂÂ flows entirely through Form 8960 and estimated payments.
+export const NIIT_RATE = 0.038              // IRC ÃÂ§1411(a)
+export const NIIT_THRESHOLD_MFJ = 250000    // IRC ÃÂ§1411(b)(1) Ã¢ÂÂ joint return / surviving spouse
+export const NIIT_THRESHOLD_MFS = 125000    // IRC ÃÂ§1411(b)(2) Ã¢ÂÂ married filing separately (ÃÂ½ of MFJ)
+export const NIIT_THRESHOLD_SINGLE = 200000 // IRC ÃÂ§1411(b)(3) Ã¢ÂÂ single, HOH, and all other filers
+export const NIIT_THRESHOLD_HOH = 200000    // IRC ÃÂ§1411(b)(3) Ã¢ÂÂ head of household (grouped with single)
+export const NIIT_THRESHOLD_QSS = 250000    // IRC ÃÂ§1411(b)(1) Ã¢ÂÂ qualifying surviving spouse (grouped with joint return)
 
-// âââ SELF-EMPLOYMENT TAX DEDUCTION â IRC Â§164(f) âââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SELF-EMPLOYMENT TAX DEDUCTION Ã¢ÂÂ IRC ÃÂ§164(f) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Above-the-line deduction equal to 50% of self-employment tax paid.
 // Reduces AGI; applied on Schedule 1, Line 15 of Form 1040.
-// Applies to sole proprietors and active partners only â S-Corp shareholder-employees
+// Applies to sole proprietors and active partners only Ã¢ÂÂ S-Corp shareholder-employees
 // pay FICA on W-2 wages (not SE tax) and do not use this deduction.
-export const SE_TAX_DEDUCTION_RATE = 0.50  // IRC Â§164(f)
+export const SE_TAX_DEDUCTION_RATE = 0.50  // IRC ÃÂ§164(f)
 
-// âââ SE TAX NET EARNINGS FACTOR â IRC Â§1402(a)(12) âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SE TAX NET EARNINGS FACTOR Ã¢ÂÂ IRC ÃÂ§1402(a)(12) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Self-employment tax is computed on 92.35% of net self-employment income, not 100%.
 // This reduction accounts for the employer-equivalent deduction (half of SE tax).
-// Formula: net SE income Ã 0.9235 = SE earnings subject to tax
-// Then: SE earnings Ã SE tax rate (15.3% up to SS wage base, 2.9% above) = SE tax owed.
+// Formula: net SE income ÃÂ 0.9235 = SE earnings subject to tax
+// Then: SE earnings ÃÂ SE tax rate (15.3% up to SS wage base, 2.9% above) = SE tax owed.
 //
-// FICA on W-2 wages does NOT use this factor â FICA applies to 100% of wages.
+// FICA on W-2 wages does NOT use this factor Ã¢ÂÂ FICA applies to 100% of wages.
 // When computing S-Corp FICA savings vs. sole-prop SE tax on the same distributions,
-// the comparison must use 0.9235 Ã distributions Ã SE rate (not distributions Ã FICA rate)
+// the comparison must use 0.9235 ÃÂ distributions ÃÂ SE rate (not distributions ÃÂ FICA rate)
 // to avoid overstating the S-Corp advantage.
 // See: taxCalc.js ficaSavings calculation (TC-10 fix).
-export const SE_NET_EARNINGS_FACTOR = 0.9235  // IRC Â§1402(a)(12)
+export const SE_NET_EARNINGS_FACTOR = 0.9235  // IRC ÃÂ§1402(a)(12)
 
-// âââ NET OPERATING LOSS â IRC Â§172(a)(2) (TCJA / OBBBA) âââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ NET OPERATING LOSS Ã¢ÂÂ IRC ÃÂ§172(a)(2) (TCJA / OBBBA) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Post-2017 NOL carryforwards are limited to 80% of taxable income before the
 // NOL deduction. The pre-2018 unlimited carryback / unlimited carryforward rules
 // do NOT apply to NOLs arising in 2018 or later.
 // OBBBA (P.L. 119-21) retained the TCJA 80% cap for post-2017 NOLs.
 // TaxStat360 applies this cap to all entered NOL carryforwards as a conservative
-// planning default â if the user has a confirmed pre-2018 NOL they should note that
+// planning default Ã¢ÂÂ if the user has a confirmed pre-2018 NOL they should note that
 // their actual deductible amount may be slightly higher.
 // Referenced in calcTaxReturn; centralised here so future rate changes require one edit.
-export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC Â§172(a)(2)
+export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC ÃÂ§172(a)(2)
 
-// âââ PASSIVE ACTIVITY LOSS â IRC Â§469(i) âââââââââââââââââââââââââââââââââââââ
-// Â§469(i) active-participation special allowance: up to $25,000 in rental losses
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ PASSIVE ACTIVITY LOSS Ã¢ÂÂ IRC ÃÂ§469(i) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ§469(i) active-participation special allowance: up to $25,000 in rental losses
 // can offset non-passive income for non-REP active participants. This allowance
 // phases out at 50 cents per dollar of AGI above $100,000, and is $0 for MFS filers
 // and above $150,000 AGI for all other filing statuses.
 //
-// Phase-out mechanics (Â§469(i)(3)(A)):
-//   Reduction = PAL_PHASE_OUT_RATE Ã max(0, AGI â PAL_PHASE_OUT_START)
-//   Allowance = max(0, PAL_SPECIAL_ALLOWANCE_BASE â Reduction)
-//   Allowance is fully eliminated when AGI â¥ PAL_PHASE_OUT_END.
+// Phase-out mechanics (ÃÂ§469(i)(3)(A)):
+//   Reduction = PAL_PHASE_OUT_RATE ÃÂ max(0, AGI Ã¢ÂÂ PAL_PHASE_OUT_START)
+//   Allowance = max(0, PAL_SPECIAL_ALLOWANCE_BASE Ã¢ÂÂ Reduction)
+//   Allowance is fully eliminated when AGI Ã¢ÂÂ¥ PAL_PHASE_OUT_END.
 //
-// Thresholds: NOT inflation-adjusted â these are statutory dollar amounts in Â§469(i)(3)(A).
-// MFS filers: $0 allowance regardless of AGI â Â§469(i)(4).
+// Thresholds: NOT inflation-adjusted Ã¢ÂÂ these are statutory dollar amounts in ÃÂ§469(i)(3)(A).
+// MFS filers: $0 allowance regardless of AGI Ã¢ÂÂ ÃÂ§469(i)(4).
 //
-// Usage: REP (Real Estate Professional) status bypasses Â§469(i) entirely â
+// Usage: REP (Real Estate Professional) status bypasses ÃÂ§469(i) entirely Ã¢ÂÂ
 // REPs deduct unlimited rental losses against ordinary income if they materially
-// participate (Â§469(c)(7)). PAL_* constants only apply to non-REP active participants.
-export const PAL_SPECIAL_ALLOWANCE_BASE = 25000   // Â§469(i)(2) â max allowance
-export const PAL_PHASE_OUT_START = 100000          // Â§469(i)(3)(A) â phase-out begins here
-export const PAL_PHASE_OUT_END = 150000            // Â§469(i)(3)(A) â allowance = $0 at this AGI
-export const PAL_PHASE_OUT_RATE = 0.50             // Â§469(i)(3)(A) â 50 cents per dollar of excess
+// participate (ÃÂ§469(c)(7)). PAL_* constants only apply to non-REP active participants.
+export const PAL_SPECIAL_ALLOWANCE_BASE = 25000   // ÃÂ§469(i)(2) Ã¢ÂÂ max allowance
+export const PAL_PHASE_OUT_START = 100000          // ÃÂ§469(i)(3)(A) Ã¢ÂÂ phase-out begins here
+export const PAL_PHASE_OUT_END = 150000            // ÃÂ§469(i)(3)(A) Ã¢ÂÂ allowance = $0 at this AGI
+export const PAL_PHASE_OUT_RATE = 0.50             // ÃÂ§469(i)(3)(A) Ã¢ÂÂ 50 cents per dollar of excess
 
-// âââ S-CORP REASONABLE COMPENSATION â IRC Â§3121; Rev. Rul. 74-44 âââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ S-CORP REASONABLE COMPENSATION Ã¢ÂÂ IRC ÃÂ§3121; Rev. Rul. 74-44 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // The IRS requires S-Corp shareholder-employees to receive reasonable compensation
 // (W-2 salary) for services rendered before taking K-1 distributions.
 // TaxStat360 uses a 40% ratio as a planning heuristic: if officer salary is less than
 // 40% of total S-Corp compensation (salary + K-1 distributions), an alert is surfaced.
 //
-// IMPORTANT â this is a scrutiny signal, NOT a safe harbor or statutory floor:
+// IMPORTANT Ã¢ÂÂ this is a scrutiny signal, NOT a safe harbor or statutory floor:
 //   Rev. Rul. 74-44: IRS authority to recharacterize distributions as wages.
 //   Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012): affirmed recharacterization
-//     where officer took $24K salary on ~$200K total compensation (12% ratio â extreme case).
+//     where officer took $24K salary on ~$200K total compensation (12% ratio Ã¢ÂÂ extreme case).
 //   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990): established
 //     that reasonable compensation is based on services performed, supporting ratio analysis.
 //
 // The 40% figure is an industry-practice heuristic derived from IRS enforcement patterns.
 // It is not found in any statute or regulation. "Reasonable compensation" is a facts-and-
-// circumstances determination â a salary could be reasonable at 35% or unreasonable at 55%.
+// circumstances determination Ã¢ÂÂ a salary could be reasonable at 35% or unreasonable at 55%.
 // This constant drives a planning alert only; users should confirm with their CPA.
 //
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
 export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
 
-// âââ S-CORP GROSS-RECEIPTS SALARY TEST â Rev. Rul. 74-44 / Watson (8th Cir. 2012) ââ
-// Flags when officer salary falls below 30% of gross receipts â the revenue-to-salary
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ S-CORP GROSS-RECEIPTS SALARY TEST Ã¢ÂÂ Rev. Rul. 74-44 / Watson (8th Cir. 2012) Ã¢ÂÂÃ¢ÂÂ
+// Flags when officer salary falls below 30% of gross receipts Ã¢ÂÂ the revenue-to-salary
 // ratio scrutinized in Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012), where the
 // shareholder's salary was roughly 12% of total receipts. This threshold is a planning
 // heuristic, not a statutory floor or safe harbor. It exists alongside
 // SCORP_REASONABLE_COMP_RATIO_THRESHOLD (the salary-to-total-compensation ratio test)
 // as a SECOND advisory signal: the IRS may examine both the ratio of salary to total
 // compensation AND the ratio of salary to gross receipts when evaluating reasonable
-// compensation. Rev. Rul. 74-44; Treas. Reg. Â§1.162-7.
+// compensation. Rev. Rul. 74-44; Treas. Reg. ÃÂ§1.162-7.
 //
-// â  This is a PLANNING HEURISTIC â not a statutory threshold. Advise clients to
+// Ã¢ÂÂ  This is a PLANNING HEURISTIC Ã¢ÂÂ not a statutory threshold. Advise clients to
 // document the basis for their compensation level (services rendered, comparable wages,
 // role, and hours) rather than targeting any specific percentage.
-export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson (8th Cir. 2012) â revenue ratio signal
+export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson (8th Cir. 2012) Ã¢ÂÂ revenue ratio signal
 
 
-// âââ S-CORP DEFAULT OFFICER SALARY FRACTION â Rev. Rul. 74-44 / BLS p25 âââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ S-CORP DEFAULT OFFICER SALARY FRACTION Ã¢ÂÂ Rev. Rul. 74-44 / BLS p25 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // F-05 FIX: Previously defined locally in scenarioCompare.js as a file-local const.
 // Centralized here so any future module that needs the same heuristic (e.g., an AI
 // insight about reasonable compensation) imports from one source instead of re-inventing
@@ -326,153 +326,153 @@ export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson 
 //
 // Source: Rev. Rul. 74-44 (IRS authority to recharacterize); BLS Occupational Employment
 // Statistics, 25th percentile compensation as a fraction of small-business gross profit.
-// The BLS p25 lookup was scoped for a future PR â this constant is the planning fallback.
+// The BLS p25 lookup was scoped for a future PR Ã¢ÂÂ this constant is the planning fallback.
 //
-// â  This is a PLANNING HEURISTIC, not a statutory floor. See also:
+// Ã¢ÂÂ  This is a PLANNING HEURISTIC, not a statutory floor. See also:
 // SCORP_REASONABLE_COMP_RATIO_THRESHOLD (40%) which drives the alert threshold.
 export const DEFAULT_OFFICER_SALARY_FRACTION = 0.30  // Rev. Rul. 74-44 / BLS p25 methodology
 
-// âââ CORPORATE INCOME TAX â IRC Â§11 ââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CORPORATE INCOME TAX Ã¢ÂÂ IRC ÃÂ§11 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Flat 21% post-TCJA (P.L. 115-97, enacted 2017-12-22).
 // Applies to C-Corps only; S-Corps, partnerships, and sole props are pass-through.
 export const C_CORP_TAX_RATE = 0.21
 
-// âââ CHILD TAX CREDIT â IRC Â§24 âââââââââââââââââââââââââââââââââ
-// Per-child credit amount lives in the year tables (taxCalc.js â ctc.perChild).
-// Â§24(b)(2)/(h)(3): the credit is reduced by $50 for each $1,000 (or fraction) of
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CHILD TAX CREDIT Ã¢ÂÂ IRC ÃÂ§24 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Per-child credit amount lives in the year tables (taxCalc.js Ã¢ÂÂ ctc.perChild).
+// ÃÂ§24(b)(2)/(h)(3): the credit is reduced by $50 for each $1,000 (or fraction) of
 // modified AGI above these thresholds. Statutory under TCJA (P.L. 115-97); NOT
 // inflation-adjusted.
-export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // Â§24(h)(3) â joint return / surviving spouse
-export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // Â§24(h)(3) â single, HOH, MFS, all other filers
-export const CTC_PHASEOUT_STEP = 1000              // Â§24(b)(2) â excess measured per $1,000
-export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // Â§24(b)(2) â $50 reduction per $1,000 step
+export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // ÃÂ§24(h)(3) Ã¢ÂÂ joint return / surviving spouse
+export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // ÃÂ§24(h)(3) Ã¢ÂÂ single, HOH, MFS, all other filers
+export const CTC_PHASEOUT_STEP = 1000              // ÃÂ§24(b)(2) Ã¢ÂÂ excess measured per $1,000
+export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // ÃÂ§24(b)(2) Ã¢ÂÂ $50 reduction per $1,000 step
 
-// âââ ALTERNATIVE MINIMUM TAX (AMT) â IRC Â§55(b)(1) âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ALTERNATIVE MINIMUM TAX (AMT) Ã¢ÂÂ IRC ÃÂ§55(b)(1) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is
-// year-specific â see TAX_TABLES[year].amt.bracket26_28 in taxCalc.js.
+// year-specific Ã¢ÂÂ see TAX_TABLES[year].amt.bracket26_28 in taxCalc.js.
 // AMT exemptions and phase-out ranges are inflation-adjusted annually and live in
-// TAX_TABLES[year].amt in taxCalc.js â they are NOT defined here.
+// TAX_TABLES[year].amt in taxCalc.js Ã¢ÂÂ they are NOT defined here.
 // (2024 reference values: exemption $85,700 single / $133,300 MFJ;
 // phase-out start $609,350 single / $1,218,700 MFJ.)
-export const AMT_RATE_LOW = 0.26   // IRC Â§55(b)(1)(A) â 26% on AMTI up to bracket26_28
-export const AMT_RATE_HIGH = 0.28  // IRC Â§55(b)(1)(B) â 28% on AMTI above bracket26_28
+export const AMT_RATE_LOW = 0.26   // IRC ÃÂ§55(b)(1)(A) Ã¢ÂÂ 26% on AMTI up to bracket26_28
+export const AMT_RATE_HIGH = 0.28  // IRC ÃÂ§55(b)(1)(B) Ã¢ÂÂ 28% on AMTI above bracket26_28
 
-// âââ LONG-TERM CAPITAL GAINS & QUALIFIED DIVIDENDS â IRC Â§1(h) âââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ LONG-TERM CAPITAL GAINS & QUALIFIED DIVIDENDS Ã¢ÂÂ IRC ÃÂ§1(h) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Three permanent rate tiers; income thresholds are year-specific (TAX_TABLES[year].ltcg).
 // Rates apply to net long-term capital gains and qualified dividends; they stack on top of
 // ordinary income (i.e., the applicable rate depends on where LTCG falls in the stack).
-export const LTCG_RATE_LOW = 0.00   // IRC Â§1(h)(1)(B) â 0% tier
-export const LTCG_RATE_MID = 0.15   // IRC Â§1(h)(1)(C) â 15% tier
-export const LTCG_RATE_HIGH = 0.20  // IRC Â§1(h)(1)(D) â 20% tier
+export const LTCG_RATE_LOW = 0.00   // IRC ÃÂ§1(h)(1)(B) Ã¢ÂÂ 0% tier
+export const LTCG_RATE_MID = 0.15   // IRC ÃÂ§1(h)(1)(C) Ã¢ÂÂ 15% tier
+export const LTCG_RATE_HIGH = 0.20  // IRC ÃÂ§1(h)(1)(D) Ã¢ÂÂ 20% tier
 
-// Unrecaptured Section 1250 gain â IRC Â§1(h)(1)(E) (25% rate) / Â§1(h)(6) (definition)
+// Unrecaptured Section 1250 gain Ã¢ÂÂ IRC ÃÂ§1(h)(1)(E) (25% rate) / ÃÂ§1(h)(6) (definition)
 // Depreciation recapture on real property sold at a gain.
 // Taxed at max 25% (the taxpayer pays the lesser of 25% or their ordinary bracket rate;
 // 25% is used as the conservative planning ceiling for mid/high-income filers).
 // F-03 FIX: This constant existed but was NOT imported or used in calcPreferentialTax.
 // Lines ~323-324 of taxCalc.js used raw 0.25 and 0.28 literals instead. Fixed in taxCalc.js.
-export const UNRECAPTURED_1250_MAX_RATE = 0.25  // IRC Â§1(h)(1)(E), Â§1(h)(6)
+export const UNRECAPTURED_1250_MAX_RATE = 0.25  // IRC ÃÂ§1(h)(1)(E), ÃÂ§1(h)(6)
 
-// Collectibles gain â IRC Â§1(h)(4)
-// Coins, art, antiques, gems, stamps â held more than 1 year.
+// Collectibles gain Ã¢ÂÂ IRC ÃÂ§1(h)(4)
+// Coins, art, antiques, gems, stamps Ã¢ÂÂ held more than 1 year.
 // Taxed at max 28% (same ceiling applies: lesser of 28% or ordinary bracket rate).
-export const COLLECTIBLES_MAX_RATE = 0.28  // IRC Â§1(h)(4)
+export const COLLECTIBLES_MAX_RATE = 0.28  // IRC ÃÂ§1(h)(4)
 
-// âââ Â§199A QUALIFIED BUSINESS INCOME (QBI) DEDUCTION âââââââââââââââââââââââââ
-// IRC Â§199A; Treas. Reg. Â§1.199A-1 through Â§1.199A-6
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ÃÂ§199A QUALIFIED BUSINESS INCOME (QBI) DEDUCTION Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// IRC ÃÂ§199A; Treas. Reg. ÃÂ§1.199A-1 through ÃÂ§1.199A-6
 //
-// Step 1 â Tentative deduction per entity:
-//   QBI_DEDUCTION_RATE Ã qualified business income (20% of QBI)
+// Step 1 Ã¢ÂÂ Tentative deduction per entity:
+//   QBI_DEDUCTION_RATE ÃÂ qualified business income (20% of QBI)
 //
-// Step 2 â W-2 wage / UBIA limitation (applies when taxable income > threshold):
+// Step 2 Ã¢ÂÂ W-2 wage / UBIA limitation (applies when taxable income > threshold):
 //   Income threshold: TAX_TABLES[year].qbi.threshold
 //   When fully phased in, per-entity combined QBI amount = LESSER of Step 1 OR:
 //     GREATER of:
-//       W2_WAGE_LIMIT_RATE Ã W-2 wages paid by the business [50% of W-2]
-//       W2_WAGE_ALT_RATE  Ã W-2 wages + UBIA_RATE Ã UBIA [25% W-2 + 2.5% UBIA]
-//   IRC Â§199A(b)(2); Treas. Reg. Â§1.199A-1(d)(2)
+//       W2_WAGE_LIMIT_RATE ÃÂ W-2 wages paid by the business [50% of W-2]
+//       W2_WAGE_ALT_RATE  ÃÂ W-2 wages + UBIA_RATE ÃÂ UBIA [25% W-2 + 2.5% UBIA]
+//   IRC ÃÂ§199A(b)(2); Treas. Reg. ÃÂ§1.199A-1(d)(2)
 //
-// Step 3 â Overall taxable income cap (final ceiling, applied after Step 2):
-//   QBI_DEDUCTION_RATE Ã (taxable income â net capital gains)
-//   IRC Â§199A(a)(2). This cap applies even when W-2 wages are high â last constraint.
+// Step 3 Ã¢ÂÂ Overall taxable income cap (final ceiling, applied after Step 2):
+//   QBI_DEDUCTION_RATE ÃÂ (taxable income Ã¢ÂÂ net capital gains)
+//   IRC ÃÂ§199A(a)(2). This cap applies even when W-2 wages are high Ã¢ÂÂ last constraint.
 //
-// Step 4 â SSTB limitation: phases out at high income per TAX_TABLES[year].
+// Step 4 Ã¢ÂÂ SSTB limitation: phases out at high income per TAX_TABLES[year].
 //
-// Â§199A(i) OBBBA minimum deduction (tax years beginning after 12/31/2025):
-//   If active QBI â¥ $1,000, deduction = GREATER of regular calc or $400.
+// ÃÂ§199A(i) OBBBA minimum deduction (tax years beginning after 12/31/2025):
+//   If active QBI Ã¢ÂÂ¥ $1,000, deduction = GREATER of regular calc or $400.
 //   Dollar amounts are year-specific and in QBI_MIN_DEDUCTION / QBI_MIN_THRESHOLD (taxCalc.js).
 //
-// â  C-02 / F-02 note: empty-string pnl fields (netProfit = '') produce NaN via parseFloat.
+// Ã¢ÂÂ  C-02 / F-02 note: empty-string pnl fields (netProfit = '') produce NaN via parseFloat.
 // NaN fails all numeric comparisons silently (NaN < threshold === false), which caused
 // _applyMinQBI to apply the $400 OBBBA floor when QBI was actually zero.
 // Fix applied in taxCalc.js: nv() normalization at calcQBI entry + Number.isFinite guard
 // in _applyMinQBI. All entity income lookups now use nv() instead of raw parseFloat().
-export const QBI_DEDUCTION_RATE = 0.20   // IRC Â§199A(a) â 20% of QBI
-export const W2_WAGE_LIMIT_RATE = 0.50   // IRC Â§199A(b)(2)(A) â 50% of W-2 wages
-export const W2_WAGE_ALT_RATE = 0.25     // IRC Â§199A(b)(2)(B)(i) â 25% of W-2 wages
-export const UBIA_RATE = 0.025           // IRC Â§199A(b)(2)(B)(ii) â 2.5% of UBIA
+export const QBI_DEDUCTION_RATE = 0.20   // IRC ÃÂ§199A(a) Ã¢ÂÂ 20% of QBI
+export const W2_WAGE_LIMIT_RATE = 0.50   // IRC ÃÂ§199A(b)(2)(A) Ã¢ÂÂ 50% of W-2 wages
+export const W2_WAGE_ALT_RATE = 0.25     // IRC ÃÂ§199A(b)(2)(B)(i) Ã¢ÂÂ 25% of W-2 wages
+export const UBIA_RATE = 0.025           // IRC ÃÂ§199A(b)(2)(B)(ii) Ã¢ÂÂ 2.5% of UBIA
 // UBIA = Unadjusted Basis Immediately After Acquisition
 //        (the original cost basis of qualified property, not reduced
-//        by depreciation â IRC Â§199A(b)(6)(B))
+//        by depreciation Ã¢ÂÂ IRC ÃÂ§199A(b)(6)(B))
 
-// âââ RETIREMENT PLANS âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ RETIREMENT PLANS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Contribution RATES are permanent (defined here).
 // Dollar LIMITS are year-specific and live in TAX_TABLES[year].retirement (taxCalc.js).
 
-// ââ SEP-IRA â IRC Â§408(k); Â§402(h) âââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ SEP-IRA Ã¢ÂÂ IRC ÃÂ§408(k); ÃÂ§402(h) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Employer-only contribution. For S-Corp shareholder-employees:
 //   - Contribution base = W-2 officer compensation ONLY
-//   - K-1 distributions do NOT count as compensation â IRC Â§402(h)(2)(A)
+//   - K-1 distributions do NOT count as compensation Ã¢ÂÂ IRC ÃÂ§402(h)(2)(A)
 //   - S-Corp makes the contribution at the entity level (deductible on Form 1120-S)
-//   - Max contribution = lesser of (SEP_IRA_RATE Ã W-2) OR dollar limit in TAX_TABLES
+//   - Max contribution = lesser of (SEP_IRA_RATE ÃÂ W-2) OR dollar limit in TAX_TABLES
 //   - Deadline: entity tax filing date including extensions
-//     â S-Corp (Form 1120-S): September 15 (NOT October 15 â see LBL-I01 audit fix)
-//     â Sole Prop (Form 1040): October 15
-export const SEP_IRA_RATE = 0.25  // 25% of W-2 compensation â IRC Â§402(h)(2)(A)
+//     Ã¢ÂÂ S-Corp (Form 1120-S): September 15 (NOT October 15 Ã¢ÂÂ see LBL-I01 audit fix)
+//     Ã¢ÂÂ Sole Prop (Form 1040): October 15
+export const SEP_IRA_RATE = 0.25  // 25% of W-2 compensation Ã¢ÂÂ IRC ÃÂ§402(h)(2)(A)
 
 // Sole proprietors contribute on NET self-employment income, which already bears SE tax.
 // The statutory 25%-of-compensation limit becomes an effective ~20% of net profit because
 // the contribution base is net of the deductible half of SE tax and of the contribution
 // itself: 0.25 / (1 + 0.25) = 0.20 exactly. AIAnalysis uses this for the sole-prop estimate
 // so the figure is not hardcoded inline. S-Corp owners use SEP_IRA_RATE (25%) on W-2 salary.
-export const SEP_IRA_SOLE_PROP_EFFECTIVE_RATE = 0.20  // 0.25 / 1.25 â net-of-SE-tax effective rate
+export const SEP_IRA_SOLE_PROP_EFFECTIVE_RATE = 0.20  // 0.25 / 1.25 Ã¢ÂÂ net-of-SE-tax effective rate
 
-// ââ Solo 401(k) â IRC Â§401(k); Â§415(c); Â§404(a)(3) âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Solo 401(k) Ã¢ÂÂ IRC ÃÂ§401(k); ÃÂ§415(c); ÃÂ§404(a)(3) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Employer profit-sharing contribution rate (same as SEP-IRA).
-// Employee elective deferral limit is year-specific â TAX_TABLES[year].retirement.solo401kDeferral.
-// Combined total capped at TAX_TABLES[year].retirement.solo401kMax (Â§415(c) overall limit).
-export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation â IRC Â§404(a)(3)
+// Employee elective deferral limit is year-specific Ã¢ÂÂ TAX_TABLES[year].retirement.solo401kDeferral.
+// Combined total capped at TAX_TABLES[year].retirement.solo401kMax (ÃÂ§415(c) overall limit).
+export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation Ã¢ÂÂ IRC ÃÂ§404(a)(3)
 
-// ââ Retirement plan catch-up eligibility ages â SECURE 2.0 Act Â§109 ââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Retirement plan catch-up eligibility ages Ã¢ÂÂ SECURE 2.0 Act ÃÂ§109 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // These are law-defined structural ages, not year-specific dollar limits.
-// IRC Â§414(v)(2)(E) as amended by SECURE 2.0 (P.L. 117-328, enacted 2022-12-29).
-// Standard catch-up: age â¥ 50 in the tax year.
-// Super catch-up: ages 60â63 in the tax year; reverts to standard at age 64.
-//   At age 64+: catch-up returns to standard $7,500 (2025) â the super catch-up
+// IRC ÃÂ§414(v)(2)(E) as amended by SECURE 2.0 (P.L. 117-328, enacted 2022-12-29).
+// Standard catch-up: age Ã¢ÂÂ¥ 50 in the tax year.
+// Super catch-up: ages 60Ã¢ÂÂ63 in the tax year; reverts to standard at age 64.
+//   At age 64+: catch-up returns to standard $7,500 (2025) Ã¢ÂÂ the super catch-up
 //   window is ONLY ages 60, 61, 62, 63 (inclusive). This is a common planning error.
-// Dollar amounts are year-specific â TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
-export const CATCHUP_AGE_STANDARD = 50      // IRC Â§414(v)(1) â standard catch-up start age
-export const CATCHUP_AGE_SUPER_START = 60   // SECURE 2.0 Â§109 â enhanced catch-up window start
-export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 Â§109 â enhanced catch-up window end (inclusive)
+// Dollar amounts are year-specific Ã¢ÂÂ TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
+export const CATCHUP_AGE_STANDARD = 50      // IRC ÃÂ§414(v)(1) Ã¢ÂÂ standard catch-up start age
+export const CATCHUP_AGE_SUPER_START = 60   // SECURE 2.0 ÃÂ§109 Ã¢ÂÂ enhanced catch-up window start
+export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 ÃÂ§109 Ã¢ÂÂ enhanced catch-up window end (inclusive)
 
-// âââ ENTITY TYPES âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// UI / input vocabulary (Vocabulary A â "layer 1" in the representation note above).
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ENTITY TYPES Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// UI / input vocabulary (Vocabulary A Ã¢ÂÂ "layer 1" in the representation note above).
 // These are the exact <select> options in the Tax Tracker (CalculateTaxInner.jsx) and
 // the Onboarding EntityScreen. This is the canonical set at the boundary: what the user
-// picks and what gets persisted. The engine does NOT key on these strings directly â it
+// picks and what gets persisted. The engine does NOT key on these strings directly Ã¢ÂÂ it
 // keys on the engine-internal form produced by normalizeEntityType(); see SE_SUBJECT_TYPES.
 //
 // C Corporation IS supported (audit F6 / Module 4 resolved: build out, not remove). It is
-// the one non-pass-through type here â it appears in ENTITY_TYPES (a selectable structure)
+// the one non-pass-through type here Ã¢ÂÂ it appears in ENTITY_TYPES (a selectable structure)
 // but NOT in PASSTHROUGH_ENTITY_TYPES below, and its income is computed via the entity-level
 // model in taxCalc.js (calcCCorpCorporateLayer / calcCCorpReturn), never through the
 // pass-through K-1 path.
 //
-// â  When adding a new entity type: update this array, the Tax Tracker <select>, the
+// Ã¢ÂÂ  When adding a new entity type: update this array, the Tax Tracker <select>, the
 // Onboarding EntityScreen, AND the entityPredicates.js regex patterns / normalizeEntityType
 // together. The entityPredicates guard test asserts every value here round-trips and is
-// classified consistently â run it after any change here.
+// classified consistently Ã¢ÂÂ run it after any change here.
 export const ENTITY_TYPES = [
   'S Corporation',
   'C Corporation',
@@ -484,7 +484,7 @@ export const ENTITY_TYPES = [
 // All pass-through entity types (all supported types minus C-Corp,
 // pass-through, C-Corp excluded). This is a REFERENCE list in the layer-1 vocabulary.
 // Do NOT use it for runtime gating against a value that may already be normalized to the
-// engine form â that mismatch is exactly the bug Module 1 fixed in Dashboard.jsx. For
+// engine form Ã¢ÂÂ that mismatch is exactly the bug Module 1 fixed in Dashboard.jsx. For
 // "is this routed through the personal return / engine?", normalize first and use the
 // regex predicate isPassthroughEntity() (or, for "anything but a C-Corp", !isCCorpEntity()).
 export const PASSTHROUGH_ENTITY_TYPES = [
@@ -494,28 +494,28 @@ export const PASSTHROUGH_ENTITY_TYPES = [
   'Real Estate (Schedule E)',
 ]
 
-// SE-subject entity types â ENGINE-INTERNAL form (Vocabulary B / layer 2), i.e. the
+// SE-subject entity types Ã¢ÂÂ ENGINE-INTERNAL form (Vocabulary B / layer 2), i.e. the
 // strings normalizeEntityType() emits, NOT the ENTITY_TYPES UI labels. This is deliberate
 // and correct: calcTaxReturn normalizes every entity (taxCalc.js) before testing
 // SE_SUBJECT_TYPES.includes(e.type), so this array is only ever compared against
-// normalized values. Do not "align" these to the ENTITY_TYPES labels â doing so would
+// normalized values. Do not "align" these to the ENTITY_TYPES labels Ã¢ÂÂ doing so would
 // break the engine, which keys on the layer-2 strings.
-//   â¢ Sole Proprietor / Single-Member LLC â always SE-subject (Schedule C).
-//   â¢ Partnership / MMLLC â Active â SE-subject; â Passive â NOT (so the passive variant
+//   Ã¢ÂÂ¢ Sole Proprietor / Single-Member LLC Ã¢ÂÂ always SE-subject (Schedule C).
+//   Ã¢ÂÂ¢ Partnership / MMLLC Ã¢ÂÂ Active Ã¢ÂÂ SE-subject; Ã¢ÂÂ Passive Ã¢ÂÂ NOT (so the passive variant
 //     is intentionally absent here). The Active/Passive split lives in layer 2 precisely
-//     because the single UI 'Partnership / LLC' label cannot carry it; Â§1402(a)(13).
-//   â¢ S-Corp (officer W-2 is FICA-taxed instead) and Real Estate (passive rental) are
+//     because the single UI 'Partnership / LLC' label cannot carry it; ÃÂ§1402(a)(13).
+//   Ã¢ÂÂ¢ S-Corp (officer W-2 is FICA-taxed instead) and Real Estate (passive rental) are
 //     intentionally NOT SE-subject and therefore absent.
 // The entityPredicates guard test pins this classification so it cannot silently drift.
 export const SE_SUBJECT_TYPES = [
   'Sole Proprietor / Single-Member LLC',
-  'Partnership / MMLLC â Active',
+  'Partnership / MMLLC Ã¢ÂÂ Active',
 ]
 
-// âââ ACCOUNTING SOFTWARE INTEGRATIONS âââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ACCOUNTING SOFTWARE INTEGRATIONS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // abbr values are displayed as badge text on integration logo tiles (Landing.jsx, Onboarding.jsx).
-// LBL-01 fix: Xero corrected from 'XE' â 'X' (XE is the currency converter XE.com, not Xero).
-// Wave corrected from 'WV' â 'W' (WV is non-standard; Wave's own mark uses 'W').
+// LBL-01 fix: Xero corrected from 'XE' Ã¢ÂÂ 'X' (XE is the currency converter XE.com, not Xero).
+// Wave corrected from 'WV' Ã¢ÂÂ 'W' (WV is non-standard; Wave's own mark uses 'W').
 export const INTEGRATIONS = [
   { id: 'quickbooks', name: 'QuickBooks', color: '#2CA01C', bg: '#F0FBF0', abbr: 'QB' },
   { id: 'xero',       name: 'Xero',       color: '#13B5EA', bg: '#EFF9FF', abbr: 'X'  },
@@ -526,12 +526,12 @@ export const INTEGRATIONS = [
 // Per-integration localStorage/sessionStorage keys follow the shape
 // `ts360_<providerId>_<field>`. The field suffix constants lived here (audit E-2)
 // alongside integrationKey(), which has been moved to src/utils/integrations.js
-// (audit F-09, June 2026). Import integrationKey() from there â never from this file.
+// (audit F-09, June 2026). Import integrationKey() from there Ã¢ÂÂ never from this file.
 // Credential helpers are environment-specific; tax constants are not.
 
-// âââ SUBSCRIPTION PRICING âââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// Monthly base prices â displayed on Landing.jsx pricing section and Upgrade.jsx.
-// Annual pricing = monthly Ã ANNUAL_BILLING_MONTHS (10 months billed, 2 months free).
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SUBSCRIPTION PRICING Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Monthly base prices Ã¢ÂÂ displayed on Landing.jsx pricing section and Upgrade.jsx.
+// Annual pricing = monthly ÃÂ ANNUAL_BILLING_MONTHS (10 months billed, 2 months free).
 // Upgrade.jsx must reference these constants; no hardcoded pricing values in components.
 //
 // To change pricing: update these constants only. Upgrade.jsx and Landing.jsx will
@@ -540,9 +540,9 @@ export const PRICE_STARTER_MONTHLY = 79       // USD/month
 export const PRICE_PROFESSIONAL_MONTHLY = 149 // USD/month
 export const PRICE_ENTERPRISE_MONTHLY = 299   // USD/month
 export const ANNUAL_BILLING_MONTHS = 10        // months charged on annual plan (2 months free)
-export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy â update if discount changes
+export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy Ã¢ÂÂ update if discount changes
 
-// âââ IRS STANDARD MILEAGE RATES âââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ IRS STANDARD MILEAGE RATES Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Published annually by IRS in late November / December for the following calendar year.
 // Sources: IRS Notice 2024-08 (2024 rate), IRS Notice 2025-05 (2025 rate).
 //
@@ -554,50 +554,50 @@ export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy â upd
 // was silently falling back to the hardcoded inline value (0.70 for 2025+).
 // Fix: add mileageRate to each year in TAX_TABLES in taxCalc.js.
 //
-// â  ANNUAL UPDATE REQUIRED: verify 2026 rate against IRS.gov/newsroom each December.
+// Ã¢ÂÂ  ANNUAL UPDATE REQUIRED: verify 2026 rate against IRS.gov/newsroom each December.
 // If the 2026 rate has changed from 0.70, update taxCalc.js TAX_TABLES[2026].mileageRate
 // and the 2026 entry in this map simultaneously.
 export const IRS_MILEAGE_RATES = {
-  2024: 0.67,   // IRS Notice 2024-08 â 67Â¢/mile for business use
-  2025: 0.70,   // IRS Notice 2025-05 â 70Â¢/mile for business use (5Â¢ increase from 2024)
-  2026: 0.725,  // IRS Notice 2026-10 (Dec 29, 2025) â 72.5Â¢/mile for business use (up 2.5Â¢ from 2025)
+  2024: 0.67,   // IRS Notice 2024-08 Ã¢ÂÂ 67ÃÂ¢/mile for business use
+  2025: 0.70,   // IRS Notice 2025-05 Ã¢ÂÂ 70ÃÂ¢/mile for business use (5ÃÂ¢ increase from 2024)
+  2026: 0.725,  // IRS Notice 2026-10 (Dec 29, 2025) Ã¢ÂÂ 72.5ÃÂ¢/mile for business use (up 2.5ÃÂ¢ from 2025)
 }
 
-// âââ COMPANY IDENTITY / NAP â footer + local SEO âââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ COMPANY IDENTITY / NAP Ã¢ÂÂ footer + local SEO Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Single source of truth for the footer's name / address / contact line, consumed by
 // the shared <Footer> component (src/Footer.jsx). Audit fix (Pass 5, "Footer is
 // implemented at least three different ways"): the NAP previously appeared only on the
 // Landing/About footers and was absent from Privacy/Terms. Keeping it identical
-// site-wide is a local-SEO signal â do not hardcode the address in individual pages.
+// site-wide is a local-SEO signal Ã¢ÂÂ do not hardcode the address in individual pages.
 export const COMPANY_LEGAL_NAME = 'TaxStat360 LLC'
 export const COMPANY_ADDRESS = '3065 Daniels Road, Winter Garden, FL 34787'
 export const SUPPORT_EMAIL = 'support@taxstat360.com'
 
-// âââ CANONICAL DISCLAIMER â single source of truth âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CANONICAL DISCLAIMER Ã¢ÂÂ single source of truth Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Audit fix (Pass 5, "Disclaimer wording varies"): the site carried at least three
-// disclaimer strings â the Landing/About footer (full), the Privacy/Terms footer
+// disclaimer strings Ã¢ÂÂ the Landing/About footer (full), the Privacy/Terms footer
 // (shorter; dropped the "not a tax preparation or filing service" and "federal tax
 // only" clauses), and the inline boxes on About / pricing. These two constants are now
 // the ONLY disclaimer text. <Footer> and every disclaimer box must import from here so
 // the wording can never drift again.
-// DISCLAIMER_FULL  â footers and standalone disclaimer boxes
-// DISCLAIMER_SHORT â tight inline spots (e.g. the pricing-section banner)
+// DISCLAIMER_FULL  Ã¢ÂÂ footers and standalone disclaimer boxes
+// DISCLAIMER_SHORT Ã¢ÂÂ tight inline spots (e.g. the pricing-section banner)
 // NOTE: this is consumer-facing legal copy. Edit it HERE only; it is owner-approved text.
-export const DISCLAIMER_FULL = 'TaxStat360 is a tax planning and estimation tool â not a tax preparation or filing service. Calculations cover federal tax only (state taxes are not included) and are for planning purposes only. This is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.'
-export const DISCLAIMER_SHORT = 'Planning and estimation tool â not tax preparation or filing. Federal tax only. Not professional tax advice.'
+export const DISCLAIMER_FULL = 'TaxStat360 is a tax planning and estimation tool Ã¢ÂÂ not a tax preparation or filing service. Calculations cover federal tax only (state taxes are not included) and are for planning purposes only. This is not professional tax, legal, or financial advice. Consult a licensed tax professional before making any filing or financial decisions.'
+export const DISCLAIMER_SHORT = 'Planning and estimation tool Ã¢ÂÂ not tax preparation or filing. Federal tax only. Not professional tax advice.'
 
-// âââ MARKETING CTA COPY âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ MARKETING CTA COPY Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // #4 FIX: single source of truth for the trial CTA label + microcopy. Previously
-// hand-written per page (Landing, About, Nav, Terms, ResourcesHub) and it drifted â
+// hand-written per page (Landing, About, Nav, Terms, ResourcesHub) and it drifted Ã¢ÂÂ
 // ResourcesHub said "Card for verification only," contradicting the auto-billing in the
 // Terms and creating an FTC negative-option (ROSCA) disclosure risk. Import these
 // everywhere; never hardcode the trial line.
 //
-// â  Do NOT soften CTA_COPY_* to "card for verification only." The card IS the billing
+// Ã¢ÂÂ  Do NOT soften CTA_COPY_* to "card for verification only." The card IS the billing
 // instrument: billing begins automatically when the 7-day trial ends, so the accurate,
 // FTC-friendly framing is "Card required" + "No charge during the trial" + "Cancel ...".
-// CTA_COPY_FULL  â used in the Landing hero
-// CTA_COPY_SHORT â used in pricing, bottom CTA, About, and ResourcesHub
+// CTA_COPY_FULL  Ã¢ÂÂ used in the Landing hero
+// CTA_COPY_SHORT Ã¢ÂÂ used in pricing, bottom CTA, About, and ResourcesHub
 export const CTA_LABEL = 'Start Free 7-Day Trial'
-export const CTA_COPY_FULL = 'No charge during your 7-day trial Â· Card required Â· Cancel in one click'
-export const CTA_COPY_SHORT = 'No charge for 7 days Â· Card required Â· Cancel in one click'
+export const CTA_COPY_FULL = 'No charge during your 7-day trial ÃÂ· Card required ÃÂ· Cancel in one click'
+export const CTA_COPY_SHORT = 'No charge for 7 days ÃÂ· Card required ÃÂ· Cancel in one click'
