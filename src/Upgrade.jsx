@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { readEmail, readPlan, readToken, writePlan } from './utils/sessionState.js'
 import { signOut as sharedSignOut } from './utils/SignOut'
 import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
@@ -8,7 +9,7 @@ import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.j
 import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 
-// Stripe billing portal â handles cancellations, downgrades, and payment updates.
+// Stripe billing portal Ã¢ÂÂ handles cancellations, downgrades, and payment updates.
 // FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
 const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
 
@@ -24,14 +25,14 @@ const PLANS = {
 // Audit Risk Indicators, multi-entity view, CPA Collaboration Portal).
 // Users on the upgrade page now see the same features advertised on the landing page.
 const FEATURES = [
-  // ââ Starter ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Starter Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   { label:'Year-round federal tax liability tracker',                   starter:true,  professional:true,  enterprise:true  },
   { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
   { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
   { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
   { label:'Personal tax return (W-2 + entity income)',                 starter:true,  professional:true,  enterprise:true  },
   { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
-  // ââ Professional additions ââââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Professional additions Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   // TERMINOLOGY FIX 5.1b: "Risk Alert Engine" did not match the in-app tab label "Audit Risk Scan."
   // A paying user landing in the app could not find the feature they purchased. Using the canonical
   // FEATURE_AUDIT_RISK_SCAN constant so this name stays in sync with AIAnalysis.jsx tab label.
@@ -41,7 +42,7 @@ const FEATURES = [
   { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
   { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
   { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
-  // ââ Enterprise additions ââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Enterprise additions Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   { label:'Multi-entity consolidated tax view',                         starter:false, professional:false, enterprise:true  },
   { label:'AI-Generated CPA Briefing Documents',                        starter:false, professional:false, enterprise:true  },
   { label:'Risk Tolerance Profiling',                                   starter:false, professional:false, enterprise:true  },
@@ -54,8 +55,8 @@ function LOGO() {
 }
 
 function Check({ yes }) {
-  if (yes) return <span style={{color:'#059669',fontWeight:700,fontSize:15}}>â</span>
-  return <span style={{color:'#CBD5E1',fontSize:15}}>â</span>
+  if (yes) return <span style={{color:'#059669',fontWeight:700,fontSize:15}}>Ã¢ÂÂ</span>
+  return <span style={{color:'#CBD5E1',fontSize:15}}>Ã¢ÂÂ</span>
 }
 
 export default function Upgrade() {
@@ -76,9 +77,9 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const raw  = localStorage.getItem('ts360_plan') || 'starter'
+    const raw  = readPlan() || 'starter'
     const plan = normalizePlanId(raw)
-    const em = localStorage.getItem('ts360_email') || ''
+    const em = readEmail() || ''
     setCurrentPlan(plan)
     setEmail(em)
     if (!window.Stripe) {
@@ -98,7 +99,7 @@ export default function Upgrade() {
     setTimeout(() => {
       if (!window.Stripe || !document.getElementById('card-element')) return
       // SEC-01 FIX: Stripe live key moved to environment variable.
-      // Was: window.Stripe('pk_live_51TJmYh...' ) â hardcoded in source.
+      // Was: window.Stripe('pk_live_51TJmYh...' ) Ã¢ÂÂ hardcoded in source.
       // Now: reads from VITE_STRIPE_PK env var so dev builds use test key.
       const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PK)
       stripeRef.current = stripe
@@ -136,10 +137,10 @@ export default function Upgrade() {
       if (error) throw new Error(error.message)
 
       // B2: Check /stripe/subscribe response before updating local plan state.
-      // Previously the response was discarded â if the API returned 402/500, the user
+      // Previously the response was discarded Ã¢ÂÂ if the API returned 402/500, the user
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
-      const token = localStorage.getItem('ts360_token')
+      const token = readToken()
       const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
         credentials: 'include',
@@ -152,7 +153,7 @@ export default function Upgrade() {
         throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
       }
 
-      localStorage.setItem('ts360_plan', selectedPlan)
+      writePlan( selectedPlan)
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')
@@ -162,8 +163,8 @@ export default function Upgrade() {
 
   // FIX (FTC Click-to-Cancel): routes to Stripe billing portal which handles
   // cancellations, downgrades, and payment method updates. Required by FTC
-  // Click-to-Cancel rule (16 CFR Â§425) â users must be able to cancel as
-  // easily as they signed up, via the same channel (online â online).
+  // Click-to-Cancel rule (16 CFR ÃÂ§425) Ã¢ÂÂ users must be able to cancel as
+  // easily as they signed up, via the same channel (online Ã¢ÂÂ online).
   const handleManageSubscription = () => {
     window.open(STRIPE_PORTAL_URL, '_blank')
   }
@@ -171,10 +172,10 @@ export default function Upgrade() {
   if (success) return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center',maxWidth:400,padding:40}}>
-        <div style={{width:64,height:64,background:'#DCFCE7',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',fontSize:28}}>â</div>
+        <div style={{width:64,height:64,background:'#DCFCE7',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',fontSize:28}}>Ã¢ÂÂ</div>
         <h2 style={{fontSize:24,fontWeight:800,color:N,marginBottom:8}}>You're upgraded!</h2>
         <p style={{color:SL,fontSize:15,marginBottom:24}}>Your plan has been updated to <strong>{PLANS[selectedPlan]?.label}</strong>. All features are now active.</p>
-        <button onClick={()=>nav('/dashboard')} style={{padding:'12px 32px',background:B,color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to Dashboard â</button>
+        <button onClick={()=>nav('/dashboard')} style={{padding:'12px 32px',background:B,color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to Dashboard Ã¢ÂÂ</button>
       </div>
     </div>
   )
@@ -187,15 +188,15 @@ export default function Upgrade() {
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,overflowX:'auto',minWidth:0}}>
         <div onClick={()=>nav('/dashboard')} style={{cursor:'pointer'}}><LOGO/></div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>â Back to Settings</button>
+          <button onClick={()=>nav('/settings')} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Ã¢ÂÂ Back to Settings</button>
           <button onClick={signOutKeys} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,color:SL,fontWeight:600,cursor:'pointer'}}>Sign Out</button>
         </div>
       </nav>
 
       <div style={{maxWidth:960,margin:'0 auto',padding:'40px 20px'}}>
 
-        {/* FIX (FTC): Manage Subscription section â visible to all paid (non-starter) users.
-            FTC Click-to-Cancel (16 CFR Â§425) requires cancellation to be immediately available
+        {/* FIX (FTC): Manage Subscription section Ã¢ÂÂ visible to all paid (non-starter) users.
+            FTC Click-to-Cancel (16 CFR ÃÂ§425) requires cancellation to be immediately available
             via the same channel as sign-up (online). This section surfaces the cancel path
             prominently and without friction, as required. */}
         {isPaid && (
@@ -214,9 +215,9 @@ export default function Upgrade() {
                 onClick={handleManageSubscription}
                 style={{padding:'9px 18px',background:'#fff',color:N,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
               >
-                Manage Billing â
+                Manage Billing Ã¢ÂÂ
               </button>
-              {/* FIX (FTC): Cancel Plan button â prominent, no extra friction, direct path.
+              {/* FIX (FTC): Cancel Plan button Ã¢ÂÂ prominent, no extra friction, direct path.
                   FTC requires cancellation be as simple as sign-up. One click here opens
                   Stripe's cancel flow in the billing portal. */}
               {!showCancelConfirm ? (
@@ -293,7 +294,7 @@ export default function Upgrade() {
                     <span style={{fontSize:36,fontWeight:800,color:N}}>${plan.price[billing]}</span>
                     <span style={{fontSize:13,color:SL}}>/mo</span>
                   </div>
-                  {billing==='annual' && <div style={{fontSize:12,color:'#059669',marginTop:2}}>Billed annually Â· Save ${(plan.price.monthly-plan.price.annual)*12}/yr</div>}
+                  {billing==='annual' && <div style={{fontSize:12,color:'#059669',marginTop:2}}>Billed annually ÃÂ· Save ${(plan.price.monthly-plan.price.annual)*12}/yr</div>}
                 </div>
                 {isCurrent ? (
                   <button disabled style={{width:'100%',padding:'10px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'not-allowed'}}>Current Plan</button>
@@ -303,16 +304,16 @@ export default function Upgrade() {
                     color:isSelected?'#fff':B, border:`1.5px solid ${B}`,
                     borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',transition:'all 0.15s'
                   }}>
-                    {isSelected ? 'â Selected' : `Upgrade to ${plan.label} â`}
+                    {isSelected ? 'Ã¢ÂÂ Selected' : `Upgrade to ${plan.label} Ã¢ÂÂ`}
                   </button>
                 ) : canDowngrade ? (
-                  // FIX (FTC): downgrade path â routes to Stripe billing portal.
+                  // FIX (FTC): downgrade path Ã¢ÂÂ routes to Stripe billing portal.
                   // Previously disabled as "Lower tier" with no action.
                   <button
                     onClick={handleManageSubscription}
                     style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
                   >
-                    Downgrade â
+                    Downgrade Ã¢ÂÂ
                   </button>
                 ) : null}
               </div>
@@ -320,11 +321,11 @@ export default function Upgrade() {
           })}
         </div>
 
-        {/* FTC disclosure â required: clear statement of cancellation terms */}
+        {/* FTC disclosure Ã¢ÂÂ required: clear statement of cancellation terms */}
         <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'14px 20px',marginBottom:24,fontSize:12,color:SL,lineHeight:1.6,textAlign:'center'}}>
           You may cancel or downgrade your subscription at any time using the "Cancel Plan" or "Manage Billing" buttons above.
           Upon cancellation, you retain access to your current plan until the end of the billing period. No refunds are issued for partial periods.
-          To cancel, click "Cancel Plan" â confirm â you will be redirected to our secure billing portal.
+          To cancel, click "Cancel Plan" Ã¢ÂÂ confirm Ã¢ÂÂ you will be redirected to our secure billing portal.
         </div>
 
         {/* Feature comparison table */}
@@ -333,7 +334,7 @@ export default function Upgrade() {
             <div style={{fontSize:12,fontWeight:700,color:SL,textTransform:'uppercase',letterSpacing:'0.06em'}}>Feature</div>
             {['starter','professional','enterprise'].map(p=>(
               <div key={p} style={{textAlign:'center',fontSize:12,fontWeight:700,color:p===currentPlan?B:SL,textTransform:'uppercase',letterSpacing:'0.06em'}}>
-                {PLANS[p].label}{p===currentPlan?' â':''}
+                {PLANS[p].label}{p===currentPlan?' Ã¢ÂÂ':''}
               </div>
             ))}
           </div>
@@ -351,10 +352,10 @@ export default function Upgrade() {
         {showCard && selectedPlan && (
           <div style={{background:'#fff',border:`2px solid ${B}`,borderRadius:14,padding:28,maxWidth:520,margin:'0 auto'}}>
             <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:4}}>
-              Upgrade to {PLANS[selectedPlan]?.label} â ${PLANS[selectedPlan]?.price[billing]}/mo
+              Upgrade to {PLANS[selectedPlan]?.label} Ã¢ÂÂ ${PLANS[selectedPlan]?.price[billing]}/mo
             </div>
             <div style={{fontSize:13,color:SL,marginBottom:20}}>
-              {billing==='annual'?'Billed annually':'Billed monthly'} Â· Cancel anytime Â· No hidden fees
+              {billing==='annual'?'Billed annually':'Billed monthly'} ÃÂ· Cancel anytime ÃÂ· No hidden fees
             </div>
             <div style={{marginBottom:16}}>
               <label style={{fontSize:12,fontWeight:600,color:SL,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:8}}>Card Details</label>
@@ -365,9 +366,9 @@ export default function Upgrade() {
               width:'100%',padding:'13px',background:loading?'#94A3B8':B,color:'#fff',
               border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:loading?'not-allowed':'pointer'
             }}>
-              {loading ? 'Processing...' : `Upgrade Now â $${PLANS[selectedPlan]?.price[billing]}/mo`}
+              {loading ? 'Processing...' : `Upgrade Now Ã¢ÂÂ $${PLANS[selectedPlan]?.price[billing]}/mo`}
             </button>
-            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>ð Secured by Stripe Â· Cancel anytime</div>
+            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>Ã°ÂÂÂ Secured by Stripe ÃÂ· Cancel anytime</div>
           </div>
         )}
       </div>
