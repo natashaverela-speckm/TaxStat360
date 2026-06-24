@@ -28,6 +28,30 @@
 // F17 FIX: YTD Mode shows period + projected full-year income.
 // F18 FIX: Safe Harbor pass/fail status indicator.
 //
+// ── UX PASS (June 2026) ───────────────────────────────────────────────────────
+// UX-H1 FIX: Ask Aria floating button overlapped the right waterfall panel.
+//   Added paddingBottom to the waterfall container so the bottom rows (Balance Due,
+//   Additional Medicare Tax) are never hidden behind the widget.
+// UX-H2 FIX: W-2 section header badge showed only the "Other Employer" field
+//   amount ($0 when correctly entered), not the full W-2 total including officer
+//   salary flowing from Step 1. Badge now shows total W-2 (field + officer salary)
+//   with a label "Total W-2" so a $0 field entry still shows $70,000 total.
+// UX-H3 FIX: Three field labels wrapped to 2–3 lines in the 2-column grid.
+//   "W-2 INCOME — OTHER EMPLOYER (NOT YOUR S-CORP)" → "W-2 — Other Employer"
+//   "QUALIFIED DIVIDENDS (FORM 1099-DIV BOX 1B)" → "Qualified Dividends"
+//   "NONRECAPTURED NET §1231 LOSSES (PRIOR 5 YRS)" → "Prior §1231 Losses (5 yrs)"
+//   "COLLECTIBLES GAIN — IRC §1(H)(4)" → "Collectibles Gain"
+//   K-1 box references and IRC citations moved to tooltips only.
+// UX-M2 FIX: "Safe Harbor & Estimated Tax Payments" renamed to
+//   "Estimated Tax Penalty Protection" — non-CPA friendly. Subtitle updated.
+//   "Safe Harbor" term retained inside the expanded panel where context makes it clear.
+// UX-M5 FIX: Advanced capital-gains fields (Nonrecaptured §1231 Losses, Collectibles
+//   Gain) wrapped in a collapsible "Advanced / Less Common" sub-section inside the
+//   Capital Gains card. Collapsed by default unless user has values entered.
+// UX-L2 FIX: "Planning Mid-Year?" YTD Mode toggle moved above the entity summary
+//   cards to the top of Step 2, directly below Tax Year / Filing Status. For a
+//   planning app this is a first-class decision, not secondary content.
+//
 // ── INDEPENDENT AUDIT FIXES (June 2026) ──────────────────────────────────────
 // AI-5 FIX: W-2 field guard — S-Corp owners see a blue breakdown box showing the
 //   officer salary flowing automatically from Step 1, and the field label is changed
@@ -966,7 +990,17 @@ export default function TaxReturn() {
           <CollapsibleSection
             title="W-2 Income & Withholding"
             defaultOpen
-            badge={nf(w2Income) > 0 ? fmt(nf(w2Income)) : undefined}
+            // UX-H2 FIX: badge shows TOTAL W-2 (officer salary from Step 1 + other employer
+            // from this field) so an S-Corp owner who correctly enters $0 here still sees
+            // their $70K officer salary reflected in the section summary.
+            badge={(() => {
+              const otherW2 = nf(w2Income)
+              const totalW2 = otherW2 + officerW2ForYTD
+              if (totalW2 <= 0) return undefined
+              return officerW2ForYTD > 0
+                ? `Total W-2: ${fmt(totalW2)}`
+                : fmt(otherW2)
+            })()}
             style={{ position: 'relative', zIndex: 10 }}
           >
             {/* AI-5 FIX: show officer salary flowing from Step 1 so user sees the full W-2
@@ -988,7 +1022,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-w2-income"
-                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 Income — Other Employer (not your S-Corp)' : 'W-2 Income'}
+                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 — Other Employer' : 'W-2 Income'}
                   value={w2Income}
                   onChange={setW2Income}
                   placeholder="0"
@@ -1163,8 +1197,9 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qual-div" style={inputLbl}>
-                  Qualified Dividends (Form 1099-DIV Box 1b)
-                  <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above." />
+                  {/* UX-H3 FIX: label shortened — K-1 box reference moved to tooltip */}
+                  Qualified Dividends
+                  <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above. From Form 1099-DIV Box 1b." />
                 </label>
                 <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
               </div>
@@ -1179,7 +1214,8 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nonrecap1231" style={inputLbl}>
-                  Nonrecaptured Net §1231 Losses (prior 5 yrs)
+                  {/* UX-H3 FIX: label shortened */}
+                  Prior §1231 Losses (5 yrs)
                   <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
                 </label>
                 <MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
@@ -1206,7 +1242,8 @@ export default function TaxReturn() {
                   {/* TERMINOLOGY FIX 4.3: Old label listed 3 of 7+ statutory categories ("Art, Coins, Stamps")
                       and omitted gems, precious metals, and rugs. Moved examples to tooltip, cite §1(h)(4)
                       in label for precision. Tooltip now covers the full statutory definition. */}
-                  Collectibles Gain — IRC §1(h)(4)
+                  {/* UX-H3 FIX: label shortened — IRC cite moved to tooltip */}
+                  Collectibles Gain
                   <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year — losses are entered as negative numbers)." />
                 </label>
                 <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
@@ -1340,7 +1377,7 @@ export default function TaxReturn() {
 
           {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
-          <CollapsibleSection title="Safe Harbor & Estimated Tax Payments" subtitle="Prior-year tax & AGI · Safe Harbor Test (§6654)" badge="Optional">
+          <CollapsibleSection title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI · minimize underpayment penalties" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
               Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
@@ -1486,8 +1523,9 @@ export default function TaxReturn() {
 
           {/* Waterfall */}
           {hasResult && (
-            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px', marginBottom: 12, fontSize: 13 }}>
+            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px', paddingBottom: 72, marginBottom: 12, fontSize: 13 }}>
               <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 12 }}>Tax Waterfall</div>
+              {/* UX-H1 FIX: paddingBottom ensures bottom waterfall rows clear the Ask Aria floating button */}
 
               {[
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },

@@ -272,7 +272,15 @@ function completeness(rec) {
   if (parseFloat(b.operatingExpenses) > 0 || hasK1Data) s += 5
   if (recDepreciation(rec) > 0) s += 5
   if (parseFloat(f.estPaid) > 0) s += 10
-  return Math.min(s, 98)
+  // UX-M6 FIX: penalise blank RE entity — an RE card with no rental income entered
+  // is a bigger gap than a missing optional field, so deduct points.
+  const hasREEntity = Array.isArray(rec.entities) && rec.entities.some(e => e && /real.?estate|schedule.?e/i.test(e.type || ''))
+  const hasRERevenue = Array.isArray(rec.entities) && rec.entities.some(e =>
+    e && /real.?estate|schedule.?e/i.test(e.type || '') &&
+    (parseFloat(e.pnl?.grossRevenue) > 0 || parseFloat(e.pnl?.netProfit) !== 0)
+  )
+  if (hasREEntity && !hasRERevenue) s -= 10
+  return Math.min(Math.max(s, 0), 98)
 }
 
 function missingFields(rec) {
@@ -285,6 +293,13 @@ function missingFields(rec) {
   if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
   if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
   if (!(recDepreciation(rec) > 0)) missing.push('depreciation')
+  // UX-M6 FIX: surface blank RE entity as a missing field
+  const hasREEntity = Array.isArray(rec.entities) && rec.entities.some(e => e && /real.?estate|schedule.?e/i.test(e.type || ''))
+  const hasRERevenue = Array.isArray(rec.entities) && rec.entities.some(e =>
+    e && /real.?estate|schedule.?e/i.test(e.type || '') &&
+    (parseFloat(e.pnl?.grossRevenue) > 0 || parseFloat(e.pnl?.netProfit) !== 0)
+  )
+  if (hasREEntity && !hasRERevenue) missing.push('rental property data')
   return missing
 }
 
@@ -925,7 +940,8 @@ function TaxOptimization({ rec }) {
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Tax-Saving Opportunities</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {entitySubtitle} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate.</p>
+        {/* UX-M7 FIX: marginal rate reflects current session figures (live reactive). */}
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {entitySubtitle} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate <span style={{ fontSize: 11, opacity: 0.7 }}>(based on figures entered)</span>.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {opportunities.map((o, i) => {
@@ -1832,6 +1848,13 @@ function NarrativeModal({ onClose }) {
   )
 }
 
+// ── UX PASS (June 2026) ──────────────────────────────────────────────────────
+// UX-M6 FIX: completeness() now deducts 10 points when an RE entity is present
+//   but has no rental revenue entered. missingFields() surfaces 'rental property
+//   data' so the Missing label reads accurately instead of 'est. payments' only.
+// UX-M7 FIX: What-If header clarifies marginal rate is based on figures entered
+//   (the rate is already reactive to session state; note added for transparency).
+//
 // F20 FIX: ReportsTab gates the "Generate Report" button on completeness score.
 // - score < 50: button disabled, warning shown
 // - score 50–79: button enabled, pre-generation checklist shown (✓ / ⚠ per field)
