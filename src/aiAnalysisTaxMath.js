@@ -52,7 +52,11 @@ export function taxableIncomeBeforeQBI(totalIncome, taxYear, filing, opts = {}) 
  * Unified QBI resolution — single engine entry for AI Analysis.
  * Engine (calcQBI) is source of truth; passthrough + positive K-1 required.
  * Use this function. Do not use legacyQbi* variants in new code.
- */
+ *
+ * §199A QBI deduction; Treas. Reg. §1.199A-3(b)(1)(ii)(A). For non-SE pass-throughs
+ * (S-Corp) the QBI basis is net of the separately-stated §179 deduction per
+ * Treas. Reg. §1.199A-3(b)(1)(ii)(A) — handled upstream by the caller passing
+ * the net k1 value. Single production call site enforced by F-04 invariant. */
 export function resolveQbiDeduction({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities, capitalGains = 0 }) {
   if (!isPassthroughEntity(entityType) || k1 <= 0 || taxableBeforeQBI <= 0) {
     return { ...EMPTY_QBI }
@@ -85,13 +89,19 @@ export function qbiFormSelection({ taxableBeforeQBI, taxYear, filing, isCoopPatr
   }
 }
 
-/** NIIT schedule-map gate — uses engine threshold getter (Finding 3 pattern). */
+/**
+ * §1411 NIIT applicability gate. Returns true when filer is subject to the 3.8%
+ * Net Investment Income Tax. Threshold: $250K MFJ / $125K MFS / $200K other —
+ * statutory, not inflation-adjusted (IRC §1411(b)). No withholding; Form 8960. */
 export function niitApplies({ taxYear, filing, magi, netInvestmentIncome }) {
   const threshold = getNIITThreshold(taxYear, filing)
   return magi > threshold && netInvestmentIncome > 0
 }
 
-/** Additional Medicare schedule-map gate — uses engine threshold getter. */
+/**
+ * §3101(b)(2) Additional Medicare Tax applicability gate. Returns true when W-2
+ * wages exceed the filing-status threshold ($200K single / $250K MFJ — statutory,
+ * not inflation-adjusted). Employee-only; no employer match on this 0.9% surtax. */
 export function additionalMedicareApplies({ taxYear, filing, wages }) {
   const threshold = getAddlMedicareThreshold(taxYear, filing)
   return wages > threshold
