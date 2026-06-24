@@ -151,7 +151,7 @@ describe('S Corp — employment tax on officer salary', () => {
     // salary = $200k; SS capped at ssWageBase; Medicare uncapped
     const { scenarios } = compare(500000, 200000)
     const sc = scenarios.find(s => s.key === 'sCorp')
-    const ficaLine = sc.lineItems.find(li => li.label === 'Employment tax (W-2)')
+    const ficaLine = sc.lineItems.find(li => li.label.startsWith('Employment tax on $'))
     // Directional: FICA line must be defined and positive
     expect(ficaLine).toBeDefined()
     expect(ficaLine.value).toBeGreaterThan(0)
@@ -195,7 +195,7 @@ describe('C Corp — corporate + personal double taxation', () => {
 
     const { scenarios } = compare(np, salary)
     const cc = scenarios.find(s => s.key === 'cCorp')
-    const corpLine = cc.lineItems.find(li => li.label === 'Corporate tax (21% flat)')
+    const corpLine = cc.lineItems.find(li => li.label.startsWith('Corporate income tax'))
     expect(corpLine.value).toBe(expectedCorpTax)
   })
 
