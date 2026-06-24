@@ -1,4 +1,4 @@
-// Dashboard.jsx â TaxStat360
+// Dashboard.jsx Ã¢ÂÂ TaxStat360
 // F-06: Personal 1040 tab removed. Users complete their personal return in
 //       Step 2 (TaxReturn.jsx) via the Calculator flow. Dashboard is now
 //       focused on record management only. activeView state eliminated.
@@ -10,7 +10,7 @@
 // PASS4B-03: C_CORP_TAX_RATE and SCORP_REASONABLE_COMP_RATIO_THRESHOLD were once
 // local consts despite being exported from constants.js; they are now imported from
 // the single source of truth. PASSTHROUGH_ENTITY_TYPES was also imported here and used
-// for runtime gating â Module 1 removed that import: entity routing now uses the shared
+// for runtime gating Ã¢ÂÂ Module 1 removed that import: entity routing now uses the shared
 // normalizeEntityType + regex predicates (see the import block below), which fixed the
 // false-negative that dropped SE tax for sole proprietors and partnerships.
 //
@@ -20,29 +20,29 @@
 // CC-M01: Inline color constants replaced with imports from theme.js.
 // CC-M02: Local fmt() / pct() replaced with imports from utils/formatMoney.js.
 // F-M02:  ownPct() from utils/entityPredicates.js replaces (nf(x) || 100)
-//         pattern â fixes silent 0%-ownership-treated-as-100% bug.
+//         pattern Ã¢ÂÂ fixes silent 0%-ownership-treated-as-100% bug.
 // UX-N02: Quarterly estimate in record card now includes safe harbor context.
 //
-// L-03 FIX: "S-CORP ALERT" badge changed to "â  AUDIT RISK â S-CORP" for clarity.
+// L-03 FIX: "S-CORP ALERT" badge changed to "Ã¢ÂÂ  AUDIT RISK Ã¢ÂÂ S-CORP" for clarity.
 // C-04 FIX: Alert card now uses red severity styling (#FEF2F2 / #FECACA / #991B1B)
 //           matching the same alert in CalculateTaxInner.jsx Step 1 entity card.
-//           Previously amber (#FEF3C7 / #FCD34D / #92400E) â inconsistent severity.
+//           Previously amber (#FEF3C7 / #FCD34D / #92400E) Ã¢ÂÂ inconsistent severity.
 //
-// ââ AUDIT PASS 2 FIXES ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// F24 FIX: Saved record cards displayed only the record name â no summary numbers
+// Ã¢ÂÂÃ¢ÂÂ AUDIT PASS 2 FIXES Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// F24 FIX: Saved record cards displayed only the record name Ã¢ÂÂ no summary numbers
 //   visible without loading the full record into the Tax Tracker. A user with
 //   three saved records ("2026 Q1 Check", "2026 Mid-Year", "2025 Final") could
 //   not compare them or see which had the highest liability without loading each
 //   one individually.
 //   Fix: Each record card now always shows a summary strip containing:
-//     â¢ Est. federal tax liability (rec.totalTax)
-//     â¢ Effective rate (rec.totalTax Ã· total income, estimated from saved fields)
-//     â¢ Tax year (rec.taxYear || rec.biz.year)
+//     Ã¢ÂÂ¢ Est. federal tax liability (rec.totalTax)
+//     Ã¢ÂÂ¢ Effective rate (rec.totalTax ÃÂ· total income, estimated from saved fields)
+//     Ã¢ÂÂ¢ Tax year (rec.taxYear || rec.biz.year)
 //   When totalTax is 0 (record saved without completing Step 2), the strip shows
 //   "Complete Step 2 for estimate" so the user knows what to do next rather than
 //   seeing blank values. The strip replaces the previous conditional "EST. TAX
 //   LIABILITY" badge which only appeared on the most-recent record and required
-//   non-zero totalTax. calcDashboard() already computed these values â they just
+//   non-zero totalTax. calcDashboard() already computed these values Ã¢ÂÂ they just
 //   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
@@ -51,7 +51,7 @@ import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, cal
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { parseMoney, nf } from './utils/money.js'
 import { apiGet } from './utils/apiClient.js'
-import { signOut } from './utils/signOut'
+import { signOut } from './utils/SignOut'
 import BrandLogo from './BrandLogo'
 import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
@@ -66,9 +66,9 @@ import { isPro } from './LockedFeature'
 // Module-1 fix (F1/F2): the Dashboard previously carried its OWN copy of
 // normalizeEntityType and then gated on PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType).
 // The local normalizer emitted the engine-canonical form ("Sole Proprietor /
-// Single-Member LLC", "Partnership / MMLLC â Active") while PASSTHROUGH_ENTITY_TYPES
+// Single-Member LLC", "Partnership / MMLLC Ã¢ÂÂ Active") while PASSTHROUGH_ENTITY_TYPES
 // holds the UI-label form ("Sole Proprietor / SMLLC", "Partnership / LLC"), so the
-// membership test returned false for sole proprietors and partnerships â passing an
+// membership test returned false for sole proprietors and partnerships Ã¢ÂÂ passing an
 // empty entities[] to calcTaxReturn and silently dropping their self-employment tax.
 // We now import the single shared normalizeEntityType and classify with the
 // vocabulary-agnostic regex predicates (isCCorpEntity / isSCorpEntity), which match
@@ -125,8 +125,8 @@ export function calcDashboard(biz, f1040) {
     // corporate profit AFTER officer compensation and employer-side payroll tax, and the after-tax
     // profit is treated as fully distributed and taxed again as qualified dividends. Officer
     // salary is W-2 wages with no separate employment-tax line (1040-style, like the Tracker).
-    // netBiz is profit BEFORE salary when derived from grossâopExp, but AFTER salary when it
-    // comes from a synced pnl.netProfit â so reconstruct profit-before-salary either way.
+    // netBiz is profit BEFORE salary when derived from grossÃ¢ÂÂopExp, but AFTER salary when it
+    // comes from a synced pnl.netProfit Ã¢ÂÂ so reconstruct profit-before-salary either way.
     const cNetBeforeSal = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) + sal : (gross - totalExp)
     const layer     = calcCCorpCorporateLayer({ netProfit: cNetBeforeSal, officerSalary: sal, taxYear: year })
     const corpTax   = layer.corpTax
@@ -164,7 +164,7 @@ export function calcDashboard(biz, f1040) {
       ratio: Math.round(ratio * 100),
       sal: Math.round(sal),
       distributions: Math.round(Math.max(0, k1)),
-      message: `Officer compensation is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35â45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test â there is no published safe harbor percentage.`,
+      message: `Officer compensation is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35Ã¢ÂÂ45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test Ã¢ÂÂ there is no published safe harbor percentage.`,
     }
   })()
 
@@ -192,7 +192,7 @@ function buildRecs(biz, calc) {
   const dep        = nf(biz.depreciation)
 
   if (isCCorp && corpTax > 0)
-    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return â the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
+    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return Ã¢ÂÂ the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
   if (isSC && officerSal === 0 && k1 > 20000)
     recs.push({ type: 'danger', title: 'No Officer Compensation', msg: `S-Corp owners must pay themselves a reasonable salary. The IRS considers this a primary audit trigger. Recommended minimum: ${fmt(recSal)}/yr.` })
   if (isSC && officerSal > 0 && officerSal < recSal && k1 > 20000)
@@ -200,9 +200,9 @@ function buildRecs(biz, calc) {
   if (quarterly > 500)
     recs.push({ type: 'warning', title: 'Quarterly Estimated Payments Required', msg: `Pay approximately ${fmt(quarterly)} per quarter. Due: Apr 15, Jun 15, Sep 15, Jan 15.` })
   if (qbi > 0)
-    recs.push({ type: 'success', title: `QBI Deduction Applied â ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% Â§199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
+    recs.push({ type: 'success', title: `QBI Deduction Applied Ã¢ÂÂ ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% ÃÂ§199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
   if (dep === 0 && grossRev > 50000)
-    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Â§179.' })
+    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under ÃÂ§179.' })
   if (nf(effRate) > 28)
     recs.push({ type: 'warning', title: `High Effective Tax Rate (${pct(effRate)})`, msg: 'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) for 2025.' })
   if (recs.length === 0)
@@ -216,10 +216,10 @@ const ONBOARDING_KEY = 'ts360_onboarding_v1'
 
 const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
-  { emoji: 'ð¢', badge: 'Step 1 of 2 â Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks â or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
-  { emoji: 'ð', badge: 'Step 2 of 2 â Personal Return', title: 'Complete Your Personal Return', body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, Â§199A QBI deduction, and quarterly estimated payments update live.' },
-  { emoji: 'ð¤', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan â officer compensation audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
-  { emoji: 'â', title: "You're all set!", body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.", isFinal: true },
+  { emoji: 'Ã°ÂÂÂ¢', badge: 'Step 1 of 2 Ã¢ÂÂ Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks Ã¢ÂÂ or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
+  { emoji: 'Ã°ÂÂÂ', badge: 'Step 2 of 2 Ã¢ÂÂ Personal Return', title: 'Complete Your Personal Return', body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, ÃÂ§199A QBI deduction, and quarterly estimated payments update live.' },
+  { emoji: 'Ã°ÂÂ¤Â', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan Ã¢ÂÂ officer compensation audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
+  { emoji: 'Ã¢ÂÂ', title: "You're all set!", body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.", isFinal: true },
 ]
 
 function OnboardingTour({ onComplete }) {
@@ -260,12 +260,12 @@ function OnboardingTour({ onComplete }) {
           <button onClick={onComplete} style={{ background: 'none', border: 'none', fontSize: 13, color: '#64748B', cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>Skip tour</button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 0 && (
-              <button onClick={() => setStep(step - 1)} style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>â Back</button>
+              <button onClick={() => setStep(step - 1)} style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>Ã¢ÂÂ Back</button>
             )}
             {isLast ? (
-              <button onClick={onComplete} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Start Calculating â</button>
+              <button onClick={onComplete} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Start Calculating Ã¢ÂÂ</button>
             ) : (
-              <button onClick={() => setStep(step + 1)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: N, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Next â</button>
+              <button onClick={() => setStep(step + 1)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: N, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Next Ã¢ÂÂ</button>
             )}
           </div>
         </div>
@@ -302,12 +302,12 @@ function FederalDisclosureBanner() {
   return (
     <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 16 }}>ðºð¸</span>
+        <span style={{ fontSize: 16 }}>Ã°ÂÂÂºÃ°ÂÂÂ¸</span>
         <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 500 }}>
-          <strong>Federal estimates only.</strong> TaxStat360 calculates federal income tax liability. State income tax is not included â add your state's effective rate separately for a complete picture.
+          <strong>Federal estimates only.</strong> TaxStat360 calculates federal income tax liability. State income tax is not included Ã¢ÂÂ add your state's effective rate separately for a complete picture.
         </span>
       </div>
-      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">Ã</button>
+      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">ÃÂ</button>
     </div>
   )
 }
@@ -328,7 +328,7 @@ class IntegrationErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '12px 16px', fontSize: 12, color: '#991B1B' }}>
-          â  This section failed to load. Reload the page to retry.
+          Ã¢ÂÂ  This section failed to load. Reload the page to retry.
         </div>
       );
     }
@@ -373,7 +373,7 @@ export default function Dashboard() {
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 
-  // F-19 UX FIX: responsive nav â collapse labels to icons on narrow viewports
+  // F-19 UX FIX: responsive nav Ã¢ÂÂ collapse labels to icons on narrow viewports
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 719px)')
@@ -423,9 +423,9 @@ export default function Dashboard() {
     if (xeroToken) {
       setConnectedApp('Xero')
       setXeroLoading(true)
-      // Routes through apiClient â API_BASE_URL, consistent with every other auth call.
+      // Routes through apiClient Ã¢ÂÂ API_BASE_URL, consistent with every other auth call.
       // (Previously used a ts360_api_base localStorage override that was never set, so it
-      // defaulted to same-origin â the wrong host under the split app/API origins.)
+      // defaulted to same-origin Ã¢ÂÂ the wrong host under the split app/API origins.)
       apiGet('/auth/xero/data?token=' + encodeURIComponent(xeroToken))
         .then(data => {
           if (data && data.grossRevenue) {
@@ -549,10 +549,10 @@ export default function Dashboard() {
     // helper rather than a hand-rolled partial restore. The previous partial path
     // silently dropped investment-income fields (capitalGains / interest / dividends /
     // qualifiedDividends) from the editable Step-2 form while those values survived in
-    // the saved record and on the AI Schedule Map â so a loaded return showed (and was
+    // the saved record and on the AI Schedule Map Ã¢ÂÂ so a loaded return showed (and was
     // taxed on) income the form never displayed, and the collapsed Capital Gains
     // section hid it. normalizeF1040 restores exactly the fields the record holds,
-    // coerced to numbers, with nothing merged in and nothing dropped â so the form,
+    // coerced to numbers, with nothing merged in and nothing dropped Ã¢ÂÂ so the form,
     // the tax math, and the AI Map all agree on one set of figures.
     writePersonalContext(normalizeF1040(saved1040))
     writeTaxYear(rec.taxYear || rec.biz?.year || CURRENT_TAX_YEAR)
@@ -586,7 +586,7 @@ export default function Dashboard() {
   // F-FUNC-05: a preset card means "set me up with an entity of this type." Start a
   // clean calculation, then stash the matching entity-type string so the Tax Tracker
   // seeds it via its existing entity-creation path (clearStep1State first, so the
-  // hint it writes survives â clearStep1State clears any prior hint). The type
+  // hint it writes survives Ã¢ÂÂ clearStep1State clears any prior hint). The type
   // strings here MUST match the Tax Tracker entity picker's option values.
   const PRESET_ENTITY_TYPE = {
     'S-Corp Owner':        'S Corporation',
@@ -616,7 +616,7 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ââ Navigation ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Navigation Ã¢ÂÂÃ¢ÂÂ */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 28px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, overflowX: 'auto', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <LOGO />
@@ -626,28 +626,28 @@ export default function Dashboard() {
           {userName && (
             <span style={{ fontSize: 13, color: SL }}>Hi, <strong style={{ color: N }}>{userName.split(' ')[0]}</strong></span>
           )}
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? 'ð§®' : 'Tax Tracker'}</button>
-          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? 'ð¤' : 'AI Analysis & Reporting'}{!isPro() && ' ð'}</button>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? 'Ã°ÂÂ§Â®' : 'Tax Tracker'}</button>
+          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? 'Ã°ÂÂ¤Â' : 'AI Analysis & Reporting'}{!isPro() && ' Ã°ÂÂÂ'}</button>
           {!isMobile && <button onClick={() => signOut(nav)} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
-          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? 'â' : 'Settings'}</button>
+          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? 'Ã¢ÂÂ' : 'Settings'}</button>
         </div>
       </nav>
 
       {showDisclaimer && (
         <div style={{ background: '#FFFBEB', borderBottom: '2px solid #F59E0B', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
-            <strong>â  Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing.{' '}
-            <a href="/terms" style={{ color: '#92400E', fontWeight: 700, textDecoration: 'underline' }}>View full disclaimer â</a>
+            <strong>Ã¢ÂÂ  Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing.{' '}
+            <a href="/terms" style={{ color: '#92400E', fontWeight: 700, textDecoration: 'underline' }}>View full disclaimer Ã¢ÂÂ</a>
           </div>
-          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Got it â</button>
+          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Got it Ã¢ÂÂ</button>
         </div>
       )}
 
       {show2FANudge && (
         <div style={{ background: '#EFF6FF', borderBottom: '2px solid #93C5FD', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.5 }}>
-            <strong>ð Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
-            <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>Enable 2FA in Settings â</button>
+            <strong>Ã°ÂÂÂ Secure your account:</strong> Two-factor authentication (2FA) is not enabled. IRS Publication 4557 strongly recommends 2FA for tax software.{' '}
+            <button onClick={() => nav('/settings')} style={{ background: 'none', border: 'none', padding: 0, color: '#1E40AF', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>Enable 2FA in Settings Ã¢ÂÂ</button>
           </div>
           <button onClick={dismiss2FANudge} style={{ flexShrink: 0, background: 'none', border: '1px solid #93C5FD', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>Remind me later</button>
         </div>
@@ -655,7 +655,7 @@ export default function Dashboard() {
 
       {xeroLoading && (
         <div style={{ background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', padding: '12px 28px', fontSize: 13, fontWeight: 600, color: '#1D4ED8', textAlign: 'center' }}>
-          Importing your Xero financialsâ¦ please wait
+          Importing your Xero financialsÃ¢ÂÂ¦ please wait
         </div>
       )}
 
@@ -663,13 +663,13 @@ export default function Dashboard() {
 
         {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-            <div style={{ fontSize: 28, flexShrink: 0 }}>ð</div>
+            <div style={{ fontSize: 28, flexShrink: 0 }}>Ã°ÂÂÂ</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>Ready to see your tax analysis?</div>
               <div style={{ fontSize: 13, color: '#3B82F6', lineHeight: 1.6, marginBottom: 12 }}>
                 Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business income and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
               </div>
-              <button onClick={startNewCalc} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Open Tax Tracker â</button>
+              <button onClick={startNewCalc} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Open Tax Tracker Ã¢ÂÂ</button>
             </div>
           </div>
         )}
@@ -682,12 +682,12 @@ export default function Dashboard() {
           }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>â  AUDIT RISK â S-CORP</span>
+                <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>Ã¢ÂÂ  AUDIT RISK Ã¢ÂÂ S-CORP</span>
                 Reasonable Compensation Below Practitioner Guideline
               </div>
 
               <div style={{ fontSize: 13, color: '#991B1B', marginBottom: 10, fontWeight: 600 }}>
-                Formula: Salary Ã· (Salary + Distributions)
+                Formula: Salary ÃÂ· (Salary + Distributions)
               </div>
               <div style={{
                 background: 'rgba(153,27,27,0.06)', borderRadius: 8, padding: '10px 14px',
@@ -695,7 +695,7 @@ export default function Dashboard() {
               }}>
                 <span style={{ color: '#7F1D1D' }}>
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
-                  {' Ã· ('}
+                  {' ÃÂ· ('}
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
                   {' + '}
                   {fmt(safeCalc.reasonableCompAlert.distributions ?? 0)}
@@ -704,15 +704,15 @@ export default function Dashboard() {
                 <strong style={{ color: '#DC2626', fontSize: 15 }}>
                   {safeCalc.reasonableCompAlert.ratio ?? 0}%
                 </strong>
-                <span style={{ color: '#991B1B', fontSize: 12 }}> (threshold: â¥40%)</span>
+                <span style={{ color: '#991B1B', fontSize: 12 }}> (threshold: Ã¢ÂÂ¥40%)</span>
               </div>
 
               <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 8 }}>
                 {safeCalc.reasonableCompAlert.message}
               </div>
               <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
-                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35â45% practitioner-recommended range. Discuss the appropriate amount with your CPA â the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
-                <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation â</a>
+                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35Ã¢ÂÂ45% practitioner-recommended range. Discuss the appropriate amount with your CPA Ã¢ÂÂ the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
+                <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation Ã¢ÂÂ</a>
               </div>
             </div>
             <button
@@ -734,15 +734,15 @@ export default function Dashboard() {
 
         {records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>ð</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>Ã°ÂÂÂ</div>
             <h3 style={{ color: N, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No saved records yet</h3>
             <p style={{ color: SL, fontSize: 14, marginBottom: 20 }}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
               {[
-                { label: 'S-Corp Owner',          icon: 'ð¢', desc: 'Salary + K-1 income' },
-                { label: 'Sole Proprietor',        icon: 'ð¼', desc: 'Schedule C self-employment' },
-                { label: 'Real Estate Investor',   icon: 'ð ', desc: 'Rental income + depreciation' },
-                { label: 'Partnership / LLC',      icon: 'ð¤', desc: 'K-1 distributive share' },
+                { label: 'S-Corp Owner',          icon: 'Ã°ÂÂÂ¢', desc: 'Salary + K-1 income' },
+                { label: 'Sole Proprietor',        icon: 'Ã°ÂÂÂ¼', desc: 'Schedule C self-employment' },
+                { label: 'Real Estate Investor',   icon: 'Ã°ÂÂÂ ', desc: 'Rental income + depreciation' },
+                { label: 'Partnership / LLC',      icon: 'Ã°ÂÂ¤Â', desc: 'K-1 distributive share' },
               ].map(p => (
                 <button key={p.label} onClick={() => startNewCalcWithPreset(p.label)} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
                   <div style={{ fontSize: 20 }}>{p.icon}</div>
@@ -760,15 +760,15 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {records.map((rec, i) => {
               const displayRevenue = rec.biz?.pnl?.grossRevenue ?? rec.biz?.grossRevenue
-              const entityType     = rec.biz?.type || rec.biz?.entityType || rec.entityType || 'â'
-              const taxYear        = rec.taxYear || rec.biz?.year || 'â'
-              const filingStatus   = (rec.f1040?.filingStatus || rec.filingStatus || 'â').toUpperCase()
+              const entityType     = rec.biz?.type || rec.biz?.entityType || rec.entityType || 'Ã¢ÂÂ'
+              const taxYear        = rec.taxYear || rec.biz?.year || 'Ã¢ÂÂ'
+              const filingStatus   = (rec.f1040?.filingStatus || rec.filingStatus || 'Ã¢ÂÂ').toUpperCase()
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
               const totalTax       = nf(rec.totalTax)
               // FINDING 8 FIX: a record saved after Step 2 ran carries step2Computed === true
               // even when totalTax is $0 (loss year, zero-income scenario).  Without this flag,
-              // totalTax === 0 is ambiguous â the Dashboard was showing "Complete Step 2 for
+              // totalTax === 0 is ambiguous Ã¢ÂÂ the Dashboard was showing "Complete Step 2 for
               // estimate" for records whose tax was legitimately zero.
               // Legacy records that predate this flag fall back to the totalTax > 0 heuristic.
               const step2Computed = rec.step2Computed === true || totalTax > 0
@@ -776,7 +776,7 @@ export default function Dashboard() {
 
               // F24 FIX: derive effective rate from saved fields for the summary strip.
               // rec.totalTax is saved by TaxReturn.jsx buildRecord(). Effective rate is
-              // totalTax Ã· approximate total income. We derive income from the saved
+              // totalTax ÃÂ· approximate total income. We derive income from the saved
               // k1Income + f1040.w2Income since AGI is not directly persisted on the record.
               const k1ForRate   = nf(rec.k1Income)
               const w2ForRate   = nf(rec.f1040?.w2Income) || nf(rec.w2Income)
@@ -800,7 +800,7 @@ export default function Dashboard() {
                   padding: '18px 24px',
                   boxShadow: isActive ? '0 0 0 3px rgba(37,99,235,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
                 }}>
-                  {/* ââ Card header row ââ */}
+                  {/* Ã¢ÂÂÃ¢ÂÂ Card header row Ã¢ÂÂÃ¢ÂÂ */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 15, color: N, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -817,20 +817,20 @@ export default function Dashboard() {
                       )}
                     </div>
 
-                    {/* Action buttons â top-right */}
+                    {/* Action buttons Ã¢ÂÂ top-right */}
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
                       <button onClick={() => loadRecord(rec)} style={{ padding: '9px 18px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                        Load &amp; Continue â
+                        Load &amp; Continue Ã¢ÂÂ
                       </button>
                       <button
                         onClick={() => handleDeleteClick(rec, i)}
                         title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
                         style={{ padding: '9px 13px', background: '#fff', color: R, border: '1.5px solid #FCA5A5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                      >ð</button>
+                      >Ã°ÂÂÂ</button>
                     </div>
                   </div>
 
-                  {/* ââ F24 FIX: Summary strip â always visible, no loading required ââ */}
+                  {/* Ã¢ÂÂÃ¢ÂÂ F24 FIX: Summary strip Ã¢ÂÂ always visible, no loading required Ã¢ÂÂÃ¢ÂÂ */}
                   {/* Shows est. tax liability, effective rate, and tax year derived from
                       saved record fields. When totalTax is 0 (Step 2 not completed),
                       shows a prompt instead of blank numbers. */}
@@ -866,7 +866,7 @@ export default function Dashboard() {
                       {effRateNum !== null ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateNum}%</div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#64748B' }}>â</div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>Ã¢ÂÂ</div>
                       )}
                     </div>
 
@@ -876,12 +876,12 @@ export default function Dashboard() {
                       {quarterly > 0 ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterly))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#64748B' }}>â</div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>Ã¢ÂÂ</div>
                       )}
                     </div>
                   </div>
 
-                  {/* ââ Metadata row ââ */}
+                  {/* Ã¢ÂÂÃ¢ÂÂ Metadata row Ã¢ÂÂÃ¢ÂÂ */}
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
                     <span style={{ fontSize: 12, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
@@ -893,7 +893,7 @@ export default function Dashboard() {
                     )}
                     {quarterly > 0 && (
                       <span style={{ fontSize: 11, color: '#64748B' }}>
-                        Â· <span
+                        ÃÂ· <span
                           onClick={e => { e.stopPropagation(); loadRecord(rec) }}
                           style={{ color: '#64748B', textDecoration: 'underline', cursor: 'pointer' }}
                           title="Open Step 2 to compare safe harbor thresholds"
@@ -907,7 +907,7 @@ export default function Dashboard() {
                       if (Math.abs(delta) < 100) return null
                       return (
                         <span style={{ fontSize: 11, fontWeight: 700, color: delta > 0 ? '#DC2626' : '#16A34A' }}>
-                          {delta > 0 ? 'â²' : 'â¼'} {fmt(Math.abs(Math.round(delta)))} vs prior record
+                          {delta > 0 ? 'Ã¢ÂÂ²' : 'Ã¢ÂÂ¼'} {fmt(Math.abs(Math.round(delta)))} vs prior record
                         </span>
                       )
                     })()}
