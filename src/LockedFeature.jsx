@@ -1,4 +1,5 @@
 import { apiGet } from './utils/apiClient.js'
+import { NAVY as N, BLUE as B } from './theme.js'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
@@ -112,8 +113,6 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
   if (unlocked) return children
 
   const planLabel = requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)
-  const N = '#0D1B3E'
-  const B = '#2563EB'
 
   return (
     <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', minHeight }}>

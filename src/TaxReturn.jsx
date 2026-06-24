@@ -1526,7 +1526,7 @@ export default function TaxReturn() {
                 // but it is more useful to show the line with $0 so the user knows it was computed.
                 { label: 'Addl. Medicare Tax (0.9% — Form 8959)',   value: result.additionalMedicare || 0,
                   sign: 1,
-                  hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < 150000,
+                  hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE * 0.75, // show when within 75% of the threshold
                   accent: (result.additionalMedicare || 0) > 0 ? '#DC2626' : undefined,
                   note: (result.additionalMedicare || 0) > 0
                     ? `0.9% on wages above $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} threshold (IRC §3101(b)(2))`

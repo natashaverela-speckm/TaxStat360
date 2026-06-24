@@ -25,6 +25,7 @@ import Article from './Article'
 // CC FIX: RouteTitle validates /resources/:slug against the article data so that
 // unknown slugs (a soft-404 inside the indexable /resources/ pattern) get noindex.
 import { getArticle } from './articles.js'
+import { NAVY as N, SLATE as SL } from './theme.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -49,8 +50,8 @@ function OAuthCallback() {
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center'}}>
         <div style={{width:56,height:56,borderRadius:'50%',background:'#EFF9FF',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',fontSize:28}}>&#10003;</div>
-        <h2 style={{fontSize:20,fontWeight:700,color:'#0D1B3E',marginBottom:8}}>Connecting {provider.charAt(0).toUpperCase()+provider.slice(1)}&hellip;</h2>
-        <p style={{color:'#475569',fontSize:14}}>Completing secure OAuth handshake. You&apos;ll be redirected shortly.</p>
+        <h2 style={{fontSize:20,fontWeight:700,color:N,marginBottom:8}}>Connecting {provider.charAt(0).toUpperCase()+provider.slice(1)}&hellip;</h2>
+        <p style={{color:SL,fontSize:14}}>Completing secure OAuth handshake. You&apos;ll be redirected shortly.</p>
       </div>
     </div>
   )
@@ -94,7 +95,7 @@ function AuthFooter() {
       position:'fixed',bottom:0,left:0,right:0,background:'#fff',
       borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',
       justifyContent:'center',flexWrap:'wrap',gap:12,padding:'6px 24px',
-      fontSize:12,color:'#475569',zIndex:50,
+      fontSize:12,color:SL,zIndex:50,
       fontFamily:'Inter, system-ui, sans-serif',lineHeight:1.4,minHeight:36,
     }}>
       <span>&#169; {year} TaxStat360</span>
@@ -218,15 +219,15 @@ function NotFound() {
     <div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter, system-ui, sans-serif',padding:24}}>
       <div style={{textAlign:'center',maxWidth:480}}>
         <div style={{fontSize:64,fontWeight:900,color:'#E2E8F0',lineHeight:1,marginBottom:8}}>404</div>
-        <h1 style={{fontSize:24,fontWeight:800,color:'#0D1B3E',margin:'0 0 12px'}}>Page Not Found</h1>
-        <p style={{fontSize:14,color:'#475569',lineHeight:1.6,margin:'0 0 28px'}}>
+        <h1 style={{fontSize:24,fontWeight:800,color:N,margin:'0 0 12px'}}>Page Not Found</h1>
+        <p style={{fontSize:14,color:SL,lineHeight:1.6,margin:'0 0 28px'}}>
           The page you&apos;re looking for doesn&apos;t exist or may have moved.
         </p>
         <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <a href="/" style={{display:'inline-block',padding:'11px 28px',background:'#0D1B3E',color:'#fff',borderRadius:8,fontWeight:700,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
+          <a href="/" style={{display:'inline-block',padding:'11px 28px',background:N,color:'#fff',borderRadius:8,fontWeight:700,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
             &larr; Back to Home
           </a>
-          <a href="/login" style={{display:'inline-block',padding:'11px 28px',background:'#fff',color:'#0D1B3E',border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
+          <a href="/login" style={{display:'inline-block',padding:'11px 28px',background:'#fff',color:N,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
             Sign In
           </a>
         </div>
@@ -476,7 +477,6 @@ function CookieBanner() {
     setVisible(false)
   }
 
-  const N = '#0D1B3E'
   const B = '#2563EB'
 
   return (

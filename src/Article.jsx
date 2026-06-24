@@ -16,13 +16,13 @@
 // <Nav> is position:fixed (height 64), so the page wrapper adds paddingTop:64.
 
 import { useEffect } from 'react'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ARTICLES, getArticle } from './articles.js'
 import Icon from './Icon'
 import Nav from './Nav'
 import Footer from './Footer'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 const CATEGORY_COLORS = {
   'S-Corporation': { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
