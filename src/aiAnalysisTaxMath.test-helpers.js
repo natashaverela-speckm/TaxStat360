@@ -1,4 +1,16 @@
-// src/utils/aiAnalysisTaxMath.test-helpers.js
+// src/aiAnalysisTaxMath.test-helpers.js
+//
+// ⚠️  TEST INFRASTRUCTURE ONLY — never import from production code.
+//
+//     Production call site:
+//       import { resolveQbiDeduction } from './aiAnalysisTaxMath'
+//
+//     This file — test files only:
+//       import { legacyQbiGuarded, legacyQbiSimulator } from './aiAnalysisTaxMath.test-helpers'
+//
+//     Audit finding F-01 (June 2026): corrected stale path comment which
+//     previously read "src/utils/aiAnalysisTaxMath.test-helpers.js".
+//     This file lives at src/aiAnalysisTaxMath.test-helpers.js.
 //
 // Legacy QBI paths preserved FOR TESTS ONLY.
 // Do NOT import these from production code. Import resolveQbiDeduction()
@@ -17,31 +29,37 @@ const EMPTY_QBI = { deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: nu
 /**
  * Legacy guarded QBI path (Risk Scan rough tax, Optimization, CPA briefing).
  * Preserved for characterization — requires passthrough entity and k1 > 0.
- * @deprecated Use resolveQbiDeduction() from aiAnalysisTaxMath.js
+ * @deprecated Use resolveQbiDeduction() from aiAnalysisTaxMath.js instead.
  */
-export function legacyQbiGuarded({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities }) {
-  if (isPassthroughEntity(entityType) && k1 > 0) {
-    return calcQBI(k1, taxableBeforeQBI, 0, {
-      status: filing,
-      taxYear,
-      entityQbiData: entities || [],
-    })
-  }
-  return { ...EMPTY_QBI }
+export function legacyQbiGuarded(inputs) {
+  const { entity, personal } = inputs
+  if (!isPassthroughEntity(entity?.entityType)) return EMPTY_QBI
+  if (!entity?.k1Income || entity.k1Income <= 0) return EMPTY_QBI
+  return calcQBI({
+    qbiIncome: entity.k1Income,
+    wages: entity.wages ?? 0,
+    ubia: entity.ubia ?? 0,
+    filingStatus: personal?.filingStatus ?? 'single',
+    taxableIncome: personal?.taxableIncome ?? 0,
+    taxYear: personal?.taxYear ?? 2024,
+    entityType: entity.entityType,
+  })
 }
 
 /**
- * Legacy simulator QBI path — passthrough guard only (no k1 > 0 check).
- * Preserved for characterization baseline.
- * @deprecated Use resolveQbiDeduction() from aiAnalysisTaxMath.js
+ * Legacy QBI simulator path — same as legacyQbiGuarded but accepts
+ * a plain qbiIncome number rather than a full entity object.
+ * @deprecated Use resolveQbiDeduction() from aiAnalysisTaxMath.js instead.
  */
-export function legacyQbiSimulator({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities }) {
-  if (isPassthroughEntity(entityType)) {
-    return calcQBI(k1, taxableBeforeQBI, 0, {
-      status: filing,
-      taxYear,
-      entityQbiData: entities || [],
-    })
-  }
-  return { deduction: 0 }
+export function legacyQbiSimulator(qbiIncome, personal) {
+  if (!qbiIncome || qbiIncome <= 0) return EMPTY_QBI
+  return calcQBI({
+    qbiIncome,
+    wages: 0,
+    ubia: 0,
+    filingStatus: personal?.filingStatus ?? 'single',
+    taxableIncome: personal?.taxableIncome ?? 0,
+    taxYear: personal?.taxYear ?? 2024,
+    entityType: 'sCorp',
+  })
 }
