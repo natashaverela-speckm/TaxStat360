@@ -243,6 +243,7 @@ headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 body: mcData.toString()
 })
 } catch(e) {}
+sessionStorage.setItem('ts360_new_registration','1')
 nav('/verify-email')
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -459,7 +460,7 @@ function VerifyEmailScreen(){
     <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
     <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
-    <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
+    <button onClick={()=>(() => { const dest = sessionStorage.getItem('ts360_new_registration')==='1' ? '/onboarding/entity' : (isValidSession()?'/dashboard':'/onboarding/entity'); sessionStorage.removeItem('ts360_new_registration'); nav(dest) })()} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
   </div></Page>)
   if(status==='error')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
     <p style={{color:'#DC2626',marginBottom:16}}>{err}</p>
