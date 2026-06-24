@@ -8,14 +8,14 @@ import { removeConnectedApp, readXeroRefresh, writeXeroRefresh } from './utils/s
 import { useNavigate } from 'react-router-dom'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
-import { nf } from './utils/parseMoney.js'
+import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
 import { integrationKey } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { fmt, formatTimestamp, formatRelativeTime } from './utils/formatMoney.js'
+import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
