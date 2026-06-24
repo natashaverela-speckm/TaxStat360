@@ -4,7 +4,7 @@ import { signOut, wipeAccountLocalData } from './utils/signOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
-import { deleteOwnAccount } from './utils/accountApi.js'
+import { deleteOwnAccount } from './utils/serverApi.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -51,14 +51,14 @@ export default function Settings() {
     setDeleteErr('')
     try {
       await deleteOwnAccount()
-      // Keep support/admin notified as a record — best-effort, never blocks deletion.
+      // Keep support/admin notified as a record â best-effort, never blocks deletion.
       try {
         await fetch('https://api.web3forms.com/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({
             access_key: import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed',
-            subject: 'TaxStat360 — account deleted (self-service)',
+            subject: 'TaxStat360 â account deleted (self-service)',
             email: email || 'unknown',
             message: `User ${email || 'unknown'} permanently deleted their account on ${new Date().toISOString()}.`,
           }),
@@ -75,7 +75,7 @@ export default function Settings() {
       } else {
         setDeleteErr(
           (e && (e.body?.detail || e.message)) ||
-            'Deletion failed — your account was not changed. Please try again or contact support.'
+            'Deletion failed â your account was not changed. Please try again or contact support.'
         )
       }
     }
@@ -112,7 +112,7 @@ export default function Settings() {
 
     const session = localStorage.getItem('ts360_session_start')
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
-    else setMemberSince('—')
+    else setMemberSince('â')
 
     const storedTimeout = localStorage.getItem('ts360_idle_timeout_mins')
     if (storedTimeout === null) localStorage.setItem('ts360_idle_timeout_mins', '30')
@@ -151,7 +151,7 @@ export default function Settings() {
       if (e instanceof ApiError) {
         setMsg((e.body && e.body.detail) || 'Could not send confirmation email. Please try again.')
       } else {
-        setMsg('Network error — please check your connection and try again.')
+        setMsg('Network error â please check your connection and try again.')
       }
     }
     setLoading(false)
@@ -162,7 +162,7 @@ export default function Settings() {
     setMsg('')
     try {
       await apiPost('/auth/forgot-password', { email })
-    } catch(e) { /* intentional — always show success */ }
+    } catch(e) { /* intentional â always show success */ }
     setPwSent(true)
     setMsg(`A password reset link has been sent to ${email}. Check your inbox.`)
     setLoading(false)
@@ -287,7 +287,7 @@ export default function Settings() {
   return (
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC'}}>
       {/* Nav
-          U-01 FIX: AI Analysis nav button now conditionally shows 🔒 for non-Pro
+          U-01 FIX: AI Analysis nav button now conditionally shows ð for non-Pro
           users, matching every other authenticated page (CalculateTaxInner.jsx,
           TaxReturn.jsx, Dashboard). Settings.jsx previously never imported isPro,
           so the lock was always absent here regardless of plan. Also dims the
@@ -297,12 +297,12 @@ export default function Settings() {
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <NavBtn label="Dashboard"    onClick={()=>nav('/dashboard')}/>
           <NavBtn label="Tax Tracker"  onClick={()=>nav('/calculate-tax')}/>
-          {/* U-01 FIX: was <NavBtn label="AI Analysis" .../> — no lock, no isPro check */}
+          {/* U-01 FIX: was <NavBtn label="AI Analysis" .../> â no lock, no isPro check */}
           <button
             onClick={()=>nav('/ai-analysis')}
             style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',color:isPro()?SL:'#94A3B8',fontWeight:600,fontSize:13,cursor:'pointer'}}
           >
-            AI Analysis & Reporting{!isPro()?' 🔒':''}
+            AI Analysis & Reporting{!isPro()?' ð':''}
           </button>
           <NavBtn label="Settings"     onClick={()=>nav('/settings')} active/>
           <button onClick={()=>signOut(nav)} style={{padding:'7px 16px',border:'1px solid #E2E8F0',borderRadius:7,background:'#fff',fontSize:13,cursor:'pointer',color:SL,fontWeight:600}}>Sign Out</button>
@@ -319,7 +319,7 @@ export default function Settings() {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:20}}>
             <div>
               <div style={{fontSize:12,color:SL,marginBottom:4}}>Current email</div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{email || '—'}</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{email || 'â'}</div>
             </div>
             <div>
               <div style={{fontSize:12,color:SL,marginBottom:4}}>Plan</div>
@@ -342,10 +342,10 @@ export default function Settings() {
                 disabled={loading || emailSent || !emailInput || emailInput===email}
                 style={{padding:'9px 18px',background:emailSent?'#059669':B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput)?0.5:1}}
               >
-                {emailSent ? '✓ Sent' : 'Send confirmation'}
+                {emailSent ? 'â Sent' : 'Send confirmation'}
               </button>
             </div>
-            {msg && !pwSent && <div style={{fontSize:13,color:emailSent?'#059669':'#DC2626',marginTop:8}}>{emailSent?'✓ ':''}{msg}</div>}
+            {msg && !pwSent && <div style={{fontSize:13,color:emailSent?'#059669':'#DC2626',marginTop:8}}>{emailSent?'â ':''}{msg}</div>}
           </div>
 
           <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20}}>
@@ -356,9 +356,9 @@ export default function Settings() {
               disabled={loading || pwSent}
               style={{padding:'9px 18px',background:pwSent?'#059669':'#fff',color:pwSent?'#fff':N,border:`1px solid ${pwSent?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
             >
-              {pwSent ? '✓ Reset link sent' : 'Send password reset link'}
+              {pwSent ? 'â Reset link sent' : 'Send password reset link'}
             </button>
-            {pwSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>✓ {msg}</div>}
+            {pwSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>â {msg}</div>}
           </div>
         </div>
 
@@ -368,16 +368,16 @@ export default function Settings() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
               <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime</div>
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} Â· Cancel anytime</div>
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
           </div>
           <div style={{display:'flex',gap:10}}>
             <button onClick={()=>nav('/upgrade')} style={{flex:1,padding:'10px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>
-              ↑ Upgrade Plan
+              â Upgrade Plan
             </button>
             <button onClick={handleManageBilling} style={{flex:1,padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
-              Manage Billing →
+              Manage Billing â
             </button>
           </div>
         </div>
@@ -398,7 +398,7 @@ export default function Settings() {
                     color: mfaEnabled ? '#059669' : '#D97706',
                     border: `1px solid ${mfaEnabled ? '#86EFAC' : '#FCD34D'}`
                   }}>
-                    {mfaEnabled ? '✓ Enabled' : 'Not enabled'}
+                    {mfaEnabled ? 'â Enabled' : 'Not enabled'}
                   </span>
                 </div>
                 <div style={{fontSize:13,color:SL,lineHeight:1.5,maxWidth:440}}>
@@ -420,7 +420,7 @@ export default function Settings() {
                     disabled={mfaLoading}
                     style={{flexShrink:0,padding:'8px 16px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',opacity:mfaLoading?0.6:1}}
                   >
-                    {mfaLoading ? 'Setting up…' : 'Enable 2FA'}
+                    {mfaLoading ? 'Setting upâ¦' : 'Enable 2FA'}
                   </button>
                 )
               )}
@@ -434,7 +434,7 @@ export default function Settings() {
 
             {mfaStep === 'setup' && mfaSetupData && (
               <div style={{marginTop:14,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'20px 20px'}}>
-                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Step 1 — Scan this QR code</div>
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Step 1 â Scan this QR code</div>
                 <div style={{fontSize:13,color:SL,marginBottom:16,lineHeight:1.5}}>
                   Open <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app. Tap "+" and scan the QR code below.
                 </div>
@@ -442,7 +442,7 @@ export default function Settings() {
                   <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
                     <img
                       src={mfaSetupData.qr_code_url}
-                      alt="MFA QR code — scan with your authenticator app"
+                      alt="MFA QR code â scan with your authenticator app"
                       style={{width:180,height:180,border:'1px solid #E2E8F0',borderRadius:8,background:'#fff',padding:8}}
                     />
                   </div>
@@ -455,7 +455,7 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
-                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:8}}>Step 2 — Enter the 6-digit code</div>
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:8}}>Step 2 â Enter the 6-digit code</div>
                 <div style={{display:'flex',gap:10,alignItems:'center'}}>
                   <input
                     type="text"
@@ -472,7 +472,7 @@ export default function Settings() {
                     disabled={mfaLoading || mfaCode.length !== 6}
                     style={{padding:'10px 20px',background:mfaCode.length===6?'#059669':'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
                   >
-                    {mfaLoading ? 'Verifying…' : 'Verify & Enable'}
+                    {mfaLoading ? 'Verifyingâ¦' : 'Verify & Enable'}
                   </button>
                   <button onClick={resetMfaFlow} style={{padding:'10px 14px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
                     Cancel
@@ -483,7 +483,7 @@ export default function Settings() {
 
             {mfaStep === 'success' && (
               <div style={{marginTop:14,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'20px'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#059669',marginBottom:8}}>✓ Two-factor authentication is now active</div>
+                <div style={{fontSize:14,fontWeight:700,color:'#059669',marginBottom:8}}>â Two-factor authentication is now active</div>
                 {mfaBackupCodes.length > 0 && (
                   <>
                     <div style={{fontSize:13,color:'#166534',marginBottom:12,lineHeight:1.5}}>
@@ -535,7 +535,7 @@ export default function Settings() {
                     disabled={mfaLoading || mfaCode.length !== 6}
                     style={{padding:'10px 20px',background:mfaCode.length===6?'#DC2626':'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
                   >
-                    {mfaLoading ? 'Disabling…' : 'Disable 2FA'}
+                    {mfaLoading ? 'Disablingâ¦' : 'Disable 2FA'}
                   </button>
                   <button onClick={resetMfaFlow} style={{padding:'10px 14px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>
                     Cancel
@@ -562,7 +562,7 @@ export default function Settings() {
             </select>
             {idleTimeout !== '0' && (
               <div style={{fontSize:12,color:'#059669',marginTop:8}}>
-                ✓ You will be signed out after {idleTimeout} minutes of inactivity.
+                â You will be signed out after {idleTimeout} minutes of inactivity.
               </div>
             )}
           </div>
@@ -586,7 +586,7 @@ export default function Settings() {
             <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>Login history</div>
             {loginHistory.length === 0 ? (
               <div style={{fontSize:13,color:SL,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'14px 16px'}}>
-                No login history recorded yet. History is captured from this point forward — up to 10 sessions.
+                No login history recorded yet. History is captured from this point forward â up to 10 sessions.
               </div>
             ) : (
               <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -617,14 +617,14 @@ export default function Settings() {
             <div>
               <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Download my data</div>
               <div style={{fontSize:13,color:SL,lineHeight:1.5}}>
-                Export a copy of all your TaxStat360 data stored on this device — tax records, session history, and account metadata — as a JSON file. You can request this at any time under CCPA and similar privacy laws.
+                Export a copy of all your TaxStat360 data stored on this device â tax records, session history, and account metadata â as a JSON file. You can request this at any time under CCPA and similar privacy laws.
               </div>
             </div>
             <button
               onClick={handleDataExport}
               style={{flexShrink:0,padding:'9px 18px',background:exportDone?'#059669':'#fff',color:exportDone?'#fff':N,border:`1px solid ${exportDone?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
             >
-              {exportDone ? '✓ Downloaded' : '⬇ Export data'}
+              {exportDone ? 'â Downloaded' : 'â¬ Export data'}
             </button>
           </div>
         </div>
@@ -697,7 +697,7 @@ export default function Settings() {
                     disabled={deleting || confirmText.trim().toUpperCase() !== 'DELETE'}
                     style={{padding:'9px 16px',background:(deleting||confirmText.trim().toUpperCase()!=='DELETE')?'#FCA5A5':'#DC2626',color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:(deleting||confirmText.trim().toUpperCase()!=='DELETE')?'default':'pointer'}}
                   >
-                    {deleting ? 'Deleting…' : 'Permanently delete'}
+                    {deleting ? 'Deletingâ¦' : 'Permanently delete'}
                   </button>
                 </div>
               </div>
