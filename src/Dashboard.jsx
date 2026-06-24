@@ -19,7 +19,7 @@
 //
 // CC-M01: Inline color constants replaced with imports from theme.js.
 // CC-M02: Local fmt() / pct() replaced with imports from utils/formatMoney.js.
-// F-M02:  ownPct() from utils/entityPredicates.js replaces (parseFloat(x) || 100)
+// F-M02:  ownPct() from utils/entityPredicates.js replaces (nf(x) || 100)
 //         pattern — fixes silent 0%-ownership-treated-as-100% bug.
 // UX-N02: Quarterly estimate in record card now includes safe harbor context.
 //
@@ -49,7 +49,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
-import { parseMoney } from './utils/parseMoney.js'
+import { parseMoney, nf } from './utils/parseMoney.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/signOut'
 import BrandLogo from './BrandLogo'
@@ -78,26 +78,26 @@ import { isPro } from './LockedFeature'
 // tightly coupled to the Dashboard's biz/f1040 shapes; the export is consumed only by tests.
 // eslint-disable-next-line react-refresh/only-export-components
 export function calcDashboard(biz, f1040) {
-  const rev    = parseFloat(biz.grossRevenue)      || 0
-  const cogs   = parseFloat(biz.cogs)              || 0
+  const rev    = nf(biz.grossRevenue)
+  const cogs   = nf(biz.cogs)
   const gross  = rev - cogs
-  const opExp  = parseFloat(biz.operatingExpenses) || 0
-  const sal    = parseFloat(biz.officerSalary)     || 0
-  const dep    = parseFloat(biz.depreciation)      || 0
-  const adv    = parseFloat(biz.advertising)       || 0
-  const other  = parseFloat(biz.otherDeductions)   || 0
+  const opExp  = nf(biz.operatingExpenses)
+  const sal    = nf(biz.officerSalary)
+  const dep    = nf(biz.depreciation)
+  const adv    = nf(biz.advertising)
+  const other  = nf(biz.otherDeductions)
   const totalExp = opExp
-  const _pnlNet  = parseFloat(biz.pnl?.netProfit)
+  const _pnlNet  = nf(biz.pnl?.netProfit)
   const netBiz   = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) : (gross - totalExp)
   const own      = ownPct(biz.ownershipPct) / 100
   const k1       = Math.round(netBiz * own)
 
   const fs       = f1040.filingStatus || 'single'
   const year     = parseInt(biz.year) || CURRENT_TAX_YEAR
-  const w2       = parseFloat(f1040.w2Income)          || 0
-  const otherInc = parseFloat(f1040.otherIncome)       || 0
-  const deps     = parseFloat(f1040.dependents)        || 0
-  const estPay   = parseFloat(f1040.estimatedPayments) || 0
+  const w2       = nf(f1040.w2Income)
+  const otherInc = nf(f1040.otherIncome)
+  const deps     = nf(f1040.dependents)
+  const estPay   = nf(f1040.estimatedPayments)
   // Normalize once to the engine-canonical form, then classify with regex predicates
   // that match either the UI-label or engine form. isPassthru means "send this entity
   // through calcTaxReturn" (every supported type except a C-Corp, which has its own
@@ -187,9 +187,9 @@ export function calcDashboard(biz, f1040) {
 function buildRecs(biz, calc) {
   const recs = []
   const { k1, recSal, isSC, isCCorp, quarterly, qbi, effRate, corpTax, dividends } = calc
-  const officerSal = parseFloat(biz.officerSalary) || 0
-  const grossRev   = parseFloat(biz.grossRevenue)  || 0
-  const dep        = parseFloat(biz.depreciation)  || 0
+  const officerSal = nf(biz.officerSalary)
+  const grossRev   = nf(biz.grossRevenue)
+  const dep        = nf(biz.depreciation)
 
   if (isCCorp && corpTax > 0)
     recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
@@ -203,7 +203,7 @@ function buildRecs(biz, calc) {
     recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
   if (dep === 0 && grossRev > 50000)
     recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under §179.' })
-  if (parseFloat(effRate) > 28)
+  if (nf(effRate) > 28)
     recs.push({ type: 'warning', title: `High Effective Tax Rate (${pct(effRate)})`, msg: 'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) for 2025.' })
   if (recs.length === 0)
     recs.push({ type: 'success', title: 'Your Tax Structure Looks Healthy', msg: 'No significant issues detected. Keep monitoring quarterly and update as financials change.' })
@@ -431,8 +431,8 @@ export default function Dashboard() {
           if (data && data.grossRevenue) {
             setBiz(p => ({
               ...p,
-              grossRevenue: String(Math.round(parseFloat(data.grossRevenue) || 0)),
-              otherDeductions: String(Math.round(parseFloat(data.otherDeductions) || 0)),
+              grossRevenue: String(Math.round(nf(data.grossRevenue))),
+              otherDeductions: String(Math.round(nf(data.otherDeductions))),
             }))
           }
           setXeroLoading(false)
@@ -444,7 +444,7 @@ export default function Dashboard() {
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasNumbers = parseFloat(biz.grossRevenue) > 0
+  const hasNumbers = nf(biz.grossRevenue) > 0
   const calc = hasNumbers ? calcDashboard(biz, f1040) : null
   const safeCalc = calc || {
     k1: 0, w2: 0, agi: 0, qbi: 0, seTax: 0, seDed: 0,
@@ -513,12 +513,12 @@ export default function Dashboard() {
       : rec.biz
         ? (() => {
             const b = rec.biz
-            const rev = parseFloat(b.grossRevenue) || 0
-            const opEx = parseFloat(b.operatingExpenses) || 0
-            const sal = parseFloat(b.officerSalary) || 0
-            const dep = parseFloat(b.depreciation) || 0
-            const adv = parseFloat(b.advertising) || 0
-            const oth = parseFloat(b.otherDeductions) || 0
+            const rev = nf(b.grossRevenue)
+            const opEx = nf(b.operatingExpenses)
+            const sal = nf(b.officerSalary)
+            const dep = nf(b.depreciation)
+            const adv = nf(b.advertising)
+            const oth = nf(b.otherDeductions)
             const netProfit = rev - opEx - sal - dep - adv - oth
             const ownPctVal = parseInt(b.ownershipPct || b.own) || 100
             return [{
@@ -527,7 +527,7 @@ export default function Dashboard() {
               own: ownPctVal,
               pnl: { grossRevenue: rev, totalExpenses: opEx, officerSalary: sal, netProfit },
               netProfit,
-              k1: parseFloat(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
+              k1: nf(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
               box17K: 0, box11_12: 0, box12_13: 0,
               box17V_wages: 0, box17V_ubia: 0, box17V_sstb: false,
             }]
@@ -765,7 +765,7 @@ export default function Dashboard() {
               const filingStatus   = (rec.f1040?.filingStatus || rec.filingStatus || '—').toUpperCase()
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
-              const totalTax       = parseFloat(rec.totalTax) || 0
+              const totalTax       = nf(rec.totalTax)
               // FINDING 8 FIX: a record saved after Step 2 ran carries step2Computed === true
               // even when totalTax is $0 (loss year, zero-income scenario).  Without this flag,
               // totalTax === 0 is ambiguous — the Dashboard was showing "Complete Step 2 for
@@ -778,8 +778,8 @@ export default function Dashboard() {
               // rec.totalTax is saved by TaxReturn.jsx buildRecord(). Effective rate is
               // totalTax ÷ approximate total income. We derive income from the saved
               // k1Income + f1040.w2Income since AGI is not directly persisted on the record.
-              const k1ForRate   = parseFloat(rec.k1Income) || 0
-              const w2ForRate   = parseFloat(rec.f1040?.w2Income) || parseFloat(rec.w2Income) || 0
+              const k1ForRate   = nf(rec.k1Income)
+              const w2ForRate   = nf(rec.f1040?.w2Income) || nf(rec.w2Income)
               const approxIncome = k1ForRate + w2ForRate
               // FINDING 8 FIX (continued): show 0.0% effective rate for a computed-$0
               // record rather than hiding it entirely; only omit when Step 2 hasn't run.
@@ -885,10 +885,10 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
                     <span style={{ fontSize: 12, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                    {displayRevenue && parseFloat(displayRevenue) > 0 && (
+                    {displayRevenue && nf(displayRevenue) > 0 && (
                       <span style={{ fontSize: 12, color: SL }}>Revenue: <strong style={{ color: N }}>{fmt(displayRevenue)}</strong></span>
                     )}
-                    {w2Income && parseFloat(w2Income) > 0 && (
+                    {w2Income && nf(w2Income) > 0 && (
                       <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>{fmt(w2Income)}</strong></span>
                     )}
                     {quarterly > 0 && (
@@ -901,8 +901,8 @@ export default function Dashboard() {
                       </span>
                     )}
                     {/* Delta vs previous record */}
-                    {i === 0 && records[1] && (parseFloat(records[1].totalTax) || 0) > 0 && totalTax > 0 && (() => {
-                      const prevTax = parseFloat(records[1].totalTax) || 0
+                    {i === 0 && records[1] && (nf(records[1].totalTax)) > 0 && totalTax > 0 && (() => {
+                      const prevTax = nf(records[1].totalTax)
                       const delta = totalTax - prevTax
                       if (Math.abs(delta) < 100) return null
                       return (

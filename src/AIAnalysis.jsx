@@ -13,7 +13,7 @@ import {
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords } from './utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct } from './utils/formatMoney.js'
@@ -310,7 +310,7 @@ function RiskScan({ rec }) {
   // C-26: persisted "mark reviewed" state for Risk Scan findings. Hooks must run before
   // the early return below, so they live at the very top. recordId is the stable saved-
   // record id written by Dashboard.loadRecord; unsaved sessions share one bucket.
-  const recordId = (typeof window !== 'undefined' && sessionStorage.getItem('ts360_active_record_id')) || 'unsaved-session'
+  const recordId = readActiveRecordId() || 'unsaved-session'
   const [dismissed, setDismissed] = useState(() => readRiskDismissals(recordId))
   const [showReviewed, setShowReviewed] = useState(false)
   if (!rec) return <NoData tab="risk" />
