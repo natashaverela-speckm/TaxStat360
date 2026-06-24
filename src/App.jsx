@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { readLoggedIn, readSessionStart, writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, writeConnectedApp } from './utils/sessionState.js'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
@@ -27,7 +28,7 @@ import Article from './Article'
 import { getArticle } from './articles.js'
 import { NAVY as N, SLATE as SL } from './theme.js'
 
-// âââ OAuth Callback Handler âââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ OAuth Callback Handler Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
 // Covers all four live integrations: QuickBooks, Xero, Wave, FreshBooks.
 const OAUTH_PROVIDERS = new Set(['quickbooks', 'xero', 'wave', 'freshbooks'])
@@ -57,15 +58,15 @@ function OAuthCallback() {
   )
 }
 
-// âââ Auth Keys ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Auth Keys Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // SEC-04: Session token migrated to httpOnly cookie (set by login Lambda).
-// localStorage no longer stores the raw token â only non-sensitive metadata.
+// localStorage no longer stores the raw token Ã¢ÂÂ only non-sensitive metadata.
 // ts360_logged_in is a lightweight hint; the real auth is the httpOnly cookie
 // which the browser sends automatically on every credentialed request.
 const AUTH_KEYS = [
   'ts360_logged_in','ts360_session_start',
   'ts360_email','plan','userName','ts360_connected_app',
-  // Legacy keys from pre-SEC-04 â included so they get wiped on sign-out
+  // Legacy keys from pre-SEC-04 Ã¢ÂÂ included so they get wiped on sign-out
   'token','ts360_session',
 ]
 
@@ -86,7 +87,7 @@ function isValidSession() {
   return true
 }
 
-// âââ Authenticated Footer âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Authenticated Footer Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function AuthFooter() {
   const year = new Date().getFullYear()
   const link = { color: '#64748B', textDecoration: 'none', fontWeight: 600 }
@@ -110,7 +111,7 @@ function AuthFooter() {
   )
 }
 
-// âââ Auth Guard âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Auth Guard Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function RequireAuth({ children }) {
   const sessionOk = isValidSession()
   const location = useLocation()
@@ -164,7 +165,7 @@ function RequireAuth({ children }) {
   }, [sessionOk])
 
   // F-FUNC-03: sliding session expiry. isValidSession() ages a session out once the
-  // fixed SESSION_MAX_AGE_MS window from ts360_session_start lapses â which, without
+  // fixed SESSION_MAX_AGE_MS window from ts360_session_start lapses Ã¢ÂÂ which, without
   // renewal, silently bounces an actively-working user to Sign In mid-session and
   // discards any not-yet-saved edits. Refresh the start timestamp on genuine activity
   // (throttled to at most once a minute) so a session that is still in use keeps
@@ -205,12 +206,12 @@ function RequireAuth({ children }) {
   )
 }
 
-// âââ 404 Not Found ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ 404 Not Found Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // F-01 FIX: Inlined (no external file dependency) to avoid import path failures.
 // Replaces the silent <Navigate to="/" replace /> wildcard that gave users no
 // indication their URL was invalid.
 function NotFound() {
-  // F-01b FIX: the 404's SEO hardening (noindex + distinct title + canonicalâhome)
+  // F-01b FIX: the 404's SEO hardening (noindex + distinct title + canonicalÃ¢ÂÂhome)
   // is handled centrally in RouteTitle, since that's what owns the document <head>.
   // Here, the two recovery actions are now real <a href> anchors (were nav()
   // buttons with no crawlable/usable href) so middle-click and open-in-new-tab
@@ -239,29 +240,29 @@ function NotFound() {
   )
 }
 
-// âââ Landing Section Scroll Helper âââââââââââââââââââââââââââââââââââââââââââ
-// Canonical site origin â single source for canonical links and OG image URLs.
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Landing Section Scroll Helper Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Canonical site origin Ã¢ÂÂ single source for canonical links and OG image URLs.
 const SITE_ORIGIN = 'https://www.taxstat360.com'
 const SECTION_META = {
   features: {
-    title: 'Features â TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
-    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, Â§199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
+    title: 'Features Ã¢ÂÂ TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
+    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, ÃÂ§199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
     canonical: SITE_ORIGIN + '/features',
-    ogTitle: 'TaxStat360 Features â Live Tax Calculator for Business Owners',
-    ogDescription: 'K-1 income, Â§199A QBI deduction, S-Corp SE-tax savings, quarterly estimates, and AI risk analysis â all in one place.',
+    ogTitle: 'TaxStat360 Features Ã¢ÂÂ Live Tax Calculator for Business Owners',
+    ogDescription: 'K-1 income, ÃÂ§199A QBI deduction, S-Corp SE-tax savings, quarterly estimates, and AI risk analysis Ã¢ÂÂ all in one place.',
   },
   pricing: {
-    title: 'Pricing â TaxStat360 | Plans Starting at $79/mo',
-    description: 'TaxStat360 plans start at $79/month with a 7-day free trial. Compare Starter, Professional, and Enterprise plans â no hidden fees, cancel anytime.',
+    title: 'Pricing Ã¢ÂÂ TaxStat360 | Plans Starting at $79/mo',
+    description: 'TaxStat360 plans start at $79/month with a 7-day free trial. Compare Starter, Professional, and Enterprise plans Ã¢ÂÂ no hidden fees, cancel anytime.',
     canonical: SITE_ORIGIN + '/pricing',
-    ogTitle: 'TaxStat360 Pricing â Plans from $79/mo, 7-Day Free Trial',
-    ogDescription: 'Start free for 7 days. Starter $79/mo Â· Professional $149/mo Â· Enterprise $299/mo.',
+    ogTitle: 'TaxStat360 Pricing Ã¢ÂÂ Plans from $79/mo, 7-Day Free Trial',
+    ogDescription: 'Start free for 7 days. Starter $79/mo ÃÂ· Professional $149/mo ÃÂ· Enterprise $299/mo.',
   },
   faq: {
-    title: 'FAQ â TaxStat360 | Questions About S-Corp, LLC & Real Estate Tax Planning',
+    title: 'FAQ Ã¢ÂÂ TaxStat360 | Questions About S-Corp, LLC & Real Estate Tax Planning',
     description: 'Answers to common questions about TaxStat360: tax year selection, accuracy of calculations, accounting software integrations, data security, multi-entity support, and how the 7-day free trial works.',
     canonical: SITE_ORIGIN + '/faq',
-    ogTitle: 'TaxStat360 FAQ â Your Tax Planning Questions Answered',
+    ogTitle: 'TaxStat360 FAQ Ã¢ÂÂ Your Tax Planning Questions Answered',
     ogDescription: 'Do I need a CPA? How accurate are the calculations? What software integrates? All your TaxStat360 questions answered.',
   },
 }
@@ -337,10 +338,10 @@ function LandingAtSection({ sectionId }) {
   return <Landing />
 }
 
-// âââ Route-level page titles ââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Route-level page titles Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 const ROUTE_TITLES = {
-  '/':                 'TaxStat360 â Year-Round Tax Liability Management for Business Owners',
-  '/about':            'About â Built by a Former IRS Revenue Agent | TaxStat360',
+  '/':                 'TaxStat360 Ã¢ÂÂ Year-Round Tax Liability Management for Business Owners',
+  '/about':            'About Ã¢ÂÂ Built by a Former IRS Revenue Agent | TaxStat360',
   '/how-it-works':     'How It Works | TaxStat360',
   '/contact':          'Contact | TaxStat360',
   '/login':            'Sign In | TaxStat360',
@@ -385,7 +386,7 @@ function setNoindex(shouldNoindex) {
 // #6 FIX: per-route canonical URL. Without this, every SPA route inherited the
 // static homepage canonical baked into index.html (href=".../"), which tells
 // search engines that /about, /privacy, /terms, and every /resources article are
-// duplicates of the homepage â and would drop them from the index (defeating the
+// duplicates of the homepage Ã¢ÂÂ and would drop them from the index (defeating the
 // whole point of the Resources SEO section). Each indexable route now canonicalizes
 // to its OWN trailing-slash-normalized URL, which also dedupes the /privacy vs
 // /privacy/ trailing-slash variants the audit flagged under #6.
@@ -397,15 +398,15 @@ function setCanonical(path) {
 
 // F-01b FIX: client-side route recognizer used to detect 404s. React Router
 // renders <NotFound> for unmatched paths, but the document <head>
-// (robots/title/canonical) is owned here in RouteTitle â which previously had no
+// (robots/title/canonical) is owned here in RouteTitle Ã¢ÂÂ which previously had no
 // notion of an "unknown route" and so left junk URLs as index,follow with a
 // self-referential canonical (audit HIGH: soft-404s indexable). This reuses the
 // existing route constants as the single source of truth, so it stays in sync as
 // routes are added:
-//   â¢ ROUTE_TITLES keys         â public + app static routes
-//   â¢ META_OWNED_ROUTES         â /features, /pricing, /faq
-//   â¢ NOINDEX_PREFIXES (prefix) â /onboarding/*, /integrations/*, and app areas
-//   â¢ /resources/:slug pattern  â article pages
+//   Ã¢ÂÂ¢ ROUTE_TITLES keys         Ã¢ÂÂ public + app static routes
+//   Ã¢ÂÂ¢ META_OWNED_ROUTES         Ã¢ÂÂ /features, /pricing, /faq
+//   Ã¢ÂÂ¢ NOINDEX_PREFIXES (prefix) Ã¢ÂÂ /onboarding/*, /integrations/*, and app areas
+//   Ã¢ÂÂ¢ /resources/:slug pattern  Ã¢ÂÂ article pages
 function isKnownRoute(path) {
   if (path === '/') return true
   if (ROUTE_TITLES[path] !== undefined) return true
@@ -420,7 +421,7 @@ function RouteTitle() {
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, '') || '/'
 
-    // F-01b FIX: unknown path â the catch-all <NotFound> is rendering. Mark it
+    // F-01b FIX: unknown path Ã¢ÂÂ the catch-all <NotFound> is rendering. Mark it
     // noindex,nofollow, give it a distinct title, and point the canonical at the
     // homepage so junk URLs can't be indexed as thin duplicates of real pages.
     // (Serving a real 404 HTTP status is a host/CDN concern, tracked separately.)
@@ -438,10 +439,10 @@ function RouteTitle() {
     if (META_OWNED_ROUTES.some(r => path.startsWith(r))) return
     setCanonical(path)
     if (path.startsWith('/onboarding'))   { document.title = 'Set Up Your Account | TaxStat360'; return }
-    // CC FIX: /resources/:slug â validate the slug against the article data. The
+    // CC FIX: /resources/:slug Ã¢ÂÂ validate the slug against the article data. The
     // /resources/<unknown> case renders <Article>'s "not found" view, which is a
     // soft-404 INSIDE the indexable /resources/ pattern (so the catch-all NotFound
-    // never matches it). Mark those noindex + canonicalâhome. Article.jsx only
+    // never matches it). Mark those noindex + canonicalÃ¢ÂÂhome. Article.jsx only
     // sets document.title (never robots), so this noindex is the one that sticks,
     // regardless of parent/child effect ordering. Valid slugs keep index,follow +
     // their own canonical (already set above); Article.jsx sets the exact title.
@@ -463,7 +464,7 @@ function RouteTitle() {
   return null
 }
 
-// âââ Cookie Consent Banner ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Cookie Consent Banner Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // ADD-02: GDPR (EU) and CCPA (California) require consent before setting
 // non-essential cookies. Banner appears once on first visit. Value stored in
 // localStorage as 'accepted' or 'declined'.
@@ -518,7 +519,7 @@ function CookieBanner() {
   )
 }
 
-// âââ App ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ App Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 export default function App() {
   return (
     <BrowserRouter>
@@ -533,7 +534,7 @@ export default function App() {
         <Route path="/faq"          element={<LandingAtSection sectionId="faq" />} />
         <Route path="/contact"      element={<LandingAtSection sectionId="contact" />} />
 
-        {/* UX-03: About page â single founder: an Enrolled Agent and former IRS Revenue Agent */}
+        {/* UX-03: About page Ã¢ÂÂ single founder: an Enrolled Agent and former IRS Revenue Agent */}
         <Route path="/about"        element={<About />} />
 
         <Route path="/signup"       element={<Onboarding screen="signup" />} />
@@ -543,12 +544,12 @@ export default function App() {
         <Route path="/login"        element={<Onboarding screen="login" />} />
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
 
-        {/* Onboarding â auth required */}
+        {/* Onboarding Ã¢ÂÂ auth required */}
         <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
         <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
         <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
 
-        {/* OAuth callback â QuickBooks, Xero, Wave, FreshBooks */}
+        {/* OAuth callback Ã¢ÂÂ QuickBooks, Xero, Wave, FreshBooks */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
         {/* Protected app routes */}
@@ -561,7 +562,7 @@ export default function App() {
         <Route path="/admin"         element={<RequireAuth><Admin /></RequireAuth>} />
         <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
 
-        {/* Password reset â public */}
+        {/* Password reset Ã¢ÂÂ public */}
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
@@ -571,7 +572,7 @@ export default function App() {
         <Route path="/privacy-policy"   element={<Navigate to="/privacy" replace />} />
         <Route path="/terms-of-service" element={<Navigate to="/terms"   replace />} />
 
-        {/* AF-02: Public resources / blog section â no auth required, fully indexable */}
+        {/* AF-02: Public resources / blog section Ã¢ÂÂ no auth required, fully indexable */}
         <Route path="/resources"       element={<ResourcesHub />} />
         <Route path="/resources/:slug" element={<Article />} />
 
