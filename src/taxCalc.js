@@ -206,10 +206,15 @@ const QBI_PHASE_IN_RANGE = _byYear(t => t.qbi.phaseIn)
 const QBI_MIN_DEDUCTION  = _byYearDefined(t => t.qbi.minDeduction)
 const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
+/** §63(c) Standard deduction by filing status. Inflation-adjusted annually — IRC §1(f)(3).
+ *  Values live in TAX_TABLES[year].std; includes OBBBA adjustments for 2026. */
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
+/** §1(h) LTCG/QD bracket thresholds by filing status. Inflation-adjusted — IRC §1(f)(3). */
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
+/** §1411(b) NIIT MAGI threshold by filing status. NOT inflation-adjusted (statutory). */
 function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
+/** §3101(b)(2) Additional Medicare Tax threshold by filing status. NOT inflation-adjusted. */
 function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
 function getMarginalRate(taxable, year, fs) {
   let rate = 0.10, prev = 0
@@ -254,12 +259,18 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   
   return Math.round(tax)
 }
+/** §1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI − threshold).
+ *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH — statutory, not inflation-adjusted.
+ *  No withholding mechanism; flows through Form 8960 and estimated payments. */
 function calcNIIT(nii, agi, year, fs) {
   const threshold = getNIITThreshold(year, fs)
   if (agi <= threshold || nii <= 0) return 0
   const excessAGI = agi - threshold
   return Math.round(Math.min(nii, excessAGI) * NIIT_RATE)
 }
+/** §55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
+ *  Exemption and phase-out are inflation-adjusted annually — see TAX_TABLES[year].amt.
+ *  §199A QBI deduction is NOT added back to AMTI per §199A(f)(2). */
 function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
   // NOTE: the §199A QBI deduction is intentionally NOT added back to AMTI — it is allowed
   // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
@@ -303,6 +314,10 @@ function _applyMinQBI(result, activeQbiForFloor, taxYear, taxableBeforeQBI = Inf
   if (result.deduction >= effectiveFloor) return { ...result, caps: { ...result.caps, min400: floor } }
   return { deduction: effectiveFloor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
 }
+/** §199A Qualified Business Income deduction. 20% of QBI, subject to W-2/UBIA wage limits
+ *  above the taxable-income threshold, an overall taxable-income cap, and SSTB phase-out.
+ *  §199A(i) OBBBA minimum deduction ($400 floor) applies for tax years beginning after 12/31/2025.
+ *  Treas. Reg. §1.199A-1 through §1.199A-6. Single call site: import via aiAnalysisTaxMath.js. */
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const result = _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts)
   const netCapGain = Math.max(0, capitalGains || 0)
