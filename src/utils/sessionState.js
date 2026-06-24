@@ -98,6 +98,12 @@ export function writeStep1State({ entities = [], entitiesRaw = null, k1Total = 0
   // CalculateTaxInner can restore on mount with the full pnl breakdown.
   if (entitiesRaw !== null) {
     sessionStorage.setItem('ts360_entities_raw', JSON.stringify(entitiesRaw))
+    // CC-F3 FIX: also sync ts360_step1_entities (CalculateTaxInner's working-copy key)
+    // so all three entity keys stay in sync when this function is called. Previously
+    // CalculateTaxInner wrote ts360_step1_entities directly in 8 places, bypassing
+    // this abstraction. Those writes still exist for in-component mutations; this write
+    // handles the load-from-server / navigate-between-steps path.
+    sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entitiesRaw))
   }
 }
 
