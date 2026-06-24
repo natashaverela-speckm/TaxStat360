@@ -33,7 +33,10 @@
 // Returns: { scenarios: [{ key, label, totalTax, lineItems[], notes[] }],
 //            best: 'soleProp' | 'sCorp' | 'cCorp', savings: number }
 
-import { calcTaxReturn, TAX_TABLES } from './taxCalc.js'
+// CC-F4 FIX: import getTable so SS wage base uses the year-specific value
+// instead of a hardcoded || 176100 literal (the 2025 base). This ensures
+// the entity comparison stays correct as TAX_TABLES adds future years.
+import { calcTaxReturn, TAX_TABLES, getTable } from './taxCalc.js'
 
 // Rate constants — single source of truth in src/constants.js.
 // Imported here so scenarioCompare doesn't duplicate what taxCalc.js already uses.
@@ -49,7 +52,7 @@ import {
 // employer + employee halves into the "Employment tax" line item, since the user
 // ultimately bears both as costs of the W-2 structure.
 function calcEmploymentTaxOnSalary(salary, taxYear) {
-  const ssWageBase = (TAX_TABLES[taxYear] || {}).ssWageBase || 176100
+  const ssWageBase = getTable(taxYear).ssWageBase  // CC-F4 FIX: use getTable() — no hardcoded fallback
   const ssBoth = Math.min(salary, ssWageBase) * FICA_SS_RATE * 2  // employee + employer SS
   const medBoth = salary * FICA_MEDICARE_RATE * 2                  // employee + employer Medicare
   return Math.round(ssBoth + medBoth)
@@ -160,7 +163,7 @@ function compareEntityScenarios(input) {
 
   // ── Scenario 2: S Corporation ────────────────────────────────────────────
   const sCorpEmployerFICA = Math.round(
-    Math.min(salary, (TAX_TABLES[taxYear] || {}).ssWageBase || 176100) * FICA_SS_RATE
+    Math.min(salary, getTable(taxYear).ssWageBase) * FICA_SS_RATE  // CC-F4 FIX: getTable() not literal
     + salary * FICA_MEDICARE_RATE
   )
   const sCorpK1 = Math.max(0, np - salary - sCorpEmployerFICA)
