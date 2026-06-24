@@ -7,7 +7,7 @@ import {
 } from './serverApi.js'
 
 // Typed reader/writer functions for all sessionStorage keys used across the
-// Step 1 â Step 2 navigation boundary in TaxStat360.
+// Step 1 Ã¢ÂÂ Step 2 navigation boundary in TaxStat360.
 //
 // Rules:
 //   - Every sessionStorage.setItem call in the app goes through a writer here.
@@ -16,60 +16,60 @@ import {
 //   - Never write different shapes for the same key from different call sites.
 //
 // Two related entity-list keys:
-//   ts360_entities     â flat k1Data shape: { name, type, own, netProfit, k1, box11_12, ... }
+//   ts360_entities     Ã¢ÂÂ flat k1Data shape: { name, type, own, netProfit, k1, box11_12, ... }
 //                        consumed by TaxReturn for tax-math (per-entity K-1 income)
-//   ts360_entities_raw â raw entity shape: { name, type, own, ein, formationDate, pnl: {...}, connectedId, isManual }
+//   ts360_entities_raw Ã¢ÂÂ raw entity shape: { name, type, own, ein, formationDate, pnl: {...}, connectedId, isManual }
 //                        consumed by CalculateTaxInner on mount for entity-management UI
 //
 // Both keys are written together by writeStep1State and Dashboard.loadRecord
 // so the two pages stay in sync. The split exists because the two consumers
-// genuinely need different shapes â flat for math, nested for editable UI.
+// genuinely need different shapes Ã¢ÂÂ flat for math, nested for editable UI.
 //
 // Writers:
-//   writeStep1State     â called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
-//   writePersonalContext â called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
-//   writeTaxYear        â called by Dashboard and TaxReturn
-//   writeIsCoopPatron   â called by CalculateTaxInner (checkbox sync)
-//   clearStep1State     â called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
-//   writeBusinessInfo   â F-10 FIX: called by Onboarding.jsx BusinessScreen after O7 patch
-//   readBusinessInfo    â F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
+//   writeStep1State     Ã¢ÂÂ called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
+//   writePersonalContext Ã¢ÂÂ called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
+//   writeTaxYear        Ã¢ÂÂ called by Dashboard and TaxReturn
+//   writeIsCoopPatron   Ã¢ÂÂ called by CalculateTaxInner (checkbox sync)
+//   clearStep1State     Ã¢ÂÂ called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
+//   writeBusinessInfo   Ã¢ÂÂ F-10 FIX: called by Onboarding.jsx BusinessScreen after O7 patch
+//   readBusinessInfo    Ã¢ÂÂ F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
 //
 // Readers:
-//   readStep1State      â called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
-//   readStep1StateRaw   â called by CalculateTaxInner (useState initializer for entities)
-//   readPersonalContext â called by TaxReturn on mount, AIAnalysis
-//   readTaxYear         â called by TaxReturn, EntityCompareModal
-//   readIsCoopPatron    â called by CalculateTaxInner (useState initializer)
-//   readBusinessInfo    â F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
+//   readStep1State      Ã¢ÂÂ called by TaxReturn (mount) and AIAnalysis (getRecord: co-op patron, entities, k1, fallback entities)
+//   readStep1StateRaw   Ã¢ÂÂ called by CalculateTaxInner (useState initializer for entities)
+//   readPersonalContext Ã¢ÂÂ called by TaxReturn on mount, AIAnalysis
+//   readTaxYear         Ã¢ÂÂ called by TaxReturn, EntityCompareModal
+//   readIsCoopPatron    Ã¢ÂÂ called by CalculateTaxInner (useState initializer)
+//   readBusinessInfo    Ã¢ÂÂ F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
 //
-// ââ AUDIT PASS 2 ADDITIONS ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ AUDIT PASS 2 ADDITIONS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // F22 ADDITION: ts360_dismissed_risks
 //   Risk Scan findings in AIAnalysis.jsx previously had no persistent dismiss
-//   state â every risk appeared unresolved on every visit. The RiskScan
+//   state Ã¢ÂÂ every risk appeared unresolved on every visit. The RiskScan
 //   component now supports per-record dismissal via a "Mark as reviewed" control.
 //   Dismissed item keys are stored as a JSON object keyed by record ID, so
 //   dismissals persist per record without cross-contaminating other records.
 //   writeRiskDismissal / readRiskDismissals / clearRiskDismissals are the
 //   canonical accessors. Storage uses localStorage (not sessionStorage) because
-//   dismissals should survive page reloads and new sessions â a "reviewed"
+//   dismissals should survive page reloads and new sessions Ã¢ÂÂ a "reviewed"
 //   quarterly deadline shouldn't reappear the next morning.
 //
 // O4 ADDITION: ts360_first_run
 //   Onboarding.jsx ImportScreen writes ts360_first_run = '1' to sessionStorage
 //   when a user skips Step 3 (accounting software connection) and navigates to
 //   the Tax Tracker. CalculateTaxInner reads this flag on mount to show a
-//   contextual first-run banner: "Your entity is set up â now add your revenue
+//   contextual first-run banner: "Your entity is set up Ã¢ÂÂ now add your revenue
 //   and expenses to see your tax estimate."
 //   readFirstRun / clearFirstRun are the canonical accessors. The flag is
 //   session-scoped (sessionStorage) because it should only fire once per login
-//   session â reloading the app should not re-show the banner.
+//   session Ã¢ÂÂ reloading the app should not re-show the banner.
 //
-// ââ AUDIT PASS 4 ADDITIONS ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ AUDIT PASS 4 ADDITIONS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // F-10 FIX: ts360_biz_name / ts360_biz_ein / ts360_biz_address
 //   AIAnalysis.jsx and CalculateTaxInner.jsx previously called
 //   sessionStorage.getItem('ts360_biz_name') and related keys directly,
 //   bypassing this abstraction layer. If a key is renamed, there is no single
-//   place to update it â a missed rename produces a silent undefined read,
+//   place to update it Ã¢ÂÂ a missed rename produces a silent undefined read,
 //   which becomes a $0 business-name field in the CPA export.
 //   writeBusinessInfo / readBusinessInfo are the canonical accessors.
 //   Replace ALL direct sessionStorage.getItem/setItem calls for ts360_biz_*
@@ -83,7 +83,7 @@ import { CURRENT_TAX_YEAR } from '../constants.js'
 // using substitute tables once the calendar rolls past the last supported year.
 const defaultTaxYear = () => Math.min(new Date().getFullYear(), CURRENT_TAX_YEAR)
 
-// âââ Step 1 state (entity list + totals) ââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Step 1 state (entity list + totals) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
 // Read by: TaxReturn, AIAnalysis
 
@@ -92,7 +92,7 @@ export function writeStep1State({ entities = [], entitiesRaw = null, k1Total = 0
   sessionStorage.setItem('ts360_k1', String(k1Total))
   sessionStorage.setItem('ts360_isCoopPatron', String(isCoopPatron))
   // entitiesRaw is optional. When null (the default), leave ts360_entities_raw
-  // untouched â preserves backward compatibility for callers that only know
+  // untouched Ã¢ÂÂ preserves backward compatibility for callers that only know
   // about the flat shape. When provided (Dashboard.loadRecord, eventually
   // CalculateTaxInner.proceed), write the raw entity-shape array so
   // CalculateTaxInner can restore on mount with the full pnl breakdown.
@@ -116,7 +116,7 @@ export function readStep1State() {
 }
 
 /**
- * Reader for ts360_entities_raw â the raw entity-shape array CalculateTaxInner
+ * Reader for ts360_entities_raw Ã¢ÂÂ the raw entity-shape array CalculateTaxInner
  * needs to restore its useState on mount. Returns an empty array if the key
  * is missing or malformed; callers should fall back to their default entity.
  */
@@ -136,7 +136,7 @@ export function readStep1StateRaw() {
  * a fresh calculation (Dashboard "+ New Calculation" buttons) so a previously-
  * loaded record's entity data doesn't bleed into the new session.
  *
- * Also clears ts360_f1040 and ts360_taxyear â those are Step 2 keys with
+ * Also clears ts360_f1040 and ts360_taxyear Ã¢ÂÂ those are Step 2 keys with
  * their own writers; clearing here keeps a fresh "+ New Calculation" from inheriting them.
  */
 export function clearStep1State() {
@@ -144,7 +144,7 @@ export function clearStep1State() {
   sessionStorage.removeItem('ts360_entities_raw')
   sessionStorage.removeItem('ts360_k1')
   sessionStorage.removeItem('ts360_isCoopPatron')
-  // AUDIT FIX (finding #5 â "+ New Calculation" did not reset): CalculateTaxInner
+  // AUDIT FIX (finding #5 Ã¢ÂÂ "+ New Calculation" did not reset): CalculateTaxInner
   // hydrates its entity list on mount from ts360_step1_entities (its own working-copy
   // key), NOT from ts360_entities_raw. Clearing the canonical keys above left this one
   // untouched, so a previously-entered entity bled into every fresh calculation.
@@ -158,24 +158,24 @@ export function clearStep1State() {
   clearPresetEntityType()
 }
 
-// âââ Personal 1040 context (filing status, year, income, deductions, payments) â
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Personal 1040 context (filing status, year, income, deductions, payments) Ã¢ÂÂ
 // Written by: Dashboard (loadRecord, tab-nav handler), TaxReturn (auto-save on navigate)
 // Read by: TaxReturn on mount, AIAnalysis
 //
 // Canonical field names (no legacy aliases):
-//   useItemized â true = itemizing deductions (NOT useStandardDed)
-//   itemizedAmt â itemized deduction total (NOT itemizedDed)
-//   estPaid     â estimated tax payments made (NOT estimatedPayments)
+//   useItemized Ã¢ÂÂ true = itemizing deductions (NOT useStandardDed)
+//   itemizedAmt Ã¢ÂÂ itemized deduction total (NOT itemizedDed)
+//   estPaid     Ã¢ÂÂ estimated tax payments made (NOT estimatedPayments)
 //
 // nolCarryforward is included here so values entered on TaxReturn persist across
 // sessions. Previously the field was read on mount but silently dropped from the
 // auto-save write. This is fixed as a consequence of the contract migration.
-// Seeding nolCarryforward from Dashboard (loadRecord) is deferred â Dashboard
+// Seeding nolCarryforward from Dashboard (loadRecord) is deferred Ã¢ÂÂ Dashboard
 // never captured this field from saved records.
 
 /**
  * Typed writer for ts360_f1040. All numeric fields must be numbers at the call
- * site â coerce with parseFloat/parseInt before passing. The contract is
+ * site Ã¢ÂÂ coerce with parseFloat/parseInt before passing. The contract is
  * "I accept numbers; callers coerce at the boundary."
  *
  * @param {{
@@ -224,8 +224,8 @@ export function writePersonalContext({
   form4797 = 0,
   manualK1s = [],
   isREP = false,
-  // Note: Â§469(c)(7)(B) REP hours (repHoursRE / repHoursTotal) are NOT stored here.
-  // They live per-rental-entity (entity.repHoursRE / entity.repHoursTotal) â the single
+  // Note: ÃÂ§469(c)(7)(B) REP hours (repHoursRE / repHoursTotal) are NOT stored here.
+  // They live per-rental-entity (entity.repHoursRE / entity.repHoursTotal) Ã¢ÂÂ the single
   // source of truth consumed by the engine via TaxReturn and the scenario comparison.
   // A legacy personal-context copy was removed to prevent a stale-read path.
   priorSuspendedLoss = 0, // F-01
@@ -329,8 +329,8 @@ export function readPersonalContext() {
     return defaults
   }
   // Explicit field extraction (NOT a spread merge). Spread would let unknown
-  // keys from older sessionStorage data â including legacy field names like
-  // useStandardDed, itemizedDed, estimatedPayments â sit alongside the
+  // keys from older sessionStorage data Ã¢ÂÂ including legacy field names like
+  // useStandardDed, itemizedDed, estimatedPayments Ã¢ÂÂ sit alongside the
   // canonical fields, masking missing-data bugs and making the contract
   // ambiguous. `??` preserves valid falsy values (false, 0, '') while
   // falling through to defaults only when the field is missing/undefined.
@@ -355,9 +355,9 @@ export function readPersonalContext() {
     form4797:          parsed.form4797          ?? defaults.form4797,
     manualK1s:         Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
     isREP:             parsed.isREP             ?? defaults.isREP,
-    // repHoursRE / repHoursTotal intentionally omitted â REP hours live per-rental-entity.
+    // repHoursRE / repHoursTotal intentionally omitted Ã¢ÂÂ REP hours live per-rental-entity.
     priorSuspendedLoss: parsed.priorSuspendedLoss ?? defaults.priorSuspendedLoss,
-    // Renamed-field migrations â read new name first, fall back to legacy
+    // Renamed-field migrations Ã¢ÂÂ read new name first, fall back to legacy
     // name to preserve choice from pre-migration sessionStorage data.
     useItemized:       parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
     itemizedAmt:       parsed.itemizedAmt  ?? parsed.itemizedDed       ?? defaults.itemizedAmt,
@@ -376,7 +376,7 @@ export function readPersonalContext() {
   }
 }
 
-// âââ Tax year (standalone, because Dashboard writes it separately) âââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Tax year (standalone, because Dashboard writes it separately) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 export function writeTaxYear(year) {
   sessionStorage.setItem('ts360_taxyear', String(parseInt(year) || defaultTaxYear()))
 }
@@ -385,7 +385,7 @@ export function readTaxYear() {
   return parseInt(sessionStorage.getItem('ts360_taxyear') || String(defaultTaxYear())) || defaultTaxYear()
 }
 
-// âââ Co-op patron flag ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Co-op patron flag Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // CalculateTaxInner manages isCoopPatron as local React state and writes it
 // to storage via useEffect on every change. Using writeStep1State there would
 // also rewrite entities and k1Total on every checkbox toggle, which is
@@ -399,10 +399,10 @@ export function readIsCoopPatron() {
   return sessionStorage.getItem('ts360_isCoopPatron') === 'true'
 }
 
-// âââ F-10 FIX: Business info (onboarding biz name / EIN / address) ââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ F-10 FIX: Business info (onboarding biz name / EIN / address) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Written by: Onboarding.jsx BusinessScreen (O7 patch) via sessionStorage.setItem.
 // Previously, AIAnalysis.jsx called sessionStorage.getItem('ts360_biz_name') etc.
-// directly â bypassing this abstraction. If any key is renamed, every direct call
+// directly Ã¢ÂÂ bypassing this abstraction. If any key is renamed, every direct call
 // site must be updated manually. A missed rename produces a silent undefined read,
 // which becomes an empty business-name field in the CPA export.
 //
@@ -410,11 +410,11 @@ export function readIsCoopPatron() {
 // ts360_biz_* keys with these helpers in AIAnalysis.jsx and any other consumers.
 //
 // Storage key inventory:
-//   ts360_biz_name    â business display name (e.g. "Acme S-Corp LLC")
-//   ts360_biz_ein     â Employer Identification Number (XX-XXXXXXX format)
-//   ts360_biz_address â business mailing address (single-line string)
+//   ts360_biz_name    Ã¢ÂÂ business display name (e.g. "Acme S-Corp LLC")
+//   ts360_biz_ein     Ã¢ÂÂ Employer Identification Number (XX-XXXXXXX format)
+//   ts360_biz_address Ã¢ÂÂ business mailing address (single-line string)
 //
-// Storage: sessionStorage â business info is session-scoped (tied to the
+// Storage: sessionStorage Ã¢ÂÂ business info is session-scoped (tied to the
 // onboarding flow). It persists until the tab is closed or clearStep1State is called.
 
 const BIZ_KEYS = {
@@ -453,14 +453,14 @@ export function readBusinessInfo() {
   }
 }
 
-// âââ F22: Risk Scan dismissals (per record) âââââââââââââââââââââââââââââââ
-// Storage: localStorage (not sessionStorage) â dismissals must survive
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ F22: Risk Scan dismissals (per record) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Storage: localStorage (not sessionStorage) Ã¢ÂÂ dismissals must survive
 // page reloads and new sessions. A "reviewed" quarterly deadline should
 // not reappear the next morning when the user opens a new tab.
 //
 // Data shape: { [recordId: string]: { [findingKey: string]: true } }
 // findingKey is a short stable identifier derived from the finding title
-// in RiskScan â e.g. 'no-officer-salary', 'next-deadline-june-15'.
+// in RiskScan Ã¢ÂÂ e.g. 'no-officer-salary', 'next-deadline-june-15'.
 // Using the title-slug (not array index) means the dismissed state
 // survives risk scan reorderings when new findings are added.
 //
@@ -491,7 +491,7 @@ export function writeRiskDismissal(recordId, findingKey) {
 /**
  * Read all dismissed finding keys for a given record.
  * @param {string} recordId - rec.id as a string
- * @returns {{ [findingKey: string]: true }} â empty object if none dismissed
+ * @returns {{ [findingKey: string]: true }} Ã¢ÂÂ empty object if none dismissed
  */
 export function readRiskDismissals(recordId) {
   if (!recordId) return {}
@@ -544,23 +544,23 @@ export function removeRiskDismissal(recordId, findingKey) {
   }
 }
 
-// âââ O4: First-run banner flag ââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ O4: First-run banner flag Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Written by: Onboarding.jsx ImportScreen goToDashboard() when user skips
 // Step 3 (accounting software connection) before entering revenue data.
 // Read by: CalculateTaxInner on mount to decide whether to show the
-// contextual first-run banner: "Your entity is set up â now add your
+// contextual first-run banner: "Your entity is set up Ã¢ÂÂ now add your
 // revenue and expenses to see your tax estimate."
 //
-// Storage: sessionStorage â the banner should show once per login session.
+// Storage: sessionStorage Ã¢ÂÂ the banner should show once per login session.
 // Reloading the browser or starting a new tab should not re-show it. The
-// Onboarding.jsx patch (O4 fix) writes this directly via sessionStorage â
+// Onboarding.jsx patch (O4 fix) writes this directly via sessionStorage Ã¢ÂÂ
 // the reader and clear functions here make CalculateTaxInner's usage
 // canonical and testable without raw sessionStorage.getItem calls scattered
 // across the component.
 
 /**
  * Returns true if the user just completed onboarding and skipped the
- * accounting software step â CalculateTaxInner should show the first-run
+ * accounting software step Ã¢ÂÂ CalculateTaxInner should show the first-run
  * banner guiding them to add revenue and expenses.
  */
 export function readFirstRun() {
@@ -575,7 +575,7 @@ export function clearFirstRun() {
   sessionStorage.removeItem('ts360_first_run')
 }
 
-// âââ writeFirstRun ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ writeFirstRun Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Writer to match the existing readFirstRun / clearFirstRun pair. Onboarding.jsx
 // previously wrote ts360_first_run directly via sessionStorage (audit R-05). Call
 // this instead so all three accessors are in the same place.
@@ -583,18 +583,18 @@ export function writeFirstRun() {
   sessionStorage.setItem('ts360_first_run', '1')
 }
 
-// âââ writeStep1Entities ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ writeStep1Entities Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // CalculateTaxInner.jsx previously wrote ts360_step1_entities directly via
 // sessionStorage.setItem in 8 places (audit R-05). This helper centralises
 // every in-component mutation of that key so renames and validation can be
 // applied in one place. It does NOT call writeStep1State (which writes the
-// full set of canonical entity keys) â this is a lighter, in-flight mutation
+// full set of canonical entity keys) Ã¢ÂÂ this is a lighter, in-flight mutation
 // for the working-copy key that CalculateTaxInner manages internally.
 export function writeStep1Entities(entities) {
   sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
 }
 
-// âââ 2FA nudge helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ 2FA nudge helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Dashboard.jsx previously read/wrote ts360_2fa_nudge_dismissed directly (audit
 // R-05). These two helpers centralise the key so a rename requires one edit.
 export function write2FANudge(dismissed) {
@@ -609,7 +609,7 @@ export function read2FANudge() {
   return sessionStorage.getItem('ts360_2fa_nudge_dismissed') === '1'
 }
 
-// âââ Go-to-form flag helpers âââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Go-to-form flag helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Dashboard.jsx used sessionStorage.getItem / removeItem on ts360_goto_form
 // directly (audit R-05). Used to signal that the user should be sent to the
 // Tax Tracker form immediately after login. Centralised here.
@@ -622,10 +622,10 @@ export function clearGotoForm() {
 }
 
 
-// âââ Coercion helper for saved-record data ââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Coercion helper for saved-record data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Saved records (from localStorage ts360_records_*) are produced by Dashboard's
 // UI forms which store every numeric field as a string. Passing those strings
-// directly to writePersonalContext violates the "I accept numbers" contract â
+// directly to writePersonalContext violates the "I accept numbers" contract Ã¢ÂÂ
 // downstream tax math may behave differently for '' vs 0.
 //
 // normalizeF1040(rec) takes a possibly-stringly-typed f1040 object and returns
@@ -635,7 +635,7 @@ export function clearGotoForm() {
 // Usage: writePersonalContext(normalizeF1040(rec.f1040 || {}))
 //
 // Field list mirrors writePersonalContext's accepted parameters. Adding a new
-// field to the contract means adding it here too â track them together.
+// field to the contract means adding it here too Ã¢ÂÂ track them together.
 export function normalizeF1040(rec = {}) {
   return {
     filingStatus:      rec.filingStatus || 'single',
@@ -675,7 +675,7 @@ export function normalizeF1040(rec = {}) {
   }
 }
 
-// âââ Saved records: per-user scoping + one-time legacy migration âââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Saved records: per-user scoping + one-time legacy migration Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Records are stored per user under ts360_records_<email>. Historically the app
 // ALSO wrote a shared global key (ts360_records) plus a ts360_records_default
 // bucket (for saves made before ts360_email was set), and the Dashboard /
@@ -714,7 +714,7 @@ function _parseRecArray(raw) {
 // 'ts360_records_' so it can't be misread as a records bucket or as an email by
 // Settings' email-recovery scan.
 function _migrateLegacyRecordsOnce(email) {
-  if (!email || email === 'default') return // not signed in â leave shared buckets untouched
+  if (!email || email === 'default') return // not signed in Ã¢ÂÂ leave shared buckets untouched
   const flag = 'ts360_migrated_records_v2_' + email
   if (localStorage.getItem(flag)) return
   const myKey = recordsKeyFor(email)
@@ -735,7 +735,7 @@ function _migrateLegacyRecordsOnce(email) {
 }
 
 /**
- * Read the current user's saved records â and ONLY theirs â newest first.
+ * Read the current user's saved records Ã¢ÂÂ and ONLY theirs Ã¢ÂÂ newest first.
  * Runs the one-time legacy migration on first call per user. Never reads another
  * account's ts360_records_<otheremail> bucket (that was the cross-account leak).
  */
@@ -826,18 +826,18 @@ export async function deleteUserRecord(recordId) {
   return readUserRecords()
 }
 
-// âââ F-FUNC-02: Active / loaded record pointer âââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ F-FUNC-02: Active / loaded record pointer Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // When a saved record is loaded into the Tax Tracker, Dashboard.loadRecord
 // records WHICH record is live so (a) the Dashboard "Active in Tax Tracker"
 // badge can mark it and (b) a subsequent "Save This Record" can UPSERT that
 // same record instead of forking a brand-new duplicate every save.
 //
-// Storage keys (session-scoped â the active record is per working session):
-//   ts360_active_record_id   â the loaded record's id, as a string
-//   ts360_active_record_name â its display name, so the save modal can prefill
+// Storage keys (session-scoped Ã¢ÂÂ the active record is per working session):
+//   ts360_active_record_id   Ã¢ÂÂ the loaded record's id, as a string
+//   ts360_active_record_name Ã¢ÂÂ its display name, so the save modal can prefill
 //
 // Previously these two keys were read/written via raw sessionStorage.getItem/
-// setItem in Dashboard only, and the save handlers never consulted them â which
+// setItem in Dashboard only, and the save handlers never consulted them Ã¢ÂÂ which
 // is exactly why every save minted a fresh id (forking duplicates) and the
 // "Active" badge stuck to the stale original. These canonical accessors give the
 // save paths (CalculateTaxInner, TaxReturn) and Dashboard one shared contract,
@@ -884,7 +884,7 @@ export function clearActiveRecord() {
   sessionStorage.removeItem(ACTIVE_RECORD_NAME_KEY)
 }
 
-// âââ F-FUNC-05: Dashboard entity-preset hand-off âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ F-FUNC-05: Dashboard entity-preset hand-off Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // The Dashboard "S-Corp Owner" / "Sole Proprietor" / etc. preset cards imply
 // "set me up with an entity of this type." Previously they just navigated to the
 // Tax Tracker with no entity, so the "Add an entity to continue" gate still
@@ -893,7 +893,7 @@ export function clearActiveRecord() {
 // addEntityOfType() path (the same path the in-app entity picker uses), then
 // clears the hint so a later plain "+ New Calculation" doesn't re-seed.
 //
-// Storage key: ts360_preset_entity_type (session-scoped â a one-shot hand-off).
+// Storage key: ts360_preset_entity_type (session-scoped Ã¢ÂÂ a one-shot hand-off).
 // The type string MUST be one the Tax Tracker's entity picker recognizes, e.g.
 // 'S Corporation' | 'Partnership / LLC' | 'Sole Proprietor / SMLLC' |
 // 'Real Estate (Schedule E)'.
@@ -914,3 +914,84 @@ export function readPresetEntityType() {
 export function clearPresetEntityType() {
   sessionStorage.removeItem(PRESET_ENTITY_TYPE_KEY)
 }
+
+
+// ── Auth & Session ────────────────────────────────────────────────────────────
+// These keys manage login state, session timing, and security preferences.
+// All raw localStorage access for these keys must go through these functions.
+
+export function readLoggedIn() { return localStorage.getItem('ts360_logged_in') }
+export function writeLoggedIn(val) { localStorage.setItem('ts360_logged_in', val) }
+export function removeLoggedIn() { localStorage.removeItem('ts360_logged_in') }
+
+export function readSessionStart() { return localStorage.getItem('ts360_session_start') }
+export function writeSessionStart(val) { localStorage.setItem('ts360_session_start', val) }
+export function removeSessionStart() { localStorage.removeItem('ts360_session_start') }
+
+export function readToken() { return localStorage.getItem('ts360_token') }
+export function writeToken(val) { localStorage.setItem('ts360_token', val) }
+
+export function readEmail() { return localStorage.getItem('ts360_email') }
+export function writeEmail(val) { localStorage.setItem('ts360_email', val) }
+
+export function readLoginHistory() { return localStorage.getItem('ts360_login_history') }
+export function writeLoginHistory(val) { localStorage.setItem('ts360_login_history', val) }
+
+export function readIdleTimeoutMins() { return localStorage.getItem('ts360_idle_timeout_mins') }
+export function writeIdleTimeoutMins(val) { localStorage.setItem('ts360_idle_timeout_mins', val) }
+
+export function readCookieConsent() { return localStorage.getItem('ts360_cookie_consent') }
+export function writeCookieConsent(val) { localStorage.setItem('ts360_cookie_consent', val) }
+
+// ── User Profile & Billing ─────────────────────────────────────────────────────
+// Plan, billing status, and account-level flags.
+
+export function readUserName() { return localStorage.getItem('ts360_userName') }
+export function writeUserName(val) { localStorage.setItem('ts360_userName', val) }
+
+export function readPlan() { return localStorage.getItem('ts360_plan') }
+export function writePlan(val) { localStorage.setItem('ts360_plan', val) }
+
+export function readBilling() { return localStorage.getItem('ts360_billing') }
+export function writeBilling(val) { localStorage.setItem('ts360_billing', val) }
+
+export function readSubscriptionIncomplete() { return localStorage.getItem('ts360_subscription_incomplete') }
+export function writeSubscriptionIncomplete(val) { localStorage.setItem('ts360_subscription_incomplete', val) }
+export function removeSubscriptionIncomplete() { localStorage.removeItem('ts360_subscription_incomplete') }
+
+export function readMfaEnabled() { return localStorage.getItem('ts360_mfa_enabled') }
+export function writeMfaEnabled(val) { localStorage.setItem('ts360_mfa_enabled', val) }
+
+// ── Email Verification ─────────────────────────────────────────────────────────
+// Keys used during the email verification and confirmation flow.
+
+export function readEmailVerified() { return localStorage.getItem('ts360_email_verified') }
+export function writeEmailVerified(val) { localStorage.setItem('ts360_email_verified', val) }
+export function removeEmailVerified() { localStorage.removeItem('ts360_email_verified') }
+
+export function readPendingEmail() { return localStorage.getItem('ts360_pendingEmail') }
+export function writePendingEmail(val) { localStorage.setItem('ts360_pendingEmail', val) }
+
+export function removeEmailConfirmedAck() { localStorage.removeItem('ts360_email_confirmed_ack') }
+
+// ── UI State ───────────────────────────────────────────────────────────────────
+// Persistent UI preferences that survive page refresh.
+
+export function readDisclaimerSeen() { return localStorage.getItem('ts360_disclaimer_seen') }
+export function writeDisclaimerSeen(val) { localStorage.setItem('ts360_disclaimer_seen', val) }
+
+// ── Integrations ───────────────────────────────────────────────────────────────
+// Accounting software connection state.
+
+export function readConnectedApp() { return localStorage.getItem('ts360_connected_app') }
+export function writeConnectedApp(val) { localStorage.setItem('ts360_connected_app', val) }
+export function removeConnectedApp() { localStorage.removeItem('ts360_connected_app') }
+
+export function readXeroRefresh() { return localStorage.getItem('ts360_xero_refresh') }
+export function writeXeroRefresh(val) { localStorage.setItem('ts360_xero_refresh', val) }
+
+// ── Onboarding ─────────────────────────────────────────────────────────────────
+// Transient keys used only during onboarding flow.
+
+export function readOnboardingEntityType() { return localStorage.getItem('ts360_entityType') }
+export function writeOnboardingEntityType(val) { localStorage.setItem('ts360_entityType', val) }
