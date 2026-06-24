@@ -1,92 +1,49 @@
 // src/constants.js
 // Single source of truth for PERMANENT constants across TaxStat360.
 //
-// Architecture rule:
-// This file → permanent rates, ratios, structural values, and law-defined thresholds
-//             that never change year-to-year (IRC rates, ERISA ages, FICA structure,
-//             and statutory dollar amounts that are explicitly NOT inflation-adjusted).
-// taxCalc.js → year-specific dollar figures (brackets, thresholds, limits, phase-outs)
-//             stored in the TAX_TABLES[year] object.
+// ── Architecture rule ──────────────────────────────────────────────────────────
+// This file  → permanent rates, ratios, structural values, and law-defined
+//              thresholds that never change year-to-year (IRC rates, ERISA ages,
+//              FICA structure, and statutory dollar amounts explicitly NOT
+//              inflation-adjusted).
+// taxCalc.js → year-specific dollar figures (brackets, thresholds, limits,
+//              phase-outs) stored in the TAX_TABLES[year] object.
 //
-// Import from here — never hard-code these values in individual component or utility files.
+// Import from here — never hard-code these values in component or utility files.
 // When a new tax year is released, only taxCalc.js TAX_TABLES needs updating.
+// Add the new year to SUPPORTED_TAX_YEARS below — that one edit advances the
+// dropdowns and the CURRENT_TAX_YEAR default simultaneously.
 //
-// ── Centralization audit (last updated with audit fix CC-M01/M02/M03) ────────
-// RESOLVED (constants-centralization-01): AIAnalysis.jsx previously defined a local
-//   SOLO_401K_DEFERRAL_LIMITS object { 2024: 23000, 2025: 23500, 2026: 24000 }.
-//   Migrated to TAX_TABLES[year].retirement.solo401kDeferral in taxCalc.js.
-//   AIAnalysis.jsx now reads getTable(year).retirement?.solo401kDeferral ?? 23500.
-//   The stale-2026-value risk is eliminated — update TAX_TABLES when IRS announces COLA.
+// ── ENTITY-TYPE REPRESENTATION (two vocabularies by design) ───────────────────
+// 1. UI / input layer (Vocabulary A) — what the user picks and what gets stored:
+//    'S Corporation' · 'Partnership / LLC' · 'Sole Proprietor / SMLLC' ·
+//    'Real Estate (Schedule E)'
+//    This is ENTITY_TYPES below (and PASSTHROUGH_ENTITY_TYPES = ENTITY_TYPES
+//    minus C-Corp). It is the canonical set at the boundary.
 //
-// RESOLVED (fix/constants-labels PR): Dashboard.jsx previously hardcoded SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-//   as a local const. Centralized here and Dashboard.jsx updated to import it in the same PR.
-//   constants-centralization-03 complete.
+// 2. Engine-internal canonical form (Vocabulary B) — what normalizeEntityType()
+//    emits and what the tax engine keys on:
+//    'S Corporation' · 'Partnership / MMLLC — Active' · 'Partnership / MMLLC —
+//    Passive' · 'Sole Proprietor / Single-Member LLC' · 'Real Estate (Schedule E)'
+//    The Active/Passive split exists ONLY in this layer because SE treatment
+//    depends on it (§1402(a)(13)) and cannot be expressed in the single UI label.
 //
-// RESOLVED (F-M02): The 0% ownership falsy evaluation pattern was previously documented as
-//   an "accepted trade-off." It has been fixed — see entityPredicates.js ownPct() helper.
-//   All call sites in taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, and Dashboard.jsx updated.
+//    normalizeEntityType() (utils/entityPredicates.js) is the one-way bridge A→B.
+//    The engine calls it on every entity before any type test. Use the regex
+//    predicates (isSCorpEntity, isCCorpEntity, isPassthroughEntity,
+//    isRealEstateEntity) — they match EITHER vocabulary.
+//    RULE: never test an entity type with exact-string .includes() against an
+//    array in the OTHER layer's vocabulary.
 //
-// RESOLVED (C-01): Plan identifier inconsistency — localStorage stored 'basic' while UI
-//   displayed 'Starter'. PLAN_IDS and PLAN_DISPLAY_NAMES added below. All plan-gate checks
-//   must use PLAN_IDS.STARTER (= 'basic') rather than inline string literals.
-//   LockedFeature.jsx isPro() / isEnterprise() must be updated to compare against
-//   PLAN_IDS.PROFESSIONAL and PLAN_IDS.ENTERPRISE respectively.
-//
-// ── Missing TAX_TABLES keys (needed for full centralization) ────────────────
-// taxCalc.js TAX_TABLES[year] now includes a `retirement` object with:
-//   sepIraMax       — §415(c) overall SEP-IRA limit
-//   solo401kDeferral — employee elective deferral limit
-//   solo401kMax     — §415(c) overall Solo 401(k) limit (excl. catch-up)
-//   catchUp401k     — standard catch-up age ≥ 50 (excl. 60–63)
-//   catchUp401kSuper — SECURE 2.0 enhanced catch-up ages 60–63
-//   iraLimit        — Traditional / Roth IRA limit
-//   catchUpIra      — IRA catch-up age ≥ 50 ($1,000; not inflation-adjusted)
-// constants-centralization-02 complete.
-//
-// ── AMT exemptions and phase-out ranges ─────────────────────────────────────
-// AMT_RATE_LOW and AMT_RATE_HIGH (permanent rates) are defined in this file.
-// AMT exemption dollar amounts and phase-out ranges are inflation-adjusted annually
-// and live in TAX_TABLES[year].amt in taxCalc.js — they are NOT defined here. (The
-// standalone AMT_TABLES export is a derived view of TAX_TABLES[year].amt.)
-// (e.g., 2024 exemptions: $85,700 single / $133,300 MFJ.)
-//
-// ── ENTITY-TYPE REPRESENTATION (corrected — Module 1) ───────────────────────
-// There are TWO representations of an entity type, by design, and they are NOT the
-// same strings. Earlier comments here claimed they had been "unified" to a single
-// canonical set. They were not, and that false claim hid a real bug. The accurate
-// picture:
-//
-//   1. UI / input layer (Vocabulary A) — what the user picks and what gets stored:
-//        'S Corporation' · 'Partnership / LLC' · 'Sole Proprietor / SMLLC' ·
-//        'Real Estate (Schedule E)'
-//      This is ENTITY_TYPES below (and PASSTHROUGH_ENTITY_TYPES = ENTITY_TYPES minus
-//      C-Corp). It is the canonical set at the boundary.
-//
-//   2. Engine-internal canonical form — what normalizeEntityType() emits and what the
-//      tax engine keys on:
-//        'S Corporation' · 'Partnership / MMLLC — Active' · 'Partnership / MMLLC —
-//        Passive' · 'Sole Proprietor / Single-Member LLC' · 'Real Estate (Schedule E)'
-//      The partnership Active/Passive split exists ONLY in this layer because SE
-//      treatment depends on it (§1402(a)(13)) and it cannot be expressed in the single
-//      UI 'Partnership / LLC' label. SE_SUBJECT_TYPES is in THIS form.
-//
-// normalizeEntityType() (utils/entityPredicates.js) is the single, documented bridge
-// from layer 1 to layer 2. The engine calls it on every entity before any type test,
-// so SE_SUBJECT_TYPES.includes(e.type) only ever sees layer-2 strings — that is why it
-// works despite using different strings than ENTITY_TYPES.
-//
-// RULE: never test an entity type with exact-string .includes() against an array in the
-// OTHER layer's vocabulary. Either normalize first and compare in layer-2 form, or use
-// the regex predicates in entityPredicates.js (isSCorpEntity / isCCorpEntity /
-// isPassthroughEntity / isRealEstateEntity), which match either layer. The Dashboard
-// previously violated this (normalized to layer 2, then membership-tested against the
-// layer-1 PASSTHROUGH_ENTITY_TYPES) and silently dropped SE tax for sole proprietors and
-// partnerships. Dashboard.jsx now normalizes once and gates on !isCCorpEntity().
+// ── Historical audit notes ─────────────────────────────────────────────────────
+// The RESOLVED() centralization notes that formerly appeared in this file header
+// were moved to CHANGELOG.md (audit finding 10.4). See CHANGELOG.md for the
+// full history of CC-01, CC-02, CC-03, F-M02, C-01, F-02, and related fixes.
 //
 // O6 FIX: Added PLAN_FEATURES map — one-line feature summary per plan tier.
-//   Consumed by Onboarding.jsx SignupScreen plan picker so users can choose their
-//   plan without leaving the signup page to consult the pricing table.
-//   Keep these strings short (under 60 chars) — they render at 11px in a constrained card.
+// Consumed by Onboarding.jsx SignupScreen plan picker so users can choose their
+// plan without leaving the signup page to consult the pricing table.
+// Keep these strings short (under 60 chars) — they render at 11px in a constrained card.
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 // Branded CloudFront URL — all components use this constant; do not hardcode the
@@ -98,7 +55,7 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 // ─── CURRENT TAX YEAR ────────────────────────────────────────────────────────
 // F-02 FIX: Single source of truth for the default tax year fallback.
 // Previously, three files each hard-coded || 2025 independently:
-//   taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, CalculateTaxInner.jsx, Dashboard.jsx
+// taxCalc.js, AIAnalysis.jsx, TaxReturn.jsx, CalculateTaxInner.jsx, Dashboard.jsx
 // Risk: when TAX_TABLES gains a 2027 entry, any un-updated || 2025 literal silently
 // uses the wrong year's brackets. Update this constant each December when the new
 // year's TAX_TABLES entry is added to taxCalc.js.
@@ -126,14 +83,14 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 // descriptions always match. Import these — never inline the feature name strings.
 //
 // Audit Risk: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan"
-//   → canonical: FEATURE_AUDIT_RISK_SCAN (used in tab label AND pricing copy)
+// → canonical: FEATURE_AUDIT_RISK_SCAN (used in tab label AND pricing copy)
 // What-If Simulator: pricing said "What-If Tax Scenario Simulator"; tab label said
-//   "Tax Optimization"; tab desc said "What-If Tax Simulator"
+// "Tax Optimization"; tab desc said "What-If Tax Simulator"
 //   → canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
 export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
 export const FEATURE_WHATIF_SIMULATOR  = 'What-If Tax Simulator'
 export const FEATURE_IRS_SCHEDULE_MAP  = 'IRS Schedule Map'
-export const FEATURE_REPORTS_AND_TOOLS = 'Reports & Tools'
+export const FEATURE_CPA_EXPORT_PACK   = 'CPA Export Pack'
 
 // ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) ─
 // Same rationale as STEP3_LABEL above: these P&L / summary labels were inline
@@ -217,8 +174,8 @@ export const PLAN_FEATURES = {
 // When advising on FICA savings, always reference ssWageBase:
 //   - Rate is 15.3% (combined) on wages up to ssWageBase
 //   - Rate is 2.9% (Medicare only) on wages above ssWageBase
-export const FICA_SS_RATE = 0.062         // per side; combined 12.4% on SS-subject wages
-export const FICA_MEDICARE_RATE = 0.0145  // per side; combined 2.9% uncapped
+export const FICA_SS_RATE = 0.062        // IRC §3101(a) / §3111(a) — 6.2% per side
+export const FICA_MEDICARE_RATE = 0.0145 // IRC §3101(b) / §3111(b) — 1.45% per side
 
 // ─── ADDITIONAL MEDICARE TAX — IRC §3101(b)(2) / §1401(b)(2) ─────────────────
 // 0.9% surcharge on wages and SE income above the threshold.
@@ -338,7 +295,7 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 // This constant drives a planning alert only; users should confirm with their CPA.
 //
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
-export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // IRS scrutiny heuristic; see above
+export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
 
 // ─── S-CORP DEFAULT OFFICER SALARY FRACTION — Rev. Rul. 74-44 / BLS p25 ─────
 // F-05 FIX: Previously defined locally in scenarioCompare.js as a file-local const.
@@ -508,7 +465,7 @@ export const ENTITY_TYPES = [
   'Real Estate (Schedule E)',
 ]
 
-// Pass-through entities, UI-label form (== ENTITY_TYPES; all four supported types are
+// All pass-through entity types (all supported types minus C-Corp,
 // pass-through, C-Corp excluded). This is a REFERENCE list in the layer-1 vocabulary.
 // Do NOT use it for runtime gating against a value that may already be normalized to the
 // engine form — that mismatch is exactly the bug Module 1 fixed in Dashboard.jsx. For
