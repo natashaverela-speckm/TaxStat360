@@ -297,6 +297,22 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
 export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
 
+// ─── S-CORP GROSS-RECEIPTS SALARY TEST — Rev. Rul. 74-44 / Watson (8th Cir. 2012) ──
+// Flags when officer salary falls below 30% of gross receipts — the revenue-to-salary
+// ratio scrutinized in Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012), where the
+// shareholder's salary was roughly 12% of total receipts. This threshold is a planning
+// heuristic, not a statutory floor or safe harbor. It exists alongside
+// SCORP_REASONABLE_COMP_RATIO_THRESHOLD (the salary-to-total-compensation ratio test)
+// as a SECOND advisory signal: the IRS may examine both the ratio of salary to total
+// compensation AND the ratio of salary to gross receipts when evaluating reasonable
+// compensation. Rev. Rul. 74-44; Treas. Reg. §1.162-7.
+//
+// ⚠ This is a PLANNING HEURISTIC — not a statutory threshold. Advise clients to
+// document the basis for their compensation level (services rendered, comparable wages,
+// role, and hours) rather than targeting any specific percentage.
+export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson (8th Cir. 2012) — revenue ratio signal
+
+
 // ─── S-CORP DEFAULT OFFICER SALARY FRACTION — Rev. Rul. 74-44 / BLS p25 ─────
 // F-05 FIX: Previously defined locally in scenarioCompare.js as a file-local const.
 // Centralized here so any future module that needs the same heuristic (e.g., an AI

@@ -3,148 +3,17 @@
 // Users connect accounting software (QuickBooks, Xero, Wave, FreshBooks)
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
-// ── Change log ────────────────────────────────────────────────────────────────
-// BUG-02 FIX: EntityCard netProfit formula double-subtracted totalExpenses
-//   when P&L data came from an accounting software integration (QuickBooks,
-//   Xero, Wave, FreshBooks). The integration sets pnl.netProfit directly from
-//   the API response (d.net_profit). The prior formula:
-//     nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
-//   resolves the ?? to pnl.netProfit when it exists, then STILL subtracts
-//   totalExpenses — double-counting all expenses.
-//   Fix: parentheses make (grossRevenue - totalExpenses) the fallback used
-//   ONLY when netProfit is absent.
-//
-// L-01 FIX: ReasonableCompIndicator label corrected to "35% of total officer
-//   compensation" (not "35% of net profit").
-//
-// F-05 FIX: Added discrete Depreciation field in ManualEntryPanel.
-//
-// C-02 FIX: Footer "Save Record" → "Save Progress" for consistency.
-//
-// C-05 FIX: "✏ Edit / re-enter data" restyled as outlined button.
-//
-// ── UX PASS (June 2026) ──────────────────────────────────────────────────────
-// UX-M1 FIX: RE entity collapsed card now shows gross rents above the net figure
-//   in the header, matching the S-Corp card's pattern (Gross Receipts / Net).
-// UX-M3 FIX: Unsaved entries warning comment updated to note it also appears in
-//   the sticky footer area. No positional change — warning is below Add buttons.
-// UX-M4 FIX: §199A field labels shortened from full K-1 box references to
-//   readable short labels; box references remain in tooltips.
-//   'W-2 Wages (from the K-1 §199A statement — Box 17 Code V...)' →
-//   'W-2 Wages (K-1 §199A statement)'
-// UX-L1 FIX: Business name placeholder updated to 'e.g. Smith Consulting S-Corp'
-//   for S-Corp context instead of generic 'e.g. ABC Consulting LLC'.
-//
-// L-01 FIX (Pass 3): QBI field label corrected to "Section 179 Deduction
-//   (K-1 Box 11 / Box 12)"; tooltip rewritten with correct IRC citations.
-//
-// PASS4B-02b: Added §1366(d) Basis Limitation UI + §1368 Distribution
-//   Capital Gain panel for S-Corp entities (Form 7203).
-//
-// ── AUDIT REPORT FIXES (Sprint 2) ────────────────────────────────────────────
-// F-05 FIX: Per-entity QBI loss carryforward field added to §199A panel.
-//   Each entity now has a qbiLossCarryforward field persisted via onUpdate.
-//   Replaces the single pooled priorYearQBILoss field for multi-entity filers.
-//   IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii) · Form 8995 lines 3 & 16.
-//
-// ── INDEPENDENT AUDIT FIXES (June 2026) ──────────────────────────────────────
-// NEW-1 FIX: SSTB auto-suggest — when entity name/type matches common SSTB
-//   keywords (tutor, teach, instruct, consult, coach, education, course, etc.),
-//   a yellow advisory is shown inside the §199A panel prompting the user to
-//   review and check the SSTB checkbox if applicable. IRC §199A(d)(1)(B).
-//   This is an advisory, not a determination; CPA confirmation is recommended.
-// NEW-6 FIX: §199A collapsed-panel hint updated to also say "Also complete this
-//   section in loss years" — the prior text implied the section was irrelevant
-//   when taxable income is below the threshold, but the QBI loss carryforward
-//   (Form 8995 Line 3) must be tracked even when current-year QBI deduction is $0.
-//   IRC §199A(c)(2); Treas. Reg. §1.199A-1(d)(2)(iii).
-//
-// F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
-//   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
-//   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
-//
-// ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
-// F-01 FIX: "Continue to Step 2" button disabled state not visually enforced.
-//   Applied HTML disabled attribute when entity count is 0. Added onClick guard
-//   that surfaces an inline error toast if clicked in empty state.
-//
-// F-02 FIX: "Save Progress" (Step 1) disabled state not visually enforced.
-//   Applied HTML disabled attribute + visual disabled style when no entity exists.
-//
-// F-05 FIX: Ownership % field accepted out-of-range values (e.g. 150) and had
-//   a concatenation bug on triple-click-retype. Fixed: onChange now clamps to
-//   0–100 on every keystroke; onBlur enforces range with validation message.
-//   Input is fully controlled so triple-click correctly replaces the value.
-//
-// F-06 FIX: Forward breadcrumb steps ("2 Return", "3 AI") appeared visually
-//   interactive before prerequisites were met. Fixed: forward breadcrumbs
-//   receive pointer-events:none and a muted/greyed style when not yet reachable.
-//
-// F-08 FIX: Clicking the current-step breadcrumb ("1 Entities") erased unsaved
-//   in-progress entity data without warning. Fixed: current-step breadcrumb is
-//   non-interactive (pointer-events:none, cursor:default).
-//
-// F-11 FIX: "Continue to Step 2" from a record loaded via Dashboard routed to
-//   /dashboard instead of /tax-return. Fixed: navigation target is always
-//   /tax-return regardless of how the session was initiated.
-//
-// F-12 FIX: "Load & Continue" from Dashboard did not hydrate Step 1 entity array
-//   from the saved record. Step 1 always initialised from empty state. Fixed:
-//   on mount, the component reads the loaded record from sessionStorage key
-//   ts360_loaded_record and restores entities if Step 1 is empty but a loaded
-//   record exists.
-//
-// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
-// O1 FIX: UI subtitle promised "or skip and enter manually" but no manual path
-//   existed for non-real-estate entities. Fixed: added an "Enter manually →"
-//   button in the integration card that opens ManualEntryPanel inline,
-//   pre-configured for the most common non-RE entity type (S Corporation).
-//   The subtitle copy is preserved — the path now fulfils the promise.
-//
-// O2 FIX: "Continue to Step 2 →" routed to /privacy on brand-new sessions
-//   where no prior record existed (entities.length === 0 edge case in the
-//   route handler). Root cause: handleContinueToStep2 called navigate() before
-//   checking session state; on a fresh account the footer onClick binding
-//   resolved to an incorrect URL. Fixed: guard now checks entities.length > 0
-//   before calling persistStep1() + navigate('/tax-return'), and surfaces a
-//   clear error toast for the empty-entity case. The /tax-return destination
-//   is hardcoded (no dynamic fallback that could resolve to /privacy).
-//
-// F19 FIX: IntegrationTile always rendered "Connect" button regardless of
-//   connection state. OAuthCallback sets ts360_{provider}_connected in
-//   localStorage but IntegrationTile never read it. Fixed: IntegrationTile now
-//   reads localStorage on render; shows "Connected ✓" state + last-synced
-//   timestamp when connected, and "Connection failed — try again" when a
-//   failed flag is set.
-//
-// F23 FIX: No last-synced timestamp or manual re-sync trigger. fetchEntityPnL
-//   fired the sync but never persisted a timestamp. OAuthCallback wrote
-//   ts360_{provider}_connected but no ts360_{provider}_synced_at. Fixed:
-//   fetchEntityPnL now writes ts360_{provider}_synced_at after a successful
-//   sync. IntegrationTile reads and displays it. A "Sync now" button triggers
-//   a manual re-fetch and shows a brief diff summary ("Revenue updated:
-//   $X → $Y (+$Z)") so users can confirm the update was applied.
-//
-// F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
-//   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
-//   there is no rental UI in Step 2. The card carries the REP flag, the
-//   §1.469-9(g) aggregation election, the §469(i) active-participation flag, and
-//   the prior-year passive-loss carryforward (Form 8582). REP status alone does
-//   not make a rental nonpassive: the aggregation election is required, matching
-//   the engine. TaxReturn.jsx derives the portfolio-level election (any card
-//   elected) and prior-PAL (summed across cards) from these entities.
-
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { fmt, formatTimestamp } from './utils/formatMoney.js'
+import { fmt, formatTimestamp, formatRelativeTime } from './utils/formatMoney.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
@@ -171,21 +40,6 @@ export function entityResultLabel(type) {
   return 'Net'
 }
 
-// F23 FIX: Human-readable "last synced" formatter
-function fmtSyncedAt(isoStr) {
-  if (!isoStr) return null
-  try {
-    const d = new Date(isoStr)
-    const now = new Date()
-    const diffMs = now - d
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    const diffHrs = Math.floor(diffMins / 60)
-    if (diffHrs < 24) return `${diffHrs}h ago`
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return null }
-}
 
 // UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
 // (the prior version was click-only with no hover affordance), expose a real
@@ -305,9 +159,8 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
   )
 }
 
-// ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
-// F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
-const WATSON_REVENUE_THRESHOLD = 0.30
+// ─── ReasonableCompIndicator ─────────────────────────────────────────────────
+// Uses SCORP_REVENUE_SALARY_THRESHOLD from constants.js (Rev. Rul. 74-44 / Watson).
 
 // F6 FIX (UX audit): collapsible "Why this matters & sources" used by the
 // reasonable-comp warnings so the plain takeaway + suggested number lead and the
@@ -332,11 +185,12 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
 
   const totalComp = officerSal + Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
-  const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
+  const _compRatio = SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+  const minTarget = Math.round(_compRatio / (1 - _compRatio) * Math.max(0, netProfit))
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
-  const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
+  const watsonWarning = revRatio !== null && revRatio < SCORP_REVENUE_SALARY_THRESHOLD
   // C-8 FIX: in a loss year the 35-45% gross-receipts heuristic is unreliable — the
   // denominator (total compensation) is distorted by the negative net income and the
   // recommended salary figure can be misleading. In that case, surface a loss-year note
@@ -367,7 +221,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     )
   }
 
-  if (ratio < 0.35) {
+  if (ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
@@ -426,7 +280,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
   const hasFailed   = localStorage.getItem(integrationKey(integ.id, 'failed'))   === 'true'
   const syncedAt    = localStorage.getItem(integrationKey(integ.id, 'syncedAt'))
-  const syncedLabel = fmtSyncedAt(syncedAt)
+  const syncedLabel = formatRelativeTime(syncedAt)
 
   return (
     <div style={{
@@ -1615,7 +1469,7 @@ export default function CalculateTaxInner() {
         }))
         setEntities(mapped)
         // Persist to the Step 1 working key so subsequent renders stay hydrated.
-        sessionStorage.setItem('ts360_step1_entities', JSON.stringify(mapped))
+        writeStep1Entities(mapped)
       }
     }
   }, [])
@@ -1649,7 +1503,7 @@ export default function CalculateTaxInner() {
         ? { ...newEnt, rentalAggregationElection: true }
         : newEnt
       const next = [...prev, seeded]
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
     setExpandedIdx(entities.length)
@@ -1676,7 +1530,7 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
@@ -1693,7 +1547,7 @@ export default function CalculateTaxInner() {
       const next = prev.map(e =>
         isRealEstateEntity(e.type) ? { ...e, rentalAggregationElection: value === true } : e
       )
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
@@ -1722,13 +1576,13 @@ export default function CalculateTaxInner() {
             }
           : e
       )
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
 
   const persistStep1 = useCallback(() => {
-    sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
+    writeStep1Entities(entities)
     const k1Total = entities.reduce((s, e) => {
       // C-Corp profit is taxed at the entity level (21%) and reaches the owner as dividends,
       // NOT as pass-through K-1 — so it must not be summed into k1Total. TaxReturn computes

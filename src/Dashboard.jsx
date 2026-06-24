@@ -48,7 +48,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
-import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType } from './utils/sessionState.js'
+import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { parseMoney } from './utils/parseMoney.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/signOut'
@@ -344,9 +344,9 @@ export default function Dashboard() {
 
   const [show2FANudge, setShow2FANudge] = useState(() =>
     localStorage.getItem('ts360_mfa_enabled') !== '1' &&
-    !sessionStorage.getItem('ts360_2fa_nudge_dismissed')
+    !read2FANudge()
   )
-  const dismiss2FANudge = () => { sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1'); setShow2FANudge(false) }
+  const dismiss2FANudge = () => { write2FANudge(true); setShow2FANudge(false) }
 
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
   const completeOnboarding = () => { localStorage.setItem(ONBOARDING_KEY, '1'); setShowOnboarding(false) }
@@ -413,8 +413,8 @@ export default function Dashboard() {
       }
     })
 
-    if (sessionStorage.getItem('ts360_goto_form') === '1') {
-      sessionStorage.removeItem('ts360_goto_form')
+    if (readGotoForm()) {
+      clearGotoForm()
       nav('/calculate-tax')
     }
 
@@ -545,7 +545,6 @@ export default function Dashboard() {
     // C-04 FIX: clear CalculateTaxInner's Step-1 working copy so this freshly loaded record
     // is what Step 1 hydrates from (via readStep1StateRaw on mount). Without this, a stale
     // working copy from a previously loaded/edited record would shadow the new selection.
-    sessionStorage.removeItem('ts360_step1_entities')
     // F-FUNC-01: hydrate the FULL saved f1040 through the canonical normalizeF1040
     // helper rather than a hand-rolled partial restore. The previous partial path
     // silently dropped investment-income fields (capitalGains / interest / dividends /
