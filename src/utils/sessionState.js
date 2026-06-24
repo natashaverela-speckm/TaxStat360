@@ -575,6 +575,53 @@ export function clearFirstRun() {
   sessionStorage.removeItem('ts360_first_run')
 }
 
+// ─── writeFirstRun ────────────────────────────────────────────────────────────
+// Writer to match the existing readFirstRun / clearFirstRun pair. Onboarding.jsx
+// previously wrote ts360_first_run directly via sessionStorage (audit R-05). Call
+// this instead so all three accessors are in the same place.
+export function writeFirstRun() {
+  sessionStorage.setItem('ts360_first_run', '1')
+}
+
+// ─── writeStep1Entities ──────────────────────────────────────────────────────
+// CalculateTaxInner.jsx previously wrote ts360_step1_entities directly via
+// sessionStorage.setItem in 8 places (audit R-05). This helper centralises
+// every in-component mutation of that key so renames and validation can be
+// applied in one place. It does NOT call writeStep1State (which writes the
+// full set of canonical entity keys) — this is a lighter, in-flight mutation
+// for the working-copy key that CalculateTaxInner manages internally.
+export function writeStep1Entities(entities) {
+  sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
+}
+
+// ─── 2FA nudge helpers ────────────────────────────────────────────────────────
+// Dashboard.jsx previously read/wrote ts360_2fa_nudge_dismissed directly (audit
+// R-05). These two helpers centralise the key so a rename requires one edit.
+export function write2FANudge(dismissed) {
+  if (dismissed) {
+    sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1')
+  } else {
+    sessionStorage.removeItem('ts360_2fa_nudge_dismissed')
+  }
+}
+
+export function read2FANudge() {
+  return sessionStorage.getItem('ts360_2fa_nudge_dismissed') === '1'
+}
+
+// ─── Go-to-form flag helpers ─────────────────────────────────────────────────
+// Dashboard.jsx used sessionStorage.getItem / removeItem on ts360_goto_form
+// directly (audit R-05). Used to signal that the user should be sent to the
+// Tax Tracker form immediately after login. Centralised here.
+export function readGotoForm() {
+  return sessionStorage.getItem('ts360_goto_form') === '1'
+}
+
+export function clearGotoForm() {
+  sessionStorage.removeItem('ts360_goto_form')
+}
+
+
 // ─── Coercion helper for saved-record data ────────────────────────────────
 // Saved records (from localStorage ts360_records_*) are produced by Dashboard's
 // UI forms which store every numeric field as a string. Passing those strings
