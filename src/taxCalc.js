@@ -512,6 +512,22 @@ function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = 
     seEarnings * (FICA_MEDICARE_RATE * 2)
   )
 }
+// ── ENG-1 DOC: calcTaxReturn k1Total / entity.k1 dual-requirement ───────────────
+// calcTaxReturn derives K-1 income from TWO sources that MUST both be set:
+//
+//   1. entities[] array — each entity's `e.k1` field (or computed from e.pnl)
+//      drives: §1366(d) basis limits, §469 rental routing, QBI entityQbiData,
+//              SE tax identification, C-Corp exclusion.
+//
+//   2. k1Total (top-level number) — drives: AGI calculation, QBI basis (via
+//      k1FallbackForQBI when entities.length === 0), §461(l) EBL threshold,
+//      scheduleEK1Income allocation.
+//
+// CRITICAL: Setting entity.k1 alone does NOT update AGI. Setting k1Total alone
+// does NOT trigger basis limits or REP gating. BOTH must be set for a complete
+// calculation. TaxReturn.jsx passes both via entitiesForCalc + sessionK1.
+// External callers (tests, scenarioCompare) must also set both.
+// ─────────────────────────────────────────────────────────────────────────────────
 function calcTaxReturn(input) {
   input = _annualizeIfYTD(input)
   const {

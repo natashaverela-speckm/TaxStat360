@@ -28,6 +28,11 @@
 // F17 FIX: YTD Mode shows period + projected full-year income.
 // F18 FIX: Safe Harbor pass/fail status indicator.
 //
+// ── GAP FIXES (June 2026) ───────────────────────────────────────────────────────
+// SAVE-2 FIX: priorSuspendedLoss (§1366(d) carryforward) now persisted to the
+//   saved record's f1040 block. Previously only written to sessionStorage, so users
+//   who cleared session or loaded on a new device lost their entered value.
+//
 // ── UX PASS (June 2026) ───────────────────────────────────────────────────────
 // UX-H1 FIX: Ask Aria floating button overlapped the right waterfall panel.
 //   Added paddingBottom to the waterfall container so the bottom rows (Balance Due,
@@ -605,6 +610,11 @@ export default function TaxReturn() {
         nolCarryforward, priorYearLosses: priorYearQBILoss,
         useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
         priorYearTax, priorYearAGI,
+        // SAVE-2 FIX: persist §1366(d) prior-year suspended loss so it round-trips
+        // through saved records. Previously only written to sessionStorage (ts360_f1040)
+        // and lost on reload from server. savedCtx.priorSuspendedLoss initializes the
+        // state, so this just ensures that state reaches the persisted record.
+        priorSuspendedLoss: priorSuspendedLoss || 0,
       },
       totalSuspendedLoss: result?.totalSuspendedLoss || 0,
       entityBasisResults: result?.entityBasisResults || [],

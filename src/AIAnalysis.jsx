@@ -1638,7 +1638,11 @@ function SimulatorModal({ onClose, rec }) {
   }
   const baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
   const scenario = computeSimulatorScenario({ ...scenarioContext, delta })
-  const taxSaving = baseline.fedTax - scenario.fedTax
+  // CALC-1 FIX: prefer totalTax (full engine: SE + NIIT + AMT + income tax) when
+  // available; fall back to fedTax for backward compat with old scenario objects.
+  const _baselineTax  = baseline.totalTax  ?? baseline.fedTax
+  const _scenarioTax  = scenario.totalTax  ?? scenario.fedTax
+  const taxSaving = _baselineTax - _scenarioTax
 
   // F15 FIX: chg() now uses shared fmt() — no local simFmt
   const chg = (baseVal, scenVal) => {
@@ -1767,7 +1771,7 @@ function SimulatorModal({ onClose, rec }) {
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
-                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.fedTax))}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>{taxSaving>0?'YOU SAVE':'ADDITIONAL TAX'}</div>
@@ -1782,12 +1786,12 @@ function SimulatorModal({ onClose, rec }) {
             {/* F15 FIX: reconciliation line — scenario vs Step 2 full estimate */}
             {step2Estimate > 0 && (
               <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 16px',marginBottom:8,fontSize:12,color:SL,display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-                <span>Scenario income tax: <strong style={{color:N}}>{fmt(Math.round(scenario.fedTax))}</strong></span>
+                <span>Scenario total tax: <strong style={{color:N}}>{fmt(Math.round(scenario.fedTax))}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>Difference: <strong style={{color: scenario.fedTax < step2Estimate ? '#059669' : '#DC2626'}}>{scenario.fedTax < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round(scenario.fedTax - step2Estimate)))}</strong></span>
-                <span style={{fontSize:10,color:'#64748B'}}>(simulator is income tax only; Step 2 includes SE, NIIT, AMT)</span>
+                <span style={{fontSize:10,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
               </div>
             )}
           </>
