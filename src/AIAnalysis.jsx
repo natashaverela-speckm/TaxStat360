@@ -1381,10 +1381,12 @@ function BriefingModal({ onClose, rec }) {
   const taxable = Math.max(0, taxableBeforeQBI - qbi)
   const fedTax = calcFederalTax(taxable, year, filing)
   const marginalRate = getMarginalRate(taxable, year, filing)
-  const seSubject = isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')
-  const ssWageBase = getTable(year).ssWageBase
-  const seBase = seSubject ? Math.max(0, k1) * SE_NET_EARNINGS_FACTOR : 0
-  const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * (FICA_SS_RATE * 2) + seBase * (FICA_MEDICARE_RATE * 2)) : 0
+  // CC-F1 FIX: read SE tax from the persisted engine output instead of recomputing
+  // it independently. The engine computes SE tax on seNetIncome (aggregate across all
+  // entities, after §164(f) adjustments) while the prior inline calc used raw k1Income,
+  // causing divergence on multi-entity returns. rec.seTax is written by TaxReturn.jsx
+  // buildRecord() when Step 2 is saved; fall back to 0 for old records that predate this.
+  const seTax = num(rec.seTax) || 0
   const totalFedTax = fedTax + seTax
   const effectiveRate = totalIncome > 0 ? totalFedTax / totalIncome : 0
   const quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(totalFedTax / 4)
@@ -1848,6 +1850,13 @@ function NarrativeModal({ onClose }) {
   )
 }
 
+// ── CODE CONSISTENCY AUDIT (June 2026) ─────────────────────────────────────────
+// CC-F1 FIX: CPA Briefing SE tax now reads rec.seTax (persisted engine output)
+//   instead of independently recomputing from raw k1. Engine uses seNetIncome
+//   (multi-entity aggregate with §164(f) adjustments); briefing was using k1Income
+//   (raw K-1 total), which diverges on multi-entity returns. rec.seTax is now
+//   written by TaxReturn.jsx buildRecord() at save time.
+//
 // ── UX PASS (June 2026) ──────────────────────────────────────────────────────
 // UX-M6 FIX: completeness() now deducts 10 points when an RE entity is present
 //   but has no rental revenue entered. missingFields() surfaces 'rental property
