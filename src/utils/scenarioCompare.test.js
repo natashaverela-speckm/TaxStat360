@@ -100,11 +100,12 @@ describe('return shape', () => {
     expect(savings).toBeGreaterThanOrEqual(0)
   })
 
-  it('savings = mostExpensive.totalTax - cheapest.totalTax', () => {
+  it('savings = 2nd-cheapest.totalTax - cheapest.totalTax', () => {
     const { scenarios, best, savings } = compare(100000, 30000)
-    const cheapest = scenarios.find(s => s.key === best).totalTax
-    const mostExpensive = Math.max(...scenarios.map(s => s.totalTax))
-    expect(savings).toBe(mostExpensive - cheapest)
+    const sorted = [...scenarios].sort((a, b) => a.totalTax - b.totalTax)
+    const cheapest = sorted[0].totalTax
+    const secondCheapest = sorted[1].totalTax
+    expect(savings).toBe(secondCheapest - cheapest)
   })
 })
 
@@ -115,7 +116,7 @@ describe('Sole Prop — self-employment tax', () => {
   it('soleProp scenario has non-zero SE tax for profitable entity', () => {
     const { scenarios } = compare(100000, 30000)
     const sp = scenarios.find(s => s.key === 'soleProp')
-    const seLine = sp.lineItems.find(li => li.label === 'Self-employment tax')
+    const seLine = sp.lineItems.find(li => li.label === 'Income tax + SE tax')
     expect(seLine).toBeDefined()
     expect(seLine.value).toBeGreaterThan(0)
   })
@@ -139,7 +140,7 @@ describe('S Corp — employment tax on officer salary', () => {
     // Note: uses CURRENT_TAX_YEAR ssWageBase — test remains correct across year transitions
     const { scenarios } = compare(200000, 60000)
     const sc = scenarios.find(s => s.key === 'sCorp')
-    const ficaLine = sc.lineItems.find(li => li.label === 'Employment tax (W-2)')
+    const ficaLine = sc.lineItems.find(li => li.label.startsWith('Employment tax on $'))
     expect(ficaLine).toBeDefined()
     // $60k is below any plausible SS wage base; SS portion = 60000 × 0.062 × 2 = 7,440
     // Med portion = 60000 × 0.0145 × 2 = 1,740 → total = 9,180
@@ -179,7 +180,7 @@ describe('C Corp — corporate + personal double taxation', () => {
   it('C Corp scenario includes corporate tax line item', () => {
     const { scenarios } = compare(200000, 40000)
     const cc = scenarios.find(s => s.key === 'cCorp')
-    const corpLine = cc.lineItems.find(li => li.label === 'Corporate tax (21% flat)')
+    const corpLine = cc.lineItems.find(li => li.label.startsWith('Corporate income tax'))
     expect(corpLine).toBeDefined()
     expect(corpLine.value).toBeGreaterThan(0)
   })
