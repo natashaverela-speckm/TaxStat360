@@ -14,11 +14,9 @@
 //   </ErrorBoundary>
 
 import React from 'react'
+import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
 import { CalcInputError } from '../utils/calcGuard'
 
-const N  = '#0D1B3E'
-const SL = '#475569'
-const B  = '#2563EB'
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
