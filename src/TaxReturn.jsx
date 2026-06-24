@@ -100,11 +100,9 @@ import { signOut } from './utils/signOut'
 import { nf } from './utils/parseMoney.js'
 import { fmt, pct, effectiveRate, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS } from './constants.js'
 import { isPro } from './LockedFeature'
-
-const PURPLE = '#7C3AED'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
