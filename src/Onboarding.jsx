@@ -12,15 +12,15 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //
 // SEC-03 FIX: API base URL now imported from constants.js instead of hardcoded.
 //   Was: const API='https://app.taxstat360.com' (violates architecture rule in constants.js)
-//   Now: imported as API_BASE_URL. Value is identical ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no integration behaviour changes.
+//   Now: imported as API_BASE_URL. Value is identical — no integration behaviour changes.
 //   All integration connect URLs (QuickBooks, Xero, Wave, FreshBooks) continue to use
 //   API + '/integrations/' + providerName + '/connect' which resolves identically.
 //
 // F-06 FIX: Annual discount label now uses ANNUAL_DISCOUNT_LABEL from constants.js.
-//   Was: hardcoded 'save ~17%' ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ inconsistent with 'Save 2 months' on Landing.jsx.
+//   Was: hardcoded 'save ~17%' — inconsistent with 'Save 2 months' on Landing.jsx.
 //   Now: uses the canonical constant so any future discount change is one edit.
 //
-// UX-05 FIX: "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Home" span replaced with semantic <a href="/"> link.
+// UX-05 FIX: "← Home" span replaced with semantic <a href="/"> link.
 //
 // CC-04 FIX: LoginScreen now includes a minimal footer with ToS/Privacy links
 //   and planning-only disclaimer.
@@ -29,27 +29,27 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   (htmlFor/id) in the shared Field component and the two custom inputs
 //   (signup password, business address).
 //
-// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ AUDIT PASS 2 FIXES ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
 // O3 FIX: Onboarding EntityScreen listed 5 entity types including "C Corporation"
 //   and "Other", but the Tax Tracker only supports 4 types and omits C-Corp.
-//   "Real Estate (Schedule E)" ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ a core use case for the target audience ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+//   "Real Estate (Schedule E)" — a core use case for the target audience —
 //   was absent from onboarding entirely. Fixed: EntityScreen lists the same
 //   types the Tax Tracker supports, plus "Real Estate (Schedule E)".
-//   (Update ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ C-Corp support has since been built out across the engine, Tax
+//   (Update — C-Corp support has since been built out across the engine, Tax
 //   Tracker, and Dashboard, so C Corporation is now a selectable option and the
 //   former "not supported" notice has been removed.)
 //   "Other" is removed (it mapped to no Tax Tracker entity). The entity type
 //   written to localStorage now uses the canonical Tax Tracker string so it
 //   hydrates the entity card correctly on first session.
 //
-// O4 FIX: ImportScreen "Go to My Dashboard ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" button called nav('/calculate-tax'),
+// O4 FIX: ImportScreen "Go to My Dashboard →" button called nav('/calculate-tax'),
 //   not nav('/dashboard'). Button label said Dashboard; destination was Tax Tracker.
 //   Fixed: handleContinue now navigates to '/dashboard' when skipping or after
 //   the MFA nudge's "Skip for now" path. A first-run banner is written to
 //   sessionStorage key ts360_first_run so CalculateTaxInner can show a contextual
 //   prompt guiding users who skipped Step 3 to add their revenue and expenses.
-//   Note: the existing security-nudge "Set up 2FA in Settings ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" path correctly
-//   navigates to /settings; the "Skip for now ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ go to my dashboard" button within
+//   Note: the existing security-nudge "Set up 2FA in Settings →" path correctly
+//   navigates to /settings; the "Skip for now — go to my dashboard" button within
 //   that nudge is also fixed to nav('/dashboard').
 //
 // O5 FIX: Password mismatch ('Passwords do not match') only fired on form submit,
@@ -57,7 +57,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   added an onBlur handler on the Confirm Password field that validates the match
 //   immediately when the user tabs or clicks away. The error is set via setConfErr
 //   (a dedicated confirm-field error state, separate from the submit-level setErr)
-//   so it renders inline below the confirm field ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ visible without scrolling.
+//   so it renders inline below the confirm field — visible without scrolling.
 //   The submit guard still checks pass !== conf as a final safety net.
 //
 // O6 FIX: Plan selector in SignupScreen showed name + price only. Users had no
@@ -75,7 +75,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   when adding the first entity. EIN and address are written to
 //   ts360_biz_ein and ts360_biz_address so AIAnalysis CPA Export can use them
 //   on the report cover. (b) Step header and subtitle are updated to make the
-//   optional nature explicit: subtitle now reads "Optional ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ used in your CPA
+//   optional nature explicit: subtitle now reads "Optional — used in your CPA
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
@@ -130,16 +130,16 @@ transition: 'background 0.2s',
 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
 {[
 { key: 'length', text: '12+ chars' },
-{ key: 'upper', text: 'AÃÂÃÂ¢ÃÂÃÂÃÂÃÂZ' },
-{ key: 'number', text: '0ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ9' },
-{ key: 'special', text: '!@#ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦' },
+{ key: 'upper', text: 'A–Z' },
+{ key: 'number', text: '0–9' },
+{ key: 'special', text: '!@#…' },
 ].map(c => (
 <span key={c.key} style={{
 fontSize: 10, fontWeight: 600,
 color: checks[c.key] ? '#059669' : '#CBD5E1',
 display: 'flex', alignItems: 'center', gap: 2,
 }}>
-{checks[c.key] ? 'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ' : 'ÃÂÃÂÃÂÃÂ·'} {c.text}
+{checks[c.key] ? '✓' : '·'} {c.text}
 </span>
 ))}
 </div>
@@ -159,7 +159,7 @@ const [name,setName]=useState('')
 const [email,setEmail]=useState('')
 const [pass,setPass]=useState('')
 const [conf,setConf]=useState('')
-// O5 FIX: dedicated confirm-field error state ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ shown inline below the confirm
+// O5 FIX: dedicated confirm-field error state — shown inline below the confirm
 // field on blur, before the user ever reaches the card section.
 const [confErr,setConfErr]=useState('')
 const [loading,setLoading]=useState(false)
@@ -172,7 +172,7 @@ const cardRef=useRef(null)
 const MONTHLY_PRICES={starter:'$79',professional:'$149',enterprise:'$299'}
 const ANNUAL_PRICES={starter:'$66',professional:'$124',enterprise:'$249'}
 const planPrice=billing==='annual' ? ANNUAL_PRICES[plan] : MONTHLY_PRICES[plan]
-const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' ÃÂÃÂÃÂÃÂ· Annual' : '')
+const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' · Annual' : '')
 
 useEffect(()=>{
 const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
@@ -185,7 +185,7 @@ setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setStripeReady(t
 document.head.appendChild(s)
 },[])
 
-// O5 FIX: validate password match on blur of the confirm field ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ before the
+// O5 FIX: validate password match on blur of the confirm field — before the
 // user scrolls to the card section. Error is shown inline, not just on submit.
 function handleConfBlur() {
   if (conf && pass && conf !== pass) {
@@ -197,7 +197,7 @@ function handleConfBlur() {
 
 async function submit(e){
 e.preventDefault()
-// O5 FIX: final guard still present ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ catches the case where user submits
+// O5 FIX: final guard still present — catches the case where user submits
 // without blurring the confirm field.
 if(pass!==conf){setErr('Passwords do not match.');return}
 if(pass.length<12){setErr('Password must be at least 12 characters.');return}
@@ -217,7 +217,7 @@ if(data.plan)writePlan(data.plan)
 writeEmail(email)
 removeEmailVerified()
 writeLoggedIn('1')
-writeSessionStart( String(Date.now()))
+writeSessionStart(String(Date.now()))
 writePlan(plan)
 writeBilling(billing)
 try{
@@ -254,11 +254,11 @@ return(<Page>
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{flexShrink:0,marginTop:1}}><rect x="5" y="5" width="14" height="16" rx="2" stroke="#92400e" strokeWidth="1.6"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#92400e"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/></svg>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
-<strong>TaxStat360 is a tax planning tool ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
+<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-<div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no charge until trial ends</p></div>
+<div><h2 style={{color:N,fontSize:20,fontWeight:800,margin:0}}>Start your free trial</h2><p style={{color:SL,fontSize:12,margin:'2px 0 0'}}>7 days free — no charge until trial ends</p></div>
 <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
 </div>
 
@@ -314,7 +314,7 @@ type="button"
 onClick={() => { const nb = billing==='annual'?'monthly':'annual'; setBilling(nb); window.history.replaceState({}, '', `?plan=${plan}&billing=${nb}`) }}
 style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',textDecoration:'underline'}}
 >
-{billing==='annual' ? 'Switch to monthly billing' : `Switch to annual billing ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ${ANNUAL_DISCOUNT_LABEL}`}
+{billing==='annual' ? 'Switch to monthly billing' : `Switch to annual billing — ${ANNUAL_DISCOUNT_LABEL}`}
 </button>
 </div>
 </div>
@@ -333,7 +333,7 @@ style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',tex
 <div style={{width:26,height:26,borderRadius:'50%',background:'#E2E8F0',color:'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
 <div>
 <div style={{fontSize:12,fontWeight:700,color:'#94A3B8',lineHeight:1.2}}>Trial Setup</div>
-<div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card required ÃÂÃÂÃÂÃÂ· no charge until trial ends</div>
+<div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card required · no charge until trial ends</div>
 </div>
 </div>
 </div>
@@ -356,7 +356,7 @@ autoComplete="new-password"
 />
 </div>
 {/* O5 FIX: onBlur handler validates match immediately when the user leaves the
-    confirm field ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ before they scroll to the card section. confErr renders
+    confirm field — before they scroll to the card section. confErr renders
     inline below the field. The Field component now accepts an onBlur prop. */}
 <div>
 <label htmlFor="signup-confirm-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Confirm Password</label>
@@ -369,7 +369,7 @@ autoComplete="new-password"
   autoComplete="new-password"
   hasError={!!confErr}
 />
-{/* O5 FIX: inline error shown immediately on blur ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no scrolling required */}
+{/* O5 FIX: inline error shown immediately on blur — no scrolling required */}
 {confErr && (
   <p style={{fontSize:11,color:'#DC2626',margin:'4px 0 0',fontWeight:600}}>{confErr}</p>
 )}
@@ -403,8 +403,8 @@ By creating an account you agree to our{' '}
 {' '}and{' '}
 <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
 </p>
-<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ'}</button>
-<p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> ÃÂÃÂÃÂÃÂ· <a href="/" style={{color:SL,textDecoration:'none'}}>ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Back to home</a></p>
+<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
+<p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 
 <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>
 <div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -454,16 +454,16 @@ function VerifyEmailScreen(){
     return()=>{cancelled=true}
   },[token,emailParam])
 
-  if(status==='loading')return(<Page><LOGO/><p style={{color:SL,textAlign:'center'}}>Confirming your emailÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦</p></Page>)
+  if(status==='loading')return(<Page><LOGO/><p style={{color:SL,textAlign:'center'}}>Confirming your email…</p></Page>)
   if(status==='verified')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
     <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
-    <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ your email is verified. You can continue using TaxStat360.</p>
-    <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
+    <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
+    <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
   </div></Page>)
   if(status==='error')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
     <p style={{color:'#DC2626',marginBottom:16}}>{err}</p>
-    <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to app ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
+    <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to app →</button>
   </div></Page>)
 
   const displayEmail=readEmail()||readPendingEmail()||''
@@ -478,7 +478,7 @@ function VerifyEmailScreen(){
           <Icon name="mail" size={14} color={SL} /> Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. Check your inbox (and junk/spam). You can still continue into the app without verifying.
         </p>
       ):null}
-      <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
+      <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
     </div>
   </Page>)
 }
@@ -505,11 +505,11 @@ const [loginToken,setLoginToken]=useState('')
 const [pendingEmail,setPendingEmail]=useState('')
 
 // UX F-01: Only show the planning-tool disclaimer to first-time visitors.
-// Returning users have already seen it ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ showing it on every login trains
+// Returning users have already seen it — showing it on every login trains
 // dismissal and delays the path to their tax position.
 const isReturningUser = !!(readDisclaimerSeen() || readSessionStart())
 
-// UX F-02: "Remember this device for 30 days" ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ bypass 2FA challenge on trusted devices.
+// UX F-02: "Remember this device for 30 days" — bypass 2FA challenge on trusted devices.
 const TRUST_DAYS = 30
 const DEVICE_KEY = 'ts360_trusted_device'
 const [rememberDevice, setRememberDevice] = useState(false)
@@ -598,13 +598,13 @@ return(<Page>
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{flexShrink:0,marginTop:1}}><rect x="5" y="5" width="14" height="16" rx="2" stroke="#92400e" strokeWidth="1.6"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#92400e"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/></svg>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
-<strong>TaxStat360 is a tax planning tool ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
+<strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
 )}
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>{mfaStep?'Two-factor authentication':'Welcome back'}</h2>
 <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>{mfaStep?'Enter the 6-digit code from your authenticator app, or a backup code.':'Sign in to your TaxStat360 account'}</p>
-{sessionExpired&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ your saved records and in-progress entries are still here.</div>}
+{sessionExpired&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
 {mfaStep?(
 <form onSubmit={submitMfa}>
 <label style={{display:'block',fontSize:12,fontWeight:600,color:N,marginBottom:6}}>Authentication code</label>
@@ -620,10 +620,10 @@ style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
 <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:SL,marginBottom:12,cursor:'pointer'}}>
 <input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}} />
-Trust this device for {TRUST_DAYS} days ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ skip 2FA on this browser
+Trust this device for {TRUST_DAYS} days — skip 2FA on this browser
 </label>
-<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:loading||mfaCode.length<6?'not-allowed':'pointer',opacity:loading||mfaCode.length<6?0.5:1,transition:'opacity 0.15s',marginBottom:10}}>{loading?'Verifying...':'Verify ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ'}</button>
-<button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Back to sign in</button>
+<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:loading||mfaCode.length<6?'not-allowed':'pointer',opacity:loading||mfaCode.length<6?0.5:1,transition:'opacity 0.15s',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
+<button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>
 ):(
 <form onSubmit={submit}>
@@ -633,8 +633,8 @@ Trust this device for {TRUST_DAYS} days ÃÂÃÂ¢ÃÂÃÂÃÂ
 <PasswordInput id="login-password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Your password" autoComplete="current-password" />
 </div>
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ'}</button>
-<button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
+<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
+<button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial →</button>
 <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
 </form>
 )}
@@ -644,7 +644,7 @@ Trust this device for {TRUST_DAYS} days ÃÂÃÂ¢ÃÂÃÂÃÂ
 <a href="/privacy" style={{color:'#94a3b8',textDecoration:'none'}}>Privacy Policy</a>
 </p>
 <p style={{fontSize:10,color:'#CBD5E1',margin:0,lineHeight:1.5}}>
-For planning purposes only ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
+For planning purposes only — not professional tax, legal, or financial advice. Consult a licensed tax professional before filing.
 </p>
 </div>
 </Page>)
@@ -653,10 +653,10 @@ For planning purposes only ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ not 
 // EntityScreen entity list matches the Tax Tracker's ENTITY_TYPES exactly:
 //   S Corporation, C Corporation, Partnership / LLC, Sole Proprietor / SMLLC,
 //   Real Estate (Schedule E).
-// C Corporation: now a fully selectable option (audit F6 / Module 4 ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ C-Corp
+// C Corporation: now a fully selectable option (audit F6 / Module 4 — C-Corp
 //   support built out across the engine, Tax Tracker, and Dashboard). The prior
 //   "not supported" notice has been removed.
-// "Other": not offered ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ it had no corresponding Tax Tracker entity type.
+// "Other": not offered — it had no corresponding Tax Tracker entity type.
 // Entity type strings match the canonical Tax Tracker values exactly so
 //   readOnboardingEntityType() hydrates the entity card dropdown
 //   correctly on the first Tax Tracker session.
@@ -666,11 +666,11 @@ const [selected,setSelected]=useState('')
 
 // O3 FIX: 4 entity types, matching Tax Tracker exactly
 const types=[
-  { value:'S Corporation',          icon:'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¢', desc:'K-1 income not subject to SE tax ÃÂÃÂÃÂÃÂ· reasonable officer salary required' },
-  { value:'C Corporation',          icon:'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¯ÃÂÃÂ¸ÃÂÃÂ', desc:'Entity-level 21% corporate tax ÃÂÃÂÃÂÃÂ· officer salary is W-2 ÃÂÃÂÃÂÃÂ· profits taxed again as dividends' },
-  { value:'Partnership / LLC',      icon:'ÃÂÃÂ°ÃÂÃÂÃÂÃÂ¤ÃÂÃÂ', desc:'K-1 income ÃÂÃÂÃÂÃÂ· Schedule E page 2 ÃÂÃÂÃÂÃÂ· SE tax may apply to general partners' },
-  { value:'Sole Proprietor / SMLLC',icon:'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¼', desc:'Schedule C ÃÂÃÂÃÂÃÂ· self-employment tax ÃÂÃÂÃÂÃÂ· QBI eligible' },
-  { value:'Real Estate (Schedule E)',icon:'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ ', desc:'Rental income/loss ÃÂÃÂÃÂÃÂ· passive activity rules ÃÂÃÂÃÂÃÂ· depreciation' },
+  { value:'S Corporation',          icon:'🏢', desc:'K-1 income not subject to SE tax · reasonable officer salary required' },
+  { value:'C Corporation',          icon:'🏛️', desc:'Entity-level 21% corporate tax · officer salary is W-2 · profits taxed again as dividends' },
+  { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
+  { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },
+  { value:'Real Estate (Schedule E)',icon:'🏠', desc:'Rental income/loss · passive activity rules · depreciation' },
 ]
 
 return(<Page>
@@ -680,7 +680,7 @@ return(<Page>
 <span style={{fontSize:11,color:SL}}>Takes about 2 minutes</span>
 </div>
 <div style={{background:'#F8FAFC',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:12,color:SL,lineHeight:1.5}}>
-<strong style={{color:N}}>3 quick steps:</strong> Choose your entity type ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Connect your accounting software (or enter manually) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Review your opening tax position.
+<strong style={{color:N}}>3 quick steps:</strong> Choose your entity type → Connect your accounting software (or enter manually) → Review your opening tax position.
 </div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
 <p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
@@ -706,7 +706,7 @@ return(<Page>
   </button>
 ))}
 </div>
-<p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ this affects whether self-employment tax applies.</p>
+<p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details — this affects whether self-employment tax applies.</p>
 <button
   onClick={()=>{
     if(selected){
@@ -718,7 +718,7 @@ return(<Page>
   disabled={!selected}
   style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}
 >
-  Continue ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+  Continue →
 </button>
 </Page>)
 }
@@ -729,7 +729,7 @@ return(<Page>
 //     can pre-populate the entity card name field on first load.
 // (c) Writes EIN and address to ts360_biz_ein / ts360_biz_address so AIAnalysis
 //     CPA Export can use them on the report cover page.
-// (d) Skip link label updated to "Skip ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ I'll add this in Settings" to signal
+// (d) Skip link label updated to "Skip — I'll add this in Settings" to signal
 //     where the data can be entered later (once Settings Business Info section
 //     is added, per the audit recommendation).
 function BusinessScreen(){
@@ -779,7 +779,7 @@ return(<Page>
 <div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 2 of 3</span></div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Tell us about your business</h2>
 {/* O7 FIX: subtitle now tells users exactly where this data is used */}
-<p style={{color:SL,fontSize:13,margin:'0 0 6px'}}>Optional ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ used in your CPA Export report and entity card label.</p>
+<p style={{color:SL,fontSize:13,margin:'0 0 6px'}}>Optional — used in your CPA Export report and entity card label.</p>
 <p style={{color:'#94A3B8',fontSize:12,margin:'0 0 18px',lineHeight:1.5}}>
   Your business name will appear on your entity card in the Tax Tracker. EIN and address appear on your CPA Export report cover. You can update these anytime in Settings.
 </p>
@@ -790,20 +790,20 @@ return(<Page>
 <label htmlFor="biz-address" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address <span style={{fontWeight:400,textTransform:'none',letterSpacing:0}}>(optional)</span></label>
 <input id="biz-address" ref={addrRef} type="text" value={addr} onChange={e=>setAddr(e.target.value)} placeholder="Start typing your address..." autoComplete="street-address" style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/>
 </div>
-<button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
+<button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue →</button>
 {/* O7 FIX: skip label signals where to return later */}
 <p
   style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}}
   onClick={()=>{ persistBizInfo(); nav('/onboarding/import') }}
 >
-  Skip ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ I'll add this in Settings ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+  Skip — I'll add this in Settings →
 </p>
 </form>
 </Page>)
 }
 
 // O4 FIX: ImportScreen handleContinue now navigates to '/dashboard' (not
-// '/calculate-tax'). The button label "Go to My Dashboard ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ" now correctly
+// '/calculate-tax'). The button label "Go to My Dashboard →" now correctly
 // matches its destination. A ts360_first_run flag is written to sessionStorage
 // so CalculateTaxInner can show a first-run banner to guide users who skipped
 // Step 3 to add their revenue and expenses.
@@ -834,9 +834,9 @@ return(
 <LOGO/>
 <div style={{textAlign:'center',padding:'8px 0'}}>
 <div style={{marginBottom:14}}><Icon name="lock" size={44} color={B} /></div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 10px'}}>One last thing ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ protect your account</h2>
+<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 10px'}}>One last thing — protect your account</h2>
 <p style={{color:SL,fontSize:13,margin:'0 0 6px',lineHeight:1.6}}>
-TaxStat360 stores sensitive financial and tax data. Two-factor authentication adds a critical second layer of security ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ strongly recommended by IRS Publication 4557 for any software handling taxpayer information.
+TaxStat360 stores sensitive financial and tax data. Two-factor authentication adds a critical second layer of security — strongly recommended by IRS Publication 4557 for any software handling taxpayer information.
 </p>
 <p style={{color:'#64748b',fontSize:12,margin:'0 0 24px',lineHeight:1.5}}>
 Takes less than 2 minutes with any authenticator app (Google Authenticator, Authy, 1Password).
@@ -845,17 +845,17 @@ Takes less than 2 minutes with any authenticator app (Google Authenticator, Auth
 onClick={()=>nav('/settings')}
 style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center'}}
 >
-<Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+<Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings →
 </button>
 {/* O4 FIX: "go to my dashboard" now actually goes to /dashboard */}
 <button
 onClick={goToDashboard}
 style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',marginBottom:8}}
 >
-Skip for now ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ go to my dashboard
+Skip for now — go to my dashboard
 </button>
 <p style={{fontSize:11,color:'#94a3b8',margin:0,lineHeight:1.5}}>
-You can enable 2FA at any time in Settings ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Security.
+You can enable 2FA at any time in Settings → Security.
 </p>
 </div>
 </Page>
@@ -870,9 +870,9 @@ return(<Page>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
 {integrations.map(i=>(<button key={i.name} type="button" onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></button>))}
 </div>
-{/* O4 FIX: button label matches destination ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ both go to /dashboard */}
-<button onClick={handleContinue} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</button>
-<p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={handleContinue}>Skip ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ connect later</p>
+{/* O4 FIX: button label matches destination — both go to /dashboard */}
+<button onClick={handleContinue} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard →</button>
+<p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={handleContinue}>Skip — connect later</p>
 </Page>)
 }
 
