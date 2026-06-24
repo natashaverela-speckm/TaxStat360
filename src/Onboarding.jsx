@@ -81,7 +81,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { apiFetch } from './utils/apiClient.js'
-import { writeBusinessInfo } from './utils/sessionState.js'
+import { writeBusinessInfo, writeFirstRun } from './utils/sessionState.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
@@ -815,7 +815,7 @@ const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBo
 
 // O4 FIX: set first-run flag then navigate to dashboard
 function goToDashboard(){
-  sessionStorage.setItem('ts360_first_run','1')
+  writeFirstRun()
   nav('/dashboard')
 }
 

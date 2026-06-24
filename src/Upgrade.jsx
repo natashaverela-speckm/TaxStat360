@@ -5,8 +5,8 @@ import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
 import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
 // FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.

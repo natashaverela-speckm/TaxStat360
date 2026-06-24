@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import { apiPost } from './utils/apiClient.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 function Logo() {
   return <div style={{ marginBottom: 24 }}><BrandLogo size={32} /></div>

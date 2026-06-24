@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import { apiPost, ApiError } from './utils/apiClient.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 function Logo() {
   return <BrandLogo size={32} />

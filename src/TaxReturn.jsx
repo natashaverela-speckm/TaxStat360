@@ -4,92 +4,9 @@
 // and adds personal income, deductions, and filing info to produce the
 // estimated federal tax liability.
 //
-// ── Change log ────────────────────────────────────────────────────────────────
-// BUG-01 FIX: Duplicate Prior Year Passive Loss Carryforward (priorPAL) field.
-// L-02 FIX: "S-Corp FICA Savings" renamed to "SE Tax Savings on Distributions".
-// C-06 FIX: 2026 tax year dropdown option shortened to "2026 (OBBBA)".
-// UX-05 FIX: Micro-text added beneath each save button to disambiguate navigation.
-// PASS5 (Code Consistency): CC-P01–CC-P04 as documented in prior pass.
-//
-// ── AUDIT REPORT FIXES (Sprint 1) ────────────────────────────────────────────
-// F-NEW-A FIX: Safe harbor tooltip — $75K threshold is MFS only (§6654(d)(1)(C)(ii)).
-// F-NEW-B FIX: OBBBA advisory banner when taxYear===2026 selected.
-// F-11 FIX: REP election has §469(c)(7)(B) hours gate before isREP is set.
-// F-01 FIX: Prior-year §1366(d) suspended loss carryforward input (Form 7203 Part III).
-// F-08 FIX: §1250 prompt when Form 4797 gain entered and §1250 blank.
-//
-// ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
-// F-09 FIX: W-2 Income input click redirected to QuickBooks OAuth flow.
-// F-10 FIX: "Save This Record" (Step 2) gave no user feedback.
-// F-13 FIX: "Save & Analyze →" saved but did not navigate to Step 3.
-//
-// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
-// F16 FIX: client-side validation on required numeric income fields (nonNegative).
-// F17 FIX: YTD Mode shows period + projected full-year income.
-// F18 FIX: Safe Harbor pass/fail status indicator.
-//
-// ── GAP FIXES (June 2026) ───────────────────────────────────────────────────────
-// SAVE-2 FIX: priorSuspendedLoss (§1366(d) carryforward) now persisted to the
-//   saved record's f1040 block. Previously only written to sessionStorage, so users
-//   who cleared session or loaded on a new device lost their entered value.
-//
-// ── UX PASS (June 2026) ───────────────────────────────────────────────────────
-// UX-H1 FIX: Ask Aria floating button overlapped the right waterfall panel.
-//   Added paddingBottom to the waterfall container so the bottom rows (Balance Due,
-//   Additional Medicare Tax) are never hidden behind the widget.
-// UX-H2 FIX: W-2 section header badge showed only the "Other Employer" field
-//   amount ($0 when correctly entered), not the full W-2 total including officer
-//   salary flowing from Step 1. Badge now shows total W-2 (field + officer salary)
-//   with a label "Total W-2" so a $0 field entry still shows $70,000 total.
-// UX-H3 FIX: Three field labels wrapped to 2–3 lines in the 2-column grid.
-//   "W-2 INCOME — OTHER EMPLOYER (NOT YOUR S-CORP)" → "W-2 — Other Employer"
-//   "QUALIFIED DIVIDENDS (FORM 1099-DIV BOX 1B)" → "Qualified Dividends"
-//   "NONRECAPTURED NET §1231 LOSSES (PRIOR 5 YRS)" → "Prior §1231 Losses (5 yrs)"
-//   "COLLECTIBLES GAIN — IRC §1(H)(4)" → "Collectibles Gain"
-//   K-1 box references and IRC citations moved to tooltips only.
-// UX-M2 FIX: "Safe Harbor & Estimated Tax Payments" renamed to
-//   "Estimated Tax Penalty Protection" — non-CPA friendly. Subtitle updated.
-//   "Safe Harbor" term retained inside the expanded panel where context makes it clear.
-// UX-M5 FIX: Advanced capital-gains fields (Nonrecaptured §1231 Losses, Collectibles
-//   Gain) wrapped in a collapsible "Advanced / Less Common" sub-section inside the
-//   Capital Gains card. Collapsed by default unless user has values entered.
-// UX-L2 FIX: "Planning Mid-Year?" YTD Mode toggle moved above the entity summary
-//   cards to the top of Step 2, directly below Tax Year / Filing Status. For a
-//   planning app this is a first-class decision, not secondary content.
-//
-// ── INDEPENDENT AUDIT FIXES (June 2026) ──────────────────────────────────────
-// AI-5 FIX: W-2 field guard — S-Corp owners see a blue breakdown box showing the
-//   officer salary flowing automatically from Step 1, and the field label is changed
-//   to "W-2 Income — Other Employer (not your S-Corp)" to prevent double-entry.
-//   Waterfall now shows officer salary and other W-2 as two separate lines so any
-//   double-entry is immediately visible. IRC §3121; IRS Pub. 15.
-// AI-5b FIX: Waterfall W-2 line split into (a) S-Corp officer salary from Step 1
-//   and (b) other-employer W-2 from Step 2, with a note on the Step-1 line.
-// C-10 FIX: Additional Medicare Tax (Form 8959) surfaced as a distinct, always-visible
-//   waterfall line for high-W-2 users (total W-2 ≥ $150K), with IRC citation and rate.
-//   Previously hidden when $0; now shown so users confirm it was computed. IRC §3101(b)(2).
-//
-// ── F6 FIX (§469 rental treatment — §1.469-9(g) aggregation election) ─────────
-// Rentals are passive by default. A real estate professional makes the whole rental
-// portfolio nonpassive by affirmatively making the §1.469-9(g) aggregation election —
-// the "aggregate your participation hours across all properties" rule. This screen
-// surfaces a single control for it:
-//   • rentalAggregationElection — TRI-STATE (undefined = not yet elected). Shown only
-//     when REP is established (REP-gated); it is a deliberate attestation and is never
-//     defaulted to true. Checking it treats the portfolio as nonpassive; leaving it
-//     unchecked keeps the rentals passive (the §469(a) default) — REP status alone is
-//     not enough, matching the engine.
-//   The flag is persisted (writePersonalContext + buildRecord.f1040) and fed into
-//   calcInput as `rentalAggregationElection === true`. A one-time migration prompt
-//   appears for a saved return that had REP set before this election existed, so the
-//   user re-confirms rather than silently inheriting nonpassive treatment.
-//   (The engine still accepts a per-entity materiallyParticipates flag and a Step-2
-//   participation answer for forward compatibility, but the UI deliberately exposes
-//   only the aggregation election as the single rental-treatment switch.)
-
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpCorporateLayer } from './taxCalc.js'
+import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS } from './taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -101,7 +18,7 @@ import { nf } from './utils/parseMoney.js'
 import { fmt, pct, effectiveRate, formatTimestamp } from './utils/formatMoney.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS } from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
 import { isPro } from './LockedFeature'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1355,7 +1272,7 @@ export default function TaxReturn() {
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
-                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(10000).toLocaleString()} for 2024, $40,000 for 2025, and $40,400 for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
                       </label>
                       <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                     </div>
@@ -1612,7 +1529,7 @@ export default function TaxReturn() {
                   hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < 150000,
                   accent: (result.additionalMedicare || 0) > 0 ? '#DC2626' : undefined,
                   note: (result.additionalMedicare || 0) > 0
-                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? 250000 : 200000).toLocaleString()} threshold (IRC §3101(b)(2))`
+                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} threshold (IRC §3101(b)(2))`
                     : undefined
                 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },

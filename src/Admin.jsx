@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import { apiGet } from './utils/apiClient.js'
 import { adminDeleteUser } from './utils/accountApi.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 export default function Admin() {
   const nav = useNavigate()
