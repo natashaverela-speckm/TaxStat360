@@ -14,15 +14,15 @@ import {
   readActiveRecordId, writeActiveRecord,
 } from './utils/sessionState.js'
 import { signOut } from './utils/signOut'
-import { nf } from './utils/parseMoney.js'
-import { fmt, pct, effectiveRate, formatTimestamp } from './utils/formatMoney.js'
+import { nf } from './utils/money.js'
+import { fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
 import { isPro } from './LockedFeature'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-// nf() (numeric coercion) is imported from utils/parseMoney.js — single shared definition (audit C-2).
+// âââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// nf() (numeric coercion) is imported from utils/parseMoney.js â single shared definition (audit C-2).
 
 // UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
 // (touch), carry a real accessible name (was literally "?"), and the bubble forces
@@ -131,7 +131,7 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, ariaLabel, sty
         } else if (raw !== '' && raw !== '-') {
           setRaw('')
           onChange('')
-          if (onError) onError('Enter a number ≥ 0')
+          if (onError) onError('Enter a number â¥ 0')
         }
       }}
       style={{
@@ -186,15 +186,15 @@ function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = fa
           </div>
           {badge && <span style={{ fontSize: 11, fontWeight: 700, background: accent ? accent + '33' : '#EFF6FF', color: accent || B, borderRadius: 10, padding: '2px 9px', border: '1px solid ' + (accent || B) + '44' }}>{badge}</span>}
         </div>
-        <span style={{ color: SL, fontSize: 13 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ color: SL, fontSize: 13 }}>{open ? 'â²' : 'â¼'}</span>
       </div>
       {open && <div style={{ padding: '16px 18px', borderTop: '1px solid #F1F5F9' }}>{children}</div>}
     </div>
   )
 }
 
-// ─── F-04 UX FIX: Collapsible OBBBA notice ────────────────────────────────────
-// Collapsed by default — one-line summary always visible, detail on demand.
+// âââ F-04 UX FIX: Collapsible OBBBA notice ââââââââââââââââââââââââââââââââââââ
+// Collapsed by default â one-line summary always visible, detail on demand.
 // Replaces the always-expanded amber banner that blocked income inputs.
 function OBBBANotice() {
   const [expanded, setExpanded] = useState(false)
@@ -205,14 +205,14 @@ function OBBBANotice() {
         onClick={() => setExpanded(x => !x)}
         style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 10px', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#78350F', fontSize: 11, fontFamily: 'inherit' }}
       >
-        <span><strong>⚠ OBBBA provisions apply (P.L. 119-21)</strong> — some thresholds still pending</span>
-        <span style={{ flexShrink: 0, marginLeft: 8 }}>{expanded ? '▲' : '▼'}</span>
+        <span><strong>â  OBBBA provisions apply (P.L. 119-21)</strong> â some thresholds still pending</span>
+        <span style={{ flexShrink: 0, marginLeft: 8 }}>{expanded ? 'â²' : 'â¼'}</span>
       </button>
       {expanded && (
         <div style={{ padding: '0 10px 8px' }}>
-          Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
+          Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only â confirm key figures before filing.
           <div style={{ marginTop: 4, fontSize: 10, color: '#64748B' }}>
-            One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
+            One Big Beautiful Budget Act (OBBBA), P.L. 119-21 â TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 Â· Standard deduction increased Â· Â§199A $400 minimum QBI deduction added Â· EBL thresholds adjusted.
           </div>
         </div>
       )}
@@ -220,7 +220,7 @@ function OBBBANotice() {
   )
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// âââ Main export ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export default function TaxReturn() {
   const navigate = useNavigate()
 
@@ -244,27 +244,27 @@ export default function TaxReturn() {
   const [unrecap1250,   setUnrecap1250]   = useState(savedCtx.unrecap1250    || '')
   const [collectibles,  setCollectibles]  = useState(savedCtx.collectiblesGain || '')
   const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
-  // F5 (§1231(c) lookback): prior-5-year nonrecaptured net §1231 losses
+  // F5 (Â§1231(c) lookback): prior-5-year nonrecaptured net Â§1231 losses
   const [nonrecap1231,  setNonrecap1231]  = useState(savedCtx.nonrecap1231   || '')
 
   // Rentals are entered in Step 1 as Real Estate (Schedule E) entities. REP status is
   // established there (per-entity) and flows through the engine; we seed the Step-2
-  // value from the Step-1 entities so the §1.469-9(g) election control is reachable.
+  // value from the Step-1 entities so the Â§1.469-9(g) election control is reachable.
   const step1IsREP = (entities || []).some(e => e && isRealEstateEntity(e.type) && e.isREP)
   const [isREP,               setIsREP]               = useState(!!savedCtx.isREP || step1IsREP)
   const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant === true)
-  // F-01: §1366(d) suspended loss carryforward
+  // F-01: Â§1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
-  // F6: rental §469 inputs now live entirely on the Step-1 Real Estate cards. Derive the
+  // F6: rental Â§469 inputs now live entirely on the Step-1 Real Estate cards. Derive the
   // portfolio-level values the engine needs from those entities:
-  //   • rentalAggregationElection — the §1.469-9(g) election is made on the rental card;
+  //   â¢ rentalAggregationElection â the Â§1.469-9(g) election is made on the rental card;
   //     "any elected" treats the aggregated portfolio as nonpassive (a single taxpayer-
-  //     level election — checking it on a card is the affirmative attestation).
-  //   • priorPAL — prior-year suspended passive loss (Form 8582) summed across the cards.
+  //     level election â checking it on a card is the affirmative attestation).
+  //   â¢ priorPAL â prior-year suspended passive loss (Form 8582) summed across the cards.
   const step1REList = (entities || []).filter(e => e && isRealEstateEntity(e.type))
   const rentalAggregationElection = step1REList.some(e => e.rentalAggregationElection === true)
-  // Finding 2 FIX: surface the §469(c)(7)(B) hours the taxpayer entered on the Step-1
+  // Finding 2 FIX: surface the Â§469(c)(7)(B) hours the taxpayer entered on the Step-1
   // rental cards so the engine can apply the quantitative test to the FILED return (not
   // just the Step-1 preview). The hours are a taxpayer-level figure entered per card; we
   // take the max across cards (whichever card the user filled in). repAggregationOverride
@@ -284,10 +284,10 @@ export default function TaxReturn() {
   // Migration: returns saved BEFORE rental consolidation stored a single portfolio prior-PAL
   // in personal context (savedCtx.priorPassiveLossCarryforward); it now lives on the Step-1
   // rental cards. If the cards carry none but a saved personal value exists, fall back to it
-  // so the carryforward is NOT lost from the calc — and (critically) so the save-path write
+  // so the carryforward is NOT lost from the calc â and (critically) so the save-path write
   // of priorPassiveLossCarryforward doesn't clobber the orphan to 0. Once the user enters it
   // on a card, cardPriorPAL takes over and the fallback stops (no double counting). We flag it
-  // because we can't know which property it belonged to — the user must re-attribute it.
+  // because we can't know which property it belonged to â the user must re-attribute it.
   const orphanedPriorPAL = cardPriorPAL === 0 ? Math.max(0, nf(savedCtx.priorPassiveLossCarryforward) || 0) : 0
   const priorPAL = cardPriorPAL > 0 ? cardPriorPAL : orphanedPriorPAL
   // F6 migration: a saved return that had REP set before the election existed gets a
@@ -344,14 +344,14 @@ export default function TaxReturn() {
     : 0
   const medicalForEngine = useItemized && anyItemizedSubField ? nf(medicalAmt) : 0
 
-  // ── C-Corp corporate layer ───────────────────────────────────────────────────────
+  // ââ C-Corp corporate layer âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   // A C-Corp does not pass through: its profit is taxed at the entity (21%) and reaches
   // the owner as dividends. Step 1 already (a) excludes the C-Corp from the pass-through
-  // k1Total and (b) routes its officer salary into officerW2Total below (→ W-2 wages).
+  // k1Total and (b) routes its officer salary into officerW2Total below (â W-2 wages).
   // Here we compute the entity-level tax and the resulting dividend, per C-Corp entity:
-  //   • dividends fold into the personal return as qualified dividends (taxed AGAIN), and
-  //   • corpTax is added on top of the personal total (it is paid by the corporation,
-  //     separately from the owner's 1040 — so it is NOT part of the quarterly estimate).
+  //   â¢ dividends fold into the personal return as qualified dividends (taxed AGAIN), and
+  //   â¢ corpTax is added on top of the personal total (it is paid by the corporation,
+  //     separately from the owner's 1040 â so it is NOT part of the quarterly estimate).
   // Planning model: single owner-employee, full annual distribution. See calcCCorpReturn.
   const ccorp = useMemo(() => {
     const list = Array.isArray(entities) ? entities : []
@@ -382,7 +382,7 @@ export default function TaxReturn() {
     return {
       taxYear, status: filingStatus, dependents: nf(dependents),
       entities: entityList, w2: w2Total, k1Total: sessionK1 || 0,
-      // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
+      // rentalNet (the old Step-2 lump) is gone â rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
       divInc: nf(dividends) + ccorp.dividends, qualDiv: nf(qualDividends) + ccorp.dividends, f4797Inc: form4797Total,
@@ -392,11 +392,11 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
-      // F6: the §1.469-9(g) aggregation election, derived from the Step-1 rental cards.
+      // F6: the Â§1.469-9(g) aggregation election, derived from the Step-1 rental cards.
       // The engine treats `true` as the affirmative election that makes a REP's portfolio
       // nonpassive, and anything else (unelected) as passive.
       rentalAggregationElection,
-      // Finding 2: §469(c)(7)(B) quantitative hours test inputs + the explicit override.
+      // Finding 2: Â§469(c)(7)(B) quantitative hours test inputs + the explicit override.
       // The engine suspends a REP aggregation loss when entered hours fail the test unless
       // repAggregationOverride is true. NaN (no hours entered) passes through as not-provided,
       // preserving backward-compatible treatment.
@@ -404,12 +404,12 @@ export default function TaxReturn() {
       repHoursTotal: Number.isNaN(repHoursTotal) ? '' : repHoursTotal,
       repAggregationOverride,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
-      nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
+      nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (Â§1231(c) lookback)
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
-      // C-10 FIX: opt into the conservative §1366(d) default. An S-Corp/partnership loss
+      // C-10 FIX: opt into the conservative Â§1366(d) default. An S-Corp/partnership loss
       // with no stock/debt basis entered is treated as $0 basis (full loss suspended and
       // carried forward) rather than deducting in full against other income.
       assumeZeroBasisOnLoss: true,
@@ -433,7 +433,7 @@ export default function TaxReturn() {
       if (!r) return r
       if (ccorp.corpTax > 0 || ccorp.dividends > 0) {
         // The engine has already (a) taxed the dividends (folded into qualDiv above) and
-        // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
+        // (b) computed quarterlyRecommended on the PERSONAL total â both before this point.
         // Adding the corporate tax here keeps the headline total, effective rate, waterfall
         // and saved summary in sync, without inflating the owner's quarterly estimate (the
         // 21% is paid by the corporation on Form 1120, separately from the 1040).
@@ -456,7 +456,7 @@ export default function TaxReturn() {
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
       isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
-      rentalAggregationElection,   // F6 (§1.469-9(g) election)
+      rentalAggregationElection,   // F6 (Â§1.469-9(g) election)
       selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
       useItemized, itemizedAmt: itemizedAmtForEngine, saltAmount,
@@ -520,12 +520,12 @@ export default function TaxReturn() {
         unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
         isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
-        rentalAggregationElection,   // F6 (§1.469-9(g) election)
+        rentalAggregationElection,   // F6 (Â§1.469-9(g) election)
         selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
         useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
         priorYearTax, priorYearAGI,
-        // SAVE-2 FIX: persist §1366(d) prior-year suspended loss so it round-trips
+        // SAVE-2 FIX: persist Â§1366(d) prior-year suspended loss so it round-trips
         // through saved records. Previously only written to sessionStorage (ts360_f1040)
         // and lost on reload from server. savedCtx.priorSuspendedLoss initializes the
         // state, so this just ensures that state reaches the persisted record.
@@ -568,7 +568,7 @@ export default function TaxReturn() {
     } catch (err) {
       console.error('TaxReturn handleSave error:', err)
       setSaveStatus('error')
-      setSaveError('Save failed — please try again.')
+      setSaveError('Save failed â please try again.')
       setTimeout(() => { setSaveStatus('idle'); setSaveError(null) }, 5000)
     }
   }, [saveStatus, buildRecord])
@@ -586,7 +586,7 @@ export default function TaxReturn() {
     } catch (err) {
       console.error('TaxReturn handleSaveAndAnalyze error:', err)
       setAnalyzeStatus('error')
-      setSaveError('Save failed — could not navigate to analysis. Please try again.')
+      setSaveError('Save failed â could not navigate to analysis. Please try again.')
       setTimeout(() => { setAnalyzeStatus('idle'); setSaveError(null) }, 5000)
     }
   }, [analyzeStatus, buildRecord, navigate])
@@ -595,7 +595,7 @@ export default function TaxReturn() {
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
-  // F11 FIX (UX audit): recalculation is instant but was silent — the headline
+  // F11 FIX (UX audit): recalculation is instant but was silent â the headline
   // number just swapped values with no cue, so users (especially with the panel now
   // pinned) could miss that their edit changed the result. When the estimated tax
   // changes, briefly flash the number and show an up/down delta chip so cause-and-
@@ -628,18 +628,18 @@ export default function TaxReturn() {
     return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
   }, 0)
 
-  // C-10 FIX: the engine now applies the §1366(d) limit conservatively
+  // C-10 FIX: the engine now applies the Â§1366(d) limit conservatively
   // (assumeZeroBasisOnLoss), suspending an S-Corp/partnership loss when no basis has
   // been entered. Drive the "enter your basis" prompt off the engine result so it
   // reflects the amount actually suspended and works regardless of entity shape (the
   // prior version read e.pnl.netProfit, which the flat Step-1 entity shape lacks, so the
   // prompt never fired). basisAssumedZero marks losses suspended *only* because no Form
-  // 7203 basis was entered — entering basis can release some or all of them.
+  // 7203 basis was entered â entering basis can release some or all of them.
   const assumedZeroBasisSuspended = (result?.entityBasisResults || []).reduce(
     (s, r) => s + (r && r.basisAssumedZero ? Math.abs(r.suspended || 0) : 0), 0
   )
 
-  // Safe Harbor status — sourced from the engine (single source of truth for the
+  // Safe Harbor status â sourced from the engine (single source of truth for the
   // 90%-current-year vs. 100%/110%-prior-year rule). See calcTaxReturn in taxCalc.js.
   const priorYearTaxNum = nf(priorYearTax)
   const priorYearAGINum = nf(priorYearAGI)
@@ -667,9 +667,9 @@ export default function TaxReturn() {
 
   const YEARS = SUPPORTED_TAX_YEARS
   const ESTIMATE_DUE_DATES = {
-    2024: 'Apr 15, 2024 · Jun 17, 2024 · Sep 16, 2024 · Jan 15, 2025',
-    2025: 'Apr 15, 2025 · Jun 16, 2025 · Sep 15, 2025 · Jan 15, 2026',
-    2026: 'Apr 15, 2026 · Jun 15, 2026 · Sep 15, 2026 · Jan 15, 2027',
+    2024: 'Apr 15, 2024 Â· Jun 17, 2024 Â· Sep 16, 2024 Â· Jan 15, 2025',
+    2025: 'Apr 15, 2025 Â· Jun 16, 2025 Â· Sep 15, 2025 Â· Jan 15, 2026',
+    2026: 'Apr 15, 2026 Â· Jun 15, 2026 Â· Sep 15, 2026 Â· Jan 15, 2027',
   }
   const FS_OPTIONS = [
     { value: 'single', label: 'Single' },
@@ -707,7 +707,7 @@ export default function TaxReturn() {
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : s.active ? B : '#E2E8F0', color: s.done || s.active ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {s.done ? '✓' : s.n}
+                    {s.done ? 'â' : s.n}
                   </div>
                   {s.n === 3 ? (
                     <button
@@ -721,23 +721,23 @@ export default function TaxReturn() {
                         textDecoration: 'underline', textUnderlineOffset: 2,
                       }}
                     >
-                      {analyzeStatus === 'saving' ? 'Saving…' : 'AI Analysis'}
+                      {analyzeStatus === 'saving' ? 'Savingâ¦' : 'AI Analysis'}
                     </button>
                   ) : (
                     <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
                   )}
                 </div>
-                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
+                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>âº</span>}
               </div>
             ))}
           </div>
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 4 : 8 }}>
-          {!isMobile && <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Business</button>}
-          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? '⊞' : 'Dashboard'}</button>
-          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? '🤖' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
+          {!isMobile && <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>â Business</button>}
+          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? 'â' : 'Dashboard'}</button>
+          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? 'ð¤' : STEP3_LABEL}{!isPro() ? ' ð' : ''}</button>
           {!isMobile && <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
-          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
+          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? 'â' : 'Settings'}</button>
         </div>
       </nav>
 
@@ -759,7 +759,7 @@ export default function TaxReturn() {
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             {taxFlash !== 0 && taxDelta !== 0 && (
               <span style={{ fontSize: 12, fontWeight: 800, color: taxFlash === 1 ? '#FCA5A5' : '#86EFAC' }}>
-                {taxFlash === 1 ? '▲' : '▼'} {fmt(Math.abs(taxDelta))}
+                {taxFlash === 1 ? 'â²' : 'â¼'} {fmt(Math.abs(taxDelta))}
               </span>
             )}
             <span style={{
@@ -774,7 +774,7 @@ export default function TaxReturn() {
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
-        {/* ── LEFT: Input form ────────────────────────────────────────────── */}
+        {/* ââ LEFT: Input form ââââââââââââââââââââââââââââââââââââââââââââââ */}
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
           <p style={{ color: SL, fontSize: 13, margin: '0 0 20px' }}>
@@ -789,7 +789,7 @@ export default function TaxReturn() {
                 <select aria-label="Tax year" value={taxYear} onChange={e => { const y = parseInt(e.target.value); setTaxYear(y); writeTaxYear(y) }}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {YEARS.map(y => (
-                    <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA — TCJA Extended)' : String(y)}</option>
+                    <option key={y} value={y}>{y === 2026 ? '2026 (OBBBA â TCJA Extended)' : String(y)}</option>
                   ))}
                 </select>
                 {taxYear === 2026 && <OBBBANotice />}
@@ -804,14 +804,14 @@ export default function TaxReturn() {
             </div>
           </div>
 
-          {/* F-13 UX FIX: YTD toggle moved here — immediately after Tax Year/Filing Status,
+          {/* F-13 UX FIX: YTD toggle moved here â immediately after Tax Year/Filing Status,
               before entity K-1 summary. This is the most-used in-year planning feature
               and was previously buried mid-scroll. Compact inline version shown here;
               the full expanded detail card remains below in its original position. */}
           {!ytdMode && (
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: N }}>📅 Planning for the rest of the year?</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: N }}>ð Planning for the rest of the year?</span>
                 <div style={{ fontSize: 11, color: SL, marginTop: 1 }}>Enter YTD figures and we'll project your full-year liability.</div>
               </div>
               <button
@@ -819,7 +819,7 @@ export default function TaxReturn() {
                 onClick={() => setYtdMode(true)}
                 style={{ padding: '7px 14px', background: '#EFF6FF', color: B, border: '1px solid #BFDBFE', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
-                Enable YTD Mode →
+                Enable YTD Mode â
               </button>
             </div>
           )}
@@ -827,7 +827,7 @@ export default function TaxReturn() {
           {/* K-1 income summary (read-only from Step 1) */}
           {entityList.length > 0 && (
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 — Business Entities</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 â Business Entities</div>
               {k1Entities.map((e, i) => {
                 const pnl = e.pnl || {}
                 const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
@@ -855,24 +855,24 @@ export default function TaxReturn() {
                 <div style={{ marginTop: k1Entities.length > 0 ? 10 : 0, paddingTop: k1Entities.length > 0 ? 10 : 0, borderTop: k1Entities.length > 0 ? '1px dashed #BFDBFE' : 'none' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: PURPLE, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                     Rental real estate (Schedule E)
-                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 — add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the §1.469-9(g) aggregation election on the rental card in Step 1.'} />
+                    <InfoTip wide text={'Schedule E rentals you own directly. Rental income from a partnership or LLC comes through on a K-1 â add that as a business entity above, not here.\n\nRentals are passive by default. As a real estate professional you make the whole portfolio nonpassive by making the Â§1.469-9(g) aggregation election on the rental card in Step 1.'} />
                   </div>
-                  <div style={{ fontSize: 10, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (§469) apply — losses may be limited</div>
+                  <div style={{ fontSize: 10, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (Â§469) apply â losses may be limited</div>
                   {step1Rentals.map((e, i) => {
                     const pnl = e.pnl || {}
                     const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
                     const own = ownPct(e.own) / 100
                     const reNet = Math.round(net * own) - nf(e.box11_12) - nf(e.box12_13)
-                    // Nonpassive only when a REP has made the §1.469-9(g) aggregation
-                    // election; otherwise passive (the §469(a) default).
+                    // Nonpassive only when a REP has made the Â§1.469-9(g) aggregation
+                    // election; otherwise passive (the Â§469(a) default).
                     const isRepHere  = e.isREP || isREP
                     const nonpassive = rentalAggregationElection === true && isRepHere
                     const status = reNet >= 0
                       ? 'income'
                       : nonpassive ? 'Nonpassive (elected)'
-                      : isRepHere ? 'Passive · election not made'
-                      : e.isActiveParticipant ? 'Passive · §469(i)'
-                      : 'Passive · suspended'
+                      : isRepHere ? 'Passive Â· election not made'
+                      : e.isActiveParticipant ? 'Passive Â· Â§469(i)'
+                      : 'Passive Â· suspended'
                     return (
                       <div key={'re' + i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', fontSize: 13 }}>
                         <span style={{ color: '#6D28D9' }}>
@@ -894,11 +894,11 @@ export default function TaxReturn() {
             <div role="alert" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 12, color: '#5B21B6', lineHeight: 1.55 }}>
               <strong>One quick confirmation needed.</strong> This saved return has Real Estate Professional
               status, but the per-property material-participation questions are new. Until you confirm
-              participation on each rental (or make the §1.469-9(g) aggregation election below), those
-              rentals are treated as passive — the safe default. Your previously-deductible losses may show
+              participation on each rental (or make the Â§1.469-9(g) aggregation election below), those
+              rentals are treated as passive â the safe default. Your previously-deductible losses may show
               as suspended until you answer.
               <div style={{ marginTop: 8 }}>
-                <button onClick={() => setShowRepMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it — I&apos;ll review below</button>
+                <button onClick={() => setShowRepMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it â I&apos;ll review below</button>
               </div>
             </div>
           )}
@@ -938,10 +938,10 @@ export default function TaxReturn() {
           >
             {/* AI-5 FIX: show officer salary flowing from Step 1 so user sees the full W-2
                 picture and is never tempted to re-enter their S-Corp salary here.
-                officerW2ForYTD is already computed above for YTD display — reuse it. */}
+                officerW2ForYTD is already computed above for YTD display â reuse it. */}
             {entityList.some(e => /s.?corp/i.test(e?.type || '')) && officerW2ForYTD > 0 && (
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: '#1E3A5F' }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>📋 W-2 Wages — What flows automatically from Step 1</div>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>ð W-2 Wages â What flows automatically from Step 1</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                   <span>S-Corp officer salary (Step 1)</span>
                   <span style={{ fontWeight: 700 }}>${Math.round(officerW2ForYTD).toLocaleString()}</span>
@@ -955,7 +955,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-w2-income"
-                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 — Other Employer' : 'W-2 Income'}
+                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 â Other Employer' : 'W-2 Income'}
                   value={w2Income}
                   onChange={setW2Income}
                   placeholder="0"
@@ -963,7 +963,7 @@ export default function TaxReturn() {
                   tip={
                     <InfoTip text={
                       entityList.some(e => /s.?corp/i.test(e?.type || ''))
-                        ? 'Enter W-2 wages ONLY from a separate employer — a job, consulting W-2, or second company where you receive a W-2 that is NOT from your S-Corp.\n\nYour S-Corp officer salary already flows automatically from Step 1 and is shown in the blue box above. If you enter your S-Corp salary here as well, it will be counted twice.\n\nMost S-Corp-only owners should enter $0 here.'
+                        ? 'Enter W-2 wages ONLY from a separate employer â a job, consulting W-2, or second company where you receive a W-2 that is NOT from your S-Corp.\n\nYour S-Corp officer salary already flows automatically from Step 1 and is shown in the blue box above. If you enter your S-Corp salary here as well, it will be counted twice.\n\nMost S-Corp-only owners should enter $0 here.'
                         : 'Enter W-2 wages from employers OTHER than the business entity you entered in Step 1.'
                     } />
                   }
@@ -984,11 +984,11 @@ export default function TaxReturn() {
                 />
               </div>
             </div>
-            {/* AI-5 FIX: withholding notice — retained for non-S-Corp owners; S-Corp owners
+            {/* AI-5 FIX: withholding notice â retained for non-S-Corp owners; S-Corp owners
                 see the blue breakdown box above which covers the same point more completely. */}
             {!entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-                💡 Enter the federal income tax withheld (W-2 Box 2) in the field above. FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here.
+                ð¡ Enter the federal income tax withheld (W-2 Box 2) in the field above. FICA taxes (Boxes 4 and 6) are separate â don&apos;t include those here.
               </div>
             )}
           </CollapsibleSection>
@@ -998,8 +998,8 @@ export default function TaxReturn() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: N }}>
-                  📅 Planning Mid-Year?
-                  <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nEnter the income you have earned so far this year (Jan 1 – the month you select). TaxStat360 will extrapolate to a full 12-month figure automatically.\n\nDisable to enter full-year figures directly.'} />
+                  ð Planning Mid-Year?
+                  <InfoTip text={'Year-to-date mode: enter income and expenses as of today and we\'ll annualize to project your full-year liability.\n\nEnter the income you have earned so far this year (Jan 1 â the month you select). TaxStat360 will extrapolate to a full 12-month figure automatically.\n\nDisable to enter full-year figures directly.'} />
                 </span>
                 {!ytdMode && (
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Enable YTD Mode to annualize your income for a full-year projection</div>
@@ -1026,11 +1026,11 @@ export default function TaxReturn() {
             {ytdMode && (
               <div style={{ marginTop: 12, background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
-                  📅 YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]}
+                  ð YTD through {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ytdMonth-1]}
                 </div>
                 <div style={{ fontSize: 12, color: SL, marginBottom: 4 }}>
-                  Your figures will be multiplied by <strong style={{ color: N }}>{ytdFactor.toFixed(2)}×</strong> to project a full 12-month year
-                  ({ytdMonth} month{ytdMonth !== 1 ? 's' : ''} → 12 months).
+                  Your figures will be multiplied by <strong style={{ color: N }}>{ytdFactor.toFixed(2)}Ã</strong> to project a full 12-month year
+                  ({ytdMonth} month{ytdMonth !== 1 ? 's' : ''} â 12 months).
                 </div>
                 {projectedAnnualIncome > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE' }}>
@@ -1057,7 +1057,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label style={inputLbl}>
                   Qualifying Dependents
-                  <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000–$2,200 CTC (2025–2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
+                  <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000â$2,200 CTC (2025â2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
                 </label>
                 <input type="number" min="0" max="20" aria-label="Qualifying dependents" value={dependents} onChange={e => setDependents(e.target.value)}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
@@ -1070,7 +1070,7 @@ export default function TaxReturn() {
                   onChange={setEstPaid}
                   placeholder="0"
                   tip={
-                    <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
+                    <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1â4). Do NOT include your W-2 withholding â that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
                   }
                 />
               </div>
@@ -1079,15 +1079,15 @@ export default function TaxReturn() {
 
           {/* S-Corp basis carryforwards */}
           {/* TERMINOLOGY FIX 5.5: Pass 1 fixed Step 1 to "Stock & Debt Basis (Form 7203)" but Step 2
-              still read "S-Corp Stock & Debt Basis" — two different names for the same concept.
+              still read "S-Corp Stock & Debt Basis" â two different names for the same concept.
               Aligned to match Step 1 label and add the Form 7203 citation. */}
           {Array.isArray(entities) && entities.some(e => isSCorpEntity(e.type)) && (
-            <CollapsibleSection title="Stock & Debt Basis (Form 7203)" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
+            <CollapsibleSection title="Stock & Debt Basis (Form 7203)" subtitle="Form 7203 Â· limits how much loss you can deduct" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
                     Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
-                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (Â§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC Â§1366(d)(1)â(2) Â· Treas. Reg. Â§1.1366-2 Â· Form 7203 Part III col. (e)'} wide />
                   </label>
                   <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
                 </div>
@@ -1100,7 +1100,7 @@ export default function TaxReturn() {
               value so a loaded record never hides material figures behind a collapsed
               header (the audit's "data is hidden from view" concern). Pairs with the
               full-f1040 hydration in Dashboard.loadRecord. */}
-          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
+          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends Â· Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -1109,7 +1109,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-lt-gain" style={inputLbl}>
                   Long-Term Capital Gains (or losses)
-                  <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income — not at ordinary rates." />
+                  <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income â not at ordinary rates." />
                 </label>
                 <MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
               </div>
@@ -1124,15 +1124,15 @@ export default function TaxReturn() {
                     (taxed at 0/15/20%) or accidentally double-count by entering the same amount in both. */}
                 <label htmlFor="tr-dividends" style={inputLbl}>
                   Ordinary Dividends
-                  <InfoTip text="Total dividends from Form 1099-DIV, Box 1a. Ordinary dividends are taxed at ordinary income rates — NOT the preferential 0/15/20% rate. Only the qualified dividend portion (Box 1b, entered below) receives preferential treatment. Enter the full Box 1a amount here; enter Box 1b separately in the field below." />
+                  <InfoTip text="Total dividends from Form 1099-DIV, Box 1a. Ordinary dividends are taxed at ordinary income rates â NOT the preferential 0/15/20% rate. Only the qualified dividend portion (Box 1b, entered below) receives preferential treatment. Enter the full Box 1a amount here; enter Box 1b separately in the field below." />
                 </label>
                 <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qual-div" style={inputLbl}>
-                  {/* UX-H3 FIX: label shortened — K-1 box reference moved to tooltip */}
+                  {/* UX-H3 FIX: label shortened â K-1 box reference moved to tooltip */}
                   Qualified Dividends
-                  <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above. From Form 1099-DIV Box 1b." />
+                  <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends â cannot exceed total dividends entered above. From Form 1099-DIV Box 1b." />
                 </label>
                 <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
               </div>
@@ -1140,44 +1140,44 @@ export default function TaxReturn() {
                 <label htmlFor="tr-form4797" style={inputLbl}>
                   {/* TERMINOLOGY FIX 4.2: Label said "Gains" only; tooltip already explains losses
                       are entered as negative numbers. Label updated to match the tooltip. */}
-                  Form 4797 Gains / Losses (§1231)
-                  <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain" field below.'} wide />
+                  Form 4797 Gains / Losses (Â§1231)
+                  <InfoTip text={'Enter your NET Â§1231 result for the year (from Form 4797, or the net Â§1231 gain/loss line of your partnership or S-corp K-1).\n\nA net Â§1231 GAIN is treated as long-term capital gain â taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net Â§1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. Â§1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured Â§1250 Gain" field below.'} wide />
                 </label>
                 <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nonrecap1231" style={inputLbl}>
                   {/* UX-H3 FIX: label shortened */}
-                  Prior §1231 Losses (5 yrs)
-                  <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
+                  Prior Â§1231 Losses (5 yrs)
+                  <InfoTip text={'Â§1231(c) 5-year lookback. Enter your net Â§1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net Â§1231 GAIN this year is recharacterized as ORDINARY income â not long-term capital gain â to the extent of these prior losses (IRC Â§1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured Â§1231 losses in the prior five years. This field only affects a year with a net Â§1231 gain.'} wide />
                 </label>
                 <MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
                 {(result?.ordinary1231Recapture || 0) > 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
-                    §1231(c): {fmt(result.ordinary1231Recapture)} of your §1231 gain is recharacterized as <strong>ordinary income</strong> (taxed at ordinary rates, not 0/15/20%) because of nonrecaptured §1231 losses in the prior five years. IRC §1231(c)(1).
+                    Â§1231(c): {fmt(result.ordinary1231Recapture)} of your Â§1231 gain is recharacterized as <strong>ordinary income</strong> (taxed at ordinary rates, not 0/15/20%) because of nonrecaptured Â§1231 losses in the prior five years. IRC Â§1231(c)(1).
                   </div>
                 )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-unrec1250" style={inputLbl}>
-                  Unrecaptured §1250 Gain
+                  Unrecaptured Â§1250 Gain
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
                 <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
                 {(parseFloat(String(form4797).replace(/,/g,'')) || 0) > 0 && (parseFloat(String(unrecap1250).replace(/,/g,'')) || 0) === 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
-                    ⚠ You entered a Form 4797 gain. If this included <strong>depreciable real property</strong>, enter accumulated straight-line depreciation here — that amount is taxed at up to 25%, not 20%. Schedule D Unrecaptured §1250 Worksheet · IRC §1(h)(1)(E).
+                    â  You entered a Form 4797 gain. If this included <strong>depreciable real property</strong>, enter accumulated straight-line depreciation here â that amount is taxed at up to 25%, not 20%. Schedule D Unrecaptured Â§1250 Worksheet Â· IRC Â§1(h)(1)(E).
                   </div>
                 )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-collectibles" style={inputLbl}>
                   {/* TERMINOLOGY FIX 4.3: Old label listed 3 of 7+ statutory categories ("Art, Coins, Stamps")
-                      and omitted gems, precious metals, and rugs. Moved examples to tooltip, cite §1(h)(4)
+                      and omitted gems, precious metals, and rugs. Moved examples to tooltip, cite Â§1(h)(4)
                       in label for precision. Tooltip now covers the full statutory definition. */}
-                  {/* UX-H3 FIX: label shortened — IRC cite moved to tooltip */}
+                  {/* UX-H3 FIX: label shortened â IRC cite moved to tooltip */}
                   Collectibles Gain
-                  <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year — losses are entered as negative numbers)." />
+                  <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC Â§1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year â losses are entered as negative numbers)." />
                 </label>
                 <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
               </div>
@@ -1185,40 +1185,40 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
+          <CollapsibleSection title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest Â· Above-the-line (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-health-ins" style={inputLbl}>
                   Self-Employed Health Insurance Premiums
-                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
+                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC Â§1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
                 </label>
                 <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-hsa" style={inputLbl}>
                   HSA Deduction (Form 8889)
-                  <InfoTip text="Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
+                  <InfoTip text="Health Savings Account contributions â deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
                 </label>
                 <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
-                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
+                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000â$90,000 (single) / $155,000â$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
                 </label>
                 <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
+                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary â NOT K-1 distributions (IRC Â§402(h); Â§415(c); IRS Pub. 560).\nâ¢ SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\nâ¢ Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
                 <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nol" style={inputLbl}>
-                  NOL Carryforward (IRC §172)
-                  <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically." />
+                  NOL Carryforward (IRC Â§172)
+                  <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC Â§172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward â TaxStat360 applies the 80% cap automatically." />
                 </label>
                 <MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" nonNegative />
               </div>
@@ -1228,7 +1228,7 @@ export default function TaxReturn() {
                       multi-entity") inside a parenthetical, and used unexplained "pooled" jargon.
                       Form 8995 citation added. The tooltip already explains the per-entity distinction. */}
                   Prior-Year QBI Loss Carryforward (Form 8995, Line 3)
-                  <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's §199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. §1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
+                  <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your Â§199A QBI deduction in the CURRENT year (IRC Â§199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's Â§199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. Â§1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
                 </label>
                 <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
               </div>
@@ -1245,7 +1245,7 @@ export default function TaxReturn() {
               {useItemized && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 7, padding: '7px 10px' }}>
-                    Enter your Schedule A line items below — TaxStat360 totals them automatically. Or skip sub-fields and enter your total directly.
+                    Enter your Schedule A line items below â TaxStat360 totals them automatically. Or skip sub-fields and enter your total directly.
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div style={inpWrap}>
@@ -1265,14 +1265,14 @@ export default function TaxReturn() {
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Medical Expenses (Schedule A Line 4)
-                        <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC §213(a)). Enter your total medical expenses paid — TaxStat360 applies the 7.5% AGI floor automatically." />
+                        <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC Â§213(a)). Enter your total medical expenses paid â TaxStat360 applies the 7.5% AGI floor automatically." />
                       </label>
                       <MoneyInput ariaLabel="Medical Expenses (Schedule A Line 4)" value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
-                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid â TaxStat360 applies the cap.`} />
                       </label>
                       <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                     </div>
@@ -1280,7 +1280,7 @@ export default function TaxReturn() {
                   <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: SL }}>Sub-field total{medicalWasFloored ? ' (medical after 7.5% AGI floor)' : ''}:</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: displayItemizedTotal > stdDed ? G : N }}>{fmt(displayItemizedTotal)}{displayItemizedTotal > stdDed ? ' ✓ exceeds std. ded.' : displayItemizedTotal > 0 ? ` (std. ded. ${fmt(stdDed)} is higher)` : ''}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: displayItemizedTotal > stdDed ? G : N }}>{fmt(displayItemizedTotal)}{displayItemizedTotal > stdDed ? ' â exceeds std. ded.' : displayItemizedTotal > 0 ? ` (std. ded. ${fmt(stdDed)} is higher)` : ''}</span>
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
@@ -1296,12 +1296,12 @@ export default function TaxReturn() {
                 <input type="checkbox" id="iso" checked={hasISO} onChange={e => setHasISO(e.target.checked)} />
                 <label htmlFor="iso" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
                   Exercised ISO stock options this year
-                  <InfoTip text="Incentive Stock Option exercise bargain element — the spread between FMV and exercise price at exercise date. This is an AMT preference item (Form 6251, Line 2a). It does NOT appear in ordinary income if you hold the stock, but IS added to your AMT tax base." />
+                  <InfoTip text="Incentive Stock Option exercise bargain element â the spread between FMV and exercise price at exercise date. This is an AMT preference item (Form 6251, Line 2a). It does NOT appear in ordinary income if you hold the stock, but IS added to your AMT tax base." />
                 </label>
               </div>
               {hasISO && (
                 <div style={inpWrap}>
-                  <label style={inputLbl}>ISO Bargain Element (FMV − Exercise Price × Shares)</label>
+                  <label style={inputLbl}>ISO Bargain Element (FMV â Exercise Price Ã Shares)</label>
                   <MoneyInput ariaLabel="ISO Bargain Element (FMV minus exercise price, times shares)" value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
                 </div>
               )}
@@ -1310,9 +1310,9 @@ export default function TaxReturn() {
 
           {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
-          <CollapsibleSection title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI · minimize underpayment penalties" badge="Optional">
+          <CollapsibleSection title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI Â· minimize underpayment penalties" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
-              Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
+              Enter prior year figures to calculate your Safe Harbor payment amount â the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC Â§6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under Â§6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
@@ -1330,11 +1330,11 @@ export default function TaxReturn() {
                 {safeHarborMet ? (
                   <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontWeight: 700, color: '#166534', fontSize: 13, marginBottom: 6 }}>
-                      ✅ Safe harbor met — no underpayment penalty risk
+                      â Safe harbor met â no underpayment penalty risk
                     </div>
                     <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.7 }}>
                       Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
-                      {' '}→ {isHighIncome ? '110%' : '100%'} Safe Harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
+                      {' '}â {isHighIncome ? '110%' : '100%'} Safe Harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
                       Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
                       Surplus: <strong>{fmt(Math.abs(safeHarborGap))}</strong> above the Safe Harbor threshold
                     </div>
@@ -1342,17 +1342,17 @@ export default function TaxReturn() {
                 ) : (
                   <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontWeight: 700, color: R, fontSize: 13, marginBottom: 6 }}>
-                      ⚠ Safe harbor gap: {fmt(safeHarborGap)} remaining — pay by {getNextDueDate()}
+                      â  Safe harbor gap: {fmt(safeHarborGap)} remaining â pay by {getNextDueDate()}
                     </div>
                     <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.7 }}>
                       Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
-                      {' '}→ {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
+                      {' '}â {isHighIncome ? '110%' : '100%'} safe harbor = <strong>{fmt(safeHarborMinimumLocal)}</strong><br />
                       Your payments to date: <strong>{fmt(totalPaymentsLocal)}</strong><br />
                       Remaining to meet Safe Harbor: <strong>{fmt(safeHarborGap)}</strong>
                     </div>
                     {priorYearAGINum === 0 && (
                       <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 6, fontStyle: 'italic' }}>
-                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K for single, HOH, and MFJ filers; $75K for MFS only — IRC §6654(d)(1)(C)(ii)).
+                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K for single, HOH, and MFJ filers; $75K for MFS only â IRC Â§6654(d)(1)(C)(ii)).
                       </div>
                     )}
                   </div>
@@ -1364,7 +1364,7 @@ export default function TaxReturn() {
 
         </div>
 
-        {/* ── RIGHT: Results panel ─────────────────────────────────────────── */}
+        {/* ââ RIGHT: Results panel âââââââââââââââââââââââââââââââââââââââââââ */}
         {/* F3 FIX (UX audit): this column was position:sticky, but it is taller than
             the viewport (card + waterfall + quarterly + notes + save buttons), so the
             headline liability still scrolled off the top while editing lower inputs.
@@ -1372,7 +1372,7 @@ export default function TaxReturn() {
             (below), so the number + effective rate stay in view during input. */}
         <div style={{ position: 'relative' }}>
 
-          {/* Main liability card — pinned on desktop so the headline number stays visible
+          {/* Main liability card â pinned on desktop so the headline number stays visible
               while the form scrolls (F3). On mobile the sticky summary bar under the nav
               handles this (F16), so the card sits in normal flow. */}
           <div style={{ background: N, borderRadius: 16, padding: '24px', marginBottom: 12, color: '#fff', position: isMobile ? 'static' : 'sticky', top: 70, zIndex: 5 }}>
@@ -1383,16 +1383,16 @@ export default function TaxReturn() {
               transition: 'text-shadow 0.25s ease',
               textShadow: taxFlash === 1 ? '0 0 18px rgba(252,165,165,0.9)' : taxFlash === -1 ? '0 0 18px rgba(134,239,172,0.9)' : 'none',
             }}>
-              <span>{hasResult ? fmt(result.totalTax) : '—'}</span>
+              <span>{hasResult ? fmt(result.totalTax) : 'â'}</span>
               {taxFlash !== 0 && taxDelta !== 0 && (
                 <span aria-live="polite" style={{ fontSize: 15, fontWeight: 800, color: taxFlash === 1 ? '#FCA5A5' : '#86EFAC' }}>
-                  {taxFlash === 1 ? '▲' : '▼'} {fmt(Math.abs(taxDelta))}
+                  {taxFlash === 1 ? 'â²' : 'â¼'} {fmt(Math.abs(taxDelta))}
                 </span>
               )}
             </div>
             {ytdMode && hasResult && (
               <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-                Annualized from YTD (× {ytdFactor.toFixed(2)})
+                Annualized from YTD (Ã {ytdFactor.toFixed(2)})
               </div>
             )}
             {hasResult && (
@@ -1402,12 +1402,12 @@ export default function TaxReturn() {
             )}
             {/* F-05 UX FIX: Surface "Estimated Balance Due" directly in the hero card.
                 Previously only visible by scrolling the Tax Waterfall below. This is the
-                number a business owner actually acts on — how much they still owe. */}
+                number a business owner actually acts on â how much they still owe. */}
             {hasResult && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.8 }}>
             {/* TERMINOLOGY FIX 2.1: "Estimated Balance Due" is semantically wrong when
-                withholding and estimated payments have not been entered — at that point
+                withholding and estimated payments have not been entered â at that point
                 the figure equals total tax liability, not balance due (which is liability
                 minus payments). Show "Est. Tax Liability" until the user has entered
                 withholding or payments; switch to "Estimated Balance Due" once they have. */}
@@ -1431,18 +1431,18 @@ export default function TaxReturn() {
           {/* C-Corp double-taxation note + planning disclaimer */}
           {hasResult && (result.ccorpCorpTax > 0 || ccorp.count > 0) && (
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 16px', marginBottom: 12, fontSize: 12.5, color: '#1E3A5F', lineHeight: 1.55 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: '#1D4ED8' }}>🏢 C-Corporation — double taxation applies</div>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: '#1D4ED8' }}>ð¢ C-Corporation â double taxation applies</div>
               <div>
                 Your C-Corp&apos;s profit (after officer salary and employer payroll tax) is taxed at the corporate level at a flat 21%
                 {result.ccorpCorpTax > 0 ? <> (<strong>{fmt(result.ccorpCorpTax)}</strong>)</> : null}, and the remaining after-tax profit
                 {result.ccorpDividends > 0 ? <> (<strong>{fmt(result.ccorpDividends)}</strong>)</> : null} is treated as fully distributed and taxed
                 <strong> again</strong> as qualified dividends on your personal return. Officer salary is already included in W-2 wages above.
-                C-Corp distributions are not qualified business income, so no §199A (QBI) deduction applies to them.
+                C-Corp distributions are not qualified business income, so no Â§199A (QBI) deduction applies to them.
               </div>
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #BFDBFE', fontSize: 11.5, color: '#475569' }}>
                 Planning estimate only. Assumes a single owner-employee and full annual distribution of after-tax profit (no retained-earnings
                 strategy), a flat 21% with no graduated/AMT/accumulated-earnings or personal-holding-company layers, and federal tax only.
-                Not a substitute for a prepared Form 1120 — have a tax professional validate before relying on these figures.
+                Not a substitute for a prepared Form 1120 â have a tax professional validate before relying on these figures.
               </div>
             </div>
           )}
@@ -1450,7 +1450,7 @@ export default function TaxReturn() {
           {/* Empty state */}
           {hasResult && result.agi === 0 && (
             <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#78350F', textAlign: 'center' }}>
-              💡 Enter your income above to see your tax estimate. All figures are $0 because no income has been entered yet.
+              ð¡ Enter your income above to see your tax estimate. All figures are $0 because no income has been entered yet.
             </div>
           )}
 
@@ -1477,8 +1477,8 @@ export default function TaxReturn() {
                   const showSplit = officerSalary > 0 && result.totalW2ForFICA > 0
                   if (showSplit) {
                     return [
-                      { label: 'W-2 Wages — S-Corp officer salary (Step 1)', value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 — do not re-enter in Step 2' },
-                      { label: 'W-2 Wages — Other employer (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
+                      { label: 'W-2 Wages â S-Corp officer salary (Step 1)', value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 â do not re-enter in Step 2' },
+                      { label: 'W-2 Wages â Other employer (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
                     ]
                   }
                   return [{ label: 'W-2 Wages', value: result.totalW2ForFICA || 0, sign: 1, hide: !(result.totalW2ForFICA > 0) }]
@@ -1486,17 +1486,17 @@ export default function TaxReturn() {
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
-                { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
-                  note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
+                { label: 'Â§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
+                  note: nf(form4797) > 0 ? 'Net Â§1231 gain â taxed at long-term capital-gains rates' : 'Net Â§1231 loss â ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
-                // F-FUNC-06: show the §461(l) excess-business-loss addback as an explicit inline
+                // F-FUNC-06: show the Â§461(l) excess-business-loss addback as an explicit inline
                 // line so the income components above visibly reconcile to AGI. When a business
-                // loss exceeds the §461(l) threshold, the disallowed amount is added back to
+                // loss exceeds the Â§461(l) threshold, the disallowed amount is added back to
                 // income this year (and carries forward as an NOL); previously it only appeared
                 // in a callout below, so the listed rows did not appear to sum to AGI.
-                { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
-                { label: '—', value: 0, divider: true },
+                { label: 'Â§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year â carries forward as an NOL (IRC Â§461(l), Â§172)' },
+                { label: 'â', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 // TERMINOLOGY FIX 2.4 / PASS 3 CORRECTION: Original fix used `useItemized` (checkbox
                 // state) as the condition, but when the checkbox is checked and no Schedule A amounts
@@ -1505,40 +1505,40 @@ export default function TaxReturn() {
                 // result.itemized and result.stdDed are both returned by the engine (line 1093/1171).
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
-                { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
+                { label: 'SE Tax Deduction (Â½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
-                { label: '—', value: 0, divider: true },
-                { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
-                { label: '§199A QBI Deduction',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
-                { label: '—', value: 0, divider: true },
+                { label: 'â', value: 0, divider: true },
+                { label: 'Taxable Income (before Â§199A)', value: result.taxableBeforeQBI,                  sign: 1 },
+                { label: 'Â§199A QBI Deduction',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
+                { label: 'â', value: 0, divider: true },
                 { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
-                { label: '—', value: 0, divider: true },
+                { label: 'â', value: 0, divider: true },
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
-                { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
+                { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll â not in Balance Due' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
-                // $250K MFJ — IRC §3101(b)(2), §1411) is ALWAYS shown as a distinct waterfall
+                // $250K MFJ â IRC Â§3101(b)(2), Â§1411) is ALWAYS shown as a distinct waterfall
                 // line for users with W-2 income above $150K, because for many S-Corp owners in
                 // a loss year this IS their entire federal tax obligation. Previously hidden when $0,
                 // but it is more useful to show the line with $0 so the user knows it was computed.
-                { label: 'Addl. Medicare Tax (0.9% — Form 8959)',   value: result.additionalMedicare || 0,
+                { label: 'Addl. Medicare Tax (0.9% â Form 8959)',   value: result.additionalMedicare || 0,
                   sign: 1,
                   hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE * 0.75, // show when within 75% of the threshold
                   accent: (result.additionalMedicare || 0) > 0 ? '#DC2626' : undefined,
                   note: (result.additionalMedicare || 0) > 0
-                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} threshold (IRC §3101(b)(2))`
+                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} threshold (IRC Â§3101(b)(2))`
                     : undefined
                 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
                 { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
-                { label: '—', value: 0, divider: true },
-                { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
+                { label: 'â', value: 0, divider: true },
+                { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) â paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
-                { label: '—', value: 0, divider: true },
+                { label: 'â', value: 0, divider: true },
                 { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
@@ -1550,7 +1550,7 @@ export default function TaxReturn() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
                       <span style={{ color: row.accent || SL, fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
                       <span style={{ fontWeight: row.bold ? 700 : 500, color: row.accent || N }}>
-                        {showMinus ? '−' : ''}{fmt(magnitude)}
+                        {showMinus ? 'â' : ''}{fmt(magnitude)}
                       </span>
                     </div>
                     {row.note && (
@@ -1562,65 +1562,65 @@ export default function TaxReturn() {
 
               {assumedZeroBasisSuspended > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ Estimate incomplete — suspended S-Corp loss not included.</strong>{' '}
+                  <strong>â  Estimate incomplete â suspended S-Corp loss not included.</strong>{' '}
                   {fmt(assumedZeroBasisSuspended)} of S-Corp loss is excluded from this estimate because no
                   Form 7203 stock basis was entered. Your deductible loss is capped at your stock + debt basis
-                  (IRC §1366(d)). This figure will change materially once basis is entered.{' '}
-                  Open the S-Corp entity in Step 1 → "Stock &amp; Debt Basis (Form 7203)" and enter your
+                  (IRC Â§1366(d)). This figure will change materially once basis is entered.{' '}
+                  Open the S-Corp entity in Step 1 â "Stock &amp; Debt Basis (Form 7203)" and enter your
                   beginning basis (Line 1) to release the portion your basis supports.
                 </div>
               )}
 
               {result.ebl > 0 && result.eblThreshold > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B', lineHeight: 1.55 }}>
-                  <strong>⚠ §461(l) EBL:</strong> {fmt(result.ebl)} of business loss is disallowed this year and added back to income — your deductible business loss is limited to the {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}) threshold.
-                  {' '}The disallowed {fmt(result.ebl)} carries forward as a net operating loss (NOL) to next year (IRC §172(a)(2)).
+                  <strong>â  Â§461(l) EBL:</strong> {fmt(result.ebl)} of business loss is disallowed this year and added back to income â your deductible business loss is limited to the {fmt(result.eblThreshold)} ({filingStatus.toUpperCase()}) threshold.
+                  {' '}The disallowed {fmt(result.ebl)} carries forward as a net operating loss (NOL) to next year (IRC Â§172(a)(2)).
                 </div>
               )}
 
               {result.ebl > 0 && nf(ltGain) > 0 && nf(form4797) === 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ Is your {fmt(nf(ltGain))} long-term gain from selling business or rental property?</strong> If so it&apos;s a §1231 gain — move it to the &ldquo;Form 4797 Gains (§1231)&rdquo; field above. §1231 gains offset business losses in the excess-business-loss (§461(l)) calculation.
+                  <strong>â  Is your {fmt(nf(ltGain))} long-term gain from selling business or rental property?</strong> If so it&apos;s a Â§1231 gain â move it to the &ldquo;Form 4797 Gains (Â§1231)&rdquo; field above. Â§1231 gains offset business losses in the excess-business-loss (Â§461(l)) calculation.
                 </div>
               )}
 
               {result.nolSurplus > 0 && (
                 <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8' }}>
-                  <strong>NOL carryforward:</strong> {fmt(result.nolSurplus)} remaining (80% of taxable income cap applied per IRC §172(a)(2)).
+                  <strong>NOL carryforward:</strong> {fmt(result.nolSurplus)} remaining (80% of taxable income cap applied per IRC Â§172(a)(2)).
                 </div>
               )}
 
               {result.qbiCarryforward > 0 && (
                 <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1D4ED8', lineHeight: 1.55 }}>
-                  <strong>§199A QBI loss carryforward:</strong> {fmt(result.qbiCarryforward)} carries to next year and reduces your future QBI deduction base (IRC §199A(c)(2)).
+                  <strong>Â§199A QBI loss carryforward:</strong> {fmt(result.qbiCarryforward)} carries to next year and reduces your future QBI deduction base (IRC Â§199A(c)(2)).
                 </div>
               )}
 
               {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
-                  <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
+                  <strong>â  QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
                 </div>
               )}
 
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
-                  {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
+                  <strong>â  Â§1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended â not deductible this year. Carry forward to restore basis.
+                  {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> â {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}
 
               {result.palSuspendedRental > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
+                  <strong>â  Â§469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year â it does not reduce your other income. It carries forward on Form 8582.
                   {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
-                  {result.rentalIsREP && rentalAggregationElection !== true && step1RentalNetUI < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box on your rental card in Step 1 if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
-                  {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
+                  {result.rentalIsREP && rentalAggregationElection !== true && step1RentalNetUI < 0 && ' This is suspended because you have not made the Â§1.469-9(g) aggregation election â check that box on your rental card in Step 1 if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
+                  {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (Â§469(c)(7)), set REP status on the rental to deduct it currently.'}
                 </div>
               )}
             </div>
           )}
 
-          {/* SE Tax Savings panel — Finding 4: the savings is the S-Corp's treatment of
+          {/* SE Tax Savings panel â Finding 4: the savings is the S-Corp's treatment of
               K-1 BUSINESS INCOME as non-SE (true whether or not it is distributed), NOT a
               benefit of taking distributions. Framing it as "savings on distributions" both
               mislabels the figure (result.k1Distributions is K-1 income, not the distribution
@@ -1636,9 +1636,9 @@ export default function TaxReturn() {
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, lineHeight: 1.5 }}>
                 Your {fmt(result.k1Distributions || 0)} of S-Corp K-1 business income isn't subject to
-                self-employment tax — S-Corp shareholders owe FICA only on their W-2 officer wages, not on
+                self-employment tax â S-Corp shareholders owe FICA only on their W-2 officer wages, not on
                 their share of business income (whether or not it is distributed). As a sole proprietor, that
-                same income would incur SE tax on 92.35% of earnings (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in
+                same income would incur SE tax on 92.35% of earnings (IRC Â§1402(a)(12)): ~{fmt(result.ficaSavings)} in
                 SE tax avoided. This relies on paying yourself reasonable W-2 compensation first (Rev. Rul. 74-44).
               </div>
             </div>
@@ -1647,7 +1647,7 @@ export default function TaxReturn() {
           {/* Underpayment penalty warning */}
           {hasResult && result.balance > 0 && !nf(priorYearTax) && (
             <div role="alert" aria-live="polite" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
-              <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven&apos;t entered prior year tax. Enter your prior year total tax in{' '}
+              <strong>â  Underpayment Penalty Risk (IRC Â§6654):</strong> You have a balance due but haven&apos;t entered prior year tax. Enter your prior year total tax in{' '}
               <button
                 onClick={() => {
                   const el = document.querySelector('[data-section="safe-harbor"]')
@@ -1671,18 +1671,18 @@ export default function TaxReturn() {
               </div>
               {result.safeHarborPriorYear != null && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
-                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {isHighIncome ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
+                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {isHighIncome ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC Â§6654 penalties.
                 </div>
               )}
               <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>
-                Due: {ESTIMATE_DUE_DATES[taxYear] || 'Apr 15 · Jun 15 · Sep 15 · Jan 15'}
+                Due: {ESTIMATE_DUE_DATES[taxYear] || 'Apr 15 Â· Jun 15 Â· Sep 15 Â· Jan 15'}
               </div>
             </div>
           )}
 
           {/* Federal-only notice */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.5 }}>
-            🇺🇸 <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
+            ðºð¸ <strong>Federal income tax only.</strong> State income tax is not included. Add your state&apos;s effective rate separately for a complete liability picture.
           </div>
 
           {/* Save buttons */}
@@ -1706,8 +1706,8 @@ export default function TaxReturn() {
                 }}
               >
                 {analyzeStatus === 'saving'
-                  ? <><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
-                  : 'Continue to AI Analysis →'
+                  ? <><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Savingâ¦</>
+                  : 'Continue to AI Analysis â'
                 }
               </button>
               <div style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
@@ -1729,15 +1729,15 @@ export default function TaxReturn() {
                 }}
               >
                 {saveStatus === 'saving'
-                  ? <><span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: B, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
-                  : saveStatus === 'saved' ? '✓ Saved!'
-                  : saveStatus === 'error' ? '⚠ Save Failed — Retry'
+                  ? <><span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: B, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Savingâ¦</>
+                  : saveStatus === 'saved' ? 'â Saved!'
+                  : saveStatus === 'error' ? 'â  Save Failed â Retry'
                   : 'Save This Record'
                 }
               </button>
               {saveStatus === 'idle' && (
                 <div style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
-                  Saves this record — stays on Step 2
+                  Saves this record â stays on Step 2
                 </div>
               )}
               {saveStatus === 'saved' && (
