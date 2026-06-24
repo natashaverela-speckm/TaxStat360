@@ -50,7 +50,7 @@ import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName }
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
-import { parseMoney, nf } from './utils/parseMoney.js'
+import { parseMoney, nf } from './utils/money.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/SignOut'
 import BrandLogo from './BrandLogo'
@@ -60,7 +60,7 @@ import {
   FINANCIAL_LABELS,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
-import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
+import { fmt, pct, effectiveRate } from './utils/money.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from './utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 
