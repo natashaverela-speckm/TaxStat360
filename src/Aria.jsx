@@ -1,18 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
+import { readLoggedIn, removeLoggedIn, removeSessionStart } from './utils/sessionState.js'
 // SEC-05: requests route through CloudFront (app.taxstat360.com) via the shared apiClient,
-// which builds every URL from API_BASE_URL â never the raw API Gateway URL â so CloudFront /
+// which builds every URL from API_BASE_URL Ã¢ÂÂ never the raw API Gateway URL Ã¢ÂÂ so CloudFront /
 // WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
 import { apiFetch } from './utils/apiClient.js'
 
 const N = '#0D1B3E'
 
-const WELCOME = `Hi, I'm Aria â your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\nâ¢ "What's my estimated quarterly payment?"\nâ¢ "Am I paying myself a reasonable S-Corp salary?"\nâ¢ "What deductions am I missing?"\nâ¢ "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
+const WELCOME = `Hi, I'm Aria Ã¢ÂÂ your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\nÃ¢ÂÂ¢ "What's my estimated quarterly payment?"\nÃ¢ÂÂ¢ "Am I paying myself a reasonable S-Corp salary?"\nÃ¢ÂÂ¢ "What deductions am I missing?"\nÃ¢ÂÂ¢ "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
 
-// Max conversation turns to send to API â prevents unbounded cost growth
+// Max conversation turns to send to API Ã¢ÂÂ prevents unbounded cost growth
 const MAX_HISTORY_TURNS = 20
 
 // Aria is mounted globally (its own root in main.jsx, outside the Router), so it
-// would otherwise appear on every page â including the public marketing pages.
+// would otherwise appear on every page Ã¢ÂÂ including the public marketing pages.
 // Gate it to the authenticated app routes only: signed-in users on the actual
 // product, never on the landing / pricing / legal / auth pages.
 const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
@@ -36,7 +37,7 @@ export default function Aria() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Visibility gate â re-evaluated on navigation so it tracks SPA route changes
+  // Visibility gate Ã¢ÂÂ re-evaluated on navigation so it tracks SPA route changes
   // and login/logout without requiring a full page reload.
   const [visible, setVisible] = useState(ariaAllowed)
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function Aria() {
 
   useEffect(() => {
     if (open && !welcomed) {
-      // intro:true marks the welcome as a display-only message â excluded from API history
+      // intro:true marks the welcome as a display-only message Ã¢ÂÂ excluded from API history
       setTimeout(() => { setMsgs([{ role: 'assistant', text: WELCOME, intro: true }]); setWelcomed(true) }, 300)
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 400)
@@ -66,8 +67,8 @@ export default function Aria() {
     setPlanError(false)
     try {
       // SEC-04: Session token now lives in an httpOnly cookie set by the login Lambda.
-      // The browser sends it automatically on credentialed requests â no localStorage read needed.
-      // Build conversation history â exclude intro welcome message and cap at MAX_HISTORY_TURNS
+      // The browser sends it automatically on credentialed requests Ã¢ÂÂ no localStorage read needed.
+      // Build conversation history Ã¢ÂÂ exclude intro welcome message and cap at MAX_HISTORY_TURNS
       const history = msgs
         .filter(m => !m.intro)
         .slice(-MAX_HISTORY_TURNS)
@@ -82,13 +83,13 @@ export default function Aria() {
       })
 
       if (r.status === 401) {
-        // Cookie expired or invalid â clear local flags and redirect to login
+        // Cookie expired or invalid Ã¢ÂÂ clear local flags and redirect to login
         removeLoggedIn()
         removeSessionStart()
         setMsgs(m => [...m, {
           role: 'assistant',
           text: 'Your session has expired.',
-          action: { label: 'Sign in â', href: '/login' }
+          action: { label: 'Sign in Ã¢ÂÂ', href: '/login' }
         }])
         setLoading(false)
         return
@@ -103,12 +104,12 @@ export default function Aria() {
 
       // FIX (aria-5xx): any other non-2xx response (notably a 503 when the /aria
       // service is unavailable) previously fell through to r.json() below, threw on
-      // the non-JSON body, and surfaced the generic "Connection error" â which reads
+      // the non-JSON body, and surfaced the generic "Connection error" Ã¢ÂÂ which reads
       // like a client/network problem. Distinguish a server outage so the user knows
       // it's temporary and to retry, rather than re-checking their connection.
       if (!r.ok) {
         const msg = r.status >= 500
-          ? 'Aria is temporarily unavailable. This is on our side â please try again in a moment.'
+          ? 'Aria is temporarily unavailable. This is on our side Ã¢ÂÂ please try again in a moment.'
           : 'Aria could not process that request. Please try again.'
         setMsgs(m => [...m, { role: 'assistant', text: msg }])
         setLoading(false)
@@ -154,7 +155,7 @@ export default function Aria() {
             {loading && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, color: '#64748B' }}>Aria is thinking...</div></div>}
             {planError && (
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1E40AF', textAlign: 'center' }}>
-                <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional â</a>
+                <a href="/upgrade" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Upgrade to Professional Ã¢ÂÂ</a>
               </div>
             )}
             <div ref={bottomRef} />
@@ -169,45 +170,45 @@ export default function Aria() {
               disabled={loading}
               style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: loading ? '#f1f5f9' : '#f8fafc' }}
             />
-            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>â</button>
+            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>Ã¢ÂÂ</button>
           </div>
-          {/* Planning-lane disclaimer â Aria is an AI assistant, so it carries the same
+          {/* Planning-lane disclaimer Ã¢ÂÂ Aria is an AI assistant, so it carries the same
               federal-planning-only scope the rest of the app shows (FederalScopeBanner,
               TaxReturn footer). The authoritative guardrails live server-side in the
               /aria system prompt; this is the user-facing reminder. */}
           <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
-            Aria gives general federal tax-planning information for estimates only â not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
+            Aria gives general federal tax-planning information for estimates only Ã¢ÂÂ not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>
       )}
 
       {/* UX-05 FIX: The trigger button now has a visible label so users know what it does
           without having to hover or guess.
-          â
-          BEFORE (regression): A bare 56Ã56 navy circle with the Aria star SVG and no text.
+          Ã¢ÂÂ
+          BEFORE (regression): A bare 56ÃÂ56 navy circle with the Aria star SVG and no text.
           The aria-label / title attributes were present for screen readers and hover tooltips,
-          but sighted users on mobile â where title tooltips never fire â had no affordance.
+          but sighted users on mobile Ã¢ÂÂ where title tooltips never fire Ã¢ÂÂ had no affordance.
           The button was invisible as a feature; click-through on the widget was low as a result.
-          â
+          Ã¢ÂÂ
           AFTER: Two distinct states driven by the existing `open` boolean:
-            â¢ Closed â pill button (auto width, 48px tall): star SVG + "Ask Aria" text.
+            Ã¢ÂÂ¢ Closed Ã¢ÂÂ pill button (auto width, 48px tall): star SVG + "Ask Aria" text.
                         Pill shape is the industry-standard chat widget pattern (Intercom, Drift).
                         Makes the feature discoverable on first visit without any interaction.
-            â¢ Open   â circle button (48Ã48): plain Ã glyph.
+            Ã¢ÂÂ¢ Open   Ã¢ÂÂ circle button (48ÃÂ48): plain ÃÂ glyph.
                         Collapses back to a compact close target that doesn't obscure the chat panel.
-          â
+          Ã¢ÂÂ
           Positioning, z-index, onClick, aria-label, and title are all unchanged from the prior
           version so nothing else in the component is affected. */}
       <button
         onClick={() => setOpen(o => !o)}
         aria-label={open ? 'Close Aria AI assistant' : 'Open Aria AI assistant'}
-        title={open ? 'Close Aria' : 'Ask Aria â AI Tax Assistant'}
+        title={open ? 'Close Aria' : 'Ask Aria Ã¢ÂÂ AI Tax Assistant'}
         style={{
           position: 'fixed',
           bottom: 80,
           right: 24,
           height: 48,
-          // Pill when closed (fits icon + label), circle when open (just the Ã glyph)
+          // Pill when closed (fits icon + label), circle when open (just the ÃÂ glyph)
           width: open ? 48 : 'auto',
           borderRadius: 24,
           background: N,
@@ -227,12 +228,12 @@ export default function Aria() {
         }}
       >
         {open ? (
-          /* Close state â compact Ã so it doesn't cover the chat panel */
+          /* Close state Ã¢ÂÂ compact ÃÂ so it doesn't cover the chat panel */
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M2 2L16 16M16 2L2 16" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
           </svg>
         ) : (
-          /* Open/idle state â star icon + visible label */
+          /* Open/idle state Ã¢ÂÂ star icon + visible label */
           <>
             <svg width="22" height="22" viewBox="0 0 30 30" fill="none" style={{ flexShrink: 0 }}>
               <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
