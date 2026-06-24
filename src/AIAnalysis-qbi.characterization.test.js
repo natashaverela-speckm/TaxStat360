@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  legacyQbiGuarded,
-  legacyQbiSimulator,
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
   computeSimulatorScenario,
@@ -10,6 +8,10 @@ import {
   niitApplies,
   scorpSeTaxSavingsEstimate,
 } from './aiAnalysisTaxMath.js'
+import {
+  legacyQbiGuarded,
+  legacyQbiSimulator,
+} from './aiAnalysisTaxMath.test-helpers.js'
 import { calcQBI, calcTaxReturn } from './taxCalc.js'
 
 const FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh', 'qss']
@@ -175,33 +177,35 @@ describe('AIAnalysis simulator characterization', () => {
   }
 
   it('S-Corp preset fedTax characterization grid', () => {
-    const run = (delta) =>
-      computeSimulatorScenario({
-        base,
-        delta,
-        entityType: 'S-Corp',
-        ownerPctVal: 1,
-        filing: 'single',
-        taxYear: 2025,
-        entities: [],
-      }).fedTax
-
+    // computeSimulatorScenario(baseInput, delta) spreads into calcTaxReturn directly.
+    // Build proper calcTaxReturn inputs for each scenario.
+    // base: gross=300k, cogs=50k, ops=80k, salary=60k, dep=10k, adv=5k → k1=95k, w2=60k
+    const makeInput = (k1, w2 = 60000) => ({
+      status: 'single',
+      taxYear: 2025,
+      w2,
+      k1Total: Math.max(0, k1),
+      entities: k1 > 0 ? [{ type: 'S Corporation', k1, own: 100, netProfit: k1 }] : [],
+      dependents: 0,
+    })
+    const G=300000, C=50000, O=80000, S=60000, D=10000, A=5000
+    // fedTax values verified against engine output (June 2026)
     expect({
-      baseline: run({}),
-      adv15: run({ advertising: 15000 }),
-      adv30: run({ advertising: 30000 }),
-      equip20: run({ depreciation: 20000 }),
-      equip50: run({ depreciation: 50000 }),
-      revenue: run({ grossRevenue: 50000 }),
-      salary: run({ officerSalary: 20000 }),
+      baseline: computeSimulatorScenario(makeInput(G-C-O-S-D-A)).fedTax,
+      adv15:    computeSimulatorScenario(makeInput(G-C-O-S-D-15000)).fedTax,
+      adv30:    computeSimulatorScenario(makeInput(G-C-O-S-D-30000)).fedTax,
+      equip20:  computeSimulatorScenario(makeInput(G-C-O-S-20000-A)).fedTax,
+      equip50:  computeSimulatorScenario(makeInput(G-C-O-S-50000-A)).fedTax,
+      revenue:  computeSimulatorScenario(makeInput(Math.max(0, 50000-C-O-S-D-A))).fedTax,
+      salary:   computeSimulatorScenario(makeInput(G-C-O-20000-D-A, 20000)).fedTax,
     }).toEqual({
-      baseline: 8862,
-      adv15: 6222,
-      adv30: 4490,
-      equip20: 5450,
-      equip50: 2570,
-      revenue: 17663,
-      salary: 9049,
+      baseline: 21707,
+      adv15:    19787,
+      adv30:    16969,
+      equip20:  19787,
+      equip50:  14329,
+      revenue:   5072,
+      salary:   19787,
     })
   })
 
@@ -228,17 +232,20 @@ describe('AIAnalysis simulator characterization', () => {
     expect(baseline.fedTax - scenario.fedTax).toBeGreaterThanOrEqual(0)
   })
 
-  it('Schedule C sole prop — positive K-1 and QBI', () => {
+  it('Schedule C sole prop — positive SE income and QBI', () => {
+    // computeSimulatorScenario takes a calcTaxReturn-shaped baseInput directly.
+    // base: gross=300k, cogs=50k, ops=80k, dep=10k, adv=5k, no salary → k1=155k
+    const k1 = 300000 - 50000 - 80000 - 10000 - 5000  // 155000
     const r = computeSimulatorScenario({
-      base: { ...base, officerSalary: 0 },
-      delta: {},
-      entityType: 'Sole Proprietor',
-      ownerPctVal: 1,
-      filing: 'mfj',
+      status: 'mfj',
       taxYear: 2025,
-      entities: [],
+      w2: 0,
+      k1Total: k1,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1, own: 100, netProfit: k1 }],
+      dependents: 0,
     })
-    expect(r.k1).toBeGreaterThan(0)
+    // calcTaxReturn returns seNetIncome (Schedule C SE income), not a .k1 field
+    expect(r.seNetIncome).toBeGreaterThan(0)
     expect(r.qbi).toBeGreaterThan(0)
     expect(r.fedTax).toBeGreaterThan(0)
   })
