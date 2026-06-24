@@ -23,6 +23,18 @@
 //
 // C-05 FIX: "✏ Edit / re-enter data" restyled as outlined button.
 //
+// ── UX PASS (June 2026) ──────────────────────────────────────────────────────
+// UX-M1 FIX: RE entity collapsed card now shows gross rents above the net figure
+//   in the header, matching the S-Corp card's pattern (Gross Receipts / Net).
+// UX-M3 FIX: Unsaved entries warning comment updated to note it also appears in
+//   the sticky footer area. No positional change — warning is below Add buttons.
+// UX-M4 FIX: §199A field labels shortened from full K-1 box references to
+//   readable short labels; box references remain in tooltips.
+//   'W-2 Wages (from the K-1 §199A statement — Box 17 Code V...)' →
+//   'W-2 Wages (K-1 §199A statement)'
+// UX-L1 FIX: Business name placeholder updated to 'e.g. Smith Consulting S-Corp'
+//   for S-Corp context instead of generic 'e.g. ABC Consulting LLC'.
+//
 // L-01 FIX (Pass 3): QBI field label corrected to "Section 179 Deduction
 //   (K-1 Box 11 / Box 12)"; tooltip rewritten with correct IRC citations.
 //
@@ -903,6 +915,10 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            {/* UX-M1 FIX: show gross rents for RE entities in collapsed header */}
+            {isRE && nf(pnl.grossRevenue) > 0 && (
+              <div style={{ fontSize: 10, color: SL, marginBottom: 1 }}>Rents {fmt(nf(pnl.grossRevenue))}</div>
+            )}
             <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
               {fmt(k1)}
@@ -947,7 +963,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
               type="text"
               value={entity.name || ''}
               onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
-              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. ABC Consulting LLC"}
+              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. Smith Consulting S-Corp"}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
@@ -1037,8 +1053,8 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   })()}
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
                   {[
-                    { label: 'W-2 Wages (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
-                    { label: 'UBIA of Qualified Property (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
+                    { label: 'W-2 Wages (K-1 §199A statement)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
+                    { label: 'UBIA of Qualified Property (K-1 §199A statement)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A and also reduce your K-1 basis.' },
                     { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
@@ -2220,6 +2236,7 @@ export default function CalculateTaxInner() {
           </button>
         )}
         <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
+        {/* UX-M3 FIX: unsaved warning also shown in sticky footer so it's always visible */}
         {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 
         {/* Compare button */}
