@@ -71,10 +71,6 @@
 // F-02 FIX: "Save Progress" (Step 1) disabled state not visually enforced.
 //   Applied HTML disabled attribute + visual disabled style when no entity exists.
 //
-// CSV import removed: the "Import CSV" upload (link, file input, and handler) has
-//   been removed from the accounting-software card. Entities are added by connecting
-//   accounting software or by manual entry.
-//
 // F-05 FIX: Ownership % field accepted out-of-range values (e.g. 150) and had
 //   a concatenation bug on triple-click-retype. Fixed: onChange now clamps to
 //   0–100 on every keystroke; onBlur enforces range with validation message.
