@@ -4,6 +4,7 @@
 import {
   calcQBI,
   calcFederalTax,
+  calcTaxReturn,
   getStdDed,
   getNIITThreshold,
   getAddlMedicareThreshold,
@@ -122,7 +123,27 @@ export function additionalMedicareApplies({ taxYear, filing, wages }) {
 
 /**
  * What-if simulator tax math — expense/income slider scenarios.
- * Computes through shared taxCalc.js primitives only.
+ *
+ * CALC-1 FIX: now routes through calcTaxReturn (the full engine orchestrator)
+ * instead of calcFederalTax only. This adds NIIT, Additional Medicare Tax, AMT,
+ * SE tax, §1366(d) basis limits, and §461(l) EBL to the simulator output —
+ * so "YOU SAVE $X" reflects the complete tax picture, not income tax alone.
+ *
+ * The salary-adjustment scenario is the primary use case for S-Corp owners.
+ * Under the old calcFederalTax-only path, changing salary by $10K showed only
+ * the income-tax bracket effect (~$2,200) while omitting the SE/FICA effect
+ * (~$1,530), materially understating the benefit. Now both components show.
+ *
+ * Return contract extended:
+ *   fedTax    — income tax only (backward-compat: SimulatorModal uses this)
+ *   totalTax  — full tax including SE, NIIT, AMT, Additional Medicare (NEW)
+ *   seTax     — self-employment tax component (NEW)
+ *   niitAmount — NIIT component (NEW)
+ *   amt        — AMT component (NEW)
+ *
+ * CALC-2 NOTE: when the caller passes useItemized + itemizedAmt in personalContext,
+ * the engine applies the itemized deduction correctly. The legacy callers that omit
+ * these fields continue to get the standard deduction (no breaking change).
  */
 export function computeSimulatorScenario({
   base,
@@ -132,6 +153,7 @@ export function computeSimulatorScenario({
   filing,
   taxYear,
   entities,
+  personalContext = {},
 }) {
   const rev = base.grossRevenue + (delta.grossRevenue || 0)
   const cogs = base.cogs
@@ -144,37 +166,55 @@ export function computeSimulatorScenario({
   const grossProfit = rev - cogs
   const totalBizExp = opex + sal + dep + adv + other
   const netBizIncome = grossProfit - totalBizExp
-  let k1 = 0
-  if (isPassthroughEntity(entityType)) {
-    k1 = Math.max(0, netBizIncome) * ownerPctVal
-  }
-  const totalPersonalIncome = k1 + w2
-  const stdDed = getStdDed(taxYear, filing)
-  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalPersonalIncome, taxYear, filing)
-  const { deduction: qbi } = resolveQbiDeduction({
+  const k1 = isPassthroughEntity(entityType) ? Math.max(0, netBizIncome) * ownerPctVal : 0
+
+  // Build a synthetic entity for the scenario so calcTaxReturn can apply basis
+  // limits, §469 gating, QBI, and FICA correctly.
+  const scenarioEntity = k1 !== 0 ? [{
+    type: entityType,
     k1,
-    taxableBeforeQBI,
-    entityType,
-    filing,
+    own: Math.round(ownerPctVal * 100),
+    ...(entities && entities[0] ? {
+      stockBasis: entities[0].stockBasis,
+      debtBasis:  entities[0].debtBasis,
+      isREP:      entities[0].isREP,
+      rentalAggregationElection: entities[0].rentalAggregationElection,
+    } : {}),
+  }] : []
+
+  const result = calcTaxReturn({
     taxYear,
-    entities,
-  })
-  const agi = Math.max(0, totalPersonalIncome - qbi)
-  const taxableInc = Math.max(0, agi - stdDed)
-  const fedTax = calcFederalTax(taxableInc, taxYear, filing)
-  return {
-    rev,
-    opex,
-    sal,
-    dep,
-    adv,
-    other,
-    netBizIncome,
-    k1,
-    qbi,
+    status: filing,
     w2,
-    agi,
-    taxableInc,
-    fedTax,
+    k1Total: k1,
+    entities: scenarioEntity,
+    ...(personalContext.useItemized ? {
+      useItemized: true,
+      itemizedAmt: personalContext.itemizedAmt || 0,
+      saltAmount:  personalContext.saltAmount  || 0,
+    } : {}),
+    dependents:  personalContext.dependents  || 0,
+    intInc:      personalContext.intInc      || 0,
+    divInc:      personalContext.divInc      || 0,
+    qualDiv:     personalContext.qualDiv     || 0,
+    ltGain:      personalContext.ltGain      || 0,
+    unrecap1250: personalContext.unrecap1250 || 0,
+  })
+
+  return {
+    // Inputs (for display)
+    rev, opex, sal, dep, adv, other, netBizIncome, k1, w2,
+    // Results — extended set
+    agi:       result.agi,
+    taxableInc: result.taxableAfterQBI,
+    qbi:       result.qbi,
+    // Backward-compat: SimulatorModal uses fedTax for its diff
+    fedTax:    result.fedTax,
+    // New full-picture totals
+    totalTax:   result.totalTax,
+    seTax:      result.seTax      ?? 0,
+    niitAmount: result.niitAmount ?? 0,
+    amt:        result.amt        ?? 0,
+    additionalMedicare: result.additionalMedicare ?? 0,
   }
 }
