@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { writeEmail, readEmailVerified, writeEmailVerified, removeEmailVerified, writePendingEmail } from './utils/sessionState.js'
+import { writeEmail, readEmailVerified, writeEmailVerified, removeEmailVerified, writePendingEmail } from '../utils/sessionState.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
 import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
 
@@ -52,14 +52,14 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
         <button
           type="button"
           onClick={expand}
-          aria-label="Email not verified Ã¢ÂÂ show verification reminder"
+          aria-label="Email not verified â show verification reminder"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 999,
             padding: '3px 10px', fontSize: 12, color: N, cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          Ã°ÂÂÂ§ Verify email
+          ð§ Verify email
         </button>
       </div>
     )
@@ -80,7 +80,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
           zIndex: 60,
         }}
       >
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>Ã¢ÂÂ Your email is confirmed.</div>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>â Your email is confirmed.</div>
       </div>
     )
   }
@@ -90,7 +90,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setMsg('')
     try {
       await apiPost('/auth/resend-verification', { email })
-      setMsg(`Ã¢ÂÂ Verification email sent again to ${email}. Check your inbox (and junk/spam).`)
+      setMsg(`â Verification email sent again to ${email}. Check your inbox (and junk/spam).`)
     } catch (e) {
       // Match the prior logic: server `detail` on a non-ok response, else a generic message;
       // a network error surfaces its native message (as before).
@@ -115,12 +115,12 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setMsg('')
     try {
       await apiPost('/auth/change-email', { new_email: next })
-      writeEmail( next)
-      writePendingEmail( next)
-      removeEmailVerified()
+      localStorage.setItem('ts360_email', next)
+      localStorage.setItem('ts360_pendingEmail', next)
+      localStorage.removeItem('ts360_email_verified')
       onEmailUpdated?.(next)
       setEditing(false)
-      setMsg(`Ã¢ÂÂ Verification email sent again to ${next}. Check your inbox (and junk/spam).`)
+      setMsg(`â Verification email sent again to ${next}. Check your inbox (and junk/spam).`)
     } catch (err) {
       if (err instanceof ApiError) {
         setMsg((err.body && err.body.detail) || 'Could not update email')
@@ -149,7 +149,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
         <div style={{ flex: 1, minWidth: 0 }}>
         {!editing ? (
           <span>
-            Ã°ÂÂÂ§ Please confirm your email. We sent a verification link to <strong>{email}</strong>. Check your inbox (and junk/spam).
+            ð§ Please confirm your email. We sent a verification link to <strong>{email}</strong>. Check your inbox (and junk/spam).
             {' '}Wrong address?{' '}
             <button
               type="button"
@@ -159,9 +159,9 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
             >
               Update it
             </button>
-            {' ÃÂ· '}
+            {' Â· '}
             <button type="button" disabled={busy} onClick={resend} style={linkBtn}>
-              {busy ? 'SendingÃ¢ÂÂ¦' : 'Resend'}
+              {busy ? 'Sendingâ¦' : 'Resend'}
             </button>
           </span>
         ) : (
@@ -195,7 +195,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
           title="Hide"
           style={{ flex: '0 0 auto', background: 'transparent', border: 0, color: '#64748B', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 2 }}
         >
-          ÃÂ
+          Ã
         </button>
       </div>
       {msg ? (
@@ -209,24 +209,24 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
 
 export async function fetchVerificationStatus(email) {
   if (!email) return { verified: true }
-  if (readEmailVerified() === '1') {
+  if (localStorage.getItem('ts360_email_verified') === '1') {
     return { verified: true, email }
   }
   try {
-    // Non-ok throws Ã¢ÂÂ caught below Ã¢ÂÂ fail open (returns unverified), same as the prior
+    // Non-ok throws â caught below â fail open (returns unverified), same as the prior
     // code which only acted inside `if (res.ok)` and otherwise fell through.
     const data = await apiGet(
       `/auth/verification-status?email=${encodeURIComponent(email)}`,
       { headers: { Accept: 'application/json' } },
     )
     if (data?.verified) {
-      writeEmailVerified( '1')
+      localStorage.setItem('ts360_email_verified', '1')
       localStorage.removeItem(CONFIRMED_ACK_KEY)
       return { verified: true, email: data.email || email }
     }
     return { verified: false, email: data?.email || email }
   } catch (_e) {
-    /* fail open Ã¢ÂÂ never block the app */
+    /* fail open â never block the app */
   }
   return { verified: false, email }
 }
