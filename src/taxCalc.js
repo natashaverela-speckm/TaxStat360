@@ -14,7 +14,7 @@
 // calcPreferentialTax — QDCGTW (LTCG / qualified dividends / §1250 / collectibles)
 // calcNIIT — §1411 net investment income tax
 // TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets,
-// getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, nv
+// getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, calcFICAOnWages
 //
 //
 // ── Engine change log ───────────────────────────────────────────────────────
@@ -63,15 +63,9 @@ import {
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct } from './utils/entityPredicates.js'
 import { nf } from './utils/parseMoney.js'
-// nv: numeric coercion used throughout the engine. Unified onto the canonical nf()
-// (audit D-1) so there is one money parser. nf() additionally strips thousands
-// separators; engine inputs are stored comma-free, so this is identical in practice
-// and strictly more robust.
-// CC-F2 FIX: nv was a local alias for nf — same function, two names.
-// All internal calls now use nf directly. nv is kept in the export block
-// only for backward-compat (scenarioCompare.js re-exports it, tests import it).
-// When scenarioCompare.js is updated, remove nv from the export block too.
-const nv = nf  // alias retained for export only — do not use nv() in new code
+// nf(): canonical money parser imported from utils/parseMoney.js (audit D-1).
+// Strips thousands separators; engine inputs are stored comma-free so this is
+// strictly more robust than a local copy. (nv alias removed — audit finding 3.2.)
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
@@ -151,6 +145,8 @@ const TAX_TABLES = {
       minThreshold: null,
     },
   },
+  // OBBBA (One Big Beautiful Bill Act, P.L. 119-21) Rev. Proc. figures — verify
+  // against IRS Rev. Proc. for tax year 2026 before each filing season.
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
     ssWageBase: 184500,
@@ -223,6 +219,8 @@ function getMarginalRate(taxable, year, fs) {
   }
   return rate
 }
+// §1(a)-(e) IRC — ordinary income tax (progressive brackets).
+// Bracket tables live in TAX_TABLES[year].brackets; update there, not here.
 function calcFederalTax(ordinaryIncome, year, fs) {
   if (ordinaryIncome <= 0) return 0
   let tax = 0, prev = 0
@@ -233,6 +231,8 @@ function calcFederalTax(ordinaryIncome, year, fs) {
   }
   return Math.round(tax)
 }
+// §1(h) IRC — preferential rates: LTCG / qualified dividends / §1250 / collectibles.
+// 0% §1(h)(1)(B) · 15% §1(h)(1)(C) · 20% §1(h)(1)(D) · §1250 max 25% §1(h)(6) · collectibles max 28% §1(h)(4).
 function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
   const [threshold0, threshold15] = getLTCGThresholds(year, fs)
@@ -1259,6 +1259,20 @@ function calcTaxReturn(input) {
   }
 }
 
+/**
+ * FICA employment tax on a W-2 salary — both employer and employee sides.
+ * Shared arithmetic used by scorpSeTaxSavings and scenarioCompare.js. IRC §3101/§3111.
+ * @param {number} salary   W-2 wages subject to FICA.
+ * @param {number} taxYear  Used to look up the year-specific SS wage base.
+ * @returns {number}        Rounded total FICA (employee + employer combined).
+ */
+function calcFICAOnWages(salary, taxYear) {
+  const ssWageBase = getTable(taxYear).ssWageBase
+  const ssBoth  = Math.min(salary, ssWageBase) * FICA_SS_RATE * 2    // §3101(a) + §3111(a)
+  const medBoth = salary * FICA_MEDICARE_RATE * 2                     // §3101(b) + §3111(b)
+  return Math.round(ssBoth + medBoth)
+}
+
 // ── C-Corporation corporate layer (shared single source of truth) ────────────────────
 // The entity-level computation, used by BOTH the standalone estimate (calcCCorpReturn)
 // and the multi-entity Tax Tracker, where a C-Corp composes with other entities. Returns
@@ -1360,7 +1374,7 @@ export {
   QBI_THRESHOLDS,
   QBI_PHASE_IN_RANGE,
   QBI_MIN_DEDUCTION,
-  nv,
+  calcFICAOnWages,
   calcTaxReturn,
   scorpSeTaxSavings,
 }
