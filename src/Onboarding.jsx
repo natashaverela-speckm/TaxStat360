@@ -93,7 +93,7 @@ const N='#0D1B3E',B='#2563EB',SL='#475569'
 
 const LOGO = () => <div style={{ marginBottom: 20 }}><BrandLogo size={28} /></div>
 const Page=({children})=>(<div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'32px 16px',fontFamily:'Inter,sans-serif'}}><div style={{background:'#fff',borderRadius:14,padding:'28px 32px',maxWidth:480,width:'100%',boxShadow:'0 4px 20px rgba(37,99,235,0.10)',border:'1px solid #E2E8F0'}}>{children}</div></div>)
-const Field=({label,val,set,type='text',ph,mb=12,autoComplete,onBlur})=>{const _id='fld-'+String(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');return (<div style={{marginBottom:mb}}><label htmlFor={_id} style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input id={_id} type={type} value={val} onChange={e=>set(e.target.value)} onBlur={onBlur} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)}
+const Field=({label,val,set,type='text',ph,mb=12,autoComplete,onBlur,onFocus})=>{const _id='fld-'+String(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');return (<div style={{marginBottom:mb}}><label htmlFor={_id} style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{label}</label><input id={_id} type={type} value={val} onChange={e=>set(e.target.value)} onBlur={onBlur} onFocus={onFocus} placeholder={ph} autoComplete={autoComplete} style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/></div>)}
 
 // FIX (PW-STRENGTH): Password strength scoring and visual indicator.
 function pwStrength(pass) {
@@ -494,6 +494,8 @@ const from=location.state?.from
 // F-FUNC-03: surface a clear "session expired" notice instead of a silent bounce.
 // Set either by RequireAuth's redirect (router state) or the idle-timeout reload (?expired=1).
 const sessionExpired=location.state?.sessionExpired===true||new URLSearchParams(location.search).get('expired')==='1'
+const [accountDeleted]=useState(()=>new URLSearchParams(window.location.search).get('deleted')==='1')
+const loginAttemptAllowed=useRef(!accountDeleted)
 const redirectTo=from?(from.pathname+(from.search||'')):"/dashboard"
 const [email,setEmail]=useState('')
 const [pass,setPass]=useState('')
@@ -503,6 +505,19 @@ const [mfaStep,setMfaStep]=useState(false)
 const [mfaCode,setMfaCode]=useState('')
 const [loginToken,setLoginToken]=useState('')
 const [pendingEmail,setPendingEmail]=useState('')
+
+useEffect(()=>{
+if(!accountDeleted)return
+const params=new URLSearchParams(location.search)
+if(params.get('deleted')!=='1')return
+params.delete('deleted')
+const next=params.toString()
+nav({pathname:location.pathname,search:next?`?${next}`:''},{replace:true,state:location.state})
+},[accountDeleted,location.pathname,location.search,location.state,nav])
+
+function markLoginAttemptAllowed(){
+loginAttemptAllowed.current=true
+}
 
 function finishLogin(data,actualEmail){
 if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
@@ -517,7 +532,10 @@ nav(redirectTo,{replace:true})
 }
 
 async function submit(e){
-e.preventDefault();setLoading(true);setErr('')
+e.preventDefault()
+if(accountDeleted&&!loginAttemptAllowed.current)return
+markLoginAttemptAllowed()
+setLoading(true);setErr('')
 try{
 const domEmail = document.querySelector('input[type="email"]')?.value || ''
 const actualEmail = (email || domEmail).toLowerCase().trim()
@@ -562,7 +580,8 @@ return(<Page>
 </div>
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>{mfaStep?'Two-factor authentication':'Welcome back'}</h2>
 <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>{mfaStep?'Enter the 6-digit code from your authenticator app, or a backup code.':'Sign in to your TaxStat360 account'}</p>
-{sessionExpired&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
+{accountDeleted&&!mfaStep&&<div role="status" style={{background:'#F0FDF4',border:'1px solid #BBF7D0',color:'#166534',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your account has been deleted. We&apos;re sorry to see you go.</div>}
+{sessionExpired&&!accountDeleted&&!mfaStep&&<div role="status" style={{background:'#EFF6FF',border:'1px solid #BFDBFE',color:'#1E40AF',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your session expired and you were signed out. Sign back in to pick up where you left off — your saved records and in-progress entries are still here.</div>}
 {mfaStep?(
 <form onSubmit={submitMfa}>
 <label style={{display:'block',fontSize:12,fontWeight:600,color:N,marginBottom:6}}>Authentication code</label>
@@ -580,14 +599,14 @@ style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius
 <button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>
 ):(
-<form onSubmit={submit}>
-<Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete="email"/>
+<form onSubmit={submit} autoComplete={accountDeleted?'off':'on'}>
+<Field label="Email" val={email} set={setEmail} type="email" ph="you@company.com" autoComplete={accountDeleted?'off':'email'} onFocus={markLoginAttemptAllowed}/>
 <div style={{marginBottom:12}}>
 <label htmlFor="login-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
-<PasswordInput id="login-password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Your password" autoComplete="current-password" />
+<PasswordInput id="login-password" value={pass} onChange={e=>setPass(e.target.value)} onFocus={markLoginAttemptAllowed} placeholder="Your password" autoComplete={accountDeleted?'off':'current-password'} />
 </div>
-{err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
+{err && (!accountDeleted || loginAttemptAllowed.current) ? <div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div> : null}
+<button type="submit" disabled={loading} onClick={markLoginAttemptAllowed} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Signing in...':'Sign In →'}</button>
 <button type="button" onClick={()=>nav('/signup')} style={{width:'100%',padding:'10px',background:'#fff',color:B,border:`1.5px solid ${B}`,borderRadius:8,fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12}}>New here? Start your free 7-day trial →</button>
 <p style={{textAlign:'center',fontSize:12,margin:0}}><span onClick={()=>nav('/forgot-password')} style={{color:SL,cursor:'pointer',textDecoration:'underline'}}>Forgot your password?</span></p>
 </form>

@@ -31,6 +31,7 @@ export default function PasswordInput({
   value,
   onChange,
   onBlur,
+  onFocus,
   onKeyDown,
   placeholder,
   autoComplete,
@@ -46,6 +47,7 @@ export default function PasswordInput({
         value={value}
         onChange={onChange}
         onBlur={onBlur}
+        onFocus={onFocus}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         autoComplete={autoComplete}
