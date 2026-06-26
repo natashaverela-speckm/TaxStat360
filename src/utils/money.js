@@ -37,7 +37,7 @@ const PAREN_NEGATIVE_RE = /^\((.+)\)$/;
  */
 export function parseMoney(v) {
   if (v === null || v === undefined || v === '') return 0
-  if (typeof v === 'number') return Math.round(v)
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v) : 0
   let s = String(v).trim().replace(NUMERIC_CLEAN_RE, '')
   let negative = false
   if (PAREN_NEGATIVE_RE.test(s)) {
@@ -50,7 +50,8 @@ export function parseMoney(v) {
   }
   const n = parseFloat(s)
   if (!Number.isFinite(n)) return 0
-  return negative ? -Math.round(n) : Math.round(n)
+  const out = negative ? -Math.round(n) : Math.round(n)
+  return out === 0 ? 0 : out
 }
 
 /**
@@ -92,7 +93,8 @@ export function formatMoneyForInput(n) {
  */
 export function fmt(n) {
   if (n === null || n === undefined) return '$0'
-  const rounded = Math.round(parseFloat(n)) || 0
+  const rounded = Math.round(parseFloat(n))
+  if (!Number.isFinite(rounded)) return '$0'
   const abs = Math.abs(rounded)
   const str = '$' + abs.toLocaleString('en-US')
   return rounded < 0 ? '(' + str + ')' : str
