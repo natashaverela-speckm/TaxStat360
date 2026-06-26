@@ -88,13 +88,11 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 // "Tax Optimization"; tab desc said "What-If Tax Simulator"
 //   → canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
 export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
-export const FEATURE_WHATIF_SIMULATOR  = 'What-If Tax Simulator'
+export const FEATURE_WHATIF_SIMULATOR  = 'Tax Savings Opportunities'
 export const FEATURE_IRS_SCHEDULE_MAP  = 'IRS Schedule Map'
 export const FEATURE_CPA_EXPORT_PACK   = 'CPA Export Pack'
-
-// ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) ─
-// Same rationale as STEP3_LABEL above: these P&L / summary labels were inline
-// literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
+// ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) —
+// Same rationale as STEP3_LABEL above: these P&L / summary labels were inline// literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
 // across screens ("Gross Revenue" vs "Gross Receipts", "Officer Salary" vs "Officer
 // Compensation", "Net Profit" vs "Net Business Income", the federal-tax headline).
 // Centralizing them here makes the same concept read the same everywhere and makes a
