@@ -19,7 +19,7 @@
 //
 // CC-M01: Inline color constants replaced with imports from theme.js.
 // CC-M02: Local fmt() / pct() replaced with imports from utils/formatMoney.js.
-// F-M02:  ownPct() from utils/entityPredicates.js replaces (parseFloat(x) || 100)
+// F-M02:  ownPct() from utils/entityPredicates.js replaces (nf(x) || 100)
 //         pattern — fixes silent 0%-ownership-treated-as-100% bug.
 // UX-N02: Quarterly estimate in record card now includes safe harbor context.
 //
@@ -46,12 +46,13 @@
 //   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
-import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType } from './utils/sessionState.js'
-import { parseMoney } from './utils/parseMoney.js'
+import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
+import { parseMoney, nf } from './utils/money.js'
 import { apiGet } from './utils/apiClient.js'
-import { signOut } from './utils/signOut'
+import { signOut } from './utils/SignOut'
 import BrandLogo from './BrandLogo'
 import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
@@ -59,7 +60,7 @@ import {
   FINANCIAL_LABELS,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
-import { fmt, pct, effectiveRate } from './utils/formatMoney.js'
+import { fmt, pct, effectiveRate } from './utils/money.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from './utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 
@@ -78,26 +79,26 @@ import { isPro } from './LockedFeature'
 // tightly coupled to the Dashboard's biz/f1040 shapes; the export is consumed only by tests.
 // eslint-disable-next-line react-refresh/only-export-components
 export function calcDashboard(biz, f1040) {
-  const rev    = parseFloat(biz.grossRevenue)      || 0
-  const cogs   = parseFloat(biz.cogs)              || 0
+  const rev    = nf(biz.grossRevenue)
+  const cogs   = nf(biz.cogs)
   const gross  = rev - cogs
-  const opExp  = parseFloat(biz.operatingExpenses) || 0
-  const sal    = parseFloat(biz.officerSalary)     || 0
-  const dep    = parseFloat(biz.depreciation)      || 0
-  const adv    = parseFloat(biz.advertising)       || 0
-  const other  = parseFloat(biz.otherDeductions)   || 0
+  const opExp  = nf(biz.operatingExpenses)
+  const sal    = nf(biz.officerSalary)
+  const dep    = nf(biz.depreciation)
+  const adv    = nf(biz.advertising)
+  const other  = nf(biz.otherDeductions)
   const totalExp = opExp
-  const _pnlNet  = parseFloat(biz.pnl?.netProfit)
+  const _pnlNet  = nf(biz.pnl?.netProfit)
   const netBiz   = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) : (gross - totalExp)
   const own      = ownPct(biz.ownershipPct) / 100
   const k1       = Math.round(netBiz * own)
 
   const fs       = f1040.filingStatus || 'single'
   const year     = parseInt(biz.year) || CURRENT_TAX_YEAR
-  const w2       = parseFloat(f1040.w2Income)          || 0
-  const otherInc = parseFloat(f1040.otherIncome)       || 0
-  const deps     = parseFloat(f1040.dependents)        || 0
-  const estPay   = parseFloat(f1040.estimatedPayments) || 0
+  const w2       = nf(f1040.w2Income)
+  const otherInc = nf(f1040.otherIncome)
+  const deps     = nf(f1040.dependents)
+  const estPay   = nf(f1040.estimatedPayments)
   // Normalize once to the engine-canonical form, then classify with regex predicates
   // that match either the UI-label or engine form. isPassthru means "send this entity
   // through calcTaxReturn" (every supported type except a C-Corp, which has its own
@@ -187,9 +188,9 @@ export function calcDashboard(biz, f1040) {
 function buildRecs(biz, calc) {
   const recs = []
   const { k1, recSal, isSC, isCCorp, quarterly, qbi, effRate, corpTax, dividends } = calc
-  const officerSal = parseFloat(biz.officerSalary) || 0
-  const grossRev   = parseFloat(biz.grossRevenue)  || 0
-  const dep        = parseFloat(biz.depreciation)  || 0
+  const officerSal = nf(biz.officerSalary)
+  const grossRev   = nf(biz.grossRevenue)
+  const dep        = nf(biz.depreciation)
 
   if (isCCorp && corpTax > 0)
     recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
@@ -202,8 +203,8 @@ function buildRecs(biz, calc) {
   if (qbi > 0)
     recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
   if (dep === 0 && grossRev > 50000)
-    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under Section 179.' })
-  if (parseFloat(effRate) > 28)
+    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under §179.' })
+  if (nf(effRate) > 28)
     recs.push({ type: 'warning', title: `High Effective Tax Rate (${pct(effRate)})`, msg: 'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) for 2025.' })
   if (recs.length === 0)
     recs.push({ type: 'success', title: 'Your Tax Structure Looks Healthy', msg: 'No significant issues detected. Keep monitoring quarterly and update as financials change.' })
@@ -212,8 +213,7 @@ function buildRecs(biz, calc) {
 
 const LOGO = () => <BrandLogo size={30} />
 
-const ONBOARDING_KEY = 'ts360_onboarding_v1'
-
+const ONBOARDING_KEY = `ts360_onboarding_v1_${localStorage.getItem('ts360_email') || ''}`
 const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
   { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
@@ -339,14 +339,14 @@ class IntegrationErrorBoundary extends React.Component {
 export default function Dashboard() {
   const nav = useNavigate()
 
-  const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem('ts360_disclaimer_seen'))
-  const dismissDisclaimer = () => { localStorage.setItem('ts360_disclaimer_seen', '1'); setShowDisclaimer(false) }
+  const [showDisclaimer, setShowDisclaimer] = useState(() => !readDisclaimerSeen())
+  const dismissDisclaimer = () => { writeDisclaimerSeen('1'); setShowDisclaimer(false) }
 
   const [show2FANudge, setShow2FANudge] = useState(() =>
-    localStorage.getItem('ts360_mfa_enabled') !== '1' &&
-    !sessionStorage.getItem('ts360_2fa_nudge_dismissed')
+    readMfaEnabled() !== '1' &&
+    !read2FANudge()
   )
-  const dismiss2FANudge = () => { sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1'); setShow2FANudge(false) }
+  const dismiss2FANudge = () => { write2FANudge(true); setShow2FANudge(false) }
 
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
   const completeOnboarding = () => { localStorage.setItem(ONBOARDING_KEY, '1'); setShowOnboarding(false) }
@@ -373,7 +373,16 @@ export default function Dashboard() {
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 
-  const userName = localStorage.getItem('ts360_userName') || ''
+  // F-19 UX FIX: responsive nav — collapse labels to icons on narrow viewports
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const userName = readUserName() || ''
 
   useEffect(() => {
     let cancelled = false
@@ -404,8 +413,8 @@ export default function Dashboard() {
       }
     })
 
-    if (sessionStorage.getItem('ts360_goto_form') === '1') {
-      sessionStorage.removeItem('ts360_goto_form')
+    if (readGotoForm()) {
+      clearGotoForm()
       nav('/calculate-tax')
     }
 
@@ -422,8 +431,8 @@ export default function Dashboard() {
           if (data && data.grossRevenue) {
             setBiz(p => ({
               ...p,
-              grossRevenue: String(Math.round(parseFloat(data.grossRevenue) || 0)),
-              otherDeductions: String(Math.round(parseFloat(data.otherDeductions) || 0)),
+              grossRevenue: String(Math.round(nf(data.grossRevenue))),
+              otherDeductions: String(Math.round(nf(data.otherDeductions))),
             }))
           }
           setXeroLoading(false)
@@ -435,7 +444,7 @@ export default function Dashboard() {
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasNumbers = parseFloat(biz.grossRevenue) > 0
+  const hasNumbers = nf(biz.grossRevenue) > 0
   const calc = hasNumbers ? calcDashboard(biz, f1040) : null
   const safeCalc = calc || {
     k1: 0, w2: 0, agi: 0, qbi: 0, seTax: 0, seDed: 0,
@@ -504,12 +513,12 @@ export default function Dashboard() {
       : rec.biz
         ? (() => {
             const b = rec.biz
-            const rev = parseFloat(b.grossRevenue) || 0
-            const opEx = parseFloat(b.operatingExpenses) || 0
-            const sal = parseFloat(b.officerSalary) || 0
-            const dep = parseFloat(b.depreciation) || 0
-            const adv = parseFloat(b.advertising) || 0
-            const oth = parseFloat(b.otherDeductions) || 0
+            const rev = nf(b.grossRevenue)
+            const opEx = nf(b.operatingExpenses)
+            const sal = nf(b.officerSalary)
+            const dep = nf(b.depreciation)
+            const adv = nf(b.advertising)
+            const oth = nf(b.otherDeductions)
             const netProfit = rev - opEx - sal - dep - adv - oth
             const ownPctVal = parseInt(b.ownershipPct || b.own) || 100
             return [{
@@ -518,7 +527,7 @@ export default function Dashboard() {
               own: ownPctVal,
               pnl: { grossRevenue: rev, totalExpenses: opEx, officerSalary: sal, netProfit },
               netProfit,
-              k1: parseFloat(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
+              k1: nf(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
               box17K: 0, box11_12: 0, box12_13: 0,
               box17V_wages: 0, box17V_ubia: 0, box17V_sstb: false,
             }]
@@ -536,7 +545,6 @@ export default function Dashboard() {
     // C-04 FIX: clear CalculateTaxInner's Step-1 working copy so this freshly loaded record
     // is what Step 1 hydrates from (via readStep1StateRaw on mount). Without this, a stale
     // working copy from a previously loaded/edited record would shadow the new selection.
-    sessionStorage.removeItem('ts360_step1_entities')
     // F-FUNC-01: hydrate the FULL saved f1040 through the canonical normalizeF1040
     // helper rather than a hand-rolled partial restore. The previous partial path
     // silently dropped investment-income fields (capitalGains / interest / dividends /
@@ -618,10 +626,10 @@ export default function Dashboard() {
           {userName && (
             <span style={{ fontSize: 13, color: SL }}>Hi, <strong style={{ color: N }}>{userName.split(' ')[0]}</strong></span>
           )}
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Tax Tracker</button>
-          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? '' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>AI Analysis & Reporting {!isPro() && '🔒'}</button>
-          <button onClick={() => signOut(nav)}         style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>
-          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? '🧮' : 'Tax Tracker'}</button>
+          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? '🤖' : 'AI Analysis & Reporting'}{!isPro() && ' 🔒'}</button>
+          {!isMobile && <button onClick={() => signOut(nav)} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
+          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
         </div>
       </nav>
 
@@ -743,9 +751,10 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            <button onClick={startNewCalc} style={{ padding: '10px 24px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              Start New Calculation →
-            </button>
+            <p style={{ color: SL, fontSize: 13, margin: '8px 0 0', textAlign: 'center' }}>
+              Or{' '}
+              <span onClick={startNewCalc} style={{ color: B, cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}>start with a blank calculation</span>
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -756,19 +765,29 @@ export default function Dashboard() {
               const filingStatus   = (rec.f1040?.filingStatus || rec.filingStatus || '—').toUpperCase()
               const quarterly      = rec.quarterly || rec.biz?.quarterly || 0
               const w2Income       = rec.f1040?.w2Income || rec.w2Income
-              const totalTax       = parseFloat(rec.totalTax) || 0
+              const totalTax       = nf(rec.totalTax)
+              // FINDING 8 FIX: a record saved after Step 2 ran carries step2Computed === true
+              // even when totalTax is $0 (loss year, zero-income scenario).  Without this flag,
+              // totalTax === 0 is ambiguous — the Dashboard was showing "Complete Step 2 for
+              // estimate" for records whose tax was legitimately zero.
+              // Legacy records that predate this flag fall back to the totalTax > 0 heuristic.
+              const step2Computed = rec.step2Computed === true || totalTax > 0
               const isActive       = activeRecordId && String(rec.id) === activeRecordId
 
               // F24 FIX: derive effective rate from saved fields for the summary strip.
               // rec.totalTax is saved by TaxReturn.jsx buildRecord(). Effective rate is
               // totalTax ÷ approximate total income. We derive income from the saved
               // k1Income + f1040.w2Income since AGI is not directly persisted on the record.
-              const k1ForRate   = parseFloat(rec.k1Income) || 0
-              const w2ForRate   = parseFloat(rec.f1040?.w2Income) || parseFloat(rec.w2Income) || 0
+              const k1ForRate   = nf(rec.k1Income)
+              const w2ForRate   = nf(rec.f1040?.w2Income) || nf(rec.w2Income)
               const approxIncome = k1ForRate + w2ForRate
-              const effRateNum  = totalTax > 0 && approxIncome > 0
+              // FINDING 8 FIX (continued): show 0.0% effective rate for a computed-$0
+              // record rather than hiding it entirely; only omit when Step 2 hasn't run.
+              const effRateNum  = step2Computed && approxIncome > 0
                 ? (totalTax / approxIncome * 100).toFixed(1)
-                : null
+                : step2Computed && approxIncome === 0
+                  ? '0.0'
+                  : null
               const savedAt = rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
                 ? rec.savedAt
                 : null
@@ -830,8 +849,10 @@ export default function Dashboard() {
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
-                      {totalTax > 0 ? (
-                        <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{fmt(Math.round(totalTax))}</div>
+                      {step2Computed ? (
+                        <div style={{ fontSize: 18, fontWeight: 800, color: totalTax > 0 ? R : '#16A34A' }}>
+                          {totalTax > 0 ? fmt(Math.round(totalTax)) : '$0'}
+                        </div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
                           Complete Step 2 for estimate
@@ -864,10 +885,10 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: SL }}>Entity: <strong style={{ color: N }}>{entityType}</strong></span>
                     <span style={{ fontSize: 12, color: SL }}>Filing: <strong style={{ color: N }}>{filingStatus}</strong></span>
-                    {displayRevenue && parseFloat(displayRevenue) > 0 && (
+                    {displayRevenue && nf(displayRevenue) > 0 && (
                       <span style={{ fontSize: 12, color: SL }}>Revenue: <strong style={{ color: N }}>{fmt(displayRevenue)}</strong></span>
                     )}
-                    {w2Income && parseFloat(w2Income) > 0 && (
+                    {w2Income && nf(w2Income) > 0 && (
                       <span style={{ fontSize: 12, color: SL }}>W-2: <strong style={{ color: N }}>{fmt(w2Income)}</strong></span>
                     )}
                     {quarterly > 0 && (
@@ -880,8 +901,8 @@ export default function Dashboard() {
                       </span>
                     )}
                     {/* Delta vs previous record */}
-                    {i === 0 && records[1] && (parseFloat(records[1].totalTax) || 0) > 0 && totalTax > 0 && (() => {
-                      const prevTax = parseFloat(records[1].totalTax) || 0
+                    {i === 0 && records[1] && (nf(records[1].totalTax)) > 0 && totalTax > 0 && (() => {
+                      const prevTax = nf(records[1].totalTax)
                       const delta = totalTax - prevTax
                       if (Math.abs(delta) < 100) return null
                       return (

@@ -3,128 +3,19 @@
 // Users connect accounting software (QuickBooks, Xero, Wave, FreshBooks)
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
-// ── Change log ────────────────────────────────────────────────────────────────
-// BUG-02 FIX: EntityCard netProfit formula double-subtracted totalExpenses
-//   when P&L data came from an accounting software integration (QuickBooks,
-//   Xero, Wave, FreshBooks). The integration sets pnl.netProfit directly from
-//   the API response (d.net_profit). The prior formula:
-//     nf(pnl.netProfit ?? pnl.grossRevenue) - nf(pnl.totalExpenses)
-//   resolves the ?? to pnl.netProfit when it exists, then STILL subtracts
-//   totalExpenses — double-counting all expenses.
-//   Fix: parentheses make (grossRevenue - totalExpenses) the fallback used
-//   ONLY when netProfit is absent.
-//
-// L-01 FIX: ReasonableCompIndicator label corrected to "35% of total officer
-//   compensation" (not "35% of net profit").
-//
-// F-05 FIX: Added discrete Depreciation field in ManualEntryPanel.
-//
-// C-02 FIX: Footer "Save Record" → "Save This Record" for consistency.
-//
-// C-05 FIX: "✏ Edit / re-enter data" restyled as outlined button.
-//
-// L-01 FIX (Pass 3): QBI field label corrected to "Section 179 Deduction
-//   (K-1 Box 11 / Box 12)"; tooltip rewritten with correct IRC citations.
-//
-// PASS4B-02b: Added §1366(d) Basis Limitation UI + §1368 Distribution
-//   Capital Gain panel for S-Corp entities (Form 7203).
-//
-// ── AUDIT REPORT FIXES (Sprint 2) ────────────────────────────────────────────
-// F-05 FIX: Per-entity QBI loss carryforward field added to §199A panel.
-//   Each entity now has a qbiLossCarryforward field persisted via onUpdate.
-//   Replaces the single pooled priorYearQBILoss field for multi-entity filers.
-//   IRC §199A(c)(2) · Treas. Reg. §1.199A-1(d)(2)(iii) · Form 8995 lines 3 & 16.
-//
-// F-02 FIX: ReasonableCompIndicator — added grossRevenue prop + Watson revenue
-//   ratio check. Advisory fires when officerSalary/grossRevenue < 30%.
-//   Treas. Reg. §1.162-7 · Rev. Rul. 74-44 · Watson, 668 F.3d 1008 (8th Cir. 2012).
-//
-// ── AUDIT PASS 1 FIXES ────────────────────────────────────────────────────────
-// F-01 FIX: "Continue to Step 2" button disabled state not visually enforced.
-//   Applied HTML disabled attribute when entity count is 0. Added onClick guard
-//   that surfaces an inline error toast if clicked in empty state.
-//
-// F-02 FIX: "Save This Record" (Step 1) disabled state not visually enforced.
-//   Applied HTML disabled attribute + visual disabled style when no entity exists.
-//
-// CSV import removed: the "Import CSV" upload (link, file input, and handler) has
-//   been removed from the accounting-software card. Entities are added by connecting
-//   accounting software or by manual entry.
-//
-// F-05 FIX: Ownership % field accepted out-of-range values (e.g. 150) and had
-//   a concatenation bug on triple-click-retype. Fixed: onChange now clamps to
-//   0–100 on every keystroke; onBlur enforces range with validation message.
-//   Input is fully controlled so triple-click correctly replaces the value.
-//
-// F-06 FIX: Forward breadcrumb steps ("2 Return", "3 AI") appeared visually
-//   interactive before prerequisites were met. Fixed: forward breadcrumbs
-//   receive pointer-events:none and a muted/greyed style when not yet reachable.
-//
-// F-08 FIX: Clicking the current-step breadcrumb ("1 Entities") erased unsaved
-//   in-progress entity data without warning. Fixed: current-step breadcrumb is
-//   non-interactive (pointer-events:none, cursor:default).
-//
-// F-11 FIX: "Continue to Step 2" from a record loaded via Dashboard routed to
-//   /dashboard instead of /tax-return. Fixed: navigation target is always
-//   /tax-return regardless of how the session was initiated.
-//
-// F-12 FIX: "Load & Continue" from Dashboard did not hydrate Step 1 entity array
-//   from the saved record. Step 1 always initialised from empty state. Fixed:
-//   on mount, the component reads the loaded record from sessionStorage key
-//   ts360_loaded_record and restores entities if Step 1 is empty but a loaded
-//   record exists.
-//
-// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
-// O1 FIX: UI subtitle promised "or skip and enter manually" but no manual path
-//   existed for non-real-estate entities. Fixed: added an "Enter manually →"
-//   button in the integration card that opens ManualEntryPanel inline,
-//   pre-configured for the most common non-RE entity type (S Corporation).
-//   The subtitle copy is preserved — the path now fulfils the promise.
-//
-// O2 FIX: "Continue to Step 2 →" routed to /privacy on brand-new sessions
-//   where no prior record existed (entities.length === 0 edge case in the
-//   route handler). Root cause: handleContinueToStep2 called navigate() before
-//   checking session state; on a fresh account the footer onClick binding
-//   resolved to an incorrect URL. Fixed: guard now checks entities.length > 0
-//   before calling persistStep1() + navigate('/tax-return'), and surfaces a
-//   clear error toast for the empty-entity case. The /tax-return destination
-//   is hardcoded (no dynamic fallback that could resolve to /privacy).
-//
-// F19 FIX: IntegrationTile always rendered "Connect" button regardless of
-//   connection state. OAuthCallback sets ts360_{provider}_connected in
-//   localStorage but IntegrationTile never read it. Fixed: IntegrationTile now
-//   reads localStorage on render; shows "Connected ✓" state + last-synced
-//   timestamp when connected, and "Connection failed — try again" when a
-//   failed flag is set.
-//
-// F23 FIX: No last-synced timestamp or manual re-sync trigger. fetchEntityPnL
-//   fired the sync but never persisted a timestamp. OAuthCallback wrote
-//   ts360_{provider}_connected but no ts360_{provider}_synced_at. Fixed:
-//   fetchEntityPnL now writes ts360_{provider}_synced_at after a successful
-//   sync. IntegrationTile reads and displays it. A "Sync now" button triggers
-//   a manual re-fetch and shows a brief diff summary ("Revenue updated:
-//   $X → $Y (+$Z)") so users can confirm the update was applied.
-//
-// F6 FIX (§469 rental treatment consolidated into Step 1): Rentals are entered
-//   AND treated entirely on the Real Estate (Schedule E) card here in Step 1 —
-//   there is no rental UI in Step 2. The card carries the REP flag, the
-//   §1.469-9(g) aggregation election, the §469(i) active-participation flag, and
-//   the prior-year passive-loss carryforward (Form 8582). REP status alone does
-//   not make a rental nonpassive: the aggregation election is required, matching
-//   the engine. TaxReturn.jsx derives the portfolio-level election (any card
-//   elected) and prior-PAL (summed across cards) from these entities.
-
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { removeConnectedApp, readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType } from './utils/sessionState.js'
-import { signOut } from './utils/signOut'
-import { nf } from './utils/parseMoney.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
+import { signOut } from './utils/SignOut'
+import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, integrationKey } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
+import { integrationKey } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
-import { fmt, formatTimestamp } from './utils/formatMoney.js'
+import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
@@ -151,21 +42,6 @@ export function entityResultLabel(type) {
   return 'Net'
 }
 
-// F23 FIX: Human-readable "last synced" formatter
-function fmtSyncedAt(isoStr) {
-  if (!isoStr) return null
-  try {
-    const d = new Date(isoStr)
-    const now = new Date()
-    const diffMs = now - d
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    const diffHrs = Math.floor(diffMins / 60)
-    if (diffHrs < 24) return `${diffHrs}h ago`
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return null }
-}
 
 // UX audit F7 + F13: tooltips now open on hover AND keyboard focus AND click
 // (the prior version was click-only with no hover affordance), expose a real
@@ -285,9 +161,8 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
   )
 }
 
-// ─── L-01 FIX: ReasonableCompIndicator ────────────────────────────────────────
-// F-02: Watson gross-revenue ratio threshold (advisory only, configurable)
-const WATSON_REVENUE_THRESHOLD = 0.30
+// ─── ReasonableCompIndicator ─────────────────────────────────────────────────
+// Uses SCORP_REVENUE_SALARY_THRESHOLD from constants.js (Rev. Rul. 74-44 / Watson).
 
 // F6 FIX (UX audit): collapsible "Why this matters & sources" used by the
 // reasonable-comp warnings so the plain takeaway + suggested number lead and the
@@ -312,11 +187,18 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
 
   const totalComp = officerSal + Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
-  const minTarget = Math.round(0.35 / 0.65 * Math.max(0, netProfit))
+  const _compRatio = SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+  const minTarget = Math.round(_compRatio / (1 - _compRatio) * Math.max(0, netProfit))
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
-  const watsonWarning = revRatio !== null && revRatio < WATSON_REVENUE_THRESHOLD
+  const watsonWarning = revRatio !== null && revRatio < SCORP_REVENUE_SALARY_THRESHOLD
+  // C-8 FIX: in a loss year the 35-45% gross-receipts heuristic is unreliable — the
+  // denominator (total compensation) is distorted by the negative net income and the
+  // recommended salary figure can be misleading. In that case, surface a loss-year note
+  // instead of a dollar suggestion. netProfit here is the entity's net profit before
+  // officer salary; a negative value signals the entity lost money this year.
+  const isLossYear = netProfit < 0
 
   if (officerSal === 0) {
     return (
@@ -324,8 +206,12 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>🚨 No Officer Compensation Set</div>
         <div style={{ color: '#7F1D1D', lineHeight: 1.6 }}>
           You haven't entered a W-2 salary. As an S-Corp owner working in the business, pay yourself a
-          reasonable salary <em>before</em> taking distributions. A common starting point here is
-          about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business).
+          reasonable salary <em>before</em> taking distributions.
+          {/* C-8 FIX: don't suggest a gross-receipts-based dollar figure in a loss year */}
+          {isLossYear
+            ? <> In a loss year, reasonable compensation is determined primarily by the <em>value of services you rendered</em> — not by gross receipts or net income. Discuss the appropriate salary with your CPA, who can evaluate comparable market pay for your role.</>
+            : <> A common starting point here is about <strong>{fmt(minTarget)}/yr</strong> (≈35–45% of your total take from the business). Note: this is a rough heuristic, not a statutory floor — the correct amount reflects the value of services you personally performed.</>
+          }
         </div>
         <CompSources color="#7F1D1D">
           Paying $0 salary while taking distributions is the most common S-Corp audit trigger — the IRS
@@ -337,7 +223,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     )
   }
 
-  if (ratio < 0.35) {
+  if (ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
@@ -396,7 +282,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
   const hasFailed   = localStorage.getItem(integrationKey(integ.id, 'failed'))   === 'true'
   const syncedAt    = localStorage.getItem(integrationKey(integ.id, 'syncedAt'))
-  const syncedLabel = fmtSyncedAt(syncedAt)
+  const syncedLabel = formatRelativeTime(syncedAt)
 
   return (
     <div style={{
@@ -417,7 +303,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
         {integ.abbr}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0D1B3E' }}>{integ.name}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: N }}>{integ.name}</div>
         {/* F19 FIX: status line reflects actual connection state */}
         {isConnected && hasFailed ? (
           <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>
@@ -635,8 +521,11 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         </div>
         <div>
           <label style={lbl}>
-            Depreciation (Sec. 179 + MACRS + Bonus)
-            <InfoTip text={'Section 179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
+            {/* TERMINOLOGY FIX 3.1: "Sec. 179 + MACRS + Bonus" used mixed notation. Every other IRC
+                section in the app uses the § symbol (§199A, §469, §1366, etc.). "Bonus" is informal
+                for §168(k) bonus depreciation. Normalized to § style throughout. */}
+            Depreciation (§179 + MACRS + §168(k) Bonus)
+            <InfoTip text={'§179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
           <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
         </div>
@@ -646,7 +535,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               {FINANCIAL_LABELS.officerCompensationField}
               <InfoTip text={isCCorp
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
-                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of total officer compensation (salary ÷ (salary + distributions)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the ReasonableCompIndicator warning below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
+                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
             {officerExceedsRevenue && (
@@ -676,8 +565,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         </div>
         <div>
           <label style={lbl}>
-            Other Deductions
-            <InfoTip text="Miscellaneous business deductions not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
+            Other Operating Expenses
+            <InfoTip text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
         </div>
@@ -720,9 +609,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 
       {isRE && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
-          <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>🏠 Schedule E — Rental Real Estate</div>
+          <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 4 }}>🏠 Rental Property — Income, Expenses & Depreciation</div>
+          <div style={{ fontSize: 11, color: '#6D28D9', marginBottom: 6, fontWeight: 500 }}>Schedule E · Passive activity rules (§469) apply</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            These figures flow to <span style={{ fontWeight: 700 }}>Schedule E</span> as rental income or loss. Whether a net loss is currently deductible depends on your passive-activity status — Real Estate Professional (§469(c)(7)) plus the §1.469-9(g) aggregation election, or the §469(i) $25,000 active-participation allowance — which you set on this entity card. Officer compensation does not apply to rental property, so that field is hidden here.
+            Whether a net rental loss is deductible this year depends on your passive-activity status — Real Estate Professional (REP) status plus the §1.469-9(g) aggregation election makes the loss nonpassive, or the $25,000 active-participation allowance applies if you don't qualify as REP. Set your status on this card. Officer compensation doesn't apply to rentals.
           </div>
         </div>
       )}
@@ -752,7 +642,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
       localStorage.removeItem(integrationKey(pid, 'extra'))
       localStorage.removeItem(integrationKey(pid, 'syncedAt'))
       sessionStorage.removeItem(integrationKey(pid, 'token'))
-      localStorage.removeItem('ts360_connected_app')
+      removeConnectedApp()
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
@@ -877,6 +767,10 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
         </div>
         {netProfit !== 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            {/* UX-M1 FIX: show gross rents for RE entities in collapsed header */}
+            {isRE && nf(pnl.grossRevenue) > 0 && (
+              <div style={{ fontSize: 10, color: SL, marginBottom: 1 }}>Rents {fmt(nf(pnl.grossRevenue))}</div>
+            )}
             <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
               {fmt(k1)}
@@ -921,7 +815,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
               type="text"
               value={entity.name || ''}
               onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
-              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. ABC Consulting LLC"}
+              placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. Smith Consulting S-Corp"}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
@@ -973,7 +867,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {isPT && (
             <div style={{ marginBottom: 10 }}>
               <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
-                {showQBI ? '▲ Collapse' : '▼ Expand'} Pass-Through Deduction (QBI) <span style={{ fontWeight: 500, opacity: 0.7 }}>· §199A — W-2 wages, UBIA, SSTB</span>
+                {showQBI ? '▲ Collapse' : '▼ Expand'} §199A Qualified Business Income (QBI) Deduction <span style={{ fontWeight: 500, opacity: 0.7 }}>· W-2 wages, UBIA, SSTB</span>
               </button>
               {/* P3c FIX: contextual hint so users know when these fields matter.
                   Without this, users either ignore the section entirely or enter
@@ -981,18 +875,41 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
-                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except Section 179 and charitable contributions, which always reduce QBI regardless of income level
+                  {/* NEW-6 FIX: previous text said "only needed if taxable income exceeds
+                      the threshold" — but the prior-year QBI loss carryforward must be
+                      tracked even in LOSS years when current QBI deduction = $0.
+                      Updated text covers both cases. IRC §199A(c)(2). */}
+                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except §179 and charitable contributions, which always reduce QBI regardless of income level. <strong>Also complete this section in loss years</strong> — the QBI loss carryforward (Form 8995 Line 3) must be tracked for future years even when the current-year deduction is $0 (IRC §199A(c)(2)).
                 </div>
               )}
               {showQBI && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #BFDBFE' }}>
+                  {/* NEW-1 FIX: SSTB advisory for businesses likely classified as SSTBs.
+                      Teaching, tutoring, instruction, consulting etc. fall under §199A(d)(1)(B).
+                      We warn when entity name/type contains SSTB keywords and the checkbox is
+                      not yet checked — this is an advisory, not a determination. */}
+                  {(() => {
+                    const entityText = ((entity.name || '') + ' ' + (entity.type || '') + ' ' + (entity.pnl?.businessActivity || '')).toLowerCase()
+                    const sstbKeywords = ['tutor', 'teach', 'instruct', 'coach', 'consult', 'legal', 'law ', 'accounting', 'actuar', 'athlet', 'performing', 'brokerage', 'financial service', 'investing', 'trading', 'health', 'medical', 'doctor', 'dentist', 'therapist', 'counsel', 'education', 'course', 'training']
+                    const matchedKeyword = sstbKeywords.find(kw => entityText.includes(kw))
+                    if (!matchedKeyword || entity.box17V_sstb) return null
+                    return (
+                      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: '#78350F' }}>
+                        <strong>⚠ Possible Specified Service Trade or Business (SSTB) — review below.</strong>{' '}
+                        Businesses involving teaching, tutoring, instruction, consulting, coaching, and similar services
+                        commonly qualify as SSTBs under IRC §199A(d)(1)(B). If this is an SSTB, the QBI deduction
+                        phases out above $197,300 AGI (single 2025) and is eliminated above $247,300.
+                        Check the SSTB box at the bottom of this section if applicable. Confirm with your CPA.
+                      </div>
+                    )
+                  })()}
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
                   {[
-                    { label: 'W-2 Wages (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
-                    { label: 'UBIA of Qualified Property (from the K-1 §199A statement — Box 17 Code V for S-Corp / Box 20 Code Z for Partnership)', key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
-                    { label: 'Section 179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: 'Section 179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
+                    { label: 'W-2 Wages (K-1 §199A statement)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
+                    { label: 'UBIA of Qualified Property (K-1 §199A statement)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
+                    { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A and also reduce your K-1 basis.' },
-                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995 Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
+                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', display: 'block', marginBottom: 3 }}>
@@ -1026,7 +943,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 onClick={e => { e.stopPropagation(); setShowBasis(s => !s) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#7C3AED', padding: '4px 0', marginBottom: 6 }}
               >
-                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock Basis & Distributions <span style={{ fontWeight: 500, opacity: 0.7 }}>· Form 7203 — loss limits & distributions</span>
+                {showBasis ? '▲ Collapse' : '▼ Expand'} Stock & Debt Basis (Form 7203) <span style={{ fontWeight: 500, opacity: 0.7 }}>· §1366(d) loss limits & §1368 distributions</span>
               </button>
               {/* P3c FIX: contextual hint so users know when stock basis matters.
                   Stock basis limits loss deductibility — irrelevant if the entity
@@ -1439,9 +1356,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 fontFamily: 'inherit',
               }}
             >
-              {/* P3a FIX: "Edit / re-enter data" implied you had to start from scratch.
-                  "Edit P&L" is shorter, accurate, and less intimidating. */}
-              {entity.isManual ? '✏ Edit P&L' : '⟳ Disconnect / reconnect software'}
+              {/* TERMINOLOGY FIX 8.1: "Edit P&L" used accounting jargon and "Edit" was wrong on first
+                  use (nothing to edit yet). Use verb-accurate labels: "Enter Financials" when the
+                  entity has no data yet, "Edit Financials" when it does. */}
+              {entity.isManual
+                ? (nf(entity.pnl?.grossRevenue) > 0 || nf(entity.pnl?.totalExpenses) > 0
+                    ? '✏ Edit Financials'
+                    : '✏ Enter Financials')
+                : '⟳ Disconnect / reconnect software'}
             </button>
             <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#EF4444', fontWeight: 600, padding: '6px 0', fontFamily: 'inherit' }}>
               🗑 Remove entity
@@ -1549,7 +1471,7 @@ export default function CalculateTaxInner() {
         }))
         setEntities(mapped)
         // Persist to the Step 1 working key so subsequent renders stay hydrated.
-        sessionStorage.setItem('ts360_step1_entities', JSON.stringify(mapped))
+        writeStep1Entities(mapped)
       }
     }
   }, [])
@@ -1583,7 +1505,7 @@ export default function CalculateTaxInner() {
         ? { ...newEnt, rentalAggregationElection: true }
         : newEnt
       const next = [...prev, seeded]
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
     setExpandedIdx(entities.length)
@@ -1610,7 +1532,7 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
@@ -1627,7 +1549,7 @@ export default function CalculateTaxInner() {
       const next = prev.map(e =>
         isRealEstateEntity(e.type) ? { ...e, rentalAggregationElection: value === true } : e
       )
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
@@ -1643,7 +1565,7 @@ export default function CalculateTaxInner() {
     localStorage.removeItem(integrationKey(pid, 'extra'))
     localStorage.removeItem(integrationKey(pid, 'syncedAt'))
     localStorage.removeItem(integrationKey(pid, 'failed'))
-    localStorage.removeItem('ts360_connected_app')
+    removeConnectedApp()
     setEntities(prev => {
       const next = prev.map(e =>
         e.connectedId === pid
@@ -1656,13 +1578,13 @@ export default function CalculateTaxInner() {
             }
           : e
       )
-      sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
+      writeStep1Entities(next)
       return next
     })
   }, [])
 
   const persistStep1 = useCallback(() => {
-    sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
+    writeStep1Entities(entities)
     const k1Total = entities.reduce((s, e) => {
       // C-Corp profit is taxed at the entity level (21%) and reaches the owner as dividends,
       // NOT as pass-through K-1 — so it must not be summed into k1Total. TaxReturn computes
@@ -1756,7 +1678,7 @@ export default function CalculateTaxInner() {
       if (pid === 'xero'        && extra) url += '&tenant='  + extra
       if (pid === 'freshbooks'  && extra) url += '&account=' + extra
       if (pid === 'xero') {
-        const xeroRefresh = localStorage.getItem('ts360_xero_refresh')
+        const xeroRefresh = readXeroRefresh()
         if (xeroRefresh) url += '&refresh_token=' + encodeURIComponent(xeroRefresh)
       }
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
@@ -1852,7 +1774,7 @@ export default function CalculateTaxInner() {
       fb_token: 'freshbooks', freshbooks_token: 'freshbooks'
     }
     const xeroRefresh = p.get('xero_refresh')
-    if (xeroRefresh) localStorage.setItem('ts360_xero_refresh', xeroRefresh)
+    if (xeroRefresh) writeXeroRefresh(xeroRefresh)
     const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
     let foundInUrl = false
 
@@ -1957,7 +1879,7 @@ export default function CalculateTaxInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {[
               { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
-              { n: 2, label: 'Return',   done: false,                isCurrent: false, isReachable: false },
+              { n: 2, label: 'Personal Return', done: false,                isCurrent: false, isReachable: false },
               { n: 3, label: STEP3_LABEL, done: false,             isCurrent: false, isReachable: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2001,7 +1923,7 @@ export default function CalculateTaxInner() {
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
-          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and K-1 allocations flow to your personal return in Step 2.</p>
+          <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and your share of business income flow to your personal return in Step 2.</p>
         </div>
 
         {/* Tax year selector */}
@@ -2023,8 +1945,8 @@ export default function CalculateTaxInner() {
             accounting software or by manual entry. */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>
-            Add your business income
-            <InfoTip text="Two ways to add an entity: type your revenue, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
+            Add your business financials
+            <InfoTip text="Two ways to add an entity: type your gross receipts, expenses, and salary yourself, or connect QuickBooks, Xero, Wave, or FreshBooks to sync your P&L automatically." />
           </div>
           <p style={{ fontSize: 12, color: SL, margin: '0 0 12px' }}>
             Enter your figures yourself, or sync them automatically from accounting software.
@@ -2037,32 +1959,46 @@ export default function CalculateTaxInner() {
               below the divider. Same one-click behavior: creates a blank entity and opens it. */}
           <button
             onClick={() => {
-              // create a blank S-Corp entity and open the manual panel
-              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
-              const newEnt = {
-                id: Date.now(),
-                type: 'S Corporation',
-                name: '',
-                own: '100',
-                pnl: { grossRevenue: '', totalExpenses: '', officerSalary: '', netProfit: '' },
-                isManual: true,
-                connectedId: null,
-                box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
-                box17V_sstb: false,
-                stockBasis: '', debtBasis: '', distributions: '',
-                isREP: false, isActiveParticipant: false,
+              // FINDING 1 FIX: "Enter my figures manually" previously bypassed the
+              // entity-type picker and silently appended a duplicate S-Corp entity each
+              // time it was clicked, with no scroll to the new card.
+              //
+              // New behavior:
+              //   1. If an empty/blank entity already exists, just expand + scroll to it
+              //      rather than creating a second one (dedupe guard).
+              //   2. If no entities exist yet, open the entity-type picker (same as
+              //      "+ Add Business Entity") so the user selects their entity type
+              //      first — avoids hardcoding S-Corp for every user.
+              //   3. If the user already has entities and is Pro, open the picker to
+              //      add another of the correct type.
+              //
+              // The scroll runs after a 100 ms tick to give React time to render the
+              // newly expanded card before we measure its position.
+
+              // Check for an existing entity that has no income entered (blank P&L)
+              const blankIdx = entities.findIndex(e =>
+                e.isManual &&
+                !nf(e.pnl?.grossRevenue) &&
+                !nf(e.pnl?.totalExpenses) &&
+                !nf(e.pnl?.officerSalary)
+              )
+
+              if (blankIdx !== -1) {
+                // Reuse the existing blank entity — just expand and scroll to it
+                setExpandedIdx(blankIdx)
+                setTimeout(() => {
+                  const cards = document.querySelectorAll('[data-entity-card]')
+                  if (cards[blankIdx]) cards[blankIdx].scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+                return
               }
-              setEntities(prev => {
-                const next = [...prev, newEnt]
-                sessionStorage.setItem('ts360_step1_entities', JSON.stringify(next))
-                return next
-              })
-              setExpandedIdx(entities.length)
-              setTimeout(() => {
-                const cards = document.querySelectorAll('[data-entity-card]')
-                const last = cards[cards.length - 1]
-                if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }, 100)
+
+              // No blank entity exists — gate on Pro before adding another
+              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+
+              // Open the entity-type picker (same path as "+ Add Business Entity")
+              // so the user's entity type is chosen explicitly, not hardcoded to S-Corp
+              setShowEntityPicker(true)
             }}
             style={{
               width: '100%',
@@ -2078,7 +2014,7 @@ export default function CalculateTaxInner() {
             }}
           >
             <span style={{ fontWeight: 700, fontSize: 14 }}>✏ Enter my figures manually</span>
-            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your revenue, expenses & salary</span>
+            <span style={{ fontWeight: 500, fontSize: 11, opacity: 0.85 }}>Fastest — type your gross receipts, expenses & salary</span>
           </button>
 
           {/* divider */}
@@ -2152,7 +2088,8 @@ export default function CalculateTaxInner() {
           </button>
         )}
         <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
-        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save This Record below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
+        {/* UX-M3 FIX: unsaved warning also shown in sticky footer so it's always visible */}
+        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
@@ -2196,9 +2133,15 @@ export default function CalculateTaxInner() {
                 color: footerDisabled ? '#94A3B8' : SL,
                 cursor: footerDisabled ? 'not-allowed' : 'pointer',
                 opacity: footerDisabled ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save This Record'}
+              {/* F-11 UX FIX: dot indicator signals unsaved changes so users don't
+                  need to scroll to the bottom warning to know they need to save. */}
+              {saveStatus !== 'saved' && !footerDisabled && (
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} aria-label="Unsaved changes" />
+              )}
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save Progress'}
             </button>
             {/* O2 FIX: onClick is now guarded and always navigates to /tax-return */}
             <button

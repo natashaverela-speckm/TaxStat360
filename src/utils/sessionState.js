@@ -4,7 +4,7 @@ import {
   upsertRecordOnServer,
   deleteRecordOnServer,
   migrateLocalRecordsToServer,
-} from './recordsApi.js'
+} from './serverApi.js'
 
 // Typed reader/writer functions for all sessionStorage keys used across the
 // Step 1 → Step 2 navigation boundary in TaxStat360.
@@ -98,6 +98,12 @@ export function writeStep1State({ entities = [], entitiesRaw = null, k1Total = 0
   // CalculateTaxInner can restore on mount with the full pnl breakdown.
   if (entitiesRaw !== null) {
     sessionStorage.setItem('ts360_entities_raw', JSON.stringify(entitiesRaw))
+    // CC-F3 FIX: also sync ts360_step1_entities (CalculateTaxInner's working-copy key)
+    // so all three entity keys stay in sync when this function is called. Previously
+    // CalculateTaxInner wrote ts360_step1_entities directly in 8 places, bypassing
+    // this abstraction. Those writes still exist for in-component mutations; this write
+    // handles the load-from-server / navigate-between-steps path.
+    sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entitiesRaw))
   }
 }
 
@@ -569,6 +575,53 @@ export function clearFirstRun() {
   sessionStorage.removeItem('ts360_first_run')
 }
 
+// ─── writeFirstRun ────────────────────────────────────────────────────────────
+// Writer to match the existing readFirstRun / clearFirstRun pair. Onboarding.jsx
+// previously wrote ts360_first_run directly via sessionStorage (audit R-05). Call
+// this instead so all three accessors are in the same place.
+export function writeFirstRun() {
+  sessionStorage.setItem('ts360_first_run', '1')
+}
+
+// ─── writeStep1Entities ──────────────────────────────────────────────────────
+// CalculateTaxInner.jsx previously wrote ts360_step1_entities directly via
+// sessionStorage.setItem in 8 places (audit R-05). This helper centralises
+// every in-component mutation of that key so renames and validation can be
+// applied in one place. It does NOT call writeStep1State (which writes the
+// full set of canonical entity keys) — this is a lighter, in-flight mutation
+// for the working-copy key that CalculateTaxInner manages internally.
+export function writeStep1Entities(entities) {
+  sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
+}
+
+// ─── 2FA nudge helpers ────────────────────────────────────────────────────────
+// Dashboard.jsx previously read/wrote ts360_2fa_nudge_dismissed directly (audit
+// R-05). These two helpers centralise the key so a rename requires one edit.
+export function write2FANudge(dismissed) {
+  if (dismissed) {
+    sessionStorage.setItem('ts360_2fa_nudge_dismissed', '1')
+  } else {
+    sessionStorage.removeItem('ts360_2fa_nudge_dismissed')
+  }
+}
+
+export function read2FANudge() {
+  return sessionStorage.getItem('ts360_2fa_nudge_dismissed') === '1'
+}
+
+// ─── Go-to-form flag helpers ─────────────────────────────────────────────────
+// Dashboard.jsx used sessionStorage.getItem / removeItem on ts360_goto_form
+// directly (audit R-05). Used to signal that the user should be sent to the
+// Tax Tracker form immediately after login. Centralised here.
+export function readGotoForm() {
+  return sessionStorage.getItem('ts360_goto_form') === '1'
+}
+
+export function clearGotoForm() {
+  sessionStorage.removeItem('ts360_goto_form')
+}
+
+
 // ─── Coercion helper for saved-record data ────────────────────────────────
 // Saved records (from localStorage ts360_records_*) are produced by Dashboard's
 // UI forms which store every numeric field as a string. Passing those strings
@@ -861,3 +914,58 @@ export function readPresetEntityType() {
 export function clearPresetEntityType() {
   sessionStorage.removeItem(PRESET_ENTITY_TYPE_KEY)
 }
+
+
+// ── Auth & Session ────────────────────────────────────────────────────────────
+export function readLoggedIn() { return localStorage.getItem('ts360_logged_in') }
+export function writeLoggedIn(val) { localStorage.setItem('ts360_logged_in', val) }
+export function removeLoggedIn() { localStorage.removeItem('ts360_logged_in') }
+export function readSessionStart() { return localStorage.getItem('ts360_session_start') }
+export function writeSessionStart(val) { localStorage.setItem('ts360_session_start', val) }
+export function removeSessionStart() { localStorage.removeItem('ts360_session_start') }
+export function readToken() { return localStorage.getItem('ts360_token') }
+export function writeToken(val) { localStorage.setItem('ts360_token', val) }
+export function readEmail() { return localStorage.getItem('ts360_email') }
+export function writeEmail(val) { localStorage.setItem('ts360_email', val) }
+export function readLoginHistory() { return localStorage.getItem('ts360_login_history') }
+export function writeLoginHistory(val) { localStorage.setItem('ts360_login_history', val) }
+export function readIdleTimeoutMins() { return localStorage.getItem('ts360_idle_timeout_mins') }
+export function writeIdleTimeoutMins(val) { localStorage.setItem('ts360_idle_timeout_mins', val) }
+export function readCookieConsent() { return localStorage.getItem('ts360_cookie_consent') }
+export function writeCookieConsent(val) { localStorage.setItem('ts360_cookie_consent', val) }
+
+// ── User Profile & Billing ────────────────────────────────────────────────────
+export function readUserName() { return localStorage.getItem('ts360_userName') }
+export function writeUserName(val) { localStorage.setItem('ts360_userName', val) }
+export function readPlan() { return localStorage.getItem('ts360_plan') }
+export function writePlan(val) { localStorage.setItem('ts360_plan', val) }
+export function readBilling() { return localStorage.getItem('ts360_billing') }
+export function writeBilling(val) { localStorage.setItem('ts360_billing', val) }
+export function readSubscriptionIncomplete() { return localStorage.getItem('ts360_subscription_incomplete') }
+export function writeSubscriptionIncomplete(val) { localStorage.setItem('ts360_subscription_incomplete', val) }
+export function removeSubscriptionIncomplete() { localStorage.removeItem('ts360_subscription_incomplete') }
+export function readMfaEnabled() { return localStorage.getItem('ts360_mfa_enabled') }
+export function writeMfaEnabled(val) { localStorage.setItem('ts360_mfa_enabled', val) }
+
+// ── Email Verification ────────────────────────────────────────────────────────
+export function readEmailVerified() { return localStorage.getItem('ts360_email_verified') }
+export function writeEmailVerified(val) { localStorage.setItem('ts360_email_verified', val) }
+export function removeEmailVerified() { localStorage.removeItem('ts360_email_verified') }
+export function readPendingEmail() { return localStorage.getItem('ts360_pendingEmail') }
+export function writePendingEmail(val) { localStorage.setItem('ts360_pendingEmail', val) }
+export function removeEmailConfirmedAck() { localStorage.removeItem('ts360_email_confirmed_ack') }
+
+// ── UI State ──────────────────────────────────────────────────────────────────
+export function readDisclaimerSeen() { return localStorage.getItem('ts360_disclaimer_seen') }
+export function writeDisclaimerSeen(val) { localStorage.setItem('ts360_disclaimer_seen', val) }
+
+// ── Integrations ──────────────────────────────────────────────────────────────
+export function readConnectedApp() { return localStorage.getItem('ts360_connected_app') }
+export function writeConnectedApp(val) { localStorage.setItem('ts360_connected_app', val) }
+export function removeConnectedApp() { localStorage.removeItem('ts360_connected_app') }
+export function readXeroRefresh() { return localStorage.getItem('ts360_xero_refresh') }
+export function writeXeroRefresh(val) { localStorage.setItem('ts360_xero_refresh', val) }
+
+// ── Onboarding ────────────────────────────────────────────────────────────────
+export function readOnboardingEntityType() { return localStorage.getItem('ts360_entityType') }
+export function writeOnboardingEntityType(val) { localStorage.setItem('ts360_entityType', val) }

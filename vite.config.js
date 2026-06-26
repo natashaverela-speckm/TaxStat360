@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-// v4 - force new bundle filename
+
 export default defineConfig({
   plugins: [react()],
   esbuild: { target: 'es2015' },
-  define: { __BUILD__: '"v4"' },
   build: {
     outDir: 'dist',
     rollupOptions: {

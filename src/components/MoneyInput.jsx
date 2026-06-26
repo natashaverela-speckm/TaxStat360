@@ -21,7 +21,7 @@
 //   />
 
 import { useState, useEffect } from 'react';
-import { parseMoney, formatMoneyForInput } from '../utils/parseMoney.js';
+import { parseMoney, formatMoneyForInput } from '../utils/money.js';
 
 export default function MoneyInput({
   value,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold } from './taxCalc.js'
 import {
@@ -13,11 +13,10 @@ import {
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords } from './utils/sessionState.js'
-import { signOut } from './utils/signOut'
+import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
+import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
-import { fmt, pct } from './utils/formatMoney.js'
-import { nf } from './utils/parseMoney'
+import { fmt, pct, nf } from './utils/money.js'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
 import {
@@ -25,70 +24,19 @@ import {
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
   FINANCIAL_LABELS,
+  FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR,
+  SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
-
-// ── AUDIT PASS 2 FIXES ────────────────────────────────────────────────────────
-// F15 FIX: SimulatorModal produced corrupt number outputs and had no reset.
-//   Root cause: SimulatorModal used a local `simFmt` formatter that called
-//   Math.abs() then toLocaleString() without a consistent currency prefix,
-//   producing mismatched output vs the right panel which used the shared fmt().
-//   When multiple variables changed in sequence, partial string renders could
-//   stack because simFmt formatted differently from fmt() for the same value.
-//   Fix: (1) SimulatorModal now uses the shared fmt() from utils/formatMoney
-//   for ALL displayed monetary values — simFmt is removed. The chg() helper
-//   also uses fmt() for consistency. (2) A "Reset scenario" button is added
-//   to the modal header that calls applyPreset('baseline'), which restores all
-//   delta inputs to 0 and clears activeScenario, returning the display to the
-//   baseline state. (3) A reconciliation line is shown below the scenario
-//   panels: "Scenario total: $X  │  vs. your current estimate: $Y  │
-//   Difference: $Z" so users can sanity-check the output against Step 2.
-//
-// F20 FIX: CPA Export Pack ("Generate Report") was available immediately
-//   regardless of whether Step 2 data was complete. A user who had only added
-//   a Real Estate entity in Step 1 but never entered W-2, deductions, or
-//   filing status would generate a report showing $0 for most income lines —
-//   worse than no report at all.
-//   Fix: The "Generate Report" button in ReportsTab is now gated behind the
-//   existing completeness() score. When completeness() < 50 (the minimum
-//   meaningful threshold), the button is disabled and a warning is shown:
-//   "Add your income data in Step 2 before generating." When completeness
-//   is 50–79, the button is enabled but a pre-generation checklist shows
-//   which fields are populated (✓) and which are missing (⚠) so the user
-//   can see gaps before generating. At 80+ all fields show ✓ and the report
-//   generates immediately with no warning. The checklist uses missingFields()
-//   which already exists in the file.
-//
-// F21 FIX: IRS Schedule Map listed every form with identical visual weight —
-//   no distinction between schedules covered by the user's entered data and
-//   those still needing action. For a real estate investor with multiple
-//   entities, every form appeared equally "to-do", adding cognitive load.
-//   Fix: Each form card in IRSCompliance now shows a two-state coverage badge:
-//   "✓ Data entered" (green) when the schedule is backed by actual input data
-//   in the current record, or "⚠ Review needed" (amber) when the schedule is
-//   required but the relevant data is missing or zero.
-//   Coverage is derived from the same record flags already available:
-//   k1Income, w2, entity types, rentalIncome, estPaid, capGains, depreciation.
-//   A summary line at the top shows "N of M schedules have data entered."
-//   This directly reduces CPA hand-off friction for the target user.
-//
-// O7 FIX: CPA Export Pack and CPA Briefing headers used entity type string
-//   (biz.entityType) as the business name. The onboarding BusinessScreen
-//   collects the actual business name/EIN/address and (after the O7 patch to
-//   Onboarding.jsx) writes them to sessionStorage keys ts360_biz_name,
-//   ts360_biz_ein, ts360_biz_address. ReportModal and BriefingModal now read
-//   these keys and use the business name on the report cover if available,
-//   falling back to entity type if not set.
-
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTotalW2(rec) {
   if (!rec) return 0
   const f = rec.f1040 || {}
-  const additionalW2 = parseFloat(String(f.w2Income || '').replace(/,/g, '')) || 0
+  const additionalW2 = nf(f.w2Income)
   const entities = Array.isArray(rec.entities) ? rec.entities : []
   const totalOfficerSalary = entities.reduce(
-    (s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0),
+    (s, e) => s + (nf(e?.pnl?.officerSalary)),
     0,
   )
   return additionalW2 + totalOfficerSalary
@@ -125,10 +73,10 @@ function Logo() {
 // view: prefer the biz summary when it carries a real value, otherwise fall back
 // to the entities, so the whole tab reflects the full session/record consistently.
 function recEntityRevenue(rec) {
-  const fromBiz = parseFloat(rec?.biz?.grossRevenue) || 0
+  const fromBiz = nf(rec?.biz?.grossRevenue)
   if (fromBiz > 0) return fromBiz
   const ents = Array.isArray(rec?.entities) ? rec.entities : []
-  return ents.reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
+  return ents.reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
 }
 
 function recEntityType(rec) {
@@ -153,7 +101,7 @@ function getRecord(liveState) {
     const f1040 = liveState.f1040 || readPersonalContext()
     const k1 = liveState.k1Income || 0
     const taxyear = liveState.taxYear || readTaxYear()
-    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || getEntityNetProfit(ent) > 0) {
+    if (k1 !== 0 || nf(f1040.w2Income) > 0 || getEntityNetProfit(ent) > 0) {
       return {
         type: 'personal-return',
         _unsaved: true,
@@ -161,29 +109,29 @@ function getRecord(liveState) {
         k1Income: k1,
         entities: liveState.entities || [],
         biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(getEntityNetProfit(ent) > 0 ? getEntityNetProfit(ent) : 0) },
-        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (parseFloat(f1040.form4797) || 0) + (liveState.entities || []).reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0) }
+        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (nf(f1040.form4797)) + (liveState.entities || []).reduce((s, e) => s + (nf(e.box17K)), 0) }
       }
     }
   }
   const recs = getAllRecords()
-  const saved = recs.find(r => r.biz && (parseFloat(r.biz.grossRevenue) > 0 || parseFloat(r.k1Income) > 0 || parseFloat(r.f1040?.w2Income) > 0)) || recs[0] || null
+  const saved = recs.find(r => r.biz && (nf(r.biz.grossRevenue) > 0 || nf(r.k1Income) > 0 || nf(r.f1040?.w2Income) > 0)) || recs[0] || null
 
   try {
     const { entities, k1Total: k1 } = readStep1State()
     const f1040 = readPersonalContext()
-    const totalSec179 = entities.reduce((s,e)=>s+(parseFloat(e.box11_12)||0), 0)
-    const totalBox12_13 = entities.reduce((s,e)=>s+(parseFloat(e.box12_13)||0), 0)
+    const totalSec179 = entities.reduce((s,e)=>s+(nf(e.box11_12)), 0)
+    const totalBox12_13 = entities.reduce((s,e)=>s+(nf(e.box12_13)), 0)
     const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
-    const totalOfficerSalary = entities.reduce((s,e)=>s+(parseFloat(e?.pnl?.officerSalary)||0), 0)
-    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (parseFloat(f1040.w2Income)||0) + totalOfficerSalary)
+    const totalOfficerSalary = entities.reduce((s,e)=>s+(nf(e?.pnl?.officerSalary)), 0)
+    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (nf(f1040.w2Income)||0) + totalOfficerSalary)
     const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
     const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
     const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
     const taxyear = readTaxYear()
     const ent = entities[0] || {}
     const entNetProfit   = getEntityNetProfit(ent)
-    const entOfficerSal  = parseFloat(ent?.pnl?.officerSalary) || 0
-    if (k1 !== 0 || parseFloat(f1040.w2Income) > 0 || entNetProfit > 0) {
+    const entOfficerSal  = nf(ent?.pnl?.officerSalary)
+    if (k1 !== 0 || nf(f1040.w2Income) > 0 || entNetProfit > 0) {
       return {
         id: Date.now(),
         savedAt: 'Current session (unsaved)',
@@ -195,8 +143,8 @@ function getRecord(liveState) {
           entityType: ent.type || ent.name || 'Unknown',
           year: taxyear,
           ownershipPct: ent.own || '100',
-          grossRevenue: String(parseFloat(ent?.pnl?.grossRevenue) || 0),
-          operatingExpenses: String(parseFloat(ent?.pnl?.totalExpenses) || 0),
+          grossRevenue: String(nf(ent?.pnl?.grossRevenue)),
+          operatingExpenses: String(nf(ent?.pnl?.totalExpenses)),
           officerSalary: String(entOfficerSal),
         },
         f1040: {
@@ -221,7 +169,7 @@ function getRecord(liveState) {
           itemizedAmt: f1040.itemizedAmt || '',
           niit: f1040.niit || 0,
           additionalMedicare: f1040.additionalMedicare || 0,
-          form4797: (parseFloat(f1040.form4797) || 0) + entities.reduce((s, e) => s + (parseFloat(e.box17K) || 0), 0),
+          form4797: (nf(f1040.form4797)) + entities.reduce((s, e) => s + (nf(e.box17K)), 0),
         },
         quarterly: 0,
         totalTax: 0,
@@ -262,28 +210,43 @@ function completeness(rec) {
   if (!rec) return 0
   let s = 30
   const b = rec.biz || {}, f = rec.f1040 || {}
-  const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
+  const hasK1Data = Math.abs(nf(rec?.k1Income)) > 0
   if (recEntityRevenue(rec) > 0 || hasK1Data) s += 15
   if (recEntityType(rec)) s += 10
   if (f.filingStatus) s += 10
   if (getTotalW2(rec) > 0) s += 10
-  if (parseFloat(b.officerSalary) > 0) s += 5
-  if (parseFloat(b.operatingExpenses) > 0 || hasK1Data) s += 5
+  if (nf(b.officerSalary) > 0) s += 5
+  if (nf(b.operatingExpenses) > 0 || hasK1Data) s += 5
   if (recDepreciation(rec) > 0) s += 5
-  if (parseFloat(f.estPaid) > 0) s += 10
-  return Math.min(s, 98)
+  if (nf(f.estPaid) > 0) s += 10
+  // UX-M6 FIX: penalise blank RE entity — an RE card with no rental income entered
+  // is a bigger gap than a missing optional field, so deduct points.
+  const hasREEntity = Array.isArray(rec.entities) && rec.entities.some(e => e && /real.?estate|schedule.?e/i.test(e.type || ''))
+  const hasRERevenue = Array.isArray(rec.entities) && rec.entities.some(e =>
+    e && /real.?estate|schedule.?e/i.test(e.type || '') &&
+    (nf(e.pnl?.grossRevenue) > 0 || nf(e.pnl?.netProfit) !== 0)
+  )
+  if (hasREEntity && !hasRERevenue) s -= 10
+  return Math.min(Math.max(s, 0), 98)
 }
 
 function missingFields(rec) {
   if (!rec) return ['all fields']
   const b = rec.biz || {}, f = rec.f1040 || {}
   const missing = []
-  const hasK1Data = Math.abs(parseFloat(rec?.k1Income || 0)) > 0
+  const hasK1Data = Math.abs(nf(rec?.k1Income)) > 0
   if (!(recEntityRevenue(rec) > 0) && !hasK1Data) missing.push('revenue')
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
-  if (!(parseFloat(f.estPaid) > 0)) missing.push('est. payments')
-  if (!(parseFloat(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
+  if (!(nf(f.estPaid) > 0)) missing.push('est. payments')
+  if (!(nf(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
   if (!(recDepreciation(rec) > 0)) missing.push('depreciation')
+  // UX-M6 FIX: surface blank RE entity as a missing field
+  const hasREEntity = Array.isArray(rec.entities) && rec.entities.some(e => e && /real.?estate|schedule.?e/i.test(e.type || ''))
+  const hasRERevenue = Array.isArray(rec.entities) && rec.entities.some(e =>
+    e && /real.?estate|schedule.?e/i.test(e.type || '') &&
+    (nf(e.pnl?.grossRevenue) > 0 || nf(e.pnl?.netProfit) !== 0)
+  )
+  if (hasREEntity && !hasRERevenue) missing.push('rental property data')
   return missing
 }
 
@@ -294,17 +257,47 @@ function getOnboardingBizInfo() {
   return readBusinessInfo()
 }
 
-function NoData() {
+function NoData({ tab = 'risk' }) {
+  const tabInfo = {
+    risk: {
+      icon: '🔍',
+      // TERMINOLOGY FIX 9.4: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan".
+      // Canonical name per constants.js FEATURE_AUDIT_RISK_SCAN = "Audit Risk Scan".
+      title: FEATURE_AUDIT_RISK_SCAN,
+      desc: 'Flags officer compensation issues, audit triggers, penalty exposure, passive-loss violations, and entity-structure risks — personalized to your numbers.',
+    },
+    optimize: {
+      icon: '💡',
+      // TERMINOLOGY FIX 9.3: pricing page said "What-If Tax Scenario Simulator"; tab label said
+      // "Tax Optimization"; tab desc said "What-If Tax Simulator". Canonical: "What-If Tax Simulator".
+      title: FEATURE_WHATIF_SIMULATOR,
+      desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.',
+    },
+    compliance: {
+      icon: '📋',
+      title: 'IRS Schedule Map',
+      desc: 'Shows every form and schedule you\'ll need to file — with status (required / covered / action needed) based on your income structure.',
+    },
+    reports: {
+      icon: '📄',
+      title: 'Reports & Tools',
+      desc: 'Generates a print-ready CPA briefing PDF, a What-If Tax Simulator, and a narrative summary you can hand to your accountant instead of explaining everything from scratch.',
+    },
+  }
+  const info = tabInfo[tab] || tabInfo.risk
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>No data yet</div>
-      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>
-        Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to see your AI analysis.
+      <div style={{ fontSize: 36, marginBottom: 12 }}>{info.icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 6 }}>{info.title}</div>
+      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 420, margin: '0 auto 8px' }}>
+        {info.desc}
+      </div>
+      <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20, lineHeight: 1.5 }}>
+        Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to unlock this — takes about 5 minutes.
       </div>
       <button onClick={() => window.location.href = '/calculate-tax'}
         style={{ padding: '10px 24px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-        Go to Calculator →
+        Go to Tax Tracker →
       </button>
     </div>
   )
@@ -316,30 +309,30 @@ function RiskScan({ rec }) {
   // C-26: persisted "mark reviewed" state for Risk Scan findings. Hooks must run before
   // the early return below, so they live at the very top. recordId is the stable saved-
   // record id written by Dashboard.loadRecord; unsaved sessions share one bucket.
-  const recordId = (typeof window !== 'undefined' && sessionStorage.getItem('ts360_active_record_id')) || 'unsaved-session'
+  const recordId = readActiveRecordId() || 'unsaved-session'
   const [dismissed, setDismissed] = useState(() => readRiskDismissals(recordId))
   const [showReviewed, setShowReviewed] = useState(false)
-  if (!rec) return <NoData />
+  if (!rec) return <NoData tab="risk" />
   const b = rec.biz || {}, f = rec.f1040 || {}
-  const revenue = parseFloat(b.grossRevenue) || 0
-  const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
-  const k1ForGuard = parseFloat(rec?.k1Income) || 0
-  const w2ForGuard = parseFloat(rec?.f1040?.w2Income) || 0
+  const revenue = nf(b.grossRevenue)
+  const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
+  const k1ForGuard = nf(rec?.k1Income)
+  const w2ForGuard = nf(rec?.f1040?.w2Income)
   const hasIncome = grossRevenueTax > 0 || k1ForGuard > 0 || w2ForGuard > 0
-  const officerSal = parseFloat(b.officerSalary) || 0
-  const k1 = parseFloat(rec.k1Income) || 0
+  const officerSal = nf(b.officerSalary)
+  const k1 = nf(rec.k1Income)
   const w2 = getTotalW2(rec)
-  const estPay = parseFloat(f.estPaid) || 0
+  const estPay = nf(f.estPaid)
   const dep = recDepreciation(rec)
-  const rentalIncome = parseFloat(b.rentalIncome || 0) || parseFloat(f.rentalIncome || 0) || 0
+  const rentalIncome = nf(b.rentalIncome || 0) || nf(f.rentalIncome || 0)
   const isREP = !!(b.isREP || f.isREP || rec.isREP)
 
-  const rentalExpenses = parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0
-  const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
-  const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
-  const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  const rentalExpenses = nf(f.rentalExpenses ) || 0
+  const capitalGainsIncome = (nf(f.capitalGains ) || 0) + (nf(f.ltCapGains ) || 0)
+  const interestIncome = nf(f.interest ) || 0
+  const dividendIncome = nf(f.dividends ) || 0
   const rentalNet = Math.max(0, rentalIncome - rentalExpenses)
-  const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
+  const otherInc = nf(f.otherIncome ) || 0
   const totalIncome = k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
 
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
@@ -381,12 +374,12 @@ function RiskScan({ rec }) {
     sCorpEntities.forEach((e, ei) => {
       const entityName = e.name || 'S-Corp'
       const eK1 = Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
-      const eOfficerSal = parseFloat(e.pnl?.officerSalary) || 0
+      const eOfficerSal = nf(e.pnl?.officerSalary)
       if (eOfficerSal === 0 && eK1 > 20000) {
         findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
-      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal < eK1 * 0.35) {
+      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal / (eOfficerSal + eK1) < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
         findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Compensation May Be Too Low — ${entityName}`,
           detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/(eOfficerSal+eK1))*100).toFixed(1)}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Consider increasing ${entityName}'s officer compensation to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
@@ -394,6 +387,20 @@ function RiskScan({ rec }) {
         findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Compensation Recorded — ${entityName}`,
           detail: `${entityName} shows officer compensation of ${fmt(eOfficerSal)} on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
           action: null })
+        // AI-3 FIX: Surface reasonable compensation audit risk in the Risk Scan, not just
+        // during data entry. A salary that is within the 35–45% heuristic band (i.e. the
+        // low-salary finding above did NOT fire) is still flagged here as an informational
+        // reminder to document the basis for the salary — the IRS scrutinizes S-Corp comp
+        // under a facts-and-circumstances test regardless of ratio (Rev. Rul. 74-44).
+        const eTotalComp = eOfficerSal + Math.max(0, eK1)
+        if (eTotalComp > 20000) {
+          const eRatio = (eOfficerSal / eTotalComp * 100).toFixed(1)
+          findings.push({ key: 'scorp-comp-doc-' + ei, level: 'info', icon: '📋',
+            title: `Reasonable Compensation — Document the Basis (${entityName})`,
+            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+            action: `Maintain a contemporaneous record showing: (1) a description of the services you personally performed; (2) hours spent; (3) comparable industry salaries for those services (BLS Occupational Employment Stats or a compensation survey); and (4) years of experience and qualifications. If your salary changed from prior years, document why. Your CPA should review the reasonableness determination annually.`,
+          })
+        }
       }
     })
   } else if (isSCorpEntity(b.entityType)) {
@@ -402,7 +409,7 @@ function RiskScan({ rec }) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Compensation — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of total officer compensation (salary + distributions). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    } else if (ownerComp > 0 && k1 > 30000 && ownerComp < k1 * 0.35) {
+    } else if (ownerComp > 0 && k1 > 30000 && ownerComp / (ownerComp + k1) < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Compensation May Be Too Low',
         detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${((ownerComp/(ownerComp+k1))*100).toFixed(1)}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
         action: `Consider increasing your salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
@@ -410,6 +417,16 @@ function RiskScan({ rec }) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Compensation Recorded',
         detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
         action: null })
+      // AI-3 FIX: reasonable compensation documentation reminder (see per-entity branch above).
+      const _legacyTotalComp = ownerComp + Math.max(0, k1)
+      if (_legacyTotalComp > 20000) {
+        const _legacyRatio = (ownerComp / _legacyTotalComp * 100).toFixed(1)
+        findings.push({ level: 'info', icon: '📋',
+          title: 'Reasonable Compensation — Document the Basis',
+          detail: `Officer compensation (${fmt(ownerComp)}) is ${_legacyRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+          action: `Maintain records showing: services performed, hours spent, comparable industry salaries (BLS OES or compensation surveys), and your qualifications. Discuss the reasonableness determination with your CPA annually.`,
+        })
+      }
     }
   }
 
@@ -426,7 +443,7 @@ function RiskScan({ rec }) {
   if (revenue > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
-      action: `If you own any business assets, enter depreciation under Section 179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
+      action: `If you own any business assets, enter depreciation under §179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
   }
 
   if (k1 < 0 && isPassthroughEntity(b.entityType)) {
@@ -500,7 +517,7 @@ function RiskScan({ rec }) {
         : 'If you have self-employment or business income, you likely owe quarterly payments. Underpayment incurs penalties at the current IRS rate.' })
   }
 
-  const _suspendedLoss = Math.round(parseFloat(rec.totalSuspendedLoss || 0))
+  const _suspendedLoss = Math.round(nf(rec.totalSuspendedLoss || 0))
   if (_suspendedLoss > 0) {
     const _suspEntities = Array.isArray(rec.entityBasisResults)
       ? rec.entityBasisResults.filter(r => r.suspended > 0)
@@ -537,13 +554,13 @@ function RiskScan({ rec }) {
       icon: '🚨',
       title: `Enter S-Corp Stock Basis — ${fmt(_sCorpLossNoBasis)} Loss Limited Until Basis Is Entered (IRC §1366(d))`,
       detail: `Your S-Corp K-1 shows a ${fmt(_sCorpLossNoBasis)} loss, but no beginning stock basis has been entered. Under IRC §1366(d)(1) your deductible loss is capped at your combined stock + debt basis, and any excess is suspended and carried forward (§1366(d)(2)). With nothing entered, the Tax Tracker conservatively assumes $0 basis and suspends the full loss — a higher, more conservative tax — until you provide your basis. (An estimate saved before this basis check may still show the loss as fully deducted; re-open and re-save it in the Tax Tracker to refresh.)`,
-      action: `Open the S-Corp entity in Step 1 → "Stock Basis & Distributions (Form 7203)" and enter your beginning-of-year stock basis (Form 7203, Line 1) plus any debt basis (Part II). With $0 basis the entire loss is suspended; with basis at or above the loss it is fully deductible this year. Your CPA tracks this figure on Form 7203 each year.`,
+      action: `Open the S-Corp entity in Step 1 → "Stock & Debt Basis (Form 7203)" and enter your beginning-of-year stock basis (Form 7203, Line 1) plus any debt basis (Part II). With $0 basis the entire loss is suspended; with basis at or above the loss it is fully deductible this year. Your CPA tracks this figure on Form 7203 each year.`,
     })
   }
 
   if (isREP) {
     const _entitySalary = (Array.isArray(rec.entities) ? rec.entities : [])
-      .reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0)
+      .reduce((s, e) => s + (nf(e?.pnl?.officerSalary)), 0)
     const _nonREW2 = Math.max(0, w2 - _entitySalary)
     if (_nonREW2 > 75000) {
       findings.push({
@@ -557,9 +574,9 @@ function RiskScan({ rec }) {
   }
 
   const _totEntRev = (Array.isArray(rec.entities) ? rec.entities : [])
-    .reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
+    .reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
   const _totEntExp = (Array.isArray(rec.entities) ? rec.entities : [])
-    .reduce((s, e) => s + (parseFloat(e?.pnl?.totalExpenses) || 0), 0)
+    .reduce((s, e) => s + (nf(e?.pnl?.totalExpenses)), 0)
   if (_totEntRev > 10000 && _totEntExp > _totEntRev * 1.40) {
     const _ratio = Math.round((_totEntExp / _totEntRev) * 100)
     findings.push({
@@ -571,8 +588,8 @@ function RiskScan({ rec }) {
     })
   }
 
-  const _mileageDeduction = parseFloat(b.mileageDeduction || b.vehicleMileage || 0) || 0
-  const _vehicleExpenses  = parseFloat(b.vehicleExpenses || 0) || 0
+  const _mileageDeduction = nf(b.mileageDeduction || b.vehicleMileage || 0)
+  const _vehicleExpenses  = nf(b.vehicleExpenses || 0)
   const _totRevForVehicle = _totEntRev > 0 ? _totEntRev : revenue
   if (_totRevForVehicle > 15000 && _mileageDeduction === 0 && _vehicleExpenses === 0 && dep === 0) {
     const _stdMileRate = getTable(year)?.mileageRate ?? (year >= 2025 ? 0.70 : 0.67)
@@ -608,7 +625,7 @@ function RiskScan({ rec }) {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>AI Risk Scan Results</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>{FEATURE_AUDIT_RISK_SCAN} Results</h3>
         <p style={{ fontSize: 13, color: SL, margin: '0 0 8px' }}>Based on your saved record. These findings are specific to your situation.</p>
         <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
           These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed tax professional before making any filing decisions.
@@ -683,23 +700,23 @@ function RiskScan({ rec }) {
 
 // ── TAB 2: Tax Optimization ──────────────────────────────────────────────────
 function TaxOptimization({ rec }) {
-  if (!rec) return <NoData />
+  if (!rec) return <NoData tab="optimize" />
   const b = rec.biz || {}, f = rec.f1040 || {}
   // F-FUNC-04: revenue and entity structure fall back to the per-entity data so the
   // Optimization tab reflects the same figures the Risk Scan and Schedule Map use.
   const entityType = recEntityType(rec)
   const revenue = recEntityRevenue(rec)
-  const opExp = parseFloat(b.operatingExpenses) || 0
+  const opExp = nf(b.operatingExpenses)
   const dep = recDepreciation(rec)
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   const totalOfficerSalary = Math.max(
-    sCorpEntities.reduce((s, e) => s + (parseFloat(e?.pnl?.officerSalary) || 0), 0),
-    parseFloat(b.officerSalary) || 0
+    sCorpEntities.reduce((s, e) => s + (nf(e?.pnl?.officerSalary)), 0),
+    nf(b.officerSalary)
   )
   const sCorpK1 = sCorpEntities.reduce((s, e) => s + Math.max(0, getEntityNetProfit(e)), 0)
-  const k1 = parseFloat(rec.k1Income) || 0
+  const k1 = nf(rec.k1Income)
   const w2 = getTotalW2(rec)
-  const estPay = parseFloat(f.estPaid) || 0
+  const estPay = nf(f.estPaid)
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const isPassthrough = isPassthroughEntity(entityType)
   const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(entityType)
@@ -719,11 +736,11 @@ function TaxOptimization({ rec }) {
     : [isRealType(entityType) ? entityType : null].filter(Boolean)
   const entitySubtitle = entityTypes.length > 1 ? entityTypes.join(' + ') : entityTypes[0] || 'business'
 
-  const capitalGainsIncome = (parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0) + (parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0)
-  const interestIncome = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
-  const dividendIncome = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
-  const rentalNet = Math.max(0, (parseFloat(String(f.rentalIncome || '').replace(/,/g, '')) || parseFloat(String(b.rentalIncome || '').replace(/,/g, '')) || 0) - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
-  const otherInc = parseFloat(String(f.otherIncome || '').replace(/,/g, '')) || 0
+  const capitalGainsIncome = (nf(f.capitalGains ) || 0) + (nf(f.ltCapGains ) || 0)
+  const interestIncome = nf(f.interest ) || 0
+  const dividendIncome = nf(f.dividends ) || 0
+  const rentalNet = Math.max(0, (nf(f.rentalIncome ) || nf(b.rentalIncome ) || 0) - (nf(f.rentalExpenses ) || 0))
+  const otherInc = nf(f.otherIncome ) || 0
   const agi = Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
 
   const _taxableBeforeQBI_opt = taxableIncomeBeforeQBI(agi, year, filing)
@@ -738,9 +755,9 @@ function TaxOptimization({ rec }) {
   const taxable = Math.max(0, _taxableBeforeQBI_opt - _qbiOpt)
   const marginalRate = getMarginalRate(taxable, year, filing)
 
-  const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (parseFloat(e?.pnl?.grossRevenue) || 0), 0)
-  const k1ForGuard = parseFloat(rec?.k1Income) || 0
-  const w2ForGuard = parseFloat(rec?.f1040?.w2Income) || 0
+  const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
+  const k1ForGuard = nf(rec?.k1Income)
+  const w2ForGuard = nf(rec?.f1040?.w2Income)
   const hasIncome = grossRevenueTax > 0 || k1ForGuard > 0 || w2ForGuard > 0
   if (!hasIncome) return (
     <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
@@ -805,9 +822,9 @@ function TaxOptimization({ rec }) {
 
   if (revenue > 30000 && dep === 0) {
     opportunities.push({
-      icon: '🏗️', title: 'Section 179 Equipment Deduction', priority: 'medium',
+      icon: '🏗️', title: '§179 Equipment Deduction', priority: 'medium',
       saving: null,
-      detail: 'Section 179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
+      detail: '§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }
@@ -870,7 +887,8 @@ function TaxOptimization({ rec }) {
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Tax-Saving Opportunities</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {entitySubtitle} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate.</p>
+        {/* UX-M7 FIX: marginal rate reflects current session figures (live reactive). */}
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Specific strategies based on your {entitySubtitle} structure and {year} tax year. Estimated savings at your {pct(marginalRate * 100)} marginal rate <span style={{ fontSize: 11, opacity: 0.7 }}>(based on figures entered)</span>.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {opportunities.map((o, i) => {
@@ -912,8 +930,9 @@ function TaxOptimization({ rec }) {
 // or "⚠ Review needed" (amber). Coverage is derived from record data already
 // available. A summary line at the top counts covered vs total schedules.
 function IRSCompliance({ rec }) {
+  if (!rec) return <NoData tab="compliance" />
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const k1 = parseFloat(rec?.k1Income) || 0
+  const k1 = nf(rec?.k1Income)
   const w2 = getTotalW2(rec)
   const entity = recEntityType(rec) || 'Unknown'
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
@@ -929,14 +948,14 @@ function IRSCompliance({ rec }) {
   // F21 FIX: coverage helpers — derived from the record's actual data
   const hasK1Data    = Math.abs(k1) > 0
   const hasW2Data    = w2 > 0
-  const hasEstPaid   = parseFloat(f.estPaid) > 0
-  const hasCapGains  = (parseFloat(String(f.capitalGains || '').replace(/,/g,''))||0) + (parseFloat(String(f.ltCapGains||'').replace(/,/g,''))||0) !== 0
+  const hasEstPaid   = nf(f.estPaid) > 0
+  const hasCapGains  = (nf(f.capitalGains )||0) + (nf(f.ltCapGains)||0) !== 0
   const hasDep       = recDepreciation(rec) > 0
-  const hasRentalInc = (parseFloat(String(b.rentalIncome||f.rentalIncome||'').replace(/,/g,''))||0) > 0
-  const hasInterest  = (parseFloat(String(f.interest||'').replace(/,/g,''))||0) > 1500 || (parseFloat(String(f.dividends||'').replace(/,/g,''))||0) > 1500
-  const hasForm4797  = (parseFloat(String(f.form4797||'').replace(/,/g,''))||0) !== 0
-  const hasItemized  = f.useItemized && (parseFloat(f.itemizedAmt)||0) > 0
-  const hasRevenue   = (parseFloat(b.grossRevenue)||0) > 0
+  const hasRentalInc = (nf(b.rentalIncome||f.rentalIncome)||0) > 0
+  const hasInterest  = (nf(f.interest)||0) > 1500 || (nf(f.dividends)||0) > 1500
+  const hasForm4797  = (nf(f.form4797)||0) !== 0
+  const hasItemized  = f.useItemized && (nf(f.itemizedAmt)||0) > 0
+  const hasRevenue   = (nf(b.grossRevenue)||0) > 0
 
   const schedules = []
 
@@ -993,11 +1012,11 @@ function IRSCompliance({ rec }) {
       isCoopPatron: _isCoopPatron,
     })
     const _currentYearQbiLoss = (Array.isArray(rec.entities) ? rec.entities : []).some(e => {
-      const np = parseFloat(e?.netProfit ?? e?.pnl?.netProfit ?? 0) || 0
+      const np = nf(e?.netProfit ?? e?.pnl?.netProfit ?? 0)
       const own = ownPct(e?.own)
       return (np * own / 100) < 0
     }) || k1 < 0
-    const _priorQbiLoss = (parseFloat(f.priorQBILossCO || f.priorYearLosses || 0) || 0) > 0
+    const _priorQbiLoss = (nf(f.priorQBILossCO || f.priorYearLosses || 0)) > 0
     const _hasSSTB = (Array.isArray(rec.entities) ? rec.entities : []).some(e => !!(e && (e.box17V_sstb || e.sstb)))
     const _sstbNote = (_useForm8995A && _hasSSTB && _taxableBeforeQBI > _qbiThreshold) ? ' SSTB activity detected at or above the income threshold.' : ''
     const _lossNote = (_useForm8995A && (_currentYearQbiLoss || _priorQbiLoss)) ? ' QBI loss detected — see Form 8995-A Schedule C for loss netting.' : ''
@@ -1007,11 +1026,21 @@ function IRSCompliance({ rec }) {
   }
 
   if (w2 > 0) {
-    schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', covered: hasW2Data, detail: `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040.`, deadline: 'Issued by employer Jan 31' })
+    // AI-5 FIX: w2 = getTotalW2(rec) = personal W-2 (other employers) + S-Corp officer
+    // salary, which is correct for the FICA / Additional Medicare Tax calculation. The
+    // detail text now reflects the composition so users and CPAs are not confused by a
+    // number larger than what they entered in the "W-2 Income (Other Employers)" field.
+    const _personalW2     = nf(String((rec?.f1040?.w2Income || '0')).replace(/,/g, '')) || 0
+    const _officerW2Total = (Array.isArray(rec.entities) ? rec.entities : [])
+      .reduce((s, e) => s + (nf(e?.pnl?.officerSalary)), 0)
+    const _w2Detail = _officerW2Total > 0
+      ? `Your total W-2 wages of ${fmt(w2)} (${fmt(_personalW2)} from other employers + ${fmt(_officerW2Total)} S-Corp officer compensation) are reported on Line 1a of Form 1040.`
+      : `Your ${fmt(w2)} in W-2 wages are reported on Line 1a of Form 1040.`
+    schedules.push({ form: 'W-2 / Form W-2', title: 'Wages and Withholding', status: 'required', covered: hasW2Data, detail: _w2Detail, deadline: 'Issued by employer Jan 31' })
   }
 
-  if (parseFloat(f.estPaid) > 0) {
-    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', covered: hasEstPaid, detail: `${fmt(parseFloat(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
+  if (nf(f.estPaid) > 0) {
+    schedules.push({ form: 'Form 1040-ES', title: 'Quarterly Estimated Tax Payments', status: 'active', covered: hasEstPaid, detail: `${fmt(nf(f.estPaid))} in estimated payments recorded. These reduce your balance due at filing.`, deadline: 'Q1: Apr 15 | Q2: Jun 15 | Q3: Sep 15 | Q4: Jan 15' })
   }
 
   const schedule1Detail = hasScheduleC
@@ -1030,28 +1059,28 @@ function IRSCompliance({ rec }) {
     deadline: 'Filed with Form 1040',
   })
 
-  const _interest = parseFloat(String(f.interest || '').replace(/,/g, '')) || 0
-  const _dividends = parseFloat(String(f.dividends || '').replace(/,/g, '')) || 0
+  const _interest = nf(f.interest ) || 0
+  const _dividends = nf(f.dividends ) || 0
   if (_interest > 1500 || _dividends > 1500) {
     schedules.push({ form: 'Schedule B', title: 'Interest and Ordinary Dividends', status: 'required', covered: hasInterest, detail: `Required when interest or ordinary dividends exceed $1,500. You reported ${fmt(_interest)} in interest and ${fmt(_dividends)} in ordinary dividends.`, deadline: 'Filed with Form 1040' })
   }
 
-  const _stGain = parseFloat(String(f.capitalGains || '').replace(/,/g, '')) || 0
-  const _ltGain = parseFloat(String(f.ltCapGains || '').replace(/,/g, '')) || 0
-  const _unrec1250 = parseFloat(String(f.unrecap1250 || '').replace(/,/g, '')) || 0
-  const _collectibles = parseFloat(String(f.collectiblesGain || '').replace(/,/g, '')) || 0
+  const _stGain = nf(f.capitalGains ) || 0
+  const _ltGain = nf(f.ltCapGains ) || 0
+  const _unrec1250 = nf(f.unrecap1250 ) || 0
+  const _collectibles = nf(f.collectiblesGain ) || 0
   const _capGainTotal = _stGain + _ltGain + _unrec1250 + _collectibles
   if (_capGainTotal !== 0) {
     schedules.push({ form: 'Schedule D', title: 'Capital Gains and Losses', status: 'required', covered: hasCapGains, detail: `Reports your ${fmt(_stGain + _ltGain)} in capital gains/losses.`, deadline: 'Filed with Form 1040' })
     schedules.push({ form: 'Form 8949', title: 'Sales and Other Dispositions of Capital Assets', status: 'required', covered: hasCapGains, detail: 'Lists individual capital asset sales — purchase date, sale date, basis, proceeds. Subtotals roll up to Schedule D.', deadline: 'Filed with Schedule D' })
   }
 
-  const _form4797 = parseFloat(String(f.form4797 || '').replace(/,/g, '')) || 0
+  const _form4797 = nf(f.form4797 ) || 0
   if (_form4797 !== 0 || _unrec1250 > 0) {
     schedules.push({ form: 'Form 4797', title: 'Sales of Business Property', status: 'required', covered: hasForm4797 || _unrec1250 > 0, detail: `Reports ${_form4797 !== 0 ? 'ordinary gain/loss on §1231 property and §1245/§1250 recapture' : 'unrecaptured §1250 gain (depreciation recapture on real property, taxed at max 25%)'}.`, deadline: 'Filed with Form 1040' })
   }
 
-  const _rentalIncomeSch = parseFloat(String(b.rentalIncome || f.rentalIncome || '').replace(/,/g, '')) || 0
+  const _rentalIncomeSch = nf(b.rentalIncome || f.rentalIncome ) || 0
   const _isREP = b.isREP || f.isREP || rec?.isREP
   if (_rentalIncomeSch > 0) {
     schedules.push({ form: 'Schedule E (Part I)', title: 'Rental Real Estate', status: 'required', covered: hasRentalInc, detail: 'Reports rental property income and expenses. ' + (_isREP ? 'REP status under IRC 469(c)(7) allows full loss deduction.' : 'Non-REP filers limited to passive loss rules under IRC 469.'), deadline: 'Filed with Form 1040' })
@@ -1067,7 +1096,7 @@ function IRSCompliance({ rec }) {
   const _niitInterest = _interest
   const _niitDividends = _dividends
   const _niitCapGains = _stGain + _ltGain
-  const _niitRentalNet = _isREP ? 0 : Math.max(0, _rentalIncomeSch - (parseFloat(String(f.rentalExpenses || '').replace(/,/g, '')) || 0))
+  const _niitRentalNet = _isREP ? 0 : Math.max(0, _rentalIncomeSch - (nf(f.rentalExpenses ) || 0))
   const _netInvestmentIncome = _niitInterest + _niitDividends + _niitCapGains + _niitRentalNet
   const _niitMagi = k1 + w2 + _netInvestmentIncome
   const _niitFiling = f.filingStatus || 'single'
@@ -1076,7 +1105,7 @@ function IRSCompliance({ rec }) {
     schedules.push({ form: 'Form 8960', title: 'Net Investment Income Tax (3.8%)', status: 'required', covered: hasCapGains || hasInterest || hasRentalInc, detail: `MAGI of ${fmt(_niitMagi)} exceeds the ${fmt(_niitThreshold)} NIIT threshold. Applies 3.8% to the lesser of net investment income (${fmt(_netInvestmentIncome)}) or MAGI above the threshold.`, deadline: 'Filed with Form 1040' })
   }
 
-  if (f.useItemized && (parseFloat(f.itemizedAmt)||0) > 0) {
+  if (f.useItemized && (nf(f.itemizedAmt)||0) > 0) {
     const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', covered: hasItemized, detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
@@ -1166,7 +1195,7 @@ function Modal({ onClose, children }) {
 // F20 FIX: ReportModal now reads business name from onboarding sessionStorage (O7).
 function ReportModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const k1 = parseFloat(rec?.k1Income) || 0
+  const k1 = nf(rec?.k1Income)
   const totalW2 = getTotalW2(rec)
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   // O7 FIX: use onboarding business name on report cover if available
@@ -1200,7 +1229,14 @@ function ReportModal({ onClose, rec }) {
               [FINANCIAL_LABELS.officerCompensation, b.officerSalary ? fmt(b.officerSalary) : ''],
               ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
-              ['W-2 Income', totalW2 > 0 ? fmt(totalW2) : ''],
+              // AI-5 FIX: label distinguishes personal W-2 vs. total (incl. officer salary)
+              // so CPAs are not confused by a figure larger than the "Other Employers" field.
+              [(() => {
+                const _persW2 = nf(String(f.w2Income || '0').replace(/,/g, '')) || 0
+                const _offW2  = (Array.isArray(rec.entities) ? rec.entities : [])
+                  .reduce((s, e) => s + (nf(e?.pnl?.officerSalary)), 0)
+                return _offW2 > 0 ? `W-2 Income (other employers ${fmt(_persW2)} + officer salary ${fmt(_offW2)})` : 'W-2 Income'
+              })(), totalW2 > 0 ? fmt(totalW2) : ''],
               ['Estimated Payments Made', f.estPaid ? fmt(f.estPaid) : ''],
             ].filter(([,v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
@@ -1269,7 +1305,18 @@ function BriefingModal({ onClose, rec }) {
   const totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
 
   const stdDed = getStdDed(year, filing)
-  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing)
+  // AI-6 FIX: read the user's itemized-deduction election from the session so the
+  // briefing uses the same deduction the engine does — not always the standard deduction.
+  const briefingUseItemized = !!(f.useItemized)
+  const briefingItemizedAmt = num(f.itemizedAmt) || 0
+  const briefingDeduction   = (briefingUseItemized && briefingItemizedAmt > stdDed) ? briefingItemizedAmt : stdDed
+  const briefingDeductionLabel = (briefingUseItemized && briefingItemizedAmt > stdDed)
+    ? `Itemized deductions (Schedule A)`
+    : `Standard deduction (${filingLabel})`
+  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing, {
+    useItemized: briefingUseItemized,
+    itemizedAmt: briefingItemizedAmt,
+  })
   const { deduction: qbi } = resolveQbiDeduction({
     k1,
     taxableBeforeQBI,
@@ -1281,10 +1328,12 @@ function BriefingModal({ onClose, rec }) {
   const taxable = Math.max(0, taxableBeforeQBI - qbi)
   const fedTax = calcFederalTax(taxable, year, filing)
   const marginalRate = getMarginalRate(taxable, year, filing)
-  const seSubject = isScheduleCType(b.entityType) || /partner/i.test(b.entityType || '')
-  const ssWageBase = getTable(year).ssWageBase
-  const seBase = seSubject ? Math.max(0, k1) * SE_NET_EARNINGS_FACTOR : 0
-  const seTax = seSubject ? Math.round(Math.min(seBase, ssWageBase) * (FICA_SS_RATE * 2) + seBase * (FICA_MEDICARE_RATE * 2)) : 0
+  // CC-F1 FIX: read SE tax from the persisted engine output instead of recomputing
+  // it independently. The engine computes SE tax on seNetIncome (aggregate across all
+  // entities, after §164(f) adjustments) while the prior inline calc used raw k1Income,
+  // causing divergence on multi-entity returns. rec.seTax is written by TaxReturn.jsx
+  // buildRecord() when Step 2 is saved; fall back to 0 for old records that predate this.
+  const seTax = num(rec.seTax) || 0
   const totalFedTax = fedTax + seTax
   const effectiveRate = totalIncome > 0 ? totalFedTax / totalIncome : 0
   const quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(totalFedTax / 4)
@@ -1294,7 +1343,7 @@ function BriefingModal({ onClose, rec }) {
   const points = []
   if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 0) {
     const ratio = officerSal / (officerSal + k1)
-    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 distributions — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < 0.35 ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
+    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 distributions — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
   } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
     points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 compensation on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
   }
@@ -1352,7 +1401,7 @@ function BriefingModal({ onClose, rec }) {
     '',
     'ESTIMATED FEDERAL POSITION (planning estimate)',
     `  Total income (est.): ${fmt(totalIncome)}`,
-    `  Standard deduction (${filingLabel}): -${fmt(stdDed)}`,
+    `  ${briefingDeductionLabel}: -${fmt(briefingDeduction)}`,
     ...(qbi > 0 ? [`  §199A QBI deduction (est.): -${fmt(qbi)}`] : []),
     `  Taxable income (est.): ${fmt(taxable)}`,
     `  Estimated federal income tax: ${fmt(fedTax)}`,
@@ -1365,7 +1414,7 @@ function BriefingModal({ onClose, rec }) {
     '',
     'ASSUMPTIONS & SCOPE',
     '  - Federal tax only. State and local income taxes are not included.',
-    `  - Deduction: ${filingLabel} standard deduction (${fmt(stdDed)}) applied.`,
+    `  - Deduction: ${briefingDeductionLabel} (${fmt(briefingDeduction)}) applied.`,
     '  - Simplified estimate: does NOT separately model §461(l) EBL, NIIT (3.8%), Additional Medicare Tax (0.9%), or AMT.',
     ...(rec.totalTax ? [`  - Tax Tracker full estimate (all applicable federal taxes): ${fmt(rec.totalTax)}.`] : []),
     '',
@@ -1430,7 +1479,7 @@ function BriefingModal({ onClose, rec }) {
           <div style={{ ...sectionTitle, color: '#1D4ED8' }}>ESTIMATED FEDERAL POSITION</div>
           {[
             ['Total income (est.)', sign(totalIncome)],
-            [`Standard deduction (${filingLabel})`, sign(-stdDed)],
+            [briefingDeductionLabel, sign(-briefingDeduction)],
             ...(qbi > 0 ? [['§199A QBI deduction (est.)', sign(-qbi)]] : []),
             ['Taxable income (est.)', fmt(taxable)],
             ['Estimated federal income tax', fmt(fedTax)],
@@ -1481,19 +1530,19 @@ function SimulatorModal({ onClose, rec }) {
   const entity  = b.entityType || 'Unknown'
 
   const base = {
-    grossRevenue:      parseFloat(b.grossRevenue)      || 0,
-    cogs:              parseFloat(b.cogs)               || 0,
-    operatingExpenses: Math.max(0, (parseFloat(b.operatingExpenses) || 0)
-                       - (parseFloat(b.officerSalary) || 0)
-                       - (parseFloat(b.depreciation) || 0)
-                       - (parseFloat((b.pnl || {}).advertising) || 0)
-                       - (parseFloat((b.pnl || {}).otherDeductions) || 0)),
-    officerSalary:     parseFloat(b.officerSalary)      || 0,
-    depreciation:      parseFloat(b.depreciation)       || 0,
-    advertising:       parseFloat((b.pnl || {}).advertising)     || 0,
-    otherDeductions:   parseFloat((b.pnl || {}).otherDeductions) || 0,
+    grossRevenue:      nf(b.grossRevenue)      || 0,
+    cogs:              nf(b.cogs)               || 0,
+    operatingExpenses: Math.max(0, (nf(b.operatingExpenses))
+                       - (nf(b.officerSalary))
+                       - (nf(b.depreciation))
+                       - (nf((b.pnl || {}).advertising) || 0)
+                       - (nf((b.pnl || {}).otherDeductions) || 0)),
+    officerSalary:     nf(b.officerSalary)      || 0,
+    depreciation:      nf(b.depreciation)       || 0,
+    advertising:       nf((b.pnl || {}).advertising)     || 0,
+    otherDeductions:   nf((b.pnl || {}).otherDeductions) || 0,
     w2Income:          getTotalW2(rec)                  || 0,
-    estPaid:           parseFloat(f.estPaid)  || 0,
+    estPaid:           nf(f.estPaid)  || 0,
   }
 
   const [delta, setDelta] = useState({
@@ -1536,7 +1585,11 @@ function SimulatorModal({ onClose, rec }) {
   }
   const baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
   const scenario = computeSimulatorScenario({ ...scenarioContext, delta })
-  const taxSaving = baseline.fedTax - scenario.fedTax
+  // CALC-1 FIX: prefer totalTax (full engine: SE + NIIT + AMT + income tax) when
+  // available; fall back to fedTax for backward compat with old scenario objects.
+  const _baselineTax  = baseline.totalTax  ?? baseline.fedTax
+  const _scenarioTax  = scenario.totalTax  ?? scenario.fedTax
+  const taxSaving = _baselineTax - _scenarioTax
 
   // F15 FIX: chg() now uses shared fmt() — no local simFmt
   const chg = (baseVal, scenVal) => {
@@ -1611,13 +1664,13 @@ function SimulatorModal({ onClose, rec }) {
                 ['Advertising ($)', 'advertising'],
                 ['Depreciation / Equip ($)', 'depreciation'],
                 ['Operating Expenses ($)', 'operatingExpenses'],
-                ['Other Deductions ($)', 'otherDeductions'],
+                ['Other Operating Expenses ($)', 'otherDeductions'],
                 ['Gross Receipts Change ($)', 'grossRevenue'],
                 ['Officer Compensation Change ($)', 'officerSalary'],
               ].map(([label, key]) => (
                 <div key={key}>
                   <label style={{fontSize:11,fontWeight:700,color:'#64748B',display:'block',marginBottom:3}}>{label}</label>
-                  <input type="number" value={delta[key]||0} onChange={e=>setDelta(d=>({...d,[key]:parseFloat(e.target.value)||0}))}
+                  <input type="number" value={delta[key]||0} onChange={e=>setDelta(d=>({...d,[key]:nf(e.target.value)||0}))}
                     style={{width:'100%',padding:'8px 10px',border:'1.5px solid #E2E8F0',borderRadius:7,fontSize:14,fontWeight:600,color:'#0D1B3E',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} />
                 </div>
               ))}
@@ -1634,7 +1687,7 @@ function SimulatorModal({ onClose, rec }) {
                 {row(FINANCIAL_LABELS.officerCompensation,    baseline.sal,        scenario.sal,      true)}
                 {row('Depreciation',      baseline.dep,        scenario.dep,      true)}
                 {row('Advertising',       baseline.adv,        scenario.adv,      true)}
-                {row('Other Deductions',  baseline.other,      scenario.other,    true)}
+                {row('Other Operating Expenses',  baseline.other,      scenario.other,    true)}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
                   <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>{FINANCIAL_LABELS.netBusinessIncome}</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
@@ -1665,7 +1718,7 @@ function SimulatorModal({ onClose, rec }) {
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
-                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.fedTax))}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>{taxSaving>0?'YOU SAVE':'ADDITIONAL TAX'}</div>
@@ -1680,12 +1733,12 @@ function SimulatorModal({ onClose, rec }) {
             {/* F15 FIX: reconciliation line — scenario vs Step 2 full estimate */}
             {step2Estimate > 0 && (
               <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 16px',marginBottom:8,fontSize:12,color:SL,display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-                <span>Scenario income tax: <strong style={{color:N}}>{fmt(Math.round(scenario.fedTax))}</strong></span>
+                <span>Scenario total tax: <strong style={{color:N}}>{fmt(Math.round(scenario.fedTax))}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>Difference: <strong style={{color: scenario.fedTax < step2Estimate ? '#059669' : '#DC2626'}}>{scenario.fedTax < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round(scenario.fedTax - step2Estimate)))}</strong></span>
-                <span style={{fontSize:10,color:'#64748B'}}>(simulator is income tax only; Step 2 includes SE, NIIT, AMT)</span>
+                <span style={{fontSize:10,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
               </div>
             )}
           </>
@@ -1748,11 +1801,26 @@ function NarrativeModal({ onClose }) {
   )
 }
 
+// ── CODE CONSISTENCY AUDIT (June 2026) ─────────────────────────────────────────
+// CC-F1 FIX: CPA Briefing SE tax now reads rec.seTax (persisted engine output)
+//   instead of independently recomputing from raw k1. Engine uses seNetIncome
+//   (multi-entity aggregate with §164(f) adjustments); briefing was using k1Income
+//   (raw K-1 total), which diverges on multi-entity returns. rec.seTax is now
+//   written by TaxReturn.jsx buildRecord() at save time.
+//
+// ── UX PASS (June 2026) ──────────────────────────────────────────────────────
+// UX-M6 FIX: completeness() now deducts 10 points when an RE entity is present
+//   but has no rental revenue entered. missingFields() surfaces 'rental property
+//   data' so the Missing label reads accurately instead of 'est. payments' only.
+// UX-M7 FIX: What-If header clarifies marginal rate is based on figures entered
+//   (the rate is already reactive to session state; note added for transparency).
+//
 // F20 FIX: ReportsTab gates the "Generate Report" button on completeness score.
 // - score < 50: button disabled, warning shown
 // - score 50–79: button enabled, pre-generation checklist shown (✓ / ⚠ per field)
 // - score ≥ 80: button enabled, no warning
 function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
+  if (!rec) return <NoData tab="reports" />
   const score = completeness(rec)
   const missing = missingFields(rec)
   // C-24: require explicit acknowledgment before generating a materially incomplete pack.
@@ -1762,10 +1830,10 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const checklistItems = rec ? [
     { label: 'Filing status', ok: !!(rec.f1040?.filingStatus) },
     { label: 'Entity structure', ok: !!recEntityType(rec) },
-    { label: 'Gross receipts / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
+    { label: 'Gross receipts / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
     { label: 'W-2 income / withholding', ok: getTotalW2(rec) > 0 },
-    { label: 'Estimated tax payments', ok: (parseFloat(rec.f1040?.estPaid)||0) > 0 },
-    { label: 'Expenses / deductions', ok: (parseFloat(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(parseFloat(rec.k1Income)||0) > 0 },
+    { label: 'Estimated tax payments', ok: (nf(rec.f1040?.estPaid)||0) > 0 },
+    { label: 'Expenses / deductions', ok: (nf(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
   ] : []
 
   // C-24: labels of the checklist items still missing — shown verbatim in the confirm gate.
@@ -1896,6 +1964,14 @@ export default function AIAnalysis() {
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
   const [showBriefing, setShowBriefing] = useState(false)
+  // F-19 UX FIX: responsive nav
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const rec = getRecord(liveState)
   const score = completeness(rec)
@@ -1908,7 +1984,7 @@ export default function AIAnalysis() {
           <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 10px' }}>AI Analysis & Reporting — Professional Feature</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
-            AI Risk Scan, Tax Optimization, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
+            Audit Risk Scan, What-If Tax Simulator, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
           </p>
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: '16px', marginBottom: 24, textAlign: 'left' }}>
             {['🚨 Officer compensation & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
@@ -1927,8 +2003,8 @@ export default function AIAnalysis() {
   }
 
   const tabs = [
-    { id: 'risk',       label: '🔍 Risk Scan' },
-    { id: 'optimize',   label: '💡 Tax Optimization' },
+    { id: 'risk',       label: `🔍 ${FEATURE_AUDIT_RISK_SCAN}` },
+    { id: 'optimize',   label: `💡 ${FEATURE_WHATIF_SIMULATOR}` },
     { id: 'compliance', label: '📋 IRS Schedule Map' },
     { id: 'reports',    label: '📄 Reports & Tools' },
   ]
@@ -1942,21 +2018,23 @@ export default function AIAnalysis() {
           </div>
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
-              { label: 'Dashboard',    path: '/dashboard' },
-              { label: 'Tax Tracker', path: '/calculate-tax' },
-              { label: 'AI Analysis & Reporting', path: '/ai-analysis' },
-              { label: 'Settings',    path: '/settings' },
+              { label: 'Dashboard',    mobileLabel: '⊞', path: '/dashboard' },
+              { label: 'Tax Tracker',  mobileLabel: '🧮', path: '/calculate-tax' },
+              { label: 'AI Analysis & Reporting', mobileLabel: '🤖', path: '/ai-analysis' },
+              { label: 'Settings',     mobileLabel: '⚙', path: '/settings' },
             ].map(link => (
-              <button key={link.path} onClick={() => navigate(link.path)} style={{
+              <button key={link.path} onClick={() => navigate(link.path)} title={link.label} style={{
                 padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
                 background: location.pathname === link.path ? '#EFF6FF' : 'transparent',
                 color: location.pathname === link.path ? B : SL,
                 fontWeight: location.pathname === link.path ? 700 : 500,
-              }}>{link.label}</button>
+              }}>{isMobile ? link.mobileLabel : link.label}</button>
             ))}
-            <button onClick={() => signOut(navigate)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: 'transparent', color: SL, fontSize: 13, cursor: 'pointer' }}>
-              Sign Out
-            </button>
+            {!isMobile && (
+              <button onClick={() => signOut(navigate)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, background: 'transparent', color: SL, fontSize: 13, cursor: 'pointer' }}>
+                Sign Out
+              </button>
+            )}
           </nav>
         </div>
       </div>
@@ -1976,11 +2054,22 @@ export default function AIAnalysis() {
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', textAlign: 'center', flexShrink: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 6 }}>INPUT COMPLETENESS</div>
             <div style={{ fontSize: 32, fontWeight: 800, color: score >= 80 ? G : score >= 50 ? O : R, lineHeight: 1 }}>{score}%</div>
-            {missing.length > 0 && (
+            {score === 0 ? (
+              <div style={{ fontSize: 11, color: SL, marginTop: 8, maxWidth: 160, lineHeight: 1.5 }}>
+                Add your income in{' '}
+                <span
+                  onClick={() => navigate('/calculate-tax')}
+                  style={{ color: B, cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}
+                >
+                  Tax Tracker
+                </span>{' '}
+                to unlock all analysis — takes about 5 min
+              </div>
+            ) : missing.length > 0 ? (
               <div style={{ fontSize: 11, color: SL, marginTop: 6, maxWidth: 160 }}>
                 Missing: {missing.slice(0, 2).join(', ')}{missing.length > 2 ? ` +${missing.length - 2} more` : ''}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

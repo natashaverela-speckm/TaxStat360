@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { readLoggedIn, readSessionStart, writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, writeConnectedApp } from './utils/sessionState.js'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
-import { integrationKey } from './constants.js'
+import { integrationKey } from './utils/integrations.js'
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, Link } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
@@ -25,6 +26,7 @@ import Article from './Article'
 // CC FIX: RouteTitle validates /resources/:slug against the article data so that
 // unknown slugs (a soft-404 inside the indexable /resources/ pattern) get noindex.
 import { getArticle } from './articles.js'
+import { NAVY as N, SLATE as SL } from './theme.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -41,7 +43,7 @@ function OAuthCallback() {
       return
     }
     const name = p.charAt(0).toUpperCase() + p.slice(1)
-    localStorage.setItem('ts360_connected_app', name)
+    writeConnectedApp(name)
     localStorage.setItem(integrationKey(p, 'connected'), 'true')
     window.location.href = '/calculate-tax'
   }, [provider])
@@ -49,8 +51,8 @@ function OAuthCallback() {
     <div style={{fontFamily:'Inter,sans-serif',minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center'}}>
         <div style={{width:56,height:56,borderRadius:'50%',background:'#EFF9FF',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',fontSize:28}}>&#10003;</div>
-        <h2 style={{fontSize:20,fontWeight:700,color:'#0D1B3E',marginBottom:8}}>Connecting {provider.charAt(0).toUpperCase()+provider.slice(1)}&hellip;</h2>
-        <p style={{color:'#475569',fontSize:14}}>Completing secure OAuth handshake. You&apos;ll be redirected shortly.</p>
+        <h2 style={{fontSize:20,fontWeight:700,color:N,marginBottom:8}}>Connecting {provider.charAt(0).toUpperCase()+provider.slice(1)}&hellip;</h2>
+        <p style={{color:SL,fontSize:14}}>Completing secure OAuth handshake. You&apos;ll be redirected shortly.</p>
       </div>
     </div>
   )
@@ -71,9 +73,9 @@ const AUTH_KEYS = [
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidSession() {
-  const loggedIn = localStorage.getItem('ts360_logged_in')
+  const loggedIn = readLoggedIn()
   if (!loggedIn) return false
-  const start = localStorage.getItem('ts360_session_start')
+  const start = readSessionStart()
   if (start) {
     const startMs = parseInt(start, 10)
     if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
@@ -94,7 +96,7 @@ function AuthFooter() {
       position:'fixed',bottom:0,left:0,right:0,background:'#fff',
       borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',
       justifyContent:'center',flexWrap:'wrap',gap:12,padding:'6px 24px',
-      fontSize:11,color:'#64748B',zIndex:50,
+      fontSize:12,color:SL,zIndex:50,
       fontFamily:'Inter, system-ui, sans-serif',lineHeight:1.4,minHeight:36,
     }}>
       <span>&#169; {year} TaxStat360</span>
@@ -130,7 +132,7 @@ function RequireAuth({ children }) {
 
   useEffect(() => {
     if (!sessionOk) return
-    const email = (localStorage.getItem('ts360_email') || '').trim().toLowerCase()
+    const email = (readEmail() || '').trim().toLowerCase()
     if (!email) return
     let active = true
     fetchVerificationStatus(email).then((s) => {
@@ -142,16 +144,16 @@ function RequireAuth({ children }) {
   useEffect(() => {
     if (!sessionOk) return
     try {
-      const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
+      const history = JSON.parse(readLoginHistory() || '[]')
       const today = new Date().toDateString()
       const lastEntry = history[0]
       if (!lastEntry || new Date(lastEntry.timestamp).toDateString() !== today) {
         history.unshift({ timestamp: new Date().toISOString(), userAgent: navigator.userAgent })
-        localStorage.setItem('ts360_login_history', JSON.stringify(history.slice(0, 10)))
+        writeLoginHistory(JSON.stringify(history.slice(0, 10)))
       }
     } catch(e) {}
 
-    const timeoutMins = parseInt(localStorage.getItem('ts360_idle_timeout_mins') || '0')
+    const timeoutMins = parseInt(readIdleTimeoutMins() || '0')
     if (!timeoutMins) return
     let timer
     const handleExpiry = () => { AUTH_KEYS.forEach(k => localStorage.removeItem(k)); window.location.href = '/login?expired=1' }
@@ -180,7 +182,7 @@ function RequireAuth({ children }) {
       const now = Date.now()
       if (now - last < THROTTLE_MS) return
       last = now
-      localStorage.setItem('ts360_session_start', String(now))
+      writeSessionStart(String(now))
     }
     const EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
     EVENTS.forEach(e => window.addEventListener(e, bump, { passive: true }))
@@ -218,15 +220,15 @@ function NotFound() {
     <div style={{minHeight:'100vh',background:'#F8FAFC',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter, system-ui, sans-serif',padding:24}}>
       <div style={{textAlign:'center',maxWidth:480}}>
         <div style={{fontSize:64,fontWeight:900,color:'#E2E8F0',lineHeight:1,marginBottom:8}}>404</div>
-        <h1 style={{fontSize:24,fontWeight:800,color:'#0D1B3E',margin:'0 0 12px'}}>Page Not Found</h1>
-        <p style={{fontSize:14,color:'#475569',lineHeight:1.6,margin:'0 0 28px'}}>
+        <h1 style={{fontSize:24,fontWeight:800,color:N,margin:'0 0 12px'}}>Page Not Found</h1>
+        <p style={{fontSize:14,color:SL,lineHeight:1.6,margin:'0 0 28px'}}>
           The page you&apos;re looking for doesn&apos;t exist or may have moved.
         </p>
         <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <a href="/" style={{display:'inline-block',padding:'11px 28px',background:'#0D1B3E',color:'#fff',borderRadius:8,fontWeight:700,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
+          <a href="/" style={{display:'inline-block',padding:'11px 28px',background:N,color:'#fff',borderRadius:8,fontWeight:700,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
             &larr; Back to Home
           </a>
-          <a href="/login" style={{display:'inline-block',padding:'11px 28px',background:'#fff',color:'#0D1B3E',border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
+          <a href="/login" style={{display:'inline-block',padding:'11px 28px',background:'#fff',color:N,border:'1.5px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:14,textDecoration:'none',fontFamily:'inherit'}}>
             Sign In
           </a>
         </div>
@@ -247,7 +249,7 @@ const SECTION_META = {
     description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, multi-entity consolidation, and AI-powered risk analysis.',
     canonical: SITE_ORIGIN + '/features',
     ogTitle: 'TaxStat360 Features — Live Tax Calculator for Business Owners',
-    ogDescription: 'K-1 income, QBI deduction, S-Corp SE-tax savings, quarterly estimates, and AI risk analysis — all in one place.',
+    ogDescription: 'K-1 income, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimates, and AI risk analysis — all in one place.',
   },
   pricing: {
     title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',
@@ -467,16 +469,15 @@ function RouteTitle() {
 // non-essential cookies. Banner appears once on first visit. Value stored in
 // localStorage as 'accepted' or 'declined'.
 function CookieBanner() {
-  const [visible, setVisible] = useState(() => !localStorage.getItem('ts360_cookie_consent'))
+  const [visible, setVisible] = useState(() => !readCookieConsent())
 
   if (!visible) return null
 
   const dismiss = (choice) => {
-    localStorage.setItem('ts360_cookie_consent', choice)
+    writeCookieConsent(choice)
     setVisible(false)
   }
 
-  const N = '#0D1B3E'
   const B = '#2563EB'
 
   return (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
+import { CURRENT_TAX_YEAR } from './constants.js'
 
 // =============================================================================
 // C-11 / C-12 — remediation of the 2025 edge-case accuracy audit.
@@ -7,7 +8,7 @@ import { calcTaxReturn } from './taxCalc.js'
 //  Finding 1 (C-11) — basis waterfall ordering: §1368 distributions must reduce
 //    stock basis BEFORE §1366 losses (Reg. §1.1368-1(e)). The prior engine applied
 //    the loss first, over-stating §1368(b)(2) capital gain and under-stating the
-//    suspended loss.
+//    suspended loss
 //  Finding 3 (C-11) — Form 7203 basis section must recognize current-year capital
 //    contributions (Line 2) and basis-increase income items (Lines 3a–3m), not just
 //    beginning stock basis (Line 1).
@@ -25,7 +26,7 @@ const sCorp = (over = {}) => ({
 })
 
 const run = (entity, extra = {}) => calcTaxReturn({
-  taxYear: 2026, status: 'mfj', dependents: 0,
+  taxYear: CURRENT_TAX_YEAR, status: 'mfj', dependents: 0,
   entities: [entity], w2: 500000, k1Total: parseFloat(entity.k1) || 0,
   assumeZeroBasisOnLoss: true, w2Withheld: 0, estPaid: 0, ...extra,
 })

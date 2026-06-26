@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { readEmail, readPlan, readToken, writePlan } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { signOut as sharedSignOut } from './utils/signOut'
+import { signOut as sharedSignOut } from './utils/SignOut'
 import { normalizePlanId } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
 // FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
@@ -28,14 +30,16 @@ const FEATURES = [
   { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
   { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
   { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
-  { label:'Personal tax return (W-2 + business income)',                starter:true,  professional:true,  enterprise:true  },
+  { label:'Personal tax return (W-2 + entity income)',                 starter:true,  professional:true,  enterprise:true  },
   { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
   // ── Professional additions ────────────────────────────────────────────────
-  { label:'Risk Alert Engine',                                          starter:false, professional:true,  enterprise:true  },
-  { label:'What-If Tax Scenario Simulator',                             starter:false, professional:true,  enterprise:true  },
+  // TERMINOLOGY FIX 5.1b: "Risk Alert Engine" did not match the in-app tab label "Audit Risk Scan."
+  // A paying user landing in the app could not find the feature they purchased. Using the canonical
+  // FEATURE_AUDIT_RISK_SCAN constant so this name stays in sync with AIAnalysis.jsx tab label.
+  { label:FEATURE_AUDIT_RISK_SCAN,                                          starter:false, professional:true,  enterprise:true  },
+  { label:FEATURE_WHATIF_SIMULATOR,                             starter:false, professional:true,  enterprise:true  },
   { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
   { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
-  { label:'Audit Risk Indicators',                                      starter:false, professional:true,  enterprise:true  },
   { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
   { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
   // ── Enterprise additions ──────────────────────────────────────────────────
@@ -73,9 +77,9 @@ export default function Upgrade() {
   const mountedRef = useRef(false)
 
   useEffect(() => {
-    const raw  = localStorage.getItem('ts360_plan') || 'starter'
+    const raw  = readPlan() || 'starter'
     const plan = normalizePlanId(raw)
-    const em = localStorage.getItem('ts360_email') || ''
+    const em = readEmail() || ''
     setCurrentPlan(plan)
     setEmail(em)
     if (!window.Stripe) {
@@ -136,7 +140,7 @@ export default function Upgrade() {
       // Previously the response was discarded — if the API returned 402/500, the user
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
-      const token = localStorage.getItem('ts360_token')
+      const token = readToken()
       const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
         credentials: 'include',
@@ -149,7 +153,7 @@ export default function Upgrade() {
         throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
       }
 
-      localStorage.setItem('ts360_plan', selectedPlan)
+      writePlan(selectedPlan)
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')

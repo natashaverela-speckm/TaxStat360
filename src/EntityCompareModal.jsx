@@ -30,7 +30,7 @@ import {
   BORDER_DEFAULT as CARD_BORDER,
 } from './theme.js'
 // CC-M02: canonical currency formatter.
-import { fmt } from './utils/formatMoney.js'
+import { fmt } from './utils/money.js'
 
 // Component-local tokens not in theme.js
 const SUMMARY_GREEN_BG     = '#DCFCE7'
@@ -350,8 +350,10 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             padding: 18,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              {/* TERMINOLOGY FIX 3.3: "Officer salary" → "Officer Compensation" — matches IRS Form 1120-S
+                  language and the FINANCIAL_LABELS.officerCompensationField constant used elsewhere. */}
               <div style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Officer salary (S Corp + C Corp)
+                Officer Compensation (S-Corp / C-Corp)
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: N }}>{fmt(sliderValue)}</div>
             </div>

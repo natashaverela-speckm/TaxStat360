@@ -152,7 +152,7 @@ export default function ResourcesHub() {
           fontSize: 16, color: 'rgba(255,255,255,0.72)', margin: '0 auto',
           maxWidth: 560, lineHeight: 1.6,
         }}>
-          Practical guides to S-Corp strategy, QBI deductions, estimated taxes,
+          Practical guides to S-Corp strategy, §199A QBI deductions, estimated taxes,
           and real estate investing — grounded in how the IRS examines returns
           and how the tax code rewards proactive planning.
         </p>
@@ -236,7 +236,7 @@ export default function ResourcesHub() {
         </h2>
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px' }}>
           Connect your accounting software and see your estimated federal tax liability,
-          QBI deduction, and S-Corp SE-tax savings updated in real time.
+          §199A QBI deduction, and S-Corp SE-tax savings updated in real time.
         </p>
         <a href="/signup" style={{
           display: 'inline-block', padding: '13px 32px',

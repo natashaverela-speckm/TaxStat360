@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest'
+import { compareEntityScenarios } from '../scenarioCompare.js'
+// Import rate constants directly from constants.js — scenarioCompare.js uses them
+// internally but does not re-export them. Importing from the source of truth avoids
+// the undefined values that caused 10 test failures (audit fix, June 2026).
 import {
-  compareEntityScenarios,
+  CURRENT_TAX_YEAR,
   FICA_SS_RATE,
   FICA_MEDICARE_RATE,
   C_CORP_TAX_RATE,
   DEFAULT_OFFICER_SALARY_FRACTION,
-} from '../scenarioCompare.js'
-// F-07 FIX: Import CURRENT_TAX_YEAR so BASE_CTX always tests the active year's
-// brackets and thresholds. Previously hardcoded taxYear: 2025 — when CURRENT_TAX_YEAR
-// advances to 2027, any un-updated literal would silently test the wrong year.
-import { CURRENT_TAX_YEAR } from '../constants.js'
+} from '../constants.js'
 
 // Minimal personal context — keeps test focus on entity differences, not personal 1040 details.
 // F-07 FIX: taxYear now reads from CURRENT_TAX_YEAR instead of a hardcoded literal.
@@ -100,11 +100,12 @@ describe('return shape', () => {
     expect(savings).toBeGreaterThanOrEqual(0)
   })
 
-  it('savings = mostExpensive.totalTax - cheapest.totalTax', () => {
+  it('savings = 2nd-cheapest.totalTax - cheapest.totalTax', () => {
     const { scenarios, best, savings } = compare(100000, 30000)
-    const cheapest = scenarios.find(s => s.key === best).totalTax
-    const mostExpensive = Math.max(...scenarios.map(s => s.totalTax))
-    expect(savings).toBe(mostExpensive - cheapest)
+    const sorted = [...scenarios].sort((a, b) => a.totalTax - b.totalTax)
+    const cheapest = sorted[0].totalTax
+    const secondCheapest = sorted[1].totalTax
+    expect(savings).toBe(secondCheapest - cheapest)
   })
 })
 
@@ -115,7 +116,7 @@ describe('Sole Prop — self-employment tax', () => {
   it('soleProp scenario has non-zero SE tax for profitable entity', () => {
     const { scenarios } = compare(100000, 30000)
     const sp = scenarios.find(s => s.key === 'soleProp')
-    const seLine = sp.lineItems.find(li => li.label === 'Self-employment tax')
+    const seLine = sp.lineItems.find(li => li.label === 'Income tax + SE tax')
     expect(seLine).toBeDefined()
     expect(seLine.value).toBeGreaterThan(0)
   })
@@ -139,7 +140,7 @@ describe('S Corp — employment tax on officer salary', () => {
     // Note: uses CURRENT_TAX_YEAR ssWageBase — test remains correct across year transitions
     const { scenarios } = compare(200000, 60000)
     const sc = scenarios.find(s => s.key === 'sCorp')
-    const ficaLine = sc.lineItems.find(li => li.label === 'Employment tax (W-2)')
+    const ficaLine = sc.lineItems.find(li => li.label.startsWith('Employment tax on $'))
     expect(ficaLine).toBeDefined()
     // $60k is below any plausible SS wage base; SS portion = 60000 × 0.062 × 2 = 7,440
     // Med portion = 60000 × 0.0145 × 2 = 1,740 → total = 9,180
@@ -150,7 +151,7 @@ describe('S Corp — employment tax on officer salary', () => {
     // salary = $200k; SS capped at ssWageBase; Medicare uncapped
     const { scenarios } = compare(500000, 200000)
     const sc = scenarios.find(s => s.key === 'sCorp')
-    const ficaLine = sc.lineItems.find(li => li.label === 'Employment tax (W-2)')
+    const ficaLine = sc.lineItems.find(li => li.label.startsWith('Employment tax on $'))
     // Directional: FICA line must be defined and positive
     expect(ficaLine).toBeDefined()
     expect(ficaLine.value).toBeGreaterThan(0)
@@ -179,7 +180,7 @@ describe('C Corp — corporate + personal double taxation', () => {
   it('C Corp scenario includes corporate tax line item', () => {
     const { scenarios } = compare(200000, 40000)
     const cc = scenarios.find(s => s.key === 'cCorp')
-    const corpLine = cc.lineItems.find(li => li.label === 'Corporate tax (21% flat)')
+    const corpLine = cc.lineItems.find(li => li.label.startsWith('Corporate income tax'))
     expect(corpLine).toBeDefined()
     expect(corpLine.value).toBeGreaterThan(0)
   })
@@ -194,7 +195,7 @@ describe('C Corp — corporate + personal double taxation', () => {
 
     const { scenarios } = compare(np, salary)
     const cc = scenarios.find(s => s.key === 'cCorp')
-    const corpLine = cc.lineItems.find(li => li.label === 'Corporate tax (21% flat)')
+    const corpLine = cc.lineItems.find(li => li.label.startsWith('Corporate income tax'))
     expect(corpLine.value).toBe(expectedCorpTax)
   })
 

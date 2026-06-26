@@ -1,6 +1,6 @@
 // src/utils/parseMoney.test.js
 import { describe, it, expect } from 'vitest';
-import { parseMoney, formatMoney, formatMoneyForInput } from './parseMoney.js';
+import { parseMoney, formatMoney, formatMoneyForInput } from './money.js';
 
 describe('parseMoney', () => {
   describe('happy path', () => {
