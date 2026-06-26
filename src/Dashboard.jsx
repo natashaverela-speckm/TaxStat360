@@ -46,7 +46,7 @@
 //   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
-import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName } from './utils/sessionState.js'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readEmail } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
@@ -213,7 +213,11 @@ function buildRecs(biz, calc) {
 
 const LOGO = () => <BrandLogo size={30} />
 
-const ONBOARDING_KEY = `ts360_onboarding_v1_${localStorage.getItem('ts360_email') || ''}`
+/** Per-user onboarding flag key — must be computed when the user is known, not at module load. */
+export function onboardingKeyFor(email = '') {
+  return `ts360_onboarding_v1_${String(email || '').trim().toLowerCase()}`
+}
+
 const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
   { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
@@ -348,8 +352,20 @@ export default function Dashboard() {
   )
   const dismiss2FANudge = () => { write2FANudge(true); setShow2FANudge(false) }
 
-  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
-  const completeOnboarding = () => { localStorage.setItem(ONBOARDING_KEY, '1'); setShowOnboarding(false) }
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  useEffect(() => {
+    const email = readEmail()
+    if (!email) {
+      setShowOnboarding(false)
+      return
+    }
+    setShowOnboarding(!localStorage.getItem(onboardingKeyFor(email)))
+  }, [])
+  const completeOnboarding = () => {
+    const email = readEmail()
+    if (email) localStorage.setItem(onboardingKeyFor(email), '1')
+    setShowOnboarding(false)
+  }
 
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
