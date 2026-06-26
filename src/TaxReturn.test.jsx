@@ -81,6 +81,8 @@ vi.mock('./utils/sessionState.js', () => ({
   syncRecordToServer: vi.fn(async r => r),
   readActiveRecordId: vi.fn(() => null),
   writeActiveRecord: vi.fn(),
+  readPlan: vi.fn(() => 'starter'),
+  writePlan: vi.fn(),
 }))
 
 vi.mock('./components/MoneyInput.jsx', () => ({

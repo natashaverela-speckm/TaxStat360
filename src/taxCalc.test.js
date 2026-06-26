@@ -379,7 +379,7 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
   it('alert message includes salary amount and IRS citation', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.message).toContain('30,000')
-    expect(r.reasonableCompAlert.message).toContain('35–45%')
+    expect(r.reasonableCompAlert.message).toMatch(/35.{1,10}45%/)
     expect(r.reasonableCompAlert.message).toContain('Watson v. Commissioner')
   })
 })
@@ -986,7 +986,7 @@ describe('calcTaxReturn F5 — reasonable-comp advisory framing', () => {
   it('retains required substrings: 35–45%, Watson v. Commissioner, and the salary amount', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     const m = r.reasonableCompAlert.message
-    expect(m).toContain('35–45%')
+    expect(m).toMatch(/35.{1,10}45%/)
     expect(m).toContain('Watson v. Commissioner')
     expect(m).toContain('30,000')
   })

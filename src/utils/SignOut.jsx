@@ -64,7 +64,7 @@ export function signOut(nav) {
 // which deliberately preserves saved tax scenarios, this erases EVERYTHING tied to
 // the account on this device — auth, integration tokens, AND the ts360_records_*
 // buckets — so no personal/tax data lingers locally after the account is gone.
-export function wipeAccountLocalData(nav) {
+export function wipeAccountLocalData(nav, { redirectTo = '/' } = {}) {
   try {
     const remove = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -82,5 +82,9 @@ export function wipeAccountLocalData(nav) {
   try {
     sessionStorage.clear()
   } catch (e) {}
+  if (redirectTo) {
+    window.location.replace(redirectTo)
+    return
+  }
   if (nav) nav('/')
 }
