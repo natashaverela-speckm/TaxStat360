@@ -1,13 +1,13 @@
 // src/Admin.jsx
-// Admin-only tool to permanently delete a specified user — for deletion requests
+// Admin-only tool to permanently delete a specified user â for deletion requests
 // that arrive by email. Reuses the same backend deletion flow as self-service.
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import { apiGet } from './utils/apiClient.js'
-import { adminDeleteUser } from './utils/accountApi.js'
+import { adminDeleteUser } from './utils/serverApi.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
 export default function Admin() {
   const nav = useNavigate()
@@ -52,7 +52,7 @@ export default function Admin() {
     setBusy(true)
     try {
       const res = await adminDeleteUser(email)
-      const note = res && res.already_absent ? ' (no account existed — nothing to remove)' : ''
+      const note = res && res.already_absent ? ' (no account existed â nothing to remove)' : ''
       setMsg(`Deleted ${email}${note}.`)
       setTarget(''); setConfirmText('')
     } catch (e) {
@@ -67,7 +67,7 @@ export default function Admin() {
   const card = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: 24, maxWidth: 520, margin: '0 auto' }
 
   if (checking) {
-    return <div style={{ padding: 48, textAlign: 'center', color: SL }}>Checking access…</div>
+    return <div style={{ padding: 48, textAlign: 'center', color: SL }}>Checking accessâ¦</div>
   }
 
   if (!isAdmin) {
@@ -88,7 +88,7 @@ export default function Admin() {
     <div style={{ padding: '40px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <BrandLogo size={28} />
-        <div style={{ fontSize: 18, fontWeight: 700, color: N }}>Admin · Delete a user</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: N }}>Admin Â· Delete a user</div>
       </div>
       <div style={{ ...card, border: '1px solid #FCA5A5' }}>
         <div style={{ fontSize: 13.5, color: SL, lineHeight: 1.55, marginBottom: 18 }}>
@@ -121,7 +121,7 @@ export default function Admin() {
           disabled={busy || !target.trim() || confirmText.trim().toUpperCase() !== 'DELETE'}
           style={{ padding: '10px 18px', background: (busy || !target.trim() || confirmText.trim().toUpperCase() !== 'DELETE') ? '#FCA5A5' : '#DC2626', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: (busy || !target.trim() || confirmText.trim().toUpperCase() !== 'DELETE') ? 'default' : 'pointer' }}
         >
-          {busy ? 'Deleting…' : 'Permanently delete user'}
+          {busy ? 'Deletingâ¦' : 'Permanently delete user'}
         </button>
       </div>
     </div>

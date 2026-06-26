@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { NAVY as N } from '../theme.js'
 
 /**
  * Generic dismissible notice. Persists dismissal state in either sessionStorage
@@ -62,7 +63,7 @@ export default function DismissibleNotice({
     gap: 12,
     fontSize: 14,
     lineHeight: 1.5,
-    color: '#0D1B3E',
+    color: N,
   }
 
   const defaultCloseButtonStyle = {
@@ -72,7 +73,7 @@ export default function DismissibleNotice({
     cursor: 'pointer',
     fontSize: 18,
     lineHeight: 1,
-    color: '#0D1B3E',
+    color: N,
     padding: 4,
   }
 

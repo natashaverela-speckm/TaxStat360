@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
+import { writeEmail, writePendingEmail, removeEmailVerified, readEmailVerified, writeEmailVerified } from '../utils/sessionState.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
 import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
 
-const B = '#2563EB'
-const N = '#0D1B3E'
 const CONFIRMED_ACK_KEY = 'ts360_email_confirmed_ack'
 // UX audit F10: lets the user collapse the persistent reminder to a small badge
 // so it stops eating vertical space (especially on mobile) on every screen.
@@ -115,9 +115,9 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
     setMsg('')
     try {
       await apiPost('/auth/change-email', { new_email: next })
-      localStorage.setItem('ts360_email', next)
-      localStorage.setItem('ts360_pendingEmail', next)
-      localStorage.removeItem('ts360_email_verified')
+      writeEmail(next)
+      writePendingEmail(next)
+      removeEmailVerified()
       onEmailUpdated?.(next)
       setEditing(false)
       setMsg(`✓ Verification email sent again to ${next}. Check your inbox (and junk/spam).`)
@@ -199,7 +199,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
         </button>
       </div>
       {msg ? (
-        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#475569', maxWidth: 1200 }}>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: SL, maxWidth: 1200 }}>
           {msg}
         </p>
       ) : null}
@@ -209,7 +209,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
 
 export async function fetchVerificationStatus(email) {
   if (!email) return { verified: true }
-  if (localStorage.getItem('ts360_email_verified') === '1') {
+  if (readEmailVerified() === '1') {
     return { verified: true, email }
   }
   try {
@@ -220,7 +220,7 @@ export async function fetchVerificationStatus(email) {
       { headers: { Accept: 'application/json' } },
     )
     if (data?.verified) {
-      localStorage.setItem('ts360_email_verified', '1')
+      writeEmailVerified('1')
       localStorage.removeItem(CONFIRMED_ACK_KEY)
       return { verified: true, email: data.email || email }
     }

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signOut, wipeAccountLocalData } from './utils/signOut'
+import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
-import { deleteOwnAccount } from './utils/accountApi.js'
+import { readEmail, writeEmail, readLoggedIn, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan } from './utils/sessionState.js'
+import { deleteOwnAccount } from './utils/serverApi.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
 
@@ -91,35 +92,35 @@ export default function Settings() {
   const [mfaBackupCodes, setMfaBackupCodes] = useState([])
 
   useEffect(() => {
-    let storedEmail = localStorage.getItem('ts360_email') || ''
+    let storedEmail = readEmail() || ''
     if (!storedEmail) {
       for (const key of Object.keys(localStorage)) {
         const match = key.match(/^ts360_records_(.+@.+)$/)
         if (match && match[1] !== 'default') {
           storedEmail = match[1]
-          localStorage.setItem('ts360_email', storedEmail)
+          writeEmail(storedEmail)
           break
         }
       }
     }
-    const storedPlan = localStorage.getItem('ts360_plan') || 'starter'
+    const storedPlan = readPlan() || 'starter'
     setEmail(storedEmail)
     setEmailInput(storedEmail)
     setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
 
-    const storedBilling = localStorage.getItem('ts360_billing') || 'monthly'
+    const storedBilling = readBilling() || 'monthly'
     setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
 
-    const session = localStorage.getItem('ts360_session_start')
+    const session = readSessionStart()
     if (session) setMemberSince(new Date(parseInt(session)).toLocaleDateString())
     else setMemberSince('—')
 
-    const storedTimeout = localStorage.getItem('ts360_idle_timeout_mins')
-    if (storedTimeout === null) localStorage.setItem('ts360_idle_timeout_mins', '30')
+    const storedTimeout = readIdleTimeoutMins()
+    if (storedTimeout === null) writeIdleTimeoutMins('30')
     setIdleTimeout(storedTimeout ?? '30')
 
     try {
-      const history = JSON.parse(localStorage.getItem('ts360_login_history') || '[]')
+      const history = JSON.parse(readLoginHistory() || '[]')
       setLoginHistory(history)
     } catch(e) { setLoginHistory([]) }
 
@@ -127,14 +128,14 @@ export default function Settings() {
       .then(data => {
         if (data && typeof data.enabled === 'boolean') {
           setMfaEnabled(data.enabled)
-          localStorage.setItem('ts360_mfa_enabled', data.enabled ? '1' : '0')
+          writeMfaEnabled(data.enabled ? '1' : '0')
         }
       })
       .catch(err => {
         // Preserve prior behavior: a non-ok response is a no-op (leave state as-is); only a
         // network/parse failure falls back to the cached flag.
         if (!(err instanceof ApiError)) {
-          setMfaEnabled(localStorage.getItem('ts360_mfa_enabled') === '1')
+          setMfaEnabled(readMfaEnabled() === '1')
         }
       })
   }, [])
@@ -199,7 +200,7 @@ export default function Settings() {
 
   const handleIdleTimeoutChange = (val) => {
     setIdleTimeout(val)
-    localStorage.setItem('ts360_idle_timeout_mins', val)
+    writeIdleTimeoutMins(val)
   }
 
   const handleMfaSetup = async () => {
@@ -229,7 +230,7 @@ export default function Settings() {
     try {
       const data = await apiPost('/auth/mfa/verify', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(true)
-      localStorage.setItem('ts360_mfa_enabled', '1')
+      writeMfaEnabled('1')
       setMfaBackupCodes(data?.backup_codes || mfaSetupData?.backup_codes || [])
       setMfaStep('success')
       setMfaCode('')
@@ -253,7 +254,7 @@ export default function Settings() {
     try {
       await apiPost('/auth/mfa/disable', { code: mfaCode }, { credentials: 'include' })
       setMfaEnabled(false)
-      localStorage.setItem('ts360_mfa_enabled', '0')
+      writeMfaEnabled('0')
       setMfaStep('idle')
       setMfaCode('')
       setMfaSetupData(null)
@@ -279,7 +280,7 @@ export default function Settings() {
     padding:'24px 28px', marginBottom:20
   }
 
-  const sessionStart = localStorage.getItem('ts360_session_start')
+  const sessionStart = readSessionStart()
   const sessionDisplay = sessionStart
     ? new Date(parseInt(sessionStart)).toLocaleString()
     : 'Unknown'

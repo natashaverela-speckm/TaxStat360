@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { deleteOwnAccount, adminDeleteUser } from './accountApi.js'
+import { deleteOwnAccount, adminDeleteUser } from './serverApi.js'
 
 function mockFetchOnce(body = { ok: true }) {
   global.fetch = vi.fn().mockResolvedValue({

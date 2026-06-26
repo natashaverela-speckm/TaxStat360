@@ -81,7 +81,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { apiFetch } from './utils/apiClient.js'
-import { writeBusinessInfo } from './utils/sessionState.js'
+import { writeBusinessInfo, readBusinessInfo, writeFirstRun, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, readToken, writeToken, writePlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeMfaEnabled, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, writeOnboardingEntityType, readOnboardingEntityType, readMfaEnabled, readPendingEmail } from './utils/sessionState.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
@@ -212,25 +212,25 @@ if(error)throw new Error(error.message)
 const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',body:{name,email,password:pass,plan,payment_method_id:setupIntent.payment_method},raw:true})
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
-if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
-if(data.plan)localStorage.setItem('plan',data.plan)
-localStorage.setItem('ts360_email',email)
-localStorage.removeItem('ts360_email_verified')
-localStorage.setItem('ts360_logged_in','1')
-localStorage.setItem('ts360_session_start', String(Date.now()))
-localStorage.setItem('ts360_plan',plan)
-localStorage.setItem('ts360_billing',billing)
+if(data.access_token)writeToken(data.access_token)
+if(data.plan)writePlan(data.plan)
+writeEmail(email)
+removeEmailVerified()
+writeLoggedIn('1')
+writeSessionStart(String(Date.now()))
+writePlan(plan)
+writeBilling(billing)
 try{
 const subRes=await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 if(!subRes||!subRes.ok){
 const subData=subRes?await subRes.json().catch(()=>({})):{}
 console.error('Subscribe setup failed at signup:',subRes&&subRes.status,subData)
-localStorage.setItem('ts360_subscription_incomplete','1')
+writeSubscriptionIncomplete('1')
 try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){}
-}else{ localStorage.removeItem('ts360_subscription_incomplete') }
-}catch(e){ console.error('Subscribe call failed at signup:',e); localStorage.setItem('ts360_subscription_incomplete','1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){} }
-localStorage.setItem('ts360_userName',name)
-localStorage.setItem('ts360_pendingEmail',email)
+}else{ removeSubscriptionIncomplete() }
+}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){} }
+writeUserName(name)
+writePendingEmail(email)
 try {
 const mcData = new URLSearchParams()
 mcData.append('EMAIL', email)
@@ -243,6 +243,7 @@ headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 body: mcData.toString()
 })
 } catch(e) {}
+sessionStorage.setItem('ts360_new_registration','1')
 nav('/verify-email')
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -442,9 +443,9 @@ function VerifyEmailScreen(){
         const data=await res.json().catch(()=>({}))
         if(!res.ok)throw new Error(data.detail||'Verification failed')
         if(!cancelled){
-          localStorage.setItem('ts360_email',emailParam)
-          localStorage.setItem('ts360_email_verified','1')
-          localStorage.removeItem('ts360_email_confirmed_ack')
+          writeEmail(emailParam)
+          writeEmailVerified('1')
+          removeEmailConfirmedAck()
           setStatus('verified')
         }
       }catch(e){
@@ -459,14 +460,14 @@ function VerifyEmailScreen(){
     <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
     <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
-    <button onClick={()=>nav(isValidSession()?'/dashboard':'/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
+    <button onClick={()=>(() => { const dest = sessionStorage.getItem('ts360_new_registration')==='1' ? '/onboarding/entity' : (isValidSession()?'/dashboard':'/onboarding/entity'); sessionStorage.removeItem('ts360_new_registration'); nav(dest) })()} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
   </div></Page>)
   if(status==='error')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
     <p style={{color:'#DC2626',marginBottom:16}}>{err}</p>
     <button onClick={()=>nav('/dashboard')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to app →</button>
   </div></Page>)
 
-  const displayEmail=localStorage.getItem('ts360_email')||localStorage.getItem('ts360_pendingEmail')||''
+  const displayEmail=readEmail()||readPendingEmail()||''
   return(<Page>
     <LOGO/>
     <div style={{textAlign:'center',padding:'20px 0'}}>
@@ -484,7 +485,7 @@ function VerifyEmailScreen(){
 }
 
 function isValidSession(){
-  return localStorage.getItem('ts360_logged_in')==='1'
+  return readLoggedIn()==='1' && !!readBusinessInfo()
 }
 
 function LoginScreen(){
@@ -519,15 +520,49 @@ function markLoginAttemptAllowed(){
 loginAttemptAllowed.current=true
 }
 
+// UX F-01: Only show the planning-tool disclaimer to first-time visitors.
+// Returning users have already seen it — showing it on every login trains
+// dismissal and delays the path to their tax position.
+const isReturningUser = !!(readDisclaimerSeen() || readSessionStart())
+
+// UX F-02: "Remember this device for 30 days" — bypass 2FA challenge on trusted devices.
+const TRUST_DAYS = 30
+const DEVICE_KEY = 'ts360_trusted_device'
+const [rememberDevice, setRememberDevice] = useState(false)
+
+function getDeviceFingerprint() {
+  try { return btoa([navigator.userAgent, screen.width, screen.height].join('|')).slice(0, 40) } catch { return 'unknown' }
+}
+
+function isTrustedDevice(emailAddr) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null')
+    if (!stored || stored.email !== emailAddr) return false
+    if (stored.fingerprint !== getDeviceFingerprint()) return false
+    if (Date.now() > stored.expires) { localStorage.removeItem(DEVICE_KEY); return false }
+    return true
+  } catch { return false }
+}
+
+function trustThisDevice(emailAddr) {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify({
+      email: emailAddr,
+      fingerprint: getDeviceFingerprint(),
+      expires: Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000,
+    }))
+  } catch {}
+}
+
 function finishLogin(data,actualEmail){
-if(data.access_token)localStorage.setItem('ts360_token',data.access_token)
+if(data.access_token)writeToken(data.access_token)
 const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
 const rawPlan = data.plan || 'starter'
 const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
-localStorage.setItem('ts360_email',actualEmail)
-localStorage.setItem('ts360_plan', normalizedPlan)
-localStorage.setItem('ts360_logged_in','1')
-localStorage.setItem('ts360_session_start', String(Date.now()))
+writeEmail(actualEmail)
+writePlan(normalizedPlan)
+writeLoggedIn('1')
+writeSessionStart(String(Date.now()))
 nav(redirectTo,{replace:true})
 }
 
@@ -545,6 +580,11 @@ const res=await apiFetch('/auth/login',{method:'POST',credentials:'include',body
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Login failed')
 if(data.mfa_required){
+// UX F-02: skip MFA challenge if this device is trusted and not expired
+if(isTrustedDevice(actualEmail)){
+finishLogin(data,actualEmail)
+return
+}
 setMfaStep(true)
 setLoginToken(data.login_token||'')
 setPendingEmail(data.email||actualEmail)
@@ -565,6 +605,7 @@ if(!code){setErr('Enter your 6-digit code or a backup code.');setLoading(false);
 const res=await apiFetch('/auth/mfa/challenge',{method:'POST',credentials:'include',body:{email:pendingEmail,login_token:loginToken,code},raw:true})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Invalid authentication code')
+if(rememberDevice) trustThisDevice(pendingEmail)
 finishLogin(data,pendingEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -572,12 +613,14 @@ finally{setLoading(false)}
 
 return(<Page>
 <LOGO/>
+{!isReturningUser && (
 <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:8}}>
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{flexShrink:0,marginTop:1}}><rect x="5" y="5" width="14" height="16" rx="2" stroke="#92400e" strokeWidth="1.6"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#92400e"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4" stroke="#92400e" strokeWidth="1.5" strokeLinecap="round"/></svg>
 <span style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>
 <strong>TaxStat360 is a tax planning tool — not a tax preparation or filing service.</strong>{' '}Estimates are projections for planning purposes only. Consult a licensed tax professional before making any filing or financial decisions.
 </span>
 </div>
+)}
 <h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>{mfaStep?'Two-factor authentication':'Welcome back'}</h2>
 <p style={{color:SL,fontSize:12,margin:'0 0 20px'}}>{mfaStep?'Enter the 6-digit code from your authenticator app, or a backup code.':'Sign in to your TaxStat360 account'}</p>
 {accountDeleted&&!mfaStep&&<div role="status" style={{background:'#F0FDF4',border:'1px solid #BBF7D0',color:'#166534',padding:'10px 12px',borderRadius:8,fontSize:12,marginBottom:16,lineHeight:1.5}}>Your account has been deleted. We&apos;re sorry to see you go.</div>}
@@ -595,7 +638,11 @@ placeholder="6-digit code or backup code"
 style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:15,marginBottom:12,boxSizing:'border-box',letterSpacing:'0.08em'}}
 />
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
+<label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:SL,marginBottom:12,cursor:'pointer'}}>
+<input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}} />
+Trust this device for {TRUST_DAYS} days — skip 2FA on this browser
+</label>
+<button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:loading||mfaCode.length<6?'not-allowed':'pointer',opacity:loading||mfaCode.length<6?0.5:1,transition:'opacity 0.15s',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
 <button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>
 ):(
@@ -631,7 +678,7 @@ For planning purposes only — not professional tax, legal, or financial advice.
 //   "not supported" notice has been removed.
 // "Other": not offered — it had no corresponding Tax Tracker entity type.
 // Entity type strings match the canonical Tax Tracker values exactly so
-//   localStorage.getItem('ts360_entityType') hydrates the entity card dropdown
+//   readOnboardingEntityType() hydrates the entity card dropdown
 //   correctly on the first Tax Tracker session.
 function EntityScreen(){
 const nav=useNavigate()
@@ -684,7 +731,7 @@ return(<Page>
   onClick={()=>{
     if(selected){
       // O3 FIX: entity type value now matches Tax Tracker canonical string exactly
-      localStorage.setItem('ts360_entityType',selected)
+      writeOnboardingEntityType(selected)
       nav('/onboarding/business')
     }
   }}
@@ -783,12 +830,12 @@ return(<Page>
 function ImportScreen(){
 const nav=useNavigate()
 const [showSecurityNudge, setShowSecurityNudge]=useState(false)
-const mfaAlreadyEnabled=localStorage.getItem('ts360_mfa_enabled')==='1'
+const mfaAlreadyEnabled=readMfaEnabled()==='1'
 const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
 
 // O4 FIX: set first-run flag then navigate to dashboard
 function goToDashboard(){
-  sessionStorage.setItem('ts360_first_run','1')
+  writeFirstRun()
   nav('/dashboard')
 }
 

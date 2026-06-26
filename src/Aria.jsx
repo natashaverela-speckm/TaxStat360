@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { readLoggedIn, removeLoggedIn, readSessionStart, removeSessionStart } from './utils/sessionState.js'
 // SEC-05: requests route through CloudFront (app.taxstat360.com) via the shared apiClient,
 // which builds every URL from API_BASE_URL — never the raw API Gateway URL — so CloudFront /
 // WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
@@ -17,7 +18,7 @@ const MAX_HISTORY_TURNS = 20
 // product, never on the landing / pricing / legal / auth pages.
 const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
 function ariaAllowed() {
-  try { if (!localStorage.getItem('ts360_logged_in')) return false } catch { return false }
+  try { if (!readLoggedIn()) return false } catch { return false }
   const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/'
   if (path.startsWith('/onboarding')) return true
   return ARIA_APP_ROUTES.includes(path)
@@ -83,8 +84,8 @@ export default function Aria() {
 
       if (r.status === 401) {
         // Cookie expired or invalid — clear local flags and redirect to login
-        localStorage.removeItem('ts360_logged_in')
-        localStorage.removeItem('ts360_session_start')
+        removeLoggedIn()
+        removeSessionStart()
         setMsgs(m => [...m, {
           role: 'assistant',
           text: 'Your session has expired.',
