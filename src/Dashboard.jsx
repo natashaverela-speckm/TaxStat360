@@ -213,8 +213,7 @@ function buildRecs(biz, calc) {
 
 const LOGO = () => <BrandLogo size={30} />
 
-const ONBOARDING_KEY = 'ts360_onboarding_v1'
-
+const ONBOARDING_KEY = `ts360_onboarding_v1_${localStorage.getItem('ts360_email') || ''}`
 const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
   { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
