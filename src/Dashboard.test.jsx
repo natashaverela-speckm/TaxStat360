@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Unit tests for calcDashboard() — the Dashboard's per-business tax computation.
 // Uses the REAL engine (no mocks) so the C-Corp parity assertion is meaningful: the
 // Dashboard must produce the same corporate tax as the shared layer that the Tax Tracker

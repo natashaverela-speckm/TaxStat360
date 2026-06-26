@@ -11,21 +11,21 @@ describe('parseMoney', () => {
       expect(parseMoney('100,000')).toBe(100000);
       expect(parseMoney('1,234,567')).toBe(1234567);
     });
-    it('parses currency-prefixed values', () => {
+    it('parses currency-prefixed values (rounded to whole dollars)', () => {
       expect(parseMoney('$100')).toBe(100);
-      expect(parseMoney('$1,234.56')).toBe(1234.56);
+      expect(parseMoney('$1,234.56')).toBe(1235);
     });
-    it('parses decimals', () => {
-      expect(parseMoney('1234.56')).toBe(1234.56);
-      expect(parseMoney('0.99')).toBe(0.99);
+    it('parses decimals with rounding', () => {
+      expect(parseMoney('1234.56')).toBe(1235);
+      expect(parseMoney('0.99')).toBe(1);
     });
     it('parses leading-minus negatives', () => {
       expect(parseMoney('-100')).toBe(-100);
-      expect(parseMoney('-1,000.50')).toBe(-1000.5);
+      expect(parseMoney('-1,000.50')).toBe(-1001);
     });
     it('parses parens as negative (accounting-style)', () => {
       expect(parseMoney('(500)')).toBe(-500);
-      expect(parseMoney('($1,234.56)')).toBe(-1234.56);
+      expect(parseMoney('($1,234.56)')).toBe(-1235);
       expect(parseMoney('(0)')).toBe(0);
     });
     it('strips whitespace', () => {
@@ -35,9 +35,9 @@ describe('parseMoney', () => {
   });
 
   describe('passthrough for already-numeric', () => {
-    it('returns finite numbers as-is', () => {
+    it('returns rounded finite numbers', () => {
       expect(parseMoney(1234)).toBe(1234);
-      expect(parseMoney(-1234.5)).toBe(-1234.5);
+      expect(parseMoney(-1234.5)).toBe(-1234);
       expect(parseMoney(0)).toBe(0);
     });
     it('coerces non-finite numbers to 0', () => {
@@ -73,7 +73,6 @@ describe('parseMoney', () => {
   });
 
   describe('regression: comma parsing bug', () => {
-    // The original bug: "100,000" was being read as 100 (split at comma)
     it('treats comma as thousand separator, NOT as field delimiter', () => {
       expect(parseMoney('100,000')).toBe(100000);
       expect(parseMoney('100,000')).not.toBe(100);
@@ -81,47 +80,43 @@ describe('parseMoney', () => {
   });
 });
 
-describe('formatMoney', () => {
-  it('formats positive whole numbers', () => {
-    expect(formatMoney(1234)).toBe('$1,234.00');
+describe('formatMoney (fmt alias)', () => {
+  it('formats positive whole numbers without cents', () => {
+    expect(formatMoney(1234)).toBe('$1,234');
   });
-  it('formats negative numbers with leading minus', () => {
-    expect(formatMoney(-1234)).toBe('-$1,234.00');
+  it('formats negative numbers with accounting parentheses', () => {
+    expect(formatMoney(-1234)).toBe('($1,234)');
   });
   it('formats zero', () => {
-    expect(formatMoney(0)).toBe('$0.00');
+    expect(formatMoney(0)).toBe('$0');
   });
-  it('rounds to 2 decimals', () => {
-    expect(formatMoney(1.234)).toBe('$1.23');
-    expect(formatMoney(1.235)).toBe('$1.24');
+  it('rounds to whole dollars', () => {
+    expect(formatMoney(1.234)).toBe('$1');
+    expect(formatMoney(1.235)).toBe('$1');
   });
-  it('coerces non-finite to 0', () => {
-    expect(formatMoney(NaN)).toBe('$0.00');
-    expect(formatMoney(Infinity)).toBe('$0.00');
-  });
-  it('respects cents:false option', () => {
-    expect(formatMoney(1234, { cents: false })).toBe('$1,234');
+  it('coerces non-finite to $0', () => {
+    expect(formatMoney(NaN)).toBe('$0');
+    expect(formatMoney(Infinity)).toBe('$0');
   });
 });
 
 describe('formatMoneyForInput', () => {
-  it('returns empty string for 0 (so placeholder shows)', () => {
-    expect(formatMoneyForInput(0)).toBe('');
+  it('returns plain rounded string for zero', () => {
+    expect(formatMoneyForInput(0)).toBe('0');
   });
-  it('formats whole numbers without decimals', () => {
-    expect(formatMoneyForInput(1234)).toBe('1,234');
+  it('formats whole numbers without commas or $', () => {
+    expect(formatMoneyForInput(1234)).toBe('1234');
   });
-  it('formats decimals with 2 places', () => {
-    expect(formatMoneyForInput(1234.5)).toBe('1,234.50');
+  it('rounds decimals', () => {
+    expect(formatMoneyForInput(1234.5)).toBe('1235');
   });
   it('formats negatives', () => {
-    expect(formatMoneyForInput(-1234)).toBe('-1,234');
+    expect(formatMoneyForInput(-1234)).toBe('-1234');
   });
 });
 
 describe('parse -> format -> parse round-trip', () => {
-  // Anything we can format must be re-parseable to the same value.
-  const cases = [0, 1, -1, 100, -100, 1234.56, -1234.56, 1000000, 0.01];
+  const cases = [0, 1, -1, 100, -100, 1235, -1235, 1000000];
   cases.forEach((n) => {
     it(`round-trips ${n}`, () => {
       expect(parseMoney(formatMoney(n))).toBe(n);

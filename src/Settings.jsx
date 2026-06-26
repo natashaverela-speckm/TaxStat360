@@ -67,8 +67,8 @@ export default function Settings() {
       } catch (e) {
         /* notification failure is non-fatal */
       }
-      // Erase all local data and return to the landing page (also ends the session).
-      wipeAccountLocalData(nav)
+      // Erase all local data and land on login with a friendly goodbye (not an auth error).
+      wipeAccountLocalData(null, { redirectTo: '/login?deleted=1' })
     } catch (e) {
       setDeleting(false)
       if (e && e.status === 401) {
