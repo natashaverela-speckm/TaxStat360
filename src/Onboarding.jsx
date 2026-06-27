@@ -82,6 +82,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { apiFetch } from './utils/apiClient.js'
 import { writeBusinessInfo, readBusinessInfo, writeFirstRun, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, readToken, writeToken, writePlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeMfaEnabled, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, writeOnboardingEntityType, readOnboardingEntityType, readMfaEnabled, readPendingEmail } from './utils/sessionState.js'
+import { needsOnboardingTour } from './utils/onboardingTour.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
@@ -460,7 +461,7 @@ function VerifyEmailScreen(){
     <div style={{marginBottom:16}}><Icon name="checkCircle" size={48} color="#059669" /></div>
     <h2 style={{color:N,fontSize:22,fontWeight:800,margin:'0 0 10px'}}>Email confirmed</h2>
     <p style={{color:SL,fontSize:14,margin:'0 0 24px',lineHeight:1.6}}>Thanks — your email is verified. You can continue using TaxStat360.</p>
-    <button onClick={()=>(() => { const dest = sessionStorage.getItem('ts360_new_registration')==='1' ? '/onboarding/entity' : (isValidSession()?'/dashboard':'/onboarding/entity'); sessionStorage.removeItem('ts360_new_registration'); nav(dest) })()} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
+    <button onClick={() => continueAfterVerifyEmail(nav)} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer'}}>Continue →</button>
   </div></Page>)
   if(status==='error')return(<Page><LOGO/><div style={{textAlign:'center',padding:'20px 0'}}>
     <p style={{color:'#DC2626',marginBottom:16}}>{err}</p>
@@ -479,13 +480,24 @@ function VerifyEmailScreen(){
           <Icon name="mail" size={14} color={SL} /> Please confirm your email. We sent a verification link to <strong>{displayEmail}</strong>. Check your inbox (and junk/spam). You can still continue into the app without verifying.
         </p>
       ):null}
-      <button onClick={()=>nav('/onboarding/entity')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
+      <button onClick={() => nav('/onboarding/welcome')} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
     </div>
   </Page>)
 }
 
 function isValidSession(){
   return readLoggedIn()==='1' && !!readBusinessInfo()
+}
+
+function continueAfterVerifyEmail(nav) {
+  const isNew = sessionStorage.getItem('ts360_new_registration') === '1'
+  const email = readEmail()
+  if (isNew || needsOnboardingTour(email)) {
+    nav('/onboarding/welcome')
+    return
+  }
+  sessionStorage.removeItem('ts360_new_registration')
+  nav(isValidSession() ? '/dashboard' : '/onboarding/entity')
 }
 
 function LoginScreen(){
