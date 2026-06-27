@@ -27,6 +27,8 @@ import Article from './Article'
 // unknown slugs (a soft-404 inside the indexable /resources/ pattern) get noindex.
 import { getArticle } from './articles.js'
 import { NAVY as N, SLATE as SL } from './theme.js'
+import WelcomeTourScreen from './components/WelcomeTourScreen.jsx'
+import { needsOnboardingTour } from './utils/onboardingTour.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -108,6 +110,24 @@ function AuthFooter() {
       <span style={{color:'#E2E8F0'}}>|</span>
       <span>For planning purposes only &mdash; not professional tax, legal, or financial advice. These are simplified federal estimates and may not reflect every tax situation, including complex or multi-entity returns and specialized deductions. Consult a licensed tax professional before filing or relying on these figures.</span>
     </div>
+  )
+}
+
+// ─── Welcome tour gate ────────────────────────────────────────────────────────
+function RequireWelcomeTour({ children }) {
+  const location = useLocation()
+  const email = readEmail()
+  if (email && needsOnboardingTour(email)) {
+    return <Navigate to="/onboarding/welcome" replace state={{ from: location }} />
+  }
+  return children
+}
+
+function AuthedWithTour({ children }) {
+  return (
+    <RequireAuth>
+      <RequireWelcomeTour>{children}</RequireWelcomeTour>
+    </RequireAuth>
   )
 }
 
@@ -545,22 +565,23 @@ export default function App() {
         <Route path="/verify-email" element={<Onboarding screen="verify" />} />
 
         {/* Onboarding — auth required */}
-        <Route path="/onboarding/entity"   element={<RequireAuth><Onboarding screen="entity" /></RequireAuth>} />
-        <Route path="/onboarding/business" element={<RequireAuth><Onboarding screen="business" /></RequireAuth>} />
-        <Route path="/onboarding/import"   element={<RequireAuth><Onboarding screen="import" /></RequireAuth>} />
+        <Route path="/onboarding/welcome"  element={<RequireAuth><WelcomeTourScreen /></RequireAuth>} />
+        <Route path="/onboarding/entity"   element={<AuthedWithTour><Onboarding screen="entity" /></AuthedWithTour>} />
+        <Route path="/onboarding/business" element={<AuthedWithTour><Onboarding screen="business" /></AuthedWithTour>} />
+        <Route path="/onboarding/import"   element={<AuthedWithTour><Onboarding screen="import" /></AuthedWithTour>} />
 
         {/* OAuth callback — QuickBooks, Xero, Wave, FreshBooks */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
         {/* Protected app routes */}
-        <Route path="/calculate-tax" element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
-        <Route path="/calculator"    element={<RequireAuth><CalculateTaxInner /></RequireAuth>} />
-        <Route path="/dashboard"     element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="/tax-return"    element={<RequireAuth><TaxReturn /></RequireAuth>} />
-        <Route path="/ai-analysis"   element={<RequireAuth><AIAnalysis /></RequireAuth>} />
-        <Route path="/settings"      element={<RequireAuth><Settings /></RequireAuth>} />
-        <Route path="/admin"         element={<RequireAuth><Admin /></RequireAuth>} />
-        <Route path="/upgrade"       element={<RequireAuth><Upgrade /></RequireAuth>} />
+        <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
+        <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
+        <Route path="/dashboard"     element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
+        <Route path="/tax-return"    element={<AuthedWithTour><TaxReturn /></AuthedWithTour>} />
+        <Route path="/ai-analysis"   element={<AuthedWithTour><AIAnalysis /></AuthedWithTour>} />
+        <Route path="/settings"      element={<AuthedWithTour><Settings /></AuthedWithTour>} />
+        <Route path="/admin"         element={<AuthedWithTour><Admin /></AuthedWithTour>} />
+        <Route path="/upgrade"       element={<AuthedWithTour><Upgrade /></AuthedWithTour>} />
 
         {/* Password reset — public */}
         <Route path="/reset-password"  element={<ResetPassword />} />
