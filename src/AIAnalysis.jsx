@@ -838,7 +838,7 @@ function TaxOptimization({ rec }) {
   opportunities.push({
     icon: '🏠', title: 'Home Office Deduction', priority: 'medium',
     saving: null,
-    detail: 'If you use a portion of your home exclusively and regularly for business, you can deduct either $5 per sq ft (simplified, up to 300 sq ft = $1,500 max) or actual expenses proportional to office size.',
+    detail: 'If you use a portion of your home exclusively and regularly for business, you may be able to benefit from home-office expenses. The method depends on your entity type — see "How to apply" below for what applies to your structure.',
     howTo: homeOfficeHowTo
   })
 
