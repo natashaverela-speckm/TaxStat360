@@ -881,6 +881,31 @@ function TaxOptimization({ rec }) {
     })
   }
 
+  const hasRealEstate = Array.isArray(rec?.entities) && rec.entities.some(e => isRealEstateEntity(e?.type))
+
+  opportunities.push({
+    icon: '👨‍👩‍👧', title: 'Hire Your Children', priority: 'medium',
+    saving: null,
+    detail: 'The IRS allows you to hire your children, which can shift income and reduce your tax liability.',
+    howTo: 'Ask Aria or see IRS.gov family-employee rules.'
+  })
+
+  if (hasRealEstate) {
+    opportunities.push({
+      icon: '🏢', title: 'Bonus Depreciation', priority: 'high',
+      saving: null,
+      detail: 'Bonus depreciation for real estate investors is a great way to save thousands on taxes.',
+      howTo: 'Ask Aria for more info.'
+    })
+
+    opportunities.push({
+      icon: '⏱️', title: 'Track Your Real Estate Hours', priority: 'high',
+      saving: null,
+      detail: 'Tracking your real estate hours allows passive losses to offset active income, reducing your tax liability. Coupled with bonus depreciation, it can be a very powerful planning tool.',
+      howTo: 'Ask Aria for more info.'
+    })
+  }
+
   const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: G }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
 
   return (
