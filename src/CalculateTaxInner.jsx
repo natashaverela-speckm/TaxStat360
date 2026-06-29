@@ -436,6 +436,18 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
     onUpdate(idx, {
       ...entity,
       officerW2: effectiveSal,
+      // BUG-B FIX (W-2 wages disconnected from officer comp): the §199A W-2 Wages
+      // field (box17V_wages) is a separate user-entered input that persists its own
+      // value. When the user changes their officer salary here, box17V_wages retains
+      // whatever was previously typed, blocking the engine's fallback chain at
+      // taxCalc.js line 389: parseFloat(e.box17V_wages) || parseFloat(e.officerW2)
+      // The stale box17V_wages wins and the §199A wage limit uses the wrong figure.
+      // Fix: reset box17V_wages to '' whenever officer salary changes, so the engine
+      // falls through to officerW2 (which IS synced above). If the user has manually
+      // overridden box17V_wages for a multi-employee entity, they can re-enter it.
+      // Only reset when effectiveSal is the driver (isSCorp/isCCorp path); non-wage
+      // entities have effectiveSal === 0 and box17V_wages is irrelevant for them.
+      ...(effectiveSal > 0 || entity.box17V_wages !== '' ? { box17V_wages: '' } : {}),
       pnl: {
         grossRevenue:    rv,
         totalExpenses,
@@ -1487,6 +1499,22 @@ export default function CalculateTaxInner() {
       const next = [...prev]
       next[idx] = updated
       writeStep1Entities(next)
+      // BUG-A FIX (SSTB / QBI fields not reaching Step 2 via nav): writeStep1Entities
+      // writes only the session working copy; Step 2 reads via readStep1State() which
+      // reads writeStep1State. If the user navigates to Step 2 via the breadcrumb before
+      // the async persistStep1 useEffect fires, box17V_sstb (and any other QBI field)
+      // is absent from the Step-2 entity list, silently ignoring the SSTB checkbox.
+      // Fix: eagerly compute and write the full Step-1 payload here, synchronously, so
+      // readStep1State always reflects the latest entity state regardless of nav path.
+      const k1Total = next.reduce((s, e) => {
+        if (!e || isCCorpEntity(e.type)) return s
+        const pnl = e.pnl || {}
+        const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+        const own = ownPct(e.own) / 100
+        const k1  = Math.round(net * own)
+        return s + k1 - nf(e.box11_12) - nf(e.box12_13)
+      }, 0)
+      writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
       return next
     })
   }, [])
