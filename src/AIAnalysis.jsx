@@ -303,6 +303,82 @@ function NoData({ tab = 'risk' }) {
   )
 }
 
+function teaserOf(detail) {
+  return (detail || '').split('\n')[0].trim()
+}
+
+function RiskFindingCards({ findings, recordId, colors, keyOf, onReview }) {
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set())
+
+  useEffect(() => {
+    setExpandedKeys(new Set(
+      findings.filter(f => f.level === 'high').map(f => keyOf(f))
+    ))
+  }, [recordId]) // reset default expand when active record changes
+
+  const toggleExpand = (k) => {
+    setExpandedKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  }
+
+  return findings.map((f) => {
+    const k = keyOf(f)
+    const c = colors[f.level]
+    const isExpanded = expandedKeys.has(k)
+    return (
+      <div key={k} style={{ background: c.bg, border: '1px solid ' + c.border, borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => toggleExpand(k)}
+                aria-expanded={isExpanded}
+                style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: isExpanded ? 6 : 0 }}>{f.title}</div>
+                  {!isExpanded && (
+                    <div style={{ fontSize: 13, color: c.text, opacity: 0.85, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 4 }}>
+                      {teaserOf(f.detail)}
+                    </div>
+                  )}
+                </div>
+                <span style={{ flexShrink: 0, fontSize: 12, color: c.text, marginTop: 2 }} aria-hidden="true">
+                  {isExpanded ? '▾' : '▸'}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onReview(f)}
+                aria-label={'Mark "' + f.title + '" as reviewed'}
+                style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: c.text, background: 'rgba(255,255,255,0.7)', border: '1px solid ' + c.border, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                ✓ Mark reviewed
+              </button>
+            </div>
+            {isExpanded && (
+              <>
+                <div style={{ fontSize: 13, color: c.text, lineHeight: 1.6, marginBottom: f.action ? 8 : 0 }}>{f.detail}</div>
+                {f.action && (
+                  <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge, whiteSpace: 'pre-line' }}>
+                    <strong>What to do:</strong> {f.action}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  })
+}
+
 
 // ── TAB 1: Risk Scan ─────────────────────────────────────────────────────────
 function RiskScan({ rec }) {
@@ -637,34 +713,13 @@ function RiskScan({ rec }) {
             ✓ All findings reviewed. See the reviewed list below to revisit any of them.
           </div>
         )}
-        {activeFindings.map((f) => {
-          const c = colors[f.level]
-          return (
-            <div key={keyOf(f)} style={{ background: c.bg, border: '1px solid ' + c.border, borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                    <div style={{ fontWeight: 700, color: c.text, fontSize: 14, marginBottom: 6 }}>{f.title}</div>
-                    <button
-                      onClick={() => review(f)}
-                      aria-label={'Mark "' + f.title + '" as reviewed'}
-                      style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: c.text, background: 'rgba(255,255,255,0.7)', border: '1px solid ' + c.border, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      ✓ Mark reviewed
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 13, color: c.text, lineHeight: 1.6, marginBottom: f.action ? 8 : 0 }}>{f.detail}</div>
-                  {f.action && (
-                    <div style={{ fontSize: 12, color: c.text, background: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '8px 12px', borderLeft: '3px solid ' + c.badge, whiteSpace: 'pre-line' }}>
-                      <strong>What to do:</strong> {f.action}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
+        <RiskFindingCards
+          findings={activeFindings}
+          recordId={recordId}
+          colors={colors}
+          keyOf={keyOf}
+          onReview={review}
+        />
       </div>
 
       {reviewedFindings.length > 0 && (
