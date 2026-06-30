@@ -75,13 +75,26 @@ import {
 //   Replace ALL direct sessionStorage.getItem/setItem calls for ts360_biz_*
 //   keys with these helpers.
 
-import { CURRENT_TAX_YEAR } from '../constants.js'
+import { DEFAULT_TAX_YEAR } from '../constants.js'
 
 // C-15: a new calculation's default Tax Year is the current calendar year, but never
 // beyond the latest year the engine has tax tables for (CURRENT_TAX_YEAR). This keeps the
 // default on a year that exists in the dropdown and has real brackets, instead of silently
 // using substitute tables once the calendar rolls past the last supported year.
-const defaultTaxYear = () => Math.min(new Date().getFullYear(), CURRENT_TAX_YEAR)
+//
+// FINDING-7 ROOT FIX: the original Math.min(new Date().getFullYear(), CURRENT_TAX_YEAR)
+// resolves to CURRENT_TAX_YEAR for the ENTIRE calendar year that matches it — e.g. all of
+// 2026, even though the 2025 return isn't due until mid-October 2026 (with extension) and
+// most users opening a fresh session in Jan–Sep 2026 are planning/filing for 2025, not 2026.
+// This was the actual source of the "tax year always defaults to 2026" bug — the component-
+// level `readTaxYear() || CURRENT_TAX_YEAR` fallbacks in CalculateTaxInner.jsx/TaxReturn.jsx
+// never even ran, because readTaxYear() below ALWAYS returns a concrete year via
+// defaultTaxYear() and is never falsy.
+// Cap at DEFAULT_TAX_YEAR (the most recently COMPLETED tax year) instead of CURRENT_TAX_YEAR
+// (the latest year the engine has brackets for, which may not be filing-ready yet).
+// ⚠ ANNUAL UPDATE: this now tracks constants.js DEFAULT_TAX_YEAR — no separate edit needed
+// here when the new year rolls over, as long as DEFAULT_TAX_YEAR is advanced each January.
+const defaultTaxYear = () => Math.min(new Date().getFullYear(), DEFAULT_TAX_YEAR)
 
 // ─── Step 1 state (entity list + totals) ──────────────────────────────────
 // Written by: CalculateTaxInner (proceed() and AI Analysis nav)
