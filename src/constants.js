@@ -70,6 +70,23 @@ export const API_BASE_URL = 'https://app.taxstat360.com'
 // so the two can never drift apart.
 export const SUPPORTED_TAX_YEARS = [2024, 2025, 2026]
 export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length - 1]
+// FINDING-7 FIX: the tax-year dropdown defaulted to the LATEST supported year (2026)
+// on every new session, because CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[last] = 2026.
+// During the 2025 filing season (Jan–Oct 2026) almost all users are planning for 2025 —
+// their returns are not yet filed and they are making 2025 estimated payments.
+// Defaulting to 2026 forces every new user to manually correct the year, which is
+// confusing and causes wrong bracket/threshold figures to be displayed by default.
+//
+// Fix: introduce DEFAULT_TAX_YEAR = the most recently COMPLETED tax year = 2025.
+// CalculateTaxInner and TaxReturn use DEFAULT_TAX_YEAR (not CURRENT_TAX_YEAR) as the
+// initial dropdown value.  CURRENT_TAX_YEAR is ONLY used as the engine-table fallback
+// in taxCalc.js getTable() — i.e. "if TAX_TABLES[requestedYear] doesn't exist, use
+// the latest year we have data for."  These two concepts must remain separate.
+//
+// ⚠ ANNUAL UPDATE RULE: each January, advance DEFAULT_TAX_YEAR by 1 (e.g. → 2026).
+// Do NOT change CURRENT_TAX_YEAR — it advances automatically when a new year is
+// appended to SUPPORTED_TAX_YEARS, which is the trigger for adding TAX_TABLES[year].
+export const DEFAULT_TAX_YEAR = 2025
 
 // C-32:7.1 — single source of truth for the Step-3 ("AI Analysis & Reporting") label.
 // Previously the step-3 breadcrumb read "AI Analysis" in Steps 1–2 but "AI Analysis &
