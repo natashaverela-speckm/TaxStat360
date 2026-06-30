@@ -803,7 +803,20 @@ export default function TaxReturn() {
               </div>
               <button
                 type="button"
-                onClick={() => setYtdMode(true)}
+                onClick={() => {
+                  // AUDIT-3B FIX: the compact "Enable YTD Mode →" button previously
+                  // called setYtdMode(true) directly, bypassing the confirmation gate
+                  // added to the toggle switch in AUDIT-3. This is the same dangerous
+                  // path — silently treating already-entered full-year figures as
+                  // partial-year data and doubling everything. Apply the same gate.
+                  const hasExistingIncome = nf(w2Income) > 0 ||
+                    entityList.some(e => nf(e?.pnl?.netProfit ?? (nf(e?.pnl?.grossRevenue) - nf(e?.pnl?.totalExpenses))) !== 0)
+                  if (hasExistingIncome) {
+                    setYtdConfirmPending(true)
+                  } else {
+                    setYtdMode(true)
+                  }
+                }}
                 style={{ padding: '7px 14px', background: '#EFF6FF', color: B, border: '1px solid #BFDBFE', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
                 Enable YTD Mode →
