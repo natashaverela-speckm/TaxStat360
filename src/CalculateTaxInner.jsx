@@ -12,7 +12,7 @@ import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
 import { integrationKey } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
@@ -363,6 +363,15 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 // ─── Manual entry panel ───────────────────────────────────────────────────────
 // Exported for the F2 live-commit regression test (CalculateTaxInner.test.jsx).
 export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
+  // BUG-A ROOT FIX: the live-bind useEffect below has a stale closure on `entity`
+  // because `entity` is intentionally excluded from the dep array (including it would
+  // create an update loop). Any field set on the entity via onUpdate OUTSIDE this
+  // panel — e.g. box17V_sstb via the §199A checkbox, box17V_wages, qbiLossCarryforward —
+  // was being silently overwritten back to its old value whenever the effect re-ran
+  // (triggered by any P&L field change). The fix: keep a ref that always holds the
+  // LATEST entity prop so the effect reads fresh values for the fields it does not own.
+  const entityRef = useRef(entity)
+  useEffect(() => { entityRef.current = entity })   // sync ref on every render, no deps
   const pnl = entity.pnl || {}
   const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
   const _reloadOpex = Math.max(0,
@@ -376,6 +385,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const [manOfficerSal, setManOfficerSal] = useState(String(nf(pnl.officerSalary  || entity.officerW2)   || ''))
   const [manAdv,        setManAdv]        = useState(String(nf(pnl.advertising)                          || ''))
   const [manOther,      setManOther]      = useState(String(nf(pnl.otherDeductions)                      || ''))
+  // FINDING-1 FIX: K-1 Box 1 direct-entry mode.
+  // The manual P&L form (gross receipts − expenses) cannot represent a K-1 loss from
+  // a filed return without the user reconstructing the full P&L — which is impossible
+  // from a K-1 alone. K-1 Box 1 is the SIGNED net ordinary business income; losses are
+  // negative. When useK1Direct is true, the user enters Box 1 directly and the P&L
+  // decomposition is hidden. The engine already uses pnl.netProfit as-is (taxCalc.js
+  // entitiesLimited map); setting it directly is the correct fix path.
+  // Restore from entity state on re-open: if the entity has a k1DirectMode flag,
+  // pre-select the direct mode and populate the field from pnl.netProfit.
+  const [useK1Direct,  setUseK1Direct]   = useState(!!entity.k1DirectMode)
+  const [manK1Direct,  setManK1Direct]   = useState(
+    entity.k1DirectMode ? String(nf(pnl.netProfit) || '') : ''
+  )
 
   const rv  = nf(manRev)
   const ex  = nf(manExp)
@@ -399,7 +421,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   function applyManual() {
     if (rv > 0 || totalExpenses > 0) {
       onUpdate(idx, {
-        ...entity,
+        ...entityRef.current,   // BUG-A ROOT FIX: use ref, not stale closure
         officerW2: effectiveSal,
         pnl: {
           grossRevenue:    rv,
@@ -432,22 +454,46 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   // the entity object would re-fire this on every parent re-render (and could loop).
   useEffect(() => {
     // Do not clobber a live software sync when the panel opens with empty defaults.
-    if (entity.connectedId) return
+    if (entityRef.current.connectedId) return
+    // FINDING-1 FIX: K-1 direct mode bypasses the P&L decomposition entirely.
+    // netProfit is set directly from the K-1 Box 1 value (may be negative).
+    // The entity is flagged with k1DirectMode so the panel restores correctly on re-open.
+    if (useK1Direct) {
+      const k1Net = nf(manK1Direct)
+      onUpdate(idx, {
+        ...entityRef.current,
+        officerW2: effectiveSal,
+        k1DirectMode: true,
+        pnl: {
+          grossRevenue:    0,
+          totalExpenses:   0,
+          officerSalary:   0,
+          depreciation:    0,
+          advertising:     0,
+          otherDeductions: 0,
+          netProfit:       k1Net,
+          categories: (entityRef.current.pnl && entityRef.current.pnl.categories) || {},
+        },
+        connectedId: null,
+        isManual: true,
+      })
+      return
+    }
     onUpdate(idx, {
-      ...entity,
+      // BUG-A ROOT FIX: use entityRef.current (always fresh) instead of `entity`
+      // (stale closure). Without this, every P&L field change re-ran this effect
+      // with the OLD entity, silently resetting box17V_sstb and other QBI fields
+      // that were set by other onUpdate calls (e.g. the SSTB checkbox) after this
+      // panel last rendered. entityRef.current is kept current by the sync effect above.
+      ...entityRef.current,
       officerW2: effectiveSal,
-      // BUG-B FIX (W-2 wages disconnected from officer comp): the §199A W-2 Wages
-      // field (box17V_wages) is a separate user-entered input that persists its own
-      // value. When the user changes their officer salary here, box17V_wages retains
-      // whatever was previously typed, blocking the engine's fallback chain at
-      // taxCalc.js line 389: parseFloat(e.box17V_wages) || parseFloat(e.officerW2)
-      // The stale box17V_wages wins and the §199A wage limit uses the wrong figure.
-      // Fix: reset box17V_wages to '' whenever officer salary changes, so the engine
-      // falls through to officerW2 (which IS synced above). If the user has manually
-      // overridden box17V_wages for a multi-employee entity, they can re-enter it.
-      // Only reset when effectiveSal is the driver (isSCorp/isCCorp path); non-wage
-      // entities have effectiveSal === 0 and box17V_wages is irrelevant for them.
-      ...(effectiveSal > 0 || entity.box17V_wages !== '' ? { box17V_wages: '' } : {}),
+      k1DirectMode: false,
+      // BUG-B FIX (W-2 wages disconnected from officer comp): reset box17V_wages
+      // to '' whenever officer salary changes so the engine's fallback chain at
+      // taxCalc.js L389 (box17V_wages || officerW2 || pnl.officerSalary) resolves
+      // to officerW2, which IS synced above. A stale box17V_wages value would
+      // otherwise shadow officerW2 and compute the wage limit on the wrong figure.
+      ...(effectiveSal > 0 || entityRef.current.box17V_wages !== '' ? { box17V_wages: '' } : {}),
       pnl: {
         grossRevenue:    rv,
         totalExpenses,
@@ -456,20 +502,68 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         advertising:     adv,
         otherDeductions: oth,
         netProfit:       rv - totalExpenses,
-        categories: (entity.pnl && entity.pnl.categories) || {},
+        categories: (entityRef.current.pnl && entityRef.current.pnl.categories) || {},
       },
       connectedId: null,
       isManual: true,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses])
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses, useK1Direct, manK1Direct])
 
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
 
   return (
     <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 18px', marginTop: 10, border: '1px solid #E2E8F0' }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 12 }}>Manual Entry</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: N }}>Manual Entry</div>
+        {/* FINDING-1 FIX: K-1 Box 1 direct entry toggle.
+            Users with a filed K-1 can enter Box 1 directly instead of reconstructing
+            the full P&L from gross receipts/expenses — which is impossible from a K-1 alone.
+            Toggle resets the mode; the live-bind effect handles both paths. */}
+        {isPT && !isRE && (
+          <button
+            onClick={() => { setUseK1Direct(v => !v); setManK1Direct('') }}
+            style={{ fontSize: 11, fontWeight: 600, color: useK1Direct ? B : SL, background: 'none', border: '1px solid ' + (useK1Direct ? B : '#CBD5E1'), borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+          >
+            {useK1Direct ? '← Switch to P&L entry' : 'Have a K-1? Enter Box 1 directly →'}
+          </button>
+        )}
+      </div>
+      {useK1Direct && isPT && !isRE ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ padding: '10px 14px', background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE', fontSize: 12, color: '#1E40AF', marginBottom: 4 }}>
+            <strong>K-1 Box 1 — Ordinary Business Income (Loss).</strong> Enter your share of net ordinary business income from the K-1 exactly as shown. Losses are negative — enter a minus sign (e.g. −343,443). This bypasses the gross receipts / expense breakdown.
+          </div>
+          <div>
+            <label style={lbl}>
+              K-1 Box 1 — Net Ordinary Business Income (Loss)
+              <InfoTip text={'Enter the amount from Box 1 of your K-1 exactly as shown — positive for profit, negative for loss.\n\nS-Corp: Form 1120-S, Schedule K-1, Box 1 "Ordinary business income (loss)"\nPartnership: Form 1065, Schedule K-1, Box 1 "Ordinary business income (loss)"\n\nThis is your SHARE of the entity\'s ordinary income — already scaled by your ownership percentage on the K-1. Do not enter the entity\'s total income; enter only your share as shown on your K-1.\n\nA K-1 loss (negative Box 1) may be limited by your stock or debt basis under IRC §1366(d). If your loss is limited, expand the Stock & Debt Basis section below to enter your Form 7203 basis — the engine will apply the §1366(d) limitation automatically.'} wide />
+            </label>
+            <MoneyInput
+              value={manK1Direct}
+              onChange={setManK1Direct}
+              placeholder="0 (negative for a loss)"
+              style={{ ...inp, border: '1.5px solid ' + B }}
+            />
+          </div>
+          {isSCorp && (
+            <div>
+              <label style={lbl}>
+                {FINANCIAL_LABELS.officerCompensationField}
+                <InfoTip text={'Your W-2 officer salary from this S-Corp. Enter this even in K-1 direct mode — the salary appears on your W-2 and flows to your personal return separately from the K-1 income. It also determines your §199A W-2 wage limitation and your FICA tax obligation.'} wide />
+              </label>
+              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
+            </div>
+          )}
+          {nf(manK1Direct) !== 0 && (
+            <div style={{ marginTop: 4, padding: '8px 12px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+              <span style={{ color: N }}>Net / K-1 Box 1</span>
+              <span style={{ color: nf(manK1Direct) >= 0 ? G : R }}>{fmt(nf(manK1Direct))}</span>
+            </div>
+          )}
+        </div>
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
@@ -581,6 +675,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Whether a net rental loss is deductible this year depends on your passive-activity status — Real Estate Professional (REP) status plus the §1.469-9(g) aggregation election makes the loss nonpassive, or the $25,000 active-participation allowance applies if you don't qualify as REP. Set your status on this card. Officer compensation doesn't apply to rentals.
           </div>
         </div>
+      )}
+      {/* end P&L mode else branch */}
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -1362,7 +1458,7 @@ export default function CalculateTaxInner() {
   const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,       setSaveStatus]       = useState('idle')
-  const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
+  const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || DEFAULT_TAX_YEAR)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
   // O1 FIX: track whether the standalone manual-entry panel is open (for
