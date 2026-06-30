@@ -10,6 +10,12 @@ import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readSt
 import { signOut } from './utils/SignOut'
 import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
+import {
+  canAddBusinessEntity,
+  canAddRealEstateEntity,
+  upgradeLabelForBusinessCap,
+  upgradeLabelForRealEstateCap,
+} from './utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
@@ -1431,12 +1437,17 @@ export default function CalculateTaxInner() {
   }, [])
 
   const addEntity = useCallback(() => {
-    if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+    if (!canAddBusinessEntity(entities)) { navigate('/upgrade'); return }
     setShowEntityPicker(true)
-  }, [entities.length, navigate])
+  }, [entities, navigate])
 
   const addEntityOfType = useCallback((type) => {
-    if (!isPro() && entities.length >= 1) { setShowEntityPicker(false); navigate('/upgrade'); return }
+    const addingRE = isRealEstateEntity(type)
+    if (addingRE ? !canAddRealEstateEntity(entities) : !canAddBusinessEntity(entities)) {
+      setShowEntityPicker(false)
+      navigate('/upgrade')
+      return
+    }
     const newEnt = {
       id: Date.now(),
       type,
@@ -1464,7 +1475,7 @@ export default function CalculateTaxInner() {
     })
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
-  }, [entities.length, navigate])
+  }, [entities, navigate])
 
   // F-FUNC-05: consume a Dashboard entity-preset hand-off once on mount. If the
   // user arrived via a preset card (e.g. "S-Corp Owner") and Step 1 is empty,
@@ -1948,7 +1959,7 @@ export default function CalculateTaxInner() {
               }
 
               // No blank entity exists — gate on Pro before adding another
-              if (!isPro() && entities.length >= 1) { navigate('/upgrade'); return }
+              if (!canAddBusinessEntity(entities)) { navigate('/upgrade'); return }
 
               // Open the entity-type picker (same path as "+ Add Business Entity")
               // so the user's entity type is chosen explicitly, not hardcoded to S-Corp
@@ -2032,16 +2043,22 @@ export default function CalculateTaxInner() {
         </div>
 
         {/* Add entity button */}
-        {(isPro() || entities.length === 0) ? (
+        {canAddBusinessEntity(entities) ? (
           <button onClick={addEntity} style={{ width: '100%', padding: '13px', border: '2px dashed #CBD5E1', borderRadius: 12, background: 'transparent', color: SL, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
             + Add Business Entity
           </button>
         ) : (
-          <button onClick={() => navigate('/upgrade')} title="Multi-entity input is a Professional feature" style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            🔒 Add another entity — <span style={{ textDecoration: 'underline' }}>Professional</span>
+          <button onClick={() => navigate('/upgrade')} title={`Additional business entities require ${upgradeLabelForBusinessCap()}`} style={{ width: '100%', padding: '13px', border: '2px dashed #BFDBFE', borderRadius: 12, background: '#F0F6FF', color: B, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            🔒 Add another business entity — <span style={{ textDecoration: 'underline' }}>{upgradeLabelForBusinessCap()}</span>
           </button>
         )}
-        <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
+        {canAddRealEstateEntity(entities) ? (
+          <button onClick={() => addEntityOfType('Real Estate (Schedule E)')} style={{ width: '100%', padding: '13px', border: '2px dashed #A78BFA', borderRadius: 12, background: '#FAF5FF', color: '#6D28D9', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8 }}>{'🏠 + Add Rental Property (Schedule E)'}</button>
+        ) : (
+          <button onClick={() => navigate('/upgrade')} title={`Additional rental properties require ${upgradeLabelForRealEstateCap()}`} style={{ width: '100%', padding: '13px', border: '2px dashed #DDD6FE', borderRadius: 12, background: '#F5F3FF', color: '#5B21B6', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            🔒 Add another rental — <span style={{ textDecoration: 'underline' }}>{upgradeLabelForRealEstateCap()}</span>
+          </button>
+        )}
         {/* UX-M3 FIX: unsaved warning also shown in sticky footer so it's always visible */}
         {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 

@@ -80,8 +80,9 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   outside this file's scope but is called out in the comment below.
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
+import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
-import { writeBusinessInfo, readBusinessInfo, writeFirstRun, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, readToken, writeToken, writePlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeMfaEnabled, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, writeOnboardingEntityType, readOnboardingEntityType, readMfaEnabled, readPendingEmail } from './utils/sessionState.js'
+import { writeBusinessInfo, readBusinessInfo, writeFirstRun, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, readToken, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeMfaEnabled, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, writeOnboardingEntityType, readOnboardingEntityType, readMfaEnabled, readPendingEmail } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
@@ -214,13 +215,14 @@ const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',b
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
 if(data.access_token)writeToken(data.access_token)
-if(data.plan)writePlan(data.plan)
 writeEmail(email)
 removeEmailVerified()
 writeLoggedIn('1')
 writeSessionStart(String(Date.now()))
-writePlan(plan)
 writeBilling(billing)
+// Entitlement comes from the server (Stripe → DynamoDB → /auth/me), not ?plan= URL.
+await refreshPlanFromServer()
+if(!readPlan() && data.plan) writePlan(normalizePlanId(data.plan))
 try{
 const subRes=await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 if(!subRes||!subRes.ok){
@@ -566,15 +568,13 @@ function trustThisDevice(emailAddr) {
   } catch {}
 }
 
-function finishLogin(data,actualEmail){
+async function finishLogin(data,actualEmail){
 if(data.access_token)writeToken(data.access_token)
-const PLAN_ALIASES = { basic: 'starter', pro: 'professional', expert: 'enterprise', elite: 'enterprise', essential: 'enterprise' }
-const rawPlan = data.plan || 'starter'
-const normalizedPlan = PLAN_ALIASES[rawPlan] || rawPlan
 writeEmail(actualEmail)
-writePlan(normalizedPlan)
 writeLoggedIn('1')
 writeSessionStart(String(Date.now()))
+await refreshPlanFromServer()
+if(!readPlan() && data.plan) writePlan(normalizePlanId(data.plan))
 nav(redirectTo,{replace:true})
 }
 
@@ -594,7 +594,7 @@ if(!res.ok)throw new Error(data.detail||'Login failed')
 if(data.mfa_required){
 // UX F-02: skip MFA challenge if this device is trusted and not expired
 if(isTrustedDevice(actualEmail)){
-finishLogin(data,actualEmail)
+await finishLogin(data,actualEmail)
 return
 }
 setMfaStep(true)
@@ -604,7 +604,7 @@ setMfaCode('')
 setLoading(false)
 return
 }
-finishLogin(data,actualEmail)
+await finishLogin(data,actualEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
 }
@@ -618,7 +618,7 @@ const res=await apiFetch('/auth/mfa/challenge',{method:'POST',credentials:'inclu
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Invalid authentication code')
 if(rememberDevice) trustThisDevice(pendingEmail)
-finishLogin(data,pendingEmail)
+await finishLogin(data,pendingEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
 }
