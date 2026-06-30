@@ -177,9 +177,19 @@ export const PLAN_DISPLAY_NAMES = {
 // Keep each string under ~60 characters (renders at 11px in a 150px-wide card column).
 // Update these whenever plan features change; they are display copy, not functional gates.
 export const PLAN_FEATURES = {
-  basic: '1 entity · core tax tracker · quarterly estimates',
-  pro: '3 entities · AI analysis · CPA Export tools',
+  basic: '1 business + 3 rentals · core tax tracker · quarterly estimates',
+  starter: '1 business + 3 rentals · core tax tracker · quarterly estimates',
+  pro: '3 business entities · AI analysis · CPA Export tools',
+  professional: '3 business entities · AI analysis · CPA Export tools',
   enterprise: 'Unlimited entities · multi-user · priority support',
+}
+
+// Per-plan entity caps — business vs Schedule E rentals are counted separately.
+// Keys match LockedFeature.getUserPlan() (starter / professional / enterprise).
+export const PLAN_ENTITY_LIMITS = {
+  starter:      { business: 1, realEstate: 3 },
+  professional: { business: 3, realEstate: Number.POSITIVE_INFINITY },
+  enterprise:   { business: Number.POSITIVE_INFINITY, realEstate: Number.POSITIVE_INFINITY },
 }
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
