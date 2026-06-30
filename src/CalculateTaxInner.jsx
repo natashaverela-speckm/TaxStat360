@@ -564,6 +564,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           )}
         </div>
       ) : (
+      <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
@@ -676,7 +677,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </div>
         </div>
       )}
-      {/* end P&L mode else branch */}
+      </>
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
