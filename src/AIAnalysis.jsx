@@ -97,19 +97,40 @@ function getAllRecords() {
 function getRecord(liveState) {
   const _isCoopPatron = readStep1State().isCoopPatron
   if (liveState) {
-    const ent = (liveState.entities || [])[0] || {}
+    const allEnts = liveState.entities || []
+    // SIMULATOR-FIX: pick the "primary" entity for the biz P&L shown in the
+    // simulator — prefer a non-rental entity with gross revenue (S-Corp, sole
+    // prop, partnership) so the simulator's entity-level columns have meaningful
+    // figures to model against. Fall back to entity[0] if none qualifies.
+    const primaryEnt = allEnts.find(e => !isRealEstateEntity(e?.type) && nf(e?.pnl?.grossRevenue) > 0)
+                    || allEnts[0] || {}
     const f1040 = liveState.f1040 || readPersonalContext()
     const k1 = liveState.k1Income || 0
     const taxyear = liveState.taxYear || readTaxYear()
-    if (k1 !== 0 || nf(f1040.w2Income) > 0 || getEntityNetProfit(ent) > 0) {
+    // SIMULATOR-FIX: widen the live-session gate. Previously checked only
+    // k1Income and entity[0] net profit, which returned false when the
+    // primary entity had a basis-suspended loss (net = $0 at the K-1 level).
+    // Now also triggers when any entity has gross revenue entered, so the
+    // live session is always used when real data is present.
+    const anyEntHasData = allEnts.some(e => nf(e?.pnl?.grossRevenue) > 0 || nf(e?.pnl?.rentalIncome) > 0)
+    if (k1 !== 0 || nf(f1040.w2Income) > 0 || getEntityNetProfit(primaryEnt) > 0 || anyEntHasData) {
       return {
         type: 'personal-return',
         _unsaved: true,
         _source: 'live',
         k1Income: k1,
-        entities: liveState.entities || [],
-        biz: { entityType: ent.type || ent.name || 'Unknown', year: taxyear, ownershipPct: ent.own || '100', grossRevenue: String(getEntityNetProfit(ent) > 0 ? getEntityNetProfit(ent) : 0) },
-        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (nf(f1040.form4797)) + (liveState.entities || []).reduce((s, e) => s + (nf(e.box17K)), 0) }
+        entities: allEnts,
+        biz: {
+          entityType: primaryEnt.type || primaryEnt.name || 'Unknown',
+          year: taxyear,
+          ownershipPct: primaryEnt.own || '100',
+          grossRevenue: String(nf(primaryEnt?.pnl?.grossRevenue) || 0),
+          operatingExpenses: String(nf(primaryEnt?.pnl?.totalExpenses) || 0),
+          officerSalary: String(nf(primaryEnt?.pnl?.officerSalary) || 0),
+          depreciation: String(nf(primaryEnt?.pnl?.depreciation) || 0),
+          pnl: primaryEnt.pnl || {},
+        },
+        f1040: { filingStatus: f1040.filingStatus || 'single', w2Income: f1040.w2Income || '', otherIncome: f1040.otherIncome || '', estPaid: f1040.estPaid || '', dependents: f1040.dependents || '', isREP: f1040.isREP || false, isCoopPatron: liveState.isCoopPatron ?? _isCoopPatron, useItemized: f1040.useItemized || false, itemizedAmt: f1040.itemizedAmt || '', capitalGains: f1040.capitalGains || '', stGain: f1040.stGain || '', interest: f1040.interest || '', dividends: f1040.dividends || '', qualDividends: f1040.qualDividends || f1040.qualifiedDividends || '', form4797: (nf(f1040.form4797)) + allEnts.reduce((s, e) => s + (nf(e.box17K)), 0) }
       }
     }
   }
@@ -128,10 +149,17 @@ function getRecord(liveState) {
     const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
     const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
     const taxyear = readTaxYear()
-    const ent = entities[0] || {}
-    const entNetProfit   = getEntityNetProfit(ent)
-    const entOfficerSal  = nf(ent?.pnl?.officerSalary)
-    if (k1 !== 0 || nf(f1040.w2Income) > 0 || entNetProfit > 0) {
+    // SIMULATOR-FIX: same primary-entity selection and widened gate as the
+    // liveState branch above. When entity[0] is a rental with basis-suspended
+    // loss (net = $0), the old condition returned false and fell through to a
+    // stale saved record. Now we pick the best entity for the simulator biz
+    // columns and fire whenever any entity has gross revenue entered.
+    const primaryEnt = entities.find(e => !isRealEstateEntity(e?.type) && nf(e?.pnl?.grossRevenue) > 0)
+                    || entities[0] || {}
+    const entNetProfit   = getEntityNetProfit(primaryEnt)
+    const entOfficerSal  = nf(primaryEnt?.pnl?.officerSalary)
+    const anyEntHasData2 = entities.some(e => nf(e?.pnl?.grossRevenue) > 0 || nf(e?.pnl?.rentalIncome) > 0)
+    if (k1 !== 0 || nf(f1040.w2Income) > 0 || entNetProfit > 0 || anyEntHasData2) {
       return {
         id: Date.now(),
         savedAt: 'Current session (unsaved)',
@@ -140,12 +168,14 @@ function getRecord(liveState) {
         k1Income: k1Capped, sec179Disallowed, sec179Allowed, totalSec179, activeBusinessIncome,
         entities,
         biz: {
-          entityType: ent.type || ent.name || 'Unknown',
+          entityType: primaryEnt.type || primaryEnt.name || 'Unknown',
           year: taxyear,
-          ownershipPct: ent.own || '100',
-          grossRevenue: String(nf(ent?.pnl?.grossRevenue)),
-          operatingExpenses: String(nf(ent?.pnl?.totalExpenses)),
+          ownershipPct: primaryEnt.own || '100',
+          grossRevenue: String(nf(primaryEnt?.pnl?.grossRevenue) || 0),
+          operatingExpenses: String(nf(primaryEnt?.pnl?.totalExpenses) || 0),
           officerSalary: String(entOfficerSal),
+          depreciation: String(nf(primaryEnt?.pnl?.depreciation) || 0),
+          pnl: primaryEnt.pnl || {},
         },
         f1040: {
           ...f1040,
