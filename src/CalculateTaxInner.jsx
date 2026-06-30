@@ -625,12 +625,23 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 )}
               </div>
             )}
-            <ReasonableCompIndicator
-              officerSal={sal}
-              netProfit={Math.max(0, manNetProfit)}
-              grossRevenue={nf(manRev)}
-              isSCorp={isSCorp}
-            />
+            {/* AUDIT-1B FIX: ReasonableCompIndicator (below) only renders once isSCorp
+                && netProfit > $20,000 — crossing that threshold mid-entry (e.g. while
+                typing Gross Receipts or Operating Expenses) makes a sizeable box appear
+                where there was none, shifting the Advertising & Marketing field down —
+                the same click-miss risk AUDIT-1 fixed for the officer-comp warnings just
+                above. minHeight here is sized to the indicator's smallest real state (the
+                green "looks reasonable" card); the $0-salary and low-ratio states are
+                taller and will still grow the container as needed, but the common case
+                (crossing into eligibility) no longer causes a jump from zero. */}
+            <div style={{ minHeight: (isSCorp && manNetProfit > 20000) ? 90 : 0 }}>
+              <ReasonableCompIndicator
+                officerSal={sal}
+                netProfit={Math.max(0, manNetProfit)}
+                grossRevenue={nf(manRev)}
+                isSCorp={isSCorp}
+              />
+            </div>
           </div>
         )}
         <div>
