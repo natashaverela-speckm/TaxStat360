@@ -5,6 +5,7 @@ import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
 import { readEmail, writeEmail, readLoggedIn, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan } from './utils/sessionState.js'
+import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { deleteOwnAccount } from './utils/serverApi.js'
 
 const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
@@ -92,21 +93,27 @@ export default function Settings() {
   const [mfaBackupCodes, setMfaBackupCodes] = useState([])
 
   useEffect(() => {
-    let storedEmail = readEmail() || ''
-    if (!storedEmail) {
-      for (const key of Object.keys(localStorage)) {
-        const match = key.match(/^ts360_records_(.+@.+)$/)
-        if (match && match[1] !== 'default') {
-          storedEmail = match[1]
-          writeEmail(storedEmail)
-          break
+    const storedEmail = (() => {
+      let e = readEmail() || ''
+      if (!e) {
+        for (const key of Object.keys(localStorage)) {
+          const match = key.match(/^ts360_records_(.+@.+)$/)
+          if (match && match[1] !== 'default') {
+            e = match[1]
+            writeEmail(e)
+            break
+          }
         }
       }
-    }
-    const storedPlan = readPlan() || 'starter'
+      return e
+    })()
     setEmail(storedEmail)
     setEmailInput(storedEmail)
-    setPlan(storedPlan==='basic'||storedPlan==='Basic'?'Starter':storedPlan.charAt(0).toUpperCase()+storedPlan.slice(1))
+
+    refreshPlanFromServer().then((plan) => {
+      const display = normalizePlanId(plan || readPlan() || 'starter')
+      setPlan(display === 'starter' ? 'Starter' : display.charAt(0).toUpperCase() + display.slice(1))
+    })
 
     const storedBilling = readBilling() || 'monthly'
     setBillingInterval(storedBilling === 'annual' ? 'Annual' : 'Monthly')
