@@ -521,7 +521,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Users with a filed K-1 can enter Box 1 directly instead of reconstructing
             the full P&L from gross receipts/expenses — which is impossible from a K-1 alone.
             Toggle resets the mode; the live-bind effect handles both paths. */}
-        {isPT && !isRE && (
+        {(isSCorp || isPartnership) && !isRE && (
           <button
             onClick={() => { setUseK1Direct(v => !v); setManK1Direct('') }}
             style={{ fontSize: 11, fontWeight: 600, color: useK1Direct ? B : SL, background: 'none', border: '1px solid ' + (useK1Direct ? B : '#CBD5E1'), borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
@@ -530,7 +530,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </button>
         )}
       </div>
-      {useK1Direct && isPT && !isRE ? (
+      {useK1Direct && (isSCorp || isPartnership) && !isRE ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ padding: '10px 14px', background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE', fontSize: 12, color: '#1E40AF', marginBottom: 4 }}>
             <strong>K-1 Box 1 — Ordinary Business Income (Loss).</strong> Enter your share of net ordinary business income from the K-1 exactly as shown. Losses are negative — enter a minus sign (e.g. −343,443). This bypasses the gross receipts / expense breakdown.
