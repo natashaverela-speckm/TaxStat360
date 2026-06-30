@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { readEmail, readPlan, readToken, writePlan } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/SignOut'
-import { normalizePlanId } from './LockedFeature'
+import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
 import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.js'
@@ -153,7 +153,8 @@ export default function Upgrade() {
         throw new Error(subData.detail || 'Subscription activation failed. Your card was not charged.')
       }
 
-      writePlan(selectedPlan)
+      await refreshPlanFromServer()
+      if (!readPlan()) writePlan(normalizePlanId(selectedPlan))
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')
