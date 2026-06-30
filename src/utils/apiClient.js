@@ -25,6 +25,7 @@
 // stay in the calling component, exactly as before.
 
 import { API_BASE_URL } from '../constants.js'
+import { readToken } from './sessionState.js'
 
 export class ApiError extends Error {
   constructor(status, body, message) {
@@ -79,9 +80,18 @@ export async function apiFetch(path, options = {}) {
     }
   }
 
-  const res = await fetch(apiUrl(path), {
+  const url = apiUrl(path)
+  const isOurApi = url.startsWith(API_BASE_URL)
+  const token = isOurApi ? readToken() : null
+  if (token && !hasHeader(finalHeaders, 'authorization')) {
+    finalHeaders.Authorization = `Bearer ${token}`
+  }
+  const finalCredentials =
+    isOurApi && credentials === 'same-origin' ? 'include' : credentials
+
+  const res = await fetch(url, {
     method,
-    credentials,
+    credentials: finalCredentials,
     headers: finalHeaders,
     ...(finalBody !== undefined ? { body: finalBody } : {}),
     ...(signal ? { signal } : {}),

@@ -18,8 +18,10 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
 import EmailVerificationBanner, { fetchVerificationStatus } from './components/EmailVerificationBanner'
-import { apiPost } from './utils/apiClient.js'
-import { refreshPlanFromServer } from './LockedFeature'
+import { apiPost, apiGet, ApiError } from './utils/apiClient.js'
+import { normalizePlanId } from './LockedFeature'
+import { writePlan } from './utils/sessionState.js'
+import { clearInvalidSession } from './utils/sessionAuth.js'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
 import Article from './Article'
@@ -66,8 +68,8 @@ function OAuthCallback() {
 // ts360_logged_in is a lightweight hint; the real auth is the httpOnly cookie
 // which the browser sends automatically on every credentialed request.
 const AUTH_KEYS = [
-  'ts360_logged_in','ts360_session_start',
-  'ts360_email','plan','userName','ts360_connected_app',
+  'ts360_logged_in','ts360_token','ts360_session_start',
+  'ts360_email','ts360_plan','plan','userName','ts360_connected_app',
   // Legacy keys from pre-SEC-04 — included so they get wiped on sign-out
   'token','ts360_session',
 ]
@@ -136,22 +138,37 @@ function RequireAuth({ children }) {
   const sessionOk = isValidSession()
   const location = useLocation()
 
-  // SEC-05: re-validate the real plan from the server on every authenticated
-  // load, so dev-tools localStorage tampering can't unlock paid features.
-  // Fail-safe: refreshPlanFromServer() leaves the plan untouched on any error
-  // or if /auth/me doesn't exist yet. The state bump re-renders gated UI once
-  // the server's answer lands.
+  const [serverAuth, setServerAuth] = useState(() => (sessionOk ? 'pending' : 'fail'))
   const [, setPlanChecked] = useState(0)
   const [verifyState, setVerifyState] = useState({ email: '', verified: true })
+
   useEffect(() => {
-    if (!sessionOk) return
+    if (!sessionOk) {
+      setServerAuth('fail')
+      return
+    }
     let active = true
-    refreshPlanFromServer().then(() => { if (active) setPlanChecked(n => n + 1) })
+    setServerAuth('pending')
+    apiGet('/auth/me', { headers: { Accept: 'application/json' } })
+      .then((data) => {
+        if (!active) return
+        if (data?.plan) writePlan(normalizePlanId(data.plan))
+        setServerAuth('ok')
+        setPlanChecked(n => n + 1)
+      })
+      .catch((e) => {
+        if (!active) return
+        if (e instanceof ApiError && e.status === 401) {
+          clearInvalidSession()
+          AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+        }
+        setServerAuth('fail')
+      })
     return () => { active = false }
   }, [sessionOk])
 
   useEffect(() => {
-    if (!sessionOk) return
+    if (!sessionOk || serverAuth !== 'ok') return
     const email = (readEmail() || '').trim().toLowerCase()
     if (!email) return
     let active = true
@@ -211,7 +228,10 @@ function RequireAuth({ children }) {
 
   // F-FUNC-03: flag the redirect as an expiry (not a fresh visit) so the Sign In
   // screen can surface a "your session expired" notice instead of bouncing silently.
-  if (!sessionOk) return <Navigate to="/login" state={{ from: location, sessionExpired: true }} replace />
+  if (!sessionOk || serverAuth === 'fail') {
+    return <Navigate to="/login" state={{ from: location, sessionExpired: !sessionOk, sessionInvalid: serverAuth === 'fail' }} replace />
+  }
+  if (serverAuth === 'pending') return null
 
   return (
     <ErrorBoundary>
