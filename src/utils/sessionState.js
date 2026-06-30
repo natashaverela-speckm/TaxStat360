@@ -936,7 +936,9 @@ export function removeLoggedIn() { localStorage.removeItem('ts360_logged_in') }
 export function readSessionStart() { return localStorage.getItem('ts360_session_start') }
 export function writeSessionStart(val) { localStorage.setItem('ts360_session_start', val) }
 export function removeSessionStart() { localStorage.removeItem('ts360_session_start') }
-export function readToken() { return localStorage.getItem('ts360_token') }
+export function readToken() {
+  try { return localStorage.getItem('ts360_token') } catch { return null }
+}
 export function writeToken(val) { localStorage.setItem('ts360_token', val) }
 export function readEmail() { return localStorage.getItem('ts360_email') }
 export function writeEmail(val) { localStorage.setItem('ts360_email', val) }

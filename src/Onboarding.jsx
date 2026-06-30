@@ -569,7 +569,7 @@ function trustThisDevice(emailAddr) {
 }
 
 async function finishLogin(data,actualEmail){
-if(data.access_token)writeToken(data.access_token)
+if(data.access_token) writeToken(data.access_token)
 writeEmail(actualEmail)
 writeLoggedIn('1')
 writeSessionStart(String(Date.now()))
