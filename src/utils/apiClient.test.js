@@ -5,6 +5,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { apiUrl, apiFetch, apiGet, apiPost, ApiError } from './apiClient.js'
 import { API_BASE_URL } from '../constants.js'
 
+vi.mock('./sessionState.js', () => ({
+  readToken: vi.fn(() => null),
+}))
+
+import { readToken } from './sessionState.js'
+
 const jsonResponse = (status, body) => ({
   ok: status >= 200 && status < 300,
   status,
@@ -25,19 +31,31 @@ describe('apiUrl', () => {
 })
 
 describe('apiFetch', () => {
-  beforeEach(() => { global.fetch = vi.fn() })
+  beforeEach(() => {
+    global.fetch = vi.fn()
+    vi.mocked(readToken).mockReturnValue(null)
+  })
 
-  it('defaults to GET with credentials: same-origin (matching fetch)', async () => {
+  it('defaults API calls to credentials: include', async () => {
     global.fetch.mockResolvedValue(jsonResponse(200, { ok: true }))
     await apiFetch('/auth/me')
     const [url, opts] = global.fetch.mock.calls[0]
     expect(url).toBe(`${API_BASE_URL}/auth/me`)
     expect(opts.method).toBe('GET')
-    expect(opts.credentials).toBe('same-origin')
+    expect(opts.credentials).toBe('include')
     expect(opts.body).toBeUndefined()
   })
 
-  it('sends credentials: include only when explicitly requested', async () => {
+  it('attaches Authorization Bearer when ts360_token is stored', async () => {
+    vi.mocked(readToken).mockReturnValue('signed-session-token')
+    global.fetch.mockResolvedValue(jsonResponse(200, {}))
+    await apiGet('/auth/me')
+    const [, opts] = global.fetch.mock.calls[0]
+    expect(opts.headers.Authorization).toBe('Bearer signed-session-token')
+    expect(opts.credentials).toBe('include')
+  })
+
+  it('sends credentials: include when explicitly requested', async () => {
     global.fetch.mockResolvedValue(jsonResponse(200, {}))
     await apiFetch('/auth/mfa/status', { credentials: 'include' })
     const [, opts] = global.fetch.mock.calls[0]
@@ -104,13 +122,22 @@ describe('apiFetch', () => {
     expect(opts.headers['Content-Type']).toBeUndefined()
   })
 
+  it('leaves third-party URLs on same-origin credentials without Bearer', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(200, {}))
+    vi.mocked(readToken).mockReturnValue('signed-session-token')
+    await apiFetch('https://api.web3forms.com/submit', { method: 'POST', body: { a: 1 } })
+    const [, opts] = global.fetch.mock.calls[0]
+    expect(opts.credentials).toBe('same-origin')
+    expect(opts.headers.Authorization).toBeUndefined()
+  })
+
   it('respects an explicit credentials override and custom headers', async () => {
     global.fetch.mockResolvedValue(jsonResponse(200, {}))
     await apiFetch('/auth/reset-password', {
-      method: 'POST', body: { token: 't' }, credentials: 'same-origin', headers: { Accept: 'application/json' },
+      method: 'POST', body: { token: 't' }, credentials: 'omit', headers: { Accept: 'application/json' },
     })
     const [, opts] = global.fetch.mock.calls[0]
-    expect(opts.credentials).toBe('same-origin')
+    expect(opts.credentials).toBe('omit')
     expect(opts.headers.Accept).toBe('application/json')
   })
 })

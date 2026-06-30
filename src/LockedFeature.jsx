@@ -1,5 +1,6 @@
-import { apiGet } from './utils/apiClient.js'
+import { apiGet, ApiError } from './utils/apiClient.js'
 import { readPlan, writePlan } from './utils/sessionState.js'
+import { clearInvalidSession } from './utils/sessionAuth.js'
 import { NAVY as N, BLUE as B } from './theme.js'
 import { useNavigate } from 'react-router-dom'
 
@@ -47,22 +48,16 @@ export function getUserPlan() {
 // httpOnly session cookie and looks up the real plan from Stripe) and stamp the
 // answer back into localStorage, overwriting any tampering.
 //
-// FAILS SAFE: if the endpoint is missing (404, before backend ships), errors,
-// or times out, we leave the existing plan untouched ÃÂ¢ÃÂÃÂ this never locks a real
-// user out, so it is safe to deploy BEFORE /auth/me exists. It begins enforcing
-// automatically the moment the endpoint returns a real plan.
+// FAILS SAFE on network errors, but NOT on 401: a 401 means the cached plan is
+// unverified and must not be shown as entitlement.
 export async function refreshPlanFromServer() {
   try {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 5000)
     try {
-      // Non-ok (401/404/5xx) throws ApiError ÃÂ¢ÃÂÃÂ caught below ÃÂ¢ÃÂÃÂ keep current plan, same as
-      // the prior explicit `if (!res.ok) return getUserPlan()`. credentials:'include' sends
-      // the httpOnly session cookie (the API is a different origin from the app).
       const data = await apiGet('/auth/me', {
         headers: { Accept: 'application/json' },
         signal: ctrl.signal,
-        credentials: 'include',
       })
       if (data && data.plan) {
         writePlan(normalizePlanId(data.plan))
@@ -70,8 +65,12 @@ export async function refreshPlanFromServer() {
     } finally {
       clearTimeout(timer)
     }
-  } catch (_e) {
-    // network error / timeout / abort / non-ok ÃÂ¢ÃÂÃÂ fail safe, keep existing plan
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      clearInvalidSession()
+      return PLAN_IDS.STARTER
+    }
+    // network error / timeout / abort / other non-ok → keep existing plan
   }
   return getUserPlan()
 }

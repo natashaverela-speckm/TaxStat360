@@ -22,6 +22,7 @@
 
 const AUTH_KEYS = [
   // Core auth / session
+  'ts360_logged_in',
   'ts360_token',
   'ts360_session',
   'ts360_session_start',
