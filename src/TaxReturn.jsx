@@ -17,7 +17,7 @@ import { signOut } from './utils/SignOut'
 import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './components/InfoTip.jsx'
 
@@ -182,7 +182,7 @@ export default function TaxReturn() {
 
   const { entities, k1Total: sessionK1 } = readStep1State()
   const savedCtx = readPersonalContext()
-  const [taxYear, setTaxYear] = useState(() => readTaxYear() || CURRENT_TAX_YEAR)
+  const [taxYear, setTaxYear] = useState(() => readTaxYear() || DEFAULT_TAX_YEAR)
 
   const [filingStatus, setFilingStatus] = useState(savedCtx.filingStatus || 'single')
   const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')
