@@ -605,14 +605,24 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
             <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
-            {officerExceedsRevenue && (
-              <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer compensation exceeds gross receipts — verify your numbers.
-              </div>
-            )}
-            {officerExceedsNetProfit && !officerExceedsRevenue && (
-              <div style={{ fontSize: 12, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
-                ⚠ Officer compensation exceeds net profit after operating expenses — this entity will show a net loss.
+            {/* AUDIT-1 FIX: reserve layout space for these conditional warnings so their
+                appearance doesn't shift the Advertising & Marketing field below — a sudden
+                layout shift mid-entry can cause the next click (aimed at the pre-shift
+                position) to land on the wrong field and silently drop input. The wrapper
+                only reserves height while a warning condition is active; it collapses to
+                zero height (no visual gap) when neither warning applies. */}
+            {(officerExceedsRevenue || officerExceedsNetProfit) && (
+              <div style={{ minHeight: 34 }}>
+                {officerExceedsRevenue && (
+                  <div style={{ fontSize: 12, color: R, marginTop: 4, fontWeight: 600 }}>
+                    ⚠ Officer compensation exceeds gross receipts — verify your numbers.
+                  </div>
+                )}
+                {officerExceedsNetProfit && !officerExceedsRevenue && (
+                  <div style={{ fontSize: 12, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
+                    ⚠ Officer compensation exceeds net profit after operating expenses — this entity will show a net loss.
+                  </div>
+                )}
               </div>
             )}
             <ReasonableCompIndicator
@@ -1465,6 +1475,15 @@ export default function CalculateTaxInner() {
   const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,       setSaveStatus]       = useState('idle')
+  // AUDIT-2 FIX: the "unsaved changes" banner previously showed whenever any
+  // entity existed (entities.length > 0), regardless of whether a save had
+  // actually completed — so it never cleared, even right after a confirmed
+  // save and even after a page reload that re-hydrated already-saved data.
+  // lastSavedSnapshot tracks the entities/taxYear payload as of the last
+  // successful save (or as of initial load, since hydrated data is by
+  // definition already saved). hasUnsavedChanges below does a real
+  // comparison instead of just checking "is there any data at all."
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState(null)
   const [taxYear,          setTaxYear]          = useState(() => readTaxYear() || DEFAULT_TAX_YEAR)
   // F-01 / F-02: inline error toast state for footer button guard
   const [footerError,      setFooterError]      = useState(null)
@@ -1484,7 +1503,7 @@ export default function CalculateTaxInner() {
     // entity data so Step 1 correctly reflects the loaded state.
     const existingStep1 = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
     if (existingStep1.length > 0) {
-      setEntities(existingStep1.map(e => ({
+      const mappedExisting = existingStep1.map(e => ({
         ...e,
         pnl: e.pnl || {
           grossRevenue:  e.grossRevenue  || '',
@@ -1494,12 +1513,19 @@ export default function CalculateTaxInner() {
         },
         own:      e.own      || '100',
         isManual: e.isManual || false,
-      })))
+      }))
+      setEntities(mappedExisting)
+      // AUDIT-2 FIX: this data came from the working-copy storage key, i.e. it
+      // already reflects whatever was last saved/persisted — seed the snapshot
+      // so the unsaved-changes banner doesn't fire for data the user hasn't
+      // touched yet this session.
+      setLastSavedSnapshot(JSON.stringify({ entities: mappedExisting, taxYear }))
     } else {
       // No in-progress Step 1 working copy. Hydrate from a one-off loaded record if one
       // exists, otherwise from the canonical Step-1 state (ts360_entities_raw) written by
       // Dashboard.loadRecord / AIAnalysis "Calculate Tax" / Dashboard tab-nav.
       let hydrated = null
+      let hydratedTaxYear = taxYear
 
       const loadedRaw = sessionStorage.getItem('ts360_loaded_record')
       if (loadedRaw) {
@@ -1509,6 +1535,7 @@ export default function CalculateTaxInner() {
           if (loaded.taxYear) {
             setTaxYear(loaded.taxYear)
             writeTaxYear(loaded.taxYear)
+            hydratedTaxYear = loaded.taxYear
           }
         } catch (err) {
           console.error('CalculateTaxInner: failed to parse loaded record', err)
@@ -1541,6 +1568,10 @@ export default function CalculateTaxInner() {
         setEntities(mapped)
         // Persist to the Step 1 working key so subsequent renders stay hydrated.
         writeStep1Entities(mapped)
+        // AUDIT-2 FIX: same reasoning as above — this is already-saved data
+        // (a loaded record or the canonical persisted state), not a fresh
+        // unsaved edit, so seed the snapshot to match.
+        setLastSavedSnapshot(JSON.stringify({ entities: mapped, taxYear: hydratedTaxYear }))
       }
     }
   }, [])
@@ -1751,12 +1782,26 @@ export default function CalculateTaxInner() {
       await syncRecordToServer(record)
       writeActiveRecord(record.id, record.name || record.savedAt)
       setSaveStatus('saved')
+      // AUDIT-2 FIX (completes the snapshot infra added above): a successful
+      // save means the entities/taxYear payload just written IS now the
+      // last-saved state. Update the snapshot so hasUnsavedChanges correctly
+      // flips to false immediately, instead of the banner persisting forever
+      // regardless of save outcome.
+      setLastSavedSnapshot(JSON.stringify({ entities, taxYear }))
     } catch (err) {
       console.error('CalculateTaxInner handleSaveRecord error:', err)
       setSaveStatus('error')
     }
     setTimeout(() => setSaveStatus('idle'), 3000)
   }, [entities, taxYear, persistStep1])
+
+  // AUDIT-2 FIX: real dirty-check — true only when the current entities/taxYear
+  // payload differs from the snapshot as of the last successful save (or as of
+  // initial hydration, when the loaded data is itself already-saved). Replaces
+  // the old "entities.length > 0" heuristic, which fired for any non-empty
+  // entity list regardless of save state and never cleared.
+  const hasUnsavedChanges = entities.length > 0 &&
+    JSON.stringify({ entities, taxYear }) !== lastSavedSnapshot
 
   // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
   // after every successful sync, and returns a diff summary string so the tile
@@ -2185,7 +2230,7 @@ export default function CalculateTaxInner() {
           </button>
         )}
         {/* UX-M3 FIX: unsaved warning also shown in sticky footer so it's always visible */}
-        {entities.length > 0 && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
+        {hasUnsavedChanges && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (

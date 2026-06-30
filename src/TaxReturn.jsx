@@ -191,6 +191,15 @@ export default function TaxReturn() {
   const [dependents,   setDependents]   = useState(savedCtx.dependents     || '0')
   const [ytdMode,      setYtdMode]      = useState(!!(savedCtx.ytdMode))
   const [ytdMonth,     setYtdMonth]     = useState(savedCtx.ytdMonth       || new Date().getMonth() + 1)
+  // AUDIT-3 FIX: enabling YTD mode immediately multiplies whatever income/
+  // entity figures are already entered by (12 / ytdMonth) with no warning —
+  // if those figures were already full-year actuals (the common case when
+  // someone is just exploring the toggle), the result is a silently wrong,
+  // inflated tax estimate. ytdConfirmPending gates the actual mode-enable
+  // behind an explicit confirmation whenever there's existing income data
+  // that the multiplier would apply to; toggling OFF is always immediate
+  // (no data-interpretation risk in that direction).
+  const [ytdConfirmPending, setYtdConfirmPending] = useState(false)
 
   const [stGain,        setStGain]        = useState(savedCtx.stGain         || '')
   const [ltGain,        setLtGain]        = useState(savedCtx.capitalGains   || savedCtx.ltGain || '')
@@ -679,7 +688,29 @@ export default function TaxReturn() {
                     >
                       {analyzeStatus === 'saving' ? 'Saving…' : 'AI Analysis'}
                     </button>
+                  ) : s.n === 1 ? (
+                    // AUDIT-4 FIX: step 1 ("Entities") previously rendered as a plain
+                    // <span> with the same visited/checkmark styling as a clickable
+                    // step, but had no onClick — clicking it silently did nothing.
+                    // Step 1 is marked done, so it's always safe to navigate back to;
+                    // wired to the same /calculate-tax route the existing "← Business"
+                    // button already uses elsewhere on this page.
+                    <button
+                      onClick={() => navigate('/calculate-tax')}
+                      title="Back to Business Entities"
+                      style={{
+                        fontSize: 11, fontWeight: 500, color: G,
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: 0, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        textDecoration: 'underline', textUnderlineOffset: 2,
+                      }}
+                    >
+                      {s.label}
+                    </button>
                   ) : (
+                    // AUDIT-4 FIX: step 2 ("Personal Return") is the current page —
+                    // intentionally non-interactive (clicking "you are here" has
+                    // nothing to navigate to). Left as plain text, same as before.
                     <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
                   )}
                 </div>
@@ -789,9 +820,29 @@ export default function TaxReturn() {
                 const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
                 const own = ownPct(e.own) / 100
                 const k1  = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
+                // AUDIT-6 FIX: this line previously showed only the raw K-1 amount with
+                // no indication that a loss may be limited by §1366(d) stock/debt basis
+                // — the same unqualified-figure pattern the rental loop below already
+                // solves with its inline `status` label. Mirror that pattern here.
+                // Conservative check matching the engine's own default (C-10 FIX,
+                // CalculateTaxInner.jsx): no stock/debt basis entered is treated as $0
+                // basis, so a loss against unentered basis is presumed fully suspended.
+                // This is a same-screen UI cue only — the authoritative suspended
+                // amount is computed by the engine and shown in result.totalSuspendedLoss
+                // below; this label just keeps the two from looking contradictory.
+                const stockEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
+                const enteredBasis = stockEntered ? Math.max(0, nf(e.stockBasis)) + Math.max(0, nf(e.debtBasis)) : 0
+                const k1Status = k1 >= 0
+                  ? null
+                  : !stockEntered ? 'Basis not entered · likely limited'
+                  : enteredBasis >= Math.abs(k1) ? null
+                  : 'Exceeds basis · partly limited'
                 return (
                   <div key={'k1' + i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, borderBottom: i < k1Entities.length - 1 ? '1px solid #BFDBFE' : 'none' }}>
-                    <span style={{ color: '#1D4ED8' }}>{e.name || e.type} ({e.own || 100}%)</span>
+                    <span style={{ color: '#1D4ED8' }}>
+                      {e.name || e.type} ({e.own || 100}%)
+                      {k1Status && <span style={{ fontSize: 10, color: '#92400E', marginLeft: 6, fontWeight: 600 }}>{k1Status}</span>}
+                    </span>
                     <span style={{ fontWeight: 700, color: k1 >= 0 ? '#1D4ED8' : R }}>{fmt(k1)}</span>
                   </div>
                 )
@@ -973,11 +1024,61 @@ export default function TaxReturn() {
                     </select>
                   </div>
                 )}
-                <div onClick={() => setYtdMode(m => !m)} style={{ width: 44, height: 24, background: ytdMode ? B : '#CBD5E1', borderRadius: 12, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                <div
+                  onClick={() => {
+                    if (ytdMode) {
+                      // Disabling is always immediate — no risk of misinterpreting data.
+                      setYtdMode(false)
+                      return
+                    }
+                    // AUDIT-3 FIX: enabling — if there's already income data on the
+                    // page (W-2 wages entered, or any K-1/entity income flowing from
+                    // Step 1), that data is most likely already a full-year figure,
+                    // not a partial-year actual. Confirm before silently treating it
+                    // as YTD-through-{month} and applying the annualization multiplier.
+                    const hasExistingIncome = nf(w2Income) > 0 ||
+                      entityList.some(e => nf(e?.pnl?.netProfit ?? (nf(e?.pnl?.grossRevenue) - nf(e?.pnl?.totalExpenses))) !== 0)
+                    if (hasExistingIncome) {
+                      setYtdConfirmPending(true)
+                    } else {
+                      setYtdMode(true)
+                    }
+                  }}
+                  style={{ width: 44, height: 24, background: ytdMode ? B : '#CBD5E1', borderRadius: 12, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+                >
                   <div style={{ position: 'absolute', top: 3, left: ytdMode ? 23 : 3, width: 18, height: 18, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                 </div>
               </div>
             </div>
+
+            {/* AUDIT-3 FIX: confirmation modal — shown only when enabling YTD mode
+                with existing income data already present. Explains exactly what
+                will happen (figures get treated as partial-year and multiplied)
+                before it happens, rather than after. */}
+            {ytdConfirmPending && (
+              <div role="alertdialog" aria-modal="true" style={{ marginTop: 12, background: '#FEF3C7', border: '1.5px solid #FCD34D', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#78350F', marginBottom: 6 }}>
+                  ⚠ Treat your entered figures as partial-year data?
+                </div>
+                <div style={{ fontSize: 12, color: '#78350F', marginBottom: 10, lineHeight: 1.5 }}>
+                  You already have income entered (W-2 and/or business entity income). Enabling YTD Mode will treat those figures as income earned only through the month you select — not the full year — and multiply them up to project a full-year total. If the figures you entered are already full-year actuals, this will overstate your projected liability.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { setYtdMode(true); setYtdConfirmPending(false) }}
+                    style={{ padding: '6px 14px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Yes, my figures are YTD only
+                  </button>
+                  <button
+                    onClick={() => setYtdConfirmPending(false)}
+                    style={{ padding: '6px 14px', background: '#fff', color: '#78350F', border: '1px solid #FCD34D', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {ytdMode && (
               <div style={{ marginTop: 12, background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
