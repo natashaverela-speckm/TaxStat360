@@ -49,7 +49,12 @@ export function entityResultLabel(type) {
   return 'Net'
 }
 
-function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
+// AUDIT F9 FIX: revenue-type fields (gross receipts, gross rents) accepted a
+// leading minus ("-500,000") and silently flipped the entity's entire result.
+// allowNegative (default true, preserving behaviour for fields where negatives
+// are legitimate) lets P&L-modal call sites opt out; the minus key is stripped
+// before parse/format so the value can never enter state negative.
+function MoneyInput({ value, onChange, placeholder, style, disabled, id, allowNegative = true }) {
   const [raw, setRaw] = useState(value || '')
   const [focused, setFocused] = useState(false)
 
@@ -66,7 +71,9 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id }) {
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
-    const stripped = e.target.value.replace(/[^0-9-]/g, '')
+    const stripped = allowNegative
+      ? e.target.value.replace(/[^0-9-]/g, '')
+      : e.target.value.replace(/[^0-9]/g, '')   // AUDIT F9 FIX: minus not permitted
     const isNeg = stripped.startsWith('-')
     const digits = stripped.replace(/^-/, '')
     const n = parseInt(digits, 10)
@@ -559,7 +566,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 {FINANCIAL_LABELS.officerCompensationField}
                 <InfoTip text={'Your W-2 officer salary from this S-Corp. Enter this even in K-1 direct mode — the salary appears on your W-2 and flows to your personal return separately from the K-1 income. It also determines your §199A W-2 wage limitation and your FICA tax obligation.'} wide />
               </label>
-              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
+              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} />
             </div>
           )}
           {nf(manK1Direct) !== 0 && (
@@ -577,14 +584,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             {isRE ? 'Rental Income (gross rents received)' : FINANCIAL_LABELS.grossReceiptsField}
             <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
-          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} />
+          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} />
         </div>
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
             <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
-          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} />
+          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} />
         </div>
         <div>
           <label style={lbl}>
@@ -594,7 +601,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Depreciation (§179 + MACRS + §168(k) Bonus)
             <InfoTip text={'§179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
-          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} />
+          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} />
         </div>
         {(isSCorp || isCCorp) && (
           <div>
@@ -604,7 +611,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
-            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} />
+            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} />
             {/* AUDIT-1 FIX: reserve layout space for these conditional warnings so their
                 appearance doesn't shift the Advertising & Marketing field below — a sudden
                 layout shift mid-entry can cause the next click (aimed at the pre-shift
@@ -649,14 +656,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Advertising & Marketing
             <InfoTip text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
           </label>
-          <MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} />
+          <MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
         </div>
         <div>
           <label style={lbl}>
             Other Operating Expenses
             <InfoTip text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
-          <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} />
+          <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} allowNegative={false} />
         </div>
       </div>
 
@@ -2356,6 +2363,10 @@ export default function CalculateTaxInner() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { type: 'S Corporation',            icon: '🏢', desc: 'K-1 income not subject to SE tax · reasonable officer W-2 compensation required'         },
+                // AUDIT F12 FIX: onboarding offers C Corporation, but this picker omitted it —
+                // a C-Corp owner hit an apparent dead end and could only reach the type via the
+                // entity card's dropdown after adding a different type. Copy mirrors onboarding.
+                { type: 'C Corporation',             icon: '🏛️', desc: 'Entity-level 21% corporate tax · officer salary is W-2 · profits taxed again as dividends' },
                 { type: 'Partnership / LLC',         icon: '🤝', desc: 'K-1 income · Schedule E page 2 · SE tax may apply'           },
                 { type: 'Sole Proprietor / SMLLC',   icon: '💼', desc: 'Schedule C · self-employment tax · QBI eligible'             },
                 { type: 'Real Estate (Schedule E)',   icon: '🏠', desc: 'Rental income/loss · passive activity rules · depreciation'  },

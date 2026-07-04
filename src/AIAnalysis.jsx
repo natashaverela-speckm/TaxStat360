@@ -283,8 +283,15 @@ function missingFields(rec) {
 // O7 FIX: read onboarding business name/EIN/address from sessionStorage.
 // Written by Onboarding.jsx BusinessScreen after the O7 patch.
 // Falls back gracefully if not set (pre-patch sessions, skipped step).
+// AUDIT F6 FIX: EIN is sanitized at this single read point. Accounts that stored
+// a malformed EIN before validation existed (e.g. "abc!!badEIN") would otherwise
+// print it verbatim on the CPA Briefing / Export cover — a professional-facing
+// deliverable. An EIN that doesn't match XX-XXXXXXX is treated as absent; every
+// consumer already guards with {bizEin && ...}, so the line simply doesn't render.
 function getOnboardingBizInfo() {
-  return readBusinessInfo()
+  const info = readBusinessInfo()
+  const ein = /^\d{2}-\d{7}$/.test(info.bizEin || '') ? info.bizEin : ''
+  return { ...info, bizEin: ein }
 }
 
 function NoData({ tab = 'risk' }) {
