@@ -685,6 +685,29 @@ export function normalizeF1040(rec = {}) {
     studentLoanInt:    parseFloat(rec.studentLoanInt)   || 0,
     selfEmpRetirement: parseFloat(rec.selfEmpRetirement) || 0,
     nolCarryforward:   parseFloat(rec.nolCarryforward)  || 0,
+    // AUDIT F3 RESIDUAL FIX (load-path strip): the save path writes these fields
+    // (TaxReturn.jsx writePersonalContext / record f1040), but this whitelist
+    // dropped them on rehydration — so a saved YTD projection silently reverted
+    // to full-year on reload even though the server record carried
+    // ytdMode/ytdMonth correctly, and the fields below were quietly lost on
+    // every Load & Continue.
+    ytdMode:           !!rec.ytdMode,
+    ytdMonth:          parseInt(rec.ytdMonth)            || (new Date().getMonth() + 1),
+    stGain:            parseFloat(rec.stGain)            || 0,
+    unrecap1250:       parseFloat(rec.unrecap1250)       || 0,
+    collectiblesGain:  parseFloat(rec.collectiblesGain)  || 0,
+    nonrecap1231:      parseFloat(rec.nonrecap1231)      || 0,
+    isActiveParticipant: rec.isActiveParticipant !== false,
+    rentalAggregationElection: !!rec.rentalAggregationElection,
+    priorPassiveLossCarryforward: parseFloat(rec.priorPassiveLossCarryforward) || 0,
+    priorSuspendedLoss: parseFloat(rec.priorSuspendedLoss) || 0,
+    priorYearTax:      parseFloat(rec.priorYearTax)      || 0,
+    priorYearAGI:      parseFloat(rec.priorYearAGI)      || 0,
+    priorYearLosses:   parseFloat(rec.priorYearLosses)   || 0,
+    mortgageInt:       parseFloat(rec.mortgageInt)       || 0,
+    charitableContr:   parseFloat(rec.charitableContr)   || 0,
+    medicalAmt:        parseFloat(rec.medicalAmt)        || 0,
+    qualDividends:     parseFloat(rec.qualDividends ?? rec.qualifiedDividends) || 0,
   }
 }
 
