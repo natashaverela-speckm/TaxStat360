@@ -256,6 +256,29 @@ export function writePersonalContext({
   studentLoanInt = 0,
   selfEmpRetirement = 0,
   nolCarryforward = 0,
+  // AUDIT F3 RESIDUAL FIX (write-side strip): TaxReturn passes all of the
+  // fields below on every edit, but this destructuring silently discarded
+  // them, so ts360_f1040 never carried YTD state (or the others) and the
+  // component re-seeded from defaults on every mount. This list is the exact
+  // set TaxReturn reads back via savedCtx.* — keep the three lists in sync:
+  // writePersonalContext / readPersonalContext / normalizeF1040.
+  ytdMode = false,
+  ytdMonth = 0,
+  stGain = 0,
+  ltGain = 0,
+  qualDividends = 0,
+  unrecap1250 = 0,
+  collectiblesGain = 0,
+  nonrecap1231 = 0,
+  isActiveParticipant = true,
+  rentalAggregationElection = false,
+  priorPassiveLossCarryforward = 0,
+  priorYearTax = 0,
+  priorYearAGI = 0,
+  priorYearLosses = 0,
+  mortgageInt = 0,
+  charitableContr = 0,
+  medicalAmt = 0,
 } = {}) {
   sessionStorage.setItem('ts360_f1040', JSON.stringify({
     filingStatus, taxYear, dependents, w2Income, w2Withheld,
@@ -265,6 +288,12 @@ export function writePersonalContext({
     priorYearQBILoss, socialSecurity, iraDistributions,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward,
+    // AUDIT F3 RESIDUAL FIX — see parameter block above.
+    ytdMode, ytdMonth, stGain, ltGain, qualDividends,
+    unrecap1250, collectiblesGain, nonrecap1231,
+    isActiveParticipant, rentalAggregationElection,
+    priorPassiveLossCarryforward, priorYearTax, priorYearAGI, priorYearLosses,
+    mortgageInt, charitableContr, medicalAmt,
   }))
 }
 
@@ -386,6 +415,27 @@ export function readPersonalContext() {
     studentLoanInt:    parsed.studentLoanInt    ?? defaults.studentLoanInt,
     selfEmpRetirement: parsed.selfEmpRetirement ?? defaults.selfEmpRetirement,
     nolCarryforward:   parsed.nolCarryforward   ?? defaults.nolCarryforward,
+    // AUDIT F3 RESIDUAL FIX (read-side strip): the fields TaxReturn reads back
+    // via savedCtx.* but which this extraction previously dropped — most
+    // visibly ytdMode/ytdMonth, which made a saved YTD projection revert to
+    // full-year on every reload. Defaults mirror writePersonalContext's.
+    ytdMode:           parsed.ytdMode           ?? false,
+    ytdMonth:          parsed.ytdMonth          ?? 0,
+    stGain:            parsed.stGain            ?? 0,
+    ltGain:            parsed.ltGain            ?? (parsed.capitalGains ?? 0),
+    qualDividends:     parsed.qualDividends     ?? (parsed.qualifiedDividends ?? 0),
+    unrecap1250:       parsed.unrecap1250       ?? 0,
+    collectiblesGain:  parsed.collectiblesGain  ?? 0,
+    nonrecap1231:      parsed.nonrecap1231      ?? 0,
+    isActiveParticipant: parsed.isActiveParticipant ?? true,
+    rentalAggregationElection: parsed.rentalAggregationElection ?? false,
+    priorPassiveLossCarryforward: parsed.priorPassiveLossCarryforward ?? 0,
+    priorYearTax:      parsed.priorYearTax      ?? 0,
+    priorYearAGI:      parsed.priorYearAGI      ?? 0,
+    priorYearLosses:   parsed.priorYearLosses   ?? 0,
+    mortgageInt:       parsed.mortgageInt       ?? 0,
+    charitableContr:   parsed.charitableContr   ?? 0,
+    medicalAmt:        parsed.medicalAmt        ?? 0,
   }
 }
 
