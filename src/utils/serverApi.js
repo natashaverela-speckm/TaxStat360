@@ -35,38 +35,57 @@ export async function fetchRecordsFromServer() {
  * @returns {Promise<object>}
  */
 export async function upsertRecordOnServer(record) {
-  // ─── AUDIT DATA-LOSS FIX (verification finding, July 2026) ─────────────────
-  // Client/server contract mismatch: this client was migrated to single-record
-  // upserts, but the deployed PUT /records backend stores the payload as the
-  // user's ENTIRE record set (the previous client PUT the full array). The first
-  // single-record PUT therefore REPLACED the whole store and destroyed every
-  // sibling record. Until the backend implements keyed per-record upserts, the
-  // client must speak the contract the backend actually implements:
-  //   1. GET the current server list.
-  //   2. Merge this record into it by id (replace-or-prepend).
-  //   3. PUT the ENTIRE merged array.
-  // If the pre-merge GET fails we THROW rather than PUT — a blind PUT of one
-  // record is exactly the destructive write this fix exists to prevent; the
-  // caller (syncRecordToServer) already treats a throw as "cache locally".
-  // TODO(backend): once PUT /records/:id keyed upserts exist server-side,
-  // restore the single-record PUT and delete this merge step.
-  let serverList
+  // ─── AUDIT DATA-LOSS FIX, REVISED (verification finding, July 2026) ────────
+  // Empirically established against the live backend during verification:
+  //   • PUT /records REQUIRES a single JSON object (an array is rejected with
+  //     "Record must be a JSON object").
+  //   • PUT upserts by record id — a controlled probe confirmed siblings are
+  //     preserved (PUT of record B left record A intact).
+  // An earlier revision of this function merged and PUT the full array on the
+  // theory that the backend stored the payload as the user's entire record set;
+  // the array rejection and the probe disproved that. HOWEVER, a real incident
+  // remains unexplained: during verification, a save coincided with the loss of
+  // ALL sibling records server-side. The mechanism was not reproducible from
+  // the client and is suspected to be backend-side (review the /records Lambda
+  // and its storage writes). Until that is found, this function wears a
+  // seatbelt:
+  //   1. Snapshot the server list BEFORE the upsert.
+  //   2. PUT the single record (the contract the backend implements).
+  //   3. Re-fetch and DIFF: any sibling present before but missing after is
+  //      immediately re-PUT from the snapshot (self-heal), with a loud
+  //      console.error so the incident is visible in monitoring.
+  // The snapshot/diff adds two GETs per save — cheap insurance for data whose
+  // loss is unrecoverable. Remove once the backend cause is found and fixed.
+  let before = []
   try {
     const fetched = await fetchRecordsFromServer()
-    serverList = Array.isArray(fetched) ? fetched : (fetched ? [fetched] : [])
-  } catch (e) {
-    throw new Error('records pre-merge fetch failed — aborting PUT to avoid clobbering sibling records: ' + (e && e.message))
-  }
-  const idx = serverList.findIndex(r => r && String(r.id) === String(record.id))
-  const merged = idx >= 0
-    ? serverList.map((r, i) => (i === idx ? record : r))
-    : [record, ...serverList]
-  await apiFetch('/records', {
+    before = Array.isArray(fetched) ? fetched : []
+  } catch (e) { /* snapshot unavailable — proceed; upsert is still per-id */ }
+
+  const saved = await apiFetch('/records', {
     method: 'PUT',
     credentials: 'include',
-    body: merged,
+    body: record,
   })
-  return record
+
+  if (before.length > 1) {
+    try {
+      const fetchedAfter = await fetchRecordsFromServer()
+      const after = Array.isArray(fetchedAfter) ? fetchedAfter : []
+      const afterIds = new Set(after.map(r => String(r && r.id)))
+      const lost = before.filter(r =>
+        r && String(r.id) !== String(record.id) && !afterIds.has(String(r.id)))
+      for (const missing of lost) {
+        console.error('[records] sibling record lost during save — self-healing restore', missing.id, missing.name || '')
+        try {
+          await apiFetch('/records', { method: 'PUT', credentials: 'include', body: missing })
+        } catch (e2) {
+          console.error('[records] self-heal re-PUT failed for', missing.id, e2)
+        }
+      }
+    } catch (e) { /* post-verify unavailable — nothing destructive was issued */ }
+  }
+  return saved
 }
 
 /**
