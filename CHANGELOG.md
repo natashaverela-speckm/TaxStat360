@@ -11,6 +11,81 @@ record of work that predates this changelog.
 
 ---
 
+## [Unreleased] — Post-Deploy Verification Fixes, July 2026
+
+Found during the formal post-deploy verification of the July 2026 audit fixes.
+
+### Fixed
+- **F2 (second root cause)** `src/EntityCompareModal.jsx` — COMPARE-PC fixed the
+  lazy-getter personalContext, but the modal still fed the engine the SESSION
+  vocabulary (filingStatus/w2Income/interest…) where calcTaxReturn expects the
+  ENGINE vocabulary (status/w2/intInc…), so every scenario totalTax was null →
+  rendered "$0". New toEngineContext() translator mirrors TaxReturn.jsx's
+  authoritative calcInput mapping (incl. other-entity officer W-2, Box 17K, and
+  YTD annualization). Regression tests: src/EntityCompareModal.context.test.js
+- **F3 (residual, load path)** `src/utils/sessionState.js` — normalizeF1040's
+  whitelist dropped ytdMode/ytdMonth (and stGain, unrecap1250, collectiblesGain,
+  nonrecap1231, isActiveParticipant, rentalAggregationElection, prior-year and
+  suspended-loss fields, itemized detail fields) on record rehydration, so a
+  saved YTD projection reverted to full-year on reload even though the server
+  record carried the fields. Whitelist extended; regression tests:
+  src/utils/normalizeF1040.audit.test.js
+- **DATA-LOSS (new verification finding — Blocker), REVISED** `src/utils/serverApi.js` —
+  a live probe established the backend PUT /records is a keyed per-id upsert
+  that REJECTS arrays ("Record must be a JSON object") and preserves siblings.
+  The earlier merged-array revision was therefore wrong and is reverted. The
+  real incident — all sibling records lost server-side coincident with a save —
+  remains unexplained from the client and is suspected backend-side (REVIEW THE
+  /records LAMBDA). Seatbelt shipped: upsertRecordOnServer snapshots the server
+  list before the single-object PUT, re-fetches after, and self-heals by
+  re-PUTting any sibling that disappeared, with loud console.error logging.
+
+---
+
+## [Unreleased] — Functionality Audit Fixes, July 2026
+
+Fixes from the July 3, 2026 live functionality audit (findings F5–F16; numbering
+follows the audit report). Findings F1–F4, F7, and F15 from that audit were
+already fixed in this repo but absent from the deployed build — deploying this
+revision resolves them with no further code change.
+
+### Fixed
+- **F5 / F6 / FLOW** (owner decision) `src/Onboarding.jsx`,
+  `src/components/WelcomeTourScreen.jsx`, `src/App.jsx` — the post-signup setup
+  funnel (EntityScreen → BusinessScreen → ImportScreen) is removed entirely.
+  After the welcome tour, users land on the Dashboard and either load a saved
+  record card or start a new calculation; entity types (all five, incl.
+  C Corporation per F12) and the accounting connectors live in the Tax Tracker.
+  Old /onboarding/entity|business|import URLs redirect to /dashboard.
+  Business name / EIN / address are no longer collected at onboarding, which
+  moots the F5 edit-surface question and the F6 input-validation fix; the
+  first-run Tracker banner flag now sets on tour completion for new signups
+- **F6** `src/AIAnalysis.jsx` — `getOnboardingBizInfo()` sanitizes the stored
+  EIN at the single read point so legacy malformed values never print on the
+  CPA Briefing / Export cover
+- **F8** `src/TaxReturn.jsx` — Qualifying Dependents clamped to 0–20 on typed
+  input (min/max attributes only constrained the spinner; typed "10000"
+  generated an unbounded CTC that silently zeroed the liability)
+- **F9** `src/CalculateTaxInner.jsx` — local `MoneyInput` gains `allowNegative`
+  (default true); all six P&L-modal fields (gross receipts/rents, operating
+  expenses, depreciation, officer compensation, advertising, other) opt out.
+  K-1 Box 1 direct entry keeps negatives — losses are legitimate there
+- **F11** `src/TaxReturn.jsx` — waterfall terminal row no longer renders
+  "Estimated Refund −$X"; magnitude is always positive, label + accent carry
+  the direction
+- **F12** `src/CalculateTaxInner.jsx` — C Corporation added to the Add Entity
+  picker (was only reachable via the entity card's type dropdown)
+- **F16** `src/Aria.jsx` — `renderAriaText()` converts `**bold**` spans to
+  `<strong>` via React elements (no `dangerouslySetInnerHTML`)
+
+### Deferred (owner decision required — see audit report)
+- **F10** capital-loss §1211(b) $3,000 limit + carryforward — tax-engine rule
+  change; belongs to the tax-accuracy pass
+- **F13** save semantics (snapshot vs. overwrite of the active record)
+- **F14** unsaved-changes prompt on in-app navigation
+
+---
+
 ## [Unreleased] — Audit Sprint, June 2026
 
 ### Added
