@@ -35,11 +35,38 @@ export async function fetchRecordsFromServer() {
  * @returns {Promise<object>}
  */
 export async function upsertRecordOnServer(record) {
-  return apiFetch('/records', {
+  // ─── AUDIT DATA-LOSS FIX (verification finding, July 2026) ─────────────────
+  // Client/server contract mismatch: this client was migrated to single-record
+  // upserts, but the deployed PUT /records backend stores the payload as the
+  // user's ENTIRE record set (the previous client PUT the full array). The first
+  // single-record PUT therefore REPLACED the whole store and destroyed every
+  // sibling record. Until the backend implements keyed per-record upserts, the
+  // client must speak the contract the backend actually implements:
+  //   1. GET the current server list.
+  //   2. Merge this record into it by id (replace-or-prepend).
+  //   3. PUT the ENTIRE merged array.
+  // If the pre-merge GET fails we THROW rather than PUT — a blind PUT of one
+  // record is exactly the destructive write this fix exists to prevent; the
+  // caller (syncRecordToServer) already treats a throw as "cache locally".
+  // TODO(backend): once PUT /records/:id keyed upserts exist server-side,
+  // restore the single-record PUT and delete this merge step.
+  let serverList
+  try {
+    const fetched = await fetchRecordsFromServer()
+    serverList = Array.isArray(fetched) ? fetched : (fetched ? [fetched] : [])
+  } catch (e) {
+    throw new Error('records pre-merge fetch failed — aborting PUT to avoid clobbering sibling records: ' + (e && e.message))
+  }
+  const idx = serverList.findIndex(r => r && String(r.id) === String(record.id))
+  const merged = idx >= 0
+    ? serverList.map((r, i) => (i === idx ? record : r))
+    : [record, ...serverList]
+  await apiFetch('/records', {
     method: 'PUT',
     credentials: 'include',
-    body: record,
+    body: merged,
   })
+  return record
 }
 
 /**
