@@ -586,9 +586,13 @@ export default function App() {
 
         {/* Onboarding — auth required */}
         <Route path="/onboarding/welcome"  element={<RequireAuth><WelcomeTourScreen /></RequireAuth>} />
-        <Route path="/onboarding/entity"   element={<AuthedWithTour><Onboarding screen="entity" /></AuthedWithTour>} />
-        <Route path="/onboarding/business" element={<AuthedWithTour><Onboarding screen="business" /></AuthedWithTour>} />
-        <Route path="/onboarding/import"   element={<AuthedWithTour><Onboarding screen="import" /></AuthedWithTour>} />
+        {/* AUDIT FLOW REVISION (owner decision): the entity/business/import setup
+            funnel is removed — users go straight to the Dashboard after the welcome
+            tour and manage entities in the Tax Tracker. The old step URLs redirect
+            so bookmarks, stale nav calls, and in-flight sessions never 404. */}
+        <Route path="/onboarding/entity"   element={<AuthedWithTour><Navigate to="/dashboard" replace /></AuthedWithTour>} />
+        <Route path="/onboarding/business" element={<AuthedWithTour><Navigate to="/dashboard" replace /></AuthedWithTour>} />
+        <Route path="/onboarding/import"   element={<AuthedWithTour><Navigate to="/dashboard" replace /></AuthedWithTour>} />
 
         {/* OAuth callback — QuickBooks, Xero, Wave, FreshBooks */}
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />

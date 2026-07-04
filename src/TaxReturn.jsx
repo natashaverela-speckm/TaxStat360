@@ -1129,7 +1129,11 @@ export default function TaxReturn() {
                   Qualifying Dependents
                   <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000–$2,200 CTC (2025–2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
                 </label>
-                <input type="number" min="0" max="20" aria-label="Qualifying dependents" value={dependents} onChange={e => setDependents(e.target.value)}
+                {/* AUDIT F8 FIX: min/max attributes only constrain the spinner arrows — typed
+                    values ("10000") passed straight through to state and generated an
+                    unbounded CTC that silently zeroed the liability. Clamp typed input to
+                    the same 0–20 range (integer); empty string stays allowed for clearing. */}
+                <input type="number" min="0" max="20" aria-label="Qualifying dependents" value={dependents} onChange={e => { const v = e.target.value; if (v === '') { setDependents(''); return } const n = Math.max(0, Math.min(20, Math.floor(Number(v) || 0))); setDependents(String(n)) }}
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }} />
               </div>
               <div style={inpWrap}>
@@ -1609,7 +1613,12 @@ export default function TaxReturn() {
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
                 { label: '—', value: 0, divider: true },
-                { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: result.balance >= 0 ? 1 : -1, bold: true, accent: result.balance >= 0 ? R : G },
+                // AUDIT F11 FIX: sign: -1 on the refund branch made the renderer print
+                // "Estimated Refund −$X" (a negative refund) while the summary header showed
+                // the same figure as positive. The label already carries the direction —
+                // render the magnitude as positive in both branches; accent color (red/green)
+                // still distinguishes balance due from refund.
+                { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: 1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 const isSubtraction = row.sign < 0

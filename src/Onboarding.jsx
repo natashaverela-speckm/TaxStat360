@@ -82,14 +82,16 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
-import { writeBusinessInfo, readBusinessInfo, writeFirstRun, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, readToken, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeMfaEnabled, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, writeOnboardingEntityType, readOnboardingEntityType, readMfaEnabled, readPendingEmail } from './utils/sessionState.js'
+import { readBusinessInfo, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
 
 const PK = import.meta.env.VITE_STRIPE_PK
-const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY
+// AUDIT FLOW REVISION: GMAPS_KEY removed — the address-autocomplete lived on
+// the deleted BusinessScreen. VITE_GMAPS_KEY can be dropped from Amplify env
+// vars once no other consumer exists.
 
 const N='#0D1B3E',B='#2563EB',SL='#475569'
 
@@ -499,7 +501,10 @@ function continueAfterVerifyEmail(nav) {
     return
   }
   sessionStorage.removeItem('ts360_new_registration')
-  nav(isValidSession() ? '/dashboard' : '/onboarding/entity')
+  // AUDIT FLOW REVISION: '/onboarding/entity' no longer exists — a valid session
+  // lands on the Dashboard (pick a saved card or start a new calculation); an
+  // invalid one re-authenticates.
+  nav(isValidSession() ? '/dashboard' : '/login')
 }
 
 function LoginScreen(){
@@ -692,227 +697,20 @@ For planning purposes only — not professional tax, legal, or financial advice.
 // Entity type strings match the canonical Tax Tracker values exactly so
 //   readOnboardingEntityType() hydrates the entity card dropdown
 //   correctly on the first Tax Tracker session.
-function EntityScreen(){
-const nav=useNavigate()
-const [selected,setSelected]=useState('')
-
-// O3 FIX: 4 entity types, matching Tax Tracker exactly
-const types=[
-  { value:'S Corporation',          icon:'🏢', desc:'K-1 income not subject to SE tax · reasonable officer salary required' },
-  { value:'C Corporation',          icon:'🏛️', desc:'Entity-level 21% corporate tax · officer salary is W-2 · profits taxed again as dividends' },
-  { value:'Partnership / LLC',      icon:'🤝', desc:'K-1 income · Schedule E page 2 · SE tax may apply to general partners' },
-  { value:'Sole Proprietor / SMLLC',icon:'💼', desc:'Schedule C · self-employment tax · QBI eligible' },
-  { value:'Real Estate (Schedule E)',icon:'🏠', desc:'Rental income/loss · passive activity rules · depreciation' },
-]
-
-return(<Page>
-<LOGO/>
-<div style={{marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-<span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 1 of 3</span>
-<span style={{fontSize:11,color:SL}}>Takes about 2 minutes</span>
-</div>
-<div style={{background:'#F8FAFC',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:12,color:SL,lineHeight:1.5}}>
-<strong style={{color:N}}>3 quick steps:</strong> Choose your entity type → Connect your accounting software (or enter manually) → Review your opening tax position.
-</div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>What is your business entity?</h2>
-<p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>We use this to map the right IRS schedules for your analysis.</p>
-<div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
-{types.map(t=>(
-  <button
-    key={t.value}
-    type="button"
-    onClick={()=>setSelected(t.value)}
-    style={{
-      padding:'12px 14px',textAlign:'left',
-      border:'2px solid '+(selected===t.value?B:'#E2E8F0'),
-      borderRadius:10,cursor:'pointer',
-      background:selected===t.value?'#EFF6FF':'#fff',
-      display:'flex',alignItems:'center',gap:12,
-    }}
-  >
-    <span style={{fontSize:22,flexShrink:0}}>{t.icon}</span>
-    <div>
-      <div style={{fontSize:13,fontWeight:700,color:selected===t.value?B:N,marginBottom:2}}>{t.value}</div>
-      <div style={{fontSize:11,color:SL}}>{t.desc}</div>
-    </div>
-  </button>
-))}
-</div>
-<p style={{color:SL,fontSize:11,margin:'0 0 20px',lineHeight:1.5,fontStyle:'italic'}}>For partnerships, you'll specify Active vs Passive treatment when entering your tax details — this affects whether self-employment tax applies.</p>
-<button
-  onClick={()=>{
-    if(selected){
-      // O3 FIX: entity type value now matches Tax Tracker canonical string exactly
-      writeOnboardingEntityType(selected)
-      nav('/onboarding/business')
-    }
-  }}
-  disabled={!selected}
-  style={{width:'100%',padding:'11px',background:selected?B:'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:selected?'pointer':'not-allowed'}}
->
-  Continue →
-</button>
-</Page>)
-}
-
-// O7 FIX: BusinessScreen now:
-// (a) Makes the optional nature explicit in the step subtitle.
-// (b) Writes business name to sessionStorage ts360_biz_name so CalculateTaxInner
-//     can pre-populate the entity card name field on first load.
-// (c) Writes EIN and address to ts360_biz_ein / ts360_biz_address so AIAnalysis
-//     CPA Export can use them on the report cover page.
-// (d) Skip link label updated to "Skip — I'll add this in Settings" to signal
-//     where the data can be entered later (once Settings Business Info section
-//     is added, per the audit recommendation).
-function BusinessScreen(){
-const nav=useNavigate()
-const [biz,setBiz]=useState('')
-const [ein,setEin]=useState('')
-const [addr,setAddr]=useState('')
-const addrRef=useRef(null)
-
-useEffect(()=>{
-if(window.google&&window.google.maps){
-initAutocomplete()
-} else {
-const s=document.createElement('script')
-s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY+'&libraries=places'
-s.onload=initAutocomplete
-document.head.appendChild(s)
-}
-function initAutocomplete(){
-if(!addrRef.current)return
-try{
-const ac=new window.google.maps.places.Autocomplete(addrRef.current,{types:['address'],componentRestrictions:{country:'us'}})
-ac.addListener('place_changed',()=>{
-const p=ac.getPlace()
-if(p.formatted_address)setAddr(p.formatted_address)
-})
-}catch(e){}
-}
-},[])
-
-// O7 FIX: persist business info to sessionStorage so downstream screens use it.
-// Routes through the canonical writeBusinessInfo() accessor (audit E-1) instead of
-// inline ts360_biz_* literals, so the key strings have one source of truth.
-function persistBizInfo() {
-  writeBusinessInfo({ bizName: biz.trim(), bizEin: ein.trim(), bizAddress: addr.trim() })
-}
-
-async function submit(e){
-e.preventDefault()
-persistBizInfo()
-try{await apiFetch('/user/business-info',{method:'POST',body:{business_name:biz,ein,address:addr},raw:true})}catch(e){}
-nav('/onboarding/import')
-}
-
-return(<Page>
-<LOGO/>
-<div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 2 of 3</span></div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Tell us about your business</h2>
-{/* O7 FIX: subtitle now tells users exactly where this data is used */}
-<p style={{color:SL,fontSize:13,margin:'0 0 6px'}}>Optional — used in your CPA Export report and entity card label.</p>
-<p style={{color:'#94A3B8',fontSize:12,margin:'0 0 18px',lineHeight:1.5}}>
-  Your business name will appear on your entity card in the Tax Tracker. EIN and address appear on your CPA Export report cover. You can update these anytime in Settings.
-</p>
-<form onSubmit={submit}>
-<Field label="Business Name" val={biz} set={setBiz} ph="Acme Corp LLC" autoComplete="organization"/>
-<Field label="EIN (optional)" val={ein} set={setEin} ph="XX-XXXXXXX"/>
-<div style={{marginBottom:12}}>
-<label htmlFor="biz-address" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Business Address <span style={{fontWeight:400,textTransform:'none',letterSpacing:0}}>(optional)</span></label>
-<input id="biz-address" ref={addrRef} type="text" value={addr} onChange={e=>setAddr(e.target.value)} placeholder="Start typing your address..." autoComplete="street-address" style={{width:'100%',padding:'9px 12px',border:'1px solid #E2E8F0',borderRadius:7,fontSize:14,color:N,boxSizing:'border-box',outline:'none',fontFamily:'Inter,sans-serif'}}/>
-</div>
-<button type="submit" style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Continue →</button>
-{/* O7 FIX: skip label signals where to return later */}
-<p
-  style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}}
-  onClick={()=>{ persistBizInfo(); nav('/onboarding/import') }}
->
-  Skip — I'll add this in Settings →
-</p>
-</form>
-</Page>)
-}
-
-// O4 FIX: ImportScreen handleContinue now navigates to '/dashboard' (not
-// '/calculate-tax'). The button label "Go to My Dashboard →" now correctly
-// matches its destination. A ts360_first_run flag is written to sessionStorage
-// so CalculateTaxInner can show a first-run banner to guide users who skipped
-// Step 3 to add their revenue and expenses.
-function ImportScreen(){
-const nav=useNavigate()
-const [showSecurityNudge, setShowSecurityNudge]=useState(false)
-const mfaAlreadyEnabled=readMfaEnabled()==='1'
-const integrations=[{name:'QuickBooks',color:'#2CA01C',logo:'QB'},{name:'FreshBooks',color:'#1a9c3e',logo:'FB'},{name:'Xero',color:'#13B5EA',logo:'XE'},{name:'Wave',color:'#2C6ECB',logo:'WV'}]
-
-// O4 FIX: set first-run flag then navigate to dashboard
-function goToDashboard(){
-  writeFirstRun()
-  nav('/dashboard')
-}
-
-function handleContinue(){
-if(!mfaAlreadyEnabled){
-setShowSecurityNudge(true)
-} else {
-// O4 FIX: nav to /dashboard, not /calculate-tax
-goToDashboard()
-}
-}
-
-if(showSecurityNudge){
-return(
-<Page>
-<LOGO/>
-<div style={{textAlign:'center',padding:'8px 0'}}>
-<div style={{marginBottom:14}}><Icon name="lock" size={44} color={B} /></div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 10px'}}>One last thing — protect your account</h2>
-<p style={{color:SL,fontSize:13,margin:'0 0 6px',lineHeight:1.6}}>
-TaxStat360 stores sensitive financial and tax data. Two-factor authentication adds a critical second layer of security — strongly recommended by IRS Publication 4557 for any software handling taxpayer information.
-</p>
-<p style={{color:'#64748b',fontSize:12,margin:'0 0 24px',lineHeight:1.5}}>
-Takes less than 2 minutes with any authenticator app (Google Authenticator, Authy, 1Password).
-</p>
-<button
-onClick={()=>nav('/settings')}
-style={{width:'100%',padding:'12px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center'}}
->
-<Icon name="lock" size={16} color="#fff" style={{marginRight:6}} /> Set up 2FA in Settings →
-</button>
-{/* O4 FIX: "go to my dashboard" now actually goes to /dashboard */}
-<button
-onClick={goToDashboard}
-style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',marginBottom:8}}
->
-Skip for now — go to my dashboard
-</button>
-<p style={{fontSize:11,color:'#94a3b8',margin:0,lineHeight:1.5}}>
-You can enable 2FA at any time in Settings → Security.
-</p>
-</div>
-</Page>
-)
-}
-
-return(<Page>
-<LOGO/>
-<div style={{marginBottom:16}}><span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20}}>Step 3 of 3</span></div>
-<h2 style={{color:N,fontSize:20,fontWeight:800,margin:'0 0 4px'}}>Connect your accounting software</h2>
-<p style={{color:SL,fontSize:13,margin:'0 0 18px'}}>Import your financials to power your AI tax analysis.</p>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
-{integrations.map(i=>(<button key={i.name} type="button" onClick={()=>window.open(API+'/integrations/'+i.name.toLowerCase()+'/connect','_blank')} style={{padding:'16px 12px',border:'1px solid #E2E8F0',borderRadius:10,cursor:'pointer',background:'#fff'}} onMouseOver={e=>e.currentTarget.style.borderColor=i.color} onMouseOut={e=>e.currentTarget.style.borderColor='#E2E8F0'}><div style={{width:38,height:38,borderRadius:8,background:i.color,color:'#fff',fontWeight:800,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px'}}>{i.logo}</div><div style={{fontSize:13,fontWeight:600,color:N}}>{i.name}</div></button>))}
-</div>
-{/* O4 FIX: button label matches destination — both go to /dashboard */}
-<button onClick={handleContinue} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:10}}>Go to My Dashboard →</button>
-<p style={{textAlign:'center',fontSize:12,color:SL,margin:0,cursor:'pointer'}} onClick={handleContinue}>Skip — connect later</p>
-</Page>)
-}
+// AUDIT FLOW REVISION (owner decision, July 2026): the post-signup setup funnel
+// (EntityScreen → BusinessScreen → ImportScreen) has been removed. Users go
+// straight to the Dashboard after the welcome tour, where they load a previously
+// saved record card or start a new calculation. Entity-type selection (all five
+// types, including C Corporation) and the accounting-software connectors both
+// live in the Tax Tracker, so no capability was lost. The report-cover business
+// profile (name/EIN/address) is no longer collected; AIAnalysis.getOnboardingBizInfo()
+// already falls back gracefully when it is absent, and its EIN sanitization keeps
+// legacy stored values off the CPA Briefing cover.
 
 export default function Onboarding({screen}){
 if(screen==='login') return <LoginScreen/>
 if(screen==='verify') return <VerifyEmailScreen/>
-if(screen==='entity') return <EntityScreen/>
-if(screen==='business') return <BusinessScreen/>
-if(screen==='import') return <ImportScreen/>
+// AUDIT FLOW REVISION: 'entity' / 'business' / 'import' screens removed —
+// their routes redirect to /dashboard in App.jsx.
 return <SignupScreen/>
 }

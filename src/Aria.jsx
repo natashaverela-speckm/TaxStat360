@@ -7,6 +7,22 @@ import { apiFetch } from './utils/apiClient.js'
 
 const N = '#0D1B3E'
 
+// AUDIT F16 FIX: the AI backend replies with markdown emphasis (**bold**), which
+// rendered as literal asterisks in the chat bubble. This converts **…** spans to
+// <strong> via React elements only — no dangerouslySetInnerHTML, so reply text can
+// never inject HTML. Line breaks are already handled by whiteSpace: 'pre-wrap'.
+// Deliberately minimal: other markdown (links, headings) passes through as text.
+function renderAriaText(text) {
+  const s = String(text ?? '')
+  const parts = s.split(/(\*\*[^*]+\*\*)/g)
+  if (parts.length === 1) return s
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') && part.length > 4
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : part
+  )
+}
+
 const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
 
 // Max conversation turns to send to API — prevents unbounded cost growth
@@ -143,7 +159,7 @@ export default function Aria() {
             {msgs.map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{ background: m.role === 'user' ? N : '#F8FAFC', color: m.role === 'user' ? '#fff' : '#0D1B3E', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '10px 14px', fontSize: 13, maxWidth: '85%', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: m.role === 'user' ? 'none' : '1px solid #E2E8F0' }}>
-                  {m.text}
+                  {renderAriaText(m.text)}
                   {m.action && (
                     <div style={{ marginTop: 8 }}>
                       <a href={m.action.href} style={{ color: '#2563EB', fontWeight: 700, fontSize: 12 }}>{m.action.label}</a>
