@@ -30,7 +30,69 @@ import {
   BORDER_DEFAULT as CARD_BORDER,
 } from './theme.js'
 // CC-M02: canonical currency formatter.
-import { fmt } from './utils/money.js'
+import { fmt, nf } from './utils/money.js'
+// AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
+import { isSCorpEntity, isCCorpEntity } from './utils/entityPredicates'
+
+// ─── AUDIT F2 FIX (second root cause) ────────────────────────────────────────
+// COMPARE-PC fixed personalContext arriving as a lazy getter, but a second gap
+// remained: readPersonalContext() speaks the SESSION vocabulary (filingStatus,
+// w2Income, interest, dividends, qualifiedDividends…) while calcTaxReturn —
+// which compareEntityScenarios invokes — expects the ENGINE vocabulary (status,
+// w2, intInc, divInc, qualDiv…). Fed session keys, the engine's input guard
+// rejects the call and every scenario's totalTax comes back null, which fmt()
+// renders as "$0" on all three cards. This translator mirrors the authoritative
+// mapping in TaxReturn.jsx's calcInput (the filed-return path), so the
+// comparison is computed on exactly the same personal context as the return:
+// - filingStatus → status · w2Income (+ officer W-2 of the OTHER entities;
+//   the compared entity's salary is applied per-scenario by the engine) → w2
+// - interest → intInc · dividends → divInc · qualDividends → qualDiv
+// - capitalGains/ltGain → ltGain · form4797 (+ other entities' Box 17K) → f4797Inc
+// - priorYearLosses → priorYearQBILoss · nonrecap1231 → nonrecapturedNet1231Loss
+// - ytdMode/ytdMonth → ytdFactor, so a mid-year (YTD) session compares on the
+//   same annualized basis as the filed return
+// Passthroughs (same name in both vocabularies) are coerced with nf().
+export function toEngineContext(pc, entities = [], entityIdx = 0) {
+  const p = pc || {}
+  const others = entities.filter((_, i) => i !== entityIdx)
+  const officerW2Others = others.reduce((s, e) => {
+    if (!e) return s
+    const isCorp = isSCorpEntity(e.type) || isCCorpEntity(e.type)
+    return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
+  }, 0)
+  const box17KOthers = others.reduce((s, e) => s + (e ? nf(e.box17K) : 0), 0)
+  const ytdFactor = p.ytdMode && nf(p.ytdMonth) > 0 ? 12 / nf(p.ytdMonth) : 1
+  return {
+    taxYear: p.taxYear,
+    status: p.filingStatus || 'single',
+    dependents: nf(p.dependents),
+    w2: nf(p.w2Income) + officerW2Others,
+    stGain: nf(p.stGain),
+    ltGain: nf(p.ltGain ?? p.capitalGains),
+    intInc: nf(p.interest),
+    divInc: nf(p.dividends),
+    qualDiv: nf(p.qualDividends ?? p.qualifiedDividends),
+    f4797Inc: nf(p.form4797) + box17KOthers,
+    taxableSS: 0, iraIncome: 0,
+    selfEmpHealthIns: nf(p.selfEmpHealthIns), hsaDeduction: nf(p.hsaDeduction),
+    studentLoanInt: nf(p.studentLoanInt), selfEmpRetirement: nf(p.selfEmpRetirement),
+    nolCarryforward: nf(p.nolCarryforward), priorYearQBILoss: nf(p.priorYearLosses),
+    saltAmount: nf(p.saltAmount), hasISO: !!p.hasISO, isoBargainElement: nf(p.isoBargainElement),
+    isREP: !!p.isREP,
+    isActiveParticipant: p.isActiveParticipant !== false,
+    rentalAggregationElection: !!p.rentalAggregationElection,
+    unrecap1250: nf(p.unrecap1250), collectiblesGain: nf(p.collectiblesGain),
+    nonrecapturedNet1231Loss: nf(p.nonrecap1231),
+    w2Withheld: nf(p.w2Withheld), estPaid: nf(p.estPaid),
+    ytdFactor,
+    priorYearTax: nf(p.priorYearTax), priorYearAGI: nf(p.priorYearAGI),
+    priorPassiveLossCarryforward: nf(p.priorPassiveLossCarryforward),
+    priorSuspendedLoss: nf(p.priorSuspendedLoss),
+    assumeZeroBasisOnLoss: true,
+    useItemized: !!p.useItemized, itemizedAmt: nf(p.itemizedAmt),
+    medicalExpenses: nf(p.medicalAmt ?? p.medicalExpenses),
+  }
+}
 
 // Component-local tokens not in theme.js
 const SUMMARY_GREEN_BG     = '#DCFCE7'
@@ -161,8 +223,10 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
       // Without this fix, {…personalContext} spread on a function → {}, stripping
       // all personal tax fields from calcTaxReturn and making totalTax → 0.
       const pc = typeof personalContext === 'function' ? personalContext() : personalContext
+      // AUDIT F2 FIX (second root cause): translate session vocabulary → engine
+      // vocabulary before invoking the engine. See toEngineContext() above.
       return compareEntityScenarios({
-        personalContext: pc || {},
+        personalContext: toEngineContext(pc, entities || [], entityIdx),
         entities: entities || [],
         entityIdx,
         netProfitShare,
