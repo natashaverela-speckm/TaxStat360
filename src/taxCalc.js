@@ -612,6 +612,8 @@ function calcTaxReturn(input) {
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
     useItemized, itemizedAmt, saltAmount, medicalExpenses,
+    charitableContr,                       // N-9: charitable component of itemizedAmt
+    estQ1, estQ2, estQ3, estQ4,            // 2210-lite: per-installment payments (optional)
     hasISO, isoBargainElement,
     isREP,
     isActiveParticipant = true,
@@ -712,12 +714,31 @@ function calcTaxReturn(input) {
     // applied LAST and never reduces the basis available to absorb distributions.
     const stockBasisForDist = sb + contrib + basisIncome + Math.max(0, k1Gross)
 
+    // AUDIT F-9 FULL FIX (Jul 2026): §1368(c) three-tier ordering when the S-corp has
+    // accumulated E&P from C-corporation years. Tier 1: distributions come first from
+    // AAA and receive §1368(b) treatment (basis recovery, then capital gain). Tier 2:
+    // the next dollars are DIVIDENDS to the extent of accumulated E&P (§1368(c)(2)) —
+    // they never reduce stock basis. Tier 3: any remainder returns to §1368(b)
+    // treatment. AAA adjustment ordering per Reg. §1.1368-2(a)(5): increased by
+    // current-year income BEFORE distributions; current-year LOSSES come after.
+    // With no E&P entered (the default), behavior is identical to before.
+    const ep     = isSCorpE ? Math.max(0, parseFloat(e.accumulatedEP) || 0) : 0
+    const begAAA = isSCorpE ? Math.max(0, parseFloat(e.beginningAAA)  || 0) : 0
+    let distFromAAA = dist, epDividend = 0, distTier3 = 0
+    if (ep > 0 && dist > 0) {
+      const aaaForDist = begAAA + Math.max(0, k1Gross)
+      distFromAAA = Math.min(dist, aaaForDist)
+      epDividend  = Math.min(dist - distFromAAA, ep)
+      distTier3   = dist - distFromAAA - epDividend
+    }
+    const distForBasis = ep > 0 ? (distFromAAA + distTier3) : dist
+
     // ââ Â§1368 BEFORE Â§1366 (Finding 1 â basis waterfall ordering) ââââââââââââââââ
     // Distributions reduce stock basis (Reg. Â§1.1368-1(e)) BEFORE losses. Only the true
     // excess over the pre-loss basis is Â§1368(b)(2) long-term capital gain; the loss is
     // then limited to whatever stock basis remains, plus debt basis.
-    const distExcessGain = (isSCorpE && hasBasisInput) ? Math.max(0, dist - stockBasisForDist) : 0
-    const stockAfterDist = Math.max(0, stockBasisForDist - dist)
+    const distExcessGain = (isSCorpE && hasBasisInput) ? Math.max(0, distForBasis - stockBasisForDist) : 0  // F-9: dividends excluded
+    const stockAfterDist = Math.max(0, stockBasisForDist - distForBasis)  // F-9: dividends never reduce basis
 
     // C-10 FIX: when assumeZeroBasisOnLoss is set, a limitable entity with a LOSS is
     // run through the Â§1366(d) limit even with no basis figure entered â basis is
@@ -732,6 +753,7 @@ function calcTaxReturn(input) {
       entityBasisResults.push({
         name: e.name || e.id || 'Entity', type: e.type,
         k1Gross, k1Allowed: k1Gross, suspended: 0,
+        epDividend, distFromAAA, accumulatedEP: ep,   // F-9: §1368(c) tiers
         ...(hasBasisInput ? {
           stockBasis: sb, debtBasis: db, totalBasis: stockAfterDist + db,
           capitalContributions: contrib, basisIncomeItems: basisIncome,
@@ -756,6 +778,7 @@ function calcTaxReturn(input) {
     entityBasisResults.push({
       name: e.name || e.id || 'Entity', type: e.type,
       k1Gross, k1Allowed, suspended,
+      epDividend, distFromAAA, accumulatedEP: ep,     // F-9: §1368(c) tiers
       stockBasis: sb, debtBasis: db, totalBasis: basisForLoss,
       capitalContributions: contrib, basisIncomeItems: basisIncome,
       stockBasisForDist, stockBasisAfterDist: stockAfterDist,
@@ -765,6 +788,12 @@ function calcTaxReturn(input) {
     return suspended > 0 ? { ...e, k1: k1Allowed } : e
   })
   const totalSuspendedLoss = entityBasisResults.reduce((s, r) => s + (r.suspended || 0), 0)
+  // F-9: §1368(c)(2) dividends from accumulated E&P are dividend income on the 1040 —
+  // qualified (§1(h)(11): domestic corporation; holding period assumed met) and NII
+  // (§1411(c)(1)(A)(i) — dividends are investment income regardless of participation).
+  const sCorpEPDividends = entityBasisResults.reduce((s, r) => s + (r.epDividend || 0), 0)
+  const _divIncEff  = nf(divInc)  + sCorpEPDividends
+  const _qualDivEff = nf(qualDiv) + sCorpEPDividends
   let priorSuspendedLossApplied = 0
   const _priorSuspended = Math.max(0, nf(priorSuspendedLoss))
   if (_priorSuspended > 0) {
@@ -926,7 +955,7 @@ function calcTaxReturn(input) {
   if (!perPropertyRegimeActive) {
     // ââ LEGACY branch (unchanged) âââââââââââââââââââââââââââââââââââââââââââââ
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + _stGain + _ltGain + intInc + divInc + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -991,7 +1020,7 @@ function calcTaxReturn(input) {
     // as computed against the combined pool â no per-property regime test exercises it.)
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + _stGain + _ltGain + intInc + divInc + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -1102,7 +1131,7 @@ function calcTaxReturn(input) {
   const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
   const stdDed    = getStdDed(taxYear, status)
   const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + _stGain + _ltGain
-    + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
+    + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
   const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
@@ -1120,9 +1149,25 @@ function calcTaxReturn(input) {
   const saltCapApplied = getSaltCap(taxYear, status, magiForSalt)
   const saltAllowed    = Math.min(saltEntered, saltCapApplied)
   const saltDisallowed = Math.min(saltEntered - saltAllowed, Math.max(0, nf(itemizedAmt)))
-  const itemized          = Math.max(0, nf(itemizedAmt) - saltDisallowed) + deductibleMedical
-  const deduction         = useItemized ? Math.max(stdDed, itemized) : stdDed
-  const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction)
+  // AUDIT N-9 FIX (Jul 2026): OBBBA 0.5%-of-AGI floor on itemized charitable
+  // contributions, tax years beginning after 12/31/2025. Only contributions above
+  // 0.5% of the contribution base (≈ AGI; same pre-NOL proxy as the SALT phase-down,
+  // documented above) are deductible. Disallowed amounts carry forward up to 5 years
+  // (single-year engine: surfaced to the UI, not tracked across years).
+  const charEntered        = Math.max(0, nf(charitableContr))
+  const charFloor          = taxYear >= 2026 ? Math.round(0.005 * magiForSalt) : 0
+  const charFloorDisallowed = Math.min(charEntered, charFloor,
+    Math.max(0, nf(itemizedAmt) - saltDisallowed))
+  const itemized          = Math.max(0, nf(itemizedAmt) - saltDisallowed - charFloorDisallowed) + deductibleMedical
+  const effectivelyItemizing = useItemized && itemized > stdDed
+  const deduction         = effectivelyItemizing ? itemized : stdDed
+  // AUDIT N-9b (Jul 2026): §170(p) — permanent charitable deduction for NON-itemizers,
+  // tax years beginning after 12/31/2025: up to $1,000 ($2,000 MFJ/QSS). Taken in
+  // addition to the standard deduction; unavailable when itemizing.
+  const nonItemizerCharitable = (taxYear >= 2026 && !effectivelyItemizing)
+    ? Math.min(charEntered, (status === 'mfj' || status === 'qss') ? 2000 : 1000)
+    : 0
+  const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable)
   const priorNOL         = Math.max(0, nf(nolCarryforward))
   const nolAllowed       = Math.min(priorNOL, Math.floor(taxableBeforeNOL * 0.80))
   const nolSurplus       = priorNOL - nolAllowed
@@ -1191,11 +1236,29 @@ function calcTaxReturn(input) {
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
   const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + f4797PrefGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
-  const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI - totalPrefIncome)
-  const taxableIncome         = taxableAfterQBI
-  let _prefRoom = taxableAfterQBI
+  // AUDIT N-8 FIX (Jul 2026): new IRC §68 (OBBBA §70111) — for tax years beginning
+  // after 12/31/2025, itemized deductions are reduced by 2/37 of the LESSER of
+  // (1) itemized deductions otherwise allowable (after all other floors/caps — the
+  // SALT cap and 0.5% charitable floor above already applied), or (2) taxable income
+  // increased by those itemized deductions, over the start of the 37% bracket.
+  // The limitation explicitly does NOT apply to the §199A computation; and at any
+  // income where it can bind (above the 37% threshold), the QBI phase-in is complete,
+  // so applying the reduction as a post-QBI taxable-income addback is exact (the only
+  // theoretical divergence is the rarely-binding 20%-of-TI overall QBI cap, which the
+  // addback would only LOOSEN). AMT: §68 is disregarded for AMTI (historic
+  // §56(b)(1)(F) treatment), so calcAMT below receives the pre-limitation figure.
+  let itemizedLimitReduction = 0
+  if (taxYear >= 2026 && effectivelyItemizing) {
+    const _bks = getBrackets(taxYear, status)
+    const thresh37 = _bks[_bks.length - 2][0]   // top of the 35% bracket = 37% start
+    const _prong2  = Math.max(0, taxableAfterQBI + itemized - thresh37)
+    if (_prong2 > 0) itemizedLimitReduction = Math.round((2 / 37) * Math.min(itemized, _prong2))
+  }
+  const taxableIncome         = taxableAfterQBI + itemizedLimitReduction
+  const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI + itemizedLimitReduction - totalPrefIncome)
+  let _prefRoom = taxableAfterQBI + itemizedLimitReduction
   const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797PrefGain, _prefRoom); _prefRoom -= _ltcgClamped
-  const _qualDivClamped      = Math.min(Math.max(0, qualDiv),   _prefRoom); _prefRoom -= _qualDivClamped
+  const _qualDivClamped      = Math.min(Math.max(0, _qualDivEff), _prefRoom); _prefRoom -= _qualDivClamped
   const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
   const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
@@ -1223,7 +1286,7 @@ function calcTaxReturn(input) {
     Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
   const rentalNII  = rentalForNII
-  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + _stGain + f4797NetGain) + rentalNII)
+  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, _ltGain + _stGain + f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
@@ -1235,7 +1298,7 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
-    ltGain: _ltGain + f4797PrefGain, qualDiv, regularTax: fedTax, status, taxYear,
+    ltGain: _ltGain + f4797PrefGain, qualDiv: _qualDivEff, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
@@ -1259,6 +1322,31 @@ function calcTaxReturn(input) {
     ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)
     : safeHarborCurrentYear
   const safeHarborBalance   = Math.max(0, safeHarborMinimum - totalPayments)
+  // AUDIT (2210-lite, Jul 2026): per-installment required amounts under §6654(d)(1)(A)
+  // — each installment is 25% of the required annual payment. Withholding is deemed
+  // paid evenly across installments (§6654(g)(1)). If per-quarter estimated payments
+  // (estQ1..estQ4) are supplied, actual timing is used; otherwise the single
+  // “estimated payments made” total is treated as evenly paid and the schedule is
+  // marked approximate. Penalty DOLLARS are deliberately not computed — the §6621
+  // underpayment rate floats quarterly; the schedule surfaces per-installment
+  // shortfalls for Form 2210. The §6654(d)(2) annualized-income method (seasonal
+  // income) remains a documented follow-up — it requires period-by-period income.
+  const _reqAnnual = safeHarborMinimum !== null ? safeHarborMinimum : safeHarborCurrentYear
+  const _perQProvided = [estQ1, estQ2, estQ3, estQ4].some(q => q !== undefined && q !== null && nf(q) > 0)
+  const _estQ = _perQProvided
+    ? [nf(estQ1), nf(estQ2), nf(estQ3), nf(estQ4)]
+    : [estimated / 4, estimated / 4, estimated / 4, estimated / 4]
+  const installmentSchedule = [0, 1, 2, 3].map(i => {
+    const requiredCum = Math.round(_reqAnnual * 0.25 * (i + 1))
+    const paidCum     = Math.round(withheld * 0.25 * (i + 1) + _estQ.slice(0, i + 1).reduce((a, b) => a + b, 0))
+    return {
+      quarter: i + 1,
+      requiredCumulative: requiredCum,
+      paidCumulative: paidCum,
+      shortfall: Math.max(0, requiredCum - paidCum),
+      approximate: !_perQProvided,
+    }
+  })
   const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
   const quarterlyRecommended = Math.max(
     balance > 0 ? Math.round(balance / 4) : 0,
@@ -1321,6 +1409,9 @@ function calcTaxReturn(input) {
     niitIncludesSCorpStockGain: distributionCapGain > 0,    // F-15 §1411(c)(4) flag
     stdDed, itemized, deduction, deductibleMedical,
     saltEntered, saltAllowed, saltCapApplied, saltDisallowed,  // AUDIT N-1 §164(b) cap
+    sCorpEPDividends,                                          // F-9 §1368(c)(2) dividends
+    charEntered, charFloorDisallowed, nonItemizerCharitable,   // N-9 / N-9b
+    itemizedLimitReduction,                                    // N-8 new §68 2/37
 
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
@@ -1345,6 +1436,7 @@ function calcTaxReturn(input) {
     amt,
     totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
+    installmentSchedule,                     // 2210-lite §6654(d)(1)(A)/(g)(1)
     priorYearMultiplier,
     safeHarborCurrentYear,
     safeHarborPriorYear,

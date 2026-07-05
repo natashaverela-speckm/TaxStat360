@@ -188,6 +188,11 @@ export default function TaxReturn() {
   const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')
   const [w2Withheld,   setW2Withheld]   = useState(savedCtx.w2Withheld    || '')
   const [estPaid,      setEstPaid]      = useState(savedCtx.estPaid        || '')
+  // 2210-lite (Jul 2026): optional per-installment payment timing (§6654(d)(1)(A)).
+  const [estQ1, setEstQ1] = useState(savedCtx.estQ1 || '')
+  const [estQ2, setEstQ2] = useState(savedCtx.estQ2 || '')
+  const [estQ3, setEstQ3] = useState(savedCtx.estQ3 || '')
+  const [estQ4, setEstQ4] = useState(savedCtx.estQ4 || '')
   const [dependents,   setDependents]   = useState(savedCtx.dependents     || '0')
   const [ytdMode,      setYtdMode]      = useState(!!(savedCtx.ytdMode))
   const [ytdMonth,     setYtdMonth]     = useState(savedCtx.ytdMonth       || new Date().getMonth() + 1)
@@ -371,6 +376,8 @@ export default function TaxReturn() {
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
+      charitableContr: nf(charitableContr),                       // N-9 / N-9b / N-8 wiring
+      estQ1: nf(estQ1), estQ2: nf(estQ2), estQ3: nf(estQ3), estQ4: nf(estQ4),  // 2210-lite
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
@@ -382,6 +389,7 @@ export default function TaxReturn() {
     }
   }, [
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
+    estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
@@ -1144,9 +1152,20 @@ export default function TaxReturn() {
                   onChange={setEstPaid}
                   placeholder="0"
                   tip={
-                    <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15." />
+                    <InfoTip text="Total federal estimated tax payments made for this tax year (Form 1040-ES, Quarters 1–4). Do NOT include your W-2 withholding — that goes in the field above. Due dates: Apr 15, Jun 15, Sep 15, Jan 15. For per-installment penalty accuracy, use the quarterly boxes below instead — §6654 penalties accrue per installment." />
                   }
                 />
+                {/* 2210-lite (Jul 2026): optional per-installment timing, §6654(d)(1)(A).
+                    When supplied, these OVERRIDE the total above for schedule purposes. */}
+                <div style={{ marginTop: 6, fontSize: 11, color: '#64748B' }}>
+                  Optional — payment by installment (overrides the total for the penalty schedule):
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginTop: 4 }}>
+                  <MoneyInput ariaLabel="Q1 paid (Apr 15)" value={estQ1} onChange={setEstQ1} placeholder="Q1" nonNegative style={{ fontSize: 12 }} />
+                  <MoneyInput ariaLabel="Q2 paid (Jun 15)" value={estQ2} onChange={setEstQ2} placeholder="Q2" nonNegative style={{ fontSize: 12 }} />
+                  <MoneyInput ariaLabel="Q3 paid (Sep 15)" value={estQ3} onChange={setEstQ3} placeholder="Q3" nonNegative style={{ fontSize: 12 }} />
+                  <MoneyInput ariaLabel="Q4 paid (Jan 15)" value={estQ4} onChange={setEstQ4} placeholder="Q4" nonNegative style={{ fontSize: 12 }} />
+                </div>
               </div>
             </div>
           </CollapsibleSection>
@@ -1351,6 +1370,19 @@ export default function TaxReturn() {
                         <InfoTip text="Cash contributions to qualified 501(c)(3) organizations (Line 11) and non-cash contributions (Line 12). Cash contributions generally limited to 60% of AGI." />
                       </label>
                       <MoneyInput ariaLabel="Charitable Contributions (Schedule A Line 11-12)" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
+                      {result?.charFloorDisallowed > 0 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                          ⚠ {fmt(result.charFloorDisallowed)} of charitable contributions disallowed — OBBBA 0.5%-of-AGI
+                          floor for itemizers (2026+). The disallowed amount may carry forward up to 5 years, subject to
+                          the same floor each year.
+                        </div>
+                      )}
+                      {result?.nonItemizerCharitable > 0 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                          ✓ {fmt(result.nonItemizerCharitable)} non-itemizer charitable deduction applied (IRC §170(p),
+                          2026+: up to $1,000 / $2,000 MFJ in addition to the standard deduction).
+                        </div>
+                      )}
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
@@ -1604,6 +1636,7 @@ export default function TaxReturn() {
                 // result.itemized and result.stdDed are both returned by the engine (line 1093/1171).
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
+                { label: '§68 Itemized Limitation (2/37)',  value: result.itemizedLimitReduction,            sign: 1, hide: !result.itemizedLimitReduction, accent: '#94A3B8', note: 'OBBBA §70111 — top-bracket itemizers: deduction benefit capped at 35¢/dollar', isAddback: true },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
@@ -1795,6 +1828,37 @@ export default function TaxReturn() {
               {result.safeHarborPriorYear != null && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
                   <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {isHighIncome ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
+                  {Array.isArray(result.installmentSchedule) && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                        Per-installment schedule (§6654(d)(1)(A); withholding deemed paid evenly, §6654(g)(1))
+                        {result.installmentSchedule[0]?.approximate && ' — approximate: enter per-quarter payments above for exact timing'}
+                      </div>
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead><tr style={{ color: '#64748B', textAlign: 'right' }}>
+                          <th style={{ textAlign: 'left', padding: '2px 4px' }}>Due</th>
+                          <th style={{ padding: '2px 4px' }}>Required (cum.)</th>
+                          <th style={{ padding: '2px 4px' }}>Paid (cum.)</th>
+                          <th style={{ padding: '2px 4px' }}>Shortfall</th>
+                        </tr></thead>
+                        <tbody>
+                          {result.installmentSchedule.map((q, i) => (
+                            <tr key={i} style={{ textAlign: 'right', color: q.shortfall > 0 ? '#9C1F1F' : '#166534' }}>
+                              <td style={{ textAlign: 'left', padding: '2px 4px' }}>{['Apr 15', 'Jun 15', 'Sep 15', 'Jan 15'][i]}</td>
+                              <td style={{ padding: '2px 4px' }}>{fmt(q.requiredCumulative)}</td>
+                              <td style={{ padding: '2px 4px' }}>{fmt(q.paidCumulative)}</td>
+                              <td style={{ padding: '2px 4px' }}>{q.shortfall > 0 ? fmt(q.shortfall) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div style={{ fontSize: 10, color: '#64748B', marginTop: 3 }}>
+                        Shortfalls accrue interest-rate penalties per installment (§6621: federal short-term rate + 3 points,
+                        reset quarterly) until paid. Seasonal income? The §6654(d)(2) annualized-income method (Form 2210
+                        Schedule AI) can reduce or eliminate earlier-quarter penalties — ask your CPA.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div style={{ fontSize: 11, color: SL, marginTop: 8, lineHeight: 1.5 }}>

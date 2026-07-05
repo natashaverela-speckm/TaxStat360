@@ -7,6 +7,29 @@ import { apiFetch } from './utils/apiClient.js'
 
 const N = '#0D1B3E'
 
+// AUDIT N-2 REPO-SIDE MITIGATION (Jul 2026): the Aria backend model self-reports an
+// Oct-2023 knowledge cutoff and answers rate/threshold questions with repealed
+// pre-OBBBA law (audit captured it advising "20% bonus depreciation" for 2026 -- the
+// correct answer is 100%, permanent, P.L. 119-21 Sec. 70301). Until the backend gains
+// current-law injection, this client-side guard pins a verified-facts card ABOVE the
+// model's reply whenever the question matches a stale-prone topic. Facts below are
+// maintained alongside the engine's parameter tables -- update both together.
+const VERIFIED_FACT_GUARDS = [
+  { rx: /bonus\s*depreciation|168\(k\)|cost\s*seg/i,
+    fact: 'Verified: 100% bonus depreciation is PERMANENT under IRC Sec. 168(k) as amended by OBBBA (P.L. 119-21 Sec. 70301) for qualified property acquired after Jan 19, 2025. The old 80%/60%/40%/20% phase-down no longer applies to new acquisitions. Cost-seg 5/7/15-year property placed in service in 2026 qualifies for the full 100%.' },
+  { rx: /\b179\b/i,
+    fact: 'Verified: Sec. 179 expensing limit is $2.5M with a $4M phase-out threshold for 2025 (OBBBA), indexed for 2026 -- confirm the current-year figure in the Tax Tracker before relying on a chat answer.' },
+  { rx: /401\(?k\)?|sep[- ]?ira|solo\s*401|retirement\s*limit|ira\s*limit/i,
+    fact: 'Verified 2026 limits (IRS Notice 2025-67): 401(k) elective deferral $24,500; Sec. 415(c) total DC limit $72,000; IRA $7,500 (catch-up $1,100); age-50 401(k) catch-up $8,000.' },
+  { rx: /salt|state and local tax/i,
+    fact: 'Verified 2026 SALT cap (OBBBA Sec. 70120): $40,400 ($20,200 MFS), reduced by 30% of MAGI above $505,000 ($252,500 MFS), floor $10,000 ($5,000 MFS). PTET elections remain available.' },
+  { rx: /standard deduction|tax bracket/i,
+    fact: 'Verified 2026 (Rev. Proc. 2025-32): standard deduction $16,100 single / $32,200 MFJ / $24,150 HOH; top 37% bracket starts at $640,600 single / $768,700 MFJ.' },
+]
+function verifiedFactsFor(question) {
+  return VERIFIED_FACT_GUARDS.filter(g => g.rx.test(question)).map(g => g.fact)
+}
+
 // AUDIT F16 FIX: the AI backend replies with markdown emphasis (**bold**), which
 // rendered as literal asterisks in the chat bubble. This converts **…** spans to
 // <strong> via React elements only — no dangerouslySetInnerHTML, so reply text can
@@ -133,6 +156,12 @@ export default function Aria() {
       }
 
       const d = await r.json()
+      // N-2 guard: pin verified figures ahead of the model's reply on stale-prone topics.
+      const _facts = verifiedFactsFor(userMsg)
+      if (_facts.length) {
+        setMsgs(m => [...m, { role: 'assistant', verified: true,
+          text: 'VERIFIED FIGURES -- ' + _facts.join('\n\n') + '\n\n(Pinned from this app\u2019s tax tables; if the answer below conflicts, trust these figures. The chat model\u2019s training data may predate the 2025 tax act.)' }])
+      }
       setMsgs(m => [...m, { role: 'assistant', text: d.reply || d.response || d.message || 'Sorry, I had trouble responding.' }])
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Connection error. Please try again.' }])
