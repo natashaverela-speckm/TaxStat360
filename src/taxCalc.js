@@ -1221,7 +1221,7 @@ function calcTaxReturn(input) {
   const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
   const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
   const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
-  const prefIncome = _ltGain + qualDiv + f4797PrefGain
+  const prefIncome = _ltGain + _qualDivEff + f4797PrefGain  // F-9 hotfix: include §1368(c)(2) E&P dividends
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
@@ -1234,7 +1234,12 @@ function calcTaxReturn(input) {
   const qbiAggregationApplied    = _qbiResult.aggregationApplied
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
-  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, qualDiv) + f4797PrefGain
+  // F-9 HOTFIX (post-deploy regression, Jul 2026): totalPrefIncome carves preferential
+  // income out of the ordinary base. It was still built from the RAW qualDiv input, so
+  // §1368(c)(2) E&P dividends were taxed at ordinary rates AND again at 15% by
+  // calcPreferentialTax — double-taxing the dividend. Must use _qualDivEff, matching
+  // every other consumer (_qualDivClamped, nii, grossIncome, calcAMT).
+  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, _qualDivEff) + f4797PrefGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   // AUDIT N-8 FIX (Jul 2026): new IRC §68 (OBBBA §70111) — for tax years beginning
   // after 12/31/2025, itemized deductions are reduced by 2/37 of the LESSER of

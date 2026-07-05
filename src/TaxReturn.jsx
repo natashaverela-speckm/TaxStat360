@@ -1351,6 +1351,27 @@ export default function TaxReturn() {
                   <InfoTip text={`Standard deduction for ${taxYear}: ${fmt(stdDed)} (${FS_OPTIONS.find(f => f.value === filingStatus)?.label || filingStatus}). Only itemize if your deductible expenses exceed this amount.`} />
                 </label>
               </div>
+              {/* HOTFIX (Jul 2026): the charitable field previously rendered only inside
+                  the itemized block, making the engine's §170(p) NON-itemizer deduction
+                  (up to $1,000 / $2,000 MFJ, 2026+) unreachable for the very filers it
+                  exists for. Standard-deduction users now get a dedicated field bound to
+                  the same state. */}
+              {!useItemized && taxYear >= 2026 && (
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
+                    Charitable Contributions — non-itemizer deduction (IRC §170(p))
+                  </label>
+                  <MoneyInput ariaLabel="Charitable Contributions (non-itemizer, §170(p))" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
+                  <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>
+                    Deductible up to $1,000 ($2,000 MFJ) in addition to the standard deduction, 2026+.
+                  </div>
+                  {result?.nonItemizerCharitable > 0 && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 5, padding: '5px 8px' }}>
+                      ✓ {fmt(result.nonItemizerCharitable)} §170(p) deduction applied.
+                    </div>
+                  )}
+                </div>
+              )}
               {useItemized && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 7, padding: '7px 10px' }}>
