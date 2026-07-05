@@ -36,8 +36,10 @@ describe('getBrackets', () => {
   it('2025 mfj 22% bracket boundary at $206,700', () => {
     expect(getBrackets(2025, 'mfj').find(b => b[1] === 0.22)).toEqual([206700, 0.22])
   })
-  it('2026 single 22% bracket boundary at $106,900 (post-OBBBA)', () => {
-    expect(getBrackets(2026, 'single').find(b => b[1] === 0.22)).toEqual([106900, 0.22])
+  it('2026 single 22% bracket boundary at $105,700 (Rev. Proc. 2025-32)', () => {
+    // AUDIT F-1 FIX: official 2026 single 22% bracket top is $105,700 (Rev. Proc.
+    // 2025-32) — the prior 106,900 was a pre-official projection.
+    expect(getBrackets(2026, 'single').find(b => b[1] === 0.22)).toEqual([105700, 0.22])
   })
   it('unknown year falls back to the current-year brackets', () => {
     expect(getBrackets(2099, 'single')).toEqual(getBrackets(CURRENT_TAX_YEAR, 'single'))
@@ -91,7 +93,9 @@ describe('calcFederalTax', () => {
     expect(calcFederalTax(75000, 2025, 'mfj')).toBe(8523)
   })
   it('2026 brackets differ from 2025 (post-OBBBA inflation adjustment)', () => {
-    expect(calcFederalTax(75000, 2026, 'single')).toBe(11252)
+    // Official 2026 single (Rev. Proc. 2025-32): 1,240 (10% × 12,400)
+    // + 4,560 (12% × 38,000) + 5,412 (22% × 24,600) = 11,212
+    expect(calcFederalTax(75000, 2026, 'single')).toBe(11212)
   })
   it('HOH brackets sit between single and MFJ', () => {
     expect(calcFederalTax(75000, 2025, 'hoh')).toBe(9675)
@@ -133,24 +137,50 @@ describe('calcPreferentialTax', () => {
     // Combined $15k pref at 15% = $2,250
     expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000 }, 2025, 'single')).toBe(2250)
   })
-  it('unrecap1250 alone taxed at 25%', () => {
-    expect(calcPreferentialTax(100000, { unrecap1250: 10000 }, 2025, 'single')).toBe(2333)
+  it('unrecap1250 with no LTCG is a no-op (slice semantics, matches engine pre-clamp)', () => {
+    // AUDIT F-5: unrecap1250/collectibles are SLICES of `ltcg` — they re-rate gain
+    // already included in income, never invent tax on gain that was never included.
+    // The engine caller has always pre-clamped the slice to ≤ ltcg (see taxCalc.js
+    // _unrecap1250Clamped), so the old direct-call value here (2,333) was unreachable
+    // through the engine. The function now enforces the same clamp itself.
+    expect(calcPreferentialTax(100000, { unrecap1250: 10000 }, 2025, 'single')).toBe(0)
   })
-  it('collectibles alone taxed at 28%', () => {
-    expect(calcPreferentialTax(100000, { collectibles: 10000 }, 2025, 'single')).toBe(2333)
+  it('unrecap1250 slice of LTCG: flat 25% with all-ordinary backstop', () => {
+    // ltcg 10,000 entirely recharacterized as §1250 gain. Flat 25% = 2,500, but the
+    // Sch D worksheet backstop caps at all-ordinary treatment: 2025 single, ordinary
+    // floor 100,000 → next 10,000 ordinary = 3,350×22% + 6,650×24% = 2,333. min → 2,333.
+    expect(calcPreferentialTax(100000, { ltcg: 10000, unrecap1250: 10000 }, 2025, 'single')).toBe(2333)
+  })
+  it('unrecap1250 slice at flat 25% when ordinary bracket exceeds 25%', () => {
+    // Ordinary floor 300,000 (35% bracket, 2025 single) → backstop (3,500) does not
+    // bind; §1(h)(1)(E) flat 25% × 10,000 = 2,500.
+    expect(calcPreferentialTax(300000, { ltcg: 10000, unrecap1250: 10000 }, 2025, 'single')).toBe(2500)
+  })
+  it('collectibles with no LTCG is a no-op (slice semantics)', () => {
+    expect(calcPreferentialTax(100000, { collectibles: 10000 }, 2025, 'single')).toBe(0)
+  })
+  it('collectibles slice: flat 28% with all-ordinary backstop', () => {
+    // Flat 28% = 2,800 vs all-ordinary 2,333 (same math as above) → 2,333.
+    expect(calcPreferentialTax(100000, { ltcg: 10000, collectibles: 10000 }, 2025, 'single')).toBe(2333)
+    // High bracket: backstop does not bind → flat 28% = 2,800.
+    expect(calcPreferentialTax(300000, { ltcg: 10000, collectibles: 10000 }, 2025, 'single')).toBe(2800)
   })
   it('all four preferential types combined', () => {
-    // ltcg $10k at 15% = 1500; qualDiv $5k at 15% = 750; 1250 $4k × 0.25 = 1000; coll $2k × 0.28 = 560
-    // ltcg+qualDiv @15% =2250; unrecap1250+collectibles @ lower-of-cap-or-ordinary =473 → 2723
-    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2723)
+    // AUDIT F-5 FIX — Sch D Tax Worksheet stacking:
+    // slices come OUT of ltcg: adjNCG = (10,000 − 4,000 − 2,000) + 5,000 qualDiv = 9,000 @15% = 1,350
+    // + unrecap1250 4,000 × 25% = 1,000  (§1(h)(1)(E))
+    // + collectibles 2,000 × 28% = 560   (§1(h)(4))
+    // = 2,910; backstop (all-ordinary on 15,000 above 100,000 = 3,533) does not bind.
+    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2910)
   })
   it('MFJ has higher 0% threshold ($96,700)', () => {
     // Same case as single straddle but MFJ 0% top = $96,700 → all $20k LTCG fits in 0%
     expect(calcPreferentialTax(40000, { ltcg: 20000 }, 2025, 'mfj')).toBe(0)
   })
   it('2026 thresholds shift (post-OBBBA inflation)', () => {
-    // 2026 single 0% top = $50,400. Ordinary $40k → room $10,400 at 0%; remaining $9,600 at 15% = $1,440
-    expect(calcPreferentialTax(40000, { ltcg: 20000 }, 2026, 'single')).toBe(1440)
+    // AUDIT F-1 FIX: official 2026 single 0% top = $49,450 (Rev. Proc. 2025-32 §4.03).
+    // Ordinary $40k → room $9,450 at 0%; remaining $10,550 at 15% = $1,582.50 → $1,583
+    expect(calcPreferentialTax(40000, { ltcg: 20000 }, 2026, 'single')).toBe(1583)
   })
 })
 
@@ -216,7 +246,7 @@ describe('getMarginalRate', () => {
     expect(getMarginalRate(48476, 2025, 'single')).toBe(0.22)
   })
   it('2026 brackets differ from 2025 (post-OBBBA)', () => {
-    // 2026 single 22% boundary at $106,900; $100k still in 22%
+    // 2026 single 22% boundary at $105,700 (Rev. Proc. 2025-32); $100k still in 22%
     expect(getMarginalRate(100000, 2026, 'single')).toBe(0.22)
   })
 })

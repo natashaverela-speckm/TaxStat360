@@ -75,7 +75,7 @@ const TAX_TABLES = {
       mfj:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]],
       mfs:    [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[365600,.35],[Infinity,.37]],
       hoh:    [[16550,.10],[63100,.12],[100500,.22],[191950,.24],[243700,.32],[609350,.35],[Infinity,.37]],
-      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.37],[Infinity,.37]],
+      qss:    [[23200,.10],[94300,.12],[201050,.22],[383900,.24],[487450,.32],[731200,.35],[Infinity,.37]]  // AUDIT: fixed .37 typo at the 35% cap,
     },
     ltcg:    { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
@@ -91,6 +91,7 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
+    hsa: { selfOnly: 4150, family: 8300 },  // Rev. Proc. 2023-23
     mileageRate: 0.67,
     amt: {
       exemption:    { single:85700,  mfj:133300, mfs:66650,  hoh:85700,  qss:133300 },
@@ -130,6 +131,7 @@ const TAX_TABLES = {
       iraLimit:          7000,
       catchUpIra:        1000,
     },
+    hsa: { selfOnly: 4300, family: 8550 },  // Rev. Proc. 2024-25
     mileageRate: 0.70,
     amt: {
       exemption:    { single:88100,  mfj:137000, mfs:68650,  hoh:88100,  qss:137000 },
@@ -150,27 +152,37 @@ const TAX_TABLES = {
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
     ssWageBase: 184500,
+    // AUDIT F-1 FIX (Jul 2026): prior values were pre-official projections that missed
+    // OBBBA's asymmetric adjustment (+4% bottom two brackets, ~+2.3% upper). Every
+    // figure below is transcribed from Rev. Proc. 2025-32 §4.01 (brackets) and §4.03
+    // (LTCG breakpoints, §1(h)). Do not "index forward" by formula — transcribe from
+    // the Rev. Proc. each year.
     brackets: {
-      single: [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[648750,.35],[Infinity,.37]],
-      mfj:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
-      mfs:    [[12400,.10],[50000,.12],[106900,.22],[203900,.24],[259350,.32],[388825,.35],[Infinity,.37]],
-      hoh:    [[17600,.10],[67050,.12],[106900,.22],[203900,.24],[259300,.32],[648700,.35],[Infinity,.37]],
-      qss:    [[24800,.10],[100000,.12],[213800,.22],[407800,.24],[518700,.32],[777650,.35],[Infinity,.37]],
+      single: [[12400,.10],[50400,.12],[105700,.22],[201775,.24],[256225,.32],[640600,.35],[Infinity,.37]],
+      mfj:    [[24800,.10],[100800,.12],[211400,.22],[403550,.24],[512450,.32],[768700,.35],[Infinity,.37]],
+      mfs:    [[12400,.10],[50400,.12],[105700,.22],[201775,.24],[256225,.32],[384350,.35],[Infinity,.37]],
+      hoh:    [[17700,.10],[67450,.12],[105700,.22],[201750,.24],[256200,.32],[640600,.35],[Infinity,.37]],
+      qss:    [[24800,.10],[100800,.12],[211400,.22],[403550,.24],[512450,.32],[768700,.35],[Infinity,.37]],
     },
-    ltcg:    { single:[50400,557050], mfj:[100800,626350], mfs:[50400,313175], hoh:[67650,591800], qss:[100800,626350] },
+    ltcg:    { single:[49450,545500], mfj:[98900,613700], mfs:[49450,306850], hoh:[66200,579600], qss:[98900,613700] },
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
     ebl: { single:320000, mfj:640000, mfs:320000, hoh:320000, qss:640000 },
     ctc: { perChild: 2200 },
+    // AUDIT F-8 FIX (Jul 2026): prior values were pre-official projections. All figures
+    // below transcribed from IRS Notice 2025-67 (Nov 2025).
     retirement: {
-      sepIraMax:        71000,
-      solo401kDeferral: 24000,
-      solo401kMax:      71000,
-      catchUp401k:       7500,
-      catchUp401kSuper: 11250,
-      iraLimit:          7000,
-      catchUpIra:        1000,
+      sepIraMax:        72000,   // §415(c)(1)(A)
+      solo401kDeferral: 24500,   // §402(g)(1)
+      solo401kMax:      72000,   // §415(c)(1)(A)
+      catchUp401k:       8000,   // §414(v)(2)(B)(i)
+      catchUp401kSuper: 11250,   // §414(v)(2)(E) ages 60-63 (unchanged)
+      iraLimit:          7500,   // §219(b)(5)(A)
+      catchUpIra:        1100,   // §219(b)(5)(B)
     },
+    // AUDIT F-8 FIX: HSA limits by year (previously hardcoded 2025 figures in the
+    // AIAnalysis strategy card). 2026 per Rev. Proc. 2025-19.
+    hsa: { selfOnly: 4400, family: 8750 },
     mileageRate: 0.725,
     amt: {
       exemption:    { single:90100,  mfj:140200, mfs:70100,  hoh:90100,  qss:140200 },
@@ -239,25 +251,43 @@ function calcFederalTax(ordinaryIncome, year, fs) {
 // Â§1(h) IRC â preferential rates: LTCG / qualified dividends / Â§1250 / collectibles.
 // 0% Â§1(h)(1)(B) Â· 15% Â§1(h)(1)(C) Â· 20% Â§1(h)(1)(D) Â· Â§1250 max 25% Â§1(h)(6) Â· collectibles max 28% Â§1(h)(4).
 function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
+  // AUDIT F-5 FIX (Jul 2026). Prior version stacked the §1250/collectibles slices at
+  // the ORDINARY floor and charged incremental ordinary-bracket tax capped at 25%/28%,
+  // which (a) let low ordinary brackets (10/12/22%) tax unrecaptured §1250 gain and
+  // (b) simultaneously removed the slice from the 15% bucket — understating tax
+  // (observed ≈$3,310 per $50,000 on audit facts). The Schedule D Tax Worksheet taxes
+  // the 25%-rate gain (§1(h)(1)(E)/(h)(6)) and 28%-rate gain (§1(h)(4)) at flat
+  // 25%/28% AFTER the 0/15/20 adjusted-net-capital-gain stack, with a final backstop:
+  // total preferential tax may never exceed all-ordinary treatment of the same income
+  // (protects low-bracket taxpayers, mirroring the worksheet's "smaller of" lines).
+  //
+  // SEMANTICS (unchanged, now clamped + documented): unrecap1250 and collectibles are
+  // SLICES of the long-term gain already included in `ltcg` — they re-rate a portion
+  // of it, they do not add income. The UI label must say so (see TaxReturn.jsx).
   const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
   const [threshold0, threshold15] = getLTCGThresholds(year, fs)
-  let tax = 0
-  const slices = Math.max(0, unrecap1250) + Math.max(0, collectibles); const regularLTCG = Math.max(0, ltcg - slices); const totalPref = regularLTCG + qualDiv
-  if (totalPref <= 0 && unrecap1250 <= 0 && collectibles <= 0) return 0
   const ordFloor = Math.max(0, ordinaryIncome)
-  if (totalPref > 0) {
+  const _ltcgPos = Math.max(0, ltcg)
+  const _u1250   = Math.min(Math.max(0, unrecap1250), _ltcgPos)
+  const _coll    = Math.min(Math.max(0, collectibles), _ltcgPos - _u1250)
+  const adjNCG   = (_ltcgPos - _u1250 - _coll) + Math.max(0, qualDiv)  // 0/15/20 bucket
+  const totalPrefAll = adjNCG + _u1250 + _coll
+  if (totalPrefAll <= 0) return 0
+  let tax = 0
+  if (adjNCG > 0) {
     const zeroRoom    = Math.max(0, threshold0  - ordFloor)
-    const atZero      = Math.min(totalPref, zeroRoom)
+    const atZero      = Math.min(adjNCG, zeroRoom)
     const fifteenRoom = Math.max(0, threshold15 - Math.max(ordFloor, threshold0))
-    const remaining15 = totalPref - atZero
-    const atFifteen   = Math.min(remaining15, fifteenRoom)
-    const atTwenty    = totalPref - atZero - atFifteen
+    const atFifteen   = Math.min(adjNCG - atZero, fifteenRoom)
+    const atTwenty    = adjNCG - atZero - atFifteen
     tax += atFifteen * LTCG_RATE_MID
     tax += atTwenty  * LTCG_RATE_HIGH
   }
-  const cappedSliceTax = (base, amount, cap) => { if (amount <= 0) return 0; const o = calcFederalTax(base + amount, year, fs) - calcFederalTax(base, year, fs); return Math.min(o, amount * cap) }; const _u1250 = Math.max(0, unrecap1250); const _coll = Math.max(0, collectibles); tax += cappedSliceTax(ordFloor, _u1250, UNRECAPTURED_1250_MAX_RATE); tax += cappedSliceTax(ordFloor + _u1250, _coll, COLLECTIBLES_MAX_RATE)
-  
-  return Math.round(tax)
+  tax += _u1250 * UNRECAPTURED_1250_MAX_RATE   // flat 25%, §1(h)(1)(E)
+  tax += _coll  * COLLECTIBLES_MAX_RATE        // flat 28%, §1(h)(4)
+  // Worksheet backstop: never worse than all-ordinary treatment of the pref stack.
+  const allOrdinary = calcFederalTax(ordFloor + totalPrefAll, year, fs) - calcFederalTax(ordFloor, year, fs)
+  return Math.round(Math.min(tax, allOrdinary))
 }
 /** Â§1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI â threshold).
  *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH â statutory, not inflation-adjusted.
@@ -284,8 +314,10 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const isoAddback   = Math.max(0, isoBargainElement || 0)
   const stdDedAddback = isItemizing ? 0 : Math.max(0, stdDed || 0)
   const amti         = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback
-  const phaseoutOver = Math.max(0, amti - amtTable.phaseoutStart[status])
-  const exemption    = Math.max(0, amtTable.exemption[status] - phaseoutOver * amtTable.phaseoutRate)
+  const _phaseoutStart = amtTable.phaseoutStart[status] ?? amtTable.phaseoutStart.single
+  const _exemptionAmt  = amtTable.exemption[status]     ?? amtTable.exemption.single
+  const phaseoutOver = Math.max(0, amti - _phaseoutStart)
+  const exemption    = Math.max(0, _exemptionAmt - phaseoutOver * amtTable.phaseoutRate)
   const amtTaxable   = Math.max(0, amti - exemption)
   if (amtTaxable === 0) return 0
   const preferential = Math.max(0, ltGain) + Math.max(0, qualDiv)
@@ -546,7 +578,11 @@ function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = 
 function calcTaxReturn(input) {
   input = _annualizeIfYTD(input)
   const {
-    taxYear, status, dependents,
+    // AUDIT HARDENING (found during F-4 verification): `status` previously had no
+    // default. Every consumer except calcAMT falls back to 'single' internally, so an
+    // omitted/nonstandard filing-status key silently produced amt = NaN → totalTax =
+    // NaN. Default here + calcAMT-level fallbacks below make the engine total-safe.
+    taxYear, status = 'single', dependents,
     entities: _rawEntities = [],
     w2 = 0, k1Total = 0, rentalNet = 0,
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
@@ -732,7 +768,9 @@ function calcTaxReturn(input) {
     const k1Gross = e.k1 !== undefined
       ? parseFloat(e.k1) || 0
       : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
-    const net = k1Gross - nf(e.box11_12) - nf(e.box12_13)
+    // AUDIT F-13 FIX: K-1 charitable (box12_13) is a Schedule A itemized deduction —
+    // it never reduces ordinary pass-through income. Only §179 (box11_12) nets here.
+    const net = k1Gross - nf(e.box11_12)
     step1RentalNet += net
     if (e.isREP) step1RentalREP = true
     if (e.isActiveParticipant) step1RentalActive = true
@@ -794,7 +832,20 @@ function calcTaxReturn(input) {
       excessCapGain:   Math.round(excess),
     })
   })
-  const _ltGain = nf(ltGain) + distributionCapGain
+  // AUDIT F-10 FIX: §1368(b)(2) gain takes the STOCK's holding period (§1222) — it is
+  // not automatically long-term. Entities flagged stockHeldShortTerm (held ≤ 1 year,
+  // common after a new S-election) route their excess-distribution gain to the
+  // short-term (ordinary-rate) bucket. Default remains long-term.
+  let distributionCapGainST = 0
+  entities.forEach((e, idx) => {
+    if (!e || !e.stockHeldShortTerm) return
+    const r = entityDistributionResults[idx]
+    if (r && r.excessCapGain > 0) distributionCapGainST += r.excessCapGain
+  })
+  const distributionCapGainLT = Math.max(0, distributionCapGain - distributionCapGainST)
+  const _stGainExtra = distributionCapGainST
+  const _ltGain = nf(ltGain) + distributionCapGainLT
+  const _stGain = nf(stGain) + _stGainExtra
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // Â§469(i) active-participation applies to whatever rental pool exists. Rentals now
@@ -853,7 +904,7 @@ function calcTaxReturn(input) {
   if (!perPropertyRegimeActive) {
     // ââ LEGACY branch (unchanged) âââââââââââââââââââââââââââââââââââââââââââââ
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + stGain + _ltGain + intInc + divInc + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + _stGain + _ltGain + intInc + divInc + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -901,7 +952,7 @@ function calcTaxReturn(input) {
         const k1Gross = e.k1 !== undefined
           ? parseFloat(e.k1) || 0
           : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
-        const net = k1Gross - nf(e.box11_12) - nf(e.box12_13)
+        const net = k1Gross - nf(e.box11_12)  // F-13: charitable (box12_13) excluded
         if (effectiveIsREP && e.materiallyParticipates === true) np += net
         else pv += net
       })
@@ -918,7 +969,7 @@ function calcTaxReturn(input) {
     // as computed against the combined pool â no per-property regime test exercises it.)
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + stGain + _ltGain + intInc + divInc + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + _stGain + _ltGain + intInc + divInc + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -942,7 +993,7 @@ function calcTaxReturn(input) {
   // â it only informs how much of the capital gain offsets business losses in the EBL netting.
   const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
   const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
-  const eblOverallCapGainNI   = nf(stGain) + _ltGain + nf(f4797Inc)
+  const eblOverallCapGainNI   = _stGain + _ltGain + nf(f4797Inc)
                               
   const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
   const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
@@ -1001,13 +1052,34 @@ function calcTaxReturn(input) {
     ficaSubjectWages: totalW2ForFICA,
     ssWageBase,
   })
-  const selfEmpHealthDed     = ytdScale(selfEmpHealthIns)
+  // AUDIT F-7 FIX: §162(l)(5)(A) — the self-employed health insurance deduction is
+  // limited to earned income from the trade or business under which the plan is
+  // established: S-corp shareholders → their W-2 officer wages from the S-corp
+  // (Notice 2008-1); Schedule C / SE pass-throughs → net SE earnings less ½ SE tax
+  // and SE retirement contributions (Pub. 535 worksheet). Previously uncapped
+  // (audit observed a $70,000 deduction allowed against $60,000 of wages).
+  // NOTE: the §469(i) MAGI pre-estimates above still subtract the raw entry; the
+  // cap cannot be computed before seTax exists. Direction of that residual is
+  // conservative (lower allowance) and only bites when the entry exceeds the cap.
+  const sehiEntered          = ytdScale(selfEmpHealthIns)
+  const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
+    if (!e || !isSCorpEntity(e.type)) return s
+    return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
+  }, 0)
+  const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
+  const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
+  const selfEmpHealthDed     = Math.min(sehiEntered, sehiLimit)
+  const sehiClamped          = sehiEntered > selfEmpHealthDed
   const hsaDed               = ytdScale(hsaDeduction)
   const studentLoanDed       = Math.min(ytdScale(studentLoanInt), 2500)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
+  // AUDIT F-13: surface total K-1 charitable so the UI can direct it to Schedule A.
+  // Deliberately NOT auto-added to itemizedAmt (the user may already have included
+  // it there); income is simply no longer reduced by it.
+  const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
   const stdDed    = getStdDed(taxYear, status)
-  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + stGain + _ltGain
+  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + _stGain + _ltGain
     + intInc + divInc + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
@@ -1046,7 +1118,10 @@ function calcTaxReturn(input) {
     // (Treas. Reg. Â§1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
     // QBI loss so it reduces QBI then.
     const k1Gross = e.k1 !== undefined ? nf(e.k1) : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
-    const k1      = k1Gross - nf(e.box11_12) - nf(e.box12_13)
+    // AUDIT F-13 FIX: charitable contributions do NOT reduce QBI (Form 8995
+    // instructions, 2021-present); only the separately-stated §179 nets out
+    // (Treas. Reg. §1.199A-3(b)(1)(ii)(A)).
+    const k1      = k1Gross - nf(e.box11_12)
     const scale   = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
@@ -1112,7 +1187,7 @@ function calcTaxReturn(input) {
     Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
   const rentalNII  = rentalForNII
-  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + stGain + f4797NetGain) + rentalNII)
+  const nii        = Math.max(0, intInc + divInc + Math.max(0, _ltGain + _stGain + f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
@@ -1203,6 +1278,11 @@ function calcTaxReturn(input) {
     employeeFICA, totalW2ForFICA,
     ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
+    // AUDIT FIX result fields (Jul 2026):
+    sehiEntered, sehiLimit, sehiClamped,                    // F-7  §162(l)(5)(A) cap
+    k1CharitableTotal,                                      // F-13 route to Schedule A
+    distributionCapGainST, distributionCapGainLT,           // F-10 §1368 gain character
+    niitIncludesSCorpStockGain: distributionCapGain > 0,    // F-15 §1411(c)(4) flag
     stdDed, itemized, deduction, deductibleMedical,
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,

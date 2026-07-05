@@ -63,14 +63,30 @@ describe('toEngineContext translation (AUDIT F2, second root cause)', () => {
     expect(byKey.sCorp).toBeLessThan(byKey.soleProp)
   })
 
-  it('raw session context (the pre-fix wiring) is rejected by the engine — documents the failure mode', () => {
-    const result = compareEntityScenarios({
+  it('raw session context degrades gracefully (post-hardening) but still loses its inputs — translation remains required', () => {
+    // AUDIT HARDENING UPDATE (Jul 2026): the engine previously produced NaN totals when
+    // fed untranslated session keys, because calcAMT indexed exemption/phaseoutStart by
+    // an undefined `status`. The engine now defaults status='single' and calcAMT falls
+    // back per filing status, so totals are FINITE even for untranslated context — the
+    // failure mode this test documented no longer exists. What is still true, and what
+    // this test now documents: untranslated context silently DROPS its inputs (w2Income
+    // is not w2, filingStatus is not status), so the numbers are wrong — translation
+    // through toEngineContext is still required for correctness, just no longer for
+    // finiteness.
+    const raw = compareEntityScenarios({
       personalContext: sessionContext,   // deliberately untranslated
       entities: [sCorpEntity],
       entityIdx: 0,
       netProfitShare: 250000,
     })
-    const finite = result.scenarios.every(s => Number.isFinite(s.totalTax) && s.totalTax > 0)
-    expect(finite).toBe(false)
+    raw.scenarios.forEach(s => expect(Number.isFinite(s.totalTax)).toBe(true))
+    const translated = compareEntityScenarios({
+      personalContext: toEngineContext(sessionContext, [sCorpEntity], 0),
+      entities: [sCorpEntity],
+      entityIdx: 0,
+      netProfitShare: 250000,
+    })
+    // The untranslated run ignored the $50,000 W-2 (w2Income key) — totals must differ.
+    expect(raw.scenarios[0].totalTax).not.toBe(translated.scenarios[0].totalTax)
   })
 })
