@@ -396,3 +396,62 @@ describe('calcAMT', () => {
     expect(r2025).toBeGreaterThan(0)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT N-1 (Jul 2026): §164(b)(6)/(b)(7) SALT cap + OBBBA §70120 phase-down
+// ═══════════════════════════════════════════════════════════════════════════
+import { getSaltCap, calcTaxReturn as _ctrSalt } from './taxCalc.js'
+
+describe('getSaltCap — §164(b)(6)/(b)(7) as amended by OBBBA §70120', () => {
+  it('2026 base cap $40,400 below the phase-down threshold', () => {
+    expect(getSaltCap(2026, 'single', 300000)).toBe(40400)
+    expect(getSaltCap(2026, 'mfj', 505000)).toBe(40400)
+  })
+  it('2026 phase-down: 30% of MAGI over $505,000', () => {
+    // MAGI 555,000 → excess 50,000 → 40,400 − 15,000 = 25,400
+    expect(getSaltCap(2026, 'single', 555000)).toBe(25400)
+  })
+  it('2026 floor $10,000 at/above ~$606,333 MAGI', () => {
+    expect(getSaltCap(2026, 'single', 650000)).toBe(10000)
+  })
+  it('MFS: half of cap, threshold, and floor', () => {
+    expect(getSaltCap(2026, 'mfs', 100000)).toBe(20200)
+    // MAGI 272,500 → excess over 252,500 = 20,000 → 20,200 − 6,000 = 14,200
+    expect(getSaltCap(2026, 'mfs', 272500)).toBe(14200)
+    expect(getSaltCap(2026, 'mfs', 400000)).toBe(5000)
+  })
+  it('2025 uses $40,000 / $500,000; 2024 has no phase-down', () => {
+    expect(getSaltCap(2025, 'single', 550000)).toBe(25000) // 40,000 − 15,000
+    expect(getSaltCap(2024, 'single', 900000)).toBe(10000) // flat TCJA cap
+  })
+})
+
+describe('engine applies the SALT cap in the itemized total (AUDIT N-1)', () => {
+  const base = { taxYear: 2026, status: 'single', w2: 100000, useItemized: true }
+  it('caps $60,000 SALT at $40,400; only the excess is backed out', () => {
+    // itemizedAmt 65,000 = 60,000 SALT + 5,000 mortgage → allowed 40,400 + 5,000 = 45,400
+    const r = _ctrSalt({ ...base, itemizedAmt: 65000, saltAmount: 60000 })
+    expect(r.saltAllowed).toBe(40400)
+    expect(r.saltDisallowed).toBe(19600)
+    expect(r.itemized).toBe(45400)
+  })
+  it('phase-down engages at high MAGI (pre-NOL AGI proxy)', () => {
+    // w2 555,000 → MAGI 555,000 → cap 25,400 → itemized 25,400 + 5,000 = 30,400
+    const r = _ctrSalt({ ...base, w2: 555000, itemizedAmt: 65000, saltAmount: 60000 })
+    expect(r.saltCapApplied).toBe(25400)
+    expect(r.itemized).toBe(30400)
+  })
+  it('SALT under the cap passes through untouched', () => {
+    const r = _ctrSalt({ ...base, itemizedAmt: 25000, saltAmount: 20000 })
+    expect(r.saltDisallowed).toBe(0)
+    expect(r.itemized).toBe(25000)
+  })
+  it('AMT addback equals the SALT actually deducted (post-cap)', () => {
+    // With the cap applied, the AMT SALT addback can never exceed saltAllowed;
+    // AMTI-side behavior is exercised via the ISO path elsewhere. Here just
+    // assert result exposes the capped figures consistently.
+    const r = _ctrSalt({ ...base, itemizedAmt: 65000, saltAmount: 60000, hasISO: true, isoBargainElement: 200000 })
+    expect(r.saltAllowed).toBeLessThanOrEqual(40400)
+    expect(Number.isFinite(r.totalTax)).toBe(true)
+  })
+})

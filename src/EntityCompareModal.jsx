@@ -347,7 +347,9 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               Net profit share: <strong style={{ color: N }}>{fmt(netProfitShare)}</strong>
               {entity.pnl && (
                 <span style={{ color: SL }}>
-                  {' '}({fmt(entity.pnl.netProfit)} × {entity.own}%)
+                  {/* AUDIT N-4 FIX: netProfitShare adds officer salary back (pre-salary profit
+                      for apples-to-apples entity comparison) — the caption must say so. */}
+                  {' '}(({fmt(entity.pnl.netProfit)} net + {fmt(parseFloat(entity.officerW2 ?? entity.pnl.officerSalary) || 0)} officer salary) × {entity.own}%)
                 </span>
               )}
             </div>
@@ -465,11 +467,12 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
                   but only {fmt(rcRisk.w2Wages)} in W-2 wages
                   ({(rcRisk.ratio * 100).toFixed(1)}% ratio).
                   The IRS requires S Corp owner-employees to pay themselves "reasonable compensation"
-                  per IRC §1366 / §3121. Distributions reclassified as wages by the IRS trigger
+                  per IRC §162(a)(1), Treas. Reg. §1.162-7, and Rev. Rul. 74-44 (wage
+                  treatment under IRC §3121). Distributions reclassified as wages by the IRS trigger
                   payroll tax + penalties + interest.
                   {rcRisk.severity === 'high'
                     ? ' Zero W-2 wages with a profitable S Corp is the highest-risk pattern.'
-                    : ' Industry rule of thumb is 30–60% of profit; below 40% draws scrutiny.'}
+                    : ' There is no statutory safe harbor; common practitioner heuristics fall around 35–60% of profit, and ratios below roughly 40% tend to draw scrutiny (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)).'}
                 </div>
               </div>
             </div>

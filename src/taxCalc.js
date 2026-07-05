@@ -100,6 +100,8 @@ const TAX_TABLES = {
       bracket26_28: { single:232600, mfj:232600, mfs:116300, hoh:232600, qss:232600 },
     },
     saltCap: 10000,
+    // Pre-OBBBA TCJA cap — no phase-down structure existed for 2024.
+    saltPhaseDown: null,
     qbi: {
       threshold:    { single:191950, mfj:383900, hoh:191950, mfs:191950 },
       phaseIn:      { single:50000,  mfj:100000, hoh:50000,  mfs:50000 },
@@ -139,7 +141,8 @@ const TAX_TABLES = {
       phaseoutRate: 0.25,
       bracket26_28: { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
     },
-    saltCap: 40000,
+    saltCap: 40000,   // §164(b)(6) as amended by OBBBA §70120 (2025: $40,000 / $20,000 MFS)
+    saltPhaseDown: { threshold: 500000, floor: 10000 },  // 30% of MAGI excess; MFS = half of each
     qbi: {
       threshold:    { single:197300, mfj:394600, hoh:197300, mfs:197300 },
       phaseIn:      { single:50000,  mfj:100000, hoh:50000,  mfs:50000 },
@@ -190,7 +193,8 @@ const TAX_TABLES = {
       phaseoutRate: 0.50,
       bracket26_28: { single:244500, mfj:244500, mfs:122250, hoh:244500, qss:244500 },
     },
-    saltCap: 40400,
+    saltCap: 40400,   // AUDIT N-1 (Jul 2026): 2026 = $40,400 / $20,200 MFS — OBBBA §70120, Rev. Proc. 2025-32
+    saltPhaseDown: { threshold: 505000, floor: 10000 },  // phase-down 30% of MAGI over $505K ($252.5K MFS), floor $10K ($5K MFS)
     qbi: {
       threshold:    { single:201775, mfj:403500, hoh:201775, mfs:201775 },
       phaseIn:      { single:75000,  mfj:150000, hoh:75000,  mfs:75000 },
@@ -213,6 +217,24 @@ const _byYearDefined = (sel) =>
   Object.fromEntries(_TAX_YEARS.map(y => [y, sel(TAX_TABLES[y])]).filter(([, v]) => v != null))
 const AMT_TABLES         = _byYear(t => t.amt)
 const SALT_CAPS          = _byYear(t => t.saltCap)
+const SALT_PHASE_DOWN    = _byYear(t => t.saltPhaseDown)
+
+/** AUDIT N-1 FIX (Jul 2026): §164(b)(6)/(b)(7) as amended by OBBBA §70120.
+ *  Returns the SALT cap for the year/status after the MAGI-based phase-down:
+ *  cap reduced by 30% of MAGI over the threshold, never below the floor.
+ *  MFS uses half of the cap, threshold, and floor. Pre-2025 years have no
+ *  phase-down (saltPhaseDown: null). MAGI here = AGI (the §164(b)(7) addbacks
+ *  — §911/931/933 exclusions — are not modeled by this app). */
+function getSaltCap(taxYear, status, magi) {
+  const half = status === 'mfs' ? 0.5 : 1
+  const base = (SALT_CAPS[taxYear] ?? SALT_CAPS[CURRENT_TAX_YEAR]) * half
+  const pd   = SALT_PHASE_DOWN[taxYear] !== undefined ? SALT_PHASE_DOWN[taxYear] : SALT_PHASE_DOWN[CURRENT_TAX_YEAR]
+  if (!pd) return base
+  const threshold = pd.threshold * half
+  const floor     = pd.floor * half
+  const reduced   = base - 0.30 * Math.max(0, (magi || 0) - threshold)
+  return Math.max(floor, Math.min(base, reduced))
+}
 const QBI_THRESHOLDS     = _byYear(t => t.qbi.threshold)
 const QBI_PHASE_IN_RANGE = _byYear(t => t.qbi.phaseIn)
 const QBI_MIN_DEDUCTION  = _byYearDefined(t => t.qbi.minDeduction)
@@ -1084,7 +1106,21 @@ function calcTaxReturn(input) {
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
   const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
-  const itemized          = nf(itemizedAmt) + deductibleMedical
+  // AUDIT N-1 FIX (Jul 2026): the SALT cap previously existed in the tables but was
+  // consumed ONLY by calcAMT's addback — the regular-tax itemized total flowed uncapped
+  // (audit observed a $60,000 SALT deduction). Cap here per §164(b)(6)/(b)(7):
+  // saltAmount is the SALT component INCLUDED in itemizedAmt (both the sub-field sum
+  // and the override-total path pass it), so only the disallowed excess is backed out.
+  // MAGI proxy: pre-NOL AGI (grossIncomeBeforeNOL − adjustments). The NOL deduction is
+  // part of statutory AGI, but the NOL allowance below depends on the deduction chosen
+  // here; using the pre-NOL figure breaks the circularity and errs conservatively
+  // (higher MAGI → smaller cap) only for NOL filers inside the phase-down band.
+  const saltEntered    = Math.max(0, nf(saltAmount))
+  const magiForSalt    = Math.max(0, grossIncomeBeforeNOL - adjustments)
+  const saltCapApplied = getSaltCap(taxYear, status, magiForSalt)
+  const saltAllowed    = Math.min(saltEntered, saltCapApplied)
+  const saltDisallowed = Math.min(saltEntered - saltAllowed, Math.max(0, nf(itemizedAmt)))
+  const itemized          = Math.max(0, nf(itemizedAmt) - saltDisallowed) + deductibleMedical
   const deduction         = useItemized ? Math.max(stdDed, itemized) : stdDed
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction)
   const priorNOL         = Math.max(0, nf(nolCarryforward))
@@ -1197,7 +1233,7 @@ function calcTaxReturn(input) {
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
   const amt = calcAMT({
-    taxableIncome, qbi, saltAmount: nf(saltAmount),
+    taxableIncome, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
     ltGain: _ltGain + f4797PrefGain, qualDiv, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
@@ -1284,6 +1320,8 @@ function calcTaxReturn(input) {
     distributionCapGainST, distributionCapGainLT,           // F-10 §1368 gain character
     niitIncludesSCorpStockGain: distributionCapGain > 0,    // F-15 §1411(c)(4) flag
     stdDed, itemized, deduction, deductibleMedical,
+    saltEntered, saltAllowed, saltCapApplied, saltDisallowed,  // AUDIT N-1 §164(b) cap
+
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
     qbi, qbiLimitApplied, qbiCaps,
@@ -1452,6 +1490,7 @@ export {
   TAX_TABLES,
   AMT_TABLES,
   SALT_CAPS,
+  getSaltCap,
   getTable,
   getStdDed,
   getBrackets,

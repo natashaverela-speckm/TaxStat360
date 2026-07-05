@@ -562,7 +562,12 @@ function RiskScan({ rec }) {
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
       detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties, charged at the federal short-term rate plus 3% (IRC §6621) and reset quarterly by the IRS (recently in the 6–8% range).`,
-      action: `Estimated quarterly payment: approx. ${fmt(accurateQuarterly)}. Due dates: April 15, June 15, September 15, January 15.` })
+      // AUDIT N-6 FIX: when the saved record carries no engine-computed quarterly,
+      // the fallback is a rough bracket-only estimate (no NIIT/SE/AMT). Label it as
+      // such instead of presenting it with the same confidence as the engine figure.
+      action: (rec?.quarterly > 0)
+        ? `Estimated quarterly payment: ${fmt(accurateQuarterly)} (from your Step 2 calculation). Due dates: April 15, June 15, September 15, January 15.`
+        : `Rough quarterly estimate: ~${fmt(accurateQuarterly)} (income tax only — complete Step 2 for the exact figure including NIIT, SE, and safe-harbor amounts). Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
       detail: `${fmt(estPay)} in estimated payments on file. Next quarterly deadline: ${deadlines[month]}.`,
