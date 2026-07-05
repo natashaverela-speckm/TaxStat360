@@ -475,6 +475,15 @@ describe('§1368(c) three-tier ordering with accumulated E&P (F-9 full)', () => 
     expect(r.distributionCapGainLT).toBe(60000)
     // AGI = 20,000 K-1 + 30,000 dividend + 60,000 gain = 110,000
     expect(r.agi).toBe(110000)
+    // HOTFIX REGRESSION GUARD: the dividend must be carved OUT of the ordinary base
+    // and taxed once at preferential rates. Full worked math (2026 single):
+    // TI before QBI = 110,000 - 16,100 = 93,900. QBI overall cap binds:
+    // 20% x (93,900 - 90,000 net capital gain incl. qualified dividends) = 780
+    // (below 20% x 20,000 QBI = 4,000) -> TI final 93,120. Preferential stack
+    // 90,000 (60,000 LTCG + 30,000 qual div); ordinary 3,120 -> tax 312;
+    // 0% room 49,450 - 3,120 = 46,330; remaining 43,670 x 15% = 6,551.
+    // Total 6,863. Ordinary-rate leakage of the dividend breaks this figure.
+    expect(r.fedTax).toBe(6863)
   })
   it('dividends never reduce stock basis (§1368(c)(2))', () => {
     // Same facts, distributions only 100,000: AAA 70,000 + dividend 30,000, tier3 0.
