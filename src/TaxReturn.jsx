@@ -1362,9 +1362,18 @@ export default function TaxReturn() {
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
-                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap.`} />
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap, including the OBBBA §70120 phase-down: above $505,000 MAGI ($252,500 MFS) for 2026, the cap shrinks by 30% of the excess, to a floor of $10,000 ($5,000 MFS).`} />
                       </label>
                       <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
+                      {result?.saltDisallowed > 0 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                          ⚠ SALT deduction limited to {fmt(result.saltAllowed)} of the {fmt(result.saltEntered)} entered —
+                          IRC §164(b)(6)/(b)(7) as amended by OBBBA §70120. For 2026 the cap is $40,400 ($20,200 MFS),
+                          reduced by 30% of MAGI above $505,000 ($252,500 MFS) to a floor of $10,000 ($5,000 MFS).
+                          Pass-through owners in PTET states may be able to deduct state tax at the entity level
+                          without this cap — worth raising with your CPA.
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
@@ -1608,6 +1617,9 @@ export default function TaxReturn() {
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
+                // AUDIT N-3 FIX: the 0.9% Additional Medicare Tax (§3101(b)(2)) was included
+                // in Total Tax but rendered no line — invisible to the user.
+                { label: 'Additional Medicare Tax (0.9%)', value: result.additionalMedicare,                sign: 1, hide: !result.additionalMedicare || result.additionalMedicare === 0, accent: '#94A3B8', note: 'IRC §3101(b)(2) — wages/SE earnings over $200K ($250K MFJ, $125K MFS)' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 // AUDIT F-15: annotation rendered below the waterfall when the NII base includes §1368(b)(2) stock gain
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
