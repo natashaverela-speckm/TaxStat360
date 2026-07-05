@@ -455,3 +455,102 @@ describe('engine applies the SALT cap in the itemized total (AUDIT N-1)', () => 
     expect(Number.isFinite(r.totalTax)).toBe(true)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT Round 3 (Jul 2026): §1368(c) AAA/E&P · §68 2/37 · charitable floor ·
+// §170(p) non-itemizer · §6654 per-installment schedule
+// ═══════════════════════════════════════════════════════════════════════════
+import { calcTaxReturn as _ctr3 } from './taxCalc.js'
+
+describe('§1368(c) three-tier ordering with accumulated E&P (F-9 full)', () => {
+  const sc = (extra) => [{ id: 's', name: 'S', type: 'S Corporation', own: 100,
+    k1: 20000, stockBasis: 10000, distributions: 120000, ...extra }]
+  it('AAA first, dividend to extent of E&P, remainder to basis', () => {
+    // AAA for dist = 50,000 beg + 20,000 income = 70,000 (Reg. §1.1368-2(a)(5));
+    // tiers: 70,000 AAA + 30,000 dividend (E&P) + 20,000 remainder.
+    // Basis-reducing portion = 90,000 vs pre-loss basis 30,000 → §1368(b)(2) gain 60,000.
+    const r = _ctr3({ taxYear: 2026, status: 'single', k1Total: 20000,
+      entities: sc({ beginningAAA: 50000, accumulatedEP: 30000 }) })
+    expect(r.sCorpEPDividends).toBe(30000)
+    expect(r.distributionCapGainLT).toBe(60000)
+    // AGI = 20,000 K-1 + 30,000 dividend + 60,000 gain = 110,000
+    expect(r.agi).toBe(110000)
+  })
+  it('dividends never reduce stock basis (§1368(c)(2))', () => {
+    // Same facts, distributions only 100,000: AAA 70,000 + dividend 30,000, tier3 0.
+    // Basis-reducing = 70,000 vs basis 30,000 → gain 40,000 (not 70,000-from-100,000).
+    const r = _ctr3({ taxYear: 2026, status: 'single', k1Total: 20000,
+      entities: [{ id: 's', name: 'S', type: 'S Corporation', own: 100,
+        k1: 20000, stockBasis: 10000, distributions: 100000,
+        beginningAAA: 50000, accumulatedEP: 30000 }] })
+    expect(r.sCorpEPDividends).toBe(30000)
+    expect(r.distributionCapGainLT).toBe(40000)
+  })
+  it('zero E&P entered → identical to §1368(b)-only behavior', () => {
+    const a = _ctr3({ taxYear: 2026, status: 'single', k1Total: 20000, entities: sc({}) })
+    const b = _ctr3({ taxYear: 2026, status: 'single', k1Total: 20000,
+      entities: sc({ beginningAAA: 0, accumulatedEP: 0 }) })
+    expect(a.totalTax).toBe(b.totalTax)
+    expect(b.sCorpEPDividends).toBe(0)
+  })
+})
+
+describe('OBBBA 0.5% charitable floor + §170(p) non-itemizer (N-9/N-9b)', () => {
+  it('itemizer: contributions reduced by 0.5% of AGI (2026+)', () => {
+    // w2 200,000 → floor 1,000; itemized 30,000 incl. 10,000 charitable → 29,000.
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 200000,
+      useItemized: true, itemizedAmt: 30000, charitableContr: 10000 })
+    expect(r.charFloorDisallowed).toBe(1000)
+    expect(r.itemized).toBe(29000)
+  })
+  it('non-itemizer: §170(p) deduction of up to $1,000 / $2,000 MFJ', () => {
+    const s = _ctr3({ taxYear: 2026, status: 'single', w2: 100000, charitableContr: 3000 })
+    expect(s.nonItemizerCharitable).toBe(1000)
+    const m = _ctr3({ taxYear: 2026, status: 'mfj', w2: 100000, charitableContr: 3000 })
+    expect(m.nonItemizerCharitable).toBe(2000)
+    const y25 = _ctr3({ taxYear: 2025, status: 'single', w2: 100000, charitableContr: 3000 })
+    expect(y25.nonItemizerCharitable).toBe(0)
+  })
+})
+
+describe('new §68 2/37 itemized limitation (N-8, OBBBA §70111)', () => {
+  it('top-bracket itemizer: reduction = 2/37 × lesser prong', () => {
+    // w2 800,000; itemized 100,000 → TI 700,000; prong2 = 700,000+100,000−640,600
+    // = 159,400 > itemized → reduction = 2/37 × 100,000 = 5,405 (rounded).
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 800000,
+      useItemized: true, itemizedAmt: 100000 })
+    expect(r.itemizedLimitReduction).toBe(5405)
+    expect(r.taxableIncome).toBe(700000 + 5405)
+  })
+  it('prong 2 binds when barely into the 37% bracket', () => {
+    // w2 700,000; itemized 100,000 → TI 600,000; income-before-itemized 700,000;
+    // prong2 = 700,000 − 640,600 = 59,400 < itemized → reduction = 2/37 × 59,400 = 3,211.
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 700000,
+      useItemized: true, itemizedAmt: 100000 })
+    expect(r.itemizedLimitReduction).toBe(3211)
+  })
+  it('no reduction below the 37% bracket or for standard-deduction filers', () => {
+    const a = _ctr3({ taxYear: 2026, status: 'single', w2: 400000,
+      useItemized: true, itemizedAmt: 100000 })
+    expect(a.itemizedLimitReduction).toBe(0)
+    const b = _ctr3({ taxYear: 2026, status: 'single', w2: 800000 })
+    expect(b.itemizedLimitReduction).toBe(0)
+  })
+})
+
+describe('§6654 per-installment schedule (2210-lite)', () => {
+  it('per-quarter payments drive exact cumulative shortfalls', () => {
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 400000,
+      priorYearTax: 40000, priorYearAGI: 200000, estQ1: 5000 })
+    // required annual = 110% × 40,000 = 44,000 → 11k/22k/33k/44k cumulative
+    const sch = r.installmentSchedule
+    expect(sch[0]).toMatchObject({ requiredCumulative: 11000, paidCumulative: 5000, shortfall: 6000, approximate: false })
+    expect(sch[3].shortfall).toBe(39000)
+  })
+  it('lump-sum total is spread evenly and flagged approximate', () => {
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 400000,
+      priorYearTax: 40000, priorYearAGI: 200000, estPaid: 44000 })
+    expect(r.installmentSchedule[0].approximate).toBe(true)
+    expect(r.installmentSchedule[3].shortfall).toBe(0)
+  })
+})

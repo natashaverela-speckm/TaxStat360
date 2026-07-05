@@ -1182,17 +1182,44 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       />
                       I acquired this stock one year ago or less — tax any excess-distribution gain as short-term (ordinary rates)
                     </label>
-                    {/* AUDIT F-9 interim banner: §1368(c) AAA/E&P ordering is not yet modeled.
-                        Visible (not tooltip-only) so a post-C-corp shareholder is warned that
-                        part of these distributions may be an ordinary DIVIDEND, not basis
-                        recovery. Full AAA engine is a tracked follow-up feature. */}
-                    <div style={{ marginTop: 8, padding: '8px 10px', background: '#FFF8E7', border: '1px solid #F0D9A0', borderRadius: 8, fontSize: 12, color: '#7A5B12' }}>
-                      ⚠ Was this company ever a C corporation (or did it acquire one)? If it has accumulated
-                      E&amp;P, §1368(c) ordering applies — distributions come first from AAA, then are taxable
-                      <strong> dividends</strong> to the extent of E&amp;P before any basis recovery. This tool
-                      currently models §1368(b) (no E&amp;P) only; confirm with your CPA before relying on the
-                      capital-gain treatment shown here.
+                    {/* AUDIT F-9 FULL FIX (Jul 2026): §1368(c) AAA/E&P ordering is now modeled.
+                        Was this company ever a C corporation (or did it acquire one)? Enter its
+                        accumulated E&P and beginning AAA — distributions then come first from AAA
+                        (§1368(b) treatment), next are taxable DIVIDENDS to the extent of E&P
+                        (§1368(c)(2)), and any remainder returns to basis recovery. Leave both at
+                        zero for a never-C S-corp (§1368(b) applies unchanged). */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
+                          Accumulated E&amp;P (C-corp years) — §1368(c)
+                        </label>
+                        <MoneyInput
+                          value={entity.accumulatedEP || ''}
+                          onChange={v => onUpdate(idx, { ...entity, accumulatedEP: v })}
+                          placeholder="0"
+                          style={{ fontSize: 13 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
+                          Beginning AAA (Form 1120-S Sch. M-2)
+                        </label>
+                        <MoneyInput
+                          value={entity.beginningAAA || ''}
+                          onChange={v => onUpdate(idx, { ...entity, beginningAAA: v })}
+                          placeholder="0"
+                          style={{ fontSize: 13 }}
+                        />
+                      </div>
                     </div>
+                    {Math.max(0, parseFloat(String(entity.accumulatedEP || '').replace(/,/g, '')) || 0) > 0 && (
+                      <div style={{ marginTop: 6, padding: '6px 9px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11, color: '#1E3A8A', lineHeight: 1.5 }}>
+                        §1368(c) ordering active: distributions beyond AAA are taxable dividends to the
+                        extent of E&amp;P (reported on the 1040 as qualified dividends) and do not reduce
+                        stock basis. Consider whether a §1368(e)(3) election to distribute E&amp;P first,
+                        or an AAA bypass, fits the plan — elections are not modeled here.
+                      </div>
+                    )}
                   </div>
 
                   {(() => {

@@ -1962,11 +1962,13 @@ function NarrativeModal({ onClose }) {
 // - score 50–79: button enabled, pre-generation checklist shown (✓ / ⚠ per field)
 // - score ≥ 80: button enabled, no warning
 function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
+  // AUDIT FIX (Jul 2026): useState previously sat BELOW the early return — a
+  // rules-of-hooks violation (conditional hook call; hook order changes between
+  // renders with/without rec). Hooks must run unconditionally before any return.
+  const [confirmingExport, setConfirmingExport] = useState(false)
   if (!rec) return <NoData tab="reports" />
   const score = completeness(rec)
   const missing = missingFields(rec)
-  // C-24: require explicit acknowledgment before generating a materially incomplete pack.
-  const [confirmingExport, setConfirmingExport] = useState(false)
 
   // F20 FIX: pre-generation checklist items — positives and negatives
   const checklistItems = rec ? [
