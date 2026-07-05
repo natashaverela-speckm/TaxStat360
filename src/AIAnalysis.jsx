@@ -138,7 +138,23 @@ function getRecord(liveState) {
   const saved = recs.find(r => r.biz && (nf(r.biz.grossRevenue) > 0 || nf(r.k1Income) > 0 || nf(r.f1040?.w2Income) > 0)) || recs[0] || null
 
   try {
-    const { entities, k1Total: k1 } = readStep1State()
+    // AUDIT F-3 FIX: k1Total historically summed EVERY non-C-corp entity's net —
+    // including negative Schedule E rentals — so the analysis layer showed a
+    // §469-violating netted figure (suspended passive losses reducing K-1 income)
+    // and fed it to the QBI estimate. When the entity list is available, rebuild the
+    // K-1 aggregate EXCLUDING real-estate entities (their §469 treatment belongs to
+    // the engine, not this display layer). Fall back to the stored total only for
+    // legacy records with no entity detail.
+    const { entities, k1Total: _k1Stored } = readStep1State()
+    const _k1NonPassive = (entities && entities.length)
+      ? entities.reduce((sum, e) => {
+          if (!e || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
+          const pnl = e.pnl || {}
+          const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses))) * (ownPct(e.own ?? 100) / 100)
+          return sum + Math.round(net) - nf(e.box11_12)
+        }, 0)
+      : _k1Stored
+    const k1 = _k1NonPassive
     const f1040 = readPersonalContext()
     const totalSec179 = entities.reduce((s,e)=>s+(nf(e.box11_12)), 0)
     const totalBox12_13 = entities.reduce((s,e)=>s+(nf(e.box12_13)), 0)
@@ -960,8 +976,10 @@ function TaxOptimization({ rec }) {
   opportunities.push({
     icon: '🏥', title: 'Health Savings Account (HSA)', priority: 'medium',
     saving: Math.round(4300 * marginalRate),
-    detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to $4,300 (self-only) or $8,550 (family) to an HSA in 2025. Contributions are tax-deductible and grow tax-free.`,
-    howTo: `At your rate of ${pct(marginalRate * 100)}, a max HSA contribution saves approx. ${fmt(Math.round(4300 * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for medical expenses are always tax-free.`
+    // AUDIT F-8 FIX: limits now read from TAX_TABLES[year].hsa (were hardcoded 2025
+    // figures shown in every tax year).
+    detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to ${fmt(getTable(year)?.hsa?.selfOnly ?? 4400)} (self-only) or ${fmt(getTable(year)?.hsa?.family ?? 8750)} (family) to an HSA for ${year}. Contributions are tax-deductible and grow tax-free.`,
+    howTo: `At your rate of ${pct(marginalRate * 100)}, a max self-only HSA contribution saves approx. ${fmt(Math.round((getTable(year)?.hsa?.selfOnly ?? 4400) * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for qualified medical expenses are always tax-free.`
   })
 
   if (isSCorpEntity(b.entityType) && revenue > 0) {
@@ -978,7 +996,7 @@ function TaxOptimization({ rec }) {
   opportunities.push({
     icon: '👨‍👩‍👧', title: 'Hire Your Children', priority: 'medium',
     saving: null,
-    detail: 'The IRS allows you to hire your children, which can shift income and reduce your tax liability.',
+    detail: 'Hiring your children for legitimate work at reasonable wages can shift income to their (usually lower) brackets. IMPORTANT for S-Corp owners: the FICA exemption for a child under 18 (IRC §3121(b)(3)(A)) applies ONLY to a parent\u2019s sole proprietorship or a partnership where each partner is the child\u2019s parent — it NEVER applies to a corporation, including your S-Corp. Wages your S-Corp pays your child are fully subject to FICA and must run through payroll with a W-2 for bona fide services at a reasonable rate.',
     howTo: 'Ask Aria or see IRS.gov family-employee rules.'
   })
 
@@ -986,15 +1004,17 @@ function TaxOptimization({ rec }) {
     opportunities.push({
       icon: '🏢', title: 'Bonus Depreciation', priority: 'high',
       saving: null,
-      detail: 'Bonus depreciation for real estate investors is a great way to save thousands on taxes.',
-      howTo: 'Ask Aria for more info.'
+      detail: 'OBBBA (P.L. 119-21 §70301) made 100% bonus depreciation PERMANENT under IRC §168(k) for qualified property acquired after January 19, 2025 — the old TCJA phase-down (80%/60%/40%) no longer applies to new acquisitions. For rental real estate, a cost segregation study reclassifies part of the building into 5-, 7-, and 15-year property that qualifies for the full 100% write-off in year one. The building itself stays on 27.5-year (residential) or 39-year (commercial) straight-line MACRS. Caution: bonus depreciation creates §1245/§1250 recapture exposure on sale, and the resulting loss is still subject to the §469 passive activity rules — see \u201CTrack Your Real Estate Hours\u201D below.',
+      howTo: 'Get a cost segregation study on properties placed in service after Jan 19, 2025 (typically worthwhile above ~$300K of building basis). Enter the resulting first-year depreciation in the rental\u2019s Depreciation field in Step 1. Verify your §469 status on the same card — without REPS or the short-term-rental exception, the loss is suspended on Form 8582, not deducted.'
     })
 
     opportunities.push({
       icon: '⏱️', title: 'Track Your Real Estate Hours', priority: 'high',
       saving: null,
-      detail: 'Tracking your real estate hours allows passive losses to offset active income, reducing your tax liability. Coupled with bonus depreciation, it can be a very powerful planning tool.',
-      howTo: 'Ask Aria for more info.'
+      // AUDIT F-12 FIX: hour-tracking alone unlocks nothing. State the actual tests
+      // (same framing as the REP audit-response letter template in this file).
+      detail: 'Rental losses can offset your other income only if you qualify as a Real Estate Professional — BOTH §469(c)(7)(B) tests: (1) more than 750 hours in real-property trades or businesses during the year, AND (2) more than half of ALL your personal-service hours in those businesses — plus material participation in each rental (or the §1.469-9(g) aggregation election covering your whole portfolio). Alternative path: short-term rentals with average guest stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)), so material participation alone (e.g., the 100-hour-and-most-participation or 500-hour tests, Reg. §1.469-5T) makes those losses nonpassive without REPS. Contemporaneous hour logs are what survive exam — reconstruct-after-the-fact records routinely fail in Tax Court. Coupled with 100% bonus depreciation, either path can be a powerful planning tool.',
+      howTo: 'Keep a contemporaneous log (date, property, activity, hours). Set REP status and material participation / the aggregation election on each rental card in Step 1 — the engine only treats losses as nonpassive when those flags are set and the hours tests are met.'
     })
   }
 

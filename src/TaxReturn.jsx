@@ -1215,7 +1215,7 @@ export default function TaxReturn() {
                   {/* TERMINOLOGY FIX 4.2: Label said "Gains" only; tooltip already explains losses
                       are entered as negative numbers. Label updated to match the tooltip. */}
                   Form 4797 Gains / Losses (§1231)
-                  <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain" field below.'} wide />
+                  <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain — portion of the long-term gain above" field below.'} wide />
                 </label>
                 <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
               </div>
@@ -1234,7 +1234,7 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-unrec1250" style={inputLbl}>
-                  Unrecaptured §1250 Gain
+                  Unrecaptured §1250 Gain — portion of the long-term gain above
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
                 <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
@@ -1267,6 +1267,22 @@ export default function TaxReturn() {
                   <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
                 </label>
                 <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
+                {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it. */}
+                {result?.sehiClamped && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    ⚠ Deduction limited to {fmt(result.selfEmpHealthDed)} — §162(l)(5)(A) caps the self-employed health
+                    insurance deduction at your earned income from the business (S-Corp W-2 officer wages / net SE
+                    earnings). You entered {fmt(result.sehiEntered)}. For S-Corp owners, premiums must also be included
+                    in your W-2 Box 1 wages to be deductible at all (Notice 2008-1).
+                  </div>
+                )}
+                {result?.k1CharitableTotal > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    Note: {fmt(result.k1CharitableTotal)} of K-1 charitable contributions from Step 1 no longer reduces
+                    your K-1 income (audit fix — Form 8995 instructions, 2021–present). If you itemize, include it in
+                    your Schedule A charitable total; it is not added automatically.
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-hsa" style={inputLbl}>
@@ -1386,7 +1402,7 @@ export default function TaxReturn() {
           <div data-section="safe-harbor">
           <CollapsibleSection title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI · minimize underpayment penalties" badge="Optional">
             <p style={{ fontSize: 12, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
-              Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(ii). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
+              Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(i) (the $75K MFS substitution is §6654(d)(1)(C)(ii)). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
@@ -1416,7 +1432,7 @@ export default function TaxReturn() {
                 ) : (
                   <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontWeight: 700, color: R, fontSize: 13, marginBottom: 6 }}>
-                      ⚠ Safe harbor gap: {fmt(safeHarborGap)} remaining — pay by {getNextDueDate()}
+                      ⚠ Safe harbor gap: {fmt(safeHarborGap)} remaining — next due date {getNextDueDate()}. Note: §6654 penalties accrue per installment; catching up now stops penalties from accruing going forward but does not erase exposure on installments already missed (Form 2210). If your income is seasonal, the §6654(d)(2) annualized-income method may reduce or eliminate earlier-quarter penalties
                     </div>
                     <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.7 }}>
                       Prior year tax: <strong>{fmt(priorYearTaxNum)}</strong>
@@ -1426,7 +1442,7 @@ export default function TaxReturn() {
                     </div>
                     {priorYearAGINum === 0 && (
                       <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 6, fontStyle: 'italic' }}>
-                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K for single, HOH, and MFJ filers; $75K for MFS only — IRC §6654(d)(1)(C)(ii)).
+                        Enter your prior year AGI above to confirm whether the 110% rule applies (AGI {'>'} $150K for single, HOH, and MFJ filers; $75K for MFS only — IRC §6654(d)(1)(C)(i), MFS amount per (C)(ii)).
                       </div>
                     )}
                   </div>
@@ -1593,6 +1609,7 @@ export default function TaxReturn() {
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
+                // AUDIT F-15: annotation rendered below the waterfall when the NII base includes §1368(b)(2) stock gain
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
                 // $250K MFJ — IRC §3101(b)(2), §1411) is ALWAYS shown as a distinct waterfall
                 // line for users with W-2 income above $150K, because for many S-Corp owners in
@@ -1694,6 +1711,21 @@ export default function TaxReturn() {
                   {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
                   {result.rentalIsREP && rentalAggregationElection !== true && step1RentalNetUI < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box on your rental card in Step 1 if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
                   {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}
+                </div>
+              )}
+
+              {/* AUDIT F-15: NIIT conservatively includes §1368(b)(2) excess-distribution
+                  stock gain. For a shareholder who MATERIALLY PARTICIPATES in the S-corp,
+                  gain on the stock may be excludable from net investment income under
+                  §1411(c)(4) (see Prop. Reg. §1.1411-7). Surface the position rather than
+                  silently taxing it. */}
+              {result.niitIncludesSCorpStockGain && (result.niit?.applies) && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#1E3A8A', lineHeight: 1.55 }}>
+                  <strong>NIIT note:</strong> your 3.8% NIIT base includes the capital gain from S-Corp
+                  distributions in excess of basis. If you <strong>materially participate</strong> in the
+                  S-Corp&apos;s trade or business, some or all of that gain may be excludable from net
+                  investment income under IRC §1411(c)(4) — a position this estimate does not take.
+                  Ask your CPA whether the exclusion applies before filing.
                 </div>
               )}
             </div>
