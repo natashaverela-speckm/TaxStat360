@@ -707,7 +707,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 4 }}>🏠 Rental Property — Income, Expenses & Depreciation</div>
           <div style={{ fontSize: 11, color: '#6D28D9', marginBottom: 6, fontWeight: 500 }}>Schedule E · Passive activity rules (§469) apply</div>
           <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            Whether a net rental loss is deductible this year depends on your passive-activity status — Real Estate Professional (REP) status plus the §1.469-9(g) aggregation election makes the loss nonpassive, or the $25,000 active-participation allowance applies if you don't qualify as REP. Set your status on this card. Officer compensation doesn't apply to rentals.
+            Whether a net rental loss is deductible this year depends on your passive-activity status. Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than 750 hours in real-property trades or businesses AND more than half of all your personal-service hours — plus material participation in each rental (or the §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Set your status on this card. Officer compensation doesn't apply to rentals.
           </div>
         </div>
       )}
@@ -976,7 +976,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       the threshold" — but the prior-year QBI loss carryforward must be
                       tracked even in LOSS years when current QBI deduction = $0.
                       Updated text covers both cases. IRC §199A(c)(2). */}
-                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except §179 and charitable contributions, which always reduce QBI regardless of income level. <strong>Also complete this section in loss years</strong> — the QBI loss carryforward (Form 8995 Line 3) must be tracked for future years even when the current-year deduction is $0 (IRC §199A(c)(2)).
+                  Only needed if your taxable income exceeds the §199A threshold — about $197,300 (single) or $394,600 (MFJ) for 2025 ($201,775 / $403,500 for 2026) — except §179, which always reduces QBI regardless of income level (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). K-1 charitable contributions do NOT reduce QBI or your K-1 ordinary income — they are an itemized deduction on Schedule A if you itemize (Form 8995 instructions, 2021–present). <strong>Also complete this section in loss years</strong> — the QBI loss carryforward (Form 8995 Line 3) must be tracked for future years even when the current-year deduction is $0 (IRC §199A(c)(2)).
                 </div>
               )}
               {showQBI && (
@@ -1005,7 +1005,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                     { label: 'W-2 Wages (K-1 §199A statement)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
                     { label: 'UBIA of Qualified Property (K-1 §199A statement)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
-                    { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A and also reduce your K-1 basis.' },
+                    { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A (if you itemize) and reduce your stock basis under §1367(a)(2)(B) — they do NOT reduce your K-1 ordinary income or QBI.' },
                     { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
@@ -1171,6 +1171,28 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       placeholder="0"
                       style={{ fontSize: 13 }}
                     />
+                    {/* AUDIT F-10 FIX: §1368(b)(2) gain takes the STOCK's holding period
+                        (§1222) — not automatically long-term. Common short-term case:
+                        stock acquired < 1 year ago after a new S-election/restructuring. */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!entity.stockHeldShortTerm}
+                        onChange={ev => onUpdate(idx, { ...entity, stockHeldShortTerm: ev.target.checked })}
+                      />
+                      I acquired this stock one year ago or less — tax any excess-distribution gain as short-term (ordinary rates)
+                    </label>
+                    {/* AUDIT F-9 interim banner: §1368(c) AAA/E&P ordering is not yet modeled.
+                        Visible (not tooltip-only) so a post-C-corp shareholder is warned that
+                        part of these distributions may be an ordinary DIVIDEND, not basis
+                        recovery. Full AAA engine is a tracked follow-up feature. */}
+                    <div style={{ marginTop: 8, padding: '8px 10px', background: '#FFF8E7', border: '1px solid #F0D9A0', borderRadius: 8, fontSize: 12, color: '#7A5B12' }}>
+                      ⚠ Was this company ever a C corporation (or did it acquire one)? If it has accumulated
+                      E&amp;P, §1368(c) ordering applies — distributions come first from AAA, then are taxable
+                      <strong> dividends</strong> to the extent of E&amp;P before any basis recovery. This tool
+                      currently models §1368(b) (no E&amp;P) only; confirm with your CPA before relying on the
+                      capital-gain treatment shown here.
+                    </div>
                   </div>
 
                   {(() => {
@@ -1669,7 +1691,9 @@ export default function CalculateTaxInner() {
         const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
         const own = ownPct(e.own) / 100
         const k1  = Math.round(net * own)
-        return s + k1 - nf(e.box11_12) - nf(e.box12_13)
+        // AUDIT F-13 FIX: charitable (box12_13) is a Schedule A item — it does not
+        // reduce K-1 ordinary income. Only separately-stated §179 (box11_12) nets.
+        return s + k1 - nf(e.box11_12)
       }, 0)
       writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
       return next
@@ -1734,8 +1758,9 @@ export default function CalculateTaxInner() {
       const own = ownPct(e.own) / 100
       const k1  = Math.round(net * own)
       const sec179 = nf(e.box11_12)
-      const box12  = nf(e.box12_13)
-      return s + k1 - sec179 - box12
+      // AUDIT F-13 FIX: charitable (box12_13) is a Schedule A item — excluded from
+      // K-1 ordinary income netting. Only separately-stated §179 nets here.
+      return s + k1 - sec179
     }, 0)
     writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
     writeTaxYear(taxYear)
