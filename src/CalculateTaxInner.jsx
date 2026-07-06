@@ -54,7 +54,7 @@ export function entityResultLabel(type) {
 // allowNegative (default true, preserving behaviour for fields where negatives
 // are legitimate) lets P&L-modal call sites opt out; the minus key is stripped
 // before parse/format so the value can never enter state negative.
-function MoneyInput({ value, onChange, placeholder, style, disabled, id, allowNegative = true }) {
+function MoneyInput({ value, onChange, placeholder, style, disabled, id, allowNegative = true, ariaLabel }) {
   const [raw, setRaw] = useState(value || '')
   const [focused, setFocused] = useState(false)
 
@@ -110,6 +110,7 @@ function MoneyInput({ value, onChange, placeholder, style, disabled, id, allowNe
       id={id}
       type="text"
       inputMode="decimal"
+      aria-label={ariaLabel}
       value={raw}
       placeholder={placeholder || '0'}
       disabled={disabled}
@@ -566,7 +567,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 {FINANCIAL_LABELS.officerCompensationField}
                 <InfoTip text={'Your W-2 officer salary from this S-Corp. Enter this even in K-1 direct mode — the salary appears on your W-2 and flows to your personal return separately from the K-1 income. It also determines your §199A W-2 wage limitation and your FICA tax obligation.'} wide />
               </label>
-              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} />
+              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             </div>
           )}
           {nf(manK1Direct) !== 0 && (
@@ -582,26 +583,30 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Income (gross rents received)' : FINANCIAL_LABELS.grossReceiptsField}
-            <InfoTip text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
+            <InfoTip label={isRE ? 'Rental income' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
-          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} />
+          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental income (gross rents received)' : 'Gross receipts'} />
         </div>
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
-            <InfoTip text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
+            <InfoTip label={isRE ? 'Rental operating expenses' : 'Operating expenses'} text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
-          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} />
+          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental operating expenses' : 'Operating expenses'} />
         </div>
         <div>
           <label style={lbl}>
             {/* TERMINOLOGY FIX 3.1: "Sec. 179 + MACRS + Bonus" used mixed notation. Every other IRC
                 section in the app uses the § symbol (§199A, §469, §1366, etc.). "Bonus" is informal
                 for §168(k) bonus depreciation. Normalized to § style throughout. */}
-            Depreciation (§179 + MACRS + §168(k) Bonus)
-            <InfoTip text={'§179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
+            {/* UX AUDIT F9 (Jul 2026): label inverted to plain-first — the statute
+                stack (§179 + MACRS + §168(k)) moved into the tooltip, where it
+                already lived in full. Non-CPAs read "what number goes here"; the
+                citations stay one tap away for CPA hand-off. */}
+            Depreciation — total deduction this year
+            <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
-          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} />
+          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
         </div>
         {(isSCorp || isCCorp) && (
           <div>
@@ -611,7 +616,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
-            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} />
+            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             {/* AUDIT-1 FIX: reserve layout space for these conditional warnings so their
                 appearance doesn't shift the Advertising & Marketing field below — a sudden
                 layout shift mid-entry can cause the next click (aimed at the pre-shift
@@ -654,14 +659,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             Advertising & Marketing
-            <InfoTip text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
+            <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
           </label>
           <MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
         </div>
         <div>
           <label style={lbl}>
             Other Operating Expenses
-            <InfoTip text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
+            <InfoTip label="Other operating expenses" text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
           <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} allowNegative={false} />
         </div>
@@ -937,7 +942,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
               Ownership %
-              <InfoTip text="Your ownership percentage in this entity. K-1 income is allocated proportionally. Example: 75% ownership of a $100K profit = $75K on your personal return." />
+              <InfoTip label="Ownership percentage" text="Your ownership percentage in this entity. K-1 income is allocated proportionally. Example: 75% ownership of a $100K profit = $75K on your personal return." />
             </label>
             <input
               type="number"
@@ -1274,13 +1279,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
             <div style={{ marginBottom: 10 }}>
               <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>
-                  §469 Passive Activity Status — Schedule E Rental
+                  {/* UX AUDIT F9: was "§469 Passive Activity Status — Schedule E Rental" */}
+                  Rental Loss Rules — can this property's losses offset your other income?
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                   <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked, ...(e.target.checked ? {} : { rentalAggregationElection: undefined }) })} style={{ marginTop: 2 }} />
                   <label htmlFor={'rep_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
-                    Real Estate Professional (REP) — IRC §469(c)(7)
-                    <InfoTip text={'Check this ONLY if you meet both IRC §469(c)(7) tests:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
+                    Real Estate Professional status
+                    <InfoTip label="Real Estate Professional status" text={'The IRS test is IRC §469(c)(7). Check this ONLY if you meet both parts:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
                   </label>
                 </div>
 
@@ -1353,8 +1359,8 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                     <input type="checkbox" id={'active_' + idx} checked={!!entity.isActiveParticipant} onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })} style={{ marginTop: 2 }} />
                     <label htmlFor={'active_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
-                      Active Participant — §469(i) $25,000 allowance
-                      <InfoTip text={'Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000.'} wide />
+                      Active participant — unlocks up to $25,000 of rental losses
+                      <InfoTip label="Active participation" text={'The IRS rule is IRC §469(i). Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000.'} wide />
                     </label>
                   </div>
                 )}
@@ -1362,7 +1368,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 {/* Prior-year passive loss carryforward (Form 8582) — moved here from Step 2 */}
                 <div style={{ marginTop: 8, marginBottom: 4 }}>
                   <label htmlFor={'pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
-                    Prior-Year Passive Loss Carryforward (Form 8582)
+                    Unused rental losses from prior years (Form 8582)
                     <InfoTip text={'Suspended passive losses from prior years on this rental (Form 8582, Line 3). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
                   </label>
                   <MoneyInput
@@ -2300,7 +2306,13 @@ export default function CalculateTaxInner() {
           </button>
         )}
         {/* UX-M3 FIX: unsaved warning also shown in sticky footer so it's always visible */}
-        {hasUnsavedChanges && (<div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '10px 14px', color: '#92400E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'⚠️'}</span><span>{'Your entries are not saved yet. Click Save Progress below to keep them — unsaved work can be lost when you sign out or when accounting software re-syncs.'}</span></div>)}
+        {/* UX AUDIT F1 (Jul 2026): the yellow "unsaved work can be lost" banner
+            overstated the risk — the k1-sync effect above already persists every
+            edit to session storage, so entries survive reloads and step changes.
+            The remaining truth is narrower: unsynced entries don't survive
+            sign-out, and an accounting re-sync replaces them. The banner now
+            says exactly that, in an informational tone instead of a warning. */}
+        {hasUnsavedChanges && (<div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 14px', color: '#0C4A6E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'✓'}</span><span>{'Your entries are saved on this device for this session. Click Save Progress to sync them to your account — unsynced entries don\u2019t survive signing out, and connecting accounting software replaces them.'}</span></div>)}
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
@@ -2327,8 +2339,33 @@ export default function CalculateTaxInner() {
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingRight: 80 }}>
           <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            {/* UX AUDIT F2 (Jul 2026): Step 1 previously showed no live figure tied
+                to the product's promise — the first number appeared only after
+                "Continue to Step 2". The footer now shows the income flowing to
+                the return, updating per keystroke via the same reduce persistStep1
+                uses (pre-§469/basis limits, so it is labeled as flowing income,
+                not liability — a provisional tax number from a second code path
+                risks contradicting Step 2's engine). */}
             {entities.length > 0
-              ? `${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`
+              ? (() => {
+                  const flowing = entities.reduce((s, e) => {
+                    if (isCCorpEntity(e.type)) return s
+                    const pnl = e.pnl || {}
+                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+                    return s + Math.round(net * ownPct(e.own) / 100) - nf(e.box11_12)
+                  }, 0)
+                  return (
+                    <span>
+                      {`${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`}
+                      {flowing !== 0 && (
+                        <span style={{ marginLeft: 8, fontWeight: 700, color: flowing >= 0 ? N : R }}>
+                          · {fmt(flowing)} flowing to your return
+                        </span>
+                      )}
+                      <span style={{ marginLeft: 6, color: '#94A3B8' }}>— full federal estimate in Step 2</span>
+                    </span>
+                  )
+                })()
               : <span style={{ color: R, fontWeight: 600 }}>Add an entity to continue</span>
             }
           </div>
