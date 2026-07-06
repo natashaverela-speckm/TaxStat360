@@ -512,13 +512,27 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     taxableBeforeQBI
   )
 }
+// AUDIT A4-2 FIX (Jul 2026): YTD mode promises “enter YTD figures and we’ll project
+// your full-year liability” — deduction FLOWS must annualize like income flows.
+// Previously itemized/SALT/medical/charitable stayed at their YTD amounts, so
+// projected deductions were understated (and the SALT cap / 0.5% floor / §170(p)
+// tests ran against half-sized numbers). DELIBERATELY NOT SCALED (documented
+// decisions): estPaid/estQ1-4 (actual payments to date, §6654 compares them to the
+// annualized liability); isoBargainElement (a discrete exercise event, not a ratable
+// flow); prior-year figures and all carryforwards/balances.
 const _YTD_SCALE_FIELDS = [
   'w2', 'k1Total', 'rentalNet',
   'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
   'f4797Inc', 'taxableSS', 'iraIncome',
   'selfEmpHealthIns', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
+  'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',   // A4-2
 ]
-const _YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2']
+// AUDIT A4-1 FIX (Jul 2026): `distributions` is a FLOW — YTD distributions must
+// annualize or the projected §1368 excess-distribution gain evaporates (audit-4
+// probe: half-year inputs produced gain $0 instead of $25,000). Balance-sheet
+// fields (stockBasis, debtBasis, beginningAAA, accumulatedEP, box17V_ubia,
+// qbiLossCarryforward) remain correctly UNscaled — they are point-in-time amounts.
+const _YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions']
 function _scaleNumeric(v, yf) {
   if (v === undefined || v === null || v === '') return v
   const n = parseFloat(v)

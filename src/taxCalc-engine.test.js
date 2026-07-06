@@ -583,3 +583,42 @@ describe('§461(l) excess business loss thresholds (A4-3)', () => {
     expect(r.ebl).toBe(262000) // 575,000 − 313,000
   })
 })
+
+// AUDIT A4-1 / A4-2 (Jul 2026): YTD annualization must cover ALL flows.
+describe('YTD mode annualizes distributions and deduction flows (A4-1/A4-2)', () => {
+  const full = { taxYear: 2026, status: 'single', w2: 60000, selfEmpHealthIns: 12000, k1Total: 153788,
+    entities: [
+      { id: 'sc', name: 'P', type: 'S Corporation', own: 100,
+        pnl: { grossRevenue: 500000, totalExpenses: 275000, officerSalary: 60000, netProfit: 225000 },
+        box17V_wages: 60000, stockBasis: 10000, distributions: 260000 },
+      { id: 're', name: 'D', type: 'Real Estate (Schedule E)', own: 100,
+        pnl: { grossRevenue: 30000, totalExpenses: 101212, netProfit: -71212 }, isActiveParticipant: true },
+    ] }
+  const half = { ...full, ytdFactor: 2, w2: 30000, selfEmpHealthIns: 6000, k1Total: 76894,
+    entities: [
+      { id: 'sc', name: 'P', type: 'S Corporation', own: 100,
+        pnl: { grossRevenue: 250000, totalExpenses: 137500, officerSalary: 30000, netProfit: 112500 },
+        box17V_wages: 30000, stockBasis: 10000, distributions: 130000 },
+      { id: 're', name: 'D', type: 'Real Estate (Schedule E)', own: 100,
+        pnl: { grossRevenue: 15000, totalExpenses: 50606, netProfit: -35606 }, isActiveParticipant: true },
+    ] }
+  it('half-year YTD inputs x2 reproduce the full-year return exactly', () => {
+    const f = _ctr3(full), h = _ctr3(half)
+    expect(h.fedTax).toBe(f.fedTax)                       // 52,814
+    expect(h.distributionCapGainLT).toBe(25000)           // A4-1: gain restored (basis NOT scaled)
+    expect(h.totalTax).toBe(f.totalTax)
+  })
+  it('A4-2: YTD SALT annualizes before the §164(b) cap', () => {
+    // Half-year SALT 30,000 → annualized 60,000 → capped at 40,400 (not 30,000 uncapped).
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 50000, ytdFactor: 2,
+      useItemized: true, itemizedAmt: 32500, saltAmount: 30000 })
+    expect(r.saltEntered).toBe(60000)
+    expect(r.saltAllowed).toBe(40400)
+    expect(r.itemized).toBe(45400)                        // 65,000 − 19,600 disallowed
+  })
+  it('actual payments are NOT annualized (§6654 semantics)', () => {
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 200000, ytdFactor: 2,
+      priorYearTax: 40000, priorYearAGI: 200000, estQ1: 5000 })
+    expect(r.installmentSchedule[0].paidCumulative).toBe(5000)  // not 10,000
+  })
+})
