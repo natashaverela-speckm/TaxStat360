@@ -728,11 +728,14 @@ export default function TaxReturn() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 4 : 8 }}>
+          {/* UX AUDIT F17 (Jul 2026): emoji-only mobile nav (⊞ 🤖 ⚙) replaced with
+              short text labels + ≥44px touch targets, matching Dashboard and
+              AI Analysis. Full names stay in titles/aria-labels. */}
           {!isMobile && <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Business</button>}
-          <button onClick={() => navigate('/dashboard')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? '⊞' : 'Dashboard'}</button>
-          <button onClick={() => navigate('/ai-analysis')}  style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? '🤖' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
+          <button onClick={() => navigate('/dashboard')} aria-label="Dashboard" title="Dashboard" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? 'Home' : 'Dashboard'}</button>
+          <button onClick={() => navigate('/ai-analysis')} aria-label="AI Analysis & Reporting" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? 'AI' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
           {!isMobile && <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
-          <button onClick={() => navigate('/settings')}     style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
+          <button onClick={() => navigate('/settings')} aria-label="Settings" title="Settings" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
         </div>
       </nav>
 
@@ -1666,7 +1669,7 @@ export default function TaxReturn() {
                 { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
-                { label: '§199A QBI Deduction',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
+                { label: 'Business income deduction (§199A QBI)',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
                 { label: '—', value: 0, divider: true },
@@ -1826,7 +1829,7 @@ export default function TaxReturn() {
           {/* Underpayment penalty warning */}
           {hasResult && result.balance > 0 && !nf(priorYearTax) && (
             <div role="alert" aria-live="polite" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
-              <strong>⚠ Underpayment Penalty Risk (IRC §6654):</strong> You have a balance due but haven&apos;t entered prior year tax. Enter your prior year total tax in{' '}
+              <strong>⚠ You may owe an IRS underpayment penalty:</strong> you have a balance due but haven&apos;t entered prior year tax (the penalty rule is IRC §6654). Enter your prior year total tax in{' '}
               <button
                 onClick={() => {
                   const el = document.querySelector('[data-section="safe-harbor"]')
