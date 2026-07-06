@@ -98,18 +98,40 @@ const fmtUSD = (n) => {
 
 function readSessionSnapshot() {
   let entities = []
+  let k1Total = 0
   let personal = null
   let taxYear = null
-  try { entities = readStep1State().entities || [] } catch { entities = [] }
+  try { const s1 = readStep1State(); entities = s1.entities || []; k1Total = Number(s1.k1Total) || 0 } catch { entities = [] }
   try { personal = readPersonalContext() } catch { personal = null }
   try { taxYear = readTaxYear() } catch { taxYear = null }
-  return { entities, personal, taxYear }
+  return { entities, k1Total, personal, taxYear }
 }
 
-function buildSessionContext({ entities = [], personal = null, taxYear = null } = {}) {
+function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxYear = null } = {}) {
   const lines = []
   const types = entities.map(e => e?.type).filter(Boolean)
   if (types.length) lines.push(`Entities: ${types.join('; ')}`)
+  // REGRESSION FOLLOW-UP (Jul 2026): the first grounding pass sent entity TYPES
+  // but not entity FIGURES, so Aria answered a rental-loss question for a record
+  // that showed net rental INCOME. Per-entity dollars now ride along so the
+  // model can see whether a loss even exists before reciting §469.
+  for (const e of entities) {
+    if (!e || !e.type) continue
+    const p = e.pnl || {}
+    const gross = Number(p.grossRevenue) || 0
+    const net = (p.netProfit === undefined || p.netProfit === null) ? null : (Number(p.netProfit) || 0)
+    const dep = Number(p.depreciation) || 0
+    if (gross === 0 && (net === null || net === 0) && dep === 0) continue
+    const parts = []
+    if (gross) parts.push(`gross ${fmtUSD(gross)}`)
+    if (net !== null) parts.push(`net ${fmtUSD(net)}`)
+    if (dep) parts.push(`depreciation ${fmtUSD(dep)}`)
+    const flags = []
+    if (e.isREP) flags.push('REP status claimed')
+    if (e.isActiveParticipant) flags.push('§469(i) active participation claimed')
+    lines.push(`- ${e.type}${e.own ? ` (${e.own}% owned)` : ''}: ${parts.join(', ')}${flags.length ? ` [${flags.join('; ')}]` : ''}`)
+  }
+  if (k1Total) lines.push(`Total K-1 income: ${fmtUSD(k1Total)}`)
   if (taxYear) lines.push(`Tax year: ${taxYear}`)
   if (personal) {
     if (personal.filingStatus) lines.push(`Filing status: ${personal.filingStatus}`)

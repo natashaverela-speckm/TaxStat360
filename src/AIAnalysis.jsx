@@ -883,6 +883,27 @@ function TaxOptimization({ rec }) {
 
   const opportunities = []
 
+  // ── UX AUDIT F6 (Jul 2026) — entity-aware relevance ─────────────────────────
+  // The audit ran this tab against a rental-only profile (Real Estate (Schedule E)
+  // + W-2) — the product's core real-estate-investor audience — and got Home
+  // Office framed around Schedule C and an S-Corp-caveat-heavy "Hire Your
+  // Children" card, while the rental levers sat at the bottom of the list.
+  // Three changes:
+  //   (1) hasBusinessEntity gates the operating-business cards (home office,
+  //       family payroll) so a bare rental portfolio never sees them;
+  //   (2) a §469(i) active-participation card appears when the record shows a
+  //       net rental loss and a rental card is missing both §469 status flags;
+  //   (3) the finished list is sorted high → medium → low so the rental cards
+  //       (high priority) lead for investors instead of trailing the page.
+  const _allEntities = Array.isArray(rec?.entities) ? rec.entities : []
+  const hasRealEstate = _allEntities.some(e => isRealEstateEntity(e?.type))
+  const hasBusinessEntity =
+    _allEntities.some(e => isRealType(e?.type) && !isRealEstateEntity(e?.type)) ||
+    (isRealType(entityType) && !isRealEstateEntity(entityType)) ||
+    k1 !== 0
+  const { realEstate: reNetShare } = getEntityIncomeSplit(rec)
+
+
   const sepBase = isSCorpOwner ? totalOfficerSalary : k1
   const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
   // §415(c) overall limits are year-specific — read from the centralized table, never
@@ -948,7 +969,10 @@ function TaxOptimization({ rec }) {
     ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Partners may deduct unreimbursed partnership expenses (UPE) directly on Schedule E Part II, or the partnership can reimburse through an accountable plan — which is deductible at the entity level and excluded from the partner\'s income.'
     : 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).'
 
-  opportunities.push({
+  // F6: only meaningful for an operating business — a directly-held rental
+  // (Schedule E) has no home-office deduction path, so rental-only profiles
+  // shouldn't be told to file Form 8829.
+  if (hasBusinessEntity) opportunities.push({
     icon: '🏠', title: 'Home Office Deduction', priority: 'medium',
     saving: null,
     detail: 'If you use a portion of your home exclusively and regularly for business, you may be able to benefit from home-office expenses. The method depends on your entity type — see "How to apply" below for what applies to your structure.',
@@ -996,14 +1020,36 @@ function TaxOptimization({ rec }) {
     })
   }
 
-  const hasRealEstate = Array.isArray(rec?.entities) && rec.entities.some(e => isRealEstateEntity(e?.type))
-
-  opportunities.push({
+  // F6: family payroll requires an operating business with bona fide work —
+  // not applicable to a passive rental portfolio, so gate it the same way.
+  if (hasBusinessEntity) opportunities.push({
     icon: '👨‍👩‍👧', title: 'Hire Your Children', priority: 'medium',
     saving: null,
     detail: 'Hiring your children for legitimate work at reasonable wages can shift income to their (usually lower) brackets. IMPORTANT for S-Corp owners: the FICA exemption for a child under 18 (IRC §3121(b)(3)(A)) applies ONLY to a parent\u2019s sole proprietorship or a partnership where each partner is the child\u2019s parent — it NEVER applies to a corporation, including your S-Corp. Wages your S-Corp pays your child are fully subject to FICA and must run through payroll with a W-2 for bona fide services at a reasonable rate.',
     howTo: 'Ask Aria or see IRS.gov family-employee rules.'
   })
+
+  // F6: §469(i) $25,000 active-participation allowance — shown when the record
+  // has a net rental loss and at least one rental card is missing both §469
+  // status flags (isREP / isActiveParticipant), i.e. the loss is currently
+  // suspended by default when a checkbox might unlock up to $25K of it.
+  // Allowance phases out 50¢ per $1 of MAGI between $100K and $150K (AGI is
+  // used as the MAGI proxy here, consistent with the engine's simplified model).
+  if (hasRealEstate && reNetShare < 0) {
+    const _unflaggedRentals = _allEntities.filter(e =>
+      isRealEstateEntity(e?.type) && !e?.isREP && !e?.isActiveParticipant)
+    const _allowance = Math.max(0, 25000 - Math.max(0, (agi - 100000) * 0.5))
+    const _usable = Math.min(_allowance, Math.abs(reNetShare))
+    if (_unflaggedRentals.length > 0 && _usable > 0) {
+      opportunities.push({
+        icon: '🔓', title: 'Unlock the $25,000 Rental-Loss Allowance — §469(i)', priority: 'high',
+        saving: Math.round(_usable * marginalRate),
+        detail: `Your record shows a net rental loss of ${fmt(Math.abs(reNetShare))}, but at least one rental card has neither §469 status box checked — so the engine treats the loss as passive and suspends it on Form 8582 instead of deducting it. If you actively participate (bona fide management decisions: approving tenants, setting rents, approving expenses — a much lower bar than Real Estate Professional status), up to $25,000 of rental losses can offset your other income. At your AGI of ${fmt(agi)}, your available allowance is ${fmt(Math.round(_allowance))}${_allowance < 25000 ? ' (reduced by the $100K–$150K MAGI phase-out)' : ''}, of which ${fmt(Math.round(_usable))} is usable against this year's loss.`,
+        howTo: `If you genuinely make the management decisions on the property, check "Active Participant — §469(i) $25,000 allowance" on the rental card in Step 1. At your ${pct(marginalRate * 100)} marginal rate, the usable ${fmt(Math.round(_usable))} saves approx. ${fmt(Math.round(_usable * marginalRate))} in federal tax this year. Only claim it if it's true — keep notes showing your management role.`
+      })
+    }
+  }
+
 
   if (hasRealEstate) {
     opportunities.push({
@@ -1022,6 +1068,12 @@ function TaxOptimization({ rec }) {
       howTo: 'Keep a contemporaneous log (date, property, activity, hours). Set REP status and material participation / the aggregation election on each rental card in Step 1 — the engine only treats losses as nonpassive when those flags are set and the hours tests are met.'
     })
   }
+
+  // F6: high-impact levers first. Array.prototype.sort is stable, so cards keep
+  // their authoring order within each band — for a rental-heavy profile the
+  // §469(i) / bonus-depreciation / hours cards now lead instead of trailing.
+  const _priorityRank = { high: 0, medium: 1, low: 2 }
+  opportunities.sort((a, b) => (_priorityRank[a.priority] ?? 3) - (_priorityRank[b.priority] ?? 3))
 
   const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: G }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
 
@@ -2103,7 +2155,12 @@ export default function AIAnalysis() {
   const navigate = useNavigate()
   const location = useLocation()
   const liveState = location.state || null
-  const [activeTab, setActiveTab] = useState('risk')
+  // UX AUDIT F5 (Jul 2026): the planning levers are the reason a business owner
+  // opens this page — land on Tax Savings Opportunities by default instead of
+  // making it the second stop behind the risk scan.
+  const [activeTab, setActiveTab] = useState('optimize')
+  // UX AUDIT F4: expandable missing-items list on the completeness meter.
+  const [showAllMissing, setShowAllMissing] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
@@ -2147,8 +2204,9 @@ export default function AIAnalysis() {
   }
 
   const tabs = [
-    { id: 'risk',       label: `🔍 ${FEATURE_AUDIT_RISK_SCAN}` },
+    // F5: savings first — see the activeTab default above.
     { id: 'optimize',   label: `💡 ${FEATURE_WHATIF_SIMULATOR}` },
+    { id: 'risk',       label: `🔍 ${FEATURE_AUDIT_RISK_SCAN}` },
     { id: 'compliance', label: '📋 IRS Schedule Map' },
     { id: 'reports',    label: '📄 Reports & Tools' },
   ]
@@ -2210,8 +2268,52 @@ export default function AIAnalysis() {
                 to unlock all analysis — takes about 5 min
               </div>
             ) : missing.length > 0 ? (
-              <div style={{ fontSize: 11, color: SL, marginTop: 6, maxWidth: 160 }}>
-                Missing: {missing.slice(0, 2).join(', ')}{missing.length > 2 ? ` +${missing.length - 2} more` : ''}
+              // UX AUDIT F4 (Jul 2026): the meter previously truncated to
+              // "Missing: revenue, est. payments +2 more" with no way to see the
+              // rest. It now expands to the full list, and each item deep-links
+              // to the step where that field lives so the user can fix it in
+              // one tap instead of hunting.
+              <div style={{ fontSize: 11, color: SL, marginTop: 6, maxWidth: 170 }}>
+                {!showAllMissing ? (
+                  <>
+                    Missing: {missing.slice(0, 2).join(', ')}
+                    {missing.length > 2 && (
+                      <button
+                        onClick={() => setShowAllMissing(true)}
+                        aria-expanded={false}
+                        style={{ background: 'none', border: 'none', color: B, cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: 0, marginLeft: 4, textDecoration: 'underline' }}
+                      >
+                        +{missing.length - 2} more
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Missing — tap to add:</div>
+                    {missing.map(item => {
+                      // Step-1 fields live in the Tax Tracker; Step-2 fields in
+                      // the Personal Return. Mapping mirrors missingFields().
+                      const step2 = /W-2|est\. payments/i.test(item)
+                      const path = step2 ? '/tax-return' : '/calculate-tax'
+                      return (
+                        <button
+                          key={item}
+                          onClick={() => navigate(path)}
+                          style={{ display: 'block', background: 'none', border: 'none', color: B, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '2px 0', textAlign: 'left', textDecoration: 'underline' }}
+                        >
+                          {item} → Step {step2 ? 2 : 1}
+                        </button>
+                      )
+                    })}
+                    <button
+                      onClick={() => setShowAllMissing(false)}
+                      aria-expanded={true}
+                      style={{ background: 'none', border: 'none', color: SL, cursor: 'pointer', fontSize: 11, padding: '2px 0' }}
+                    >
+                      show less
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
