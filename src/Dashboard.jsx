@@ -530,6 +530,17 @@ export default function Dashboard() {
     'Real Estate Investor':'Real Estate (Schedule E)',
     'Partnership / LLC':   'Partnership / LLC',
   }
+  // UX AUDIT F3 (Jul 2026): the persona quick-starts previously existed ONLY in
+  // the empty state, so they vanished after the first save — exactly when an
+  // investor wants to model a second structure (e.g. holding a rental in an LLC
+  // vs. personally). One list now feeds both the empty state and a persistent
+  // quick-start strip below the saved records.
+  const PERSONA_PRESETS = [
+    { label: 'S-Corp Owner',          icon: '🏢', desc: 'Salary + K-1 income' },
+    { label: 'Sole Proprietor',       icon: '💼', desc: 'Schedule C self-employment' },
+    { label: 'Real Estate Investor',  icon: '🏠', desc: 'Rental income + depreciation' },
+    { label: 'Partnership / LLC',     icon: '🤝', desc: 'K-1 distributive share' },
+  ]
   const startNewCalcWithPreset = (label) => {
     clearStep1State()
     setSavedRecordId(null)
@@ -560,10 +571,15 @@ export default function Dashboard() {
           {userName && (
             <span style={{ fontSize: 13, color: SL }}>Hi, <strong style={{ color: N }}>{userName.split(' ')[0]}</strong></span>
           )}
-          <button onClick={() => nav('/calculate-tax')} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? '🧮' : 'Tax Tracker'}</button>
-          <button onClick={() => nav('/ai-analysis')}  style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? '🤖' : 'AI Analysis & Reporting'}{!isPro() && ' 🔒'}</button>
+          {/* UX AUDIT F17 (Jul 2026): on narrow screens the nav collapsed to bare
+              emoji glyphs (🧮 🤖 ⚙) ~32px tall — unlabeled mystery-meat navigation
+              for an owner reviewing their tax position on the go. Mobile buttons
+              now carry short text labels and ≥44px touch targets; full names stay
+              on desktop and in aria-labels/titles either way. */}
+          <button onClick={() => nav('/calculate-tax')} aria-label="Tax Tracker" style={{ padding: isMobile ? '13px 12px' : '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Tax Tracker">{isMobile ? 'Tracker' : 'Tax Tracker'}</button>
+          <button onClick={() => nav('/ai-analysis')} aria-label={isPro() ? 'AI Analysis & Reporting' : 'AI Analysis & Reporting (Professional plan required)'} style={{ padding: isMobile ? '13px 12px' : '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: isPro() ? '#fff' : '#f8fafc', fontSize: 13, cursor: isPro() ? 'pointer' : 'default', color: isPro() ? SL : '#cbd5e1', fontWeight: 600 }} title={isPro() ? 'AI Analysis & Reporting' : 'Upgrade to Professional to unlock AI Analysis & Reporting'}>{isMobile ? 'AI' : 'AI Analysis & Reporting'}{!isPro() && ' 🔒'}</button>
           {!isMobile && <button onClick={() => signOut(nav)} style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
-          <button onClick={() => nav('/settings')}     style={{ padding: '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">{isMobile ? '⚙' : 'Settings'}</button>
+          <button onClick={() => nav('/settings')} aria-label="Settings" style={{ padding: isMobile ? '13px 12px' : '7px 16px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer', color: SL, fontWeight: 600 }} title="Settings">Settings</button>
         </div>
       </nav>
 
@@ -593,7 +609,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
+      {/* UX AUDIT F15 (Jul 2026): main landmark so screen-reader users can jump
+          past the nav/banners straight to the records. */}
+      <main aria-label="Dashboard" style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
 
         {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
@@ -672,13 +690,8 @@ export default function Dashboard() {
             <h3 style={{ color: N, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No saved records yet</h3>
             <p style={{ color: SL, fontSize: 14, marginBottom: 20 }}>Complete a tax calculation and hit "Save This Record" to store it here.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-              {[
-                { label: 'S-Corp Owner',          icon: '🏢', desc: 'Salary + K-1 income' },
-                { label: 'Sole Proprietor',        icon: '💼', desc: 'Schedule C self-employment' },
-                { label: 'Real Estate Investor',   icon: '🏠', desc: 'Rental income + depreciation' },
-                { label: 'Partnership / LLC',      icon: '🤝', desc: 'K-1 distributive share' },
-              ].map(p => (
-                <button key={p.label} onClick={() => startNewCalcWithPreset(p.label)} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
+              {PERSONA_PRESETS.map(p => (
+                <button key={p.label} onClick={() => startNewCalcWithPreset(p.label)} aria-label={`Start a new ${p.label} calculation — ${p.desc}`} style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 140 }}>
                   <div style={{ fontSize: 20 }}>{p.icon}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: N, marginTop: 4 }}>{p.label}</div>
                   <div style={{ fontSize: 11, color: SL, marginTop: 2 }}>{p.desc}</div>
@@ -759,8 +772,9 @@ export default function Dashboard() {
                       <button
                         onClick={() => handleDeleteClick(rec, i)}
                         title={`Delete "${rec.name || rec.savedAt || 'record'}"`}
+                        aria-label={`Delete record "${rec.name || rec.savedAt || 'record'}"`}
                         style={{ padding: '9px 13px', background: '#fff', color: R, border: '1.5px solid #FCA5A5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                      >🗑</button>
+                      ><span aria-hidden="true">🗑</span></button>
                     </div>
                   </div>
 
@@ -849,9 +863,27 @@ export default function Dashboard() {
                 </div>
               )
             })}
+            {/* UX AUDIT F3 (Jul 2026): persistent quick-starts — an owner with
+                saved records can spin up a new scenario (second property, new
+                entity structure) without hunting for the vanished empty-state
+                cards. Same presets, same seeding path (startNewCalcWithPreset). */}
+            <div style={{ background: '#fff', borderRadius: 14, border: '1px dashed #CBD5E1', padding: '16px 20px', marginTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: SL, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 10 }}>Start a new scenario</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                {PERSONA_PRESETS.map(p => (
+                  <button key={p.label} onClick={() => startNewCalcWithPreset(p.label)} aria-label={`Start a new ${p.label} calculation — ${p.desc}`} title={p.desc} style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16 }} aria-hidden="true">{p.icon}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: N }}>{p.label}</span>
+                  </button>
+                ))}
+                <button onClick={startNewCalc} style={{ padding: '10px 14px', background: 'none', border: 'none', color: B, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                  or start blank
+                </button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }
