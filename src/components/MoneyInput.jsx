@@ -1,9 +1,22 @@
 // src/components/MoneyInput.jsx
 //
-// Canonical money input for TaxStat360.
-// Replaces every <input type="text" /> + manual onChange parsing in the codebase.
+// ⚠ MIGRATION TARGET — NOT YET ADOPTED (Jul 2026).
+// Nothing in production imports this component yet. Two divergent local copies
+// currently render every money field in the app:
+//   • CalculateTaxInner.jsx (~line 57) — passes STRINGS to parent state and
+//     live-formats commas with cursor preservation while typing.
+//   • TaxReturn.jsx (~line 29)         — its own variant with nonNegative /
+//     onError / onClick props.
+// This file is the canonical replacement for both. The planned migration (see
+// the UX-audit deferral note, batch 3) is deliberately its own change: it moves
+// caller state from strings to Numbers across dozens of tax-entry fields —
+// rents, depreciation, officer salary — where a silent string/number mismatch
+// means a wrong liability figure, so it needs a dedicated test pass, not a
+// rider on another batch. Until then this component is tree-shaken from the
+// bundle and costs nothing to keep. Do NOT delete it, and do NOT add a third
+// local copy — extend this one.
 //
-// Behavior:
+// Behavior (once adopted):
 //   - Stores a Number in parent state (never a raw string).
 //   - On focus: shows the current value un-formatted for easy editing.
 //   - On blur: formats with thousand separators (e.g., "1,234.50").
