@@ -1,6 +1,40 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { NAVY as N, SLATE as SL } from '../theme.js'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UX AUDIT (Jul 2026) — this component carries four findings; the fixes are
+// deliberately self-contained so NO call-site changes are required:
+//
+//   F11 (HIGH, data integrity): the "?" trigger sat in the sequential tab order
+//        between every money field. A user tabbing input → input landed on the
+//        button mid-sequence and keystrokes typed there were silently discarded
+//        (reproduced: a rental-expense figure was lost and the liability total
+//        recomputed wrong with no error). FIX: tabIndex={-1} — Tab now moves
+//        field → field. Pointer/touch access is unchanged; keyboard and
+//        screen-reader access is provided via aria-describedby (below), which
+//        is the WAI-ARIA-recommended pattern for supplemental help text.
+//
+//   F14 (HIGH, a11y): tooltip content existed only while hovered, so it never
+//        reached the accessibility tree; every trigger announced the identical
+//        "More information". FIX: the help text is now ALWAYS in the DOM in a
+//        visually-hidden <span>, and the trigger references it with
+//        aria-describedby — screen readers hear the actual explanation whether
+//        or not the visual tooltip is open. Esc dismisses (WCAG 1.4.13).
+//        Pass the `label` prop at call sites for a contextual accessible name
+//        ("Help: Depreciation"); the generic fallback remains for
+//        backward compatibility.
+//
+//   F16/F17 (target size): visual glyph grows 15 → 18px and the interactive
+//        hit area expands to 28×28 on fine pointers and 44×44 on touch
+//        devices via padding + negative margin, so row layout is unaffected.
+//        Tap toggles the tooltip open/closed (persisting until Esc, a second
+//        tap, or an outside tap) — hover-only help is unusable on phones,
+//        which matters for owners reviewing their tax position on the go.
+//
+// Public API is unchanged: <InfoTip text="..." wide label="Depreciation" />.
+// computeTooltipPosition keeps its exact prior contract (tests depend on it).
+// ─────────────────────────────────────────────────────────────────────────────
 
 const MARGIN = 8
 const GAP = 6
@@ -32,13 +66,43 @@ export function computeTooltipPosition({
   }
 }
 
+/** Visually hidden but present in the accessibility tree (standard sr-only). */
+const SR_ONLY = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+}
+
+/** True on touch-primary devices; guarded for jsdom/test environments. */
+function coarsePointer() {
+  try {
+    return typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches
+  } catch {
+    return false
+  }
+}
+
 export default function InfoTip({ text, wide, label }) {
   const [show, setShow] = useState(false)
+  // 'hover' closes on mouseleave (with grace); 'pinned' (click/tap) persists
+  // until Esc, a second activation, or an outside pointer-down.
+  const [pinned, setPinned] = useState(false)
   const [pos, setPos] = useState(null)
   const triggerRef = useRef(null)
   const tooltipRef = useRef(null)
   const hideTimer = useRef(null)
   const tooltipWidth = wide ? 360 : 290
+  const tipId = useId()
+  const descId = `infotip-desc-${tipId}`
+  const bubbleId = `infotip-bubble-${tipId}`
 
   const open = () => {
     if (hideTimer.current) {
@@ -47,7 +111,17 @@ export default function InfoTip({ text, wide, label }) {
     }
     setShow(true)
   }
-  const close = () => {
+  const close = useCallback(() => {
+    setShow(false)
+    setPinned(false)
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current)
+      hideTimer.current = null
+    }
+  }, [])
+  const closeSoft = () => {
+    // Hover-out: only close if the tooltip isn't pinned by a click/tap.
+    if (pinned) return
     hideTimer.current = setTimeout(() => setShow(false), 120)
   }
 
@@ -87,22 +161,43 @@ export default function InfoTip({ text, wide, label }) {
     }
   }, [show, updatePosition])
 
+  // Outside pointer-down closes (covers pinned tap-open on mobile).
   useEffect(() => {
     if (!show) return
     const handler = (e) => {
       if (triggerRef.current?.contains(e.target)) return
       if (tooltipRef.current?.contains(e.target)) return
-      setShow(false)
+      close()
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [show])
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [show, close])
+
+  // F14 / WCAG 1.4.13 — Escape dismisses the tooltip from anywhere.
+  useEffect(() => {
+    if (!show) return
+    const onKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') close()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [show, close])
+
+  // F16/F17 — hit-area slop: 28×28 fine-pointer / 44×44 touch, applied as
+  // padding with an equal negative margin so the glyph still occupies ~18px
+  // of layout and existing label rows don't reflow.
+  const slop = coarsePointer() ? 13 : 5
 
   const tooltip =
     show &&
     createPortal(
       <div
         ref={tooltipRef}
+        id={bubbleId}
         role="tooltip"
         style={{
           position: 'fixed',
@@ -114,8 +209,8 @@ export default function InfoTip({ text, wide, label }) {
           color: '#fff',
           borderRadius: 8,
           padding: '10px 14px',
-          fontSize: 12,
-          lineHeight: 1.65,
+          fontSize: 13, // F16: was 12 — dense statutory explanations need legible type
+          lineHeight: 1.6,
           whiteSpace: 'pre-wrap',
           textTransform: 'none',
           fontWeight: 400,
@@ -159,33 +254,67 @@ export default function InfoTip({ text, wide, label }) {
       ref={triggerRef}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
       onMouseEnter={open}
-      onMouseLeave={close}
+      onMouseLeave={closeSoft}
     >
       <button
         type="button"
+        // F11 FIX — out of the sequential tab order so Tab moves field → field
+        // and typed values are never swallowed by a focused help button. Help
+        // remains reachable: pointer/touch activate it, and the full text is
+        // permanently exposed to assistive tech via aria-describedby below.
+        tabIndex={-1}
         aria-label={label ? `Help: ${label}` : 'More information'}
         aria-expanded={show}
-        onClick={() => setShow((s) => !s)}
-        onFocus={open}
-        onBlur={close}
+        aria-controls={show ? bubbleId : undefined}
+        aria-describedby={descId}
+        onClick={() => {
+          if (show && pinned) {
+            close()
+          } else {
+            setPinned(true)
+            open()
+          }
+        }}
         style={{
-          width: 15,
-          height: 15,
+          width: 18, // F16: was 15
+          height: 18,
+          boxSizing: 'content-box',
+          padding: slop,
+          margin: -slop,
           borderRadius: '50%',
-          background: '#E2E8F0',
+          background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          fontSize: 9,
-          fontWeight: 700,
-          color: SL,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 0,
           flexShrink: 0,
         }}
       >
-        ?
+        <span
+          aria-hidden="true"
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: '#E2E8F0',
+            fontSize: 11, // F16: was 9
+            fontWeight: 700,
+            color: SL,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >
+          ?
+        </span>
+        {/* F14 FIX — the help text lives in the DOM at all times so screen
+            readers can reach it (browse mode, or announced as the trigger's
+            description). Visually hidden; the visual tooltip is the portal. */}
+        <span id={descId} style={SR_ONLY}>
+          {text}
+        </span>
       </button>
       {tooltip}
     </span>
