@@ -563,3 +563,23 @@ describe('§6654 per-installment schedule (2210-lite)', () => {
     expect(r.installmentSchedule[3].shortfall).toBe(0)
   })
 })
+
+// AUDIT A4-3 (Jul 2026): 2026 §461(l) thresholds — OBBBA §70601 RESET these DOWN.
+// Official: Rev. Proc. 2025-32 §4.31: $256,000 / $512,000 joint. The prior
+// 320,000/640,000 was a forward-indexation error (same failure mode as F-1).
+describe('§461(l) excess business loss thresholds (A4-3)', () => {
+  it('2026 = $256,000 single / $512,000 MFJ (Rev. Proc. 2025-32 §4.31)', () => {
+    // Sole prop loss 575,000 vs w2 600,000: allowed 256,000, excess 319,000 addback.
+    const r = _ctr3({ taxYear: 2026, status: 'single', w2: 600000, k1Total: -575000,
+      entities: [{ id: 'x', name: 'X', type: 'Sole Proprietor / SMLLC', own: 100,
+        pnl: { grossRevenue: 100000, totalExpenses: 675000, netProfit: -575000 } }] })
+    expect(r.ebl).toBe(319000)
+    expect(r.agi).toBe(344000) // 600,000 − 575,000 + 319,000
+  })
+  it('2025 unchanged at $313,000 / $626,000', () => {
+    const r = _ctr3({ taxYear: 2025, status: 'single', w2: 600000, k1Total: -575000,
+      entities: [{ id: 'x', name: 'X', type: 'Sole Proprietor / SMLLC', own: 100,
+        pnl: { grossRevenue: 100000, totalExpenses: 675000, netProfit: -575000 } }] })
+    expect(r.ebl).toBe(262000) // 575,000 − 313,000
+  })
+})
