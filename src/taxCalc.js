@@ -170,7 +170,10 @@ const TAX_TABLES = {
     ltcg:    { single:[49450,545500], mfj:[98900,613700], mfs:[49450,306850], hoh:[66200,579600], qss:[98900,613700] },
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
-    ebl: { single:320000, mfj:640000, mfs:320000, hoh:320000, qss:640000 },
+    // AUDIT A4-3 FIX (Jul 2026): prior 320,000/640,000 was forward-indexation that
+    // missed the OBBBA §70601 statutory RESET — 2026 thresholds went DOWN.
+    // Official: Rev. Proc. 2025-32 §4.31.
+    ebl: { single:256000, mfj:512000, mfs:256000, hoh:256000, qss:512000 },
     ctc: { perChild: 2200 },
     // AUDIT F-8 FIX (Jul 2026): prior values were pre-official projections. All figures
     // below transcribed from IRS Notice 2025-67 (Nov 2025).
@@ -1037,7 +1040,7 @@ function calcTaxReturn(input) {
     rentalForNII          = Math.max(0, passiveAllowed)
     rentalQbiContribution = nonpassiveRentalNet + Math.max(0, passiveAllowed)
   }
-  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 640000 : 320000)
+  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 512000 : 256000)  // A4-3: fallback = official 2026
   // Business capital gain for Â§461(l): f4797Inc (ordinary/Â§1231 entered as business income)
   // PLUS any Â§1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
   // NOT added to gross income here â its income effect is already carried by ltGain/unrecap1250
