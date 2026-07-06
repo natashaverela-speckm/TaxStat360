@@ -2219,14 +2219,16 @@ export default function AIAnalysis() {
             <Logo />
           </div>
           <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {/* UX AUDIT F17 (Jul 2026): emoji-only mobile nav (⊞ 🧮 🤖 ⚙) replaced
+                with short text labels + ≥44px touch targets, matching Dashboard. */}
             {[
-              { label: 'Dashboard',    mobileLabel: '⊞', path: '/dashboard' },
-              { label: 'Tax Tracker',  mobileLabel: '🧮', path: '/calculate-tax' },
-              { label: 'AI Analysis & Reporting', mobileLabel: '🤖', path: '/ai-analysis' },
-              { label: 'Settings',     mobileLabel: '⚙', path: '/settings' },
+              { label: 'Dashboard',    mobileLabel: 'Home',     path: '/dashboard' },
+              { label: 'Tax Tracker',  mobileLabel: 'Tracker',  path: '/calculate-tax' },
+              { label: 'AI Analysis & Reporting', mobileLabel: 'AI', path: '/ai-analysis' },
+              { label: 'Settings',     mobileLabel: 'Settings', path: '/settings' },
             ].map(link => (
-              <button key={link.path} onClick={() => navigate(link.path)} title={link.label} style={{
-                padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+              <button key={link.path} onClick={() => navigate(link.path)} title={link.label} aria-label={link.label} aria-current={location.pathname === link.path ? 'page' : undefined} style={{
+                padding: isMobile ? '13px 10px' : '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
                 background: location.pathname === link.path ? '#EFF6FF' : 'transparent',
                 color: location.pathname === link.path ? B : SL,
                 fontWeight: location.pathname === link.path ? 700 : 500,
