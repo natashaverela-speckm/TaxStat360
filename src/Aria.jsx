@@ -1,5 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { readLoggedIn, removeLoggedIn, readSessionStart, removeSessionStart } from './utils/sessionState.js'
+import {
+  readLoggedIn, removeLoggedIn, readSessionStart, removeSessionStart,
+  // AUDIT F10 (Jul 2026): Aria now reads the active session's entities and
+  // personal figures so its welcome prompts and answers reflect the user's
+  // actual situation instead of a fixed S-Corp script.
+  readStep1State, readPersonalContext, readTaxYear,
+} from './utils/sessionState.js'
+import { isRealEstateEntity, isSCorpEntity, isScheduleCType } from './utils/entityPredicates.js'
 // SEC-05: requests route through CloudFront (app.taxstat360.com) via the shared apiClient,
 // which builds every URL from API_BASE_URL — never the raw API Gateway URL — so CloudFront /
 // WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
@@ -58,7 +65,106 @@ function renderAriaText(text) {
   )
 }
 
-const WELCOME = `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n• "What's my estimated quarterly payment?"\n• "Am I paying myself a reasonable S-Corp salary?"\n• "What deductions am I missing?"\n• "How does my K-1 income affect my 1040?"\n\nWhat can I help you with today?`
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIT F10 (Jul 2026) — session grounding & entity-aware prompts.
+//
+// The audit asked Aria "Can I deduct my rental loss this year?" while the
+// active record showed net rental INCOME. Aria answered with a generic §469
+// framework and never noticed the user's own numbers; its four suggested
+// prompts were all S-Corp/K-1 flavored, none for the product's real-estate-
+// investor audience. Two client-side fixes:
+//
+//   1) buildSessionContext() summarizes the active session (entity types,
+//      tax year, filing status, key dollar figures) and it is sent with every
+//      question — appended to the outgoing message text inside a clearly
+//      delimited block (guaranteed to reach the model regardless of backend
+//      version) AND as a structured `context` field on the request body for
+//      the backend to move into the system turn when it's ready. The visible
+//      chat bubble shows only what the user typed.
+//
+//   2) suggestedPrompts() picks the welcome examples from the entity mix:
+//      rental-first for Schedule E investors, reasonable-comp for S-Corps,
+//      SE-tax/home-office for Schedule C, and the original generic set when
+//      no entities exist yet.
+//
+// Everything is read defensively — a signed-in user with no session data gets
+// exactly the old behavior.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const fmtUSD = (n) => {
+  const num = Number(n) || 0
+  return (num < 0 ? '-$' : '$') + Math.round(Math.abs(num)).toLocaleString('en-US')
+}
+
+function readSessionSnapshot() {
+  let entities = []
+  let personal = null
+  let taxYear = null
+  try { entities = readStep1State().entities || [] } catch { entities = [] }
+  try { personal = readPersonalContext() } catch { personal = null }
+  try { taxYear = readTaxYear() } catch { taxYear = null }
+  return { entities, personal, taxYear }
+}
+
+function buildSessionContext({ entities = [], personal = null, taxYear = null } = {}) {
+  const lines = []
+  const types = entities.map(e => e?.type).filter(Boolean)
+  if (types.length) lines.push(`Entities: ${types.join('; ')}`)
+  if (taxYear) lines.push(`Tax year: ${taxYear}`)
+  if (personal) {
+    if (personal.filingStatus) lines.push(`Filing status: ${personal.filingStatus}`)
+    const money = [
+      ['W-2 income', personal.w2Income],
+      ['Federal tax withheld', personal.w2Withheld],
+      ['Rental income (personal return)', personal.rentalIncome],
+      ['Rental expenses (personal return)', personal.rentalExpenses],
+      ['Estimated payments made', personal.estPaid],
+      ['Prior-year suspended passive loss', personal.priorSuspendedLoss],
+    ]
+    for (const [labelTxt, v] of money) {
+      const n = Number(v) || 0
+      if (n !== 0) lines.push(`${labelTxt}: ${fmtUSD(n)}`)
+    }
+    if (personal.isREP) lines.push('Real Estate Professional status: claimed')
+    if (Number(personal.dependents) > 0) lines.push(`Dependents: ${personal.dependents}`)
+  }
+  if (!lines.length) return null
+  return lines.join('\n')
+}
+
+function suggestedPrompts({ entities = [] } = {}) {
+  const types = entities.map(e => e?.type || '')
+  const hasRE = types.some(isRealEstateEntity)
+  const hasSCorp = types.some(isSCorpEntity)
+  const hasSchedC = types.some(isScheduleCType)
+
+  const out = []
+  // Rental-investor prompts lead when a Schedule E property is on file —
+  // this is the product's core real-estate audience.
+  if (hasRE) {
+    out.push('"Can I deduct my rental loss this year?"')
+    out.push('"Would cost segregation or bonus depreciation help on my rental?"')
+    out.push('"Do I qualify for Real Estate Professional status?"')
+  }
+  if (hasSCorp) {
+    out.push('"Am I paying myself a reasonable S-Corp salary?"')
+    out.push('"How does my K-1 income affect my 1040?"')
+  }
+  if (hasSchedC) {
+    out.push('"How can I lower my self-employment tax?"')
+    out.push('"Should I open a Solo 401(k) or SEP-IRA this year?"')
+  }
+  out.push('"What\'s my estimated quarterly payment?"')
+  out.push('"What deductions am I missing?"')
+
+  // De-dupe, cap at 4 so the welcome bubble stays scannable.
+  return [...new Set(out)].slice(0, 4)
+}
+
+function buildWelcome(snapshot) {
+  const prompts = suggestedPrompts(snapshot)
+  return `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n${prompts.map(p => `• ${p}`).join('\n')}\n\nWhat can I help you with today?`
+}
 
 // Max conversation turns to send to API — prevents unbounded cost growth
 const MAX_HISTORY_TURNS = 20
@@ -102,8 +208,11 @@ export default function Aria() {
 
   useEffect(() => {
     if (open && !welcomed) {
-      // intro:true marks the welcome as a display-only message — excluded from API history
-      setTimeout(() => { setMsgs([{ role: 'assistant', text: WELCOME, intro: true }]); setWelcomed(true) }, 300)
+      // intro:true marks the welcome as a display-only message — excluded from API history.
+      // F10: the welcome is built at open time so its example prompts reflect the
+      // entities in the CURRENT session (rental-first for Schedule E investors).
+      const snapshot = readSessionSnapshot()
+      setTimeout(() => { setMsgs([{ role: 'assistant', text: buildWelcome(snapshot), intro: true }]); setWelcomed(true) }, 300)
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 400)
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -124,11 +233,22 @@ export default function Aria() {
         .filter(m => !m.intro)
         .slice(-MAX_HISTORY_TURNS)
         .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
-      const messages = [...history, { role: 'user', content: userMsg }]
+
+      // F10: ground the model in the user's own record. Only the CURRENT turn
+      // carries the context block (history entries stay as displayed), so the
+      // model always sees the freshest figures without duplicated boilerplate.
+      const snapshot = readSessionSnapshot()
+      const context = buildSessionContext(snapshot)
+      const outgoing = context
+        ? `${userMsg}\n\n[Session context — figures from my TaxStat360 record. Ground your answer in these before citing general rules; if a rule doesn't apply to my numbers, say so:\n${context}]`
+        : userMsg
+      const messages = [...history, { role: 'user', content: outgoing }]
 
       const r = await apiFetch('/aria', {
         method: 'POST',
-        body: { messages },
+        // `context` is additive: current backends ignore unknown fields; the
+        // planned ARIA_SYSTEM upgrade will lift it into the system turn.
+        body: context ? { messages, context } : { messages },
         credentials: 'include',
         raw: true,
       })
@@ -227,13 +347,13 @@ export default function Aria() {
               disabled={loading}
               style={{ flex: 1, border: '1.5px solid #d1d5db', borderRadius: 22, padding: '9px 16px', fontSize: 13, outline: 'none', background: loading ? '#f1f5f9' : '#f8fafc' }}
             />
-            <button onClick={send} disabled={loading} style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
+            <button onClick={send} disabled={loading} aria-label="Send message to Aria" style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
           </div>
           {/* Planning-lane disclaimer — Aria is an AI assistant, so it carries the same
               federal-planning-only scope the rest of the app shows (FederalScopeBanner,
               TaxReturn footer). The authoritative guardrails live server-side in the
               /aria system prompt; this is the user-facing reminder. */}
-          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '6px 14px 10px', fontSize: 11, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
             Aria gives general federal tax-planning information for estimates only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>
