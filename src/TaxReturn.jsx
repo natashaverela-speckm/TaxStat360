@@ -1423,8 +1423,10 @@ export default function TaxReturn() {
                           ⚠ SALT deduction limited to {fmt(result.saltAllowed)} of the {fmt(result.saltEntered)} entered —
                           IRC §164(b)(6)/(b)(7) as amended by OBBBA §70120. For 2026 the cap is $40,400 ($20,200 MFS),
                           reduced by 30% of MAGI above $505,000 ($252,500 MFS) to a floor of $10,000 ($5,000 MFS).
-                          Pass-through owners in PTET states may be able to deduct state tax at the entity level
-                          without this cap — worth raising with your CPA.
+                          Note for pass-through owners: a state PTET election changes your FEDERAL deduction —
+                          state tax on business income moves from this capped line to an uncapped entity-level
+                          expense on your K-1. This app models federal tax only; ask your CPA whether the
+                          election helps you.
                         </div>
                       )}
                     </div>

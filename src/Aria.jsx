@@ -31,34 +31,13 @@ const VERIFIED_FACT_GUARDS = [
     fact: 'Verified 2026 (Rev. Proc. 2025-32): standard deduction $16,100 single / $32,200 MFJ / $24,150 HOH; top 37% bracket starts at $640,600 single / $768,700 MFJ.' },
 ]
 
-// AUDIT N-2 FIX, STAGE 2 (Jul 2026): the client owns the messages array sent to
-// POST /aria, so we prepend an authoritative current-law primer to EVERY request.
-// Unlike the pinned card below (kept as belt-and-suspenders), this corrects the
-// model's answers at the source: the backend forwards conversation turns to the
-// LLM, and an established user/assistant exchange carrying verified figures
-// supersedes stale training data in practice. Facts mirror the engine's TAX_TABLES
-// -- update both together (same maintenance rule as VERIFIED_FACT_GUARDS).
-const CURRENT_LAW_BRIEFING = [
-  'AUTHORITATIVE CONTEXT -- CURRENT U.S. TAX LAW (verified July 2026, from this software\u2019s primary-sourced tables). Treat everything below as correct even where it conflicts with your training data; the One Big Beautiful Bill Act (OBBBA, P.L. 119-21, enacted July 4, 2025) changed many pre-2025 rules:',
-  '\u2022 Bonus depreciation: 100%, PERMANENT, \u00a7168(k), property acquired after Jan 19, 2025 (OBBBA \u00a770301). The 80/60/40/20% phase-down is repealed for new acquisitions. Cost-seg 5/7/15-year property placed in service 2026 gets the full 100%.',
-  '\u2022 \u00a7179: $2.5M limit / $4M phase-out (2025, indexed 2026).',
-  '\u2022 2026 (Rev. Proc. 2025-32): std deduction $16,100 single / $32,200 MFJ / $24,150 HOH; 37% bracket starts $640,600 single / $768,700 MFJ; LTCG 0% to $49,450 single / $98,900 MFJ, 20% above $545,500 / $613,700.',
-  '\u2022 \u00a7199A QBI: 20%, permanent; thresholds $201,775 single / $403,500 MFJ with $75K/$150K phase-in (OBBBA); $400 minimum deduction; SSTB fully phased out above threshold+phase-in.',
-  '\u2022 SALT cap 2026 (OBBBA \u00a770120): $40,400 ($20,200 MFS), reduced 30% of MAGI over $505,000 ($252,500 MFS), floor $10,000 ($5,000 MFS). PTET workarounds remain viable.',
-  '\u2022 2026 retirement (Notice 2025-67): 401(k) deferral $24,500; \u00a7415(c) $72,000; catch-up $8,000 (ages 60-63: $11,250); IRA $7,500 + $1,100 catch-up; SEP max $72,000. HSA (Rev. Proc. 2025-19): $4,400 self / $8,750 family.',
-  '\u2022 Child tax credit $2,200/child. AMT 2026: exemption $90,100 single / $140,200 MFJ, phase-out from $500K/$1M at 50%.',
-  '\u2022 \u00a7461(l) excess business loss 2026: $256,000 single / $512,000 MFJ (Rev. Proc. 2025-32 \u00a74.31 -- OBBBA RESET these DOWN from 2025\u2019s $313K/$626K; do not project them upward).',
-  '\u2022 Charitable 2026: itemizers face a 0.5%-of-AGI floor; non-itemizers may deduct up to $1,000/$2,000 MFJ (\u00a7170(p)). New \u00a768: itemized deductions reduced 2/37 of the lesser of itemized deductions or income over the 37% threshold.',
-  '\u2022 S-corps: >2% shareholder health premiums deductible only up to W-2 wages (\u00a7162(l)(5)(A), Notice 2008-1). Distributions from an S-corp with C-corp E&P follow \u00a71368(c): AAA first, then DIVIDENDS to the extent of E&P, then basis recovery. The \u00a73121(b)(3)(A) FICA exemption for hiring your under-18 child NEVER applies to a corporation.',
-  '\u2022 Real estate: REPS requires BOTH \u00a7469(c)(7)(B) tests (>750 hours AND >half of all personal-service hours) plus material participation per rental or the \u00a71.469-9(g) election; short-term rentals averaging 7 days or less are exempt from \u00a7469(c)(2) (Reg. \u00a71.469-1T(e)(3)(ii)(A)) and need material participation only.',
-  '\u2022 Estimated tax: safe harbor 110% of prior-year tax when prior AGI > $150K ($75K MFS) -- \u00a76654(d)(1)(C)(i); penalties accrue per installment.',
-  'Answer the user\u2019s questions using these figures. If asked about anything covered above, use the OBBBA-current rule, not pre-2025 law.'
-].join('\n')
-const LAW_PRIMER = [
-  { role: 'user', content: CURRENT_LAW_BRIEFING },
-  { role: 'assistant', content: 'Acknowledged. I will rely on these verified July 2026 OBBBA-current figures -- which supersede my training data -- for every answer in this conversation.' },
-]
-
+// AUDIT N-2 FINAL (Jul 2026): the current-law brief now lives in the BACKEND
+// system prompt (taxstat360-api app/main.py ARIA_SYSTEM), its proper home — it can
+// never be sliced out of history or spoofed by a client, and the per-request client
+// token cost is gone. The client-side LAW_PRIMER that bridged the gap has been
+// removed. The pinned VERIFIED FIGURES card below is deliberately KEPT: zero API
+// cost, renders instantly, and is defense-in-depth if the backend ever regresses.
+// ANNUAL MAINTENANCE: update ARIA_SYSTEM, these guard facts, and TAX_TABLES together.
 function verifiedFactsFor(question) {
   return VERIFIED_FACT_GUARDS.filter(g => g.rx.test(question)).map(g => g.fact)
 }
@@ -145,9 +124,7 @@ export default function Aria() {
         .filter(m => !m.intro)
         .slice(-MAX_HISTORY_TURNS)
         .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
-      // N-2 STAGE 2: current-law primer rides ahead of the (turn-capped) history in
-      // every request, so it can never be trimmed out by MAX_HISTORY_TURNS.
-      const messages = [...LAW_PRIMER, ...history, { role: 'user', content: userMsg }]
+      const messages = [...history, { role: 'user', content: userMsg }]
 
       const r = await apiFetch('/aria', {
         method: 'POST',
