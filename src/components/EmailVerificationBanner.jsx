@@ -26,6 +26,7 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
   const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState(email || '')
   const [collapsed, setCollapsed] = useState(() => {
+    // M5: unreadable storage → banner starts expanded; harmless.
     try { return localStorage.getItem(COLLAPSED_KEY) === '1' } catch (e) { return false }
   })
   const collapse = () => { setCollapsed(true); try { localStorage.setItem(COLLAPSED_KEY, '1') } catch (e) { /* noop */ } }

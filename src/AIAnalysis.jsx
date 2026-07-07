@@ -225,7 +225,13 @@ function getRecord(liveState) {
         totalTax: 0,
       }
     }
-  } catch(e) {}
+  } catch(e) {
+    // M5 (audit F-10): if live-context assembly throws, we fall back to the saved
+    // record (or the empty-state UI) rather than crashing the strategies page —
+    // but log it: a silent swallow here previously hid real bugs behind a quiet
+    // downgrade to stale data, which is undiagnosable from a support ticket.
+    console.error('[AIAnalysis] live-context build failed; using saved-record fallback:', e)
+  }
 
   if (saved) {
     const fallback = Object.assign({ _savedFallback: true }, saved)
@@ -233,7 +239,10 @@ function getRecord(liveState) {
       try {
         const sessionEntities = readStep1State().entities
         if (Array.isArray(sessionEntities) && sessionEntities.length > 0) fallback.entities = sessionEntities
-      } catch(e) {}
+      } catch(e) {
+        // M5: best-effort enrichment of a legacy record with session entities —
+        // the record itself still renders if session state is unreadable.
+      }
     }
     return fallback
   }

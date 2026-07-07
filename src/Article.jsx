@@ -89,7 +89,7 @@ export default function Article() {
       return new Date(article.publishedDate).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric',
       })
-    } catch { return article.publishedDate }
+    } catch { return article.publishedDate /* M5: unparseable date → show raw string */ }
   })()
 
   return (

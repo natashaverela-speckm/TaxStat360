@@ -86,6 +86,7 @@ function coarsePointer() {
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(pointer: coarse)').matches
   } catch {
+    // M5: matchMedia probe failure → assume fine pointer; hover behavior still works.
     return false
   }
 }

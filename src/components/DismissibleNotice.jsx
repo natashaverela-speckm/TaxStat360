@@ -25,6 +25,7 @@ export default function DismissibleNotice({
     try {
       return persistence === 'local' ? window.localStorage : window.sessionStorage
     } catch (e) {
+      // M5: storage unavailable → no persistence; the notice simply shows each visit.
       return null
     }
   }

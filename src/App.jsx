@@ -188,7 +188,10 @@ function RequireAuth({ children }) {
         history.unshift({ timestamp: new Date().toISOString(), userAgent: navigator.userAgent })
         writeLoginHistory(JSON.stringify(history.slice(0, 10)))
       }
-    } catch(e) {}
+    } catch(e) {
+      // M5 (audit F-10): login history is a Settings display nicety — a storage
+      // failure (private browsing, quota) must never interfere with sign-in.
+    }
 
     const timeoutMins = parseInt(readIdleTimeoutMins() || '0')
     if (!timeoutMins) return

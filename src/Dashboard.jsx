@@ -244,10 +244,13 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
 function FederalDisclosureBanner() {
   const key = 'ts360_fed_banner_dismissed'
   const [visible, setVisible] = useState(() => {
+    // M5 (audit F-10): storage unavailable (private browsing) → banner shows; harmless.
     try { return localStorage.getItem(key) !== '1' } catch { return true }
   })
   if (!visible) return null
-  const dismiss = () => { try { localStorage.setItem(key, '1') } catch {} setVisible(false) }
+  // M5: if persistence fails the banner is still dismissed for this render; it may
+  // reappear next visit — acceptable for a disclosure banner.
+  const dismiss = () => { try { localStorage.setItem(key, '1') } catch { /* see above */ } setVisible(false) }
   return (
     <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

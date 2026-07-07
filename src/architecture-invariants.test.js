@@ -78,4 +78,28 @@ describe('ARCHITECTURE invariants (CI-enforced)', () => {
     expect(violations(/25000\s*-\s*Math\.max\(0,\s*\(?\s*\w+\s*-\s*100000\s*\)?\s*\*\s*0?\.5/,
       ['taxCalc.js', 'constants.js'])).toEqual([])
   })
+
+  it('§7 (M5) — no bare silent catches: every swallowed error carries a justification', () => {
+    // The error-handling convention (ARCHITECTURE §7, audit F-10): a catch may
+    // swallow only with an explanatory comment; otherwise it must surface, log,
+    // or re-throw. This regex flags `catch {}` / `catch (e) {}` bodies that are
+    // empty AFTER comment-stripping is NOT applied — i.e. truly bare, no comment.
+    // NOTE: this check runs on RAW source (comments count as justification), so
+    // it uses its own scan instead of the stripped-source helper above.
+    const bare = /catch\s*(\([^)]*\))?\s*\{\s*\}/
+    const allow = [
+      // Onboarding.jsx: 4 legacy bare swallows inside the signup handler are
+      // deferred to M7 (the credential-move batch edits those exact lines) so
+      // hygiene batches never touch the payment flow. TODO(M7): fix, then
+      // remove this allowance.
+      'Onboarding.jsx',
+    ]
+    const hits = []
+    for (const f of files) {
+      const r = rel(f)
+      if (allow.some((a) => r === a)) continue
+      if (bare.test(read(f))) hits.push(r)
+    }
+    expect(hits).toEqual([])
+  })
 })

@@ -122,7 +122,9 @@ export function writeStep1State({ entities = [], entitiesRaw = null, k1Total = 0
 
 export function readStep1State() {
   let entities = []
-  try { entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]') } catch {}
+  // M5 (audit F-10): corrupt working-copy JSON → empty entity list (module convention:
+  // storage readers degrade to a sane default rather than throw into render paths).
+  try { entities = JSON.parse(sessionStorage.getItem('ts360_entities') || '[]') } catch { /* default [] stands */ }
   const k1Total = parseFloat(sessionStorage.getItem('ts360_k1') || '0') || 0
   const isCoopPatron = sessionStorage.getItem('ts360_isCoopPatron') === 'true'
   return { entities, k1Total, isCoopPatron }
@@ -140,7 +142,7 @@ export function readStep1StateRaw() {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : []
   } catch {
-    return []
+    return []   // M5: corrupt JSON → empty list (module convention)
   }
 }
 
@@ -368,7 +370,7 @@ export function readPersonalContext() {
     parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return defaults
   } catch {
-    return defaults
+    return defaults   // M5: corrupt JSON → documented defaults (module convention)
   }
   // Explicit field extraction (NOT a spread merge). Spread would let unknown
   // keys from older sessionStorage data — including legacy field names like
@@ -564,7 +566,7 @@ export function readRiskDismissals(recordId) {
     const all = JSON.parse(raw)
     return (all && typeof all[recordId] === 'object') ? all[recordId] : {}
   } catch {
-    return {}
+    return {}   // M5: corrupt JSON → empty map (module convention)
   }
 }
 
@@ -837,7 +839,7 @@ export function recordsKeyFor(email) {
 }
 
 function _parseRecArray(raw) {
-  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : [] } catch (e) { return [] }
+  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : [] } catch (e) { return [] /* M5: corrupt record array → [] */ }
 }
 
 // One-time-per-user migration of the legacy shared buckets (the global
@@ -956,7 +958,11 @@ export async function deleteUserRecord(recordId) {
         const next = arr.filter(r => r && r.id !== recordId)
         if (next.length !== arr.length) localStorage.setItem(k, JSON.stringify(next))
       }
-    } catch (e) {}
+    } catch (e) {
+      // M5 (audit F-10): a user-initiated delete that silently fails is confusing
+      // (the card can reappear after reload) — log it so support can diagnose.
+      console.warn('deleteRecord: local purge failed for a storage key', e)
+    }
   }
   return readUserRecords()
 }
@@ -1059,7 +1065,7 @@ export function readSessionStart() { return localStorage.getItem('ts360_session_
 export function writeSessionStart(val) { localStorage.setItem('ts360_session_start', val) }
 export function removeSessionStart() { localStorage.removeItem('ts360_session_start') }
 export function readToken() {
-  try { return localStorage.getItem('ts360_token') } catch { return null }
+  try { return localStorage.getItem('ts360_token') } catch { return null /* M5: unreadable storage → treated as signed out */ }
 }
 export function writeToken(val) { localStorage.setItem('ts360_token', val) }
 export function readEmail() { return localStorage.getItem('ts360_email') }

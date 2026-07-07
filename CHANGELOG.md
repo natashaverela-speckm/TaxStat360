@@ -22,6 +22,40 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Batch 3 (Audit Modules M5 + M6) — July 6, 2026
+
+Internal-quality batch: zero customer-visible changes, zero flow files touched.
+
+### Changed — M5: error-handling convention (audit F-10)
+- New ARCHITECTURE §7: every catch must surface, log, swallow-with-justification,
+  or re-throw; tax-math paths never swallow. Bare silent catches are now
+  CI-forbidden via a fifth architecture-invariants check.
+- 20 previously bare catch sites annotated with their justification; two upgraded
+  to log (AIAnalysis live-context fallback — a silent downgrade to stale data was
+  undiagnosable from support tickets; sessionState deleteRecord purge — a silently
+  failed user-initiated delete). Logging additions only; no behavior changes.
+- Onboarding.jsx's 4 legacy bare swallows are deferred to M7 (which edits those
+  exact lines for the credential move) so hygiene batches never touch the signup
+  flow; the CI check carries an explicit TODO(M7) allowance.
+
+### Changed — M6: test hygiene (audit F-07)
+- Ticket-named test files renamed by subject (history preserved in headers):
+  taxCalc-c10 → taxCalc-basis-loss-limit; taxCalc-c11c12 → taxCalc-basis-waterfall;
+  taxCalc-f3f5 → taxCalc-1231-lookback; taxCalc-qbi179 → taxCalc-qbi-sec179.
+- All 27 tests in those files carry SPEC:/CHAR: labels in the test name, with IRC
+  and Treasury Regulation citations on every SPEC (§1366(d), §704(d), §1368(b),
+  Reg. §1.1368-1(e), Form 7203, §469(c)(7)(B), §1231(a)(2)/(c), §199A,
+  Reg. §1.199A-3(b)).
+- ARCHITECTURE §6 codifies both rules; the two 2024-era suites (taxCalc.test.js,
+  taxCalc-engine.test.js — 242 tests) are grandfathered pending M6b to keep this
+  diff reviewable.
+
+### Tests
+- 520 → 521 (+1 invariants check). Renames verified by vitest discovery: same
+  26 files, same assertions, subject-named.
+
+---
+
 ## Batch 2 (Audit Modules M3 + M4) — July 6, 2026
 
 ### Changed — M3: §179 + net-profit centralization (audit F-03, F-04)
