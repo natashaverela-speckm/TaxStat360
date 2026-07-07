@@ -77,6 +77,9 @@ import {
   CAP_LOSS_ORDINARY_LIMIT_MFS,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from './utils/entityPredicates.js'
+// PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
+// field manifest — the single home for every persisted/scaled field list.
+import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from './utils/fieldManifest.js'
 import { nf } from './utils/money.js'
 // nf(): canonical money parser imported from utils/parseMoney.js (audit D-1).
 // Strips thousands separators; engine inputs are stored comma-free so this is
@@ -640,27 +643,8 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     taxableBeforeQBI
   )
 }
-// AUDIT A4-2 FIX (Jul 2026): YTD mode promises “enter YTD figures and we’ll project
-// your full-year liability” — deduction FLOWS must annualize like income flows.
-// Previously itemized/SALT/medical/charitable stayed at their YTD amounts, so
-// projected deductions were understated (and the SALT cap / 0.5% floor / §170(p)
-// tests ran against half-sized numbers). DELIBERATELY NOT SCALED (documented
-// decisions): estPaid/estQ1-4 (actual payments to date, §6654 compares them to the
-// annualized liability); isoBargainElement (a discrete exercise event, not a ratable
-// flow); prior-year figures and all carryforwards/balances.
-const _YTD_SCALE_FIELDS = [
-  'w2', 'k1Total', 'rentalNet',
-  'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
-  'f4797Inc', 'taxableSS', 'iraIncome',
-  'selfEmpHealthIns', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
-  'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',   // A4-2
-]
-// AUDIT A4-1 FIX (Jul 2026): `distributions` is a FLOW — YTD distributions must
-// annualize or the projected §1368 excess-distribution gain evaporates (audit-4
-// probe: half-year inputs produced gain $0 instead of $25,000). Balance-sheet
-// fields (stockBasis, debtBasis, beginningAAA, accumulatedEP, box17V_ubia,
-// qbiLossCarryforward) remain correctly UNscaled — they are point-in-time amounts.
-const _YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions']
+// A4-1/A4-2 YTD scaling lists live in src/utils/fieldManifest.js (Phase 2.1) —
+// flows scale; balances, actual payments, and discrete events deliberately do not.
 function _scaleNumeric(v, yf) {
   if (v === undefined || v === null || v === '') return v
   const n = parseFloat(v)
@@ -672,14 +656,14 @@ function _annualizeIfYTD(input) {
     : 1
   if (yf === 1) return input
   const out = { ...input }
-  for (const k of _YTD_SCALE_FIELDS) {
+  for (const k of YTD_SCALE_ENGINE_FIELDS) {
     out[k] = _scaleNumeric(out[k], yf)
   }
   if (Array.isArray(out.entities)) {
     out.entities = out.entities.map(e => {
       if (!e) return e
       const ne = { ...e }
-      for (const k of _YTD_SCALE_ENTITY_FIELDS) {
+      for (const k of YTD_SCALE_ENTITY_FIELDS) {
         if (k in ne) ne[k] = _scaleNumeric(ne[k], yf)
       }
       if (ne.pnl && typeof ne.pnl === 'object') {
@@ -757,7 +741,7 @@ function calcTaxReturn(input) {
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
     // F10/P6-1: prior-year §1212(b) capital-loss carryforwards, character retained.
-    // BALANCES, not flows — deliberately excluded from _YTD_SCALE_FIELDS like all
+    // BALANCES, not flows — deliberately excluded from YTD_SCALE_ENGINE_FIELDS (fieldManifest.js) like all
     // carryforwards. Engine-ready; UI/session persistence lands with the Phase-2
     // shared field manifest (adding a persisted field currently touches five lists).
     capLossCarryforwardST = 0, capLossCarryforwardLT = 0,
