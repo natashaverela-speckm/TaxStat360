@@ -82,7 +82,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
-import { readBusinessInfo, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail } from './utils/sessionState.js'
+import { readBusinessInfo, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
@@ -248,7 +248,7 @@ headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 body: mcData.toString()
 })
 } catch(e) {}
-sessionStorage.setItem('ts360_new_registration','1')
+writeNewRegistration()   // M4 (audit F-06): accessor swap only — Stripe block above untouched
 nav('/verify-email')
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -494,13 +494,13 @@ function isValidSession(){
 }
 
 function continueAfterVerifyEmail(nav) {
-  const isNew = sessionStorage.getItem('ts360_new_registration') === '1'
+  const isNew = readNewRegistration()
   const email = readEmail()
   if (isNew || needsOnboardingTour(email)) {
     nav('/onboarding/welcome')
     return
   }
-  sessionStorage.removeItem('ts360_new_registration')
+  clearNewRegistration()
   // AUDIT FLOW REVISION: '/onboarding/entity' no longer exists — a valid session
   // lands on the Dashboard (pick a saved card or start a new calculation); an
   // invalid one re-authenticates.

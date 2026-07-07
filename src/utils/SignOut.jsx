@@ -20,6 +20,10 @@
 //   integration tokens     — QuickBooks, Xero, Wave, FreshBooks
 //   app state              — ts360_connected_app
 
+// M4 (audit F-06): the session wipe routes through sessionState so the
+// ARCHITECTURE §3 contract holds; clear+swallow semantics unchanged.
+import { clearAllSessionState } from './sessionState.js'
+
 const AUTH_KEYS = [
   // Core auth / session
   'ts360_logged_in',
@@ -80,9 +84,7 @@ export function wipeAccountLocalData(nav, { redirectTo = '/' } = {}) {
     // Last resort: if enumeration fails, fall back to the known auth keys.
     AUTH_KEYS.forEach(k => localStorage.removeItem(k))
   }
-  try {
-    sessionStorage.clear()
-  } catch (e) {}
+  clearAllSessionState()   // M4 (audit F-06): same clear+swallow semantics, contract-compliant home
   if (redirectTo) {
     window.location.replace(redirectTo)
     return

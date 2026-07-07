@@ -657,6 +657,55 @@ export function writeStep1Entities(entities) {
   sessionStorage.setItem('ts360_step1_entities', JSON.stringify(entities))
 }
 
+// M4 (audit F-06): reader companion to writeStep1Entities above — CalculateTaxInner's
+// mount hydration previously called sessionStorage.getItem + JSON.parse inline.
+// Corrupt JSON returns [] (module convention, matching readStep1State at the top of
+// this file) rather than throwing out of a mount effect.
+export function readStep1Entities() {
+  try { return JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]') }
+  catch { return [] }
+}
+
+// ─── One-off loaded record + integration-connect entity index (M4, audit F-06) ──
+// Both keys currently have READERS but no WRITER anywhere in src/ — the flows that
+// wrote them were removed in earlier refactors (Dashboard.loadRecord now persists via
+// writeStep1State; the integration-connect flow passes ?entity= in the OAuth return
+// URL). The reads are preserved verbatim behind accessors so the sessionStorage
+// contract holds; removing the dead fallbacks entirely is queued as audit module M7.
+export function readLoadedRecordRaw() {
+  return sessionStorage.getItem('ts360_loaded_record')
+}
+export function readConnectingEntityRaw() {
+  return sessionStorage.getItem('ts360_connecting_entity')
+}
+
+// ─── New-registration flag (M4, audit F-06) ──────────────────────────────────
+// Set at signup completion (Onboarding), consumed by the verify-email continue
+// handler and the welcome tour to distinguish a brand-new account from a
+// returning user on a fresh device. Previously raw sessionStorage calls in
+// Onboarding.jsx and WelcomeTourScreen.jsx — the last contract violations in
+// the signup path. NOTE: these three accessors are the ONLY sanctioned touch
+// points; the Stripe subscribe block in Onboarding.jsx is deliberately not
+// refactored (owner directive: payment flow stays untouched).
+export function writeNewRegistration() {
+  sessionStorage.setItem('ts360_new_registration', '1')
+}
+export function readNewRegistration() {
+  return sessionStorage.getItem('ts360_new_registration') === '1'
+}
+export function clearNewRegistration() {
+  sessionStorage.removeItem('ts360_new_registration')
+}
+
+// ─── Full session wipe (M4, audit F-06) ──────────────────────────────────────
+// Sign-out is the one flow allowed to clear the whole session store; routing it
+// through here keeps the ARCHITECTURE §3 grep clean and gives the wipe a single
+// audited home. Swallowing the (vanishingly rare) storage exception preserves
+// SignOut's prior behavior — sign-out must never fail on a storage error.
+export function clearAllSessionState() {
+  try { sessionStorage.clear() } catch { /* noop: sign-out must not fail on storage errors */ }
+}
+
 // ─── 2FA nudge helpers ────────────────────────────────────────────────────────
 // Dashboard.jsx previously read/wrote ts360_2fa_nudge_dismissed directly (audit
 // R-05). These two helpers centralise the key so a rename requires one edit.

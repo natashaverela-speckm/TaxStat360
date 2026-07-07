@@ -16,6 +16,11 @@
 // normalizeEntityType() is the one-way bridge A → B. The regex predicates below match
 // EITHER representation, so prefer them for any gating test.
 
+// nf(): comma-safe, finite-by-construction numeric parse — required by the
+// getEntityPnlNet helpers below. money.js has no imports of its own, so this
+// introduces no cycle (constants → money/entityPredicates → taxCalc → UI).
+import { nf } from './money.js'
+
 // ── Entity type predicates ────────────────────────────────────────────────────
 
 /** Sole Proprietor / Single-Member LLC — files Schedule C (IRC §1402) */
@@ -98,6 +103,46 @@ export function normalizeEntityType(type) {
  */
 export function getEntityNetProfit(e) {
   return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
+}
+
+// ── P&L-derived net profit (M3, audit F-04) ──────────────────────────────────
+//
+// SINGLE SOURCE for the derivation rule that previously existed as 11 inline
+// copies across TaxReturn.jsx, CalculateTaxInner.jsx, and AIAnalysis.jsx:
+//
+//     nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+//
+// i.e. use the stored/synced net profit when present; otherwise DERIVE it from
+// gross revenue minus total expenses. All parsing goes through nf(), which is
+// comma-safe and finite-by-construction.
+//
+// RELATIONSHIP TO getEntityNetProfit() ABOVE — read before "unifying" them:
+// the two are NOT interchangeable. getEntityNetProfit() reads a stored value
+// (with the legacy e.netProfit fallback) and never derives from gross/expenses;
+// it also uses parseFloat, which stops at a comma. For a record whose pnl has
+// grossRevenue/totalExpenses but no netProfit, getEntityNetProfit() returns 0
+// while getEntityPnlNet() returns the derived figure — meaning the two surfaces
+// that use them can display different numbers for the same record. That
+// divergence predates this refactor and is documented in KNOWN_LIMITATIONS.md
+// (OBS-3); reconciling it is an owner decision because it changes displayed
+// figures. This refactor only removes the duplication — each call site keeps
+// the exact rule it had before.
+
+/** P&L net profit: stored pnl.netProfit, else derived grossRevenue − totalExpenses.
+ *  Comma-safe (nf). Missing/absent pnl → 0. Does NOT read the legacy e.netProfit
+ *  field (matching the inline expression it replaces). */
+export function getEntityPnlNet(e) {
+  const pnl = e?.pnl || {}
+  return nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+}
+
+/** Owner's rounded share of the P&L net: Math.round(net × own% / 100).
+ *  ownPct() handles missing/invalid ownership as 100% and explicit 0 as 0%
+ *  (F-M02). Equivalent to every inline `Math.round(net * ownPct(e.own) / 100)`
+ *  it replaces, including the `ownPct(e.own ?? 100)` variant (identical result:
+ *  ownPct(undefined) is already 100). */
+export function getEntityPnlNetShare(e) {
+  return Math.round(getEntityPnlNet(e) * ownPct(e?.own) / 100)
 }
 
 /**

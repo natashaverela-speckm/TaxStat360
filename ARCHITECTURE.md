@@ -13,13 +13,19 @@ broken when adding features or fixing bugs. Read before touching any file in src
 - ALL permanent rate constants (IRC rates, FICA structure, ERISA ages, statutory
   dollar amounts that do NOT inflate) live in `src/constants.js` only.
 - Year-specific dollar figures (brackets, thresholds, standard deductions,
-  §179 limits, bonus depreciation %, phase-outs) live in `TAX_TABLES[year]`
+  phase-outs) live in `TAX_TABLES[year]`
   inside `taxCalc.js`. When a new tax year is released, update ONLY that object.
 - `src/aiAnalysisTaxMath.js` imports FROM `taxCalc.js`. Never the reverse.
 - Components call `calcTaxReturn()` for final federal tax liability.
   No component may compute a final tax number inline.
 - `src/scenarioCompare.js` routes all three entity scenarios through
   `calcTaxReturn()` — not through any component.
+- (M3, Jul 2026) The §179(b)(3) business-income limitation lives ONLY in
+  `calc179Limitation()` (taxCalc.js); the flow-through k1Total rule lives ONLY
+  in `sumK1FlowThrough()` (taxCalc.js); the P&L net-derivation rule
+  (`netProfit ?? gross − expenses`) lives ONLY in `getEntityPnlNet()` /
+  `getEntityPnlNetShare()` (utils/entityPredicates.js). Never re-inline any of
+  them — `src/architecture-invariants.test.js` fails the build if you do.
 
 **Consequence:** if you need a tax rate or threshold in a component,
 import it from `constants.js` or via a getter from `taxCalc.js`.
@@ -32,7 +38,7 @@ Never hard-code it in JSX.
 | File | Contains |
 |------|----------|
 | `src/constants.js` | Statutory / permanent values — IRC rates, FICA %, ERISA ages, SALT cap, mileage rates, company identity strings |
-| `src/taxCalc.js` → `TAX_TABLES[year]` | Annual / inflation-adjusted values — standard deductions, brackets, §199A thresholds, §179 limits, NIIT/Medicare thresholds |
+| `src/taxCalc.js` → `TAX_TABLES[year]` | Annual / inflation-adjusted values — standard deductions, brackets, §199A thresholds, NIIT/Medicare thresholds. (§179 DOLLAR limits are NOT modeled — see KNOWN_LIMITATIONS.md `179-DOLLAR`; only the §179(b)(3) income limitation exists, in `calc179Limitation()`) |
 | `src/utils/integrations.js` | Third-party API keys and integration credential helpers — NOT tax constants |
 
 Never add a year-specific dollar amount to `constants.js`.
@@ -44,13 +50,26 @@ Never add a credential or API key to `constants.js`.
 
 - All `sessionStorage` reads go through a reader in `src/utils/sessionState.js`.
 - All `sessionStorage` writes go through a writer in `src/utils/sessionState.js`.
+- EXCEPTION (M4, Jul 2026): `src/utils/integrations.js` is also sanctioned —
+  the OAuth token deliberately lives in both stores, and its accessors
+  (`readIntegrationToken` / `writeIntegrationToken` / `readIntegrationField` …)
+  are the single audited home for ALL integration-field storage. Components
+  must never call `localStorage.<op>(integrationKey(...))` directly either.
 - Never call `sessionStorage.getItem` or `sessionStorage.setItem` directly
-  in a component or utility file.
-- Verification command (must return empty):
+  in a component or any other utility file.
+- Verification commands (each must return empty):
   ```
   grep -rn 'sessionStorage\.' src/ --include='*.jsx' --include='*.js' \
-    | grep -v sessionState.js
+    | grep -v sessionState.js | grep -v integrations.js | grep -v '.test.'
+  grep -rn 'Storage\..*integrationKey(' src/ --include='*.jsx' --include='*.js' \
+    | grep -v integrations.js | grep -v '.test.'
+  grep -rn 'netProfit ?? (nf(' src/ --include='*.jsx' --include='*.js' \
+    | grep -v entityPredicates.js | grep -v '.test.'
   ```
+- These invariants are CI-ENFORCED: `src/architecture-invariants.test.js` runs
+  the same checks in the test suite, which gates both the GitHub Actions deploy
+  and (since M4) the Amplify build. A violation fails the build — the greps
+  above are for local convenience, not the enforcement mechanism.
 
 ---
 
