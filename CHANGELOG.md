@@ -22,6 +22,38 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Batch 6 (Housekeeping: pricing single-source, OBS-2/OBS-8, M6b) — July 7, 2026
+
+### Changed — pricing single-source (audit D-06, resolved)
+- PLAN_PRICING in constants.js now derives every displayed price from the
+  PRICE_*_MONTHLY constants (annual-effective monthly = ×10÷12 rounded; annual
+  total = ×10; Landing savings = ×2). Landing (cards + comparison table),
+  Onboarding (plan picker), and Upgrade all render from it. Display-freeze
+  tests (planPricing.test.js) pin today's exact strings — provably
+  display-identical now, and any future price change fails tests first.
+- SURFACED, preserved verbatim (new OBS-9): Landing and Upgrade were already
+  showing DIFFERENT "annual savings" figures ($298 vs $300 for Professional).
+
+### Fixed — OBS-2 (integration disconnect) and OBS-8 (tooltip)
+- Both disconnect paths clear the OAuth token from both stores; no stale
+  credential survives a disconnect.
+- Tooltips near the bottom edge no longer overflow the viewport. Two new
+  position tests; the two pre-existing position tests pass unchanged.
+
+### Changed — M6b: legacy suite labels
+- All 242 tests in taxCalc.test.js and taxCalc-engine.test.js carry mechanical
+  CHAR labels (the always-true floor claim). Deliberately NO mass SPEC
+  promotion — SPEC asserts independent verification against the cited
+  authority; promote per-test as values are re-verified.
+
+### Documented
+- OBS-5 server-relay spec in KNOWN_LIMITATIONS (needs backend access).
+
+### Tests
+- 530 → 538 (+6 pricing display-freeze, +2 tooltip edge cases).
+
+---
+
 ## Batch 5 (Dead-code & duplication audit remediation) — July 7, 2026
 
 Structural batch; zero customer-visible changes except one deliberate,

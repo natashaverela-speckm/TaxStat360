@@ -578,15 +578,37 @@ export const INTEGRATIONS = [
 //
 // To change pricing: update these constants only. Upgrade.jsx and Landing.jsx will
 // reflect the change automatically on next build.
-// ⚠ D-06 OWNER DECISION PENDING (dead-code audit, Jul 2026): these three PRICE_*
-// constants are imported by NOTHING — the plan cards render prices from the
-// PLAN_FEATURES strings. EDITING THESE DOES NOT CHANGE WHAT CUSTOMERS SEE.
-// Resolve by either deriving PLAN_FEATURES' displayed prices from these values
-// (single source) or deleting them. Do not leave both indefinitely.
+// D-06 RESOLVED (Batch 6, Jul 2026): these are now the SINGLE SOURCE for every
+// price customers see. PLAN_PRICING below derives the annual-effective monthly
+// (10 months billed ÷ 12), the annual total (×10), and the marketing savings
+// figure (×2 — two free months) from them; Landing, Onboarding, and Upgrade all
+// render from PLAN_PRICING. Change a price HERE and every surface follows.
+// A display-freeze test (src/planPricing.test.js) pins today's exact rendered
+// strings — it will fail loudly (on purpose) when a price changes, so a price
+// change is always a conscious, test-acknowledged act.
 export const PRICE_STARTER_MONTHLY = 79       // USD/month
 export const PRICE_PROFESSIONAL_MONTHLY = 149 // USD/month
 export const PRICE_ENTERPRISE_MONTHLY = 299   // USD/month
 export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy — update if discount changes
+
+// Derived per-plan pricing (D-06 single source; see note above PRICE_*).
+// NOTE (OBS-9, KNOWN_LIMITATIONS.md): two different "annual savings" formulas
+// were ALREADY live before this change — Landing shows monthly×2 (two free
+// months: $158/$298/$598) while Upgrade computes (monthly−annualMonthly)×12
+// ($156/$300/$600, a rounding artifact of the ÷12). Both are preserved verbatim
+// here and at the sites; unifying is an owner display decision.
+const _plan = (monthly) => ({
+  monthly,
+  annualMonthly: Math.round(monthly * 10 / 12),   // 10 months billed, shown per-month
+  annualTotal:   monthly * 10,
+  annualSavings: monthly * 2,                      // Landing's formula (two free months)
+})
+export const PLAN_PRICING = {
+  starter:      _plan(PRICE_STARTER_MONTHLY),
+  professional: _plan(PRICE_PROFESSIONAL_MONTHLY),
+  enterprise:   _plan(PRICE_ENTERPRISE_MONTHLY),
+}
+export const fmtPlanPrice = (n) => '$' + n.toLocaleString('en-US')
 
 
 // ─── COMPANY IDENTITY / NAP — footer + local SEO ─────────────────────────────

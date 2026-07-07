@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice } from './constants'
 import './Landing.css'
 
 const N = '#0D1B3E'
@@ -341,7 +341,8 @@ export default function Landing() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 960, margin: '0 auto' }}>
           {[
             {
-              name: 'Starter', price: '$79', annualPrice: '$66', annualTotal: '$790', annualSavings: '$158',
+              // D-06: derived from PLAN_PRICING — single price source (strings identical to prior literals).
+              name: 'Starter', price: fmtPlanPrice(PLAN_PRICING.starter.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.starter.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.starter.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.starter.annualSavings),
               highlight: false,
               desc: 'Know what you owe — every month, not just in April.',
               features: [
@@ -354,7 +355,7 @@ export default function Landing() {
               ],
             },
             {
-              name: 'Professional', price: '$149', annualPrice: '$124', annualTotal: '$1,490', annualSavings: '$298',
+              name: 'Professional', price: fmtPlanPrice(PLAN_PRICING.professional.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.professional.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.professional.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.professional.annualSavings),
               highlight: true,
               desc: 'AI that catches problems before they become expensive mistakes.',
               // #8 FIX: surfaced "Ask Aria" (the in-app AI assistant) in the marketing copy.
@@ -374,7 +375,7 @@ export default function Landing() {
               ],
             },
             {
-              name: 'Enterprise', price: '$299', annualPrice: '$249', annualTotal: '$2,990', annualSavings: '$598',
+              name: 'Enterprise', price: fmtPlanPrice(PLAN_PRICING.enterprise.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.enterprise.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.enterprise.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.enterprise.annualSavings),
               highlight: false,
               desc: 'Built for owners running multiple businesses or entities.',
               // #7 FIX: reworded "IRS response templates" to make clear these are planning /
@@ -442,9 +443,9 @@ export default function Landing() {
               <tr>
                 <th style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, borderBottom: '2px solid #e2e8f0', width: '44%' }}></th>
                 {[
-                  { name: 'Starter', price: '$79', highlight: false },
-                  { name: 'Professional', price: '$149', highlight: true },
-                  { name: 'Enterprise', price: '$299', highlight: false },
+                  { name: 'Starter', price: fmtPlanPrice(PLAN_PRICING.starter.monthly), highlight: false },
+                  { name: 'Professional', price: fmtPlanPrice(PLAN_PRICING.professional.monthly), highlight: true },
+                  { name: 'Enterprise', price: fmtPlanPrice(PLAN_PRICING.enterprise.monthly), highlight: false },
                 ].map(plan => (
                   <th key={plan.name} style={{
                     padding: '12px 16px', textAlign: 'center', borderBottom: '2px solid #e2e8f0',
