@@ -31,6 +31,7 @@ import {
 } from './theme.js'
 // CC-M02: canonical currency formatter.
 import { fmt, nf } from './utils/money.js'
+import { CURRENT_TAX_YEAR } from './constants.js'
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
 import { isSCorpEntity, isCCorpEntity } from './utils/entityPredicates'
 
@@ -63,7 +64,12 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
   const box17KOthers = others.reduce((s, e) => s + (e ? nf(e.box17K) : 0), 0)
   const ytdFactor = p.ytdMode && nf(p.ytdMonth) > 0 ? 12 / nf(p.ytdMonth) : 1
   return {
-    taxYear: p.taxYear,
+    // M2 (audit F-05): coerce to a canonical number for the strict calculation guard.
+    // Session state can hold taxYear as a numeric string; the engine previously
+    // tolerated that via object-key lookup (and fell back to CURRENT_TAX_YEAR for
+    // unresolvable years). This makes that same fallback explicit, so behavior is
+    // unchanged while the guard's finite-number contract is satisfied.
+    taxYear: parseInt(p.taxYear) || CURRENT_TAX_YEAR,
     status: p.filingStatus || 'single',
     dependents: nf(p.dependents),
     w2: nf(p.w2Income) + officerW2Others,
