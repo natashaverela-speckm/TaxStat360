@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { WEB3FORMS_ACCESS_KEY } from './utils/integrations.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
@@ -59,7 +60,7 @@ export default function Settings() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({
-            access_key: import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed',
+            access_key: WEB3FORMS_ACCESS_KEY,
             subject: 'TaxStat360 — account deleted (self-service)',
             email: email || 'unknown',
             message: `User ${email || 'unknown'} permanently deleted their account on ${new Date().toISOString()}.`,

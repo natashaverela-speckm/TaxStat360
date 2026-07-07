@@ -1,31 +1,31 @@
 // src/taxCalc.js
-// Pure tax calculation helpers â no React, no DOM, no side effects.
+// Pure tax calculation helpers — no React, no DOM, no side effects.
 // Safe to call from any module.
 //
 // Permanent rate constants live in constants.js (imported below).
 // Year-specific figures (brackets, thresholds, limits) live in TAX_TABLES / AMT_TABLES below.
-// Update TAX_TABLES each tax year â do not touch the rate constants.
+// Update TAX_TABLES each tax year — do not touch the rate constants.
 //
 // Export map:
-// calcTaxReturn â top-level orchestrator; call this from TaxReturn.jsx
-// calcQBI â Â§199A deduction; MUST be imported by AIAnalysis.jsx (F4-02: single source)
-// calcAMT â Form 6251 AMT
-// calcFederalTax â ordinary income brackets
-// calcPreferentialTax â QDCGTW (LTCG / qualified dividends / Â§1250 / collectibles)
-// calcNIIT â Â§1411 net investment income tax
+// calcTaxReturn — top-level orchestrator; call this from TaxReturn.jsx
+// calcQBI — §199A deduction; MUST be imported by AIAnalysis.jsx (F4-02: single source)
+// calcAMT — Form 6251 AMT
+// calcFederalTax — ordinary income brackets
+// calcPreferentialTax — QDCGTW (LTCG / qualified dividends / §1250 / collectibles)
+// calcNIIT — §1411 net investment income tax
 // TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets,
 // getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, calcFICAOnWages
-// calc469iAllowance â Â§469(i) $25k active-participation allowance (M1: single source
-//   of truth â consumed by both engine PAL branches AND the AIAnalysis strategy card)
+// calc469iAllowance — §469(i) $25k active-participation allowance (M1: single source
+//   of truth — consumed by both engine PAL branches AND the AIAnalysis strategy card)
 //
 //
-// ââ Engine change log âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Engine change log ───────────────────────────────────────────────────────
 // The historical fix log that used to live here (M-2, F6/F5, TAX-10, PASS4B-*, etc.)
 // was moved to CHANGELOG.md (audit F9) so this header documents current behavior and the
 // export map only. Record future engine changes in CHANGELOG.md and commit messages,
 // not in source comments. Behavior-describing notes and IRC-section citations stay inline
 // at the relevant code below.
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ────────────────────────────────────────────────────────────────────────────
 import {
   NIIT_THRESHOLD_SINGLE,
   NIIT_THRESHOLD_MFJ,
@@ -76,7 +76,7 @@ import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, 
 import { nf } from './utils/money.js'
 // nf(): canonical money parser imported from utils/parseMoney.js (audit D-1).
 // Strips thousands separators; engine inputs are stored comma-free so this is
-// strictly more robust than a local copy. (nv alias removed â audit finding 3.2.)
+// strictly more robust than a local copy. (nv alias removed — audit finding 3.2.)
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
@@ -161,7 +161,7 @@ const TAX_TABLES = {
       minThreshold: null,
     },
   },
-  // OBBBA (One Big Beautiful Bill Act, P.L. 119-21) Rev. Proc. figures â verify
+  // OBBBA (One Big Beautiful Bill Act, P.L. 119-21) Rev. Proc. figures — verify
   // against IRS Rev. Proc. for tax year 2026 before each filing season.
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
@@ -212,19 +212,19 @@ const TAX_TABLES = {
     qbi: {
       threshold:    { single:201775, mfj:403500, hoh:201775, mfs:201775 },
       phaseIn:      { single:75000,  mfj:150000, hoh:75000,  mfs:75000 },
-      minDeduction: 400,   // Â§199A(i) OBBBA minimum deduction (years beginning after 12/31/2025)
+      minDeduction: 400,   // §199A(i) OBBBA minimum deduction (years beginning after 12/31/2025)
       minThreshold: 1000,  // active QBI floor that triggers the $400 minimum
     },
   },
 }
-// ââ Derived per-year views â single source of truth is TAX_TABLES above âââââââ
+// ── Derived per-year views — single source of truth is TAX_TABLES above ───────
 // AMT, SALT, and QBI year figures now live inside each TAX_TABLES[year] (keys: amt,
 // saltCap, qbi). The objects below are DERIVED from TAX_TABLES, so adding a new tax year
-// means editing ONE object (TAX_TABLES[year]) and these views update automatically â they
+// means editing ONE object (TAX_TABLES[year]) and these views update automatically — they
 // can no longer drift or be forgotten. Shapes/keys are identical to the previous standalone
 // literals, so every consumer (engine internals, articles.js, AIAnalysis.jsx, tests) and the
 // exported API are unchanged. QBI_MIN_* intentionally omit years where the value is null
-// (matching the prior { 2026: ... }-only objects the OBBBA Â§199A(i) floor relies on).
+// (matching the prior { 2026: ... }-only objects the OBBBA §199A(i) floor relies on).
 const _TAX_YEARS = Object.keys(TAX_TABLES)
 const _byYear = (sel) => Object.fromEntries(_TAX_YEARS.map(y => [y, sel(TAX_TABLES[y])]))
 const _byYearDefined = (sel) =>
@@ -331,15 +331,15 @@ function sumK1FlowThrough(entities) {
   }, 0)
 }
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
-/** Â§63(c) Standard deduction by filing status. Inflation-adjusted annually â IRC Â§1(f)(3).
+/** §63(c) Standard deduction by filing status. Inflation-adjusted annually — IRC §1(f)(3).
  *  Values live in TAX_TABLES[year].std; includes OBBBA adjustments for 2026. */
 function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
-/** Â§1(h) LTCG/QD bracket thresholds by filing status. Inflation-adjusted â IRC Â§1(f)(3). */
+/** §1(h) LTCG/QD bracket thresholds by filing status. Inflation-adjusted — IRC §1(f)(3). */
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
-/** Â§1411(b) NIIT MAGI threshold by filing status. NOT inflation-adjusted (statutory). */
+/** §1411(b) NIIT MAGI threshold by filing status. NOT inflation-adjusted (statutory). */
 function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
-/** Â§3101(b)(2) Additional Medicare Tax threshold by filing status. NOT inflation-adjusted. */
+/** §3101(b)(2) Additional Medicare Tax threshold by filing status. NOT inflation-adjusted. */
 function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
 function getMarginalRate(taxable, year, fs) {
   let rate = 0.10, prev = 0
@@ -349,7 +349,7 @@ function getMarginalRate(taxable, year, fs) {
   }
   return rate
 }
-// Â§1(a)-(e) IRC â ordinary income tax (progressive brackets).
+// §1(a)-(e) IRC — ordinary income tax (progressive brackets).
 // Bracket tables live in TAX_TABLES[year].brackets; update there, not here.
 function calcFederalTax(ordinaryIncome, year, fs) {
   if (ordinaryIncome <= 0) return 0
@@ -361,8 +361,8 @@ function calcFederalTax(ordinaryIncome, year, fs) {
   }
   return Math.round(tax)
 }
-// Â§1(h) IRC â preferential rates: LTCG / qualified dividends / Â§1250 / collectibles.
-// 0% Â§1(h)(1)(B) Â· 15% Â§1(h)(1)(C) Â· 20% Â§1(h)(1)(D) Â· Â§1250 max 25% Â§1(h)(6) Â· collectibles max 28% Â§1(h)(4).
+// §1(h) IRC — preferential rates: LTCG / qualified dividends / §1250 / collectibles.
+// 0% §1(h)(1)(B) · 15% §1(h)(1)(C) · 20% §1(h)(1)(D) · §1250 max 25% §1(h)(6) · collectibles max 28% §1(h)(4).
 function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   // AUDIT F-5 FIX (Jul 2026). Prior version stacked the §1250/collectibles slices at
   // the ORDINARY floor and charged incremental ordinary-bracket tax capped at 25%/28%,
@@ -402,8 +402,8 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
   const allOrdinary = calcFederalTax(ordFloor + totalPrefAll, year, fs) - calcFederalTax(ordFloor, year, fs)
   return Math.round(Math.min(tax, allOrdinary))
 }
-/** Â§1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI â threshold).
- *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH â statutory, not inflation-adjusted.
+/** §1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI − threshold).
+ *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH — statutory, not inflation-adjusted.
  *  No withholding mechanism; flows through Form 8960 and estimated payments. */
 function calcNIIT(nii, agi, year, fs) {
   const threshold = getNIITThreshold(year, fs)
@@ -411,12 +411,12 @@ function calcNIIT(nii, agi, year, fs) {
   const excessAGI = agi - threshold
   return Math.round(Math.min(nii, excessAGI) * NIIT_RATE)
 }
-/** Â§55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
- *  Exemption and phase-out are inflation-adjusted annually â see TAX_TABLES[year].amt.
- *  Â§199A QBI deduction is NOT added back to AMTI per Â§199A(f)(2). */
+/** §55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
+ *  Exemption and phase-out are inflation-adjusted annually — see TAX_TABLES[year].amt.
+ *  §199A QBI deduction is NOT added back to AMTI per §199A(f)(2). */
 function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
-  // NOTE: the Â§199A QBI deduction is intentionally NOT added back to AMTI â it is allowed
-  // for AMT (Â§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
+  // NOTE: the §199A QBI deduction is intentionally NOT added back to AMTI — it is allowed
+  // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
   // (Callers may still pass a `qbi` field; it is intentionally not read here. Do not "fix"
   // this by adding qbi back.)
   const amtTable    = AMT_TABLES[taxYear] || AMT_TABLES[2025]
@@ -459,10 +459,10 @@ function _applyMinQBI(result, activeQbiForFloor, taxYear, taxableBeforeQBI = Inf
   if (result.deduction >= effectiveFloor) return { ...result, caps: { ...result.caps, min400: floor } }
   return { deduction: effectiveFloor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
 }
-/** Â§199A Qualified Business Income deduction. 20% of QBI, subject to W-2/UBIA wage limits
+/** §199A Qualified Business Income deduction. 20% of QBI, subject to W-2/UBIA wage limits
  *  above the taxable-income threshold, an overall taxable-income cap, and SSTB phase-out.
- *  Â§199A(i) OBBBA minimum deduction ($400 floor) applies for tax years beginning after 12/31/2025.
- *  Treas. Reg. Â§1.199A-1 through Â§1.199A-6. Single call site: import via aiAnalysisTaxMath.js. */
+ *  §199A(i) OBBBA minimum deduction ($400 floor) applies for tax years beginning after 12/31/2025.
+ *  Treas. Reg. §1.199A-1 through §1.199A-6. Single call site: import via aiAnalysisTaxMath.js. */
 function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const result = _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts)
   const netCapGain = Math.max(0, capitalGains || 0)
@@ -486,7 +486,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const aggregationApplied = hasMultiEntityTypes && taxableBeforeQBI > threshold
   const aggregationDisclosure = aggregationApplied
     ? 'Your QBI deduction assumes you have elected to aggregate your business entities ' +
-      'under Reg. Â§1.199A-4 (combined W-2 wages applied across all entities). ' +
+      'under Reg. §1.199A-4 (combined W-2 wages applied across all entities). ' +
       'This election must be formally made on Form 8995-A, Schedule B and applied ' +
       'consistently each year. Without aggregation, your deduction may be lower. ' +
       'Consult your CPA before relying on this figure.'
@@ -540,7 +540,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   }, 0)
   if (totalWages === 0 && totalUBIA === 0) {
     // M-2 FIX (comparison-only, opt-in): with no W-2 wages and no UBIA, the real
-    // Â§199A(b)(2) wage/UBIA limit above the threshold is $0. The default below instead
+    // §199A(b)(2) wage/UBIA limit above the threshold is $0. The default below instead
     // grants the full 20% when no wage data was supplied (a convenience for incomplete
     // input). strictWageCap opts out of that convenience and applies the actual $0 cap.
     // Only the entity-structure comparison sets this flag; filed-return callers never do,
@@ -665,7 +665,7 @@ function _annualizeIfYTD(input) {
  * A sole proprietor owes SE tax on the business's net earnings; an S-Corp shareholder
  * owes FICA only on their W-2 wages, so the K-1 ordinary income (already net of officer
  * salary) escapes. The savings is that escaped income taxed at SE/FICA, with the IRC
- * Â§1402(a)(12) 92.35% net-earnings factor applied and the 12.4% Social Security portion
+ * §1402(a)(12) 92.35% net-earnings factor applied and the 12.4% Social Security portion
  * limited to the wage-base room remaining after the taxpayer's FICA-subject wages
  * (Medicare's 2.9% is uncapped).
  *
@@ -686,22 +686,22 @@ function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = 
     seEarnings * (FICA_MEDICARE_RATE * 2)
   )
 }
-// ââ ENG-1 DOC: calcTaxReturn k1Total / entity.k1 dual-requirement âââââââââââââââ
+// ── ENG-1 DOC: calcTaxReturn k1Total / entity.k1 dual-requirement ───────────────
 // calcTaxReturn derives K-1 income from TWO sources that MUST both be set:
 //
-//   1. entities[] array â each entity's `e.k1` field (or computed from e.pnl)
-//      drives: Â§1366(d) basis limits, Â§469 rental routing, QBI entityQbiData,
+//   1. entities[] array — each entity's `e.k1` field (or computed from e.pnl)
+//      drives: §1366(d) basis limits, §469 rental routing, QBI entityQbiData,
 //              SE tax identification, C-Corp exclusion.
 //
-//   2. k1Total (top-level number) â drives: AGI calculation, QBI basis (via
-//      k1FallbackForQBI when entities.length === 0), Â§461(l) EBL threshold,
+//   2. k1Total (top-level number) — drives: AGI calculation, QBI basis (via
+//      k1FallbackForQBI when entities.length === 0), §461(l) EBL threshold,
 //      scheduleEK1Income allocation.
 //
 // CRITICAL: Setting entity.k1 alone does NOT update AGI. Setting k1Total alone
 // does NOT trigger basis limits or REP gating. BOTH must be set for a complete
 // calculation. TaxReturn.jsx passes both via entitiesForCalc + sessionK1.
 // External callers (tests, scenarioCompare) must also set both.
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────────────────────────────────────────
 function calcTaxReturn(input) {
   input = _annualizeIfYTD(input)
   const {
@@ -722,40 +722,40 @@ function calcTaxReturn(input) {
     hasISO, isoBargainElement,
     isREP,
     isActiveParticipant = true,
-    // F6 (Â§469 per-property material participation + Â§1.469-9(g) aggregation):
+    // F6 (§469 per-property material participation + §1.469-9(g) aggregation):
     // Both are TRI-STATE / opt-in. `rentalAggregationElection` defaults false but the
     // per-property regime only engages when the caller affirmatively supplies the
     // election, a Step-2 material-participation answer, or a per-entity
     // materiallyParticipates flag (see perPropertyRegimeActive below). Legacy callers
-    // that supply none of these keep the prior "REP â all nonpassive" behavior.
+    // that supply none of these keep the prior "REP ⇒ all nonpassive" behavior.
     rentalAggregationElection = false,
-    // C-12 (Finding 2 â Â§469(c)(7)(B) quantitative gate): the aggregation election only
+    // C-12 (Finding 2 — §469(c)(7)(B) quantitative gate): the aggregation election only
     // makes the rental portfolio nonpassive when the two-part hours test is actually met
     // (> 750 real-property hours AND those hours > 50% of total personal-service hours).
     // When BOTH hour figures are supplied and the test FAILS, the election is treated as
-    // NOT operative â the loss stays passive/suspended â unless the caller affirmatively
+    // NOT operative — the loss stays passive/suspended — unless the caller affirmatively
     // sets repAggregationOverride to acknowledge an at-risk position. If the hours are not
     // supplied at all, behavior is unchanged (the election controls), so legacy callers and
-    // existing tests are unaffected. IRC Â§469(c)(7)(B); Treas. Reg. Â§1.469-9.
+    // existing tests are unaffected. IRC §469(c)(7)(B); Treas. Reg. §1.469-9.
     repHoursRE,
     repHoursTotal,
     repAggregationOverride = false,
     step2RentalMaterialParticipation,
     unrecap1250, collectiblesGain,
-    // Â§461(l): net business Â§1231/capital gain entered for the EBL business-gain offset.
-    // Decoupled from f4797Inc so a Â§1231 gain can be entered for RATE purposes via
-    // ltGain + unrecap1250 (preserving the 25% Â§1250 slice) while still telling the EBL
-    // calc how much of the capital gain is business gain. Default 0 â no effect; existing
-    // callers (f4797Inc-only) are unchanged. Whether to enter the NET Â§1231 (gain netted
-    // with same-year Â§1231 losses) or only a gross business gain is a facts determination
-    // the caller makes â the engine represents the position rather than choosing it.
+    // §461(l): net business §1231/capital gain entered for the EBL business-gain offset.
+    // Decoupled from f4797Inc so a §1231 gain can be entered for RATE purposes via
+    // ltGain + unrecap1250 (preserving the 25% §1250 slice) while still telling the EBL
+    // calc how much of the capital gain is business gain. Default 0 → no effect; existing
+    // callers (f4797Inc-only) are unchanged. Whether to enter the NET §1231 (gain netted
+    // with same-year §1231 losses) or only a gross business gain is a facts determination
+    // the caller makes — the engine represents the position rather than choosing it.
     bizCapGain1231 = 0,
-    // F5 (Â§1231(c) 5-year lookback): nonrecaptured net Â§1231 losses from the prior
-    // five years. A net Â§1231 GAIN this year is recharacterized as ORDINARY income to
-    // the extent of these prior losses (Â§1231(c)(1)); only the excess keeps long-term
-    // capital-gain treatment. Default 0 â no recharacterization, so existing callers
+    // F5 (§1231(c) 5-year lookback): nonrecaptured net §1231 losses from the prior
+    // five years. A net §1231 GAIN this year is recharacterized as ORDINARY income to
+    // the extent of these prior losses (§1231(c)(1)); only the excess keeps long-term
+    // capital-gain treatment. Default 0 → no recharacterization, so existing callers
     // are unaffected. The caller supplies the prior-5-year figure (Form 4797 line 8 /
-    // the taxpayer's own Â§1231 loss history); the engine applies the recharacterization.
+    // the taxpayer's own §1231 loss history); the engine applies the recharacterization.
     nonrecapturedNet1231Loss = 0,
     w2Withheld, estPaid,
     ytdFactor = 1,
@@ -766,10 +766,10 @@ function calcTaxReturn(input) {
     // M-2 FIX: comparison-only opt-in flag, forwarded to calcQBI. Defaults false, so
     // every filed-return caller is unaffected.
     strictWageCap = false,
-    // C-10 FIX (Â§1366(d)/Â§704(d) conservative default): opt-in flag. When true, a
+    // C-10 FIX (§1366(d)/§704(d) conservative default): opt-in flag. When true, a
     // limitable entity (S-Corp / partnership) that shows a LOSS but has NO stock/debt
-    // basis entered is treated as having $0 basis â the full loss is suspended and
-    // carried forward (Â§1366(d)(2)) instead of deducting against other income. Defaults
+    // basis entered is treated as having $0 basis — the full loss is suspended and
+    // carried forward (§1366(d)(2)) instead of deducting against other income. Defaults
     // false so existing engine unit tests (which model losses without basis as fully
     // allowed) are unaffected; the live app (TaxReturn, CalculateTaxInner) passes true.
     assumeZeroBasisOnLoss = false,
@@ -792,10 +792,10 @@ function calcTaxReturn(input) {
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
     const isSCorpE    = /s.?corp/i.test(e.type || '')
 
-    // ââ Form 7203 basis-INCREASE items, applied FIRST (Â§1367(a)(1)) ââââââââââââââ
+    // ── Form 7203 basis-INCREASE items, applied FIRST (§1367(a)(1)) ──────────────
     // C-11 FIX (Finding 3): the basis section now accepts current-year capital
     // contributions (Form 7203, Line 2) and current-year income / tax-exempt items
-    // that restore basis (Lines 3aâ3m), not just the beginning stock basis (Line 1).
+    // that restore basis (Lines 3a–3m), not just the beginning stock basis (Line 1).
     // A return funded by current-year contributions (the audit case) previously had
     // none of that basis recognized. Both default to 0 and are optional.
     const contrib     = Math.max(0, parseFloat(e.capitalContributions) || 0)
@@ -815,7 +815,7 @@ function calcTaxReturn(input) {
     const db   = Math.max(0, parseFloat(e.debtBasis)  || 0)
     const dist = isSCorpE ? Math.max(0, parseFloat(e.distributions) || 0) : 0
 
-    // Â§1367(a)(1): income RAISES stock basis. A current-year LOSS is a Â§1366 item
+    // §1367(a)(1): income RAISES stock basis. A current-year LOSS is a §1366 item
     // applied LAST and never reduces the basis available to absorb distributions.
     const stockBasisForDist = sb + contrib + basisIncome + Math.max(0, k1Gross)
 
@@ -838,22 +838,22 @@ function calcTaxReturn(input) {
     }
     const distForBasis = ep > 0 ? (distFromAAA + distTier3) : dist
 
-    // ââ Â§1368 BEFORE Â§1366 (Finding 1 â basis waterfall ordering) ââââââââââââââââ
-    // Distributions reduce stock basis (Reg. Â§1.1368-1(e)) BEFORE losses. Only the true
-    // excess over the pre-loss basis is Â§1368(b)(2) long-term capital gain; the loss is
+    // ── §1368 BEFORE §1366 (Finding 1 — basis waterfall ordering) ────────────────
+    // Distributions reduce stock basis (Reg. §1.1368-1(e)) BEFORE losses. Only the true
+    // excess over the pre-loss basis is §1368(b)(2) long-term capital gain; the loss is
     // then limited to whatever stock basis remains, plus debt basis.
     const distExcessGain = (isSCorpE && hasBasisInput) ? Math.max(0, distForBasis - stockBasisForDist) : 0  // F-9: dividends excluded
     const stockAfterDist = Math.max(0, stockBasisForDist - distForBasis)  // F-9: dividends never reduce basis
 
     // C-10 FIX: when assumeZeroBasisOnLoss is set, a limitable entity with a LOSS is
-    // run through the Â§1366(d) limit even with no basis figure entered â basis is
+    // run through the §1366(d) limit even with no basis figure entered — basis is
     // conservatively assumed to be $0 and the full loss is suspended until the
     // shareholder enters their Form 7203 basis. Without the flag (engine default), a
     // loss with no basis input still passes through in full, preserving prior behavior.
     const applyLimit = isLimitable && k1Gross < 0 && (hasBasisInput || assumeZeroBasisOnLoss)
     if (!applyLimit) {
       // Income entity (or a loss with no basis figure and no conservative flag): no
-      // Â§1366(d) limitation. Still surface basis for the Â§1368 distribution computation
+      // §1366(d) limitation. Still surface basis for the §1368 distribution computation
       // when the shareholder has entered any basis figure.
       entityBasisResults.push({
         name: e.name || e.id || 'Entity', type: e.type,
@@ -874,8 +874,8 @@ function calcTaxReturn(input) {
     // tailor the message (enter Form 7203 basis to release the loss).
     const basisAssumedZero = !hasBasisInput
     const grossLoss        = Math.abs(k1Gross)
-    // Â§1366(d): the loss is limited to the stock basis remaining AFTER distributions
-    // (Â§1368 already took its share above), plus debt basis.
+    // §1366(d): the loss is limited to the stock basis remaining AFTER distributions
+    // (§1368 already took its share above), plus debt basis.
     const basisForLoss     = stockAfterDist + db
     const allowedLoss      = Math.min(grossLoss, basisForLoss)
     const suspended        = grossLoss - allowedLoss
@@ -958,22 +958,22 @@ function calcTaxReturn(input) {
     const basisResult   = entityBasisResults[idx]
     // C-10 FIX: a basis we only *assumed* to be $0 (no figure entered) must not silently
     // convert distributions into capital gain. Keep the prior "basis not entered" note for
-    // the distribution path; only an actually-entered basis drives Â§1368(b)(2) capital gain.
+    // the distribution path; only an actually-entered basis drives §1368(b)(2) capital gain.
     const hasBasisEntry = basisResult && basisResult.stockBasis !== undefined && !basisResult.basisAssumedZero
     if (!hasBasisEntry) {
       entityDistributionResults.push({
         name: e.name || e.id || 'Entity',
         distributions: dist,
         excessCapGain: null,
-        note: 'Stock basis not entered â cannot determine if distributions are taxable. ' +
+        note: 'Stock basis not entered — cannot determine if distributions are taxable. ' +
               'Distributions in excess of your stock basis are long-term capital gain ' +
-              '(IRC Â§1368(b)(2)). Enter your stock basis to compute this automatically.',
+              '(IRC §1368(b)(2)). Enter your stock basis to compute this automatically.',
       })
       return
     }
-    // Â§1368 ordering (Finding 1): the Â§1368(b)(2) capital gain is the distribution in
+    // §1368 ordering (Finding 1): the §1368(b)(2) capital gain is the distribution in
     // excess of the PRE-LOSS stock basis (beginning basis + current-year contributions
-    // and income, Â§1367(a)(1)) â computed in the basis map above BEFORE the Â§1366 loss
+    // and income, §1367(a)(1)) — computed in the basis map above BEFORE the §1366 loss
     // reduced basis. Reading it back here keeps distributions ahead of losses in the
     // waterfall instead of measuring the excess against a loss-depleted basis.
     const basisBeforeDist = basisResult.stockBasisForDist
@@ -1004,7 +1004,7 @@ function calcTaxReturn(input) {
   const _stGain = nf(stGain) + _stGainExtra
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
-  // Â§469(i) active-participation applies to whatever rental pool exists. Rentals now
+  // §469(i) active-participation applies to whatever rental pool exists. Rentals now
   // come from Step-1 Real Estate entities (the Step-2 lump is retired), so gate on the
   // combined rental net rather than the (legacy) Step-2 lump. A per-entity active flag,
   // if a caller still supplies one, also counts.
@@ -1014,34 +1014,34 @@ function calcTaxReturn(input) {
   const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0
   const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
   const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
-  // ââ C-12 (Finding 2): Â§469(c)(7)(B) quantitative gate on the aggregation election ââ
+  // ── C-12 (Finding 2): §469(c)(7)(B) quantitative gate on the aggregation election ──
   // The election only makes the portfolio nonpassive if the two-part hours test is met:
   //   (1) more than 750 hours in real-property trades/businesses, AND
   //   (2) those hours exceed 50% of total personal-service hours for the year.
   // When BOTH hour figures are supplied and the test fails, the election is treated as
   // not operative (loss stays passive/suspended) unless repAggregationOverride === true,
-  // which records a deliberate, at-risk election. Hours omitted â unchanged behavior.
+  // which records a deliberate, at-risk election. Hours omitted ⇒ unchanged behavior.
   const _repReHrs  = parseFloat(repHoursRE)
   const _repTotHrs = parseFloat(repHoursTotal)
   const repHoursProvided   = Number.isFinite(_repReHrs) && Number.isFinite(_repTotHrs) && _repTotHrs > 0
   const repHoursTestPasses = repHoursProvided ? (_repReHrs > 750 && _repReHrs > _repTotHrs / 2) : null
   const repHoursTestFailed = repHoursProvided && repHoursTestPasses === false
   const repAggregationGatedOut = repHoursTestFailed && repAggregationOverride !== true
-  // ââ F6: Â§469 rental treatment â Â§1.469-9(g) aggregation election âââââââââââ
-  // Default for ALL rentals is PASSIVE (Â§469(a)); a net loss is limited to the
-  // Â§469(i) $25k active-participation allowance and otherwise suspended on Form 8582.
+  // ── F6: §469 rental treatment — §1.469-9(g) aggregation election ───────────
+  // Default for ALL rentals is PASSIVE (§469(a)); a net loss is limited to the
+  // §469(i) $25k active-participation allowance and otherwise suspended on Form 8582.
   //
-  // A real estate professional (Â§469(c)(7)) makes the entire rental portfolio
-  // NONPASSIVE by AFFIRMATIVELY making the Â§1.469-9(g) aggregation election â i.e.
+  // A real estate professional (§469(c)(7)) makes the entire rental portfolio
+  // NONPASSIVE by AFFIRMATIVELY making the §1.469-9(g) aggregation election — i.e.
   // by aggregating participation (hours) across all properties so the combined
   // activity meets material participation. Absent that election a REP's rentals stay
   // PASSIVE: REP status alone is never enough, and is never assumed (DECISION 2). A
   // returning REP who has not yet made the election therefore sees losses suspended
-  // until they do â the safe direction (nonpassive is the position that needs support).
+  // until they do — the safe direction (nonpassive is the position that needs support).
   //
   // perPropertyRegimeActive routes a REP through the election-governed branch so the
   // election actually controls the outcome; without it a REP would fall to the legacy
-  // "REP â all nonpassive" path and the election would be a no-op. The engine still
+  // "REP ⇒ all nonpassive" path and the election would be a no-op. The engine still
   // honors an explicit per-entity materiallyParticipates flag or a Step-2 answer if a
   // caller supplies one (forward-compatible), but the UI's single control is the
   // aggregation election. Non-REP callers with no flags keep the prior legacy path.
@@ -1058,7 +1058,7 @@ function calcTaxReturn(input) {
   let rentalForNII         = 0
   let rentalQbiContribution = 0
   if (!perPropertyRegimeActive) {
-    // ââ LEGACY branch (unchanged) âââââââââââââââââââââââââââââââââââââââââââââ
+    // ── LEGACY branch (unchanged) ─────────────────────────────────────────────
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
       const preRentalAGI = w2 + adjustedK1Total + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
@@ -1078,14 +1078,14 @@ function calcTaxReturn(input) {
     rentalForNII          = effectiveIsREP ? 0 : Math.max(0, combinedRentalNet)
     rentalQbiContribution = effectiveIsREP ? palAdjustedRental : Math.max(0, palAdjustedRental)
   } else {
-    // ââ NEW per-property branch ââââââââââââââââââââââââââââââââââââââââââââââââ
-    // Â§1.469-9(g): a REP may elect to treat ALL interests in rental real estate as a
-    // single activity â making the whole portfolio nonpassive in one step. The election
+    // ── NEW per-property branch ────────────────────────────────────────────────
+    // §1.469-9(g): a REP may elect to treat ALL interests in rental real estate as a
+    // single activity — making the whole portfolio nonpassive in one step. The election
     // is a deliberate attestation (never a quiet default) and is only operative for a
-    // qualifying REP (Â§469(c)(7)).
-    // C-12 (Finding 2): a failed Â§469(c)(7)(B) hours test (without an explicit override)
-    // makes the election inoperative â the portfolio is NOT treated as nonpassive here and
-    // falls to the per-property/Â§469(i) handling below, so the loss is suspended rather
+    // qualifying REP (§469(c)(7)).
+    // C-12 (Finding 2): a failed §469(c)(7)(B) hours test (without an explicit override)
+    // makes the election inoperative — the portfolio is NOT treated as nonpassive here and
+    // falls to the per-property/§469(i) handling below, so the loss is suspended rather
     // than auto-freed against other income.
     const aggregateNonpassive = effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
     if (aggregateNonpassive) {
@@ -1094,10 +1094,10 @@ function calcTaxReturn(input) {
     } else {
       // No election: each rental is independently classified. A property is nonpassive
       // only when the taxpayer is a REP AND materiallyParticipates === true. Under
-      // Â§469(c)(2) a rental is per se passive regardless of participation unless the
-      // taxpayer qualifies as a REP (Â§469(c)(7)); a non-REP rental therefore stays
+      // §469(c)(2) a rental is per se passive regardless of participation unless the
+      // taxpayer qualifies as a REP (§469(c)(7)); a non-REP rental therefore stays
       // passive even when materiallyParticipates is true (its only relief is the
-      // Â§469(i) $25k active-participation allowance applied to the passive portion).
+      // §469(i) $25k active-participation allowance applied to the passive portion).
       // undefined (unanswered) and false both fall to passive; isREP alone never
       // promotes an unanswered property.
       let np = 0, pv = 0
@@ -1119,9 +1119,9 @@ function calcTaxReturn(input) {
       nonpassiveRentalNet = np
       passiveRentalNet    = pv
     }
-    // Passive portion runs through the Â§469(i) $25k active-participation allowance when
+    // Passive portion runs through the §469(i) $25k active-participation allowance when
     // it is a net loss; nonpassive portion flows in full. (priorPAL carryforward is left
-    // as computed against the combined pool â no per-property regime test exercises it.)
+    // as computed against the combined pool — no per-property regime test exercises it.)
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
       const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
@@ -1140,10 +1140,10 @@ function calcTaxReturn(input) {
     rentalQbiContribution = nonpassiveRentalNet + Math.max(0, passiveAllowed)
   }
   const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 512000 : 256000)  // A4-3: fallback = official 2026
-  // Business capital gain for Â§461(l): f4797Inc (ordinary/Â§1231 entered as business income)
-  // PLUS any Â§1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
-  // NOT added to gross income here â its income effect is already carried by ltGain/unrecap1250
-  // â it only informs how much of the capital gain offsets business losses in the EBL netting.
+  // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
+  // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
+  // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
+  // — it only informs how much of the capital gain offsets business losses in the EBL netting.
   const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
   const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
   const eblOverallCapGainNI   = _stGain + _ltGain + nf(f4797Inc)
@@ -1155,28 +1155,28 @@ function calcTaxReturn(input) {
   const ebl          = Math.max(0, eblNetLoss - eblThreshold)
   const unrec1250    = Math.max(0, nf(unrecap1250))
   const collectibles = Math.max(0, nf(collectiblesGain))
-  // âââ KNOWN LIMITATION (SE-179) â see KNOWN_LIMITATIONS.md âââââââââââââââââââââ
+  // ─── KNOWN LIMITATION (SE-179) — see KNOWN_LIMITATIONS.md ─────────────────────
   // seNetIncome uses GROSS net profit and intentionally does NOT subtract the
-  // separately-stated Â§179 (box11_12) for SE-subject pass-throughs (Sole Proprietor
+  // separately-stated §179 (box11_12) for SE-subject pass-throughs (Sole Proprietor
   // / SMLLC, active Partnership/LLC). Two consequences:
-  //   1. SE tax (FICA) below is computed on the pre-Â§179 amount, so it is OVERSTATED
-  //      for a filer whose K-1 separately states Â§179 (most relevant to an active
-  //      partner with Box 12 Â§179).
-  //   2. The QBI basis derived from this value (seK1AfterAdjustments â qbiBasis) is
-  //      likewise gross â the same asymmetry fixed for non-SE entities in `nonSEk1`
-  //      above â though the 20%-of-taxable-income QBI cap masks it in many cases.
+  //   1. SE tax (FICA) below is computed on the pre-§179 amount, so it is OVERSTATED
+  //      for a filer whose K-1 separately states §179 (most relevant to an active
+  //      partner with Box 12 §179).
+  //   2. The QBI basis derived from this value (seK1AfterAdjustments → qbiBasis) is
+  //      likewise gross — the same asymmetry fixed for non-SE entities in `nonSEk1`
+  //      above — though the 20%-of-taxable-income QBI cap masks it in many cases.
   // AGI is NOT affected: it flows from the input k1Total (adjustedK1Total), which
-  // persistStep1 already nets Â§179 into for every entity type.
+  // persistStep1 already nets §179 into for every entity type.
   //
   // This is deliberately left as-is rather than mirroring the nonSEk1 QBI-179 fix,
-  // because netting Â§179 here changes SE TAX (what the taxpayer owes), and a correct
-  // fix must (a) net ONLY box11_12 â never box12_13, since pass-through charitable
-  // does not reduce SE earnings; (b) respect the Â§179(b)(3) business-income
-  // limitation; and (c) treat a sole proprietor (Â§179 already inside Schedule C net
-  // profit â box11_12 should be blank) differently from a partnership (Â§179
+  // because netting §179 here changes SE TAX (what the taxpayer owes), and a correct
+  // fix must (a) net ONLY box11_12 — never box12_13, since pass-through charitable
+  // does not reduce SE earnings; (b) respect the §179(b)(3) business-income
+  // limitation; and (c) treat a sole proprietor (§179 already inside Schedule C net
+  // profit → box11_12 should be blank) differently from a partnership (§179
   // separately stated). Pending an explicit tax-treatment decision; do not "fix" by
   // copying the nonSEk1 pattern.
-  // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ─────────────────────────────────────────────────────────────────────────────
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     const k1 = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
@@ -1199,7 +1199,7 @@ function calcTaxReturn(input) {
   }, 0)
   const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total))
   const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
-  // Single source of truth (shared with the AI strategy finder) â see scorpSeTaxSavings.
+  // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
   const ficaSavings = scorpSeTaxSavings({
     k1Income: k1Distributions,
     ficaSubjectWages: totalW2ForFICA,
@@ -1288,19 +1288,19 @@ function calcTaxReturn(input) {
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
     if (isRealEstateEntity(e?.type)) return sum
-    // QBI-179 FIX: net the separately-stated Â§179 (box11_12) and box12/13 out of the
+    // QBI-179 FIX: net the separately-stated §179 (box11_12) and box12/13 out of the
     // QBI basis, mirroring the ordinary K-1 net used everywhere else (the rental net
-    // in the Â§469 blocks above and persistStep1's k1Total = net â box11_12 â box12_13).
-    // Previously this used gross netProfitÃownership, so a pass-through that took Â§179
-    // had its Â§199A deduction computed on the pre-Â§179 amount â overstating the 20%
-    // deduction and disagreeing with AGI (which already nets Â§179 via k1Total) and with
-    // the AI Analysis tab (which reads the Â§179-netted k1Income). Â§179 reduces QBI per
-    // Treas. Reg. Â§1.199A-3(b)(1)(ii)(A).
-    // F3 (Â§199A Ã Â§1366(d)): honor an explicitly-set k1 â including 0 from a fully
-    // basis-suspended loss â instead of the || fallback, which treated k1===0 as
+    // in the §469 blocks above and persistStep1's k1Total = net − box11_12 − box12_13).
+    // Previously this used gross netProfit×ownership, so a pass-through that took §179
+    // had its §199A deduction computed on the pre-§179 amount — overstating the 20%
+    // deduction and disagreeing with AGI (which already nets §179 via k1Total) and with
+    // the AI Analysis tab (which reads the §179-netted k1Income). §179 reduces QBI per
+    // Treas. Reg. §1.199A-3(b)(1)(ii)(A).
+    // F3 (§199A × §1366(d)): honor an explicitly-set k1 — including 0 from a fully
+    // basis-suspended loss — instead of the || fallback, which treated k1===0 as
     // "missing" and fell back to gross netProfit, leaking a basis-suspended loss into
-    // QBI. A Â§1366(d)-suspended loss is excluded from QBI until the year it is allowed
-    // (Treas. Reg. Â§1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
+    // QBI. A §1366(d)-suspended loss is excluded from QBI until the year it is allowed
+    // (Treas. Reg. §1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
     // QBI loss so it reduces QBI then.
     const k1Gross = e.k1 !== undefined ? nf(e.k1) : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     // AUDIT F-13 FIX: charitable contributions do NOT reduce QBI (Form 8995
@@ -1312,15 +1312,15 @@ function calcTaxReturn(input) {
   }, 0)
   const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
-  // rentalQbiContribution is computed in the Â§469 rental block above (legacy or
-  // per-property branch) â do not redeclare here.
+  // rentalQbiContribution is computed in the §469 rental block above (legacy or
+  // per-property branch) — do not redeclare here.
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
   const f4797NetGain = Math.max(0, nf(f4797Inc))
-  // F5 (Â§1231(c) lookback): recharacterize the net Â§1231 gain as ORDINARY up to the
-  // prior-5-year nonrecaptured Â§1231 losses (Â§1231(c)(1)); only the remainder keeps
+  // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
+  // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
   // long-term capital-gain treatment. The recharacterized slice stays in gross/ordinary
   // income (it is already in grossIncomeBeforeNOL via f4797Inc) and is simply withheld
-  // from the preferential-rate buckets below. NII is unaffected â Â§1231(c) changes the
+  // from the preferential-rate buckets below. NII is unaffected — §1231(c) changes the
   // RATE, not whether the gain is investment income.
   const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
   const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
@@ -1388,7 +1388,7 @@ function calcTaxReturn(input) {
     marginalRate = totalPrefIncome > t15 ? LTCG_RATE_HIGH : totalPrefIncome > t0 ? LTCG_RATE_MID : 0
   }
   const addlMedThreshold   = getAddlMedicareThreshold(taxYear, status)
-  // Cents-safe: e.g. 87,500 Ã 0.9% = 787.50 must round to 788, but binary float makes
+  // Cents-safe: e.g. 87,500 × 0.9% = 787.50 must round to 788, but binary float makes
   // 87500 * 0.009 = 787.4999999999999, which Math.round would drop to 787. Round at the
   // cent level first to neutralize the representation error, then to whole dollars.
   const additionalMedicare = Math.round(
@@ -1500,7 +1500,7 @@ function calcTaxReturn(input) {
       triggered,
       ratio: Math.round(ratio * 100),
       message: triggered
-        ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. Â§1.162-7), which the IRS evaluates under a facts-and-circumstances test â there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${Math.round(ratio * 100)}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35â45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
+        ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${Math.round(ratio * 100)}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
         : '',
     }
   })()
@@ -1537,7 +1537,7 @@ function calcTaxReturn(input) {
       applies:     niitAmount > 0,
       amount:      niitAmount,
       explanation: niitAmount > 0
-        ? `3.8% on the lesser of net investment income ($${nii.toLocaleString()}) or excess MAGI above the $${getNIITThreshold(taxYear, status).toLocaleString()} threshold (IRC Â§1411)`
+        ? `3.8% on the lesser of net investment income ($${nii.toLocaleString()}) or excess MAGI above the $${getNIITThreshold(taxYear, status).toLocaleString()} threshold (IRC §1411)`
         : '',
     },
     niitAmount,
@@ -1594,31 +1594,31 @@ function calcTaxReturn(input) {
 }
 
 /**
- * FICA employment tax on a W-2 salary â both employer and employee sides.
- * Shared arithmetic used by scorpSeTaxSavings and scenarioCompare.js. IRC Â§3101/Â§3111.
+ * FICA employment tax on a W-2 salary — both employer and employee sides.
+ * Shared arithmetic used by scorpSeTaxSavings and scenarioCompare.js. IRC §3101/§3111.
  * @param {number} salary   W-2 wages subject to FICA.
  * @param {number} taxYear  Used to look up the year-specific SS wage base.
  * @returns {number}        Rounded total FICA (employee + employer combined).
  */
 function calcFICAOnWages(salary, taxYear) {
   const ssWageBase = getTable(taxYear).ssWageBase
-  const ssBoth  = Math.min(salary, ssWageBase) * FICA_SS_RATE * 2    // Â§3101(a) + Â§3111(a)
-  const medBoth = salary * FICA_MEDICARE_RATE * 2                     // Â§3101(b) + Â§3111(b)
+  const ssBoth  = Math.min(salary, ssWageBase) * FICA_SS_RATE * 2    // §3101(a) + §3111(a)
+  const medBoth = salary * FICA_MEDICARE_RATE * 2                     // §3101(b) + §3111(b)
   return Math.round(ssBoth + medBoth)
 }
 
-// ââ C-Corporation corporate layer (shared single source of truth) ââââââââââââââââââââ
+// ── C-Corporation corporate layer (shared single source of truth) ────────────────────
 // The entity-level computation, used by BOTH the standalone estimate (calcCCorpReturn)
 // and the multi-entity Tax Tracker, where a C-Corp composes with other entities. Returns
 // only the corporate-side figures; the caller folds `dividends` into qualified dividends,
 // routes `officerSalary` to W-2, and adds `corpTax` to the personal total.
-//   â¢ officer salary + employer-side payroll tax are deductible to the corporation;
-//   â¢ corpTax = 21% (IRC Â§11, post-TCJA) of (netProfit â salary â employerFICA);
-//   â¢ dividends = the after-tax profit (assumes FULL annual distribution).
+//   • officer salary + employer-side payroll tax are deductible to the corporation;
+//   • corpTax = 21% (IRC §11, post-TCJA) of (netProfit − salary − employerFICA);
+//   • dividends = the after-tax profit (assumes FULL annual distribution).
 //
 // @param {object}  input
 // @param {number}  input.netProfit       Corporate net business profit BEFORE officer salary.
-// @param {number} [input.officerSalary]  W-2 officer salary; default DEFAULT_OFFICER_SALARY_FRACTION Ã netProfit, capped at netProfit.
+// @param {number} [input.officerSalary]  W-2 officer salary; default DEFAULT_OFFICER_SALARY_FRACTION × netProfit, capped at netProfit.
 // @param {number} [input.taxYear]        Tax year (selects the SS wage base).
 // @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends }}
 function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
@@ -1641,14 +1641,14 @@ function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
   return { officerSalary: salary, employerFICA, profitBeforeTax, corpTax, dividends }
 }
 
-// ââ C-Corporation estimate (standalone; single owner-employee) âââââââââââââââââââââââ
+// ── C-Corporation estimate (standalone; single owner-employee) ───────────────────────
 // Wraps the corporate layer with the shareholder's personal return so the full double-
 // taxation picture is captured: salary as W-2 wages, after-tax profit as qualified
 // dividends, then the 21% corporate tax and employment tax added on top. C-Corp
-// distributions are NOT QBI (IRC Â§199A), so the personal return runs with no pass-through
+// distributions are NOT QBI (IRC §199A), so the personal return runs with no pass-through
 // entity. Used by the Dashboard / comparison surfaces.
 //
-// PLANNING SIMPLIFICATION â NOT a substitute for a prepared Form 1120. Assumes full
+// PLANNING SIMPLIFICATION — NOT a substitute for a prepared Form 1120. Assumes full
 // annual distribution (no retained-earnings strategy), a flat 21% with no graduated/AMT/
 // accumulated-earnings/personal-holding-company layers, a single owner-employee, and
 // federal tax only. Have a tax professional validate before relying on these figures.
@@ -1656,7 +1656,7 @@ function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
 // @param {object}  input
 // @param {number}  input.netProfit         Corporate net business profit BEFORE officer salary.
 // @param {number} [input.officerSalary]    W-2 officer salary (see calcCCorpCorporateLayer).
-// @param {object} [input.personalContext]  Other calcTaxReturn inputs (filingStatus, taxYear, existing w2/divInc, â¦) EXCEPT entities/k1Total.
+// @param {object} [input.personalContext]  Other calcTaxReturn inputs (filingStatus, taxYear, existing w2/divInc, …) EXCEPT entities/k1Total.
 // @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends, employmentTax, personal, totalTax }}
 function calcCCorpReturn({ netProfit, officerSalary, personalContext = {} } = {}) {
   const taxYear    = personalContext.taxYear

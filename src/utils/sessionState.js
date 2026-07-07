@@ -668,18 +668,10 @@ export function readStep1Entities() {
   catch { return [] }
 }
 
-// ─── One-off loaded record + integration-connect entity index (M4, audit F-06) ──
-// Both keys currently have READERS but no WRITER anywhere in src/ — the flows that
-// wrote them were removed in earlier refactors (Dashboard.loadRecord now persists via
-// writeStep1State; the integration-connect flow passes ?entity= in the OAuth return
-// URL). The reads are preserved verbatim behind accessors so the sessionStorage
-// contract holds; removing the dead fallbacks entirely is queued as audit module M7.
-export function readLoadedRecordRaw() {
-  return sessionStorage.getItem('ts360_loaded_record')
-}
-export function readConnectingEntityRaw() {
-  return sessionStorage.getItem('ts360_connecting_entity')
-}
+// M7 (audit OBS-4): readLoadedRecordRaw / readConnectingEntityRaw removed — both
+// were readers for keys with no writer anywhere in src/ (dead fallbacks from
+// flows replaced long ago). Their call sites in CalculateTaxInner were removed
+// in the same batch.
 
 // ─── New-registration flag (M4, audit F-06) ──────────────────────────────────
 // Set at signup completion (Onboarding), consumed by the verify-email continue

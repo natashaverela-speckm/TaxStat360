@@ -19,6 +19,20 @@
  * @param {string} field      - e.g. 'connected' | 'token' | 'syncedAt' | 'failed' | 'extra'
  * @returns {string}
  */
+// ── Third-party form endpoints (M7, audit F-09) ──────────────────────────────
+// Previously the web3forms access key was hardcoded in THREE component files and
+// the Mailchimp subscribe URL inline in Onboarding — four places to update on a
+// key rotation. This is now the single home. HONEST SECURITY NOTE: this is a
+// client-side app, so the fallback key still ships in the served bundle; the env
+// override (VITE_WEB3FORMS_KEY, set in Amplify env vars) plus this single
+// rotation point is the achievable win here. Keeping the key out of the bundle
+// entirely requires a small server-side relay — tracked in KNOWN_LIMITATIONS.md
+// (OBS-5) as an owner decision.
+export const WEB3FORMS_ACCESS_KEY =
+  import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed'
+export const MAILCHIMP_SUBSCRIBE_URL =
+  'https://taxstat360.us4.list-manage.com/subscribe/post?u=c09d008a62d6587f7f0b7e6888c354e8&id=f546bd92ac&f_id=00e0e0e1f0'
+
 export function integrationKey(providerId, field) {
   return `ts360_${providerId}_${field}`
 }
