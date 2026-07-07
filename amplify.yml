@@ -7,6 +7,12 @@ frontend:
         - nvm use 22
         - node --version
         - npm install
+        # M4 / incident 2026-07-06: Amplify auto-deployed builds that failed the
+        # test suite (the GitHub Actions S3 path correctly blocked them). Run the
+        # full vitest suite here so BOTH deploy paths share the same gate — a red
+        # test now stops the Amplify deploy too, including the CI-enforced
+        # architecture-invariants.test.js checks.
+        - npm run test
     build:
       commands:
         - npm run build

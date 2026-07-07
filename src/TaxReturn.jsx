@@ -18,7 +18,7 @@ import { signOut } from './utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
-import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
+import { isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -612,11 +612,11 @@ export default function TaxReturn() {
   const hasStep1Rental     = step1Rentals.length > 0
   const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
   // Combined net of all Step-1 rentals (for display/notes only; the engine recomputes).
-  const step1RentalNetUI   = step1Rentals.reduce((s, e) => {
-    const pnl = e.pnl || {}
-    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-    return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
-  }, 0)
+  // M3 (audit F-04): derivation rule via getEntityPnlNetShare. NOTE (OBS-1): this
+  // DISPLAY total also subtracts charitable (box12_13), unlike the engine k1Total
+  // rule (F-13) — preserved verbatim; reconciling is an owner display decision.
+  const step1RentalNetUI   = step1Rentals.reduce((s, e) =>
+    s + getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13), 0)
 
   // C-10 FIX: the engine now applies the §1366(d) limit conservatively
   // (assumeZeroBasisOnLoss), suspending an S-Corp/partnership loss when no basis has
@@ -838,7 +838,7 @@ export default function TaxReturn() {
                   // path — silently treating already-entered full-year figures as
                   // partial-year data and doubling everything. Apply the same gate.
                   const hasExistingIncome = nf(w2Income) > 0 ||
-                    entityList.some(e => nf(e?.pnl?.netProfit ?? (nf(e?.pnl?.grossRevenue) - nf(e?.pnl?.totalExpenses))) !== 0)
+                    entityList.some(e => getEntityPnlNet(e) !== 0)
                   if (hasExistingIncome) {
                     setYtdConfirmPending(true)
                   } else {
@@ -857,10 +857,8 @@ export default function TaxReturn() {
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 — Business Entities</div>
               {k1Entities.map((e, i) => {
-                const pnl = e.pnl || {}
-                const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-                const own = ownPct(e.own) / 100
-                const k1  = Math.round(net * own) - (nf(e.box11_12)) - (nf(e.box12_13))
+                // M3 (audit F-04) / OBS-1: display row subtracts box12_13 too — preserved.
+                const k1  = getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13)
                 // AUDIT-6 FIX: this line previously showed only the raw K-1 amount with
                 // no indication that a loss may be limited by §1366(d) stock/debt basis
                 // — the same unqualified-figure pattern the rental loop below already
@@ -891,11 +889,8 @@ export default function TaxReturn() {
               {k1Entities.length > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 13, fontWeight: 700, borderTop: '1px solid #BFDBFE', marginTop: 4 }}>
                   <span style={{ color: '#1D4ED8' }}>Total K-1</span>
-                  <span style={{ color: '#1D4ED8' }}>{fmt(k1Entities.reduce((s, e) => {
-                    const pnl = e.pnl || {}
-                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-                    return s + Math.round(net * (ownPct(e.own) / 100)) - nf(e.box11_12) - nf(e.box12_13)
-                  }, 0))}</span>
+                  <span style={{ color: '#1D4ED8' }}>{fmt(k1Entities.reduce((s, e) =>
+                    s + getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13), 0))}</span>
                 </div>
               )}
 
@@ -907,10 +902,7 @@ export default function TaxReturn() {
                   </div>
                   <div style={{ fontSize: 10, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (§469) apply — losses may be limited</div>
                   {step1Rentals.map((e, i) => {
-                    const pnl = e.pnl || {}
-                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-                    const own = ownPct(e.own) / 100
-                    const reNet = Math.round(net * own) - nf(e.box11_12) - nf(e.box12_13)
+                    const reNet = getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13)
                     // Nonpassive only when a REP has made the §1.469-9(g) aggregation
                     // election; otherwise passive (the §469(a) default).
                     const isRepHere  = e.isREP || isREP
@@ -1078,7 +1070,7 @@ export default function TaxReturn() {
                     // not a partial-year actual. Confirm before silently treating it
                     // as YTD-through-{month} and applying the annualization multiplier.
                     const hasExistingIncome = nf(w2Income) > 0 ||
-                      entityList.some(e => nf(e?.pnl?.netProfit ?? (nf(e?.pnl?.grossRevenue) - nf(e?.pnl?.totalExpenses))) !== 0)
+                      entityList.some(e => getEntityPnlNet(e) !== 0)
                     if (hasExistingIncome) {
                       setYtdConfirmPending(true)
                     } else {

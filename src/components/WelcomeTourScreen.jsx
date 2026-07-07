@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { readEmail, writeFirstRun } from '../utils/sessionState.js'
+import { readEmail, writeFirstRun, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
 import { needsOnboardingTour, markOnboardingTourComplete } from '../utils/onboardingTour.js'
 import OnboardingTour from './OnboardingTour.jsx'
 
@@ -16,7 +16,7 @@ export default function WelcomeTourScreen() {
 
   useEffect(() => {
     if (!needsOnboardingTour(email)) {
-      sessionStorage.removeItem('ts360_new_registration')
+      clearNewRegistration()
       nav('/dashboard', { replace: true })
     }
   }, [email, nav])
@@ -25,8 +25,8 @@ export default function WelcomeTourScreen() {
 
   const finish = () => {
     if (email) markOnboardingTourComplete(email)
-    if (sessionStorage.getItem('ts360_new_registration') === '1') writeFirstRun()
-    sessionStorage.removeItem('ts360_new_registration')
+    if (readNewRegistration()) writeFirstRun()
+    clearNewRegistration()
     nav('/dashboard', { replace: true })
   }
 

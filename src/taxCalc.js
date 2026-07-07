@@ -72,7 +72,7 @@ import {
   PAL_PHASE_OUT_RATE,
   NOL_CARRYFORWARD_CAP_RATE,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct } from './utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { nf } from './utils/money.js'
 // nf(): canonical money parser imported from utils/parseMoney.js (audit D-1).
 // Strips thousands separators; engine inputs are stored comma-free so this is
@@ -275,6 +275,61 @@ const QBI_THRESHOLDS     = _byYear(t => t.qbi.threshold)
 const QBI_PHASE_IN_RANGE = _byYear(t => t.qbi.phaseIn)
 const QBI_MIN_DEDUCTION  = _byYearDefined(t => t.qbi.minDeduction)
 const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
+
+// ── §179 business-income limitation (M3, audit F-03) ─────────────────────────
+//
+// §179(b)(3)(A): the §179 deduction is limited to aggregate taxable income from
+// the active conduct of trades or businesses; the disallowed excess carries
+// forward (§179(b)(3)(B)). This app's proxy for that aggregate: non-passive K-1
+// income (pre-§179, with separately-stated charitable added back) + W-2 wages +
+// officer compensation — the same proxy the AIAnalysis strategy layer has used
+// since the QBI-179 fix; this function is a VERBATIM extraction of that inline
+// block (previously AIAnalysis.jsx ~159–166), moved here per ARCHITECTURE §1.
+// The only difference is null-hardening (e?.box11_12 where the inline read
+// e.box11_12), which changes behavior solely in would-have-crashed cases.
+//
+// NOT MODELED (documented in KNOWN_LIMITATIONS.md): the §179(b)(1)/(b)(2)
+// dollar limitation and investment phase-out. This function implements only
+// the business-income limitation.
+//
+// Charitable note (audit F-13): box12_13 (separately-stated charitable) is a
+// Schedule A item — it is added back into k1ActiveIncome for the income-limit
+// proxy and subtracted again in k1Capped, so it never reduces K-1 ordinary
+// income. Net effect: k1Capped = k1NonPassive + sec179Disallowed (a disallowed
+// §179 amount does not reduce this year's income; it carries forward).
+function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0 } = {}) {
+  const list = Array.isArray(entities) ? entities : []
+  const totalSec179          = list.reduce((s, e) => s + nf(e?.box11_12), 0)
+  const totalBox12_13        = list.reduce((s, e) => s + nf(e?.box12_13), 0)
+  const k1ActiveIncome       = k1NonPassive + totalSec179 + totalBox12_13
+  const totalOfficerSalary   = list.reduce((s, e) => s + nf(e?.pnl?.officerSalary), 0)
+  const activeBusinessIncome = Math.max(0, k1ActiveIncome + (nf(w2Income) || 0) + totalOfficerSalary)
+  const sec179Allowed        = Math.min(totalSec179, activeBusinessIncome)
+  const sec179Disallowed     = Math.max(0, totalSec179 - activeBusinessIncome)
+  const k1Capped             = k1ActiveIncome - sec179Allowed - totalBox12_13
+  return {
+    totalSec179, totalBox12_13, k1ActiveIncome, totalOfficerSalary,
+    activeBusinessIncome, sec179Allowed, sec179Disallowed, k1Capped,
+  }
+}
+
+// ── Flow-through K-1 aggregation (M3, audit F-04) ─────────────────────────────
+//
+// The single rule for the k1Total that persistStep1 writes to session state and
+// the engine consumes: for every non-C-Corp entity, the owner's rounded share
+// of P&L net, NET of separately-stated §179 (box11_12). Charitable (box12_13)
+// is deliberately NOT netted — it is a Schedule A item, not a reduction of K-1
+// ordinary income (audit F-13; IRC §179 separately-stated treatment per
+// §1366(a)(1)(A) / §702(a)). Previously three verbatim copies inside
+// CalculateTaxInner.jsx; a divergence here would have changed the filed k1Total.
+// Null entities are skipped (one of the three copies already did this; for the
+// other two this is hardening of a would-have-crashed case only).
+function sumK1FlowThrough(entities) {
+  return (Array.isArray(entities) ? entities : []).reduce((s, e) => {
+    if (!e || isCCorpEntity(e.type)) return s
+    return s + getEntityPnlNetShare(e) - nf(e.box11_12)
+  }, 0)
+}
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
 /** Â§63(c) Standard deduction by filing status. Inflation-adjusted annually â IRC Â§1(f)(3).
  *  Values live in TAX_TABLES[year].std; includes OBBBA adjustments for 2026. */
@@ -1660,4 +1715,9 @@ export {
   // M1 (audit F-01): single source of truth for the §469(i) $25k active-participation
   // allowance — consumed by both engine PAL branches and the AIAnalysis strategy card.
   calc469iAllowance,
+  // M3 (audit F-03/F-04): §179(b)(3) business-income limitation (single source —
+  // consumed by the AIAnalysis strategy layer) and the flow-through k1Total
+  // aggregation rule (consumed by CalculateTaxInner's three persist paths).
+  calc179Limitation,
+  sumK1FlowThrough,
 }

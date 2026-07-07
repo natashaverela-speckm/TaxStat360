@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { removeConnectedApp, readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, readLoadedRecordRaw, readConnectingEntityRaw, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -19,10 +19,15 @@ import {
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
-import { integrationKey } from './utils/integrations.js'
+// M4 (audit F-06): all integration storage access routes through these helpers —
+// no raw localStorage/sessionStorage with integrationKey() remains in this file.
+import { readIntegrationField, writeIntegrationField, removeIntegrationField, readIntegrationToken, writeIntegrationToken, removeIntegrationSessionToken } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
-import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType } from './utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet } from './utils/entityPredicates.js'
+// M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
+// three verbatim reduce() copies this file carried are replaced by one call each.
+import { sumK1FlowThrough } from './taxCalc.js'
 import InfoTip from './components/InfoTip.jsx'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
@@ -247,9 +252,9 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
 //   onSync prop triggers a manual re-fetch.
 function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   // Derive live connection state from localStorage on every render
-  const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
-  const hasFailed   = localStorage.getItem(integrationKey(integ.id, 'failed'))   === 'true'
-  const syncedAt    = localStorage.getItem(integrationKey(integ.id, 'syncedAt'))
+  const isConnected = readIntegrationField(integ.id, 'connected') === 'true'
+  const hasFailed   = readIntegrationField(integ.id, 'failed') === 'true'
+  const syncedAt    = readIntegrationField(integ.id, 'syncedAt')
   const syncedLabel = formatRelativeTime(syncedAt)
 
   return (
@@ -739,18 +744,19 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
-      localStorage.removeItem(integrationKey(pid, 'connected'))
-      localStorage.removeItem(integrationKey(pid, 'token'))
-      localStorage.removeItem(integrationKey(pid, 'extra'))
-      localStorage.removeItem(integrationKey(pid, 'syncedAt'))
-      sessionStorage.removeItem(integrationKey(pid, 'token'))
+      removeIntegrationField(pid, 'connected')
+      removeIntegrationField(pid, 'token')
+      removeIntegrationField(pid, 'extra')
+      removeIntegrationField(pid, 'syncedAt')
+      removeIntegrationSessionToken(pid)
       removeConnectedApp()
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
   }
 
-  const netProfit = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
+  // M3 (audit F-04): single derivation rule — identical to the prior inline expression.
+  const netProfit = getEntityPnlNet(entity)
 
   const own    = ownPct(entity.own) / 100
   const k1     = Math.round(netProfit * own)
@@ -1570,11 +1576,11 @@ export default function CalculateTaxInner() {
 
   useEffect(() => {
     // F-12 FIX: When a record is loaded via Dashboard ("Load & Continue"), the
-    // load handler writes the full record to sessionStorage key ts360_loaded_record
+    // load handler wrote the full record to the ts360_loaded_record session key
     // before navigating to /calculate. On mount here, if Step 1 entity array is
     // empty but a loaded record exists, hydrate entities from the record's saved
     // entity data so Step 1 correctly reflects the loaded state.
-    const existingStep1 = JSON.parse(sessionStorage.getItem('ts360_step1_entities') || '[]')
+    const existingStep1 = readStep1Entities()
     if (existingStep1.length > 0) {
       const mappedExisting = existingStep1.map(e => ({
         ...e,
@@ -1600,7 +1606,7 @@ export default function CalculateTaxInner() {
       let hydrated = null
       let hydratedTaxYear = taxYear
 
-      const loadedRaw = sessionStorage.getItem('ts360_loaded_record')
+      const loadedRaw = readLoadedRecordRaw()   // M4: no live writer — dead fallback, see sessionState.js
       if (loadedRaw) {
         try {
           const loaded = JSON.parse(loadedRaw)
@@ -1718,16 +1724,9 @@ export default function CalculateTaxInner() {
       // is absent from the Step-2 entity list, silently ignoring the SSTB checkbox.
       // Fix: eagerly compute and write the full Step-1 payload here, synchronously, so
       // readStep1State always reflects the latest entity state regardless of nav path.
-      const k1Total = next.reduce((s, e) => {
-        if (!e || isCCorpEntity(e.type)) return s
-        const pnl = e.pnl || {}
-        const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-        const own = ownPct(e.own) / 100
-        const k1  = Math.round(net * own)
-        // AUDIT F-13 FIX: charitable (box12_13) is a Schedule A item — it does not
-        // reduce K-1 ordinary income. Only separately-stated §179 (box11_12) nets.
-        return s + k1 - nf(e.box11_12)
-      }, 0)
+      // M3 (audit F-04): k1Total via the engine's single rule (share − §179,
+      // C-Corps skipped, charitable NOT netted per F-13 — see sumK1FlowThrough).
+      const k1Total = sumK1FlowThrough(next)
       writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
       return next
     })
@@ -1756,11 +1755,14 @@ export default function CalculateTaxInner() {
   }, [])
 
   const handleIntegrationDisconnect = useCallback((pid) => {
-    localStorage.removeItem(integrationKey(pid, 'connected'))
-    localStorage.removeItem(integrationKey(pid, 'token'))
-    localStorage.removeItem(integrationKey(pid, 'extra'))
-    localStorage.removeItem(integrationKey(pid, 'syncedAt'))
-    localStorage.removeItem(integrationKey(pid, 'failed'))
+    // OBS-2 (preserved verbatim): this path clears only the localStorage token —
+    // the sessionStorage copy is intentionally left as-is pending an owner decision
+    // (see integrations.js / KNOWN_LIMITATIONS.md).
+    removeIntegrationField(pid, 'connected')
+    removeIntegrationField(pid, 'token')
+    removeIntegrationField(pid, 'extra')
+    removeIntegrationField(pid, 'syncedAt')
+    removeIntegrationField(pid, 'failed')
     removeConnectedApp()
     setEntities(prev => {
       const next = prev.map(e =>
@@ -1781,20 +1783,10 @@ export default function CalculateTaxInner() {
 
   const persistStep1 = useCallback(() => {
     writeStep1Entities(entities)
-    const k1Total = entities.reduce((s, e) => {
-      // C-Corp profit is taxed at the entity level (21%) and reaches the owner as dividends,
-      // NOT as pass-through K-1 — so it must not be summed into k1Total. TaxReturn computes
-      // its corporate layer and folds the dividends into qualified dividends separately.
-      if (isCCorpEntity(e.type)) return s
-      const pnl = e.pnl || {}
-      const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-      const own = ownPct(e.own) / 100
-      const k1  = Math.round(net * own)
-      const sec179 = nf(e.box11_12)
-      // AUDIT F-13 FIX: charitable (box12_13) is a Schedule A item — excluded from
-      // K-1 ordinary income netting. Only separately-stated §179 nets here.
-      return s + k1 - sec179
-    }, 0)
+    // M3 (audit F-04): k1Total via the engine's single rule. C-Corp exclusion
+    // (entity-level 21% tax; owner receives dividends, not K-1 — see the corporate
+    // layer in TaxReturn) and the F-13 charitable rule live in sumK1FlowThrough.
+    const k1Total = sumK1FlowThrough(entities)
     writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
     writeTaxYear(taxYear)
     return k1Total
@@ -1897,7 +1889,7 @@ export default function CalculateTaxInner() {
         const empty =
           d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
         if (empty) {
-          localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+          writeIntegrationField(pid, 'failed', 'true')
           bumpIntegrationUi()
           setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year, Sync now, or enter figures manually.`)
           setTimeout(() => setFooterError(null), 10000)
@@ -1911,8 +1903,8 @@ export default function CalculateTaxInner() {
           }
           // F23 FIX: write sync timestamp
           const syncedAt = new Date().toISOString()
-          localStorage.setItem(integrationKey(pid, 'syncedAt'), syncedAt)
-          localStorage.removeItem(integrationKey(pid, 'failed'))
+          writeIntegrationField(pid, 'syncedAt', syncedAt)
+          removeIntegrationField(pid, 'failed')
           bumpIntegrationUi()
 
           setEntities(prev => {
@@ -1950,19 +1942,19 @@ export default function CalculateTaxInner() {
           })
         }
       } else if (d?.error) {
-        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        writeIntegrationField(pid, 'failed', 'true')
         bumpIntegrationUi()
         const detail = d.status ? ` (HTTP ${d.status})` : ''
         setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try Sync now or reconnect.`)
         setTimeout(() => setFooterError(null), 10000)
       } else if (isManualSync) {
-        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        writeIntegrationField(pid, 'failed', 'true')
         bumpIntegrationUi()
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)
       if (isManualSync) {
-        localStorage.setItem(integrationKey(pid, 'failed'), 'true')
+        writeIntegrationField(pid, 'failed', 'true')
         bumpIntegrationUi()
       }
     }
@@ -1970,8 +1962,8 @@ export default function CalculateTaxInner() {
 
   // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
   const handleManualSync = useCallback((pid) => {
-    const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
-    const extra = localStorage.getItem(integrationKey(pid, 'extra'))
+    const tok   = readIntegrationToken(pid)
+    const extra = readIntegrationField(pid, 'extra')
     const idx   = entities.findIndex(e => e.connectedId === pid)
     fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
   }, [entities, taxYear])
@@ -1986,14 +1978,14 @@ export default function CalculateTaxInner() {
     }
     const xeroRefresh = p.get('xero_refresh')
     if (xeroRefresh) writeXeroRefresh(xeroRefresh)
-    const entityIdx = parseInt(p.get('entity') || sessionStorage.getItem('ts360_connecting_entity')) || 0
+    const entityIdx = parseInt(p.get('entity') || readConnectingEntityRaw()) || 0
     let foundInUrl = false
 
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
       if (p.get(pid) === 'connected') {
         foundInUrl = true
-        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
-        localStorage.removeItem(integrationKey(pid, 'failed'))
+        writeIntegrationField(pid, 'connected', 'true')
+        removeIntegrationField(pid, 'failed')
         const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
         if (!hasToken) {
           fetchEntityPnL(entityIdx, pid, '', null)
@@ -2006,24 +1998,23 @@ export default function CalculateTaxInner() {
       const tok = p.get(k)
       if (tok) {
         foundInUrl = true
-        localStorage.setItem(integrationKey(pid, 'connected'), 'true')
-        localStorage.removeItem(integrationKey(pid, 'failed'))
-        localStorage.setItem(integrationKey(pid, 'token'), tok)
-        sessionStorage.setItem(integrationKey(pid, 'token'), tok)
+        writeIntegrationField(pid, 'connected', 'true')
+        removeIntegrationField(pid, 'failed')
+        writeIntegrationToken(pid, tok)
         const extra = pid === 'quickbooks' ? p.get('realm')
                     : pid === 'xero'        ? p.get('tenant')
                     : pid === 'freshbooks'  ? p.get('account')
                     : null
-        if (extra) localStorage.setItem(integrationKey(pid, 'extra'), extra)
+        if (extra) writeIntegrationField(pid, 'extra', extra)
         fetchEntityPnL(entityIdx, pid, tok, extra)
       }
     }
 
     if (!foundInUrl) {
       for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
-        if (localStorage.getItem(integrationKey(pid, 'connected')) === 'true') {
-          const tok   = sessionStorage.getItem(integrationKey(pid, 'token')) || localStorage.getItem(integrationKey(pid, 'token')) || ''
-          const extra = localStorage.getItem(integrationKey(pid, 'extra'))
+        if (readIntegrationField(pid, 'connected') === 'true') {
+          const tok   = readIntegrationToken(pid)
+          const extra = readIntegrationField(pid, 'extra')
           if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
         }
       }
@@ -2239,7 +2230,7 @@ export default function CalculateTaxInner() {
               const userIsPro = isPro()
               const connectedCount = entities.filter(e => e.connectedId).length
               return INTEGRATIONS.map(integ => {
-                const isConnected = localStorage.getItem(integrationKey(integ.id, 'connected')) === 'true'
+                const isConnected = readIntegrationField(integ.id, 'connected') === 'true'
                 const isLocked = !userIsPro && !isConnected && connectedCount >= 1
                 if (isLocked) {
                   return (
@@ -2348,12 +2339,9 @@ export default function CalculateTaxInner() {
                 risks contradicting Step 2's engine). */}
             {entities.length > 0
               ? (() => {
-                  const flowing = entities.reduce((s, e) => {
-                    if (isCCorpEntity(e.type)) return s
-                    const pnl = e.pnl || {}
-                    const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses)))
-                    return s + Math.round(net * ownPct(e.own) / 100) - nf(e.box11_12)
-                  }, 0)
+                  // M3 (audit F-04): same engine rule as the persisted k1Total, so
+                  // this badge can never drift from what actually flows to Step 2.
+                  const flowing = sumK1FlowThrough(entities)
                   return (
                     <span>
                       {`${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`}

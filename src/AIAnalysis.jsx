@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc469iAllowance } from './taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc469iAllowance, calc179Limitation } from './taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -17,7 +17,7 @@ import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, r
 import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit, getEntityPnlNetShare } from './utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from './utils/calcGuard'
@@ -152,21 +152,22 @@ function getRecord(liveState) {
     const _k1NonPassive = (entities && entities.length)
       ? entities.reduce((sum, e) => {
           if (!e || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
-          const pnl = e.pnl || {}
-          const net = nf(pnl.netProfit ?? (nf(pnl.grossRevenue) - nf(pnl.totalExpenses))) * (ownPct(e.own ?? 100) / 100)
-          return sum + Math.round(net) - nf(e.box11_12)
+          // M3 (audit F-04): owner share via the single derivation rule — identical
+          // to the prior inline expression (incl. the ownPct(e.own ?? 100) variant).
+          return sum + getEntityPnlNetShare(e) - nf(e.box11_12)
         }, 0)
       : _k1Stored
     const k1 = _k1NonPassive
     const f1040 = readPersonalContext()
-    const totalSec179 = entities.reduce((s,e)=>s+(nf(e.box11_12)), 0)
-    const totalBox12_13 = entities.reduce((s,e)=>s+(nf(e.box12_13)), 0)
-    const k1ActiveIncome = k1 + totalSec179 + totalBox12_13
-    const totalOfficerSalary = entities.reduce((s,e)=>s+(nf(e?.pnl?.officerSalary)), 0)
-    const activeBusinessIncome = Math.max(0, k1ActiveIncome + (nf(f1040.w2Income)||0) + totalOfficerSalary)
-    const sec179Allowed = Math.min(totalSec179, activeBusinessIncome)
-    const sec179Disallowed = Math.max(0, totalSec179 - activeBusinessIncome)
-    const k1Capped = k1ActiveIncome - sec179Allowed - totalBox12_13
+    // M3 (audit F-03): §179(b)(3) business-income limitation now computed by the
+    // engine's calc179Limitation() — a verbatim extraction of the block that lived
+    // here (see taxCalc.js for the formula, IRC citations, and the F-13 charitable
+    // add-back explanation). Destructured names unchanged so all downstream
+    // consumers (record shape, strategy cards) are untouched.
+    const {
+      totalSec179, sec179Allowed, sec179Disallowed,
+      activeBusinessIncome, k1Capped,
+    } = calc179Limitation({ k1NonPassive: k1, entities, w2Income: f1040.w2Income })
     const taxyear = readTaxYear()
     // SIMULATOR-FIX: same primary-entity selection and widened gate as the
     // liveState branch above. When entity[0] is a rental with basis-suspended
@@ -299,7 +300,7 @@ function missingFields(rec) {
   return missing
 }
 
-// O7 FIX: read onboarding business name/EIN/address from sessionStorage.
+// O7 FIX: read onboarding business name/EIN/address from session state.
 // Written by Onboarding.jsx BusinessScreen after the O7 patch.
 // Falls back gracefully if not set (pre-patch sessions, skipped step).
 // AUDIT F6 FIX: EIN is sanitized at this single read point. Accounts that stored

@@ -3,7 +3,7 @@ import { readLoggedIn, readSessionStart, writeSessionStart, readEmail, readLogin
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
-import { integrationKey } from './utils/integrations.js'
+import { writeIntegrationField } from './utils/integrations.js'
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, Link } from 'react-router-dom'
 import Landing from './Landing'
 import Onboarding from './Onboarding'
@@ -48,7 +48,7 @@ function OAuthCallback() {
     }
     const name = p.charAt(0).toUpperCase() + p.slice(1)
     writeConnectedApp(name)
-    localStorage.setItem(integrationKey(p, 'connected'), 'true')
+    writeIntegrationField(p, 'connected', 'true')   // M4 (audit F-06): accessor swap, caught by architecture-invariants.test.js
     window.location.href = '/calculate-tax'
   }, [provider])
   return (
