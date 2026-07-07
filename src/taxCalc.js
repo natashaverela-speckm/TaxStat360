@@ -71,6 +71,10 @@ import {
   PAL_PHASE_OUT_START,
   PAL_PHASE_OUT_RATE,
   NOL_CARRYFORWARD_CAP_RATE,
+  // AUDIT F10 / PASS-6 P6-1 (Jul 2026): §1211(b) capital-loss limitation — statutory
+  // (unindexed) dollar limits, single-sourced in constants.js per the M1 pattern.
+  CAP_LOSS_ORDINARY_LIMIT,
+  CAP_LOSS_ORDINARY_LIMIT_MFS,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { nf } from './utils/money.js'
@@ -752,6 +756,11 @@ function calcTaxReturn(input) {
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
+    // F10/P6-1: prior-year §1212(b) capital-loss carryforwards, character retained.
+    // BALANCES, not flows — deliberately excluded from _YTD_SCALE_FIELDS like all
+    // carryforwards. Engine-ready; UI/session persistence lands with the Phase-2
+    // shared field manifest (adding a persisted field currently touches five lists).
+    capLossCarryforwardST = 0, capLossCarryforwardLT = 0,
     useItemized, itemizedAmt, saltAmount, medicalExpenses,
     charitableContr,                       // N-9: charitable component of itemizedAmt
     estQ1, estQ2, estQ3, estQ4,            // 2210-lite: per-installment payments (optional)
@@ -1038,6 +1047,50 @@ function calcTaxReturn(input) {
   const _stGainExtra = distributionCapGainST
   const _ltGain = nf(ltGain) + distributionCapGainLT
   const _stGain = nf(stGain) + _stGainExtra
+  // ── AUDIT F10 / PASS-6 P6-1 FIX (Jul 2026): §1211(b)/§1212(b) capital-loss limit ──
+  // Previously _stGain + _ltGain flowed into gross income UNCLAMPED, so a net capital
+  // loss of ANY size offset ordinary income dollar-for-dollar (Pass-6 probe: an
+  // $80,000 LTCG loss on a $200,000 W-2 understated fedTax by $18,444 — for a client
+  // sizing quarterlies off the tool, that is an underpayment plus a §6654 penalty).
+  // The law: noncorporate taxpayers deduct net capital losses against ordinary income
+  // only up to $3,000/yr ($1,500 MFS) per §1211(b); the excess carries forward under
+  // §1212(b), retaining character. Netting mirrors Schedule D: carryforward inputs
+  // join their pool (lines 6/14), opposite-sign pools cross-absorb (lines 7/15/16),
+  // then the combined net loss is clamped. The allowed §1211(b) dollars are deemed to
+  // absorb the SHORT-TERM pool first (Capital Loss Carryover Worksheet ordering), so
+  // the surviving carryover keeps the correct character split.
+  // §1368 excess-distribution gains are already folded into _stGain/_ltGain above,
+  // so an investment loss correctly absorbs them here (they are capital gains).
+  // In-model boundary (register as 1211-1231-NETTING in KNOWN_LIMITATIONS): capital
+  // losses do NOT net against modeled §1231/f4797 gains (Schedule D line 11 would
+  // permit it). When both exist the tool taxes the §1231 gain in full while limiting
+  // the loss — OVERSTATES tax, never understates: conservative by design.
+  const _capCarryST = Math.max(0, nf(capLossCarryforwardST))
+  const _capCarryLT = Math.max(0, nf(capLossCarryforwardLT))
+  let _netST = _stGain - _capCarryST
+  let _netLT = _ltGain - _capCarryLT
+  if (_netST < 0 && _netLT > 0)      { const abs = Math.min(-_netST, _netLT); _netST += abs; _netLT -= abs }
+  else if (_netLT < 0 && _netST > 0) { const abs = Math.min(-_netLT, _netST); _netLT += abs; _netST -= abs }
+  const _combinedNetCapGain = _netST + _netLT
+  const _capLossLimit = status === 'mfs' ? CAP_LOSS_ORDINARY_LIMIT_MFS : CAP_LOSS_ORDINARY_LIMIT
+  // Capital gain / (allowed loss) actually INCLUDED in gross income this year.
+  const capitalGainNetIncluded = _combinedNetCapGain >= 0
+    ? _combinedNetCapGain
+    : Math.max(_combinedNetCapGain, -_capLossLimit)
+  // §1212(b) carryover to next year, character retained (ST absorbed first).
+  const _allowedLossUsed  = _combinedNetCapGain < 0 ? Math.min(-_combinedNetCapGain, _capLossLimit) : 0
+  const _stLossPool       = Math.max(0, -_netST)
+  const _ltLossPool       = Math.max(0, -_netLT)
+  const _stLossUsed       = Math.min(_stLossPool, _allowedLossUsed)
+  const capLossCarryoverST    = _stLossPool - _stLossUsed
+  const capLossCarryoverLT    = Math.max(0, _ltLossPool - (_allowedLossUsed - _stLossUsed))
+  const capLossCarryoverTotal = capLossCarryoverST + capLossCarryoverLT
+  // Long-term gain SURVIVING Schedule D netting — the only figure the preferential-
+  // rate machinery may see. A net-loss year has zero preferential gain, and an LT
+  // gain eroded by ST losses is preferential only to the surviving extent (the old
+  // Math.max(0, _ltGain) consumers over-carved the preferential bucket in mixed
+  // ST-loss/LT-gain years — corrected as part of this fix).
+  const _netLTForPref = Math.max(0, _netLT)
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
@@ -1096,7 +1149,7 @@ function calcTaxReturn(input) {
   if (!perPropertyRegimeActive) {
     // ── LEGACY branch (unchanged) ─────────────────────────────────────────────
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -1160,7 +1213,7 @@ function calcTaxReturn(input) {
     // as computed against the combined pool — no per-property regime test exercises it.)
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + _stGain + _ltGain + intInc + _divIncEff + iraIncome
+      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
         - Math.min(ytdScale(studentLoanInt), 2500)
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
@@ -1182,6 +1235,8 @@ function calcTaxReturn(input) {
   // — it only informs how much of the capital gain offsets business losses in the EBL netting.
   const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
   const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
+  // F10/P6-1 note: DELIBERATELY the raw (pre-§1211) figures — the §461(l) business-
+  // gain offset models gross business-attributable gains, not the Schedule D result.
   const eblOverallCapGainNI   = _stGain + _ltGain + nf(f4797Inc)
                               
   const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
@@ -1268,7 +1323,7 @@ function calcTaxReturn(input) {
   // it there); income is simply no longer reduced by it.
   const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
   const stdDed    = getStdDed(taxYear, status)
-  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + _stGain + _ltGain
+  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded
     + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
@@ -1361,7 +1416,7 @@ function calcTaxReturn(input) {
   const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
   const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
   const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
-  const prefIncome = _ltGain + _qualDivEff + f4797PrefGain  // F-9 hotfix: include §1368(c)(2) E&P dividends
+  const prefIncome = _netLTForPref + _qualDivEff + f4797PrefGain  // F10/P6-1: netted LT  // F-9 hotfix: include §1368(c)(2) E&P dividends
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
@@ -1379,7 +1434,7 @@ function calcTaxReturn(input) {
   // §1368(c)(2) E&P dividends were taxed at ordinary rates AND again at 15% by
   // calcPreferentialTax — double-taxing the dividend. Must use _qualDivEff, matching
   // every other consumer (_qualDivClamped, nii, grossIncome, calcAMT).
-  const totalPrefIncome       = Math.max(0, _ltGain) + Math.max(0, _qualDivEff) + f4797PrefGain
+  const totalPrefIncome       = _netLTForPref + Math.max(0, _qualDivEff) + f4797PrefGain
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
   // AUDIT N-8 FIX (Jul 2026): new IRC §68 (OBBBA §70111) — for tax years beginning
   // after 12/31/2025, itemized deductions are reduced by 2/37 of the LESSER of
@@ -1402,7 +1457,7 @@ function calcTaxReturn(input) {
   const taxableIncome         = taxableAfterQBI + itemizedLimitReduction
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI + itemizedLimitReduction - totalPrefIncome)
   let _prefRoom = taxableAfterQBI + itemizedLimitReduction
-  const _ltcgClamped         = Math.min(Math.max(0, _ltGain) + f4797PrefGain, _prefRoom); _prefRoom -= _ltcgClamped
+  const _ltcgClamped         = Math.min(_netLTForPref + f4797PrefGain, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, _qualDivEff), _prefRoom); _prefRoom -= _qualDivClamped
   const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
   const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
@@ -1431,7 +1486,7 @@ function calcTaxReturn(input) {
     Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
   const rentalNII  = rentalForNII
-  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, _ltGain + _stGain + f4797NetGain) + rentalNII)
+  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, capitalGainNetIncluded + f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
@@ -1443,7 +1498,7 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
-    ltGain: _ltGain + f4797PrefGain, qualDiv: _qualDivEff, regularTax: fedTax, status, taxYear,
+    ltGain: _netLTForPref + f4797PrefGain, qualDiv: _qualDivEff, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
@@ -1618,6 +1673,11 @@ function calcTaxReturn(input) {
     distributionCapGain,
     entityDistributionResults,
     ltGainEffective: _ltGain,
+    // F10/P6-1 (§1211(b)/§1212(b)) outputs for display surfaces:
+    capitalGainNetIncluded,
+    capLossCarryoverST,
+    capLossCarryoverLT,
+    capLossCarryoverTotal,
     priorSuspendedLossApplied,
     priorSuspendedLossRemaining,
   }
