@@ -22,6 +22,30 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.2b: the 409 identity guard — July 7, 2026 (frontend half; backend in taxstat360-api)
+
+Permanent countermeasure to the D-1 incident (root-caused Jul 7: a session
+identity flip mid-save mis-filed records under a different account partition —
+nothing was deleted, but from the client it was indistinguishable from
+sibling destruction).
+
+- `src/utils/serverApi.js` — every records call now pins which account this
+  page believes it is operating on (the same ts360_email the record buckets
+  key on): X-Expected-User header on GET/DELETE, an expectedUser body field on
+  PUT (including the self-heal re-PUTs). The backend compares the pin against
+  the session and returns 409 on mismatch, so any future identity flip is a
+  loud, harmless error the moment it happens — before a single byte lands in
+  the wrong partition. Absent email ⇒ no pin (backward compatible).
+- Backend counterpart (taxstat360-api `app/main.py` + new
+  `tests/test_records_identity_guard.py`, 43 → 48 backend tests): the
+  _check_expected_user gate on all three /records handlers; the pin is popped
+  before persisting (writtenBySession/-Ip remain the write forensics).
+- Frontend suite unchanged at 582/582; lint at baseline.
+
+Together with the retained snapshot/diff self-heal, PITR, and Streams, the
+July-3 failure class is now: prevented (409), attributed (Streams +
+writtenBy*), and recoverable (PITR) — defense in depth on all three axes.
+
 ## Phase 2.2: the shared calculation selector — July 7, 2026
 
 One read-only façade over the tax engine, extending the single-source
