@@ -283,6 +283,18 @@ export const SE_NET_EARNINGS_FACTOR = 0.9235  // IRC §1402(a)(12)
 // Referenced in calcTaxReturn; centralised here so future rate changes require one edit.
 export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC §172(a)(2)
 
+// ─── CAPITAL-LOSS LIMITATION — IRC §1211(b) / §1212(b) ──────────────────────
+// AUDIT F10 / PASS-6 P6-1 FIX (Jul 2026): noncorporate taxpayers may deduct net
+// capital losses against ordinary income only up to $3,000 per year — $1,500 for
+// a married individual filing a separate return (§1211(b), flush language). The
+// excess carries forward indefinitely under §1212(b), retaining its short/long
+// character. These dollar amounts are STATUTORY and NOT inflation-indexed
+// (unchanged since 1978; unchanged by OBBBA) — they are fixed constants, not
+// TAX_TABLES entries. Consumed by calcTaxReturn's Schedule D netting block; any
+// UI surface displaying the limit must import these, never a literal.
+export const CAP_LOSS_ORDINARY_LIMIT     = 3000  // IRC §1211(b)(1)
+export const CAP_LOSS_ORDINARY_LIMIT_MFS = 1500  // IRC §1211(b) (married filing separately)
+
 // ─── PASSIVE ACTIVITY LOSS — IRC §469(i) ─────────────────────────────────────
 // §469(i) active-participation special allowance: up to $25,000 in rental losses
 // can offset non-passive income for non-REP active participants. This allowance
