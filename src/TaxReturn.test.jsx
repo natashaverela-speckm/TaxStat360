@@ -18,7 +18,6 @@
  *   - readStep1State: control entities (box17K, pnl.officerSalary)
  *   - readPersonalContext: control personal context (w2Income, filingStatus, etc.)
  *   - writeTaxYear / writePersonalContext: no-ops
- *   - MoneyInput / FederalScopeBanner: lightweight stubs
  *
  * @see src/TaxReturn.jsx — production file under test
  * @see src/taxCalc.js — tax engine (not under test here)
@@ -30,6 +29,9 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 // ─── Mocks (hoisted before imports by Vitest) ─────────────────────────────────
 
+// D-01/D-02 cleanup (Jul 2026): stubs for the deleted FederalScopeBanner.jsx and
+// the retired MoneyInput.jsx migration target were removed — TaxReturn renders its
+// own local MoneyInput and no longer imports either component.
 vi.mock('./taxCalc', () => ({
   TAX_TABLES: {},
   AMT_TABLES: {},
@@ -83,23 +85,6 @@ vi.mock('./utils/sessionState.js', () => ({
   writeActiveRecord: vi.fn(),
   readPlan: vi.fn(() => 'starter'),
   writePlan: vi.fn(),
-}))
-
-vi.mock('./components/MoneyInput.jsx', () => ({
-  default: ({ value, onChange, placeholder, style }) => (
-    <input
-      type="number"
-      value={value ?? ''}
-      onChange={e => onChange?.(e.target.value)}
-      placeholder={placeholder}
-      style={style}
-      data-testid="money-input"
-    />
-  ),
-}))
-
-vi.mock('./components/FederalScopeBanner.jsx', () => ({
-  default: () => null,
 }))
 
 vi.mock('./components/DismissibleNotice', () => ({
