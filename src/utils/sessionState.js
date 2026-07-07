@@ -74,6 +74,7 @@ import {
 //   keys with these helpers.
 
 import { DEFAULT_TAX_YEAR } from '../constants.js'
+import { buildPersonalContextPayload, extractPersonalContext, normalizeF1040Fields } from './fieldManifest.js'
 
 // C-15: a new calculation's default Tax Year is the current calendar year, but never
 // beyond the latest year the engine has tax tables for (CURRENT_TAX_YEAR). This keeps the
@@ -222,79 +223,15 @@ export function clearStep1State() {
  *   nolCarryforward?: number,
  * }} ctx
  */
-export function writePersonalContext({
-  filingStatus = 'single',
-  taxYear = defaultTaxYear(),
-  dependents = 0,
-  w2Income = 0,
-  w2Withheld = 0,
-  rentalIncome = 0,
-  rentalExpenses = 0,
-  capitalGains = 0,
-  interest = 0,
-  dividends = 0,
-  qualifiedDividends = 0,
-  form4797 = 0,
-  manualK1s = [],
-  isREP = false,
-  // Note: §469(c)(7)(B) REP hours (repHoursRE / repHoursTotal) are NOT stored here.
-  // They live per-rental-entity (entity.repHoursRE / entity.repHoursTotal) — the single
-  // source of truth consumed by the engine via TaxReturn and the scenario comparison.
-  // A legacy personal-context copy was removed to prevent a stale-read path.
-  priorSuspendedLoss = 0, // F-01
-  useItemized = false,
-  itemizedAmt = 0,
-  saltAmount = 0,
-  hasISO = false,
-  isoBargainElement = 0,
-  estPaid = 0,
-  priorYearQBILoss = 0,
-  socialSecurity = 0,
-  iraDistributions = 0,
-  selfEmpHealthIns = 0,
-  hsaDeduction = 0,
-  studentLoanInt = 0,
-  selfEmpRetirement = 0,
-  nolCarryforward = 0,
-  // AUDIT F3 RESIDUAL FIX (write-side strip): TaxReturn passes all of the
-  // fields below on every edit, but this destructuring silently discarded
-  // them, so ts360_f1040 never carried YTD state (or the others) and the
-  // component re-seeded from defaults on every mount. This list is the exact
-  // set TaxReturn reads back via savedCtx.* — keep the three lists in sync:
-  // writePersonalContext / readPersonalContext / normalizeF1040.
-  ytdMode = false,
-  ytdMonth = 0,
-  stGain = 0,
-  ltGain = 0,
-  qualDividends = 0,
-  unrecap1250 = 0,
-  collectiblesGain = 0,
-  nonrecap1231 = 0,
-  isActiveParticipant = true,
-  rentalAggregationElection = false,
-  priorPassiveLossCarryforward = 0,
-  priorYearTax = 0,
-  priorYearAGI = 0,
-  priorYearLosses = 0,
-  mortgageInt = 0,
-  charitableContr = 0,
-  medicalAmt = 0,
-} = {}) {
-  sessionStorage.setItem('ts360_f1040', JSON.stringify({
-    filingStatus, taxYear, dependents, w2Income, w2Withheld,
-    rentalIncome, rentalExpenses, capitalGains, interest, dividends, qualifiedDividends,
-    form4797, manualK1s, isREP, priorSuspendedLoss,
-    useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement, estPaid,
-    priorYearQBILoss, socialSecurity, iraDistributions,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
-    nolCarryforward,
-    // AUDIT F3 RESIDUAL FIX — see parameter block above.
-    ytdMode, ytdMonth, stGain, ltGain, qualDividends,
-    unrecap1250, collectiblesGain, nonrecap1231,
-    isActiveParticipant, rentalAggregationElection,
-    priorPassiveLossCarryforward, priorYearTax, priorYearAGI, priorYearLosses,
-    mortgageInt, charitableContr, medicalAmt,
-  }))
+export function writePersonalContext(input = {}) {
+  // PHASE 2.1 (audit V2 / Pass-6 P6-2): the persisted-field contract now lives in
+  // ONE place — src/utils/fieldManifest.js. This serializes exactly the manifest
+  // fields: unknown keys (e.g. per-entity repHoursRE/repHoursTotal) are never
+  // written, omitted fields get their manifest defaults, and adding a field to
+  // the contract means adding ONE manifest entry — not editing five lists.
+  // (The former three-strips bug family — F3 write/read/load — is structurally
+  // impossible now: write, read, and normalize all derive from the same table.)
+  sessionStorage.setItem('ts360_f1040', JSON.stringify(buildPersonalContextPayload(input)))
 }
 
 /**
@@ -370,73 +307,13 @@ export function readPersonalContext() {
   } catch {
     return defaults   // M5: corrupt JSON → documented defaults (module convention)
   }
-  // Explicit field extraction (NOT a spread merge). Spread would let unknown
-  // keys from older sessionStorage data — including legacy field names like
-  // useStandardDed, itemizedDed, estimatedPayments — sit alongside the
-  // canonical fields, masking missing-data bugs and making the contract
-  // ambiguous. `??` preserves valid falsy values (false, 0, '') while
-  // falling through to defaults only when the field is missing/undefined.
-  //
-  // Legacy-name fallbacks below preserve user choice when sessionStorage
-  // contains pre-migration data (e.g. from a dev browser tested before
-  // this PR landed). These fallbacks are pre-launch transition aids
-  // and can be removed once the app is launched and no stale browser
-  // sessions remain. Tracked as a follow-up.
-  return {
-    filingStatus:      parsed.filingStatus      ?? defaults.filingStatus,
-    taxYear:           parsed.taxYear           ?? defaults.taxYear,
-    dependents:        parsed.dependents        ?? defaults.dependents,
-    w2Income:          parsed.w2Income          ?? defaults.w2Income,
-    w2Withheld:        parsed.w2Withheld        ?? defaults.w2Withheld,
-    rentalIncome:      parsed.rentalIncome      ?? defaults.rentalIncome,
-    rentalExpenses:    parsed.rentalExpenses    ?? defaults.rentalExpenses,
-    capitalGains:      parsed.capitalGains      ?? defaults.capitalGains,
-    interest:          parsed.interest          ?? defaults.interest,
-    dividends:         parsed.dividends         ?? defaults.dividends,
-    qualifiedDividends: parsed.qualifiedDividends ?? defaults.qualifiedDividends,
-    form4797:          parsed.form4797          ?? defaults.form4797,
-    manualK1s:         Array.isArray(parsed.manualK1s) ? parsed.manualK1s : defaults.manualK1s,
-    isREP:             parsed.isREP             ?? defaults.isREP,
-    // repHoursRE / repHoursTotal intentionally omitted — REP hours live per-rental-entity.
-    priorSuspendedLoss: parsed.priorSuspendedLoss ?? defaults.priorSuspendedLoss,
-    // Renamed-field migrations — read new name first, fall back to legacy
-    // name to preserve choice from pre-migration sessionStorage data.
-    useItemized:       parsed.useItemized ?? (parsed.useStandardDed !== undefined ? !parsed.useStandardDed : defaults.useItemized),
-    itemizedAmt:       parsed.itemizedAmt  ?? parsed.itemizedDed       ?? defaults.itemizedAmt,
-    estPaid:           parsed.estPaid      ?? parsed.estimatedPayments  ?? defaults.estPaid,
-    saltAmount:        parsed.saltAmount        ?? defaults.saltAmount,
-    hasISO:            parsed.hasISO            ?? defaults.hasISO,
-    isoBargainElement: parsed.isoBargainElement ?? defaults.isoBargainElement,
-    priorYearQBILoss:  parsed.priorYearQBILoss  ?? defaults.priorYearQBILoss,
-    socialSecurity:    parsed.socialSecurity    ?? defaults.socialSecurity,
-    iraDistributions:  parsed.iraDistributions  ?? defaults.iraDistributions,
-    selfEmpHealthIns:  parsed.selfEmpHealthIns  ?? defaults.selfEmpHealthIns,
-    hsaDeduction:      parsed.hsaDeduction      ?? defaults.hsaDeduction,
-    studentLoanInt:    parsed.studentLoanInt    ?? defaults.studentLoanInt,
-    selfEmpRetirement: parsed.selfEmpRetirement ?? defaults.selfEmpRetirement,
-    nolCarryforward:   parsed.nolCarryforward   ?? defaults.nolCarryforward,
-    // AUDIT F3 RESIDUAL FIX (read-side strip): the fields TaxReturn reads back
-    // via savedCtx.* but which this extraction previously dropped — most
-    // visibly ytdMode/ytdMonth, which made a saved YTD projection revert to
-    // full-year on every reload. Defaults mirror writePersonalContext's.
-    ytdMode:           parsed.ytdMode           ?? false,
-    ytdMonth:          parsed.ytdMonth          ?? 0,
-    stGain:            parsed.stGain            ?? 0,
-    ltGain:            parsed.ltGain            ?? (parsed.capitalGains ?? 0),
-    qualDividends:     parsed.qualDividends     ?? (parsed.qualifiedDividends ?? 0),
-    unrecap1250:       parsed.unrecap1250       ?? 0,
-    collectiblesGain:  parsed.collectiblesGain  ?? 0,
-    nonrecap1231:      parsed.nonrecap1231      ?? 0,
-    isActiveParticipant: parsed.isActiveParticipant ?? true,
-    rentalAggregationElection: parsed.rentalAggregationElection ?? false,
-    priorPassiveLossCarryforward: parsed.priorPassiveLossCarryforward ?? 0,
-    priorYearTax:      parsed.priorYearTax      ?? 0,
-    priorYearAGI:      parsed.priorYearAGI      ?? 0,
-    priorYearLosses:   parsed.priorYearLosses   ?? 0,
-    mortgageInt:       parsed.mortgageInt       ?? 0,
-    charitableContr:   parsed.charitableContr   ?? 0,
-    medicalAmt:        parsed.medicalAmt        ?? 0,
-  }
+  // PHASE 2.1: explicit per-field extraction (NOT a spread merge — unknown keys
+  // from older sessionStorage data must not leak through) now derives from the
+  // manifest. `??` semantics preserved: falsy 0/false/'' are valid stored values;
+  // legacy-name fallbacks (useStandardDed, itemizedDed, estimatedPayments,
+  // ltGain←capitalGains, qual-dividend aliases) are declared per-field in
+  // src/utils/fieldManifest.js.
+  return extractPersonalContext(parsed)
 }
 
 // ─── Tax year (standalone, because Dashboard writes it separately) ─────────
@@ -735,65 +612,12 @@ export function clearGotoForm() {
 // Field list mirrors writePersonalContext's accepted parameters. Adding a new
 // field to the contract means adding it here too — track them together.
 export function normalizeF1040(rec = {}) {
-  return {
-    filingStatus:      rec.filingStatus || 'single',
-    taxYear:           parseInt(rec.taxYear)           || defaultTaxYear(),
-    dependents:        parseInt(rec.dependents)        || 0,
-    w2Income:          parseFloat(rec.w2Income)        || 0,
-    w2Withheld:        parseFloat(rec.w2Withheld)      || 0,
-    rentalIncome:      parseFloat(rec.rentalIncome)    || 0,
-    rentalExpenses:    parseFloat(rec.rentalExpenses)  || 0,
-    capitalGains:      parseFloat(rec.capitalGains)    || 0,
-    interest:          parseFloat(rec.interest)        || 0,
-    dividends:         parseFloat(rec.dividends)       || 0,
-    qualifiedDividends: parseFloat(rec.qualifiedDividends ?? rec.qualDividends) || 0,
-    form4797:          parseFloat(rec.form4797)        || 0,
-    manualK1s:         Array.isArray(rec.manualK1s) ? rec.manualK1s : [],
-    isREP:             !!rec.isREP,
-    // Renamed-field migration: if the saved record was written before the
-    // PR #136 contract migration, it contains useStandardDed / itemizedDed /
-    // estimatedPayments instead of the canonical names. Read the canonical
-    // name first, fall back to the legacy name to preserve user choice.
-    useItemized:       rec.useItemized !== undefined
-                         ? !!rec.useItemized
-                         : (rec.useStandardDed !== undefined ? !rec.useStandardDed : false),
-    itemizedAmt:       parseFloat(rec.itemizedAmt ?? rec.itemizedDed)          || 0,
-    saltAmount:        parseFloat(rec.saltAmount)      || 0,
-    hasISO:            !!rec.hasISO,
-    isoBargainElement: parseFloat(rec.isoBargainElement) || 0,
-    estPaid:           parseFloat(rec.estPaid ?? rec.estimatedPayments)        || 0,
-    priorYearQBILoss:  parseFloat(rec.priorYearQBILoss) || 0,
-    socialSecurity:    parseFloat(rec.socialSecurity)   || 0,
-    iraDistributions:  parseFloat(rec.iraDistributions) || 0,
-    selfEmpHealthIns:  parseFloat(rec.selfEmpHealthIns) || 0,
-    hsaDeduction:      parseFloat(rec.hsaDeduction)     || 0,
-    studentLoanInt:    parseFloat(rec.studentLoanInt)   || 0,
-    selfEmpRetirement: parseFloat(rec.selfEmpRetirement) || 0,
-    nolCarryforward:   parseFloat(rec.nolCarryforward)  || 0,
-    // AUDIT F3 RESIDUAL FIX (load-path strip): the save path writes these fields
-    // (TaxReturn.jsx writePersonalContext / record f1040), but this whitelist
-    // dropped them on rehydration — so a saved YTD projection silently reverted
-    // to full-year on reload even though the server record carried
-    // ytdMode/ytdMonth correctly, and the fields below were quietly lost on
-    // every Load & Continue.
-    ytdMode:           !!rec.ytdMode,
-    ytdMonth:          parseInt(rec.ytdMonth)            || (new Date().getMonth() + 1),
-    stGain:            parseFloat(rec.stGain)            || 0,
-    unrecap1250:       parseFloat(rec.unrecap1250)       || 0,
-    collectiblesGain:  parseFloat(rec.collectiblesGain)  || 0,
-    nonrecap1231:      parseFloat(rec.nonrecap1231)      || 0,
-    isActiveParticipant: rec.isActiveParticipant !== false,
-    rentalAggregationElection: !!rec.rentalAggregationElection,
-    priorPassiveLossCarryforward: parseFloat(rec.priorPassiveLossCarryforward) || 0,
-    priorSuspendedLoss: parseFloat(rec.priorSuspendedLoss) || 0,
-    priorYearTax:      parseFloat(rec.priorYearTax)      || 0,
-    priorYearAGI:      parseFloat(rec.priorYearAGI)      || 0,
-    priorYearLosses:   parseFloat(rec.priorYearLosses)   || 0,
-    mortgageInt:       parseFloat(rec.mortgageInt)       || 0,
-    charitableContr:   parseFloat(rec.charitableContr)   || 0,
-    medicalAmt:        parseFloat(rec.medicalAmt)        || 0,
-    qualDividends:     parseFloat(rec.qualDividends ?? rec.qualifiedDividends) || 0,
-  }
+  // PHASE 2.1: coercion table (parseFloat/parseInt/!!/"!== false"), the renamed-
+  // field migrations, the divergent ytdMonth default (current month here, 0 on
+  // the read path), and the deliberate ltGain omission are all declared
+  // per-field in src/utils/fieldManifest.js — one table drives write, read,
+  // and normalize.
+  return normalizeF1040Fields(rec)
 }
 
 // ─── Saved records: per-user scoping + one-time legacy migration ───────────────
