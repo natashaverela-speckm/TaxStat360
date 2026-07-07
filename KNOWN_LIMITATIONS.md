@@ -58,6 +58,25 @@ carryforwards as a conservative planning default. A confirmed pre-2018 NOL is
 not subject to the cap; such a filer's actual deductible amount may be
 slightly higher than shown. (See `NOL_CARRYFORWARD_CAP_RATE` in constants.js.)
 
+## LIMITATION 1211-1231-NETTING — capital losses do not net against §1231/f4797 gains
+
+Added Jul 7, 2026 with the §1211(b) capital-loss limitation fix (audit F10 /
+Pass-6 P6-1). The engine now nets short- and long-term capital pools per
+Schedule D (including §1368 excess-distribution gains, which fold into the
+LT/ST pools) and clamps the net loss at $3,000/$1,500-MFS with §1212(b)
+character-retaining carryover. What it does NOT do: net capital losses against
+modeled §1231/f4797 gains, which Schedule D line 11 would permit — the model
+keeps §4797 gains in their own channel (the §1231(c) lookback and EBL offset
+depend on it). Consequence when both exist in one year: the §1231 gain is
+taxed in full while the capital loss is limited — the tool OVERSTATES tax,
+never understates. Conservative by design. Fixing it requires routing net
+§1231 gain through the Schedule D netting block, re-deriving the lookback
+interaction, and SPEC tests; owner sign-off required.
+
+Related engine note: the §461(l) business-gain offset (`eblOverallCapGainNI`)
+deliberately consumes the RAW (pre-§1211) figures — it models gross
+business-attributable gains, not the Schedule D result.
+
 ## LIMITATION SALT-MAGI — §164(b)(7) MAGI addbacks not modeled
 
 The OBBBA SALT phase-down uses MAGI = AGI; the §911/931/933 exclusion
