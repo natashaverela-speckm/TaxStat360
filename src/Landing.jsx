@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { WEB3FORMS_ACCESS_KEY } from './utils/integrations.js'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
@@ -72,7 +73,7 @@ export default function Landing() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // ADD-01 FIX: Web3Forms key moved to env var with hardcode fallback.
-          access_key: import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed',
+          access_key: WEB3FORMS_ACCESS_KEY,
           // F-05 FIX: Subject line now includes inquiry type for triage.
           subject:   `TaxStat360 [${contactType}] — ${contactName}`,
           from_name:  contactName,

@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { removeConnectedApp, readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, readLoadedRecordRaw, readConnectingEntityRaw, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -1606,20 +1606,10 @@ export default function CalculateTaxInner() {
       let hydrated = null
       let hydratedTaxYear = taxYear
 
-      const loadedRaw = readLoadedRecordRaw()   // M4: no live writer — dead fallback, see sessionState.js
-      if (loadedRaw) {
-        try {
-          const loaded = JSON.parse(loadedRaw)
-          if (loaded.entities && loaded.entities.length > 0) hydrated = loaded.entities
-          if (loaded.taxYear) {
-            setTaxYear(loaded.taxYear)
-            writeTaxYear(loaded.taxYear)
-            hydratedTaxYear = loaded.taxYear
-          }
-        } catch (err) {
-          console.error('CalculateTaxInner: failed to parse loaded record', err)
-        }
-      }
+      // M7 (audit OBS-4): the ts360_loaded_record fallback that lived here was a
+      // reader with NO writer anywhere in src/ (the Dashboard load flow that wrote
+      // it was replaced by writeStep1State long ago) — removed as dead code. The
+      // C-04 hydration below is the live path for every load scenario.
 
       // C-04 FIX: loadRecord (and the AIAnalysis "Calculate Tax" / tab-nav paths) persist
       // the entity list via writeStep1State — which Step 2 reads through readStep1State —
@@ -1978,7 +1968,9 @@ export default function CalculateTaxInner() {
     }
     const xeroRefresh = p.get('xero_refresh')
     if (xeroRefresh) writeXeroRefresh(xeroRefresh)
-    const entityIdx = parseInt(p.get('entity') || readConnectingEntityRaw()) || 0
+    // M7 (audit OBS-4): the ts360_connecting_entity session fallback had no writer —
+    // the OAuth return URL's ?entity= param is the only live source. Dead read removed.
+    const entityIdx = parseInt(p.get('entity')) || 0
     let foundInUrl = false
 
     for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {

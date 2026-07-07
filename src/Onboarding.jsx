@@ -84,6 +84,8 @@ import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
 import { readBusinessInfo, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
+// M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
+import { WEB3FORMS_ACCESS_KEY, MAILCHIMP_SUBSCRIBE_URL } from './utils/integrations.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
@@ -231,9 +233,9 @@ if(!subRes||!subRes.ok){
 const subData=subRes?await subRes.json().catch(()=>({})):{}
 console.error('Subscribe setup failed at signup:',subRes&&subRes.status,subData)
 writeSubscriptionIncomplete('1')
-try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){}
+try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:WEB3FORMS_ACCESS_KEY,subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){/* M5/M7: fire-and-forget owner-alert email — its failure must never block a paying customer's signup */}
 }else{ removeSubscriptionIncomplete() }
-}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:'0dfbc9fa-5311-4762-bdee-99e4221561ed',subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){} }
+}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:WEB3FORMS_ACCESS_KEY,subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){/* M5/M7: same fire-and-forget alert — never block signup */} }
 writeUserName(name)
 writePendingEmail(email)
 try {
@@ -242,12 +244,12 @@ mcData.append('EMAIL', email)
 mcData.append('FNAME', name ? name.split(' ')[0] : '')
 mcData.append('LNAME', name ? name.split(' ').slice(1).join(' ') : '')
 mcData.append('tags', 'TaxStat360 Signup')
-await fetch('https://taxstat360.us4.list-manage.com/subscribe/post?u=c09d008a62d6587f7f0b7e6888c354e8&id=f546bd92ac&f_id=00e0e0e1f0', {
+await fetch(MAILCHIMP_SUBSCRIBE_URL, {
 method: 'POST', mode: 'no-cors',
 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 body: mcData.toString()
 })
-} catch(e) {}
+} catch(e) {/* M5/M7: marketing-list add is best-effort (no-cors, opaque response) — never block signup */}
 writeNewRegistration()   // M4 (audit F-06): accessor swap only — Stripe block above untouched
 nav('/verify-email')
 }catch(e){setErr(e.message)}
@@ -570,7 +572,7 @@ function trustThisDevice(emailAddr) {
       fingerprint: getDeviceFingerprint(),
       expires: Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000,
     }))
-  } catch {}
+  } catch {/* M5/M7: device-trust persistence is a convenience — login still succeeds; 2FA asks again next time */}
 }
 
 async function finishLogin(data,actualEmail){

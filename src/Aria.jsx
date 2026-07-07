@@ -91,6 +91,10 @@ function renderAriaText(text) {
 // exactly the old behavior.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// M7 (audit follow-up): looks like a duplicate of money.js fmt() but is NOT —
+// fmt() renders negatives accounting-style "($500)", which reads poorly inline
+// in the assistant's prose; this keeps "-$500". Kept deliberately. If you change
+// one style, change both or note why not.
 const fmtUSD = (n) => {
   const num = Number(n) || 0
   return (num < 0 ? '-$' : '$') + Math.round(Math.abs(num)).toLocaleString('en-US')

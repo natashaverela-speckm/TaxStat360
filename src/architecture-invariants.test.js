@@ -87,13 +87,9 @@ describe('ARCHITECTURE invariants (CI-enforced)', () => {
     // NOTE: this check runs on RAW source (comments count as justification), so
     // it uses its own scan instead of the stripped-source helper above.
     const bare = /catch\s*(\([^)]*\))?\s*\{\s*\}/
-    const allow = [
-      // Onboarding.jsx: 4 legacy bare swallows inside the signup handler are
-      // deferred to M7 (the credential-move batch edits those exact lines) so
-      // hygiene batches never touch the payment flow. TODO(M7): fix, then
-      // remove this allowance.
-      'Onboarding.jsx',
-    ]
+    // M7 closed the Onboarding.jsx allowance — the convention now holds with
+    // ZERO exceptions across production source.
+    const allow = []
     const hits = []
     for (const f of files) {
       const r = rel(f)
