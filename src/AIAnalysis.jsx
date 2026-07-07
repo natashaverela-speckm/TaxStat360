@@ -14,6 +14,8 @@ import {
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
+// PHASE 2.2: engine-true figures for card gating — cures R-2 (local AGI drift)
+import { summarizeRecord } from './utils/calcSelector.js'
 import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
@@ -471,7 +473,15 @@ function RiskScan({ rec }) {
   const dividendIncome = nf(f.dividends ) || 0
   const rentalNet = Math.max(0, rentalIncome - rentalExpenses)
   const otherInc = nf(f.otherIncome ) || 0
-  const totalIncome = k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
+  // PHASE 2.2 (R-2): prefer the ENGINE's gross income over the local sum — the
+  // local formula applies no §1211(b) clamp, no PAL machinery, and no
+  // adjustments, so it over/understates in exactly the loss years where card
+  // sizing matters most. The local sum remains only as a fallback when the
+  // calculation guard rejects a malformed legacy record.
+  const _sum1 = summarizeRecord(rec)
+  const totalIncome = _sum1.ok
+    ? _sum1.grossIncome
+    : k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc
 
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
@@ -860,7 +870,13 @@ function TaxOptimization({ rec }) {
   const dividendIncome = nf(f.dividends ) || 0
   const rentalNet = Math.max(0, (nf(f.rentalIncome ) || nf(b.rentalIncome ) || 0) - (nf(f.rentalExpenses ) || 0))
   const otherInc = nf(f.otherIncome ) || 0
-  const agi = Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
+  // PHASE 2.2 (R-2): engine-true AGI for card gating. The old Math.max(0, sum)
+  // had no §1211(b) clamp and no adjustments — a loss-year investor's §469(i)
+  // phase-out (and every AGI-gated card) ran against the wrong figure.
+  const _sum2 = summarizeRecord(rec)
+  const agi = _sum2.ok
+    ? _sum2.agi
+    : Math.max(0, k1 + w2 + capitalGainsIncome + interestIncome + dividendIncome + rentalNet + otherInc)
 
   const _taxableBeforeQBI_opt = taxableIncomeBeforeQBI(agi, year, filing)
   const { deduction: _qbiOpt } = resolveQbiDeduction({
@@ -872,7 +888,11 @@ function TaxOptimization({ rec }) {
     entities: rec.entities || [],
   })
   const taxable = Math.max(0, _taxableBeforeQBI_opt - _qbiOpt)
-  const marginalRate = getMarginalRate(taxable, year, filing)
+  // PHASE 2.2 (R-2): the engine already computed the true marginal rate on the
+  // true ordinary taxable income — use it when available.
+  const marginalRate = _sum2.ok && _sum2.marginalRate
+    ? _sum2.marginalRate
+    : getMarginalRate(taxable, year, filing)
 
   const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
   const k1ForGuard = nf(rec?.k1Income)
