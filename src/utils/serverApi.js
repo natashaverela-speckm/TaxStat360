@@ -18,6 +18,23 @@
 
 import { apiFetch, apiDelete } from './apiClient.js'
 
+// ── PHASE 2.2 IDENTITY GUARD (D-1 countermeasure, Jul 2026) ──────────────────
+// The July 3 "destroyed siblings" incident was a session identity flip: the
+// browser's effective session switched accounts mid-save, so the write landed
+// in — and reads returned — a different account's record partition. Nothing
+// was deleted; it was mis-filed and vanished from view. Every records call now
+// PINS which account this page believes it is operating on (the same
+// ts360_email the record buckets key on); the backend 409s on mismatch, so a
+// future flip is a loud, harmless error instead of a silent mystery. Absent
+// email (pre-login edge) ⇒ no pin, backward compatible.
+function _expectedUser() {
+  try { return localStorage.getItem('ts360_email') || null } catch { return null }
+}
+function _pinHeaders() {
+  const u = _expectedUser()
+  return u ? { 'X-Expected-User': u } : {}
+}
+
 // ── Records ──────────────────────────────────────────────────────────────────
 
 /**
@@ -25,7 +42,7 @@ import { apiFetch, apiDelete } from './apiClient.js'
  * @returns {Promise<Array>}
  */
 export async function fetchRecordsFromServer() {
-  const data = await apiFetch('/records', { credentials: 'include' })
+  const data = await apiFetch('/records', { credentials: 'include', headers: _pinHeaders() })
   return Array.isArray(data) ? data : []
 }
 
@@ -62,10 +79,13 @@ export async function upsertRecordOnServer(record) {
     before = Array.isArray(fetched) ? fetched : []
   } catch (e) { /* snapshot unavailable — proceed; upsert is still per-id */ }
 
+  const _pin = _expectedUser()
   const saved = await apiFetch('/records', {
     method: 'PUT',
     credentials: 'include',
-    body: record,
+    // expectedUser is transport metadata — the backend pops it before
+    // persisting and 409s if it doesn't match the session's account.
+    body: _pin ? { ...record, expectedUser: _pin } : record,
   })
 
   if (before.length > 1) {
@@ -78,7 +98,7 @@ export async function upsertRecordOnServer(record) {
       for (const missing of lost) {
         console.error('[records] sibling record lost during save — self-healing restore', missing.id, missing.name || '')
         try {
-          await apiFetch('/records', { method: 'PUT', credentials: 'include', body: missing })
+          await apiFetch('/records', { method: 'PUT', credentials: 'include', body: _pin ? { ...missing, expectedUser: _pin } : missing })
         } catch (e2) {
           console.error('[records] self-heal re-PUT failed for', missing.id, e2)
         }
@@ -97,6 +117,7 @@ export async function deleteRecordOnServer(recordId) {
   return apiFetch(`/records/${recordId}`, {
     method: 'DELETE',
     credentials: 'include',
+    headers: _pinHeaders(),
   })
 }
 
