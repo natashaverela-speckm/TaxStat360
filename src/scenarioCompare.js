@@ -41,6 +41,17 @@
 // Audit fix: added calcCCorpCorporateLayer and calcFICAOnWages so the compare
 // engine delegates to the shared implementations rather than inlining them.
 import { calcTaxReturn, getTable, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCalc.js'
+// M2 (audit F-05): ARCHITECTURE §5 calculation guard. The single calcTaxReturn() call
+// in this module routes its input through guarded() below. A CalcInputError propagates
+// to the caller — EntityCompareModal already catches any throw from
+// compareEntityScenarios and renders its visible error state, so a bad input produces
+// an honest failure card instead of a silently wrong three-way comparison.
+import { validateCalcInputs } from './utils/calcGuard.js'
+
+const guarded = (engineInput) => {
+  validateCalcInputs(engineInput, 'scenarioCompare')
+  return engineInput
+}
 
 // Rate constants — single source of truth in src/constants.js.
 // Imported here so scenarioCompare doesn't duplicate what taxCalc.js already uses.
@@ -115,7 +126,7 @@ function compareEntityScenarios(input) {
     const _repHoursRE    = maxHr('repHoursRE')
     const _repHoursTotal = maxHr('repHoursTotal')
     const _repOverride   = (entitiesOverride || []).some(e => e && e.repAggregationOverride === true)
-    return calcTaxReturn({
+    return calcTaxReturn(guarded({
       ...personalContext,
       w2:     (personalContext.w2     || 0) + w2Boost,
       qualDiv:(personalContext.qualDiv || 0) + qualDivBoost,
@@ -129,7 +140,7 @@ function compareEntityScenarios(input) {
       repHoursRE:             Number.isNaN(_repHoursRE)    ? undefined : _repHoursRE,
       repHoursTotal:          Number.isNaN(_repHoursTotal)  ? undefined : _repHoursTotal,
       repAggregationOverride: _repOverride,
-    })
+    }))
   }
 
   // ── Sole Proprietor scenario ───────────────────────────────────────────────
