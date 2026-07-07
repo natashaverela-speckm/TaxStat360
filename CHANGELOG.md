@@ -22,6 +22,40 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.1 (audit V2 / Pass-6 P6-2): the shared field manifest — July 7, 2026
+
+The persisted personal-context contract previously lived in five hand-synced
+lists (writePersonalContext parameters + payload, readPersonalContext
+extraction, normalizeF1040 coercion table, and the engine's YTD annualization
+lists) — the bug family behind three of the last four functionality defects
+(F3's three strips, A4-1). It now lives in exactly one place.
+
+- `src/utils/fieldManifest.js` (NEW) — F1040_FIELD_MANIFEST: one descriptor per
+  field carrying kind, defaults, legacy-name fallbacks, and the deliberately
+  preserved quirks (divergent ytdMonth defaults; ltGain's normalize omission —
+  documented, with the reason emitting it would zero loaded LT gains); plus
+  buildPersonalContextPayload / extractPersonalContext / normalizeF1040Fields,
+  and the A4-1/A4-2 YTD lists moved verbatim (YTD_SCALE_ENGINE_FIELDS /
+  YTD_SCALE_ENTITY_FIELDS).
+- `src/utils/sessionState.js` — writePersonalContext / readPersonalContext /
+  normalizeF1040 are now thin delegates (−199 lines of triplicated contract);
+  public API, storage shape, and every pinned behavior unchanged.
+- `src/taxCalc.js` — imports the YTD lists from the manifest; local copies
+  removed.
+- `src/TaxReturn.jsx` — first manifest-native fields shipped end-to-end:
+  §1212(b) capital-loss carryforward inputs (ST/LT, Capital Gains section,
+  tooltips citing §1211(b)/§1212(b)), wired into the engine calcInput, the
+  session payload, and saved records. Completes the F10/P6-1 fix's deferred
+  persistence.
+- `src/utils/fieldManifest.test.js` (NEW) — 14 tests GENERATED from the
+  manifest: every field round-trips automatically the moment it exists;
+  coercion modes, legacy migrations, quirks, engine-list membership, and the
+  carryforward end-to-end are pinned. Suite: 560 → 574, all passing; lint at
+  baseline (0 errors / 24 warnings).
+
+Adding a persisted field is now: one manifest entry (+ one YTD-list string if
+the engine annualizes it) — with tests that exist by construction.
+
 ## Pass-6 review follow-up R-1: §1211(b) waterfall reconciliation — July 7, 2026
 
 Display-only follow-up to the Pass-6 1.2 engine fix, closing the one
