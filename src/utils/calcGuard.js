@@ -51,8 +51,15 @@ const REQUIRED_FINITE = [
   'taxYear',       // number — e.g. 2025
 ]
 
-const REQUIRED_PRESENT = [
-  'filingStatus',  // string — 'single' | 'mfj' | 'mfs' | 'hoh' | 'qss'
+// M2 (audit F-05, Jul 2026): the guard was written against the SESSION vocabulary
+// (`filingStatus`) but the engine's input key is `status` (see calcTaxReturn), which
+// is why it could never be wired in as written. Filing status is now satisfied by
+// EITHER key. `filing` (the resolveQbiDeduction argument name) is deliberately NOT
+// an accepted alias — call sites that use it translate explicitly (see
+// aiAnalysisTaxMath.js), keeping this list a strict two-vocabulary contract.
+const STATUS_KEYS = [
+  'filingStatus',  // session vocabulary — 'single' | 'mfj' | 'mfs' | 'hoh' | 'qss'
+  'status',        // engine vocabulary — same value set
 ]
 
 // ── Validator ─────────────────────────────────────────────────────────────────
@@ -78,9 +85,25 @@ export function validateCalcInputs(inputs, context = 'calcTaxReturn') {
     }
   }
 
-  for (const field of REQUIRED_PRESENT) {
-    const val = inputs[field]
-    if (val === undefined || val === null || val === '') {
+  // Filing status: at least one accepted key must be present and non-empty.
+  const statusVal = STATUS_KEYS
+    .map((k) => inputs[k])
+    .find((v) => v !== undefined && v !== null && v !== '')
+  if (statusVal === undefined) {
+    throw new CalcInputError(
+      'filingStatus/status',
+      inputs.filingStatus ?? inputs.status,
+      context
+    )
+  }
+
+  // M2: reject NaN money inputs. calcTaxReturn() defaults *missing* numeric fields
+  // safely, but a field explicitly set to NaN (e.g. a failed parse upstream) flows
+  // through arithmetic and yields a NaN liability — the silent failure this guard
+  // exists to prevent. Only top-level number-typed values are checked; nested
+  // objects (entities, ccorp) are the engine's own responsibility.
+  for (const [field, val] of Object.entries(inputs)) {
+    if (typeof val === 'number' && !Number.isFinite(val)) {
       throw new CalcInputError(field, val, context)
     }
   }
