@@ -3,6 +3,7 @@ export function onboardingKeyFor(email = '') {
   return `ts360_onboarding_v1_${String(email || '').trim().toLowerCase()}`
 }
 
+// test seam (D-08): exported for tests only — not a production API.
 export function hasCompletedOnboardingTour(email) {
   if (!email) return false
   try {

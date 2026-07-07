@@ -6,11 +6,11 @@
 //
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getTable, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS } from './taxCalc.js'
+import { calcTaxReturn, getStdDed, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS } from './taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
-  readStep1State, writeStep1State, readUserRecords, syncRecordToServer,
+  readStep1State, readUserRecords, syncRecordToServer,
   readActiveRecordId, writeActiveRecord,
 } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
@@ -18,7 +18,7 @@ import { signOut } from './utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
-import { isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -105,7 +105,7 @@ function MoneyInput({ value, onChange, placeholder, disabled, id, ariaLabel, sty
   )
 }
 
-function IncomeField({ id, label, value, onChange, placeholder, tip, twoCol, onClick, style: sx }) {
+function IncomeField({ id, label, value, onChange, placeholder, tip, onClick, style: sx }) {   // D-09: twoCol prop was never read
   const [errMsg, setErrMsg] = useState('')
   return (
     <div>
@@ -224,8 +224,8 @@ export default function TaxReturn() {
   // established there (per-entity) and flows through the engine; we seed the Step-2
   // value from the Step-1 entities so the §1.469-9(g) election control is reachable.
   const step1IsREP = (entities || []).some(e => e && isRealEstateEntity(e.type) && e.isREP)
-  const [isREP,               setIsREP]               = useState(!!savedCtx.isREP || step1IsREP)
-  const [isActiveParticipant, setIsActiveParticipant] = useState(savedCtx.isActiveParticipant === true)
+  const [isREP]               = useState(!!savedCtx.isREP || step1IsREP)   // D-09: setter unused
+  const [isActiveParticipant] = useState(savedCtx.isActiveParticipant === true)   // D-09: setter unused
   // F-01: §1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 

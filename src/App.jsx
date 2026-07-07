@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { readLoggedIn, readSessionStart, writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, writeConnectedApp } from './utils/sessionState.js'
+import { writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent } from './utils/sessionState.js'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
@@ -18,10 +18,10 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './components/ErrorBoundary'
 import EmailVerificationBanner, { fetchVerificationStatus } from './components/EmailVerificationBanner'
-import { apiPost, apiGet, ApiError } from './utils/apiClient.js'
+import { apiGet, ApiError } from './utils/apiClient.js'
 import { normalizePlanId } from './LockedFeature'
 import { writePlan } from './utils/sessionState.js'
-import { clearInvalidSession } from './utils/sessionAuth.js'
+import { clearInvalidSession, isValidSession, AUTH_KEYS } from './utils/sessionAuth.js'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
 import Article from './Article'
@@ -39,15 +39,12 @@ const OAUTH_PROVIDERS = new Set(['quickbooks', 'xero', 'wave', 'freshbooks'])
 
 function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
-  const location = useLocation()
   useEffect(() => {
     const p = provider.toLowerCase()
     if (!OAUTH_PROVIDERS.has(p)) {
       window.location.href = '/calculate-tax'
       return
     }
-    const name = p.charAt(0).toUpperCase() + p.slice(1)
-    writeConnectedApp(name)
     writeIntegrationField(p, 'connected', 'true')   // M4 (audit F-06): accessor swap, caught by architecture-invariants.test.js
     window.location.href = '/calculate-tax'
   }, [provider])
@@ -67,29 +64,9 @@ function OAuthCallback() {
 // localStorage no longer stores the raw token — only non-sensitive metadata.
 // ts360_logged_in is a lightweight hint; the real auth is the httpOnly cookie
 // which the browser sends automatically on every credentialed request.
-const AUTH_KEYS = [
-  'ts360_logged_in','ts360_token','ts360_session_start',
-  'ts360_email','ts360_plan','plan','userName','ts360_connected_app',
-  // Legacy keys from pre-SEC-04 — included so they get wiped on sign-out
-  'token','ts360_session',
-]
-
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
-
-function isValidSession() {
-  const loggedIn = readLoggedIn()
-  if (!loggedIn) return false
-  const start = readSessionStart()
-  if (start) {
-    const startMs = parseInt(start, 10)
-    if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
-      apiPost('/auth/logout', undefined, { credentials: 'include' }).catch(() => {})
-      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
-      return false
-    }
-  }
-  return true
-}
+// D-11 (dead-code & duplication audit): AUTH_KEYS / SESSION_MAX_AGE_MS /
+// isValidSession() moved verbatim to utils/sessionAuth.js — the single
+// definition of session validity, now shared with Onboarding.
 
 // ─── Authenticated Footer ─────────────────────────────────────────────────────
 function AuthFooter() {

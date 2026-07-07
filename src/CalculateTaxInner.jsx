@@ -4,9 +4,9 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { removeConnectedApp, readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
+import { readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -749,7 +749,6 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
       removeIntegrationField(pid, 'extra')
       removeIntegrationField(pid, 'syncedAt')
       removeIntegrationSessionToken(pid)
-      removeConnectedApp()
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
@@ -1568,7 +1567,6 @@ export default function CalculateTaxInner() {
   const [footerError,      setFooterError]      = useState(null)
   // O1 FIX: track whether the standalone manual-entry panel is open (for
   // users who have no entities yet and click "Enter manually")
-  const [showStandaloneManual, setShowStandaloneManual] = useState(false)
   // F23 FIX: per-provider sync diff message shown after a manual re-sync
   const [syncDiffs,        setSyncDiffs]        = useState({})
   const [integrationRevision, setIntegrationRevision] = useState(0)
@@ -1753,7 +1751,6 @@ export default function CalculateTaxInner() {
     removeIntegrationField(pid, 'extra')
     removeIntegrationField(pid, 'syncedAt')
     removeIntegrationField(pid, 'failed')
-    removeConnectedApp()
     setEntities(prev => {
       const next = prev.map(e =>
         e.connectedId === pid
@@ -2015,10 +2012,6 @@ export default function CalculateTaxInner() {
     if (foundInUrl) window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
-  const hasData = entities.length > 0 && entities.some(e => {
-    const pnl = e.pnl || {}
-    return nf(pnl.grossRevenue) > 0 || nf(pnl.netProfit) !== 0
-  })
 
   // F-01 / F-02: footer buttons are disabled when no entity has been added
   const footerDisabled = entities.length === 0

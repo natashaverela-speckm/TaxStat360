@@ -40,7 +40,7 @@
 // the entity comparison stays correct as TAX_TABLES adds future years.
 // Audit fix: added calcCCorpCorporateLayer and calcFICAOnWages so the compare
 // engine delegates to the shared implementations rather than inlining them.
-import { calcTaxReturn, getTable, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCalc.js'
+import { calcTaxReturn, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCalc.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. The single calcTaxReturn() call
 // in this module routes its input through guarded() below. A CalcInputError propagates
 // to the caller — EntityCompareModal already catches any throw from

@@ -46,7 +46,12 @@ export function computeTooltipPosition({
   tooltipWidth,
   tooltipHeight,
   viewportWidth,
-  viewportHeight,
+  // D-09 finding, kept deliberately: viewportHeight is accepted (and passed by the
+  // caller) but never used — the above/below flip checks space ABOVE only, so a
+  // tooltip near the bottom edge may overflow the viewport. Using this parameter
+  // in that check is the likely intended fix; that's a visual behavior change, so
+  // it is flagged rather than made in a hygiene batch.
+  viewportHeight,   // eslint-disable-line no-unused-vars
   margin = MARGIN,
   gap = GAP,
 }) {

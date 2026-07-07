@@ -50,6 +50,12 @@
 // raw API Gateway URL (https://05madmjrqd.execute-api.us-east-1.amazonaws.com/prod)
 // anywhere in the codebase. CloudFront / WAF rules apply uniformly only when
 // requests route through app.taxstat360.com.
+// D-06 (dead-code audit, Jul 2026): removed never-imported constants —
+// IRS_MILEAGE_RATES (mileage feature never built), CATCHUP_AGE_* (retirement
+// catch-up contributions are not modeled by the engine), FEATURE_CPA_EXPORT_PACK /
+// FEATURE_IRS_SCHEDULE_MAP (flags nothing checked), ANNUAL_BILLING_MONTHS.
+// If a feature lands that needs one, reintroduce it WITH its consumer in the
+// same change — a constant without a consumer is a drift trap (see F-01, F-02).
 export const API_BASE_URL = 'https://app.taxstat360.com'
 
 // ─── CURRENT TAX YEAR ────────────────────────────────────────────────────────
@@ -106,8 +112,6 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 //   → canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
 export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
 export const FEATURE_WHATIF_SIMULATOR  = 'Tax Savings Opportunities'
-export const FEATURE_IRS_SCHEDULE_MAP  = 'IRS Schedule Map'
-export const FEATURE_CPA_EXPORT_PACK   = 'CPA Export Pack'
 // ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) —
 // Same rationale as STEP3_LABEL above: these P&L / summary labels were inline// literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
 // across screens ("Gross Revenue" vs "Gross Receipts", "Officer Salary" vs "Officer
@@ -328,6 +332,10 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 //
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
 export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
+// D-10 (dead-code audit, Jul 2026): the $20,000 total-compensation floor below which
+// the reasonable-comp alert stays silent — previously a magic number duplicated in
+// taxCalc.js and Dashboard.jsx. Heuristic (noise floor), not a statutory figure.
+export const SCORP_REASONABLE_COMP_MIN_TOTAL = 20000
 
 // ─── S-CORP GROSS-RECEIPTS SALARY TEST — Rev. Rul. 74-44 / Watson (8th Cir. 2012) ──
 // Flags when officer salary falls below 30% of gross receipts — the revenue-to-salary
@@ -488,9 +496,6 @@ export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation — IRC 
 //   At age 64+: catch-up returns to standard $7,500 (2025) — the super catch-up
 //   window is ONLY ages 60, 61, 62, 63 (inclusive). This is a common planning error.
 // Dollar amounts are year-specific → TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
-export const CATCHUP_AGE_STANDARD = 50      // IRC §414(v)(1) — standard catch-up start age
-export const CATCHUP_AGE_SUPER_START = 60   // SECURE 2.0 §109 — enhanced catch-up window start
-export const CATCHUP_AGE_SUPER_END = 63     // SECURE 2.0 §109 — enhanced catch-up window end (inclusive)
 
 // ─── ENTITY TYPES ─────────────────────────────────────────────────────────────
 // UI / input vocabulary (Vocabulary A — "layer 1" in the representation note above).
@@ -567,37 +572,22 @@ export const INTEGRATIONS = [
 
 // ─── SUBSCRIPTION PRICING ─────────────────────────────────────────────────────
 // Monthly base prices — displayed on Landing.jsx pricing section and Upgrade.jsx.
-// Annual pricing = monthly × ANNUAL_BILLING_MONTHS (10 months billed, 2 months free).
+// Annual pricing: 10 months billed, 2 months free (the ANNUAL_BILLING_MONTHS constant
+// that encoded this was removed in D-06 — nothing imported it; this comment is the record).
 // Upgrade.jsx must reference these constants; no hardcoded pricing values in components.
 //
 // To change pricing: update these constants only. Upgrade.jsx and Landing.jsx will
 // reflect the change automatically on next build.
+// ⚠ D-06 OWNER DECISION PENDING (dead-code audit, Jul 2026): these three PRICE_*
+// constants are imported by NOTHING — the plan cards render prices from the
+// PLAN_FEATURES strings. EDITING THESE DOES NOT CHANGE WHAT CUSTOMERS SEE.
+// Resolve by either deriving PLAN_FEATURES' displayed prices from these values
+// (single source) or deleting them. Do not leave both indefinitely.
 export const PRICE_STARTER_MONTHLY = 79       // USD/month
 export const PRICE_PROFESSIONAL_MONTHLY = 149 // USD/month
 export const PRICE_ENTERPRISE_MONTHLY = 299   // USD/month
-export const ANNUAL_BILLING_MONTHS = 10        // months charged on annual plan (2 months free)
 export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy — update if discount changes
 
-// ─── IRS STANDARD MILEAGE RATES ───────────────────────────────────────────────
-// Published annually by IRS in late November / December for the following calendar year.
-// Sources: IRS Notice 2024-08 (2024 rate), IRS Notice 2025-05 (2025 rate).
-//
-// Usage: AIAnalysis.jsx reads getTable(year)?.mileageRate from TAX_TABLES in taxCalc.js.
-// taxCalc.js TAX_TABLES[year] should include a mileageRate key for each year.
-// This map is a fallback reference and the authoritative source for updating TAX_TABLES.
-//
-// Audit finding T-06: mileageRate key was absent from TAX_TABLES, so AIAnalysis.jsx
-// was silently falling back to the hardcoded inline value (0.70 for 2025+).
-// Fix: add mileageRate to each year in TAX_TABLES in taxCalc.js.
-//
-// ⚠ ANNUAL UPDATE REQUIRED: verify 2026 rate against IRS.gov/newsroom each December.
-// If the 2026 rate has changed from 0.70, update taxCalc.js TAX_TABLES[2026].mileageRate
-// and the 2026 entry in this map simultaneously.
-export const IRS_MILEAGE_RATES = {
-  2024: 0.67,   // IRS Notice 2024-08 — 67¢/mile for business use
-  2025: 0.70,   // IRS Notice 2025-05 — 70¢/mile for business use (5¢ increase from 2024)
-  2026: 0.725,  // IRS Notice 2026-10 (Dec 29, 2025) — 72.5¢/mile for business use (up 2.5¢ from 2025)
-}
 
 // ─── COMPANY IDENTITY / NAP — footer + local SEO ─────────────────────────────
 // Single source of truth for the footer's name / address / contact line, consumed by

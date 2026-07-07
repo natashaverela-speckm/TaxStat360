@@ -26,6 +26,9 @@ broken when adding features or fixing bugs. Read before touching any file in src
   (`netProfit ?? gross − expenses`) lives ONLY in `getEntityPnlNet()` /
   `getEntityPnlNetShare()` (utils/entityPredicates.js). Never re-inline any of
   them — `src/architecture-invariants.test.js` fails the build if you do.
+- (D-10/D-11, Jul 2026) The S-Corp reasonable-comp numeric rule lives ONLY in
+  `calcReasonableCompCore()` (taxCalc.js); session validity lives ONLY in
+  `isValidSession()` (utils/sessionAuth.js).
 
 **Consequence:** if you need a tax rate or threshold in a component,
 import it from `constants.js` or via a getter from `taxCalc.js`.

@@ -22,6 +22,49 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Batch 5 (Dead-code & duplication audit remediation) — July 7, 2026
+
+Structural batch; zero customer-visible changes except one deliberate,
+conservative auth tightening (below).
+
+### Removed — dead code (audit D-04…D-09)
+- Write-only connected-app label mechanism (3 sessionState accessors + 3 call
+  sites; the value was never displayed anywhere).
+- Dead accessors: readIsCoopPatron/writeIsCoopPatron, writeOnboardingEntityType;
+  INVALID_SESSION_KEYS de-exported (internal-only).
+- Dead constants: IRS_MILEAGE_RATES, CATCHUP_AGE_* ×3, FEATURE_* flags ×2,
+  ANNUAL_BILLING_MONTHS. PRICE_*_MONTHLY kept but prominently flagged: they do
+  NOT drive displayed prices (owner decision pending).
+- 43 dead variables/imports across 11 files, including two entire dead
+  functions (Dashboard buildRecs, withRetry) and a cascade of three feeders
+  exposed by the sweep. Write-only React state silenced without removing
+  setters (re-render behavior preserved). Lint: 65 → 24 warnings (remainder =
+  pre-existing hook-dependency notices, deliberately untouched).
+
+### Changed — duplication fixes (audit D-10, D-11)
+- S-Corp reasonable-comp rule single-sourced: `calcReasonableCompCore()` in
+  taxCalc.js (floor now the named constant SCORP_REASONABLE_COMP_MIN_TOTAL);
+  engine alert and Dashboard scenario card both consume it — they can no
+  longer drift on when the alert fires. Message wordings preserved verbatim
+  per surface (their pre-existing divergence is OBS-7). 9 new tests, values
+  hand-computed from the original formulas.
+- Session validity single-sourced: isValidSession()/AUTH_KEYS/
+  SESSION_MAX_AGE_MS moved verbatim from App.jsx to utils/sessionAuth.js.
+  Onboarding's same-named-but-different local check now composes the canonical
+  one (renamed hasActiveRegisteredSession). DELIBERATE TIGHTENING: the
+  verify-email continue path now honors session expiry — an aged-out session
+  re-authenticates instead of sliding through. Conservative direction for auth.
+
+### Documented
+- OBS-6 (MoneyInput divergence — M8 canceled by owner; canonical file
+  recoverable from history), OBS-7 (reasonable-comp wording), OBS-8 (tooltip
+  bottom-edge overflow, latent), test-seam annotations on 4 exports.
+
+### Tests
+- 521 → 530 (+9 reasonable-comp). All pre-existing tests pass unmodified.
+
+---
+
 ## Batch 4 (Audit Module M7 — housekeeping) — July 6, 2026
 
 ### Changed — credentials & endpoints (audit F-09)

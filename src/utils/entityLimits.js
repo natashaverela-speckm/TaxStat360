@@ -2,10 +2,12 @@ import { PLAN_ENTITY_LIMITS } from '../constants.js'
 import { getUserPlan } from '../LockedFeature.jsx'
 import { isRealEstateEntity } from './entityPredicates.js'
 
+// test seam (D-08): exported for tests only — not a production API.
 export function countBusinessEntities(entities) {
   return (entities || []).filter(e => !isRealEstateEntity(e?.type)).length
 }
 
+// test seam (D-08): exported for tests only — not a production API.
 export function countRealEstateEntities(entities) {
   return (entities || []).filter(e => isRealEstateEntity(e?.type)).length
 }

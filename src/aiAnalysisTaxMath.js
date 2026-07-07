@@ -9,7 +9,6 @@
 
 import {
   calcQBI,
-  calcFederalTax,
   calcTaxReturn,
   getStdDed,
   getNIITThreshold,
