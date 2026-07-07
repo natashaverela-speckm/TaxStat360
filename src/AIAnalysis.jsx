@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold } from './taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc469iAllowance } from './taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -18,6 +18,9 @@ import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
+// M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
+// input is caught below into a visible notice instead of NaN rows / "$0 savings".
+import { CalcInputError } from './utils/calcGuard'
 import BrandLogo from './BrandLogo'
 import {
   CURRENT_TAX_YEAR,
@@ -1035,10 +1038,17 @@ function TaxOptimization({ rec }) {
   // suspended by default when a checkbox might unlock up to $25K of it.
   // Allowance phases out 50¢ per $1 of MAGI between $100K and $150K (AGI is
   // used as the MAGI proxy here, consistent with the engine's simplified model).
+  //
+  // M1 (audit F-01, Jul 2026): the formula is no longer re-implemented here — it now
+  // calls calc469iAllowance() in taxCalc.js, the same code path the engine uses on the
+  // filed return. INTENTIONAL BEHAVIOR CORRECTION: the prior inline copy ignored filing
+  // status, so an MFS filer could be shown an allowance the engine (correctly, per
+  // §469(i)(5)(B)) computes as $0. The card is now suppressed for MFS, matching the
+  // return. All other filing statuses are numerically identical to the prior copy.
   if (hasRealEstate && reNetShare < 0) {
     const _unflaggedRentals = _allEntities.filter(e =>
       isRealEstateEntity(e?.type) && !e?.isREP && !e?.isActiveParticipant)
-    const _allowance = Math.max(0, 25000 - Math.max(0, (agi - 100000) * 0.5))
+    const _allowance = calc469iAllowance(agi, filing)
     const _usable = Math.min(_allowance, Math.abs(reNetShare))
     if (_unflaggedRentals.length > 0 && _usable > 0) {
       opportunities.push({
@@ -1777,13 +1787,28 @@ function SimulatorModal({ onClose, rec }) {
     taxYear,
     entities: rec?.entities || [],
   }
-  const baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
-  const scenario = computeSimulatorScenario({ ...scenarioContext, delta })
+  // M2 (audit F-05) + defect SIM-1: these calls previously passed a packed object the
+  // engine could not read (see computeSimulatorScenario in aiAnalysisTaxMath.js). The
+  // engine returned 0/undefined for every field, so the modal rendered NaN rows and
+  // "YOU SAVE $0" for all presets. The calculation guard now rejects that input; the
+  // catch below converts it into an honest, visible notice. Any non-guard error still
+  // re-throws to the app-level ErrorBoundary. The functional repair of the simulator
+  // math is a separate approved batch (it changes displayed dollar figures).
+  let baseline = null
+  let scenario = null
+  let simError = null
+  try {
+    baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
+    scenario = computeSimulatorScenario({ ...scenarioContext, delta })
+  } catch (e) {
+    if (e instanceof CalcInputError) simError = e.message
+    else throw e
+  }
   // CALC-1 FIX: prefer totalTax (full engine: SE + NIIT + AMT + income tax) when
   // available; fall back to fedTax for backward compat with old scenario objects.
-  const _baselineTax  = baseline.totalTax  ?? baseline.fedTax
-  const _scenarioTax  = scenario.totalTax  ?? scenario.fedTax
-  const taxSaving = _baselineTax - _scenarioTax
+  const _baselineTax  = baseline ? (baseline.totalTax ?? baseline.fedTax) : 0
+  const _scenarioTax  = scenario ? (scenario.totalTax ?? scenario.fedTax) : 0
+  const taxSaving = simError ? 0 : _baselineTax - _scenarioTax
 
   // F15 FIX: chg() now uses shared fmt() — no local simFmt
   const chg = (baseVal, scenVal) => {
@@ -1871,7 +1896,19 @@ function SimulatorModal({ onClose, rec }) {
             </div>
           </div>
         )}
-        {activeScenario && (
+        {/* M2 (audit F-05) / SIM-1: visible failure state — never render NaN rows or a
+            fake "$0 savings" when the calculation guard has rejected the inputs. */}
+        {activeScenario && simError && (
+          <div role="alert" style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'14px 16px',marginBottom:14,fontSize:13,color:'#78350F',lineHeight:1.6}}>
+            <strong>Scenario results are temporarily unavailable.</strong> The simulator's
+            inputs didn't pass the calculation safety check, so no figures are shown
+            (previous versions displayed unreliable values here). Your saved records and
+            your Step 2 tax estimate are unaffected — this notice applies to the What-If
+            Simulator only.
+            <div style={{fontSize:10,opacity:0.7,marginTop:4,fontFamily:'monospace'}}>{simError}</div>
+          </div>
+        )}
+        {activeScenario && !simError && (
           <>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
               <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>

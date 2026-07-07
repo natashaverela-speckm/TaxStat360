@@ -15,6 +15,8 @@
 // calcNIIT â Â§1411 net investment income tax
 // TAX_TABLES, AMT_TABLES, SALT_CAPS, getTable, getStdDed, getBrackets,
 // getLTCGThresholds, getNIITThreshold, getAddlMedicareThreshold, getMarginalRate, calcFICAOnWages
+// calc469iAllowance â Â§469(i) $25k active-participation allowance (M1: single source
+//   of truth â consumed by both engine PAL branches AND the AIAnalysis strategy card)
 //
 //
 // ââ Engine change log âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -60,6 +62,15 @@ import {
   CTC_PHASEOUT_REDUCTION_PER_STEP,
   C_CORP_TAX_RATE,
   DEFAULT_OFFICER_SALARY_FRACTION,
+  // M1 (audit F-01/F-02, Jul 2026): the engine previously hardcoded these figures as
+  // raw literals (25000 / 100000 / 0.5 / 0.80) while the named constants sat unused in
+  // constants.js — a "dead constant shadowing a live literal" hazard. The literals now
+  // route through the single declared source of truth. Values are statutory (NOT
+  // inflation-adjusted): IRC §469(i)(2)/(3)(A) and §172(a)(2).
+  PAL_SPECIAL_ALLOWANCE_BASE,
+  PAL_PHASE_OUT_START,
+  PAL_PHASE_OUT_RATE,
+  NOL_CARRYFORWARD_CAP_RATE,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct } from './utils/entityPredicates.js'
 import { nf } from './utils/money.js'
@@ -237,6 +248,28 @@ function getSaltCap(taxYear, status, magi) {
   const floor     = pd.floor * half
   const reduced   = base - 0.30 * Math.max(0, (magi || 0) - threshold)
   return Math.max(floor, Math.min(base, reduced))
+}
+/** §469(i) special $25,000 allowance — rental real estate losses of an active
+ *  participant may offset nonpassive income up to this allowance, phased out
+ *  50¢ per $1 of MAGI over $100,000 (fully eliminated at $150,000 —
+ *  §469(i)(3)(A)). Married filing separately: $0 by default (§469(i)(5)(B);
+ *  the half-allowance for spouses living apart all year is not modeled — the
+ *  conservative $0 default matches the engine's prior behavior). Dollar
+ *  amounts are statutory and NOT inflation-adjusted.
+ *
+ *  M1 (audit F-01, Jul 2026): SINGLE SOURCE OF TRUTH for this formula. It
+ *  previously lived in three places (two engine branches + an inline copy in
+ *  the AIAnalysis strategy card) that could — and for MFS filers, did —
+ *  diverge. Both engine branches and the strategy card now call this helper.
+ *  The MAGI argument is the caller's pre-rental-AGI proxy, consistent with the
+ *  engine's simplified §469(i)(3)(F) model. */
+function calc469iAllowance(magi, status, isActiveParticipant = true) {
+  if (status === 'mfs' || !isActiveParticipant) return 0
+  return Math.max(
+    0,
+    PAL_SPECIAL_ALLOWANCE_BASE -
+      Math.max(0, ((magi || 0) - PAL_PHASE_OUT_START) * PAL_PHASE_OUT_RATE)
+  )
 }
 const QBI_THRESHOLDS     = _byYear(t => t.qbi.threshold)
 const QBI_PHASE_IN_RANGE = _byYear(t => t.qbi.phaseIn)
@@ -977,10 +1010,9 @@ function calcTaxReturn(input) {
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
         - ytdScale(selfEmpHealthIns)
-      const isMFS            = status === 'mfs'
-      const baseAllowance    = (isMFS || !effectiveIsActiveParticipant) ? 0 : 25000
-      const phaseStart       = isMFS ? 0 : 100000
-      const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
+      // M1 (audit F-01): formula centralized in calc469iAllowance() — identical output
+      // (MFS and non-active-participant both resolved to $0 under the prior inline form).
+      const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
       palAdjustedRental  = Math.max(rentalNetAfterCF, -specialAllowance)
       palSuspendedRental = Math.round(palAdjustedRental - rentalNetAfterCF)
     }
@@ -1042,10 +1074,8 @@ function calcTaxReturn(input) {
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
         - ytdScale(selfEmpHealthIns)
-      const isMFS            = status === 'mfs'
-      const baseAllowance    = (isMFS || !effectiveIsActiveParticipant) ? 0 : 25000
-      const phaseStart       = isMFS ? 0 : 100000
-      const specialAllowance = Math.max(0, baseAllowance - Math.max(0, (preRentalAGI - phaseStart) * 0.5))
+      // M1 (audit F-01): same centralization as the single-pool branch above.
+      const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
       passiveAllowed     = Math.max(passiveRentalNet, -specialAllowance)
       palSuspendedRental = Math.round(passiveAllowed - passiveRentalNet)
     }
@@ -1186,7 +1216,9 @@ function calcTaxReturn(input) {
     : 0
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable)
   const priorNOL         = Math.max(0, nf(nolCarryforward))
-  const nolAllowed       = Math.min(priorNOL, Math.floor(taxableBeforeNOL * 0.80))
+  // M1 (audit F-02): §172(a)(2) 80%-of-taxable-income cap — literal replaced by the
+  // named constant that previously sat unused in constants.js.
+  const nolAllowed       = Math.min(priorNOL, Math.floor(taxableBeforeNOL * NOL_CARRYFORWARD_CAP_RATE))
   const nolSurplus       = priorNOL - nolAllowed
   const grossIncome      = grossIncomeBeforeNOL - nolAllowed
   const agi              = grossIncome - adjustments
@@ -1625,4 +1657,7 @@ export {
   calcFICAOnWages,
   calcTaxReturn,
   scorpSeTaxSavings,
+  // M1 (audit F-01): single source of truth for the §469(i) $25k active-participation
+  // allowance — consumed by both engine PAL branches and the AIAnalysis strategy card.
+  calc469iAllowance,
 }

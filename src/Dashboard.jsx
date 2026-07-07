@@ -51,6 +51,10 @@ import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { parseMoney, nf } from './utils/money.js'
+// M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
+// this file already declares a local `safeCalc` fallback object, so calcGuard's
+// safeCalc() helper must not be imported into this scope.
+import { validateCalcInputs, CalcInputError } from './utils/calcGuard.js'
 import { apiGet } from './utils/apiClient.js'
 import { signOut } from './utils/SignOut'
 import BrandLogo from './BrandLogo'
@@ -120,6 +124,12 @@ export function calcDashboard(biz, f1040) {
     w2Withheld: 0, estPaid: estPay, ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
   }
+
+  // M2 (audit F-05): ARCHITECTURE §5 guard — both calcTaxReturn() calls below spread
+  // this baseInput, so one validation here covers them. Throws CalcInputError on
+  // corrupted session state (e.g. a NaN money field); the Dashboard component catches
+  // it and renders a visible error card instead of a silently wrong tracker.
+  validateCalcInputs(baseInput, 'Dashboard')
 
   if (isCCorp) {
     // Align with the Tax Tracker via the shared corporate layer: the flat 21% applies to
@@ -381,7 +391,21 @@ export default function Dashboard() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasNumbers = nf(biz.grossRevenue) > 0
-  const calc = hasNumbers ? calcDashboard(biz, f1040) : null
+  // M2 (audit F-05): calcDashboard() now validates its engine inputs and throws
+  // CalcInputError on corrupted state. Catch it here into a visible error card —
+  // the alternative (the zeroed `safeCalc` fallback below) would render a $0 tracker
+  // a user could mistake for a real liability. Any other error re-throws to the
+  // app-level ErrorBoundary.
+  let calc = null
+  let calcError = null
+  if (hasNumbers) {
+    try {
+      calc = calcDashboard(biz, f1040)
+    } catch (e) {
+      if (e instanceof CalcInputError) calcError = e.message
+      else throw e
+    }
+  }
   const safeCalc = calc || {
     k1: 0, w2: 0, agi: 0, qbi: 0, seTax: 0, seDed: 0,
     taxableInc: 0, incomeTax: 0, ctc: 0, totalTax: 0,
@@ -552,6 +576,18 @@ export default function Dashboard() {
 
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', minHeight: '100vh', background: '#F8FAFC' }}>
+
+      {/* M2 (audit F-05): visible failure state — never render silently-zeroed tax
+          figures when the calculation guard has rejected the inputs. */}
+      {calcError && (
+        <div role="alert" style={{ maxWidth: 1100, margin: '16px auto 0', background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 10, padding: '12px 16px', fontSize: 13, lineHeight: 1.5 }}>
+          <strong>Tax Tracker figures are unavailable.</strong> A required calculation input
+          is missing or invalid, so estimates are not shown (rather than showing $0).
+          Re-enter the business figures below or reload the saved record; if this persists,
+          sign out and back in to refresh your session data.
+          <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4, fontFamily: 'monospace' }}>{calcError}</div>
+        </div>
+      )}
 
       {deleteConfirm && (
         <DeleteConfirmModal

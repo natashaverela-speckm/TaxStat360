@@ -296,6 +296,13 @@ export const NOL_CARRYFORWARD_CAP_RATE = 0.80  // IRC §172(a)(2)
 // Usage: REP (Real Estate Professional) status bypasses §469(i) entirely —
 // REPs deduct unlimited rental losses against ordinary income if they materially
 // participate (§469(c)(7)). PAL_* constants only apply to non-REP active participants.
+//
+// M1 (audit F-01, Jul 2026): these constants are now the LIVE values consumed by
+// calc469iAllowance() in taxCalc.js — the single implementation used by both engine
+// PAL branches and the AIAnalysis "$25,000 Rental-Loss Allowance" strategy card.
+// (They were previously exported but unused while raw literals did the work.)
+// PAL_PHASE_OUT_END is derived documentation (START + BASE/RATE); its consistency
+// with the other three is asserted in taxCalc-pal.test.js so it can never drift.
 export const PAL_SPECIAL_ALLOWANCE_BASE = 25000   // §469(i)(2) — max allowance
 export const PAL_PHASE_OUT_START = 100000          // §469(i)(3)(A) — phase-out begins here
 export const PAL_PHASE_OUT_END = 150000            // §469(i)(3)(A) — allowance = $0 at this AGI
@@ -387,6 +394,10 @@ export const AMT_RATE_HIGH = 0.28  // IRC §55(b)(1)(B) — 28% on AMTI above br
 // Three permanent rate tiers; income thresholds are year-specific (TAX_TABLES[year].ltcg).
 // Rates apply to net long-term capital gains and qualified dividends; they stack on top of
 // ordinary income (i.e., the applicable rate depends on where LTCG falls in the stack).
+// LTCG_RATE_LOW is intentionally documentation-only (audit F-15): the engine
+// implements the 0% tier implicitly — the 0%-bracket slice of adjusted net capital
+// gain is simply never taxed in calcPreferentialTax(). Kept so the three-tier
+// statutory structure of §1(h)(1)(B)–(D) reads completely in one place.
 export const LTCG_RATE_LOW = 0.00   // IRC §1(h)(1)(B) — 0% tier
 export const LTCG_RATE_MID = 0.15   // IRC §1(h)(1)(C) — 15% tier
 export const LTCG_RATE_HIGH = 0.20  // IRC §1(h)(1)(D) — 20% tier

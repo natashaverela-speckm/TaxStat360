@@ -14,6 +14,9 @@ import {
   readActiveRecordId, writeActiveRecord,
 } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
+// M2 (audit F-05): ARCHITECTURE §5 calculation guard — validated before every
+// calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
+import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
 import { ownPct, isPassthroughEntity, isRealEstateEntity, isSCorpEntity, isCCorpEntity } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
@@ -400,10 +403,16 @@ export default function TaxReturn() {
     ccorp,
   ])
 
-  const result = useMemo(() => {
+  // M2 (audit F-05): ARCHITECTURE §5 guard, wired at the primary call site. The prior
+  // bare `catch { return null }` silently swallowed EVERY error — including genuine
+  // engine bugs — and rendered a blank panel a user could mistake for a $0 liability.
+  // Now: invalid inputs surface as a visible calcError banner; anything else re-throws
+  // so the app-level ErrorBoundary shows a real failure state instead of nothing.
+  const calcOutcome = useMemo(() => {
     try {
+      validateCalcInputs(calcInput, 'TaxReturn')
       const r = calcTaxReturn(calcInput)
-      if (!r) return r
+      if (!r) return { result: r, calcError: null }
       if (ccorp.corpTax > 0 || ccorp.dividends > 0) {
         // The engine has already (a) taxed the dividends (folded into qualDiv above) and
         // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
@@ -411,16 +420,24 @@ export default function TaxReturn() {
         // and saved summary in sync, without inflating the owner's quarterly estimate (the
         // 21% is paid by the corporation on Form 1120, separately from the 1040).
         return {
-          ...r,
-          ccorpCorpTax:   ccorp.corpTax,
-          ccorpDividends: ccorp.dividends,
-          totalTax: (r.totalTax || 0) + ccorp.corpTax,
-          balance:  (r.balance  || 0) + ccorp.corpTax,
+          result: {
+            ...r,
+            ccorpCorpTax:   ccorp.corpTax,
+            ccorpDividends: ccorp.dividends,
+            totalTax: (r.totalTax || 0) + ccorp.corpTax,
+            balance:  (r.balance  || 0) + ccorp.corpTax,
+          },
+          calcError: null,
         }
       }
-      return r
-    } catch { return null }
+      return { result: r, calcError: null }
+    } catch (e) {
+      if (e instanceof CalcInputError) return { result: null, calcError: e.message }
+      throw e   // real engine bugs must be visible, never a silent blank result
+    }
   }, [calcInput, ccorp])
+  const result    = calcOutcome.result
+  const calcError = calcOutcome.calcError
 
   useEffect(() => {
     writePersonalContext({
@@ -1578,7 +1595,18 @@ export default function TaxReturn() {
                 </span>
               </div>
             )}
-            {!hasResult && (
+            {/* M2 (audit F-05): when validateCalcInputs rejects the inputs, say so
+                visibly — a blank estimate must never be mistaken for a $0 liability. */}
+            {!hasResult && calcError && (
+              <div role="alert" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.5, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, padding: '10px 12px' }}>
+                <strong>Couldn't calculate your estimate.</strong> A required input is missing
+                or invalid, so no tax figure is shown (rather than a wrong one).
+                Re-select your tax year and filing status above; if this persists, sign out
+                and back in to refresh your session data.
+                <div style={{ fontSize: 10, opacity: 0.75, marginTop: 4, fontFamily: 'monospace' }}>{calcError}</div>
+              </div>
+            )}
+            {!hasResult && !calcError && (
               <div style={{ fontSize: 11, opacity: 0.55, marginTop: 8, lineHeight: 1.5 }}>
                 Enter your income above to see your tax estimate.
               </div>
