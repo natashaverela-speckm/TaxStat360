@@ -26,6 +26,17 @@
 //   readFallbacks  legacy/alias keys tried (nullish-chain) AFTER `key` on READ
 //   normFallbacks  alias keys tried inside the coercion on NORMALIZE
 //   normDef        default override on the NORMALIZE path only (ytdMonth)
+//   writeFallbacks alias keys tried (non-undefined) when the caller omits `key`
+//                  on WRITE. Used by ltGain: normalize deliberately omits it
+//                  (see below), so the load path (writePersonalContext ∘
+//                  normalizeF1040) previously manufactured ltGain:0 — which
+//                  read-side callers then preferred over the real capitalGains
+//                  (0 is not nullish), silently dropping LT gains from every
+//                  SESSION reader (compare modal, simulator) on a freshly
+//                  loaded record. TaxReturn survived only via its own
+//                  capitalGains-first seeding. Latent pre-manifest bug, found
+//                  by the Phase 2.2 selector's invariant tests; fixed at the
+//                  source: the stored blob is now self-consistent.
 //   normalize      false → field is OMITTED from normalizeF1040's output.
 //                  Used only by ltGain: records store capitalGains as the
 //                  canonical LT figure and TaxReturn seeds state from
@@ -92,7 +103,7 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'ytdMode',            kind: 'bool',   def: false },
   { key: 'ytdMonth',           kind: 'int',    def: 0, normDef: currentMonth },
   { key: 'stGain',             kind: 'float',  def: 0 },
-  { key: 'ltGain',             kind: 'float',  def: 0, readFallbacks: ['capitalGains'], normalize: false },
+  { key: 'ltGain',             kind: 'float',  def: 0, readFallbacks: ['capitalGains'], writeFallbacks: ['capitalGains'], normalize: false },
   { key: 'qualDividends',      kind: 'float',  def: 0, readFallbacks: ['qualifiedDividends'], normFallbacks: ['qualifiedDividends'] },
   { key: 'unrecap1250',        kind: 'float',  def: 0 },
   { key: 'collectiblesGain',   kind: 'float',  def: 0 },
@@ -122,7 +133,8 @@ const _dynDefault = (f) => (f.dyn === 'taxYear' ? defaultTaxYear() : f.def)
 export function buildPersonalContextPayload(input = {}) {
   const out = {}
   for (const f of F1040_FIELD_MANIFEST) {
-    const v = input[f.key]
+    let v = input[f.key]
+    for (const alt of (f.writeFallbacks || [])) { if (v === undefined) v = input[alt] }
     out[f.key] = v !== undefined ? v : _dynDefault(f)
   }
   return out
