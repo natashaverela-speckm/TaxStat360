@@ -21,7 +21,7 @@ import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE } from './constants.js'
+import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './components/InfoTip.jsx'
 
@@ -1209,7 +1209,7 @@ export default function TaxReturn() {
               value so a loaded record never hides material figures behind a collapsed
               header (the audit's "data is hidden from view" concern). Pairs with the
               full-f1040 hydration in Dashboard.loadRecord. */}
-          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) > 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
+          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) !== 0 || nf(stGain) !== 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) !== 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -1667,6 +1667,16 @@ export default function TaxReturn() {
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
+                // R-1 (Pass-6 review, Jul 2026): §1211(b) reconciliation addback — same pattern
+                // as the §461(l) line below (F-FUNC-06): the raw entered loss rows above must
+                // visibly reconcile to AGI now that the engine (F10/P6-1) caps the deductible
+                // net capital loss. The addback equals result.capLossCarryoverTotal, which is
+                // exact while the §1212(b) carryforward INPUTS have no UI (they land with the
+                // Phase-2 field manifest). Limit figures imported from constants.js — never a
+                // literal (M1 rule).
+                { label: 'Capital Loss Limited (§1211(b))', value: result.capLossCarryoverTotal || 0, sign: 1,
+                  hide: !(result.capLossCarryoverTotal > 0), accent: R,
+                  note: `Net capital losses deduct against other income only up to $${(filingStatus === 'mfs' ? CAP_LOSS_ORDINARY_LIMIT_MFS : CAP_LOSS_ORDINARY_LIMIT).toLocaleString()}/yr — the disallowed ${fmt(result.capLossCarryoverTotal || 0)} carries forward to ${Number(taxYear) + 1}, keeping its short/long-term character (IRC §1211(b), §1212(b))` },
                 { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
                   note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
