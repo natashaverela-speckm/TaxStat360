@@ -22,6 +22,42 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.2: the shared calculation selector — July 7, 2026
+
+One read-only façade over the tax engine, extending the single-source
+discipline from tax RULES to figure CONSUMPTION. Cures Pass-6 review finding
+R-2 (AIAnalysis computed its own AGI/income by summing record fields — no
+§1211(b) clamp, no PAL machinery, no adjustments — mis-gating AGI-dependent
+strategy cards, worst in loss years).
+
+- `src/utils/calcSelector.js` (NEW) — summarizeRecord(rec) and
+  selectTaxSummary() (live session). Owns NO tax math and NO translation:
+  reuses toEngineContext (audit F2) with entityIdx −1 for the whole-return
+  aggregation, adds only the fields the compare modal doesn't carry
+  (charitableContr, §1212(b) carryforwards), validates through the M2 guard
+  ({ ok:false, error } instead of throwing into a card), returns a frozen
+  summary. Phase-3 consumers (Step-1 footer, dashboard levers) plug in here.
+- `src/AIAnalysis.jsx` — both local aggregations (totalIncome, agi) and the
+  card marginal rate now prefer engine-true figures, with the old local sums
+  retained solely as guard-rejection fallbacks. Loss-year example: engine AGI
+  197,000 vs the retired formula's 120,000. Deliberate boundary: legacy-only
+  `otherIncome` no longer inflates cards the return never modeled (OBS-1/3
+  principle — display agrees with the engine).
+- LATENT BUG FIX (found by the selector's invariant tests, predates Phase 2.1):
+  the load path (writePersonalContext ∘ normalizeF1040) manufactured ltGain:0
+  because normalize deliberately omits ltGain — and every SESSION reader
+  (`ltGain ?? capitalGains`) then preferred the stored 0 over the real
+  capitalGains, silently dropping LT gains from the entity-compare modal and
+  What-If Simulator on freshly loaded records (TaxReturn survived via its own
+  capitalGains-first seeding). Fixed at the source: `src/utils/fieldManifest.js`
+  gains writeFallbacks (ltGain←capitalGains), so the stored blob is
+  self-consistent; explicit ltGain still wins. Pinned in fieldManifest.test.js.
+- `src/utils/calcSelector.test.js` (NEW) — 7 tests: the SIM-1-style
+  engine-equality invariant, whole-return aggregation, frozen summary, the
+  R-2 numeric contrast (197,000 vs 120,000), §1212(b) carryforward flow,
+  session/record parity, and guard-miss typing. Suite: 574 → 582, all
+  passing; lint at baseline (0 errors / 24 warnings).
+
 ## Phase 2.1 (audit V2 / Pass-6 P6-2): the shared field manifest — July 7, 2026
 
 The persisted personal-context contract previously lived in five hand-synced
