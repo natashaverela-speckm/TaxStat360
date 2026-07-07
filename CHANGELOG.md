@@ -22,6 +22,45 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Batch 7 (Decision queue: SIM-1, D-03, disclaimer, OBS-1/3/7/9) — July 7, 2026
+
+Customer-visible batch — every change below was individually approved.
+
+### Fixed — SIM-1: the What-If Simulator works again
+- computeSimulatorScenario rebuilt on the SAME scenario→engine translation the
+  Dashboard Tracker uses; deltas are increments on the P&L; C-Corp scenarios
+  include the corporate layer. Invariant tests prove every scenario figure
+  equals a direct engine call (whatif-simulator.test.js, 7 tests). The Batch-1
+  "temporarily unavailable" notice is retired; guard-on-corrupt-data behavior
+  is preserved.
+
+### Added — D-03: payment-recovery banner
+- Dashboard shows a non-dismissible "finish setting up your subscription"
+  banner (CTA → /upgrade) whenever the signup-time Stripe failure flag is set;
+  a successful upgrade clears it. Closes the loop on a flag that was written
+  but never read — customers with failed payments were previously never
+  prompted in-app.
+
+### Added — federal-scope disclosure on the Tax Return page
+- Dashboard's dismissible "Federal estimates only" banner extracted to a shared
+  component and now also renders on the return page, where the liability
+  figure is read. One dismissal covers both pages.
+
+### Changed — displayed figures (each an approved owner decision)
+- OBS-1: TaxReturn's K-1 displays adopt the engine rule — charitable
+  (box12_13) no longer nets out of displayed K-1 totals.
+- OBS-3: one net-profit rule — getEntityNetProfit delegates to the derivation
+  rule when pnl data exists (comma-safe), legacy top-level fallback preserved;
+  AIAnalysis no longer shows $0 for gross/expenses-only records.
+- OBS-7: one reasonable-comp message everywhere — the fully hedged wording,
+  now produced by calcReasonableCompCore.
+- OBS-9: Upgrade adopts Landing's ×2 annual-savings figure ($298, not $300).
+
+### Tests
+- 538 → 548 (+7 simulator invariants, +3 net-profit unification).
+
+---
+
 ## Batch 6 (Housekeeping: pricing single-source, OBS-2/OBS-8, M6b) — July 7, 2026
 
 ### Changed — pricing single-source (audit D-06, resolved)

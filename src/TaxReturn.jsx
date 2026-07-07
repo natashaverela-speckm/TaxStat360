@@ -5,6 +5,7 @@
 // estimated federal tax liability.
 //
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, getStdDed, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS } from './taxCalc.js'
 import {
@@ -612,11 +613,11 @@ export default function TaxReturn() {
   const hasStep1Rental     = step1Rentals.length > 0
   const k1Entities         = entityList.filter(e => e && !isRealEstateEntity(e.type))
   // Combined net of all Step-1 rentals (for display/notes only; the engine recomputes).
-  // M3 (audit F-04): derivation rule via getEntityPnlNetShare. NOTE (OBS-1): this
-  // DISPLAY total also subtracts charitable (box12_13), unlike the engine k1Total
-  // rule (F-13) — preserved verbatim; reconciling is an owner display decision.
+  // OBS-1 RESOLVED (Batch 7): display now matches the engine k1Total rule (F-13) —
+  // charitable (box12_13) is a Schedule A item and no longer nets out of these
+  // displayed K-1 figures. The four sites below changed together.
   const step1RentalNetUI   = step1Rentals.reduce((s, e) =>
-    s + getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13), 0)
+    s + getEntityPnlNetShare(e) - nf(e.box11_12), 0)
 
   // C-10 FIX: the engine now applies the §1366(d) limit conservatively
   // (assumeZeroBasisOnLoss), suspending an S-Corp/partnership loss when no basis has
@@ -819,6 +820,10 @@ export default function TaxReturn() {
             </div>
           </div>
 
+          {/* Batch 7: federal-scope disclosure — this page shows the liability figure,
+              so it carries the same dismissible notice as the Dashboard. */}
+          <FederalDisclosureBanner />
+
           {/* F-13 UX FIX: YTD toggle moved here — immediately after Tax Year/Filing Status,
               before entity K-1 summary. This is the most-used in-year planning feature
               and was previously buried mid-scroll. Compact inline version shown here;
@@ -857,8 +862,7 @@ export default function TaxReturn() {
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 — Business Entities</div>
               {k1Entities.map((e, i) => {
-                // M3 (audit F-04) / OBS-1: display row subtracts box12_13 too — preserved.
-                const k1  = getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13)
+                const k1  = getEntityPnlNetShare(e) - nf(e.box11_12)   // OBS-1: engine rule
                 // AUDIT-6 FIX: this line previously showed only the raw K-1 amount with
                 // no indication that a loss may be limited by §1366(d) stock/debt basis
                 // — the same unqualified-figure pattern the rental loop below already
@@ -890,7 +894,7 @@ export default function TaxReturn() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 13, fontWeight: 700, borderTop: '1px solid #BFDBFE', marginTop: 4 }}>
                   <span style={{ color: '#1D4ED8' }}>Total K-1</span>
                   <span style={{ color: '#1D4ED8' }}>{fmt(k1Entities.reduce((s, e) =>
-                    s + getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13), 0))}</span>
+                    s + getEntityPnlNetShare(e) - nf(e.box11_12), 0))}</span>
                 </div>
               )}
 
@@ -902,7 +906,7 @@ export default function TaxReturn() {
                   </div>
                   <div style={{ fontSize: 10, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (§469) apply — losses may be limited</div>
                   {step1Rentals.map((e, i) => {
-                    const reNet = getEntityPnlNetShare(e) - nf(e.box11_12) - nf(e.box12_13)
+                    const reNet = getEntityPnlNetShare(e) - nf(e.box11_12)   // OBS-1: engine rule
                     // Nonpassive only when a REP has made the §1.469-9(g) aggregation
                     // election; otherwise passive (the §469(a) default).
                     const isRepHere  = e.isREP || isREP

@@ -46,7 +46,8 @@
 //   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
-import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName } from './utils/sessionState.js'
+import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readSubscriptionIncomplete } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
@@ -172,14 +173,13 @@ export function calcDashboard(biz, f1040) {
     if (!isSC) return { triggered: false, ratio: 100, message: '' }
     const core = calcReasonableCompCore(sal, k1)
     if (!core.applicable) return { triggered: false, ratio: 100, message: '' }
-    const ratio = core.ratio
-    const triggered = core.triggered
     return {
-      triggered,
+      triggered: core.triggered,
       ratio: core.ratioPct,
       sal: Math.round(sal),
       distributions: Math.round(Math.max(0, k1)),
-      message: `Officer compensation is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+      // OBS-7 RESOLVED (Batch 7): adopts the core's hedged wording — one message everywhere.
+      message: core.message,
     }
   })()
 
@@ -219,28 +219,29 @@ function DeleteConfirmModal({ rec, onConfirm, onCancel }) {
   )
 }
 
-function FederalDisclosureBanner() {
-  const key = 'ts360_fed_banner_dismissed'
-  const [visible, setVisible] = useState(() => {
-    // M5 (audit F-10): storage unavailable (private browsing) → banner shows; harmless.
-    try { return localStorage.getItem(key) !== '1' } catch { return true }
-  })
-  if (!visible) return null
-  // M5: if persistence fails the banner is still dismissed for this render; it may
-  // reappear next visit — acceptable for a disclosure banner.
-  const dismiss = () => { try { localStorage.setItem(key, '1') } catch { /* see above */ } setVisible(false) }
+// D-03 (Batch 7): payment-recovery banner. Onboarding sets the
+// subscription-incomplete flag when Stripe setup fails at signup; until now
+// NOTHING read it — customers whose payment failed entered the product with no
+// prompt to finish. This banner closes that loop. It clears when Upgrade
+// succeeds (removeSubscriptionIncomplete there) and is deliberately
+// NON-dismissible: an unpaid subscription is not a notice to swipe away.
+function SubscriptionIncompleteBanner() {
+  if (readSubscriptionIncomplete() !== '1') return null
   return (
-    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 16 }}>🇺🇸</span>
-        <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 500 }}>
-          <strong>Federal estimates only.</strong> TaxStat360 calculates federal income tax liability. State income tax is not included — add your state's effective rate separately for a complete picture.
+        <span style={{ fontSize: 16 }}>⚠️</span>
+        <span style={{ fontSize: 13, color: '#78350F', fontWeight: 500 }}>
+          <strong>Your subscription setup didn't finish.</strong> Your payment could not be completed at signup — finish setting it up to keep full access to your tax tools.
         </span>
       </div>
-      <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 18, lineHeight: 1, padding: 0 }} aria-label="Dismiss">×</button>
+      <a href="/upgrade" style={{ flexShrink: 0, padding: '7px 14px', background: '#B45309', color: '#fff', borderRadius: 8, fontWeight: 700, fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>Complete setup →</a>
     </div>
   )
 }
+
+// Batch 7: FederalDisclosureBanner extracted to components/FederalDisclosureBanner.jsx —
+// the federal-scope disclosure now renders on BOTH the Dashboard and the Tax Return page.
 
 class IntegrationErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false }; }
@@ -685,6 +686,7 @@ export default function Dashboard() {
         )}
 
         {/* Records header */}
+        <SubscriptionIncompleteBanner />
         <FederalDisclosureBanner />
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
