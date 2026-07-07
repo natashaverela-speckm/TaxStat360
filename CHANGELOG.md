@@ -22,6 +22,32 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Pass-6 review follow-up R-1: §1211(b) waterfall reconciliation — July 7, 2026
+
+Display-only follow-up to the Pass-6 1.2 engine fix, closing the one
+regression that fix introduced: in a loss year, the waterfall's raw
+entered-loss rows (−$80,000) no longer reconciled to the AGI the engine
+computes (loss capped at −$3,000), and the §1212(b) carryover the engine now
+outputs was displayed nowhere.
+
+- `src/TaxReturn.jsx` — new "Capital Loss Limited (§1211(b))" addback row,
+  mirroring the F-FUNC-06 §461(l) reconciliation pattern: shown only when the
+  engine reports `capLossCarryoverTotal > 0`, valued at the carryover (exact
+  while the §1212(b) carryforward inputs have no UI — Phase-2 field manifest),
+  with a note stating the applicable limit (imported
+  `CAP_LOSS_ORDINARY_LIMIT` / `_MFS` from constants.js per the M1 no-literals
+  rule) and the carryover's character retention. Also: the "Capital Gains &
+  Investment Income" section now defaults OPEN when populated with LOSSES
+  (`ltGain`/`stGain`/`form4797` checks changed from `> 0` to `!== 0`) — a
+  loss-year record previously loaded with its own populated section collapsed.
+- `src/TaxReturn.test.jsx` — two wiring tests: the row + note render exactly
+  when the engine reports a carryover, and the row is absent otherwise (the
+  amounts themselves are SPEC-pinned in taxCalc-1211-capital-loss.test.js).
+  Suite: 558 → 560, all passing; lint at baseline (0 errors / 24 warnings).
+
+Computed liability was correct throughout — this batch is presentation
+reconciliation only.
+
 ## Pass-6 remediation, Phase 1.2 (audit F10 / P6-1): §1211(b) capital-loss limitation — July 7, 2026
 
 The one material tax defect confirmed by the sixth (verification) pass. Net
