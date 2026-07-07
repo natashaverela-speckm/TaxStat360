@@ -10,12 +10,15 @@
 import {
   calcQBI,
   calcTaxReturn,
+  calcCCorpCorporateLayer,
   getStdDed,
   getNIITThreshold,
   getAddlMedicareThreshold,
   QBI_THRESHOLDS,
 } from './taxCalc.js'
-import { isPassthroughEntity } from './utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity } from './utils/entityPredicates'
+import { nf } from './utils/money.js'
+import { CURRENT_TAX_YEAR } from './constants.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard, enforced INSIDE the two engine
 // entry points this module exposes (resolveQbiDeduction / computeSimulatorScenario) so
 // every call site — current and future — is covered without per-site boilerplate.
@@ -129,19 +132,74 @@ export function additionalMedicareApplies({ taxYear, filing, wages }) {
  * @param {object} delta       Fields to override: { k1Total?, w2?, additionalExpenses?, etc. }
  * @returns {object}           calcTaxReturn result for the scenario.
  */
-export function computeSimulatorScenario(baseInput, delta = {}) {
-  const merged = { ...baseInput, ...delta }
-  // M2 (audit F-05): ARCHITECTURE §5 guard. KNOWN DEFECT SURFACED (audit Batch-1 note
-  // SIM-1): the SimulatorModal in AIAnalysis.jsx currently calls this function with a
-  // packed object ({ base, filing, taxYear, delta }) that carries NO engine-vocabulary
-  // fields — no `status`, no income fields, and the delta nested where the engine
-  // never reads it. The engine therefore returned totalTax = 0 for BOTH baseline and
-  // scenario ("YOU SAVE $0" for every preset) and the modal's per-line fields
-  // (rev/k1/qbi/fedTax) rendered NaN. This guard now rejects that call shape with a
-  // CalcInputError, which the modal catches into an honest "unavailable" notice.
-  // The functional repair (rebuilding the scenario math on engine vocabulary) is
-  // deliberately a separate, test-anchored batch — it changes customer-visible
-  // dollar figures and must not ride along inside a structural cleanup.
-  validateCalcInputs(merged, 'WhatIfSimulator')
-  return calcTaxReturn(merged)
+// SIM-1 REPAIR (Batch 7, Jul 2026). History: the simulator passed the engine a
+// packed object it could not read, so every preset showed "$0 savings" with NaN
+// rows; Batch 1's guard turned that into an honest "unavailable" notice. This is
+// the functional repair, built on the SAME scenario→engine translation the
+// Dashboard Tracker uses (single-business entity + officer W-2 + k1 share), so
+// the simulator and the Tracker cannot disagree about the same scenario.
+//
+// ctx:   { base, entityType, ownerPctVal (0–1), filing, taxYear }
+// delta: INCREMENTS on base's simulator-vocabulary P&L fields.
+//
+// Modeling notes (documented, deliberate):
+// • All P&L deltas (incl. the SEP preset's otherDeductions) net into business
+//   income before the owner share — a planning approximation, consistent with
+//   the modal's on-screen P&L waterfall.
+// • C-Corp scenarios mirror Dashboard's corporate layer: 21% on profit after
+//   officer comp, after-tax profit distributed as qualified dividends.
+export function computeSimulatorScenario(ctx = {}, delta = {}) {
+  const base = ctx.base || {}
+  const v = (k) => nf(base[k]) + nf(delta[k])
+  const rev   = v('grossRevenue')
+  const cogs  = nf(base.cogs)
+  const opex  = v('operatingExpenses')
+  const sal   = v('officerSalary')
+  const dep   = v('depreciation')
+  const adv   = v('advertising')
+  const other = v('otherDeductions')
+  const w2Own = v('w2Income')
+  const netBizIncome = rev - cogs - opex - sal - dep - adv - other
+  const ownerPctVal  = Number.isFinite(ctx.ownerPctVal) ? ctx.ownerPctVal : 1
+  const taxYear      = parseInt(ctx.taxYear) || CURRENT_TAX_YEAR
+  const status       = ctx.filing || 'single'
+  const isCC         = isCCorpEntity(ctx.entityType)
+  const k1           = isCC ? 0 : Math.round(netBizIncome * ownerPctVal)
+
+  // Mirrors Dashboard.calcDashboard's baseInput shape (zeros for fields the
+  // simulator does not model) — one translation, two surfaces.
+  const engineInput = {
+    taxYear, status, dependents: 0,
+    k1Total: k1, rentalNet: 0, stGain: 0, ltGain: 0,
+    intInc: 0, qualDiv: 0, f4797Inc: 0, taxableSS: 0,
+    selfEmpHealthIns: 0, hsaDeduction: 0, studentLoanInt: 0,
+    selfEmpRetirement: 0, nolCarryforward: 0, priorYearQBILoss: 0,
+    saltAmount: 0, hasISO: false, isoBargainElement: 0,
+    isREP: false, unrecap1250: 0, collectiblesGain: 0,
+    w2Withheld: 0, estPaid: nf(base.estPaid), ytdFactor: 1,
+    useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
+    w2: w2Own + sal,
+    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal }],
+  }
+  validateCalcInputs(engineInput, 'WhatIfSimulator')
+
+  if (isCC) {
+    const layer = calcCCorpCorporateLayer({ netProfit: netBizIncome + sal, officerSalary: sal, taxYear })
+    const r = calcTaxReturn({ ...engineInput, divInc: layer.dividends, qualDiv: layer.dividends })
+    const totalTax = r.totalTax + layer.corpTax
+    return {
+      rev, opex, sal, dep, adv, other, netBizIncome, k1: 0,
+      w2: engineInput.w2, qbi: 0, agi: r.agi, seTax: 0,
+      taxableInc: r.taxableAfterQBI, fedTax: r.fedTax + layer.corpTax,
+      totalTax, quarterly: r.quarterlyRecommended,
+    }
+  }
+
+  const r = calcTaxReturn(engineInput)
+  return {
+    rev, opex, sal, dep, adv, other, netBizIncome, k1,
+    w2: engineInput.w2, qbi: r.qbi, agi: r.agi, seTax: r.seTax,
+    taxableInc: r.taxableAfterQBI, fedTax: r.fedTax,
+    totalTax: r.totalTax, quarterly: r.quarterlyRecommended,
+  }
 }

@@ -333,11 +333,19 @@ function calcReasonableCompCore(officerSalary, k1Distributions) {
     return { applicable: false, triggered: false, ratio: 1, ratioPct: 100 }
   }
   const ratio = totalComp > 0 ? sal / totalComp : 1
+  const triggered = ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+  const ratioPct = Math.round(ratio * 100)
   return {
     applicable: true,
-    triggered: ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
+    triggered,
     ratio,
-    ratioPct: Math.round(ratio * 100),
+    ratioPct,
+    // OBS-7 RESOLVED (Batch 7): ONE message for every surface — the fully hedged
+    // wording (an IRS-risk flag must read as information, not as a determination
+    // or a recommendation). Dashboard previously carried a shorter variant.
+    message: triggered
+      ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${ratioPct}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
+      : '',
   }
 }
 
@@ -1523,13 +1531,8 @@ function calcTaxReturn(input) {
     )
     const core = calcReasonableCompCore(sal, k1Val)
     if (!core.applicable) return { triggered: false, ratio: 100, message: '' }
-    return {
-      triggered: core.triggered,
-      ratio: core.ratioPct,
-      message: core.triggered
-        ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${core.ratioPct}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
-        : '',
-    }
+    // OBS-7: message now comes from the core — one wording everywhere.
+    return { triggered: core.triggered, ratio: core.ratioPct, message: core.message }
   })()
   return {
     calculatedAt: Date.now(),

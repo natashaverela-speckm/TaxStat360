@@ -65,7 +65,14 @@ addbacks are not modeled (see `getSaltCap()` in taxCalc.js).
 
 ---
 
-## OBS-1 — TaxReturn K-1 display subtracts charitable; the engine does not
+## OBS-1 — K-1 display vs engine — RESOLVED (Batch 7, Jul 2026)
+
+All four TaxReturn display sites now use the engine k1Total rule (F-13):
+charitable (box12_13) no longer nets out of displayed K-1 figures, so the
+visible totals match what actually flows to the return. Displayed K-1 totals
+change for records carrying separately-stated charitable.
+
+## [historical] OBS-1 — TaxReturn K-1 display subtracts charitable; the engine does not
 
 The engine k1Total rule (`sumK1FlowThrough`) nets only separately-stated §179
 (box11_12) out of K-1 ordinary income — charitable (box12_13) is a Schedule A
@@ -84,7 +91,14 @@ accounting integration (QuickBooks/Xero/Wave/FreshBooks) retains no live
 credential anywhere. The only observable change: a stale token can no longer
 be silently reused within the same tab after a disconnect.
 
-## OBS-3 — Two net-profit rules coexist
+## OBS-3 — Two net-profit rules — RESOLVED (Batch 7, Jul 2026)
+
+getEntityNetProfit() now delegates to the derivation rule whenever any pnl
+data exists (comma-safe), falling back to the legacy top-level field only for
+pre-pnl records. The AIAnalysis surfaces that previously showed $0 for
+gross/expenses-only records now show the derived figure.
+
+## [historical] OBS-3 — Two net-profit rules coexist
 
 `getEntityNetProfit()` reads a stored value (pnl.netProfit, legacy
 e.netProfit fallback; parseFloat) and never derives from gross/expenses.
@@ -131,7 +145,13 @@ and error-prop support — so dollar-entry behavior can differ subtly between
 the two screens. The deleted canonical file is recoverable from git history
 (commit 4697de0^) if unification is ever revisited.
 
-## OBS-7 — Reasonable-comp alert: one rule, two message wordings
+## OBS-7 — Reasonable-comp wording — RESOLVED (Batch 7, Jul 2026)
+
+One message everywhere: the fully hedged wording now lives in
+calcReasonableCompCore and both surfaces render it. The Dashboard card's
+shorter recommendation-flavored variant is retired.
+
+## [historical] OBS-7 — Reasonable-comp alert: one rule, two message wordings
 
 D-10 single-sourced the NUMERIC rule (calcReasonableCompCore), so the return
 page and the Dashboard scenario card can no longer disagree on WHEN the alert
@@ -147,7 +167,12 @@ The above/below flip now considers both edges: above when it fits (unchanged),
 else below when that fits (unchanged), else the side with more room. Covered
 by two new position tests.
 
-## OBS-9 — Two different "annual savings" figures were already live
+## OBS-9 — Annual-savings figures — RESOLVED (Batch 7, Jul 2026)
+
+Unified on Landing's ×2 formula (matches the "Save 2 months" badge): the
+Upgrade page now shows $158/$298/$598 instead of $156/$300/$600.
+
+## [historical] OBS-9 — Two different "annual savings" figures were already live
 
 Landing advertises savings of monthly×2 (two free months: $158/$298/$598);
 the Upgrade page computes (monthly−annualMonthly)×12 ($156/$300/$600 — a
@@ -156,10 +181,11 @@ single-source and are preserved verbatim (and pinned by planPricing.test.js).
 Owner decision: unify on one formula — Landing's ×2 matches the "Save 2
 months" badge copy and is the cleaner marketing claim.
 
-## Defect SIM-1 — What-If Simulator awaiting functional repair
+## Defect SIM-1 — What-If Simulator — RESOLVED (Batch 7, Jul 2026)
 
-The simulator's engine calls pass a packed object the engine cannot read;
-since Batch 1 the modal shows an honest "temporarily unavailable" notice
-instead of NaN rows / "$0 savings". The repair (rebuilding the scenario math
-on engine vocabulary, test-anchored) is a separate approved batch because it
-changes customer-visible dollar figures.
+Repaired on the same scenario→engine translation the Dashboard Tracker uses.
+Test-anchored invariant (whatif-simulator.test.js): every scenario figure
+equals a direct calcTaxReturn() call on the same facts — the simulator IS the
+engine. History: the original defect showed "$0 savings" and NaN rows for
+every preset; Batch 1 replaced that with an honest "unavailable" notice;
+this batch restores the feature.

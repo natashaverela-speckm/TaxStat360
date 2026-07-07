@@ -124,7 +124,7 @@ describe('validateCalcInputs', () => {
   })
 
   it('rejects the What-If Simulator packed-object shape (defect SIM-1)', () => {
-    // The shape SimulatorModal currently sends: no status/filingStatus, no engine
+    // The shape SimulatorModal HISTORICALLY sent (repaired in Batch 7): no engine
     // income fields, delta nested where the engine never reads it. Must be rejected.
     expect(() => validateCalcInputs({
       base: { grossRevenue: 300000 }, entityType: 'sCorp',

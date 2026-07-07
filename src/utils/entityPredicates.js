@@ -101,8 +101,19 @@ export function normalizeEntityType(type) {
  * Newer records store net profit in e.pnl.netProfit; older records stored it
  * directly on e.netProfit. The pnl path is always preferred.
  */
+// OBS-3 RESOLVED (Batch 7, Jul 2026): unified on the derivation rule. Previously
+// this read ONLY a stored value (pnl.netProfit, else legacy e.netProfit) via
+// comma-unsafe parseFloat — so a record whose pnl carried gross/expenses but no
+// stored net showed $0 on the AIAnalysis surfaces while deriving correctly
+// elsewhere. Now: any pnl data present → getEntityPnlNet (stored net, else
+// gross − expenses, comma-safe); no pnl at all → the legacy top-level
+// e.netProfit field (pre-pnl records), now comma-safe via nf.
 export function getEntityNetProfit(e) {
-  return parseFloat(e?.pnl?.netProfit ?? e?.netProfit ?? 0) || 0
+  const pnl = e?.pnl
+  if (pnl && (pnl.netProfit ?? pnl.grossRevenue ?? pnl.totalExpenses) !== undefined) {
+    return getEntityPnlNet(e)
+  }
+  return nf(e?.netProfit)
 }
 
 // ── P&L-derived net profit (M3, audit F-04) ──────────────────────────────────
@@ -116,17 +127,11 @@ export function getEntityNetProfit(e) {
 // gross revenue minus total expenses. All parsing goes through nf(), which is
 // comma-safe and finite-by-construction.
 //
-// RELATIONSHIP TO getEntityNetProfit() ABOVE — read before "unifying" them:
-// the two are NOT interchangeable. getEntityNetProfit() reads a stored value
-// (with the legacy e.netProfit fallback) and never derives from gross/expenses;
-// it also uses parseFloat, which stops at a comma. For a record whose pnl has
-// grossRevenue/totalExpenses but no netProfit, getEntityNetProfit() returns 0
-// while getEntityPnlNet() returns the derived figure — meaning the two surfaces
-// that use them can display different numbers for the same record. That
-// divergence predates this refactor and is documented in KNOWN_LIMITATIONS.md
-// (OBS-3); reconciling it is an owner decision because it changes displayed
-// figures. This refactor only removes the duplication — each call site keeps
-// the exact rule it had before.
+// RELATIONSHIP TO getEntityNetProfit() ABOVE (OBS-3, RESOLVED Batch 7):
+// getEntityNetProfit() now DELEGATES here whenever any pnl data exists, and
+// falls back to the legacy top-level e.netProfit only for pre-pnl records.
+// One derivation rule everywhere; the historical divergence (AIAnalysis
+// showing $0 for gross/expenses-only records) is gone.
 
 /** P&L net profit: stored pnl.netProfit, else derived grossRevenue − totalExpenses.
  *  Comma-safe (nf). Missing/absent pnl → 0. Does NOT read the legacy e.netProfit

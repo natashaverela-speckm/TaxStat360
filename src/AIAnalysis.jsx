@@ -1789,19 +1789,16 @@ function SimulatorModal({ onClose, rec }) {
     taxYear,
     entities: rec?.entities || [],
   }
-  // M2 (audit F-05) + defect SIM-1: these calls previously passed a packed object the
-  // engine could not read (see computeSimulatorScenario in aiAnalysisTaxMath.js). The
-  // engine returned 0/undefined for every field, so the modal rendered NaN rows and
-  // "YOU SAVE $0" for all presets. The calculation guard now rejects that input; the
-  // catch below converts it into an honest, visible notice. Any non-guard error still
-  // re-throws to the app-level ErrorBoundary. The functional repair of the simulator
-  // math is a separate approved batch (it changes displayed dollar figures).
+  // SIM-1 REPAIRED (Batch 7): scenarios run through the engine via the same
+  // translation the Dashboard Tracker uses (see aiAnalysisTaxMath.js). The guard
+  // catch stays — corrupted record data still degrades to a visible notice
+  // instead of NaN rows; anything unexpected re-throws to the ErrorBoundary.
   let baseline = null
   let scenario = null
   let simError = null
   try {
-    baseline = computeSimulatorScenario({ ...scenarioContext, delta: {} })
-    scenario = computeSimulatorScenario({ ...scenarioContext, delta })
+    baseline = computeSimulatorScenario(scenarioContext, {})
+    scenario = computeSimulatorScenario(scenarioContext, delta)
   } catch (e) {
     if (e instanceof CalcInputError) simError = e.message
     else throw e

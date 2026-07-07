@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { readEmail, readPlan, readToken, writePlan } from './utils/sessionState.js'
+import { readEmail, readPlan, readToken, writePlan, removeSubscriptionIncomplete } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from './utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
@@ -158,6 +158,9 @@ export default function Upgrade() {
 
       await refreshPlanFromServer()
       if (!readPlan()) writePlan(normalizePlanId(selectedPlan))
+      // D-03 (Batch 7): a successful upgrade completes any signup-time payment
+      // failure — clear the flag so the Dashboard recovery banner stands down.
+      removeSubscriptionIncomplete()
       setSuccess(true)
     } catch(e) {
       setErr(e.message || 'Upgrade failed. Please try again.')
@@ -298,7 +301,8 @@ export default function Upgrade() {
                     <span style={{fontSize:36,fontWeight:800,color:N}}>${plan.price[billing]}</span>
                     <span style={{fontSize:13,color:SL}}>/mo</span>
                   </div>
-                  {billing==='annual' && <div style={{fontSize:12,color:'#059669',marginTop:2}}>Billed annually · Save ${(plan.price.monthly-plan.price.annual)*12}/yr</div>}
+                  {/* OBS-9 (Batch 7): unified on Landing's ×2 figure (matches the 'Save 2 months' badge) — was (monthly−annual)×12, a ÷12-rounding artifact ($300 vs $298). */}
+                  {billing==='annual' && <div style={{fontSize:12,color:'#059669',marginTop:2}}>Billed annually · Save ${PLAN_PRICING[key]?.annualSavings ?? plan.price.monthly*2}/yr</div>}
                 </div>
                 {isCurrent ? (
                   <button disabled style={{width:'100%',padding:'10px',background:'#F1F5F9',color:SL,border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'not-allowed'}}>Current Plan</button>

@@ -9,6 +9,7 @@
 //   • "Routed through the engine / personal return" === "not a C-Corp".
 
 import { describe, it, expect } from 'vitest'
+// OBS-3 unification tests appended Batch 7 — see getEntityNetProfit in the module.
 import {
   normalizeEntityType,
   isCCorpEntity,
@@ -135,5 +136,21 @@ describe('documents WHY cross-vocabulary membership is forbidden', () => {
   it('the predicate path is correct for the same values', () => {
     expect(isPassthroughEntity(normalizeEntityType('Sole Proprietor / SMLLC'))).toBe(true)
     expect(isPassthroughEntity(normalizeEntityType('Partnership / LLC'))).toBe(true)
+  })
+})
+
+describe('getEntityNetProfit — OBS-3 unified rule (Batch 7)', () => {
+  it('CHAR: stored pnl.netProfit still wins (pre-unification behavior preserved)', () => {
+    const { getEntityNetProfit } = require('./entityPredicates.js')
+    expect(getEntityNetProfit({ pnl: { netProfit: '90000' } })).toBe(90000)
+  })
+  it('FIXED: gross/expenses-only records now derive instead of showing $0', () => {
+    const { getEntityNetProfit } = require('./entityPredicates.js')
+    expect(getEntityNetProfit({ pnl: { grossRevenue: '200000', totalExpenses: '80000' } })).toBe(120000)
+  })
+  it('CHAR: legacy pre-pnl records (top-level netProfit) still resolve — now comma-safe', () => {
+    const { getEntityNetProfit } = require('./entityPredicates.js')
+    expect(getEntityNetProfit({ netProfit: '75,000' })).toBe(75000)
+    expect(getEntityNetProfit({})).toBe(0)
   })
 })
