@@ -137,7 +137,20 @@ CalculateTaxInner but written nowhere in src/. The dead reads and their
 accessors were removed in Batch 4 (M7); the live hydration paths (C-04
 canonical Step-1 state; OAuth ?entity= URL param) are unchanged.
 
-## OBS-5 — web3forms key ships in the client bundle
+## OBS-5 — web3forms key in the client bundle — RESOLVED (Phase 2.2c, Jul 2026)
+
+Implemented exactly per the Batch-6 spec below: POST /alerts/form-relay in
+taxstat360-api holds the key (env WEB3FORMS_ACCESS_KEY), whitelists and
+length-caps fields, requires a subject, carries a 10s upstream timeout, and is
+rate-limited 5/min/IP (all pinned in tests/test_form_relay.py; backend suite
+48 → 53). All four client call sites (Landing contact form, Settings
+account-deletion notice, both Onboarding signup-failure alerts) now post to
+the relay; WEB3FORMS_ACCESS_KEY no longer exists in the client. Owner
+follow-ups: ROTATE the key in the web3forms dashboard (the old value lives in
+git history and previously served bundles), set WEB3FORMS_ACCESS_KEY in the
+EC2 service environment, delete VITE_WEB3FORMS_KEY from the Amplify console.
+
+## [historical] OBS-5 — web3forms key ships in the client bundle
 
 The owner-alert/contact-form key now has a single home
 (`WEB3FORMS_ACCESS_KEY` in integrations.js, env-overridable via

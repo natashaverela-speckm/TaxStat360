@@ -22,6 +22,32 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.2c (OBS-5): form-key relay — July 7, 2026 (frontend half; backend in taxstat360-api)
+
+The web3forms access key no longer ships in the served bundle. Implemented
+per the spec KNOWN_LIMITATIONS carried since Batch 6.
+
+- Backend (taxstat360-api): POST /alerts/form-relay — server-held key,
+  8-field whitelist with 4,000-char caps, subject required, client-supplied
+  access_key ignored, 10s upstream timeout (the Stripe-hang lesson), 503 when
+  unconfigured (owner alerts must fail LOUDLY — the D-03 signup-failure
+  alerts route through here), 5/min/IP rate limit. New
+  tests/test_form_relay.py: 5 tests incl. the explicit 429 pin; backend suite
+  48 → 53.
+- `src/utils/integrations.js` — WEB3FORMS_ACCESS_KEY removed (tombstone
+  comment points at the relay and the owner follow-ups).
+- `src/Landing.jsx` (contact form; res.ok semantics and the mailto fallback
+  unchanged), `src/Settings.jsx` (deletion notice), `src/Onboarding.jsx`
+  (both signup-failure alerts) — all post to the relay. Onboarding is the
+  protected flow file: exactly 3 lines changed (1 import + the 2 alert fetch
+  targets); Stripe logic untouched, diff proof in the deployment notes.
+- KNOWN_LIMITATIONS.md — OBS-5 marked RESOLVED with the historical block
+  preserved. Frontend suite unchanged at 582/582; build and lint clean.
+- OWNER ACTIONS: set WEB3FORMS_ACCESS_KEY in the EC2 service environment
+  before/with the backend deploy; rotate the key in the web3forms dashboard
+  (old value is in git history and prior bundles); delete VITE_WEB3FORMS_KEY
+  from the Amplify console.
+
 ## Phase 2.2b: the 409 identity guard — July 7, 2026 (frontend half; backend in taxstat360-api)
 
 Permanent countermeasure to the D-1 incident (root-caused Jul 7: a session
