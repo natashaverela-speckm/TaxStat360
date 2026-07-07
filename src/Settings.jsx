@@ -5,7 +5,7 @@ import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
-import { readEmail, writeEmail, readLoggedIn, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan } from './utils/sessionState.js'
+import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan } from './utils/sessionState.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { deleteOwnAccount } from './utils/serverApi.js'
 
@@ -27,10 +27,12 @@ function NavBtn({label, onClick, active}) {
 
 export default function Settings() {
   const nav = useNavigate()
+  // D-09: 'member since' was computed but never rendered — un-shipped display work;
+  // value slot silenced, setter kept (surface it on the profile if desired).
+  const [, setMemberSince] = useState('')
   const [email, setEmail] = useState('')
   const [plan, setPlan] = useState('')
   const [billingInterval, setBillingInterval] = useState('monthly')
-  const [memberSince, setMemberSince] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [pwSent, setPwSent] = useState(false)
   const [emailInput, setEmailInput] = useState('')

@@ -29,7 +29,6 @@ import {
 //   writeStep1State     — called by CalculateTaxInner after entity entry, Dashboard (loadRecord, tab-nav), AIAnalysis (Calculate Tax / Update Data buttons)
 //   writePersonalContext — called by Dashboard (loadRecord, tab-nav) and TaxReturn (auto-save)
 //   writeTaxYear        — called by Dashboard and TaxReturn
-//   writeIsCoopPatron   — called by CalculateTaxInner (checkbox sync)
 //   clearStep1State     — called by Dashboard ("+ New Calculation" buttons) to prevent stale entity data bleeding into a fresh session
 //   writeBusinessInfo   — F-10 FIX: called by Onboarding.jsx BusinessScreen after O7 patch
 //   readBusinessInfo    — F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
@@ -39,7 +38,6 @@ import {
 //   readStep1StateRaw   — called by CalculateTaxInner (useState initializer for entities)
 //   readPersonalContext — called by TaxReturn on mount, AIAnalysis
 //   readTaxYear         — called by TaxReturn, EntityCompareModal
-//   readIsCoopPatron    — called by CalculateTaxInner (useState initializer)
 //   readBusinessInfo    — F-10 FIX: called by AIAnalysis.jsx getOnboardingBizInfo()
 //
 // ── AUDIT PASS 2 ADDITIONS ────────────────────────────────────────────────────
@@ -456,13 +454,7 @@ export function readTaxYear() {
 // also rewrite entities and k1Total on every checkbox toggle, which is
 // unnecessary churn. Atomic helpers keep the contract clean while letting
 // callers update one managed key at a time when that's what they want.
-export function writeIsCoopPatron(value) {
-  sessionStorage.setItem('ts360_isCoopPatron', String(!!value))
-}
 
-export function readIsCoopPatron() {
-  return sessionStorage.getItem('ts360_isCoopPatron') === 'true'
-}
 
 // ─── F-10 FIX: Business info (onboarding biz name / EIN / address) ────────
 // Written by: Onboarding.jsx BusinessScreen (O7 patch) via sessionStorage.setItem.
@@ -1095,12 +1087,13 @@ export function readDisclaimerSeen() { return localStorage.getItem('ts360_discla
 export function writeDisclaimerSeen(val) { localStorage.setItem('ts360_disclaimer_seen', val) }
 
 // ── Integrations ──────────────────────────────────────────────────────────────
-export function readConnectedApp() { return localStorage.getItem('ts360_connected_app') }
-export function writeConnectedApp(val) { localStorage.setItem('ts360_connected_app', val) }
-export function removeConnectedApp() { localStorage.removeItem('ts360_connected_app') }
+// D-04 (dead-code audit, Jul 2026): the connected-app label accessors were removed —
+// the value was written on OAuth return and cleared on disconnect but READ nowhere
+// (no UI ever displayed it). Per-provider state lives in integrations.js.
 export function readXeroRefresh() { return localStorage.getItem('ts360_xero_refresh') }
 export function writeXeroRefresh(val) { localStorage.setItem('ts360_xero_refresh', val) }
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 export function readOnboardingEntityType() { return localStorage.getItem('ts360_entityType') }
-export function writeOnboardingEntityType(val) { localStorage.setItem('ts360_entityType', val) }
+// D-05: writeOnboardingEntityType removed — its only caller was the deleted
+// pre-audit onboarding funnel.

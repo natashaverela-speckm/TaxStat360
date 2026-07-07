@@ -46,9 +46,9 @@
 //   were not rendered on the card. This fix surfaces them without loading.
 
 import React, { useState, useEffect } from 'react'
-import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readEmail } from './utils/sessionState.js'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcQBI, getStdDed, getMarginalRate, calcFederalTax, calcCCorpCorporateLayer } from './taxCalc.js'
+import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { parseMoney, nf } from './utils/money.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
@@ -164,15 +164,19 @@ export function calcDashboard(biz, f1040) {
   const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
+  // D-10 (dead-code audit): numeric rule now comes from the engine's
+  // calcReasonableCompCore — this card can no longer drift from the return page
+  // on WHEN the alert fires. The message wording below is this card's own and
+  // differs from the engine's more fully-hedged version (OBS-7, owner decision).
   const reasonableCompAlert = (() => {
     if (!isSC) return { triggered: false, ratio: 100, message: '' }
-    const totalComp = sal + Math.max(0, k1)
-    if (totalComp < 20000) return { triggered: false, ratio: 100, message: '' }
-    const ratio = totalComp > 0 ? sal / totalComp : 1
-    const triggered = ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD
+    const core = calcReasonableCompCore(sal, k1)
+    if (!core.applicable) return { triggered: false, ratio: 100, message: '' }
+    const ratio = core.ratio
+    const triggered = core.triggered
     return {
       triggered,
-      ratio: Math.round(ratio * 100),
+      ratio: core.ratioPct,
       sal: Math.round(sal),
       distributions: Math.round(Math.max(0, k1)),
       message: `Officer compensation is ${Math.round(ratio * 100)}% of total S-Corp compensation. Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
@@ -193,32 +197,6 @@ export function calcDashboard(biz, f1040) {
     niit: r.niit ?? { applies: false, amount: 0 },
     reasonableCompAlert,
   }
-}
-
-function buildRecs(biz, calc) {
-  const recs = []
-  const { k1, recSal, isSC, isCCorp, quarterly, qbi, effRate, corpTax, dividends } = calc
-  const officerSal = nf(biz.officerSalary)
-  const grossRev   = nf(biz.grossRevenue)
-  const dep        = nf(biz.depreciation)
-
-  if (isCCorp && corpTax > 0)
-    recs.push({ type: 'danger', title: 'C-Corp Double Taxation', msg: `Your corporation owes ${fmt(corpTax)} in federal corporate tax (a flat 21% on profit after your officer compensation and employer payroll tax). The remaining ${fmt(dividends)} in after-tax profit, distributed as qualified dividends, is taxed again on your personal return — the classic double taxation. Consider an S-Corp election to eliminate the entity-level tax.` })
-  if (isSC && officerSal === 0 && k1 > 20000)
-    recs.push({ type: 'danger', title: 'No Officer Compensation', msg: `S-Corp owners must pay themselves a reasonable salary. The IRS considers this a primary audit trigger. Recommended minimum: ${fmt(recSal)}/yr.` })
-  if (isSC && officerSal > 0 && officerSal < recSal && k1 > 20000)
-    recs.push({ type: 'warning', title: 'Officer Compensation May Be Too Low', msg: `Your officer compensation of ${fmt(officerSal)} is below the recommended minimum of ${fmt(recSal)}. Consider increasing to reduce audit risk.` })
-  if (quarterly > 500)
-    recs.push({ type: 'warning', title: 'Quarterly Estimated Payments Required', msg: `Pay approximately ${fmt(quarterly)} per quarter. Due: Apr 15, Jun 15, Sep 15, Jan 15.` })
-  if (qbi > 0)
-    recs.push({ type: 'success', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`, msg: `You qualify for the 20% §199A deduction, reducing your taxable income by ${fmt(qbi)}.` })
-  if (dep === 0 && grossRev > 50000)
-    recs.push({ type: 'info', title: 'Review Depreciation Deductions', msg: 'No depreciation recorded. Equipment, vehicles, and home office may be deductible under §179.' })
-  if (nf(effRate) > 28)
-    recs.push({ type: 'warning', title: `High Effective Tax Rate (${pct(effRate)})`, msg: 'Consider maximizing retirement contributions: SEP-IRA (up to $70,000) or Solo 401(k) for 2025.' })
-  if (recs.length === 0)
-    recs.push({ type: 'success', title: 'Your Tax Structure Looks Healthy', msg: 'No significant issues detected. Keep monitoring quarterly and update as financials change.' })
-  return recs
 }
 
 const LOGO = () => <BrandLogo size={30} />
@@ -264,15 +242,6 @@ function FederalDisclosureBanner() {
   )
 }
 
-async function withRetry(fn, retries = 2, delay = 1000) {
-  try { return await fn(); }
-  catch (err) {
-    if (retries === 0) throw err;
-    await new Promise(r => setTimeout(r, delay));
-    return withRetry(fn, retries - 1, delay * 2);
-  }
-}
-
 class IntegrationErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false }; }
   static getDerivedStateFromError() { return { hasError: true }; }
@@ -314,11 +283,13 @@ export default function Dashboard() {
 
   const [records, setRecords] = useState([])
   const [loadedRecord, setLoadedRecord] = useState(null)
-  const [savedRecordId, setSavedRecordId] = useState(null)
+  // D-09: value never rendered (write-only state); setter kept — its calls drive re-renders.
+  const [, setSavedRecordId] = useState(null)
   const [activeRecordId, setActiveRecordId] = useState(() =>
     readActiveRecordId()
   )
-  const [connectedApp, setConnectedApp] = useState(null)
+  // D-09: write-only state (see D-04 — the connected-app label was never displayed).
+  const [, setConnectedApp] = useState(null)
   const [xeroLoading, setXeroLoading] = useState(false)
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 

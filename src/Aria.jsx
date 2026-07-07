@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  readLoggedIn, removeLoggedIn, readSessionStart, removeSessionStart,
+  readLoggedIn, removeLoggedIn, removeSessionStart,
   // AUDIT F10 (Jul 2026): Aria now reads the active session's entities and
   // personal figures so its welcome prompts and answers reflect the user's
   // actual situation instead of a fixed S-Corp script.

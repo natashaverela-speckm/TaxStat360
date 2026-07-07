@@ -82,8 +82,9 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
-import { readBusinessInfo, readLoggedIn, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
+import { readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
+import { isValidSession } from './utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
 import { WEB3FORMS_ACCESS_KEY, MAILCHIMP_SUBSCRIBE_URL } from './utils/integrations.js'
 import BrandLogo from './BrandLogo'
@@ -170,7 +171,6 @@ const [conf,setConf]=useState('')
 const [confErr,setConfErr]=useState('')
 const [loading,setLoading]=useState(false)
 const [err,setErr]=useState('')
-const [info,setInfo]=useState('')
 const [stripeReady,setStripeReady]=useState(false)
 const stripeRef=useRef(null)
 const elemRef=useRef(null)
@@ -491,8 +491,14 @@ function VerifyEmailScreen(){
   </Page>)
 }
 
-function isValidSession(){
-  return readLoggedIn()==='1' && !!readBusinessInfo()
+// D-11 (dead-code & duplication audit): this used to be a same-named local with
+// DIFFERENT rules than App.jsx's (it ignored session expiry, so an aged-out
+// session could still pass verify-email continue). It now composes the canonical
+// expiry-aware check — a deliberate, conservative tightening: expired sessions
+// re-authenticate instead of sliding through. The registration-specific
+// businessInfo requirement is preserved.
+function hasActiveRegisteredSession(){
+  return isValidSession() && !!readBusinessInfo()
 }
 
 function continueAfterVerifyEmail(nav) {
@@ -506,7 +512,7 @@ function continueAfterVerifyEmail(nav) {
   // AUDIT FLOW REVISION: '/onboarding/entity' no longer exists — a valid session
   // lands on the Dashboard (pick a saved card or start a new calculation); an
   // invalid one re-authenticates.
-  nav(isValidSession() ? '/dashboard' : '/login')
+  nav(hasActiveRegisteredSession() ? '/dashboard' : '/login')
 }
 
 function LoginScreen(){

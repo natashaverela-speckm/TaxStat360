@@ -116,6 +116,34 @@ send submissions through the form endpoint (spam risk, not data risk — the
 key only submits, it cannot read). Full fix requires a small server-side
 relay (e.g. a Lambda that holds the key). Owner decision; low urgency.
 
+## OBS-6 — Two divergent MoneyInput implementations (M8 canceled by owner)
+
+The canonical `src/components/MoneyInput.jsx` migration target was deleted by
+owner decision (Jul 2026), canceling audit module M8. Consequence, now
+permanent status quo: the calculator (CalculateTaxInner.jsx ~62) and the
+tax-return page (TaxReturn.jsx ~32) each render money fields with their OWN
+implementation — differing in negative-number handling, comma live-formatting,
+and error-prop support — so dollar-entry behavior can differ subtly between
+the two screens. The deleted canonical file is recoverable from git history
+(commit 4697de0^) if unification is ever revisited.
+
+## OBS-7 — Reasonable-comp alert: one rule, two message wordings
+
+D-10 single-sourced the NUMERIC rule (calcReasonableCompCore), so the return
+page and the Dashboard scenario card can no longer disagree on WHEN the alert
+fires. Their message texts remain different by preserved design: the engine's
+is fully hedged ("informational flag, not a determination…"); the Dashboard
+card's is shorter and reads closer to a recommendation. For an IRS
+reclassification-risk warning, the engine's wording is the more defensible.
+Owner decision: adopt one wording (recommend the engine's) or keep both.
+
+## OBS-8 — Tooltip positioning ignores the bottom viewport edge
+
+`computeTooltipPosition` (components/InfoTip.jsx) accepts viewportHeight but
+never uses it — the above/below flip checks space ABOVE only, so a tooltip
+near the bottom of the screen can overflow the viewport. Kept as-is (fixing
+changes visual behavior); flagged for a UI pass.
+
 ## Defect SIM-1 — What-If Simulator awaiting functional repair
 
 The simulator's engine calls pass a packed object the engine cannot read;

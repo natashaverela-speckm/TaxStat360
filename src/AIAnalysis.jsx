@@ -13,7 +13,7 @@ import {
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
-import { readPersonalContext, writePersonalContext, writeTaxYear, readTaxYear, readStep1State, writeStep1State, normalizeF1040, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
@@ -457,10 +457,6 @@ function RiskScan({ rec }) {
   if (!rec) return <NoData tab="risk" />
   const b = rec.biz || {}, f = rec.f1040 || {}
   const revenue = nf(b.grossRevenue)
-  const grossRevenueTax = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
-  const k1ForGuard = nf(rec?.k1Income)
-  const w2ForGuard = nf(rec?.f1040?.w2Income)
-  const hasIncome = grossRevenueTax > 0 || k1ForGuard > 0 || w2ForGuard > 0
   const officerSal = nf(b.officerSalary)
   const k1 = nf(rec.k1Income)
   const w2 = getTotalW2(rec)
@@ -832,7 +828,6 @@ function TaxOptimization({ rec }) {
   // Optimization tab reflects the same figures the Risk Scan and Schedule Map use.
   const entityType = recEntityType(rec)
   const revenue = recEntityRevenue(rec)
-  const opExp = nf(b.operatingExpenses)
   const dep = recDepreciation(rec)
   const sCorpEntities = (Array.isArray(rec.entities) ? rec.entities : []).filter(e => isSCorpEntity(e?.type))
   const totalOfficerSalary = Math.max(
@@ -842,12 +837,10 @@ function TaxOptimization({ rec }) {
   const sCorpK1 = sCorpEntities.reduce((s, e) => s + Math.max(0, getEntityNetProfit(e)), 0)
   const k1 = nf(rec.k1Income)
   const w2 = getTotalW2(rec)
-  const estPay = nf(f.estPaid)
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const isPassthrough = isPassthroughEntity(entityType)
   const isSCorpOwner = sCorpEntities.length > 0 || isSCorpEntity(entityType)
   const filing = f.filingStatus || 'single'
-  const stdDed = getStdDed(year, filing)
 
   // UX audit F8: a raw 'Unknown' placeholder (the fallback used when an entity's
   // structure can't be resolved) was leaking into the user-facing copy as
@@ -1409,7 +1402,6 @@ function Modal({ onClose, children }) {
 // F20 FIX: ReportModal now reads business name from onboarding sessionStorage (O7).
 function ReportModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
-  const k1 = nf(rec?.k1Income)
   const totalW2 = getTotalW2(rec)
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   // O7 FIX: use onboarding business name on report cover if available
@@ -2067,7 +2059,6 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const [confirmingExport, setConfirmingExport] = useState(false)
   if (!rec) return <NoData tab="reports" />
   const score = completeness(rec)
-  const missing = missingFields(rec)
 
   // F20 FIX: pre-generation checklist items — positives and negatives
   const checklistItems = rec ? [

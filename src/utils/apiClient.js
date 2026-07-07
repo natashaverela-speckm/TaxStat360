@@ -37,6 +37,7 @@ export class ApiError extends Error {
 }
 
 /** Resolve a path to a full URL. Absolute URLs are returned unchanged. */
+// test seam (D-08): exported for tests only — not a production API.
 export function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
