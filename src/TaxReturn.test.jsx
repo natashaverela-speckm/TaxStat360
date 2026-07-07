@@ -518,3 +518,27 @@ describe('TaxReturn — Findings 1–3: engine input plumbing', () => {
     expect(ent.distributions).toBe('143881')
   })
 })
+
+// ─── R-1 (Pass-6 review, Jul 2026): §1211(b) waterfall reconciliation row ─────
+//
+// The engine (F10/P6-1) caps the deductible net capital loss; the waterfall's raw
+// entered-loss rows must therefore reconcile to AGI via an explicit addback line
+// (the F-FUNC-06 §461(l) pattern). These tests pin the WIRING: the row renders
+// exactly when the engine reports a §1212(b) carryover, and carries the note.
+// The carryover amounts themselves are SPEC-tested in taxCalc-1211-capital-loss.test.js.
+
+describe('TaxReturn — R-1: §1211(b) capital-loss reconciliation row', () => {
+  it('renders the addback row and §1212(b) carryover note when the engine reports a carryover', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), capLossCarryoverTotal: 77000 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText('Capital Loss Limited (§1211(b))')).toBeTruthy()
+    expect(getByText(/carries forward to 2026, keeping its short\/long-term character \(IRC §1211\(b\), §1212\(b\)\)/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)   // restore for any later test
+  })
+
+  it('hides the row entirely when there is no carryover', () => {
+    const { queryByText } = renderTaxReturn()   // default mock: no capLossCarryoverTotal key
+    expect(queryByText('Capital Loss Limited (§1211(b))')).toBeNull()
+  })
+})
