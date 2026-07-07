@@ -77,14 +77,12 @@ verbatim through the M3 refactor. Owner decision: either the display adopts
 the engine rule (recommended for consistency) or the divergence is labeled
 in the UI.
 
-## OBS-2 — Two disconnect paths clear the integration token differently
+## OBS-2 — Disconnect token inconsistency — RESOLVED (Batch 6, Jul 2026)
 
-One disconnect path clears both the localStorage and sessionStorage token
-copies; a second (legacy) path clears only localStorage, leaving a session
-copy that keeps a stale token usable within the current tab. Preserved
-verbatim through the M4 refactor (see `src/utils/integrations.js` header).
-Owner decision: unify on clearing both (recommended — a disconnected
-integration should not retain a live token anywhere).
+Both disconnect paths now clear the token from BOTH stores — a disconnected
+accounting integration (QuickBooks/Xero/Wave/FreshBooks) retains no live
+credential anywhere. The only observable change: a stale token can no longer
+be silently reused within the same tab after a disconnect.
 
 ## OBS-3 — Two net-profit rules coexist
 
@@ -115,6 +113,12 @@ in the served JS bundle and is extractable. Consequence: a third party could
 send submissions through the form endpoint (spam risk, not data risk — the
 key only submits, it cannot read). Full fix requires a small server-side
 relay (e.g. a Lambda that holds the key). Owner decision; low urgency.
+Implementation spec (Batch 6): add `POST /alerts/form-relay` to the existing
+API — accepts `{subject, email, plan, billing, status, detail}`, attaches the
+web3forms key server-side, forwards to api.web3forms.com, CORS-restricted to
+taxstat360.com, rate-limited (e.g. 5/min/IP). The frontend then calls the
+relay and the key leaves the bundle entirely. Requires backend deployment
+access — outside this repo.
 
 ## OBS-6 — Two divergent MoneyInput implementations (M8 canceled by owner)
 
@@ -137,12 +141,20 @@ card's is shorter and reads closer to a recommendation. For an IRS
 reclassification-risk warning, the engine's wording is the more defensible.
 Owner decision: adopt one wording (recommend the engine's) or keep both.
 
-## OBS-8 — Tooltip positioning ignores the bottom viewport edge
+## OBS-8 — Tooltip bottom-edge overflow — RESOLVED (Batch 6, Jul 2026)
 
-`computeTooltipPosition` (components/InfoTip.jsx) accepts viewportHeight but
-never uses it — the above/below flip checks space ABOVE only, so a tooltip
-near the bottom of the screen can overflow the viewport. Kept as-is (fixing
-changes visual behavior); flagged for a UI pass.
+The above/below flip now considers both edges: above when it fits (unchanged),
+else below when that fits (unchanged), else the side with more room. Covered
+by two new position tests.
+
+## OBS-9 — Two different "annual savings" figures were already live
+
+Landing advertises savings of monthly×2 (two free months: $158/$298/$598);
+the Upgrade page computes (monthly−annualMonthly)×12 ($156/$300/$600 — a
+rounding artifact of the ÷12 display price). Both pre-date the D-06 pricing
+single-source and are preserved verbatim (and pinned by planPricing.test.js).
+Owner decision: unify on one formula — Landing's ×2 matches the "Save 2
+months" badge copy and is the cleaner marketing claim.
 
 ## Defect SIM-1 — What-If Simulator awaiting functional repair
 

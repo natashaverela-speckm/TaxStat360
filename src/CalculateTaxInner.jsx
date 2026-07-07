@@ -1743,14 +1743,16 @@ export default function CalculateTaxInner() {
   }, [])
 
   const handleIntegrationDisconnect = useCallback((pid) => {
-    // OBS-2 (preserved verbatim): this path clears only the localStorage token —
-    // the sessionStorage copy is intentionally left as-is pending an owner decision
-    // (see integrations.js / KNOWN_LIMITATIONS.md).
+    // OBS-2 RESOLVED (Batch 6, Jul 2026): this legacy path previously left the
+    // sessionStorage token copy behind after disconnect, so a stale token stayed
+    // usable within the tab. Both disconnect paths now clear both stores — a
+    // disconnected accounting integration retains no live credential anywhere.
     removeIntegrationField(pid, 'connected')
     removeIntegrationField(pid, 'token')
     removeIntegrationField(pid, 'extra')
     removeIntegrationField(pid, 'syncedAt')
     removeIntegrationField(pid, 'failed')
+    removeIntegrationSessionToken(pid)
     setEntities(prev => {
       const next = prev.map(e =>
         e.connectedId === pid

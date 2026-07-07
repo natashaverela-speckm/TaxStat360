@@ -33,6 +33,26 @@ describe('computeTooltipPosition', () => {
     expect(pos.top).toBe(60 + 6)
   })
 
+  it('OBS-8 fix: stays ABOVE when below would overflow the bottom edge', () => {
+    // Trigger near the bottom: room above (400px) but only 30px below.
+    const pos = computeTooltipPosition({
+      ...base,
+      triggerRect: { top: 400, bottom: 570, left: 100, width: 15, height: 15 },
+    })
+    expect(pos.above).toBe(true)
+    expect(pos.top + 120).toBeLessThanOrEqual(600)   // fully inside the viewport
+  })
+
+  it('OBS-8 fix: when NEITHER side fits, picks the side with more room', () => {
+    // Short viewport: 60px above, 120px tooltip, ~25px below → above has more room.
+    const pos = computeTooltipPosition({
+      ...base,
+      viewportHeight: 100,
+      triggerRect: { top: 60, bottom: 75, left: 100, width: 15, height: 15 },
+    })
+    expect(pos.above).toBe(true)
+  })
+
   it('clamps horizontally inside the viewport', () => {
     const pos = computeTooltipPosition({
       ...base,

@@ -5,7 +5,7 @@ import { signOut as sharedSignOut } from './utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
-import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR } from './constants.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 
@@ -14,9 +14,12 @@ import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
 
 const PLANS = {
-  starter:      { label:'Starter',      price:{ monthly:79,  annual:66  }, color:'#64748B' },
-  professional: { label:'Professional', price:{ monthly:149, annual:124 }, color:B,        popular:true },
-  enterprise:   { label:'Enterprise',   price:{ monthly:299, annual:249 }, color:N         },
+  // D-06: derived from PLAN_PRICING (constants.js) — single price source.
+  // NOTE (OBS-9): this page's "Save $X/yr" line computes (monthly−annual)×12,
+  // which differs from Landing's monthly×2 figure — preserved verbatim.
+  starter:      { label:'Starter',      price:{ monthly:PLAN_PRICING.starter.monthly,      annual:PLAN_PRICING.starter.annualMonthly      }, color:'#64748B' },
+  professional: { label:'Professional', price:{ monthly:PLAN_PRICING.professional.monthly, annual:PLAN_PRICING.professional.annualMonthly }, color:B,        popular:true },
+  enterprise:   { label:'Enterprise',   price:{ monthly:PLAN_PRICING.enterprise.monthly,   annual:PLAN_PRICING.enterprise.annualMonthly   }, color:N         },
 }
 
 // FEAT-01 FIX: FEATURES table now mirrors Landing.jsx plan feature lists exactly.

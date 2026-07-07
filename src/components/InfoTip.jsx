@@ -46,16 +46,19 @@ export function computeTooltipPosition({
   tooltipWidth,
   tooltipHeight,
   viewportWidth,
-  // D-09 finding, kept deliberately: viewportHeight is accepted (and passed by the
-  // caller) but never used — the above/below flip checks space ABOVE only, so a
-  // tooltip near the bottom edge may overflow the viewport. Using this parameter
-  // in that check is the likely intended fix; that's a visual behavior change, so
-  // it is flagged rather than made in a hygiene batch.
-  viewportHeight,   // eslint-disable-line no-unused-vars
+  viewportHeight,
   margin = MARGIN,
   gap = GAP,
 }) {
-  const above = triggerRect.top >= tooltipHeight + margin + gap
+  // OBS-8 RESOLVED (Batch 6, Jul 2026): the flip logic previously checked space
+  // ABOVE only, so a trigger near the bottom edge opened a tooltip that overflowed
+  // the viewport. Behavior now: above when it fits (unchanged); else below when
+  // THAT fits (unchanged); else whichever side has more room — the tooltip can
+  // still exceed a very short viewport, but it no longer picks the worse side.
+  const needed = tooltipHeight + margin + gap
+  const fitsAbove = triggerRect.top >= needed
+  const fitsBelow = (viewportHeight - triggerRect.bottom) >= needed
+  const above = fitsAbove || (!fitsBelow && triggerRect.top > viewportHeight - triggerRect.bottom)
   const top = above
     ? triggerRect.top - tooltipHeight - gap
     : triggerRect.bottom + gap

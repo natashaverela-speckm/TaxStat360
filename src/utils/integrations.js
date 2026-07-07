@@ -50,11 +50,8 @@ export function integrationKey(providerId, field) {
 //   • No try/catch: the prior raw calls had none, and a storage exception here
 //     surfaced to the ErrorBoundary before — behavior unchanged.
 //
-// KNOWN INCONSISTENCY PRESERVED (OBS-2, see KNOWN_LIMITATIONS.md): one legacy
-// disconnect path clears only the localStorage token and leaves the session
-// copy; the other clears both. Call sites reproduce their prior behavior
-// verbatim via these fine-grained helpers — reconciling the two paths is an
-// owner decision (it changes when a stale token can be reused within a tab).
+// OBS-2 RESOLVED (Batch 6, Jul 2026): both disconnect paths now clear BOTH
+// stores — a disconnected integration retains no live token anywhere.
 
 /** localStorage field read (connected / failed / extra / syncedAt / token). */
 export function readIntegrationField(providerId, field) {
@@ -79,9 +76,8 @@ export function writeIntegrationToken(providerId, token) {
   localStorage.setItem(integrationKey(providerId, 'token'), token)
   sessionStorage.setItem(integrationKey(providerId, 'token'), token)
 }
-/** Session-copy removal only — used by the disconnect path that also clears
- *  the localStorage copy separately (and by design NOT by the legacy path
- *  that leaves the session copy; see OBS-2 above). */
+/** Session-copy removal — both disconnect paths call this alongside the
+ *  localStorage removals (OBS-2 resolved, Batch 6). */
 export function removeIntegrationSessionToken(providerId) {
   sessionStorage.removeItem(integrationKey(providerId, 'token'))
 }

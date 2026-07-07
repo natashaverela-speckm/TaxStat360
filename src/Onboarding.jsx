@@ -79,7 +79,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES } from './constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
 import { readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
@@ -175,7 +175,8 @@ const [stripeReady,setStripeReady]=useState(false)
 const stripeRef=useRef(null)
 const elemRef=useRef(null)
 const cardRef=useRef(null)
-const MONTHLY_PRICES={starter:'$79',professional:'$149',enterprise:'$299'}
+// D-06: derived from PLAN_PRICING (constants.js) — single price source.
+const MONTHLY_PRICES=Object.fromEntries(Object.entries(PLAN_PRICING).map(([k,v])=>[k,fmtPlanPrice(v.monthly)]))
 const ANNUAL_PRICES={starter:'$66',professional:'$124',enterprise:'$249'}
 const planPrice=billing==='annual' ? ANNUAL_PRICES[plan] : MONTHLY_PRICES[plan]
 const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' · Annual' : '')
@@ -278,9 +279,10 @@ return(<Page>
 <label style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Your Plan</label>
 <div style={{display:'flex',flexDirection:'column',gap:8}}>
 {[
-{id:'starter',      name:'Starter',      price:'$79/mo',  annual:'$66/mo'},
-{id:'professional', name:'Professional', price:'$149/mo', annual:'$124/mo'},
-{id:'enterprise',   name:'Enterprise',   price:'$299/mo', annual:'$249/mo'},
+// D-06: prices derived from PLAN_PRICING (constants.js) — single price source.
+{id:'starter',      name:'Starter',      price:`$${PLAN_PRICING.starter.monthly}/mo`,      annual:`$${PLAN_PRICING.starter.annualMonthly}/mo`},
+{id:'professional', name:'Professional', price:`$${PLAN_PRICING.professional.monthly}/mo`, annual:`$${PLAN_PRICING.professional.annualMonthly}/mo`},
+{id:'enterprise',   name:'Enterprise',   price:`$${PLAN_PRICING.enterprise.monthly}/mo`,   annual:`$${PLAN_PRICING.enterprise.annualMonthly}/mo`},
 ].map(p => {
 const selected = plan === p.id
 const features = PLAN_FEATURES?.[p.id] || ''
