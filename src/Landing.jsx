@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { WEB3FORMS_ACCESS_KEY } from './utils/integrations.js'
+import { API_BASE_URL } from './constants.js'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
@@ -69,11 +69,12 @@ export default function Landing() {
     setContactErr('')
     setContactSending(true)
     try {
-      const res = await fetch('https://api.web3forms.com/submit', {
+      // OBS-5 (Phase 2.2c): key retired from the bundle — submissions go via the
+      // server relay (same success semantics: res.ok gates the sent state, the
+      // mailto fallback below is unchanged).
+      const res = await fetch(API_BASE_URL + '/alerts/form-relay', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // ADD-01 FIX: Web3Forms key moved to env var with hardcode fallback.
-          access_key: WEB3FORMS_ACCESS_KEY,
           // F-05 FIX: Subject line now includes inquiry type for triage.
           subject:   `TaxStat360 [${contactType}] — ${contactName}`,
           from_name:  contactName,

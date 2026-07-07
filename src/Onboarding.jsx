@@ -86,7 +86,7 @@ import { readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, r
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 import { isValidSession } from './utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
-import { WEB3FORMS_ACCESS_KEY, MAILCHIMP_SUBSCRIBE_URL } from './utils/integrations.js'
+import { MAILCHIMP_SUBSCRIBE_URL } from './utils/integrations.js'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import Icon from './Icon'
@@ -234,9 +234,9 @@ if(!subRes||!subRes.ok){
 const subData=subRes?await subRes.json().catch(()=>({})):{}
 console.error('Subscribe setup failed at signup:',subRes&&subRes.status,subData)
 writeSubscriptionIncomplete('1')
-try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:WEB3FORMS_ACCESS_KEY,subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){/* M5/M7: fire-and-forget owner-alert email — its failure must never block a paying customer's signup */}
+try{await fetch(API+'/alerts/form-relay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){/* M5/M7: fire-and-forget owner-alert email — its failure must never block a paying customer's signup */}
 }else{ removeSubscriptionIncomplete() }
-}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_key:WEB3FORMS_ACCESS_KEY,subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){/* M5/M7: same fire-and-forget alert — never block signup */} }
+}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch(API+'/alerts/form-relay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){/* M5/M7: same fire-and-forget alert — never block signup */} }
 writeUserName(name)
 writePendingEmail(email)
 try {

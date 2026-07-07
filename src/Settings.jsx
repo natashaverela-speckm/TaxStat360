@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { WEB3FORMS_ACCESS_KEY } from './utils/integrations.js'
+import { API_BASE_URL } from './constants.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
@@ -58,11 +58,11 @@ export default function Settings() {
       await deleteOwnAccount()
       // Keep support/admin notified as a record — best-effort, never blocks deletion.
       try {
-        await fetch('https://api.web3forms.com/submit', {
+        // OBS-5 (Phase 2.2c): the alert key lives server-side; post via the relay.
+        await fetch(API_BASE_URL + '/alerts/form-relay', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({
-            access_key: WEB3FORMS_ACCESS_KEY,
             subject: 'TaxStat360 — account deleted (self-service)',
             email: email || 'unknown',
             message: `User ${email || 'unknown'} permanently deleted their account on ${new Date().toISOString()}.`,
