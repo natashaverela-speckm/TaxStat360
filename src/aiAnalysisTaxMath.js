@@ -17,6 +17,10 @@ import {
   QBI_THRESHOLDS,
 } from './taxCalc.js'
 import { isPassthroughEntity } from './utils/entityPredicates'
+// M2 (audit F-05): ARCHITECTURE §5 calculation guard, enforced INSIDE the two engine
+// entry points this module exposes (resolveQbiDeduction / computeSimulatorScenario) so
+// every call site — current and future — is covered without per-site boilerplate.
+import { validateCalcInputs } from './utils/calcGuard'
 
 // SE/FICA-savings arithmetic lives in ONE place — scorpSeTaxSavings in taxCalc.js, which
 // also produces the engine's `ficaSavings`. Re-exported here under the name the strategy
@@ -61,6 +65,11 @@ export function resolveQbiDeduction({ k1, taxableBeforeQBI, entityType, filing, 
   if (!isPassthroughEntity(entityType) || k1 <= 0 || taxableBeforeQBI <= 0) {
     return { ...EMPTY_QBI }
   }
+  // M2 (audit F-05): validate after the early-return gate (a non-passthrough or
+  // zero-QBI call never touches the engine, so it needs no year/status) and before
+  // calcQBI. This function's argument name is `filing`; the guard's contract accepts
+  // only filingStatus/status, so translate explicitly rather than widening the guard.
+  validateCalcInputs({ taxYear, filingStatus: filing }, 'resolveQbiDeduction')
   return calcQBI(k1, taxableBeforeQBI, capitalGains, {
     status: filing,
     taxYear,
@@ -122,5 +131,18 @@ export function additionalMedicareApplies({ taxYear, filing, wages }) {
  * @returns {object}           calcTaxReturn result for the scenario.
  */
 export function computeSimulatorScenario(baseInput, delta = {}) {
-  return calcTaxReturn({ ...baseInput, ...delta })
+  const merged = { ...baseInput, ...delta }
+  // M2 (audit F-05): ARCHITECTURE §5 guard. KNOWN DEFECT SURFACED (audit Batch-1 note
+  // SIM-1): the SimulatorModal in AIAnalysis.jsx currently calls this function with a
+  // packed object ({ base, filing, taxYear, delta }) that carries NO engine-vocabulary
+  // fields — no `status`, no income fields, and the delta nested where the engine
+  // never reads it. The engine therefore returned totalTax = 0 for BOTH baseline and
+  // scenario ("YOU SAVE $0" for every preset) and the modal's per-line fields
+  // (rev/k1/qbi/fedTax) rendered NaN. This guard now rejects that call shape with a
+  // CalcInputError, which the modal catches into an honest "unavailable" notice.
+  // The functional repair (rebuilding the scenario math on engine vocabulary) is
+  // deliberately a separate, test-anchored batch — it changes customer-visible
+  // dollar figures and must not ride along inside a structural cleanup.
+  validateCalcInputs(merged, 'WhatIfSimulator')
+  return calcTaxReturn(merged)
 }
