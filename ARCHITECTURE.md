@@ -104,12 +104,47 @@ never let a NaN result reach the user silently.
 - Tests labelled `// CHAR` freeze current behaviour (characterisation tests).
 - Tests labelled `// SPEC: <citation>` have expected values independently verified
   from an IRS publication or Treasury Regulation. Only SPEC tests prove correctness.
+- (M6, Jul 2026) The label lives in the TEST NAME: `it('SPEC: §1366(d)(1) — …')` /
+  `it('CHAR: …')`, so vitest output and CI logs carry the epistemic status of every
+  assertion. CHAR = freezes current behavior (refactor protection, not proof).
+- (M6) Test FILES are named by SUBJECT, never by remediation ticket
+  (`taxCalc-basis-waterfall.test.js`, not `taxCalc-c11c12.test.js`). Ticket history
+  belongs in the file header. Renamed in M6: c10 → basis-loss-limit,
+  c11c12 → basis-waterfall, f3f5 → 1231-lookback, qbi179 → qbi-sec179.
+- GRANDFATHERED: the two pre-convention suites `taxCalc.test.js` (137) and
+  `taxCalc-engine.test.js` (105) predate the labeling rule; labeling 242 legacy
+  tests is queued as M6b so the diff stays reviewable. New tests MUST be labeled.
 - Test-helper files (e.g. `aiAnalysisTaxMath.test-helpers.js`) must never be
   imported by production code. Import path: test files only.
 
 ---
 
-## 7. Annual Update Checklist
+## 7. Error-Handling Convention (M5, audit F-10)
+
+Every `catch` block must produce exactly one of these outcomes:
+
+1. **Surface** — set visible error state (`setErr`, `calcError` banner) or map an
+   `ApiError` to a user-facing message.
+2. **Log** — `console.error`/`console.warn` with a component-prefixed message and
+   the caught error, when the failure is recoverable but worth a support trace.
+3. **Swallow with justification** — a fallback return/default IS permitted for
+   storage reads, JSON parses, and best-effort side writes, but the block MUST
+   carry a comment explaining why silence is the correct behavior.
+4. **Re-throw** — anything unexpected in a calculation path re-throws to the
+   route ErrorBoundary (see §5; TaxReturn's useMemo is the model).
+
+Hard rules:
+- Bare `catch {}` / `catch (e) {}` with an empty, comment-free body is forbidden —
+  CI-enforced by `src/architecture-invariants.test.js` (Onboarding.jsx carries a
+  temporary allowance until M7 touches those lines; see the test for the TODO).
+- Tax-math paths NEVER swallow: guard rejections surface as banners (§5), and
+  engine exceptions re-throw. A silent `$0`/blank render caused by a swallowed
+  error is indistinguishable from a real liability figure to the user — in a tax
+  product that is the worst failure mode available.
+
+---
+
+## 8. Annual Update Checklist
 
 When a new tax year's figures are released (typically October–December):
 

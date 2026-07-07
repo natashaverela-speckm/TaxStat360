@@ -101,6 +101,8 @@ function readSessionSnapshot() {
   let k1Total = 0
   let personal = null
   let taxYear = null
+  // M5 (audit F-10): each context source degrades independently to its default —
+  // the assistant answers with whatever context IS readable rather than crashing.
   try { const s1 = readStep1State(); entities = s1.entities || []; k1Total = Number(s1.k1Total) || 0 } catch { entities = [] }
   try { personal = readPersonalContext() } catch { personal = null }
   try { taxYear = readTaxYear() } catch { taxYear = null }
@@ -197,6 +199,7 @@ const MAX_HISTORY_TURNS = 20
 // product, never on the landing / pricing / legal / auth pages.
 const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
 function ariaAllowed() {
+  // M5 (audit F-10): auth probe failure → treat as logged out (assistant stays hidden).
   try { if (!readLoggedIn()) return false } catch { return false }
   const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/'
   if (path.startsWith('/onboarding')) return true

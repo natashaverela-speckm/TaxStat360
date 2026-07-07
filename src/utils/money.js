@@ -188,6 +188,7 @@ export function formatRelativeTime(isoStr) {
     if (diff < 86400)      return Math.floor(diff / 3600) + 'h ago'
     return formatTimestamp(new Date(isoStr))
   } catch {
+    // M5 (audit F-10): invalid timestamp → caller renders nothing rather than "NaN ago".
     return null
   }
 }
