@@ -28,8 +28,13 @@
 // rotation point is the achievable win here. Keeping the key out of the bundle
 // entirely requires a small server-side relay — tracked in KNOWN_LIMITATIONS.md
 // (OBS-5) as an owner decision.
-export const WEB3FORMS_ACCESS_KEY =
-  import.meta.env.VITE_WEB3FORMS_KEY || '0dfbc9fa-5311-4762-bdee-99e4221561ed'
+// OBS-5 RESOLVED (Phase 2.2c, Jul 2026): WEB3FORMS_ACCESS_KEY no longer exists
+// in the client. The key lives ONLY server-side (taxstat360-api env
+// WEB3FORMS_ACCESS_KEY); all form/alert submissions go through
+// POST {API_BASE_URL}/alerts/form-relay, which attaches the key, whitelists
+// fields, and rate-limits (5/min/IP). The old key in git history should be
+// rotated in the web3forms dashboard; delete VITE_WEB3FORMS_KEY from the
+// Amplify console (owner action).
 export const MAILCHIMP_SUBSCRIBE_URL =
   'https://taxstat360.us4.list-manage.com/subscribe/post?u=c09d008a62d6587f7f0b7e6888c354e8&id=f546bd92ac&f_id=00e0e0e1f0'
 
