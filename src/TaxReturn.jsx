@@ -217,6 +217,10 @@ export default function TaxReturn() {
   const [qualDividends, setQualDividends] = useState(savedCtx.qualDividends || savedCtx.qualifiedDividends || '')
   const [unrecap1250,   setUnrecap1250]   = useState(savedCtx.unrecap1250    || '')
   const [collectibles,  setCollectibles]  = useState(savedCtx.collectiblesGain || '')
+  // PHASE 2.1: §1212(b) prior-year capital-loss carryforwards (F10/P6-1) — the
+  // first fields added through the shared manifest end-to-end.
+  const [capLossCarryST, setCapLossCarryST] = useState(savedCtx.capLossCarryforwardST || '')
+  const [capLossCarryLT, setCapLossCarryLT] = useState(savedCtx.capLossCarryforwardLT || '')
   const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
   // F5 (§1231(c) lookback): prior-5-year nonrecaptured net §1231 losses
   const [nonrecap1231,  setNonrecap1231]  = useState(savedCtx.nonrecap1231   || '')
@@ -359,6 +363,7 @@ export default function TaxReturn() {
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
+      capLossCarryforwardST: nf(capLossCarryST), capLossCarryforwardLT: nf(capLossCarryLT),  // §1212(b)
       divInc: nf(dividends) + ccorp.dividends, qualDiv: nf(qualDividends) + ccorp.dividends, f4797Inc: form4797Total,
       taxableSS: 0, iraIncome: 0,
       selfEmpHealthIns: nf(selfEmpHealthIns), hsaDeduction: nf(hsaDeduction),
@@ -396,7 +401,7 @@ export default function TaxReturn() {
     estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
@@ -445,6 +450,7 @@ export default function TaxReturn() {
       filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
+      capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
       isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
       rentalAggregationElection,   // F6 (§1.469-9(g) election)
@@ -458,7 +464,7 @@ export default function TaxReturn() {
     })
   }, [
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -509,6 +515,7 @@ export default function TaxReturn() {
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
         unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
+        capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
         isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
         rentalAggregationElection,   // F6 (§1.469-9(g) election)
@@ -538,7 +545,7 @@ export default function TaxReturn() {
     taxYear, entities, sessionK1, filingStatus, dependents,
     w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends,
-    unrecap1250, collectibles, form4797, nonrecap1231,
+    unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -1221,6 +1228,20 @@ export default function TaxReturn() {
                   <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income — not at ordinary rates." />
                 </label>
                 <MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
+              </div>
+              <div style={inpWrap}>
+                <label htmlFor="tr-caploss-st" style={inputLbl}>
+                  Capital Loss Carryforward — Short-Term
+                  <InfoTip text="Unused short-term capital loss carried from last year's Schedule D. Nets against this year's gains; up to $3,000 of any remaining net loss ($1,500 married filing separately) offsets other income, and the rest carries forward again (IRC §1211(b), §1212(b))." />
+                </label>
+                <MoneyInput id="tr-caploss-st" value={capLossCarryST} onChange={setCapLossCarryST} placeholder="0" nonNegative />
+              </div>
+              <div style={inpWrap}>
+                <label htmlFor="tr-caploss-lt" style={inputLbl}>
+                  Capital Loss Carryforward — Long-Term
+                  <InfoTip text="Unused long-term capital loss carried from last year's Schedule D. Enter as a positive number — it reduces this year's gains before the §1211(b) $3,000 limit applies." />
+                </label>
+                <MoneyInput id="tr-caploss-lt" value={capLossCarryLT} onChange={setCapLossCarryLT} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-interest" style={inputLbl}>Interest Income (Schedule B)</label>
