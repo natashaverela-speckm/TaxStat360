@@ -89,6 +89,18 @@ describe('manifest — normalize coercion (per-kind, quirks pinned)', () => {
     expect(readPersonalContext().ytdMonth).toBe(0)
   })
 
+  it('CHAR: write-side ltGain←capitalGains alias — the load path no longer manufactures ltGain:0 (Phase 2.2 latent-bug fix)', () => {
+    sessionStorage.clear()
+    writePersonalContext(normalizeF1040({ capitalGains: '-80000' }))
+    const raw = JSON.parse(sessionStorage.getItem('ts360_f1040'))
+    expect(raw.ltGain, 'stored blob is self-consistent').toBe(-80000)
+    expect(raw.capitalGains).toBe(-80000)
+    expect(readPersonalContext().ltGain).toBe(-80000)
+    // explicit ltGain still wins over the alias:
+    writePersonalContext({ ltGain: 5, capitalGains: 9 })
+    expect(JSON.parse(sessionStorage.getItem('ts360_f1040')).ltGain).toBe(5)
+  })
+
   it('CHAR: ltGain is deliberately OMITTED from normalize output (see manifest note)', () => {
     const out = normalizeF1040({ ltGain: 50000, capitalGains: 50000 })
     expect('ltGain' in out).toBe(false)
