@@ -22,6 +22,42 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Batch 4 (Audit Module M7 — housekeeping) — July 6, 2026
+
+### Changed — credentials & endpoints (audit F-09)
+- web3forms access key: four hardcoded copies → single `WEB3FORMS_ACCESS_KEY`
+  in integrations.js (env-overridable via VITE_WEB3FORMS_KEY). Honest scope:
+  the key still ships in the client bundle — full containment needs a server
+  relay (new OBS-5). Mailchimp subscribe URL likewise centralized.
+- Onboarding's 4 remaining bare catches justified (all fire-and-forget:
+  owner-alert emails ×2, marketing-list add, device-trust write — none may
+  block a signup). The architecture-invariants bare-catch check now runs with
+  ZERO exceptions.
+
+### Removed — dead code (audit OBS-4, resolved)
+- The ts360_loaded_record hydration branch and ts360_connecting_entity session
+  fallback in CalculateTaxInner (readers with no writers anywhere in src/),
+  plus their sessionState accessors. Live hydration paths unchanged.
+
+### Fixed — encoding (audit F-12)
+- 751 mojibake sequences repaired (Â§→§, â€"→—, …): taxCalc.js comments (746)
+  and Admin.jsx (5 — four were VISIBLE admin-page strings: "Deletingâ¦" etc.).
+  Verified comment/UI-string-only: zero code tokens changed; full suite green.
+
+### Changed — dependencies
+- `npm audit fix` (non-breaking only): 11 → 5 vulnerabilities; form-data (HIGH,
+  CRLF injection) and ws (HIGH, memory disclosure) among those resolved.
+  package-lock.json updated. Remaining 5 (incl. vitest CRITICAL, vite HIGH) are
+  dev-tooling issues requiring semver-MAJOR upgrades — they do not ship in the
+  customer bundle; queued as a dedicated tooling-upgrade task.
+
+### Documented
+- Aria's fmtUSD is NOT a fmt() duplicate (prose-friendly "-$500" vs accounting
+  "($500)") — kept deliberately, annotated. VITE_GMAPS_KEY has no remaining
+  code use and can be deleted from Amplify env vars (owner console action).
+
+---
+
 ## Batch 3 (Audit Modules M5 + M6) — July 6, 2026
 
 Internal-quality batch: zero customer-visible changes, zero flow files touched.

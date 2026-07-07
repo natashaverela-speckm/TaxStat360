@@ -99,13 +99,22 @@ derivation rule (recommended) — this changes displayed figures on the
 AIAnalysis surfaces that use `getEntityNetProfit()` for records lacking a
 stored net.
 
-## OBS-4 — Dead session-key fallbacks (readers with no writers)
+## OBS-4 — Dead session-key fallbacks — RESOLVED (M7, Jul 2026)
 
-`ts360_loaded_record` and `ts360_connecting_entity` are read in
-CalculateTaxInner via sessionState accessors, but nothing in src/ writes
-either key — the writing flows were removed in earlier refactors. The reads
-are inert fallbacks preserved for safety; removal is queued as audit
-module M7.
+`ts360_loaded_record` and `ts360_connecting_entity` were read in
+CalculateTaxInner but written nowhere in src/. The dead reads and their
+accessors were removed in Batch 4 (M7); the live hydration paths (C-04
+canonical Step-1 state; OAuth ?entity= URL param) are unchanged.
+
+## OBS-5 — web3forms key ships in the client bundle
+
+The owner-alert/contact-form key now has a single home
+(`WEB3FORMS_ACCESS_KEY` in integrations.js, env-overridable via
+VITE_WEB3FORMS_KEY) — but as a client-side app, whatever key is built ships
+in the served JS bundle and is extractable. Consequence: a third party could
+send submissions through the form endpoint (spam risk, not data risk — the
+key only submits, it cannot read). Full fix requires a small server-side
+relay (e.g. a Lambda that holds the key). Owner decision; low urgency.
 
 ## Defect SIM-1 — What-If Simulator awaiting functional repair
 
