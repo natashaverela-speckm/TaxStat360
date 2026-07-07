@@ -22,6 +22,39 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Pass-6 remediation, Phase 1.2 (audit F10 / P6-1): §1211(b) capital-loss limitation — July 7, 2026
+
+The one material tax defect confirmed by the sixth (verification) pass. Net
+capital losses previously flowed into gross income unclamped — an $80,000 LTCG
+loss on a $200,000 W-2 understated fedTax by $18,444, the under-quarterlies +
+§6654-penalty direction for the product's investor base.
+
+- `src/constants.js` — new statutory constants `CAP_LOSS_ORDINARY_LIMIT`
+  ($3,000, IRC §1211(b)(1)) and `CAP_LOSS_ORDINARY_LIMIT_MFS` ($1,500),
+  single-sourced per the M1 pattern (unindexed; not TAX_TABLES entries).
+- `src/taxCalc.js` — Schedule D netting block after the gain assembly: ST/LT
+  pools net internally (new engine-ready inputs `capLossCarryforwardST/LT`
+  join their pool), opposite signs cross-absorb, combined net loss clamps at
+  the §1211(b) limit; §1212(b) carryover retains character (ST absorbed
+  first). Downstream consumers repointed: both `preRentalAGI` branches,
+  `grossIncomeBeforeNOL`, NIIT's net-gain term, and every preferential-rate
+  consumer (`prefIncome`, `totalPrefIncome`, `_ltcgClamped`, the calcAMT
+  ltGain param) now see the netted LT figure — which also corrects the
+  pre-existing over-carve of the preferential bucket in mixed
+  ST-loss/LT-gain years. `eblOverallCapGainNI` deliberately unchanged (see
+  KNOWN_LIMITATIONS 1211-1231-NETTING, registered with this change). New
+  outputs for display surfaces: `capitalGainNetIncluded`,
+  `capLossCarryoverST/LT/Total`.
+- `src/taxCalc-1211-capital-loss.test.js` — 10 new SPEC tests, hand-computed
+  against the Rev. Proc. 2025-32 tables: the $18,444 headline case, MFS
+  $1,500, under-limit full deduction, statutory boundary, §1212(b)
+  character split, mixed-year preferential correction, carryforward-input
+  netting, gains-side hand-exact regression, §1411 MAGI/NIIT interaction,
+  and the A4-style YTD round-trip. Suite: 548 → 558, all passing.
+- UI persistence of the carryforward inputs deliberately deferred to the
+  Phase-2 shared field manifest (adding a persisted field currently touches
+  five hand-synced lists — see Pass-6 finding P6-2).
+
 ## Batch 7 (Decision queue: SIM-1, D-03, disclaimer, OBS-1/3/7/9) — July 7, 2026
 
 Customer-visible batch — every change below was individually approved.
