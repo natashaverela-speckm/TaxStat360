@@ -4,7 +4,7 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
+import { readXeroRefresh, writeXeroRefresh, writeDirtyFlag } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
@@ -1724,6 +1724,7 @@ export default function CalculateTaxInner() {
       // C-Corps skipped, charitable NOT netted per F-13 — see sumK1FlowThrough).
       const k1Total = sumK1FlowThrough(next)
       writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
+      writeDirtyFlag(true)  // D-3: entity edits dirty the session
       return next
     })
   }, [])
@@ -1785,6 +1786,7 @@ export default function CalculateTaxInner() {
     // layer in TaxReturn) and the F-13 charitable rule live in sumK1FlowThrough.
     const k1Total = sumK1FlowThrough(entities)
     writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
+    writeDirtyFlag(true)  // D-3
     writeTaxYear(taxYear)
     return k1Total
   }, [entities, taxYear])
@@ -1845,6 +1847,7 @@ export default function CalculateTaxInner() {
 
     try {
       await syncRecordToServer(record)
+      writeDirtyFlag(false)  // D-3: saved = clean
       writeActiveRecord(record.id, record.name || record.savedAt)
       setSaveStatus('saved')
       // AUDIT-2 FIX (completes the snapshot infra added above): a successful
