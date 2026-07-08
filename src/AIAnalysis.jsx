@@ -362,7 +362,7 @@ function NoData({ tab = 'risk' }) {
       <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 420, margin: '0 auto 8px' }}>
         {info.desc}
       </div>
-      <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 20, lineHeight: 1.5 }}>
         Complete Step 1 (business info) and Step 2 (personal return) in the Tax Tracker to unlock this — takes about 5 minutes.
       </div>
       <button onClick={() => window.location.href = '/calculate-tax'}
@@ -782,7 +782,7 @@ function RiskScan({ rec }) {
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>{FEATURE_AUDIT_RISK_SCAN} Results</h3>
         <p style={{ fontSize: 13, color: SL, margin: '0 0 8px' }}>Based on your saved record. These findings are specific to your situation.</p>
-        <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
           These indicators reflect common patterns associated with IRS scrutiny — they are not a prediction of audit selection or probability. The IRS uses proprietary scoring and methods not publicly disclosed. Consult a licensed tax professional before making any filing decisions.
         </p>
       </div>
@@ -1131,14 +1131,14 @@ function TaxOptimization({ rec }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 700, color: N, fontSize: 14 }}>{o.title}</span>
                       {o.saving && <span style={{ fontSize: 11, background: '#F0FDF4', color: G, border: '1px solid #86EFAC', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Save ~{fmt(o.saving)}</span>}
-                      <span style={{ fontSize: 10, background: c.bg, color: c.badge, border: '1px solid ' + c.border, borderRadius: 10, padding: '2px 8px', fontWeight: 700, textTransform: 'uppercase' }}>{o.priority} impact</span>
+                      <span style={{ fontSize: 11, background: c.bg, color: c.badge, border: '1px solid ' + c.border, borderRadius: 10, padding: '2px 8px', fontWeight: 700, textTransform: 'uppercase' }}>{o.priority} impact</span>
                     </div>
                   </div>
                 </div>
                 <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{o.detail}</p>
               </div>
               <div style={{ padding: '12px 20px', background: '#F8FAFC' }}>
-                <div style={{ fontSize: 12, color: N, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 13, color: N, lineHeight: 1.6 }}>
                   <strong style={{ color: B }}>How to apply:</strong> {o.howTo}
                 </div>
               </div>
@@ -1380,12 +1380,12 @@ function IRSCompliance({ rec }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 700, background: s.status === 'required' ? '#EFF6FF' : '#F0FDF4', color: s.status === 'required' ? B : G, border: '1px solid ' + (s.status === 'required' ? '#BFDBFE' : '#86EFAC'), borderRadius: 4, padding: '1px 7px' }}>{s.form}</span>
               {/* F21 FIX: coverage badge */}
-              <span style={{ fontSize: 10, fontWeight: 700, background: s.covered ? '#F0FDF4' : '#FFFBEB', color: s.covered ? '#166534' : '#78350F', border: '1px solid ' + (s.covered ? '#86EFAC' : '#FDE68A'), borderRadius: 4, padding: '1px 7px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, background: s.covered ? '#F0FDF4' : '#FFFBEB', color: s.covered ? '#166534' : '#78350F', border: '1px solid ' + (s.covered ? '#86EFAC' : '#FDE68A'), borderRadius: 4, padding: '1px 7px' }}>
                 {s.covered ? '✓ Data entered' : '⚠ Review needed'}
               </span>
             </div>
             <div style={{ fontWeight: 700, color: N, fontSize: 13, marginBottom: 4 }}>{s.title}</div>
-            <div style={{ fontSize: 12, color: SL, lineHeight: 1.5, marginBottom: 6 }}>{s.detail}</div>
+            <div style={{ fontSize: 13, color: SL, lineHeight: 1.5, marginBottom: 6 }}>{s.detail}</div>
             <div style={{ fontSize: 11, color: '#64748B' }}>📅 {s.deadline}</div>
           </div>
         ))}
@@ -1731,7 +1731,7 @@ function BriefingModal({ onClose, rec }) {
           ))}
         </div>
 
-        <div style={{ fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 13, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
           Auto-generated from your TaxStat360 data · Planning estimate only — not professional tax advice and not for filing. Consult a licensed tax professional before filing.
         </div>
       </div>
@@ -1926,7 +1926,7 @@ function SimulatorModal({ onClose, rec }) {
             (previous versions displayed unreliable values here). Your saved records and
             your Step 2 tax estimate are unaffected — this notice applies to the What-If
             Simulator only.
-            <div style={{fontSize:10,opacity:0.7,marginTop:4,fontFamily:'monospace'}}>{simError}</div>
+            <div style={{fontSize: 11,opacity:0.7,marginTop:4,fontFamily:'monospace'}}>{simError}</div>
           </div>
         )}
         {activeScenario && !simError && (
@@ -1993,7 +1993,7 @@ function SimulatorModal({ onClose, rec }) {
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>Difference: <strong style={{color: scenario.fedTax < step2Estimate ? '#059669' : '#DC2626'}}>{scenario.fedTax < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round(scenario.fedTax - step2Estimate)))}</strong></span>
-                <span style={{fontSize:10,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
+                <span style={{fontSize: 11,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
               </div>
             )}
           </>
@@ -2323,7 +2323,7 @@ export default function AIAnalysis() {
             <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 6 }}>INPUT COMPLETENESS</div>
             <div style={{ fontSize: 32, fontWeight: 800, color: score >= 80 ? G : score >= 50 ? O : R, lineHeight: 1 }}>{score}%</div>
             {score === 0 ? (
-              <div style={{ fontSize: 11, color: SL, marginTop: 8, maxWidth: 160, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 13, color: SL, marginTop: 8, maxWidth: 160, lineHeight: 1.5 }}>
                 Add your income in{' '}
                 <span
                   onClick={() => navigate('/calculate-tax')}
