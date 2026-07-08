@@ -22,6 +22,38 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 3.2: top savings levers on dashboard record cards — July 8, 2026
+
+Each saved record's card now answers "why come back?" before it is opened:
+up to two engine-verified levers, ranked compliance → savings → information,
+plus current-law engine figures in the summary strip.
+
+- `src/utils/topLevers.js` (NEW) — lever detection with a hard rule inherited
+  from the audits: this module computes NO tax figures. Every lever embeds a
+  field the engine already emitted via summarizeRecord (Phase 2.2):
+  reasonable-comp trigger (alert, ranked first — audit risk outranks money),
+  realized S-Corp SE/FICA savings (worded as "is saving", per the verified
+  engine semantics — the hypothetical "could save" election pitch remains
+  AIAnalysis's, via its shared single-source estimator), balance due +
+  §6654 quarterly plan, §1212(b) carryover banked, §469 suspended losses.
+  Capped at 2 per card; never throws on malformed legacy records.
+- `src/Dashboard.jsx` — the lever chips render under each card's summary
+  strip (amber/green/slate by tone). F24 UPGRADE riding along: the strip's
+  liability, effective rate, and quarterly figures are now the ENGINE's
+  current-law numbers when the record summarizes cleanly (the same cure R-2
+  applied to AIAnalysis and 3.1 applied to Step 1) — so a record saved before
+  a tax fix (e.g. §1211(b)) shows the corrected figure on the card, matching
+  Load & Continue; F24's approxIncome rate remains the guard-rejection
+  fallback. OWNER-VISIBLE: cards for pre-fix records may show different
+  (correct) numbers than before this deploy.
+- `src/utils/calcSelector.js` — hardening found by the lever tests: entities
+  that are not an array (malformed legacy record) now yield { ok:false }
+  instead of throwing while building the engine input.
+- `src/utils/topLevers.test.js` (NEW) — 6 tests: ranking (compliance first),
+  engine-figure embedding verbatim, realized-not-pitch wording, §1212(b)
+  carryover lever, cap, never-throws, and the summarizeRecord equality
+  INVARIANT. Suite: 592 → 598; build and lint clean.
+
 ## Phase 3.1: live provisional federal estimate on Step 1 — July 8, 2026
 
 The first Phase-3 payoff item: as a user enters entities on Step 1, the
