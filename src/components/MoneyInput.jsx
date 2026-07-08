@@ -26,9 +26,20 @@
 
 import { useState, useEffect } from 'react'
 
+// PHASE 4 HOUSEKEEPING (D-12/D-13, Jul 8 2026): this component now serves ALL
+// three former implementations. Superset props added for the Step-1/Step-2
+// adapters: nonNegative (Step 2's flag name; also clamps at blur and strips
+// minus while typing), onError (Step 2's invalid-blur messaging), onClick
+// (Step 2 passthrough), and coerceEmptyBlurToZero (Step 2's nf('')===0 blur
+// semantics — an empty field normalizes to '0' on blur there, and must keep
+// doing so). Absent these props, behavior is exactly the Phase-2.5 contract
+// the simulator ships with. One deliberate micro-unification, documented in
+// the CHANGELOG: a lone '-' at blur now clears everywhere (Step 1 previously
+// left it in place — strictly worse UX, pinned nowhere).
 export default function MoneyInput({
   value, onChange, placeholder, style, disabled, id,
-  allowNegative = true, ariaLabel,
+  allowNegative = true, nonNegative = false, ariaLabel,
+  onClick, onError, coerceEmptyBlurToZero = false,
 }) {
   const [raw, setRaw] = useState(value || '')
   const [focused, setFocused] = useState(false)
@@ -48,7 +59,8 @@ export default function MoneyInput({
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
-    const stripped = allowNegative
+    const allowNeg = !nonNegative && allowNegative !== false
+    const stripped = allowNeg
       ? input.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, '')
       : input.value.replace(/[^0-9]/g, '')
     const isNeg = stripped.startsWith('-')
@@ -59,6 +71,7 @@ export default function MoneyInput({
 
     setRaw(formatted)
     onChange(stripped)
+    if (onError) onError('')
 
     requestAnimationFrame(() => {
       if (input && document.activeElement === input) {
@@ -72,13 +85,20 @@ export default function MoneyInput({
 
   const handleBlur = () => {
     setFocused(false)
-    const n = parseFloat(String(raw).replace(/,/g, ''))
+    let n = parseFloat(String(raw).replace(/,/g, ''))
+    if (!Number.isFinite(n) && raw === '' && coerceEmptyBlurToZero) n = 0
     if (Number.isFinite(n)) {
-      setRaw(n.toLocaleString('en-US', { maximumFractionDigits: 0 }))
-      onChange(String(n))
+      const safeN = nonNegative ? Math.max(0, n) : n
+      setRaw(safeN.toLocaleString('en-US', { maximumFractionDigits: 0 }))
+      onChange(String(safeN))
+      if (onError) onError('')
     } else if (raw === '-' || raw === '') {
       setRaw('')
       onChange('')
+    } else {
+      setRaw('')
+      onChange('')
+      if (onError) onError('Enter a number \u2265 0')
     }
   }
 
@@ -94,6 +114,7 @@ export default function MoneyInput({
       onChange={handleChange}
       onFocus={() => setFocused(true)}
       onBlur={handleBlur}
+      onClick={onClick}
       style={style}
     />
   )
