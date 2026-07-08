@@ -22,6 +22,26 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.2c-r1 (OBS-5 revision): alert relay sends via SES — July 7, 2026 (backend-only)
+
+Live verification of 2.2c found two defects, both fixed the same day:
+(1) web3forms rejects server-side submissions on the free plan — the Batch-6
+relay spec was untestable-as-written against the vendor's actual policy; and
+(2) the r0 relay surfaced that rejection as HTTP 200 {"success": false} — a
+silent failure (the Landing form showed "sent" while nothing sent).
+
+- Backend `app/main.py` — the relay now sends the email itself via SES (same
+  transport and verified sender as the reset/verify emails): no third party,
+  no key anywhere, destination env-overridable (ALERT_TO_EMAIL, default
+  support@taxstat360.com), Reply-To = submitter, send failure = loud 502.
+  Whitelist/caps/subject/5-min limit unchanged.
+- `tests/test_form_relay.py` rewritten for the SES contract (Source,
+  Destination, Reply-To presence/absence, cap enforcement inside the body,
+  loud-502, 429). Backend suite steady at 53.
+- NO frontend changes — call sites already post to the relay. KNOWN_LIMITATIONS
+  OBS-5 note amended. The WEB3FORMS_ACCESS_KEY service env var is now inert;
+  the web3forms account can be deactivated instead of rotated.
+
 ## Phase 2.2c (OBS-5): form-key relay — July 7, 2026 (frontend half; backend in taxstat360-api)
 
 The web3forms access key no longer ships in the served bundle. Implemented
