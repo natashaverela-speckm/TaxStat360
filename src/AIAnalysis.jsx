@@ -1899,7 +1899,7 @@ function SimulatorModal({ onClose, rec }) {
         {activeScenario === 'custom' && (
           <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'14px 18px',marginBottom:16}}>
             <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:10}}>ENTER CHANGES (+ to add, - to reduce)</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))',gap:10}}>
               {[
                 ['Advertising ($)', 'advertising'],
                 ['Depreciation / Equip ($)', 'depreciation'],
@@ -1931,7 +1931,10 @@ function SimulatorModal({ onClose, rec }) {
         )}
         {activeScenario && !simError && (
           <>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            {/* PHASE 3.4 (mobile check D1): auto-fit columns — the fixed 1fr 1fr
+                pair forced min-content wider than the modal on phones, clipping
+                the left panel off-screen; now the panels stack under ~560px. */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:12,marginBottom:14}}>
               <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>{entity.toUpperCase()} — ENTITY LEVEL</div>
                 {row(FINANCIAL_LABELS.grossReceipts,     baseline.rev,        scenario.rev)}
@@ -2121,10 +2124,14 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {tools.map(t => {
+          // PHASE 3.4 (mobile check D1): flexWrap + a real flex-basis on the text
+          // column — on a phone the fixed icon+button columns were squeezing the
+          // description to one word per line; the button now wraps below the text
+          // when the row can't fit.
           const card = (
-            <div key={t.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+            <div key={t.title} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px', display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ fontSize: 48, flexShrink: 0 }}>{t.icon}</div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                 <div style={{ fontWeight: 700, color: N, fontSize: 16, marginBottom: 6 }}>{t.title}</div>
                 <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, marginBottom: t.checklist || t.gateMsg ? 10 : 0 }}>{t.desc}</div>
                 {/* F20 FIX: gate warning */}
