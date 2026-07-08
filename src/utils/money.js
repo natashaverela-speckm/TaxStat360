@@ -192,3 +192,13 @@ export function formatRelativeTime(isoStr) {
     return null
   }
 }
+
+/** PHASE 3.3 (UX F15): the effective-rate DISPLAY label, single-sourced so
+ *  every surface words a loss year identically. A rate divided by non-positive
+ *  AGI is not "0%" and not "—" — it is not meaningful, and the honest label
+ *  says why. Returns a STRING ready to render. */
+export function effRateLabel(totalTax, agi) {
+  const a = nf(agi)
+  if (a <= 0) return 'n/a (loss year)'
+  return pct(effectiveRate(nf(totalTax), a))
+}
