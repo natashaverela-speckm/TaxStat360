@@ -72,9 +72,20 @@ function OAuthCallback() {
 function AuthFooter() {
   const year = new Date().getFullYear()
   const link = { color: '#64748B', textDecoration: 'none', fontWeight: 600 }
+  // PHASE 3.4 (mobile check B1): Step 1 has its own fixed bottom action bar
+  // (Save / Continue, zIndex 70) occupying the same strip as this fixed footer
+  // (zIndex 50) — on phones the wrapped legal text poked out from under the
+  // bar mid-sentence. On that route the footer renders IN FLOW at the end of
+  // the document with clearance below, so the full disclaimer scrolls into
+  // view above the bar; every other page keeps the fixed strip.
+  const { pathname } = useLocation()
+  const hasActionBar = pathname === '/calculate-tax'
   return (
     <div style={{
-      position:'fixed',bottom:0,left:0,right:0,background:'#fff',
+      ...(hasActionBar
+        ? { position: 'static', margin: '24px 0 92px' }
+        : { position: 'fixed', bottom: 0, left: 0, right: 0 }),
+      background:'#fff',
       borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',
       justifyContent:'center',flexWrap:'wrap',gap:12,padding:'6px 24px',
       fontSize:12,color:SL,zIndex:50,
