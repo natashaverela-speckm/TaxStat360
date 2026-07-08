@@ -921,3 +921,16 @@ export function writeXeroRefresh(val) { localStorage.setItem('ts360_xero_refresh
 export function readOnboardingEntityType() { return localStorage.getItem('ts360_entityType') }
 // D-05: writeOnboardingEntityType removed — its only caller was the deleted
 // pre-audit onboarding funnel.
+
+// ── D-3 (A) Explicit sync (owner-approved Jul 8 2026): the dirty flag ─────────
+// True when the working session has edits not yet saved to a record. Set by
+// the Step-1/Step-2 persist effects, cleared on successful save and on record
+// load (a fresh load IS the baseline). Read by the Dashboard before loading a
+// different record over unsaved work, and by TaxReturn's beforeunload guard.
+const DIRTY_KEY = 'ts360_dirty'
+export function writeDirtyFlag(v) {
+  try { sessionStorage.setItem(DIRTY_KEY, v ? '1' : '') } catch { /* private mode */ }
+}
+export function readDirtyFlag() {
+  try { return sessionStorage.getItem(DIRTY_KEY) === '1' } catch { return false }
+}
