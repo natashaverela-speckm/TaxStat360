@@ -16,6 +16,8 @@ import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
 // PHASE 2.2: engine-true figures for card gating — cures R-2 (local AGI drift)
 import { summarizeRecord } from './utils/calcSelector.js'
+// PHASE 2.5 (M8 disposition): simulator inputs join the live-comma standard.
+import MoneyInput from './components/MoneyInput.jsx'
 import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
@@ -1908,7 +1910,7 @@ function SimulatorModal({ onClose, rec }) {
               ].map(([label, key]) => (
                 <div key={key}>
                   <label style={{fontSize:11,fontWeight:700,color:'#64748B',display:'block',marginBottom:3}}>{label}</label>
-                  <input type="number" value={delta[key]||0} onChange={e=>setDelta(d=>({...d,[key]:nf(e.target.value)||0}))}
+                  <MoneyInput id={`sim-delta-${key}`} ariaLabel={label} value={delta[key]||0} onChange={v=>setDelta(d=>({...d,[key]:nf(v)||0}))}
                     style={{width:'100%',padding:'8px 10px',border:'1.5px solid #E2E8F0',borderRadius:7,fontSize:14,fontWeight:600,color:'#0D1B3E',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} />
                 </div>
               ))}
