@@ -1494,7 +1494,7 @@ function ReportModal({ onClose, rec }) {
   )
 }
 
-function BriefingModal({ onClose, rec }) {
+export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (briefing === engine)
   const [copied, setCopied] = useState(false)
   if (!rec) {
     return (
@@ -1521,7 +1521,14 @@ function BriefingModal({ onClose, rec }) {
 
   const k1 = num(rec.k1Income)
   const w2 = getTotalW2(rec)
-  const officerSal = num(b.officerSalary)
+  // T-2 FIX (Jul 8 2026): officer comp lives PER-ENTITY on modern records; the
+  // legacy rec.biz field is only a fallback. Reading only the legacy field made
+  // multi-entity briefings assert "no officer W-2 compensation on file" against
+  // entities carrying real officer comp — a false audit-risk claim in a
+  // document built to hand to a CPA.
+  const officerSal = num(b.officerSalary) ||
+    (Array.isArray(rec.entities) ? rec.entities : []).reduce(
+      (t, e) => t + (e ? num(e.officerW2 ?? (e.pnl && e.pnl.officerSalary)) : 0), 0)
   const estPay = num(f.estPaid)
   const rentalIncome = num(b.rentalIncome) || num(f.rentalIncome)
   const rentalExpenses = num(f.rentalExpenses)
@@ -1530,7 +1537,7 @@ function BriefingModal({ onClose, rec }) {
   const interest = num(f.interest)
   const dividends = num(f.dividends)
   const otherInc = num(f.otherIncome)
-  const totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
+  const _fb_totalIncome = k1 + w2 + capitalGains + interest + dividends + rentalNet + otherInc
 
   const stdDed = getStdDed(year, filing)
   // AI-6 FIX: read the user's itemized-deduction election from the session so the
@@ -1541,32 +1548,49 @@ function BriefingModal({ onClose, rec }) {
   const briefingDeductionLabel = (briefingUseItemized && briefingItemizedAmt > stdDed)
     ? `Itemized deductions (Schedule A)`
     : `Standard deduction (${filingLabel})`
-  const taxableBeforeQBI = taxableIncomeBeforeQBI(totalIncome, year, filing, {
+  const _fb_taxableBeforeQBI = taxableIncomeBeforeQBI(_fb_totalIncome, year, filing, {
     useItemized: briefingUseItemized,
     itemizedAmt: briefingItemizedAmt,
   })
-  const { deduction: qbi } = resolveQbiDeduction({
+  const { deduction: _fb_qbi } = resolveQbiDeduction({
     k1,
-    taxableBeforeQBI,
+    taxableBeforeQBI: _fb_taxableBeforeQBI,
     entityType: b.entityType,
     filing,
     taxYear: year,
     entities: rec.entities || [],
   })
-  const taxable = Math.max(0, taxableBeforeQBI - qbi)
-  const fedTax = calcFederalTax(taxable, year, filing)
-  const marginalRate = getMarginalRate(taxable, year, filing)
+  const _fb_taxable = Math.max(0, _fb_taxableBeforeQBI - _fb_qbi)
+  const _fb_fedTax = calcFederalTax(_fb_taxable, year, filing)
+  const _fb_marginalRate = getMarginalRate(_fb_taxable, year, filing)
   // CC-F1 FIX: read SE tax from the persisted engine output instead of recomputing
   // it independently. The engine computes SE tax on seNetIncome (aggregate across all
   // entities, after §164(f) adjustments) while the prior inline calc used raw k1Income,
   // causing divergence on multi-entity returns. rec.seTax is written by TaxReturn.jsx
   // buildRecord() when Step 2 is saved; fall back to 0 for old records that predate this.
-  const seTax = num(rec.seTax) || 0
-  const totalFedTax = fedTax + seTax
-  const effectiveRate = totalIncome > 0 ? totalFedTax / totalIncome : 0
-  const quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(totalFedTax / 4)
+  const _fb_seTax = num(rec.seTax) || 0
+  const _fb_totalFedTax = _fb_fedTax + _fb_seTax
+  const _fb_effectiveRate = _fb_totalIncome > 0 ? _fb_totalFedTax / _fb_totalIncome : 0
+  const _fb_quarterly = (rec.quarterly > 0) ? rec.quarterly : Math.round(_fb_totalFedTax / 4)
 
   const entities = (Array.isArray(rec.entities) ? rec.entities : []).filter(Boolean)
+
+  // T-2 FIX (the pin's finding, Jul 8 2026): the briefing's stated position is
+  // now THE ENGINE's — summarizeRecord (Phase 2.2), the same cure applied to
+  // AIAnalysis cards (R-2), Step 1 (3.1), and the dashboard (3.2). The locally
+  // assembled _fb_* figures remain solely as the guard-rejection fallback for
+  // malformed legacy records. On the pin's multi-entity fixture the local math
+  // was $14,400 high AND asserted a false reasonable-comp claim.
+  const _eng = summarizeRecord(rec)
+  const totalIncome   = _eng.ok ? _eng.grossIncome      : _fb_totalIncome
+  const qbi           = _eng.ok ? _eng.qbi              : _fb_qbi
+  const taxable       = _eng.ok ? _eng.taxableAfterQBI  : _fb_taxable
+  const fedTax        = _eng.ok ? _eng.fedTax           : _fb_fedTax
+  const marginalRate  = _eng.ok && _eng.marginalRate ? _eng.marginalRate : _fb_marginalRate
+  const seTax         = _eng.ok ? _eng.seTax            : _fb_seTax
+  const totalFedTax   = _eng.ok ? _eng.totalTax         : _fb_totalFedTax
+  const effectiveRate = _eng.ok && _eng.agi > 0 ? _eng.totalTax / _eng.agi : _fb_effectiveRate
+  const quarterly     = _eng.ok && (_eng.quarterlyRecommended || 0) > 0 ? _eng.quarterlyRecommended : _fb_quarterly
 
   const points = []
   if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 0) {
