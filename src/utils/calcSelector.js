@@ -81,7 +81,10 @@ function _summarize(engineInput) {
  */
 export function summarizeRecord(rec) {
   const pc = normalizeF1040((rec && rec.f1040) || {})
-  const entities = (rec && rec.entities) || []
+  // Phase 3.2 hardening: a malformed legacy record (entities not an array)
+  // must yield { ok:false }, never a throw — the guard below only catches
+  // engine errors, so the input must be safe to BUILD as well as to run.
+  const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
   return _summarize({
     ...toEngineContext(pc, entities, -1),   // -1 ⇒ exclude nothing: whole return
     ..._wholeReturnExtras(pc, entities),
@@ -107,6 +110,6 @@ export function selectTaxSummary() {
  *  from, so invariant tests can prove summary === direct engine call. */
 export function buildRecordEngineInput(rec) {
   const pc = normalizeF1040((rec && rec.f1040) || {})
-  const entities = (rec && rec.entities) || []
+  const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
   return { ...toEngineContext(pc, entities, -1), ..._wholeReturnExtras(pc, entities) }
 }
