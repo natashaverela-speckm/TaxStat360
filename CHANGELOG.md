@@ -22,6 +22,33 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 3.1: live provisional federal estimate on Step 1 — July 8, 2026
+
+The first Phase-3 payoff item: as a user enters entities on Step 1, the
+footer now shows their provisional federal liability, live per keystroke —
+computed by THE ENGINE via selectTaxSummary() (Phase 2.2), so the figure is
+Step 2's figure by construction.
+
+- `src/CalculateTaxInner.jsx` — new exported Step1EstimateBadge (house
+  pattern: testable standalone like ManualEntryPanel) rendered in the footer
+  next to the existing "flowing to your return" figure. Display contract:
+  a blank form shows the neutral "full federal estimate in Step 2" pointer
+  (empty is NOT a loss year — F15's principle applied both ways, a
+  distinction the tests caught during development); a genuine loss year gets
+  words ("loss year — no regular federal tax on these figures"), never a bare
+  $0 or dash; otherwise "provisional federal estimate $X (Y% of AGI)" with
+  aria-live="polite" for screen readers. HISTORY NOTE: this footer previously
+  showed flowing income only, under a comment forbidding "a provisional tax
+  number from a second code path"; that constraint dissolved when the
+  selector became the engine's own code path, and the comment now records
+  both the old rule and why it retired.
+- `src/CalculateTaxInner.test.jsx` — 4 new tests, led by the engine-equality
+  INVARIANT (badge dollar figure === selectTaxSummary().totalTax verbatim);
+  plus loss-year wording, empty-form neutrality, and entities-raise-the-
+  estimate. The file's EntityCompareModal mock became a partial mock
+  (importOriginal) so toEngineContext stays real. Suite: 588 → 592; build
+  and lint clean.
+
 ## Phase 2.5 (M8 disposition): MoneyInput decision + simulator gap — July 8, 2026
 
 OWNER DECISION (Jul 8, on the record): live thousands-separator formatting —
