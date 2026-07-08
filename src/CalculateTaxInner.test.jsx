@@ -21,11 +21,20 @@ import { render, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('./LockedFeature', () => ({ default: () => null, isPro: () => true }))
-vi.mock('./EntityCompareModal', () => ({ default: () => null }))
+// Partial mock: the modal COMPONENT is stubbed (heavy render tree), but the
+// module's toEngineContext export must stay real — the Phase-2.2 selector
+// (and therefore the Phase-3.1 badge under test) is built on it.
+vi.mock('./EntityCompareModal', async (importOriginal) => {
+  const real = await importOriginal()
+  return { ...real, default: () => null }
+})
 vi.mock('./utils/apiClient.js', () => ({ apiFetch: vi.fn() }))
 vi.mock('./utils/signOut', () => ({ signOut: vi.fn() }))
 
-import { ManualEntryPanel, entityResultLabel } from './CalculateTaxInner.jsx'
+import { ManualEntryPanel, entityResultLabel, Step1EstimateBadge } from './CalculateTaxInner.jsx'
+import { writePersonalContext, writeStep1State, normalizeF1040 } from './utils/sessionState.js'
+import { selectTaxSummary } from './utils/calcSelector.js'
+import { fmt } from './utils/money.js'
 
 const lastUpdate = (spy) => spy.mock.calls[spy.mock.calls.length - 1]
 
@@ -115,5 +124,50 @@ describe('Category A — entityResultLabel says "K-1" ONLY for K-1 issuers', () 
   it('unknown / empty type falls back to plain "Net" (no K-1)', () => {
     expect(entityResultLabel('')).toBe('Net')
     expect(entityResultLabel(undefined)).toBe('Net')
+  })
+})
+
+describe('Phase 3.1 — Step1EstimateBadge: the live provisional estimate is the ENGINE figure', () => {
+  const seed = (f1040, entities = []) => {
+    sessionStorage.clear()
+    writePersonalContext(normalizeF1040(f1040))
+    writeStep1State({ entities, entitiesRaw: entities, k1Total: 0, isCoopPatron: false })
+  }
+
+  it('INVARIANT: the badge dollar figure equals selectTaxSummary().totalTax verbatim', () => {
+    seed({ filingStatus: 'single', taxYear: 2026, w2Income: 200000 })
+    const expected = selectTaxSummary()
+    expect(expected.ok).toBe(true)
+    const { container } = render(<Step1EstimateBadge entities={[]} />)
+    expect(container.textContent).toContain('provisional federal estimate')
+    expect(container.textContent).toContain(fmt(expected.totalTax))
+    // and the figure is a real liability, not a placeholder
+    expect(expected.totalTax).toBeGreaterThan(30000)
+  })
+
+  it('F15 principle: a loss year gets words, never a bare $0 or dash', () => {
+    seed({ filingStatus: 'single', taxYear: 2026, w2Income: 0, capitalGains: -80000 })
+    const { container } = render(<Step1EstimateBadge entities={[]} />)
+    expect(container.textContent).toContain('loss year')
+    expect(container.textContent).toContain('details in Step 2')
+    expect(container.textContent).not.toContain('$0')
+  })
+
+  it('CHAR: an EMPTY session shows the neutral pointer — a blank form is not a "loss year"', () => {
+    sessionStorage.clear()
+    const { container } = render(<Step1EstimateBadge entities={[]} />)
+    expect(container.textContent).toContain('full federal estimate in Step 2')
+    expect(container.textContent).not.toContain('loss year')
+  })
+
+  it('CHAR: entities flow into the figure (S-Corp K-1 raises the estimate)', () => {
+    seed({ filingStatus: 'single', taxYear: 2026, w2Income: 100000 })
+    const base = selectTaxSummary().totalTax
+    const ent = [{ name: 'Ops', type: 'S Corporation', own: 100, k1: 150000, netProfit: 150000, officerW2: 60000 }]
+    seed({ filingStatus: 'single', taxYear: 2026, w2Income: 100000 }, ent)
+    const withEnt = selectTaxSummary()
+    expect(withEnt.totalTax).toBeGreaterThan(base)
+    const { container } = render(<Step1EstimateBadge entities={ent} />)
+    expect(container.textContent).toContain(fmt(withEnt.totalTax))
   })
 })
