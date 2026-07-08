@@ -22,6 +22,35 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 4, batch 3: T-2 closed + record-operation audit trail — July 8, 2026
+
+Two ledger items closed, one of which turned out to be far bigger than its
+ticket said.
+
+- T-2 (open since the Phase-1 ledger as "a $200 briefing/Tracker delta"):
+  writing the long-owed equality pin EXPOSED the real defect — on
+  multi-entity records the CPA Briefing assembled its own figures from the
+  legacy single-entity rec.biz shape, ignoring per-entity officer W-2
+  entirely. Pin fixture: briefing said $33,662 where the engine computes
+  $19,262 (a $14,400 disagreement), AND asserted "no officer W-2 compensation
+  on file" against an entity carrying $60,000 — a false audit-risk claim in a
+  document built to hand to a CPA. FIX: the briefing's stated federal
+  position is now the ENGINE's via summarizeRecord (the fourth application of
+  the R-2 cure: AIAnalysis cards → Step 1 → dashboard → briefing), with the
+  local math retained solely as guard-rejection fallback; officer comp reads
+  per-entity with the legacy field as fallback. `src/AIAnalysis.jsx`
+  (BriefingModal exported for testability); NEW
+  `src/utils/briefingPin.test.jsx` — 2 tests: engine-figure verbatim
+  embedding + composition, and the false-claim regression fence. Suite
+  599 → 601.
+- Backend (taxstat360-api): record-operation audit trail — the observability
+  gap the Jul-8 forensics drill exposed (record deletions left NO audit
+  entry; a "where did my records go?" cost an hour instead of one lookup).
+  Deleting a record now writes a `record.delete` row carrying the recordId
+  AND record name; a 409 identity mismatch writes `identity.mismatch` (the
+  D-1 signature deserves a permanent trail). NEW tests/test_records_audit.py
+  (3 tests); backend suite 53 → 56.
+
 ## Phase 4 housekeeping, batch 2: the two UX-audit remainders (F7 + F16) — July 8, 2026
 
 Unblocked by recovering the UX audit's exact backlog text from the engagement
