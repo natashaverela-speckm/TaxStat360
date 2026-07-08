@@ -178,3 +178,58 @@ describe('calc179Limitation — §179(b)(3) business-income limitation', () => {
     expect(calc179Limitation().k1Capped).toBe(0)
   })
 })
+
+// ═══ T-3 (owner-approved Jul 8 2026): §179(b)(1)/(b)(2) DOLLAR LIMITATION ═══
+// SPEC tests — every expected value hand-computed from the cited primary source.
+describe('SPEC §179(b)(1)/(b)(2) — annual dollar limitation and phase-out', () => {
+  const ample = { k1NonPassive: 9_000_000, w2Income: 0 }
+  const ent = (sec179) => [{ box11_12: sec179, pnl: {} }]
+
+  it('SPEC-179D-1 [Rev. Proc. 2025-32]: 2026 elected $3.0M, ample income → allowed $2,560,000; $440,000 disallowed', () => {
+    const r = calc179Limitation({ ...ample, entities: ent(3_000_000), taxYear: 2026 })
+    expect(r.sec179DollarLimit).toBe(2_560_000)
+    expect(r.sec179Allowed).toBe(2_560_000)
+    expect(r.sec179Disallowed).toBe(440_000)
+  })
+
+  it('SPEC-179D-2 [§179(b)(2)]: 2026 elected $4.3M → reduction $210K → limit $2,350,000', () => {
+    const r = calc179Limitation({ ...ample, entities: ent(4_300_000), taxYear: 2026 })
+    expect(r.phaseOutReduction).toBe(210_000)   // 4,300,000 − 4,090,000
+    expect(r.sec179DollarLimit).toBe(2_350_000) // 2,560,000 − 210,000
+    expect(r.sec179Allowed).toBe(2_350_000)
+  })
+
+  it('SPEC-179D-3 [§179(b)(2)]: 2026 elected $6.65M → limit fully phased out to $0', () => {
+    const r = calc179Limitation({ ...ample, entities: ent(6_650_000), taxYear: 2026 })
+    expect(r.phaseOutReduction).toBe(2_560_000)
+    expect(r.sec179DollarLimit).toBe(0)
+    expect(r.sec179Allowed).toBe(0)
+    expect(r.sec179Disallowed).toBe(6_650_000)
+  })
+
+  it('SPEC-179D-4 [interaction]: below the cap the (b)(3) income limit still governs — elected $500K, pre-§179 income $400K → allowed $400K', () => {
+    // Contract note: k1NonPassive arrives NET of §179 (the function adds the
+    // election back). Pre-§179 active income of $400K with a $500K election
+    // therefore means k1NonPassive = 400,000 − 500,000 = −100,000.
+    const r = calc179Limitation({ k1NonPassive: -100_000, w2Income: 0, entities: ent(500_000), taxYear: 2026 })
+    expect(r.sec179DollarLimit).toBe(2_560_000)
+    expect(r.sec179Allowed).toBe(400_000)       // income limit binds, not the dollar limit
+    expect(r.sec179Disallowed).toBe(100_000)    // carries forward per §179(b)(3)(B)
+  })
+
+  it('SPEC-179D-5 [P.L. 119-21 §70306]: 2025 statutory reset — elected $2.6M → allowed $2,500,000', () => {
+    const r = calc179Limitation({ ...ample, entities: ent(2_600_000), taxYear: 2025 })
+    expect(r.sec179Allowed).toBe(2_500_000)
+  })
+
+  it('SPEC-179D-6 [Rev. Proc. 2023-34]: 2024 — elected $1.3M → allowed $1,220,000', () => {
+    const r = calc179Limitation({ ...ample, entities: ent(1_300_000), taxYear: 2024 })
+    expect(r.sec179Allowed).toBe(1_220_000)
+  })
+
+  it('SPEC-179D-7 [regression]: under-cap elections are untouched — the pre-T-3 contract holds exactly', () => {
+    const r = calc179Limitation({ k1NonPassive: 300_000, w2Income: 80_000, entities: ent(50_000), taxYear: 2026 })
+    expect(r.sec179Allowed).toBe(50_000)
+    expect(r.sec179Disallowed).toBe(0)
+  })
+})

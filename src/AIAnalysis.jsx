@@ -171,7 +171,7 @@ function getRecord(liveState) {
     const {
       totalSec179, sec179Allowed, sec179Disallowed,
       activeBusinessIncome, k1Capped,
-    } = calc179Limitation({ k1NonPassive: k1, entities, w2Income: f1040.w2Income })
+    } = calc179Limitation({ k1NonPassive: k1, entities, w2Income: f1040.w2Income, taxYear: readTaxYear() })
     const taxyear = readTaxYear()
     // SIMULATOR-FIX: same primary-entity selection and widened gate as the
     // liveState branch above. When entity[0] is a rental with basis-suspended

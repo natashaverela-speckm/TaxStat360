@@ -87,6 +87,7 @@ import { nf } from './utils/money.js'
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
+    sec179: { cap: 1220000, phaseOutStart: 3050000 },  // Rev. Proc. 2023-34 §3.26
     ssWageBase: 168600,
     brackets: {
       single: [[11600,.10],[47150,.12],[100525,.22],[191950,.24],[243725,.32],[609350,.35],[Infinity,.37]],
@@ -129,6 +130,7 @@ const TAX_TABLES = {
   },
   2025: {
     std: { single: 15750, mfj: 31500, mfs: 15750, hoh: 23625, qss: 31500 },
+    sec179: { cap: 2500000, phaseOutStart: 4000000 },  // P.L. 119-21 (OBBBA) §70306 statutory reset
     ssWageBase: 176100,
     brackets: {
       single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
@@ -172,6 +174,7 @@ const TAX_TABLES = {
   // against IRS Rev. Proc. for tax year 2026 before each filing season.
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
+    sec179: { cap: 2560000, phaseOutStart: 4090000 },  // Rev. Proc. 2025-32 (§179(b)(6) indexing)
     ssWageBase: 184500,
     // AUDIT F-1 FIX (Jul 2026): prior values were pre-official projections that missed
     // OBBBA's asymmetric adjustment (+4% bottom two brackets, ~+2.3% upper). Every
@@ -295,7 +298,10 @@ const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
 // The only difference is null-hardening (e?.box11_12 where the inline read
 // e.box11_12), which changes behavior solely in would-have-crashed cases.
 //
-// NOT MODELED (documented in KNOWN_LIMITATIONS.md): the §179(b)(1)/(b)(2)
+// MODELED as of Jul 8 2026 (T-3, owner-approved): the §179(b)(1)/(b)(2)
+// dollar limitation and phase-out — see the block inside the function. The
+// paragraph below is retained as history of the prior limitation:
+// PREVIOUSLY NOT MODELED: the §179(b)(1)/(b)(2)
 // dollar limitation and investment phase-out. This function implements only
 // the business-income limitation.
 //
@@ -304,19 +310,35 @@ const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
 // proxy and subtracted again in k1Capped, so it never reduces K-1 ordinary
 // income. Net effect: k1Capped = k1NonPassive + sec179Disallowed (a disallowed
 // §179 amount does not reduce this year's income; it carries forward).
-function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0 } = {}) {
+function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0, taxYear = 2026 } = {}) {
   const list = Array.isArray(entities) ? entities : []
   const totalSec179          = list.reduce((s, e) => s + nf(e?.box11_12), 0)
   const totalBox12_13        = list.reduce((s, e) => s + nf(e?.box12_13), 0)
   const k1ActiveIncome       = k1NonPassive + totalSec179 + totalBox12_13
   const totalOfficerSalary   = list.reduce((s, e) => s + nf(e?.pnl?.officerSalary), 0)
   const activeBusinessIncome = Math.max(0, k1ActiveIncome + (nf(w2Income) || 0) + totalOfficerSalary)
-  const sec179Allowed        = Math.min(totalSec179, activeBusinessIncome)
-  const sec179Disallowed     = Math.max(0, totalSec179 - activeBusinessIncome)
+  // T-3 (owner-approved Jul 8 2026): §179(b)(1)/(b)(2) DOLLAR LIMITATION.
+  // Annual cap reduced dollar-for-dollar by property placed in service above
+  // the phase-out threshold (TAX_TABLES[year].sec179, primary-source-cited).
+  // PROXY CAVEAT (documented in KNOWN_LIMITATIONS.md): the app does not
+  // separately collect total §179 property placed in service, so the elected
+  // total stands in for it. Since placed-in-service >= elected, the true
+  // reduction can only be LARGER; above the threshold the real limit may be
+  // lower than modeled. Below the threshold the proxy is exact.
+  const sec179Table       = (TAX_TABLES[taxYear] || TAX_TABLES[2026]).sec179 || { cap: Infinity, phaseOutStart: Infinity }
+  const phaseOutReduction = Math.max(0, totalSec179 - sec179Table.phaseOutStart)
+  const sec179DollarLimit = Math.max(0, sec179Table.cap - phaseOutReduction)
+  // Order of operations: the (b)(1)/(b)(2) dollar limit binds first, then the
+  // (b)(3) business-income limit. Disallowed = elected − allowed (income-
+  // limited amounts carry forward under §179(b)(3)(B); an election above the
+  // dollar limit is simply not permitted).
+  const sec179Allowed        = Math.min(totalSec179, sec179DollarLimit, activeBusinessIncome)
+  const sec179Disallowed     = Math.max(0, totalSec179 - sec179Allowed)
   const k1Capped             = k1ActiveIncome - sec179Allowed - totalBox12_13
   return {
     totalSec179, totalBox12_13, k1ActiveIncome, totalOfficerSalary,
-    activeBusinessIncome, sec179Allowed, sec179Disallowed, k1Capped,
+    activeBusinessIncome, sec179DollarLimit, phaseOutReduction,
+    sec179Allowed, sec179Disallowed, k1Capped,
   }
 }
 
