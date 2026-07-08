@@ -624,7 +624,13 @@ export default function Dashboard() {
 
       {/* UX AUDIT F15 (Jul 2026): main landmark so screen-reader users can jump
           past the nav/banners straight to the records. */}
-      <main aria-label="Dashboard" style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
+      <main id="main-content" aria-label="Dashboard" style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
+        {/* PHASE 3.3: the page's missing h1 — visually hidden (the Dashboard's
+            design has no on-screen title) so assistive tech gets a proper
+            document outline; "My Saved Records" below remains a correct h2. */}
+        <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
+          Tax Planning Dashboard
+        </h1>
 
         {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
@@ -846,7 +852,11 @@ export default function Dashboard() {
                     {/* Effective rate */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
-                      {effRateFinal !== null ? (
+                      {engOk && eng.agi <= 0 ? (
+                        /* PHASE 3.3 (UX F15): a loss year is not "—" and not "0.0%" —
+                           the honest label, single-sourced wording (see effRateLabel). */
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>n/a (loss year)</div>
+                      ) : effRateFinal !== null ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateFinal}%</div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B' }}>—</div>

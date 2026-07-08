@@ -543,6 +543,16 @@ function CookieBanner() {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* PHASE 3.3 (semantic pass): skip link — visually hidden until keyboard
+          focus, jumps past the nav to each page's <main id="main-content">. */}
+      <a
+        href="#main-content"
+        style={{ position: 'absolute', left: -9999, top: 8, zIndex: 1000, background: '#0D1B3E', color: '#fff', padding: '10px 18px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}
+        onFocus={e => { e.currentTarget.style.left = '8px' }}
+        onBlur={e => { e.currentTarget.style.left = '-9999px' }}
+      >
+        Skip to main content
+      </a>
       <RouteTitle />
       <CookieBanner />
       <Routes>

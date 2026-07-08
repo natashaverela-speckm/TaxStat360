@@ -2152,7 +2152,8 @@ export default function CalculateTaxInner() {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 20px 120px' }}>
+      {/* PHASE 3.3: semantic <main> landmark — skip-link target, zero visual change. */}
+      <main id="main-content" style={{ maxWidth: 780, margin: '0 auto', padding: '32px 20px 120px' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
@@ -2345,7 +2346,7 @@ export default function CalculateTaxInner() {
             ⚖ Compare Entity Structures
           </button>
         )}
-      </div>
+      </main>
 
       {/* P0 FIX: Ask Aria widget is position:fixed bottom-right (~60x60px at bottom:16 right:16).
           The prior `right: 80` offset left a visual gap on desktop and still caused overlap on
