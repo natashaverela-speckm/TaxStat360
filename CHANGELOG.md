@@ -22,6 +22,23 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.4: build-toolchain upgrade — July 8, 2026
+
+Dedicated upgrade session per the remediation plan (the 5 outstanding
+npm-audit findings — 1 critical, 1 high, 3 moderate — all lived in the dev
+toolchain).
+
+- vite 5.4 → 6.4.3, vitest 2.1 → 3.2.7, jsdom 25 → 26.1.0,
+  @vitejs/plugin-react 4.3.1 → 4.7.0. `npm audit`: 0 vulnerabilities.
+- ZERO source or config changes required: all 582 tests, the production
+  build, and lint (0 errors / 24-warning baseline) pass untouched on the new
+  majors — the per-file `@vitest-environment jsdom` pragma pattern and the
+  vitest.config.js shape carry over as-is.
+- Files changed: package.json and package-lock.json only. Deliberately
+  conservative target (vite 6 line, not 7) so the Amplify build image's Node
+  requirement stays comfortably satisfied; the vite-7 hop can ride a future
+  session once the build image's Node version is confirmed.
+
 ## Phase 2.2c-r1 (OBS-5 revision): alert relay sends via SES — July 7, 2026 (backend-only)
 
 Live verification of 2.2c found two defects, both fixed the same day:
