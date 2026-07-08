@@ -47,7 +47,7 @@
 
 import React, { useState, useEffect } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
-import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readSubscriptionIncomplete } from './utils/sessionState.js'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readSubscriptionIncomplete, readDirtyFlag, writeDirtyFlag, readActiveRecordName } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
@@ -393,7 +393,22 @@ export default function Dashboard() {
     reasonableCompAlert: { triggered: false, ratio: 100, message: '' },
   }
 
+  // D-3 (A): loading a record over unsaved working changes is the one action
+  // that actually destroys them (session state persists per keystroke, but a
+  // load replaces it). One explicit confirm; loading establishes a clean
+  // baseline (dirty cleared).
+  const confirmOverwriteDirty = (verb) => {
+    if (!readDirtyFlag()) return true
+    const name = readActiveRecordName()
+    return window.confirm(
+      `You have unsaved changes${name ? ` to "${name}"` : ''} in the Tax Tracker. ` +
+      `${verb} will replace them. Continue?`
+    )
+  }
+
   const loadRecord = (rec) => {
+    if (!confirmOverwriteDirty('Loading this record')) return
+    writeDirtyFlag(false)
     setLoadedRecord(rec)
     setSavedRecordId(rec.id)
     if (rec.biz) {
@@ -514,6 +529,8 @@ export default function Dashboard() {
   }
 
   const startNewCalc = () => {
+    if (!confirmOverwriteDirty('Starting a new calculation')) return
+    writeDirtyFlag(false)
     clearStep1State()
     setSavedRecordId(null)
     setLoadedRecord(null)
@@ -543,6 +560,8 @@ export default function Dashboard() {
     { label: 'Partnership / LLC',     icon: '🤝', desc: 'K-1 distributive share' },
   ]
   const startNewCalcWithPreset = (label) => {
+    if (!confirmOverwriteDirty('Starting a new calculation')) return
+    writeDirtyFlag(false)
     clearStep1State()
     setSavedRecordId(null)
     setLoadedRecord(null)

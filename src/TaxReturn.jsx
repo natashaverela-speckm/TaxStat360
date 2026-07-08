@@ -12,7 +12,8 @@ import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
   readStep1State, readUserRecords, syncRecordToServer,
-  readActiveRecordId, writeActiveRecord,
+  readActiveRecordId, writeActiveRecord, readActiveRecordName,
+  readDirtyFlag, writeDirtyFlag,
 } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard — validated before every
@@ -394,7 +395,12 @@ export default function TaxReturn() {
   const result    = calcOutcome.result
   const calcError = calcOutcome.calcError
 
+  // D-3: any persisted edit marks the session dirty (initial mount excluded —
+  // loading a record IS the clean baseline). Cleared by doSave / record load.
+  const _dirtyMountRef = useRef(false)
   useEffect(() => {
+    if (_dirtyMountRef.current) writeDirtyFlag(true)
+    else _dirtyMountRef.current = true
     writePersonalContext({
       filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
@@ -423,15 +429,18 @@ export default function TaxReturn() {
     priorSuspendedLoss,
   ])
 
-  const buildRecord = useCallback(() => {
+  const buildRecord = useCallback(({ forceNew = false, newName = null } = {}) => {
     const existing = readUserRecords()
     // F-FUNC-02: upsert the loaded record in place rather than forking a new id
     // on every Step-2 save (mirrors CalculateTaxInner.handleSaveRecord).
-    const activeId    = readActiveRecordId()
+    // D-3 (A) Explicit sync (Jul 8 2026): forceNew branches to a fresh id/name —
+    // the "Save as new record" path of the save-choice dialog. The silent
+    // in-place overwrite is no longer reachable without the user choosing it.
+    const activeId    = forceNew ? null : readActiveRecordId()
     const existingIdx = activeId != null
       ? existing.findIndex(r => String(r.id) === String(activeId))
       : -1
-    const priorName   = existingIdx >= 0 ? (existing[existingIdx].name || null) : null
+    const priorName   = forceNew ? (newName || null) : (existingIdx >= 0 ? (existing[existingIdx].name || null) : null)
     const recordId    = existingIdx >= 0 ? existing[existingIdx].id : Date.now()
     const record = {
       id: recordId,
@@ -502,41 +511,58 @@ export default function TaxReturn() {
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
   ])
 
-  const handleSave = useCallback(async () => {
-    if (saveStatus === 'saving') return
-    setSaveStatus('saving')
+  // D-3 (A): the actual save, parameterized by the user's explicit choice.
+  const doSave = useCallback(async (opts = {}, after = 'stay') => {
+    const setStatus = after === 'analyze' ? setAnalyzeStatus : setSaveStatus
+    setStatus('saving')
     setSaveError(null)
     try {
-      const record = buildRecord()
+      const record = buildRecord(opts)
       await syncRecordToServer(record)
       writeActiveRecord(record.id, record.name || record.savedAt)
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 3000)
+      writeDirtyFlag(false)
+      if (after === 'analyze') {
+        setAnalyzeStatus('idle')
+        navigate('/ai-analysis', { state: { record } })
+      } else {
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      }
     } catch (err) {
-      console.error('TaxReturn handleSave error:', err)
-      setSaveStatus('error')
+      console.error('TaxReturn doSave error:', err)
+      setStatus('error')
       setSaveError('Save failed — please try again.')
-      setTimeout(() => { setSaveStatus('idle'); setSaveError(null) }, 5000)
+      setTimeout(() => { setStatus('idle'); setSaveError(null) }, 5000)
     }
-  }, [saveStatus, buildRecord])
+  }, [buildRecord, navigate])
+
+  // D-3 (A) Explicit sync: with a record loaded, "Save" opens a choice —
+  // update the loaded record, or save as a new one — instead of silently
+  // overwriting (the F13 finding). With no record loaded, saving proceeds
+  // directly as before.
+  const [saveChoice, setSaveChoice] = useState(null)   // null | 'stay' | 'analyze'
+  const [saveAsName, setSaveAsName] = useState('')
+
+  const handleSave = useCallback(async () => {
+    if (saveStatus === 'saving') return
+    if (readActiveRecordId()) { setSaveAsName(''); setSaveChoice('stay'); return }
+    doSave({}, 'stay')
+  }, [saveStatus, doSave])
 
   const handleSaveAndAnalyze = useCallback(async () => {
     if (analyzeStatus === 'saving') return
-    setAnalyzeStatus('saving')
-    setSaveError(null)
-    try {
-      const record = buildRecord()
-      await syncRecordToServer(record)
-      writeActiveRecord(record.id, record.name || record.savedAt)
-      setAnalyzeStatus('idle')
-      navigate('/ai-analysis', { state: { record } })
-    } catch (err) {
-      console.error('TaxReturn handleSaveAndAnalyze error:', err)
-      setAnalyzeStatus('error')
-      setSaveError('Save failed — could not navigate to analysis. Please try again.')
-      setTimeout(() => { setAnalyzeStatus('idle'); setSaveError(null) }, 5000)
+    if (readActiveRecordId()) { setSaveAsName(''); setSaveChoice('analyze'); return }
+    doSave({}, 'analyze')
+  }, [analyzeStatus, doSave])
+
+  // D-3: tab-close/refresh guard while dirty (session state does not survive).
+  useEffect(() => {
+    const onBeforeUnload = (ev) => {
+      if (readDirtyFlag()) { ev.preventDefault(); ev.returnValue = '' }
     }
-  }, [analyzeStatus, buildRecord, navigate])
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
 
   const stdDed      = getStdDed(taxYear, filingStatus)
   const hasResult   = !!result && result.totalTax >= 0
@@ -1969,6 +1995,42 @@ export default function TaxReturn() {
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       </main>
+
+      {/* ── D-3 (A) Explicit sync: the save-choice dialog ── */}
+      {saveChoice !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,62,0.55)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '26px 28px', maxWidth: 460, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: N, marginBottom: 8 }}>Save your changes</div>
+            <p style={{ fontSize: 13, color: SL, lineHeight: 1.5, margin: '0 0 16px' }}>
+              You loaded <strong style={{ color: N }}>{readActiveRecordName() || 'a saved record'}</strong>. Update it with these changes, or keep it as-is and save this as a new record?
+            </p>
+            <button
+              onClick={() => { const after = saveChoice; setSaveChoice(null); doSave({}, after) }}
+              style={{ width: '100%', padding: '11px', background: N, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}
+            >
+              Update “{readActiveRecordName() || 'loaded record'}”
+            </button>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                value={saveAsName}
+                onChange={ev => setSaveAsName(ev.target.value)}
+                placeholder="New record name (optional)"
+                aria-label="New record name"
+                style={{ flex: 1, padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+              />
+              <button
+                onClick={() => { const after = saveChoice; setSaveChoice(null); doSave({ forceNew: true, newName: saveAsName.trim() || null }, after) }}
+                style={{ padding: '10px 16px', background: '#fff', color: B, border: `1.5px solid ${B}`, borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Save as new
+              </button>
+            </div>
+            <button onClick={() => setSaveChoice(null)} style={{ width: '100%', padding: '8px', background: 'none', color: SL, border: 'none', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

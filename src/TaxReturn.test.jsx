@@ -85,6 +85,11 @@ vi.mock('./utils/sessionState.js', () => ({
   writeActiveRecord: vi.fn(),
   readPlan: vi.fn(() => 'starter'),
   writePlan: vi.fn(),
+  // D-3 (A) explicit sync: dirty flag + active-record name used by the
+  // save-choice dialog and the beforeunload guard.
+  readActiveRecordName: vi.fn(() => ''),
+  readDirtyFlag: vi.fn(() => false),
+  writeDirtyFlag: vi.fn(),
 }))
 
 vi.mock('./components/DismissibleNotice', () => ({
@@ -540,5 +545,34 @@ describe('TaxReturn — R-1: §1211(b) capital-loss reconciliation row', () => {
   it('hides the row entirely when there is no carryover', () => {
     const { queryByText } = renderTaxReturn()   // default mock: no capLossCarryoverTotal key
     expect(queryByText('Capital Loss Limited (§1211(b))')).toBeNull()
+  })
+})
+
+// ═══ D-3 (A) EXPLICIT SYNC (owner-approved Jul 8 2026) ═══════════════════════
+// The contract: with a record LOADED, "Save This Record" must open the choice
+// dialog (update vs save-as-new) — the silent in-place overwrite of the F13
+// finding must be unreachable without an explicit user choice. With no record
+// loaded, saving proceeds directly (no dialog).
+import { fireEvent, screen } from '@testing-library/react'
+import { readActiveRecordId, readActiveRecordName, syncRecordToServer } from './utils/sessionState.js'
+
+describe('D-3 (A) — explicit sync: no silent overwrite of a loaded record', () => {
+  it('Save with an active record opens the choice dialog instead of saving', async () => {
+    readActiveRecordId.mockReturnValue('424242')
+    readActiveRecordName.mockReturnValue('2026 Baseline')
+    renderTaxReturn()
+    fireEvent.click(screen.getByText('Save This Record'))
+    expect(await screen.findByText('Save your changes')).toBeTruthy()
+    expect(screen.getByText(/Update .*2026 Baseline/)).toBeTruthy()
+    expect(screen.getByText('Save as new')).toBeTruthy()
+    expect(screen.getByText('Cancel')).toBeTruthy()
+    expect(syncRecordToServer).not.toHaveBeenCalled()   // nothing saved yet — the user must choose
+  })
+
+  it('Save with NO active record does not open the dialog (direct save, as before)', () => {
+    readActiveRecordId.mockReturnValue(null)
+    renderTaxReturn()
+    fireEvent.click(screen.getByText('Save This Record'))
+    expect(screen.queryByText('Save your changes')).toBeNull()
   })
 })
