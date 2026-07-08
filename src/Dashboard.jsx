@@ -50,6 +50,8 @@ import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readSubscriptionIncomplete } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
+// PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
+import { topLeversForRecord } from './utils/topLevers.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
 import { parseMoney, nf } from './utils/money.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
@@ -733,6 +735,11 @@ export default function Dashboard() {
               const step2Computed = rec.step2Computed === true || totalTax > 0
               const isActive       = activeRecordId && String(rec.id) === activeRecordId
 
+              // PHASE 3.2: one engine run per card via the shared selector —
+              // levers + current-law figures. topLeversForRecord never throws;
+              // a malformed legacy record simply yields ok:false and no levers.
+              const { summary: eng, levers } = topLeversForRecord(rec)
+
               // F24 FIX: derive effective rate from saved fields for the summary strip.
               // rec.totalTax is saved by TaxReturn.jsx buildRecord(). Effective rate is
               // totalTax ÷ approximate total income. We derive income from the saved
@@ -747,6 +754,22 @@ export default function Dashboard() {
                 : step2Computed && approxIncome === 0
                   ? '0.0'
                   : null
+              // PHASE 3.2 (F24 upgrade): engine-true figures when the record
+              // summarizes cleanly — the same cure R-2 applied to AIAnalysis and
+              // 3.1 applied to Step 1. The engine recomputes under CURRENT law,
+              // so a record saved before a tax fix (e.g. §1211(b)) shows the
+              // corrected liability here, matching what Load & Continue shows.
+              // The F24 approxIncome rate remains the fallback for records the
+              // guard rejects.
+              const engOk = eng.ok && step2Computed
+              const displayTax    = engOk ? eng.totalTax : totalTax
+              const effRateFinal  = engOk && eng.agi > 0
+                ? (eng.totalTax / eng.agi * 100).toFixed(1)
+                : effRateNum
+              const quarterlyFinal = engOk && (eng.quarterlyRecommended || 0) > 0
+                ? eng.quarterlyRecommended
+                : quarterly
+
               const savedAt = rec.savedAt && rec.savedAt !== 'Current session (unsaved)'
                 ? rec.savedAt
                 : null
@@ -810,8 +833,8 @@ export default function Dashboard() {
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
                       {step2Computed ? (
-                        <div style={{ fontSize: 18, fontWeight: 800, color: totalTax > 0 ? R : '#16A34A' }}>
-                          {totalTax > 0 ? fmt(Math.round(totalTax)) : '$0'}
+                        <div style={{ fontSize: 18, fontWeight: 800, color: displayTax > 0 ? R : '#16A34A' }}>
+                          {displayTax > 0 ? fmt(Math.round(displayTax)) : '$0'}
                         </div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
@@ -823,8 +846,8 @@ export default function Dashboard() {
                     {/* Effective rate */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
-                      {effRateNum !== null ? (
-                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateNum}%</div>
+                      {effRateFinal !== null ? (
+                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{effRateFinal}%</div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B' }}>—</div>
                       )}
@@ -833,13 +856,32 @@ export default function Dashboard() {
                     {/* Quarterly */}
                     <div style={{ padding: '10px 18px', minWidth: 130 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
-                      {quarterly > 0 ? (
-                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterly))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
+                      {quarterlyFinal > 0 ? (
+                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterlyFinal))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B' }}>—</div>
                       )}
                     </div>
                   </div>
+
+                  {/* ── PHASE 3.2: top levers — engine-verified, ranked, capped at 2 ── */}
+                  {levers.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                      {levers.map(l => (
+                        <div key={l.id} style={{
+                          fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8,
+                          border: '1px solid',
+                          ...(l.tone === 'alert'
+                            ? { background: '#FFFBEB', borderColor: '#FCD34D', color: '#92400E' }
+                            : l.tone === 'save'
+                              ? { background: '#F0FDF4', borderColor: '#BBF7D0', color: '#166534' }
+                              : { background: '#F8FAFC', borderColor: '#E2E8F0', color: SL }),
+                        }}>
+                          {l.tone === 'alert' ? '⚠ ' : l.tone === 'save' ? '💰 ' : 'ℹ '}{l.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* ── Metadata row ── */}
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
