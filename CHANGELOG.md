@@ -22,6 +22,29 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 4, batch 4: §179 dollar limitation modeled (T-3, owner-approved) — July 8, 2026
+
+The last registered limitation that could UNDERSTATE tax, now closed.
+
+- `src/taxCalc.js` — calc179Limitation() models §179(b)(1)/(b)(2): the annual
+  dollar cap, reduced dollar-for-dollar by property placed in service above
+  the phase-out threshold, binding BEFORE the §179(b)(3) business-income
+  limit. New TAX_TABLES[year].sec179 entries, each cited: 2024 $1,220,000 /
+  $3,050,000 (Rev. Proc. 2023-34); 2025 $2,500,000 / $4,000,000 (P.L. 119-21
+  §70306, the OBBBA statutory reset); 2026 $2,560,000 / $4,090,000
+  (Rev. Proc. 2025-32, §179(b)(6) indexing). Callers thread taxYear
+  (`src/AIAnalysis.jsx`).
+- `src/taxCalc-sec179.test.js` — seven hand-computed SPEC tests
+  (SPEC-179D-1..7): cap bite, partial and full phase-out, dollar-vs-income
+  limit interaction, both prior-year tables, and an under-cap regression
+  pinning the pre-T-3 contract exactly. One test fixture was corrected during
+  the build after the engine (correctly) rejected my hand-math — k1NonPassive
+  arrives net of §179 by documented contract.
+- `KNOWN_LIMITATIONS.md` — 179-DOLLAR flipped to RESOLVED with the accepted
+  residual documented: elected total proxies placed-in-service in the
+  phase-out; above the threshold the true limit can be lower than modeled.
+  Suite 601 → 608.
+
 ## Phase 4, batch 3: T-2 closed + record-operation audit trail — July 8, 2026
 
 Two ledger items closed, one of which turned out to be far bigger than its
