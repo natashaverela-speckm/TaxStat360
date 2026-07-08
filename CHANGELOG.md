@@ -22,6 +22,55 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 3.4: mobile-check fixes (owner device pass, B1 + D1) — July 8, 2026
+
+The owner's real-device checklist returned 11/13 PASS; the two failures are
+fixed here. (C3/E1 were instruction ambiguities, not defects — both behaviors
+are pinned by unit tests and A3 verified F15 on-device.)
+
+- B1 — `src/App.jsx`: the app-wide fixed legal footer (zIndex 50) and Step 1's
+  fixed action bar (zIndex 70) occupied the same bottom strip; on phones the
+  wrapped disclaimer text poked out from under the bar mid-sentence. The
+  AuthFooter is now route-aware: on /calculate-tax it renders in normal flow
+  at the end of the document with 92px clearance (the full disclaimer scrolls
+  into view above the bar); every other page keeps the fixed strip unchanged.
+- D1 — `src/AIAnalysis.jsx`, two layouts that never learned about phones:
+  the tool cards' fixed icon+button columns squeezed descriptions to one word
+  per line (now flexWrap + a real 240px flex-basis on the text column, button
+  wraps below); and the simulator's fixed 1fr/1fr panel pair forced
+  min-content wider than the modal, clipping the entity panel off the left
+  edge (now auto-fit minmax(260px,1fr) — panels stack under ~560px; the delta
+  inputs likewise). Chips row already wrapped; it was clipped with the modal.
+- Suite steady at 599; build and lint clean. NOTE: this CHANGELOG upload also
+  delivers the Phase 3.3 entry, which had missed its batch.
+
+## Phase 3.3: semantic-structure pass + F15 loss-year label — July 8, 2026
+
+The accessibility items from the roadmap's UX backlog, scoped to the
+unambiguous wins (zero visual change except the F15 wording):
+
+- `src/App.jsx` — "Skip to main content" link: visually hidden until keyboard
+  focus, first element inside the router, targets each page's landmark.
+- `src/CalculateTaxInner.jsx` / `src/TaxReturn.jsx` — the content containers
+  are now semantic `<main id="main-content">` elements (the Step-1 sticky
+  action footer remains a sibling of main, correctly outside it).
+  `src/Dashboard.jsx` already had a `<main>`; it gains the skip-link id and
+  the page's missing h1 (visually hidden — the design has no on-screen title,
+  but assistive tech now gets a proper outline; "My Saved Records" remains a
+  correct h2).
+- UX F15 — `effRateLabel(totalTax, agi)` added to `src/utils/money.js` as the
+  single source of the effective-rate display wording: non-positive AGI
+  renders "n/a (loss year)" — never a bare "—" or a false "0.0%" — applied at
+  all three surfaces (Dashboard card cell, TaxReturn header badge, TaxReturn
+  summary line). New `src/utils/money.test.js` pins it.
+- DEFERRED with reasons: the "§469 explainer collapse" backlog item — the
+  candidate blocks are role="alert" compliance warnings that must not
+  collapse; needs the UX audit's precise target before touching. The
+  type-scale item likewise awaits the audit's exact prescription. Both remain
+  on the tracker.
+- Suite: 598 → 599; build clean; lint at baseline (a transient +2 from dead
+  imports was caught and pruned during the pass).
+
 ## Phase 3.2: top savings levers on dashboard record cards — July 8, 2026
 
 Each saved record's card now answers "why come back?" before it is opened:
