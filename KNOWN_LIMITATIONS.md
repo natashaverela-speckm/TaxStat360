@@ -31,17 +31,25 @@ limitation; and (c) treat a sole proprietor (§179 already inside Schedule C
 net profit — box11_12 should be blank) differently from a partnership (§179
 separately stated). See the inline block in `src/taxCalc.js` (search "SE-179").
 
-## LIMITATION 179-DOLLAR — §179(b)(1)/(b)(2) dollar limit not modeled
+## LIMITATION 179-DOLLAR — RESOLVED Jul 8 2026 (owner-approved, T-3)
 
-`calc179Limitation()` in `src/taxCalc.js` implements ONLY the §179(b)(3)
-business-income limitation (with the §179(b)(3)(B) carryover). The annual
-dollar limitation and the investment (phase-out) limitation are NOT modeled;
-a user entering §179 above the statutory dollar cap will not see it limited.
-ARCHITECTURE.md §2 previously implied §179 dollar limits lived in
-`TAX_TABLES[year]`; that table entry does not exist, and the doc now points
-here instead (audit F-03 reconciliation). Adding the dollar limit is a tax-
-behavior change: it needs `TAX_TABLES[year].sec179` entries transcribed from
-the Rev. Proc., SPEC tests, and owner sign-off.
+The §179(b)(1)/(b)(2) annual dollar limitation and investment phase-out are
+now MODELED in `calc179Limitation()` (`src/taxCalc.js`), with
+`TAX_TABLES[year].sec179` entries transcribed from primary sources — 2024:
+$1,220,000 / $3,050,000 (Rev. Proc. 2023-34); 2025: $2,500,000 / $4,000,000
+(P.L. 119-21 §70306); 2026: $2,560,000 / $4,090,000 (Rev. Proc. 2025-32) —
+and seven hand-computed SPEC tests (SPEC-179D-1..7). Order of operations:
+dollar limit binds first, then the §179(b)(3) business-income limit.
+
+RESIDUAL PROXY LIMITATION (accepted at approval): the app does not separately
+collect total §179 property placed in service, so the ELECTED total stands in
+for it in the §179(b)(2) phase-out computation. Because placed-in-service can
+only be >= the election, the true reduction can only be larger — i.e. above
+the phase-out threshold the modeled limit can OVERSTATE the allowance (and
+understate tax) for a taxpayer who places more property in service than they
+elect. Below the threshold the proxy is exact. Collecting placed-in-service
+as a separate manifest field would eliminate the residual; queued as an
+enhancement, not scheduled.
 
 ## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart
 
