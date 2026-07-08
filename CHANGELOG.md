@@ -22,6 +22,35 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 2.5 (M8 disposition): MoneyInput decision + simulator gap — July 8, 2026
+
+OWNER DECISION (Jul 8, on the record): live thousands-separator formatting —
+commas appearing as you type — is the product standard for money fields; the
+M8 cancellation is superseded by this decision, implemented as follows.
+
+Census: Steps 1 and 2 (54 fields) already had live formatting via two
+near-identical local components (the tracked D-12/D-13 duplication). The one
+user-visible gap was the What-If Simulator's four delta inputs in AIAnalysis
+(plain type="number", no commas). The compare modal's officer-comp control is
+a slider with a formatted readout — no gap.
+
+- `src/components/MoneyInput.jsx` (NEW) — the canonical shared component,
+  based on the proven Step-1 implementation: live commas, caret preservation
+  via comma-count delta + requestAnimationFrame (cursor-teleporting is the
+  bug class that parked the original M8 attempt), raw-string onChange (nf()
+  consumers unaffected), allowNegative flag, blur normalization,
+  type="text" + inputMode="decimal".
+- `src/AIAnalysis.jsx` — the four simulator delta inputs adopt MoneyInput
+  (negatives remain valid: deltas model cuts as well as raises). Styling
+  unchanged.
+- `src/components/MoneyInput.test.jsx` (NEW) — 6 tests pinning the contract,
+  including the caret regression fence (mid-number edit, caret shift equals
+  comma delta) with browser-faithful rAF-after-commit ordering.
+- The two legacy local copies re-point to the shared component during the
+  Phase-4 D-12/D-13 housekeeping — deliberately untouched now so the 54
+  working fields carry zero regression risk. Suite: 582 → 588; build and
+  lint clean.
+
 ## Phase 2.4: build-toolchain upgrade — July 8, 2026
 
 Dedicated upgrade session per the remediation plan (the 5 outstanding
