@@ -3,7 +3,7 @@
 // Users connect accounting software (QuickBooks, Xero, Wave, FreshBooks)
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { readXeroRefresh, writeXeroRefresh } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities } from './utils/sessionState.js'
@@ -24,6 +24,9 @@ import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, readIntegrationToken, writeIntegrationToken, removeIntegrationSessionToken } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
+// PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
+// the engine's own code path, so Step 1's number cannot disagree with Step 2.
+import { selectTaxSummary } from './utils/calcSelector.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet } from './utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
@@ -381,6 +384,48 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 
 // ─── Manual entry panel ───────────────────────────────────────────────────────
 // Exported for the F2 live-commit regression test (CalculateTaxInner.test.jsx).
+// PHASE 3.1 (Jul 2026): the provisional federal estimate, live on Step 1.
+// HISTORY: this footer deliberately showed only flowing income; the comment
+// that governed it read "a provisional tax number from a second code path
+// risks contradicting Step 2's engine." Phase 2.2 dissolved that constraint:
+// selectTaxSummary() IS the engine — calcTaxReturn through the whole-return
+// aggregation and the M2 guard — so the figure here is Step 2's figure, by
+// construction. Loss years get words instead of a bare $0 (the F15 principle:
+// never render a dash or zero where the honest label is "loss year").
+// Exported for direct testing (house pattern: ManualEntryPanel).
+export function Step1EstimateBadge({ entities }) {
+  // entities is the reactive dependency: updateEntity writes the session
+  // synchronously before render, so the selector always reads fresh state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const est = useMemo(() => selectTaxSummary(), [entities])
+  // Empty is not a loss year: a blank form (all zeros) gets the neutral
+  // pointer, not loss-year language — F15's principle applied both ways.
+  const nothingEntered = est.ok && est.grossIncome === 0 && est.agi === 0 && est.totalTax === 0
+  if (!est.ok || nothingEntered) {
+    return <span style={{ marginLeft: 6, color: '#94A3B8' }}>— full federal estimate in Step 2</span>
+  }
+  if (est.agi <= 0 && est.totalTax === 0) {
+    return (
+      <span aria-live="polite" style={{ marginLeft: 8 }}>
+        {'· '}<span style={{ fontWeight: 700, color: SL }}>loss year</span>
+        {' — no regular federal tax on these figures'}
+        <span style={{ color: '#94A3B8' }}> (details in Step 2)</span>
+      </span>
+    )
+  }
+  return (
+    <span aria-live="polite" style={{ marginLeft: 8 }}>
+      {'· provisional federal estimate '}
+      <span style={{ fontWeight: 800, color: N }}>{fmt(est.totalTax)}</span>
+      {est.agi > 0 && (
+        <span style={{ color: '#94A3B8' }}>
+          {` (${((est.totalTax / est.agi) * 100).toFixed(1)}% of AGI)`}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   // BUG-A ROOT FIX: the live-bind useEffect below has a stale closure on `entity`
   // because `entity` is intentionally excluded from the dep array (including it would
@@ -2319,11 +2364,12 @@ export default function CalculateTaxInner() {
           <div style={{ fontSize: 12, color: SL, flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
             {/* UX AUDIT F2 (Jul 2026): Step 1 previously showed no live figure tied
                 to the product's promise — the first number appeared only after
-                "Continue to Step 2". The footer now shows the income flowing to
-                the return, updating per keystroke via the same reduce persistStep1
-                uses (pre-§469/basis limits, so it is labeled as flowing income,
-                not liability — a provisional tax number from a second code path
-                risks contradicting Step 2's engine). */}
+                "Continue to Step 2". The footer shows the income flowing to the
+                return per keystroke, PLUS (Phase 3.1) the live provisional
+                federal estimate via selectTaxSummary(). The old prohibition —
+                "a provisional tax number from a second code path risks
+                contradicting Step 2's engine" — no longer applies: the selector
+                IS the engine's code path (Phase 2.2), one set of figures. */}
             {entities.length > 0
               ? (() => {
                   // M3 (audit F-04): same engine rule as the persisted k1Total, so
@@ -2337,7 +2383,7 @@ export default function CalculateTaxInner() {
                           · {fmt(flowing)} flowing to your return
                         </span>
                       )}
-                      <span style={{ marginLeft: 6, color: '#94A3B8' }}>— full federal estimate in Step 2</span>
+                      <Step1EstimateBadge entities={entities} />
                     </span>
                   )
                 })()
