@@ -22,6 +22,50 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 4 housekeeping, batch 2: the two UX-audit remainders (F7 + F16) — July 8, 2026
+
+Unblocked by recovering the UX audit's exact backlog text from the engagement
+transcript (no document hunt needed). Ships combined with batch 1.
+
+- UX F7 remainder — `src/CalculateTaxInner.jsx`: the long inline §469
+  explainer (the always-visible statutory wall in the rental status card) is
+  now progressively disclosed: a one-sentence plain-English summary ("Can
+  this property's losses offset your other income this year? …") with the
+  full §469(c)(7)(B)/§1.469-9(g)/§469(i) walkthrough behind a native
+  <details> — keyboard and screen-reader accessible for free. The
+  role="alert" REP hours-test warnings are deliberately NOT collapsed:
+  active compliance warnings stay visible.
+- UX F16 remainder — type-scale sweep across all four app pages
+  (Dashboard, CalculateTaxInner, TaxReturn, AIAnalysis), applying the
+  audit's definition-of-done ("no body text below 13px") mechanically:
+  every style carrying lineHeight (the body-text signature — paragraphs,
+  descriptions, explainers) raised to fontSize 13 (~60 sites); every bare
+  fontSize 10 raised to 11 (24 sites — the uppercase tracked micro-labels,
+  which are labels, not body). Chips/badges/metadata at 11–12px are
+  deliberately unchanged per the DoD's own wording.
+- Suite steady at 599; build and lint clean.
+
+## Phase 4 housekeeping, batch 1: MoneyInput consolidation (D-12/D-13) — July 8, 2026
+
+The three MoneyInput implementations become one core plus two page adapters.
+
+- `src/components/MoneyInput.jsx` — now the single home of the formatting/
+  caret state machine (the logic that must never fork). Superset props for
+  the adapters: nonNegative (typing strip + blur clamp), onError (Step 2's
+  invalid-blur message), onClick, coerceEmptyBlurToZero (Step 2's
+  nf('')===0 semantics: an empty field normalizes to '0' on blur).
+- `src/TaxReturn.jsx` / `src/CalculateTaxInner.jsx` — the 70–90-line local
+  components replaced by ~20-line adapters preserving each page's exact
+  contract: base styling (9/11 vs 10/12 padding, Step 2's zIndex overlay
+  guard), blur policies, and flag names (nonNegative vs allowNegative).
+  −~130 lines of duplicated caret logic.
+- ONE deliberate micro-unification, on the record: a lone '-' at blur now
+  clears everywhere (Step 1 previously left it in place — strictly worse UX,
+  pinned by no test, worth zero flags).
+- Fidelity proof: the full 599-test suite — including the TaxReturn and
+  Step-1 suites that drive these inputs heavily — passes unchanged; build
+  and lint clean.
+
 ## Phase 3.4: mobile-check fixes (owner device pass, B1 + D1) — July 8, 2026
 
 The owner's real-device checklist returned 11/13 PASS; the two failures are
