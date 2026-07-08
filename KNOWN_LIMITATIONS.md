@@ -20,6 +20,9 @@ Two kinds of entries live here:
 
 ## LIMITATION SE-179 — SE tax computed on pre-§179 pass-through income
 
+**RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax).
+
+
 `calcTaxReturn()` does not net separately-stated §179 (box11_12) out of
 SE-subject pass-through income (Sole Proprietor / active Partnership), so SE
 tax is OVERSTATED for a filer whose K-1 separately states §179 — most relevant
@@ -53,6 +56,9 @@ enhancement, not scheduled.
 
 ## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart
 
+**RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax; the lived-apart $12,500 allowance is shown as $0).
+
+
 `calc469iAllowance()` models MFS as $0 allowance at every MAGI level. The
 statute grants a $12,500 half-allowance to an MFS filer who lived apart from
 their spouse the entire year (§469(i)(5)(A)(ii)/(B)); the app does not collect
@@ -60,6 +66,9 @@ a lived-apart-all-year fact, so the conservative $0 default applies. This
 matches the engine's behavior since before the M1 centralization.
 
 ## LIMITATION NOL-80 — 80% cap applied to all NOL carryforwards
+
+**RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax for pre-2018 vintage carryforwards entitled to 100%).
+
 
 The §172(a)(2) 80%-of-taxable-income cap is applied to ALL entered NOL
 carryforwards as a conservative planning default. A confirmed pre-2018 NOL is
@@ -86,6 +95,9 @@ deliberately consumes the RAW (pre-§1211) figures — it models gross
 business-attributable gains, not the Schedule D result.
 
 ## LIMITATION SALT-MAGI — §164(b)(7) MAGI addbacks not modeled
+
+**RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: CAN UNDERSTATE tax for filers above the $505K MAGI phase-down threshold; ratified with that exposure stated — the affected population is thin for this product's audience and the exposure is bounded by the SALT deduction itself. Revisit if the user base shifts upmarket.
+
 
 The OBBBA SALT phase-down uses MAGI = AGI; the §911/931/933 exclusion
 addbacks are not modeled (see `getSaltCap()` in taxCalc.js).

@@ -22,6 +22,37 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Phase 4, batch 5: D-3 explicit sync + T-4 ratifications — July 8, 2026
+
+The engagement's final two decisions, executed. Owner chose (A) Explicit sync
+for save semantics and ratified all four remaining registered limitations.
+
+- D-3 (A) — no more silent overwrite (the F13 finding): with a record loaded,
+  "Save This Record" / "Save & Analyze" now open a choice dialog — Update
+  "<name>", or Save as new record (with optional name) — instead of silently
+  upserting in place. With no record loaded, saving is unchanged.
+  `src/TaxReturn.jsx` (buildRecord gains forceNew/newName; both save handlers
+  route through the dialog; doSave unifies the two paths).
+- D-3 unsaved-changes guard (the F14 finding), scoped to where loss actually
+  occurs: both steps persist per keystroke, so the destructive actions are
+  loading a record / starting a new calculation over dirty work, and closing
+  the tab. New session dirty flag (`src/utils/sessionState.js`), set by both
+  steps' persist paths, cleared on save and on load; `src/Dashboard.jsx`
+  confirms before loadRecord / startNewCalc / preset-start when dirty;
+  `src/TaxReturn.jsx` adds a beforeunload guard.
+- `src/CalculateTaxInner.jsx` — dirty wiring on the two Step-1 persist sites;
+  save clears it.
+- `src/TaxReturn.test.jsx` — 2 new contract tests: Save-with-active-record
+  opens the dialog and does NOT call syncRecordToServer until the user
+  chooses; Save-with-no-record stays direct. Suite 608 → 610.
+- T-4 — all four remaining registered limitations RATIFIED by the owner in
+  KNOWN_LIMITATIONS.md with exposure directions stated: SE-179, PAL-MFS,
+  NOL-80 (conservative), and SALT-MAGI (the one understate-direction
+  boundary, ratified with a revisit trigger recorded).
+
+With this batch, every decision and every tracked item of the consolidated
+remediation plan is either shipped or deliberately, documentedly deferred.
+
 ## Phase 4, batch 4: §179 dollar limitation modeled (T-3, owner-approved) — July 8, 2026
 
 The last registered limitation that could UNDERSTATE tax, now closed.
