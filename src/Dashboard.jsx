@@ -681,7 +681,7 @@ export default function Dashboard() {
               <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 8 }}>
                 {safeCalc.reasonableCompAlert.message}
               </div>
-              <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
+              <div style={{ fontSize: 13, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
                 <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
                 <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
@@ -795,7 +795,7 @@ export default function Dashboard() {
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#475569" strokeWidth="1.3" fill="none"/><path d="M10 2v3h3" stroke="#475569" strokeWidth="1.3" strokeLinejoin="round"/><line x1="4.5" y1="8" x2="11.5" y2="8" stroke="#475569" strokeWidth="1.3"/><line x1="4.5" y1="10.5" x2="9" y2="10.5" stroke="#475569" strokeWidth="1.3"/></svg>
                         {rec.name || (savedAt ? new Date(savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Saved Record')}
                         {isActive && (
-                          <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.03em' }}>
                             ACTIVE IN TAX TRACKER
                           </span>
                         )}
@@ -831,19 +831,19 @@ export default function Dashboard() {
                   }}>
                     {/* Tax year */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 80 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>TAX YEAR</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>TAX YEAR</div>
                       <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{taxYear}</div>
                     </div>
 
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
                       {step2Computed ? (
                         <div style={{ fontSize: 18, fontWeight: 800, color: displayTax > 0 ? R : '#16A34A' }}>
                           {displayTax > 0 ? fmt(Math.round(displayTax)) : '$0'}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
+                        <div style={{ fontSize: 13, color: '#64748B', fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
                           Complete Step 2 for estimate
                         </div>
                       )}
@@ -851,7 +851,7 @@ export default function Dashboard() {
 
                     {/* Effective rate */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
                       {engOk && eng.agi <= 0 ? (
                         /* PHASE 3.3 (UX F15): a loss year is not "—" and not "0.0%" —
                            the honest label, single-sourced wording (see effRateLabel). */
@@ -865,7 +865,7 @@ export default function Dashboard() {
 
                     {/* Quarterly */}
                     <div style={{ padding: '10px 18px', minWidth: 130 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
                       {quarterlyFinal > 0 ? (
                         <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterlyFinal))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
                       ) : (

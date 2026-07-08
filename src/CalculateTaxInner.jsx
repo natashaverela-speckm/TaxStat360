@@ -32,6 +32,7 @@ import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstate
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough } from './taxCalc.js'
 import InfoTip from './components/InfoTip.jsx'
+import SharedMoneyInput from './components/MoneyInput.jsx'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
@@ -62,69 +63,16 @@ export function entityResultLabel(type) {
 // allowNegative (default true, preserving behaviour for fields where negatives
 // are legitimate) lets P&L-modal call sites opt out; the minus key is stripped
 // before parse/format so the value can never enter state negative.
-function MoneyInput({ value, onChange, placeholder, style, disabled, id, allowNegative = true, ariaLabel }) {
-  const [raw, setRaw] = useState(value || '')
-  const [focused, setFocused] = useState(false)
-
-  useEffect(() => {
-    if (!focused) {
-      const n = parseFloat(String(value || '').replace(/,/g, ''))
-      setRaw(Number.isFinite(n) && n !== 0 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (value || ''))
-    }
-  }, [value, focused])
-
-  const handleChange = (e) => {
-    const input = e.target
-    const cursorPos = input.selectionStart
-    const prevVal = input.value
-    const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
-
-    const stripped = allowNegative
-      ? e.target.value.replace(/[^0-9-]/g, '')
-      : e.target.value.replace(/[^0-9]/g, '')   // AUDIT F9 FIX: minus not permitted
-    const isNeg = stripped.startsWith('-')
-    const digits = stripped.replace(/^-/, '')
-    const n = parseInt(digits, 10)
-    const formatted = stripped === '' ? '' : stripped === '-' ? '-' :
-      (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
-
-    setRaw(formatted)
-    onChange(stripped)
-
-    requestAnimationFrame(() => {
-      if (input && document.activeElement === input) {
-        const newCommasBefore = (formatted.slice(0, cursorPos).match(/,/g) || []).length
-        const diff = newCommasBefore - prevCommasBefore
-        const newPos = Math.max(0, Math.min(cursorPos + diff, formatted.length))
-        input.setSelectionRange(newPos, newPos)
-      }
-    })
-  }
-
-  const handleFocus = () => { setFocused(true) }
-
-  const handleBlur = () => {
-    setFocused(false)
-    const n = parseFloat(String(raw).replace(/,/g, ''))
-    if (Number.isFinite(n)) {
-      const formatted = n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-      setRaw(formatted)
-      onChange(String(n))
-    }
-  }
-
+// D-13 CONSOLIDATION (Phase-4 housekeeping, Jul 8 2026): core single-sourced
+// in src/components/MoneyInput.jsx; this adapter keeps Step 1's base styling
+// (padding 10/12) and its allowNegative flag (audit F9: minus stripped where
+// negatives are invalid). One documented micro-unification: a lone '-' now
+// clears on blur (previously stayed in place here).
+function MoneyInput({ style, disabled, ...props }) {
   return (
-    <input
-      id={id}
-      type="text"
-      inputMode="decimal"
-      aria-label={ariaLabel}
-      value={raw}
-      placeholder={placeholder || '0'}
+    <SharedMoneyInput
+      {...props}
       disabled={disabled}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
       style={{
         width: '100%', padding: '10px 12px',
         border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14,
@@ -151,7 +99,7 @@ function CompSources({ color, children }) {
       <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color, opacity: 0.8 }}>
         Why this matters &amp; sources
       </summary>
-      <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.6, color, opacity: 0.92 }}>
+      <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.6, color, opacity: 0.92 }}>
         {children}
       </div>
     </details>
@@ -760,10 +708,25 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {isRE && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F5F3FF', borderRadius: 8, border: '1px solid #DDD6FE', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#6D28D9', marginBottom: 4 }}>🏠 Rental Property — Income, Expenses & Depreciation</div>
-          <div style={{ fontSize: 11, color: '#6D28D9', marginBottom: 6, fontWeight: 500 }}>Schedule E · Passive activity rules (§469) apply</div>
-          <div style={{ color: '#334155', lineHeight: 1.5 }}>
-            Whether a net rental loss is deductible this year depends on your passive-activity status. Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than 750 hours in real-property trades or businesses AND more than half of all your personal-service hours — plus material participation in each rental (or the §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Set your status on this card. Officer compensation doesn't apply to rentals.
+          <div style={{ fontSize: 12, color: '#6D28D9', marginBottom: 6, fontWeight: 500 }}>Schedule E · Passive activity rules (§469) apply</div>
+          {/* UX F7 remainder (Phase 4 batch 2): the long inline §469 explainer is
+              now progressively disclosed — a plain-English summary always visible,
+              the full statutory walkthrough one tap away via a native <details>
+              (keyboard/screen-reader accessible for free). The role="alert" REP
+              hours-test warnings elsewhere on this card are deliberately NOT
+              collapsed — active compliance warnings must stay visible. */}
+          <div style={{ color: '#334155', lineHeight: 1.5, fontSize: 13 }}>
+            Can this property's losses offset your other income this year? It depends
+            on your passive-activity status — set it with the checkboxes on this card.
           </div>
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: 'pointer', color: '#6D28D9', fontWeight: 600, fontSize: 13 }}>
+              How the rental loss rules work
+            </summary>
+            <div style={{ color: '#334155', lineHeight: 1.5, fontSize: 13, marginTop: 6 }}>
+              Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than 750 hours in real-property trades or businesses AND more than half of all your personal-service hours — plus material participation in each rental (or the §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Officer compensation doesn't apply to rentals.
+            </div>
+          </details>
         </div>
       )}
       </>
@@ -905,12 +868,12 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {!isExpanded && (basisBadge || distBadge) && (
             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
               {basisBadge && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : basisBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : basisBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : basisBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : basisBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : basisBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : basisBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
                   {basisBadge.msg}
                 </span>
               )}
               {distBadge && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: distBadge.type === 'warn' ? '#FEF2F2' : distBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: distBadge.type === 'warn' ? R : distBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (distBadge.type === 'warn' ? '#FECACA' : distBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: distBadge.type === 'warn' ? '#FEF2F2' : distBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: distBadge.type === 'warn' ? R : distBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (distBadge.type === 'warn' ? '#FECACA' : distBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
                   {distBadge.msg}
                 </span>
               )}
@@ -921,7 +884,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             {/* UX-M1 FIX: show gross rents for RE entities in collapsed header */}
             {isRE && nf(pnl.grossRevenue) > 0 && (
-              <div style={{ fontSize: 10, color: SL, marginBottom: 1 }}>Rents {fmt(nf(pnl.grossRevenue))}</div>
+              <div style={{ fontSize: 11, color: SL, marginBottom: 1 }}>Rents {fmt(nf(pnl.grossRevenue))}</div>
             )}
             <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
@@ -1268,7 +1231,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       </div>
                     </div>
                     {Math.max(0, parseFloat(String(entity.accumulatedEP || '').replace(/,/g, '')) || 0) > 0 && (
-                      <div style={{ marginTop: 6, padding: '6px 9px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11, color: '#1E3A8A', lineHeight: 1.5 }}>
+                      <div style={{ marginTop: 6, padding: '6px 9px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 13, color: '#1E3A8A', lineHeight: 1.5 }}>
                         §1368(c) ordering active: distributions beyond AAA are taxable dividends to the
                         extent of E&amp;P (reported on the 1040 as qualified dividends) and do not reduce
                         stock basis. Consider whether a §1368(e)(3) election to distribute E&amp;P first,
@@ -1334,7 +1297,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                   <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked, ...(e.target.checked ? {} : { rentalAggregationElection: undefined }) })} style={{ marginTop: 2 }} />
-                  <label htmlFor={'rep_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                  <label htmlFor={'rep_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                     Real Estate Professional status
                     <InfoTip label="Real Estate Professional status" text={'The IRS test is IRC §469(c)(7). Check this ONLY if you meet both parts:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
                   </label>
@@ -1377,15 +1340,15 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                         {hrInput('repHoursTotal', 'Total hours, ALL your work this year', 'e.g. 1,500')}
                       </div>
                       {!entered ? (
-                        <div style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
                           Enter both figures to confirm the two-part test: more than 750 hours in real property trades or businesses, <strong>and</strong> more than 50% of your total personal-service hours in real estate.
                         </div>
                       ) : qualifies ? (
-                        <div style={{ fontSize: 12, color: '#166534', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 13, color: '#166534', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
                           ✓ Meets the §469(c)(7)(B) test — {reHrs.toLocaleString()} real-property hours ({'>'} 750) and {pctRE}% of your {totalHrs.toLocaleString()} total hours ({'>'} 50%). Keep contemporaneous daily time logs to support this if examined.
                         </div>
                       ) : (
-                        <div role="alert" style={{ fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
+                        <div role="alert" style={{ fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '7px 10px', lineHeight: 1.5 }}>
                           ⚠ These hours do not meet the §469(c)(7)(B) test: {reasons.join('; ')}. You can still elect REP below, but this is one of the most frequently challenged positions — the IRS expects contemporaneous daily time logs, and significant W-2 employment makes the 50% test hard to satisfy. Confirm with your CPA before relying on it.
                         </div>
                       )}
@@ -1398,7 +1361,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 {entity.isREP && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                     <input type="checkbox" id={'agg_' + idx} checked={portfolioAggregationElected === true} onChange={e => (onAggregationElection ? onAggregationElection(e.target.checked) : onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false }))} style={{ marginTop: 2 }} />
-                    <label htmlFor={'agg_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                    <label htmlFor={'agg_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                       Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
                       <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
                     </label>
@@ -1408,7 +1371,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 {!entity.isREP && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                     <input type="checkbox" id={'active_' + idx} checked={!!entity.isActiveParticipant} onChange={e => onUpdate(idx, { ...entity, isActiveParticipant: e.target.checked })} style={{ marginTop: 2 }} />
-                    <label htmlFor={'active_' + idx} style={{ fontSize: 12, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                    <label htmlFor={'active_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                       Active participant — unlocks up to $25,000 of rental losses
                       <InfoTip label="Active participation" text={'The IRS rule is IRC §469(i). Active participation is a lower bar than material participation — it generally means you make bona fide management decisions (approving tenants, setting rental terms, approving expenses).\n\nIf you actively participate, up to $25,000 of rental losses may offset other (non-passive) income under IRC §469(i). This allowance phases out at 50 cents per dollar of modified AGI between $100,000 and $150,000.'} wide />
                     </label>
@@ -1468,7 +1431,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                             <input type="checkbox" id={'repovr_' + idx} checked={false} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
-                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 12, color: '#7F1D1D', cursor: 'pointer', lineHeight: 1.4 }}>
+                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 13, color: '#7F1D1D', cursor: 'pointer', lineHeight: 1.4 }}>
                               I understand the hours test is not met and I am electing to deduct this loss anyway. I have contemporaneous daily time logs and have confirmed this position with my CPA. (High audit risk.)
                             </label>
                           </div>
@@ -1486,7 +1449,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                             <input type="checkbox" id={'repovr_' + idx} checked={true} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
-                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 12, color: '#78350F', cursor: 'pointer', lineHeight: 1.4 }}>
+                            <label htmlFor={'repovr_' + idx} style={{ fontSize: 13, color: '#78350F', cursor: 'pointer', lineHeight: 1.4 }}>
                               Override active — deducting despite the failed hours test. Uncheck to suspend the loss.
                             </label>
                           </div>
