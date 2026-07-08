@@ -18,7 +18,7 @@ import { signOut } from './utils/SignOut'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard — validated before every
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
-import { nf, fmt, pct, effectiveRate, formatTimestamp } from './utils/money.js'
+import { nf, fmt, effRateLabel, formatTimestamp } from './utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
@@ -790,12 +790,13 @@ export default function TaxReturn() {
               transition: 'text-shadow 0.25s ease',
               textShadow: taxFlash === 1 ? '0 0 14px rgba(252,165,165,0.95)' : taxFlash === -1 ? '0 0 14px rgba(134,239,172,0.95)' : 'none',
             }}>{fmt(result.totalTax)}</span>
-            <span style={{ fontSize: 11, opacity: 0.7 }}>{pct(effectiveRate(result.totalTax, result.agi))} eff.</span>
+            <span style={{ fontSize: 11, opacity: 0.7 }}>{effRateLabel(result.totalTax, result.agi)}{result.agi > 0 ? ' eff.' : ''}</span>
           </span>
         </div>
       )}
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
+      {/* PHASE 3.3: semantic <main> landmark — skip-link target, zero visual change. */}
+      <main id="main-content" style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>
@@ -1588,7 +1589,7 @@ export default function TaxReturn() {
             )}
             {hasResult && (
               <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
-                Effective rate: {pct(effectiveRate(result.totalTax, result.agi))}
+                Effective rate: {effRateLabel(result.totalTax, result.agi)}
               </div>
             )}
             {/* F-05 UX FIX: Surface "Estimated Balance Due" directly in the hero card.
@@ -2018,7 +2019,7 @@ export default function TaxReturn() {
 
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
