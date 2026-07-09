@@ -4,8 +4,10 @@ import './Landing.css'
 // duplicate here, in Landing.jsx, and in About.jsx).
 import { CTA_LABEL } from './constants.js'
 
-const N = '#0D1B3E'
-const B = '#2563EB'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N, BLUE as B } from './theme.js'
 
 /* Shared site navigation — single source of truth for the marketing/legal pages
    (Landing, About, Privacy, Terms, Resources). Extracted from the former inline

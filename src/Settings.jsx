@@ -9,7 +9,10 @@ import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTime
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { deleteOwnAccount } from './utils/serverApi.js'
 
-const N = '#0D1B3E', B = '#2563EB', SL = '#475569'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 function LOGO() {
   return <BrandLogo size={32} />

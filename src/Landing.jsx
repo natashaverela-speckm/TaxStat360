@@ -7,8 +7,10 @@ import Icon from './Icon'
 import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice } from './constants'
 import './Landing.css'
 
-const N = '#0D1B3E'
-const B = '#2563EB'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N, BLUE as B } from './theme.js'
 
 const EYEBROW = {
   fontSize: 12,

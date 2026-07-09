@@ -2,9 +2,10 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 
-const N  = '#0D1B3E'
-const B  = '#2563EB'
-const SL = '#475569'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 export default function Terms() {
   const nav = useNavigate()

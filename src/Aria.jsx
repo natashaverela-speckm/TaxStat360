@@ -12,7 +12,10 @@ import { isRealEstateEntity, isSCorpEntity, isScheduleCType } from './utils/enti
 // WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
 import { apiFetch } from './utils/apiClient.js'
 
-const N = '#0D1B3E'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N } from './theme.js'
 
 // AUDIT N-2 REPO-SIDE MITIGATION (Jul 2026): the Aria backend model self-reports an
 // Oct-2023 knowledge cutoff and answers rate/threshold questions with repealed
@@ -95,10 +98,10 @@ function renderAriaText(text) {
 // fmt() renders negatives accounting-style "($500)", which reads poorly inline
 // in the assistant's prose; this keeps "-$500". Kept deliberately. If you change
 // one style, change both or note why not.
-const fmtUSD = (n) => {
-  const num = Number(n) || 0
-  return (num < 0 ? '-$' : '$') + Math.round(Math.abs(num)).toLocaleString('en-US')
-}
+// CONSISTENCY PASS (Jul 9 2026): Aria previously had a private formatter that
+// rendered negatives as '-$500' while every other surface uses fmt()'s
+// accounting-style '($500)'. One app, one money format.
+import { fmt as fmtUSD } from './utils/money.js'
 
 function readSessionSnapshot() {
   let entities = []

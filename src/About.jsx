@@ -5,8 +5,10 @@ import Footer from './Footer'
 import Icon from './Icon'
 import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from './constants'
 
-const N = '#0D1B3E'
-const B = '#2563EB'
+// CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
+// migration finished; local hex constants retired. Aliased so usage sites
+// are untouched.
+import { NAVY as N, BLUE as B } from './theme.js'
 
 const EYEBROW = {
   fontSize: 12,
