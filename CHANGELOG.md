@@ -22,6 +22,31 @@ existed in repo history and will be created in refactor Module M7.
 
 ---
 
+## Consistency pass — July 9, 2026
+
+Owner-requested sweep for code consistency across the app. Audit found ZERO
+value drift (identical palette values everywhere, no stray tax math, no
+console.logs) — the findings were duplication, now consolidated:
+
+- Palette: the CC-M01 theme migration FINISHED. Nine holdout files (Terms,
+  Privacy, Settings, ResourcesHub, About, Landing, BrandLogo, Nav, Aria)
+  declared local N/B/SL hex constants identical to src/theme.js; all now
+  import from the theme (aliased, so every usage site is untouched — zero
+  visual change). Invariant: no local palette declarations remain.
+- Aria's money format unified: her private formatter rendered negatives as
+  "-$500" while every other surface uses fmt()'s accounting-style "($500)".
+  Aria now imports fmt from utils/money.js. OWNER-VISIBLE (minor): negative
+  amounts in Aria chat responses now render in parentheses like the rest of
+  the app.
+- ACCEPTED AS-IS, with reasons recorded: (1) the three form-relay fetch()
+  sites (Settings/Landing/Onboarding) keep their bespoke best-effort
+  semantics rather than rerouting a live-tested email path through apiClient;
+  (2) auth-key clearing (App) and MFA device-trust storage (Onboarding) stay
+  explicit rather than hidden behind indirection; (3) Settings' data-export
+  iterates raw localStorage by design; (4) a handful of $-in-template-string
+  formats inside engine note text read naturally and stay.
+- Suite steady at 610; build and lint clean.
+
 ## Phase 4, batch 5: D-3 explicit sync + T-4 ratifications — July 8, 2026
 
 The engagement's final two decisions, executed. Owner chose (A) Explicit sync
