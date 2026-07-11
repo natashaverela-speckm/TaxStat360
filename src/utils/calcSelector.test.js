@@ -102,3 +102,38 @@ describe('selector — session variant and guard behavior', () => {
     expect(s.ok).toBe(true)   // coerced year is valid — guard accepts it
   })
 })
+
+
+describe('selector — F1/F3 cure: pass-through K-1 reaches the engine (audit Jul 2026)', () => {
+  // The audit's live scenario: single-filer S-Corp, $400K receipts, $100K opex,
+  // $70K officer W-2 → $230K K-1 distributions ($300K total). Before the k1Total
+  // fix the selector summarized this as a $70K return (12% rate, ~$1,243/qtr) — the
+  // engine ingests K-1 via top-level k1Total, which _wholeReturnExtras had omitted.
+  const auditScorp = {
+    f1040: { filingStatus: 'single', taxYear: 2025, w2Income: 0 },
+    entities: [{ name: 'Consulting S-Corp', type: 'S-Corp', own: 100,
+      pnl: { grossRevenue: 400000, totalExpenses: 100000, officerSalary: 70000, netProfit: 230000 } }],
+  }
+  it('SPEC: §61/§199A — gross income includes the $230K K-1 (total $300K), not W-2 alone', () => {
+    const s = summarizeRecord(auditScorp)
+    expect(s.ok).toBe(true)
+    expect(s.grossIncome).toBe(300000)     // 70,000 W-2 + 230,000 K-1 — NOT 70,000
+    expect(s.qbi).toBe(35000)              // §199A limited to 50% of $70K W-2 wages
+    expect(s.taxableAfterQBI).toBe(249250) // 300,000 − 15,750 std − 35,000 QBI
+  })
+  it('SPEC: 2025 single brackets — federal income tax is $56,823 and the marginal rate is 32%', () => {
+    const s = summarizeRecord(auditScorp)
+    expect(s.fedTax).toBe(56823)           // independently verified vs. IRS 2025 single brackets
+    expect(s.marginalRate).toBe(0.32)      // $249,250 is in the 32% bracket — never 12%
+  })
+  it('CHAR: quarterly recommendation reconciles with the liability (not ~1/10th of it)', () => {
+    const s = summarizeRecord(auditScorp)
+    expect(s.quarterlyRecommended).toBeGreaterThan(s.fedTax / 5)  // ≈ 14,206, i.e. ~fedTax/4
+  })
+  it('CHAR: still equals a direct engine call (selector adds no math of its own)', () => {
+    const s = summarizeRecord(auditScorp)
+    const direct = calcTaxReturn(buildRecordEngineInput(auditScorp))
+    for (const k of ['grossIncome','taxableAfterQBI','qbi','fedTax','marginalRate','quarterlyRecommended'])
+      expect(s[k], k).toBe(direct[k])
+  })
+})
