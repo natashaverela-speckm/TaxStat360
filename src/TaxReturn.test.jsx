@@ -410,7 +410,7 @@ describe('TaxReturn — Category C: unified "Est. Total Federal Tax" headline', 
   it('renders the unified headline and not the old liability/short variants', () => {
     const { container } = renderTaxReturn()
     const text = container.textContent
-    expect(text).toContain('EST. TOTAL FEDERAL TAX')
+    expect(text).toContain('EST. FEDERAL INCOME TAX')
     expect(text).not.toContain('EST. FEDERAL TAX LIABILITY')
   })
 

@@ -109,10 +109,18 @@ function CompSources({ color, children }) {
 function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp }) {
   if (!isSCorp || netProfit <= 20000) return null
 
-  const totalComp = officerSal + Math.max(0, netProfit)
+  // F4 FIX (Jul 2026): `netProfit` is the entity's net BEFORE officer salary — i.e. the
+  // whole owner take (salary + distributions), matching the engine's canonical model in
+  // calcReasonableCompCore (totalComp = salary + K-1 distributions = net before salary).
+  // The prior code treated netProfit as if it were distributions only: totalComp
+  // double-counted the salary, and minTarget used ratio/(1-ratio) (~67% of net) instead
+  // of ratio-of-total, so a $300K net wrongly suggested ~$200K rather than the ~$120K
+  // that 40% of total take implies — contradicting the "35-45%" text beside it. Both the
+  // ratio and the suggested salary now measure against the same total-take denominator.
+  const totalComp = Math.max(0, netProfit)
   const ratio = totalComp > 0 ? officerSal / totalComp : 0
   const _compRatio = SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-  const minTarget = Math.round(_compRatio / (1 - _compRatio) * Math.max(0, netProfit))
+  const minTarget = Math.round(_compRatio * totalComp)
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
