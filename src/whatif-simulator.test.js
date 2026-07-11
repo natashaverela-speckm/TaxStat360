@@ -6,7 +6,7 @@
 // simulator can never again show a number the Tax Tracker would disagree with.
 
 import { describe, it, expect } from 'vitest'
-import { computeSimulatorScenario } from './aiAnalysisTaxMath.js'
+import { computeSimulatorScenario, buildSimulatorBase } from './aiAnalysisTaxMath.js'
 import { calcTaxReturn } from './taxCalc.js'
 import { CURRENT_TAX_YEAR } from './constants.js'
 
@@ -91,5 +91,31 @@ describe('computeSimulatorScenario — the simulator IS the engine', () => {
     }
     expect(sim.sal).toBe(80000)
     expect(sim.w2).toBe(80000)
+  })
+})
+
+
+describe('buildSimulatorBase — officer W-2 is not double-counted (audit re-review, Jul 2026)', () => {
+  // Live-repro record: single-filer S-Corp, $400K receipts, $100K opex, $70K officer
+  // salary, $0 personal W-2. The base must carry PERSONAL W-2 only (0 here);
+  // computeSimulatorScenario adds the $70K officer salary itself. Before the fix the
+  // component used getTotalW2(rec) = personal + officer = 70000, so wages became $140K
+  // and the simulator baseline overstated tax and disagreed with Step 2.
+  const rec = {
+    biz: { entityType: 'S Corporation', grossRevenue: 400000, operatingExpenses: 100000, officerSalary: 70000, ownershipPct: '100', year: 2026 },
+    f1040: { filingStatus: 'single', w2Income: 0 },
+    entities: [{ type: 'S Corporation', own: 100, pnl: { grossRevenue: 400000, totalExpenses: 100000, officerSalary: 70000, netProfit: 230000 } }],
+  }
+
+  it('carries PERSONAL W-2 only (getTotalW2 would wrongly return 70000 here)', () => {
+    const base = buildSimulatorBase(rec)
+    expect(base.w2Income).toBe(0)
+    expect(base.officerSalary).toBe(70000)
+  })
+
+  it('SPEC: scenario wages = personal + officer counted ONCE (70000, not 140000)', () => {
+    const base = buildSimulatorBase(rec)
+    const sim = computeSimulatorScenario({ base, entityType: 'S Corporation', ownerPctVal: 1, filing: 'single', taxYear: 2026 }, {})
+    expect(sim.w2).toBe(70000)
   })
 })
