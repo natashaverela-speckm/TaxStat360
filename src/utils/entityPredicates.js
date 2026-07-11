@@ -165,3 +165,15 @@ export function ownPct(v) {
   const n = parseFloat(v)
   return Number.isFinite(n) ? n : 100
 }
+
+
+/**
+ * Does the What-If Simulator's "+$20K Salary" (officer W-2) scenario apply?
+ * Only corporations pay a W-2 officer salary. Sole Proprietors / SMLLCs and
+ * Partnerships / LLCs take owner draws or guaranteed payments — not officer
+ * compensation — and Real Estate has no salary line, so the scenario is hidden
+ * for every non-corporate entity. (Audit re-review #2, Jul 2026.)
+ */
+export function officerSalaryScenarioApplies(entityType) {
+  return isSCorpEntity(entityType) || isCCorpEntity(entityType)
+}
