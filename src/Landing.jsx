@@ -4,13 +4,25 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice } from './constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS } from './constants'
 import './Landing.css'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
 import { NAVY as N, BLUE as B } from './theme.js'
+
+// F9 FIX (Jul 2026): entity/rental limits shown on the pricing cards and in the FAQ are
+// derived from PLAN_ENTITY_LIMITS — the same source the app enforces (utils/entityLimits)
+// and the signup plan selector summarizes (PLAN_FEATURES) — so the pricing table, signup
+// selector, and FAQ can no longer drift apart (the FAQ previously claimed Professional
+// covered "a single business entity" while the limit is 3).
+const _entityLimitLabel = (plan) => {
+  const lim = PLAN_ENTITY_LIMITS[plan] || PLAN_ENTITY_LIMITS.starter
+  const biz = lim.business === Infinity ? 'Unlimited businesses' : `${lim.business} business${lim.business === 1 ? '' : 'es'}`
+  const rent = lim.realEstate === Infinity ? 'unlimited rentals' : `${lim.realEstate} rental${lim.realEstate === 1 ? '' : 's'}`
+  return `${biz} + ${rent}`
+}
 
 const EYEBROW = {
   fontSize: 12,
@@ -300,7 +312,7 @@ export default function Landing() {
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
-              a: 'Multiple entities is an Enterprise plan feature. On Enterprise you can track each business separately and see your consolidated federal tax exposure across all of them in one view. The Starter and Professional plans cover a single business entity.' },
+              a: `Entity capacity depends on your plan: Starter covers ${PLAN_ENTITY_LIMITS.starter.business} business plus up to ${PLAN_ENTITY_LIMITS.starter.realEstate} rental properties; Professional covers up to ${PLAN_ENTITY_LIMITS.professional.business} businesses with unlimited rentals; and Enterprise covers unlimited businesses and rentals, with a consolidated federal tax view across all of them in one place.` },
             { q: 'Is my financial data secure?',
               a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your data is never sold or shared with third parties.' },
             { q: 'What is the 7-day free trial?',
@@ -349,6 +361,7 @@ export default function Landing() {
               highlight: false,
               desc: 'Know what you owe — every month, not just in April.',
               features: [
+                _entityLimitLabel('starter'),
                 'Year-round federal tax liability tracker',
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
                 'Schedule C (sole props & SMLLCs)',
@@ -367,6 +380,7 @@ export default function Landing() {
               // available on Starter too, move this bullet up to the Starter feature list and to
               // the Starter column in the comparison table below.
               features: [
+                _entityLimitLabel('professional'),
                 'Everything in Starter plus:',
                 FEATURE_AUDIT_RISK_SCAN,
                 FEATURE_WHATIF_SIMULATOR,
@@ -385,6 +399,7 @@ export default function Landing() {
               // documentation aids, not IRS representation. Keeps the tool on the planning side
               // of its own "not a tax preparation or filing service" disclaimer.
               features: [
+                _entityLimitLabel('enterprise'),
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
                 'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',

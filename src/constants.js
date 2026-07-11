@@ -83,16 +83,15 @@ export const CURRENT_TAX_YEAR = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length -
 // Defaulting to 2026 forces every new user to manually correct the year, which is
 // confusing and causes wrong bracket/threshold figures to be displayed by default.
 //
-// Fix: introduce DEFAULT_TAX_YEAR = the most recently COMPLETED tax year = 2025.
-// CalculateTaxInner and TaxReturn use DEFAULT_TAX_YEAR (not CURRENT_TAX_YEAR) as the
-// initial dropdown value.  CURRENT_TAX_YEAR is ONLY used as the engine-table fallback
-// in taxCalc.js getTable() — i.e. "if TAX_TABLES[requestedYear] doesn't exist, use
-// the latest year we have data for."  These two concepts must remain separate.
-//
-// ⚠ ANNUAL UPDATE RULE: each January, advance DEFAULT_TAX_YEAR by 1 (e.g. → 2026).
-// Do NOT change CURRENT_TAX_YEAR — it advances automatically when a new year is
-// appended to SUPPORTED_TAX_YEARS, which is the trigger for adding TAX_TABLES[year].
-export const DEFAULT_TAX_YEAR = 2025
+// DECISION (F8, Jul 2026 — product owner): default to the CURRENT planning year, not
+// the most recently completed one. TaxStat360 is positioned as a real-time, year-round
+// planning tool ("see what you're on track to owe right now, not in April"), so a new
+// user should land on the year they are actively planning. DEFAULT_TAX_YEAR therefore
+// tracks CURRENT_TAX_YEAR and advances automatically when a new year is appended to
+// SUPPORTED_TAX_YEARS — no manual January edit required. Users preparing a prior-year
+// return can still pick that year from the Tax Year dropdown (Step 1 / Step 2).
+// CURRENT_TAX_YEAR remains the engine-table fallback in taxCalc.js getTable().
+export const DEFAULT_TAX_YEAR = CURRENT_TAX_YEAR
 
 // C-32:7.1 — single source of truth for the Step-3 ("AI Analysis & Reporting") label.
 // Previously the step-3 breadcrumb read "AI Analysis" in Steps 1–2 but "AI Analysis &
@@ -138,7 +137,7 @@ export const FINANCIAL_LABELS = {
   officerCompensationField: 'Officer Compensation (W-2)',
   netBusinessIncome:        'Net Business Income',
   netRentalIncome:          'Net Rental Income',
-  estTotalFederalTax:       'EST. TOTAL FEDERAL TAX',
+  estTotalFederalTax:       'EST. FEDERAL INCOME TAX',
   // TERMINOLOGY FIX for Schedule C / real estate — separate citation per form
   grossReceiptsFieldScheduleC:  'Gross Receipts (Schedule C, Line 1)',
   grossRentsReceivedField:      'Gross Rents Received (Schedule E, Line 3)',

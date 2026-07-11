@@ -47,7 +47,7 @@
 
 import React, { useState, useEffect } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
-import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, readUserName, readSubscriptionIncomplete, readDirtyFlag, writeDirtyFlag, readActiveRecordName } from './utils/sessionState.js'
+import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, writeMfaEnabled, readUserName, readSubscriptionIncomplete, readDirtyFlag, writeDirtyFlag, readActiveRecordName } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
@@ -271,6 +271,27 @@ export default function Dashboard() {
     !read2FANudge()
   )
   const dismiss2FANudge = () => { write2FANudge(true); setShow2FANudge(false) }
+
+  // F2 FIX (Jul 2026): the nudge above initializes from the cached ts360_mfa_enabled
+  // flag, which is only written when the user visits Settings. On a fresh login the
+  // cache can be stale, so a user WITH 2FA enabled (it is enforced at login) was still
+  // shown "2FA is not enabled." Verify against the authoritative server status on mount,
+  // repair the cache, and hide the nudge when 2FA is actually on.
+  useEffect(() => {
+    let cancelled = false
+    apiGet('/auth/mfa/status', { credentials: 'include' })
+      .then(data => {
+        if (cancelled || !data || typeof data.enabled !== 'boolean') return
+        writeMfaEnabled(data.enabled ? '1' : '0')
+        if (data.enabled) setShow2FANudge(false)
+      })
+      .catch(() => {
+        // Best-effort (ARCHITECTURE §7): a failed status check leaves the cached nudge
+        // state untouched. We only ever suppress a false "not enabled" — never assert a
+        // false "enabled" — so no user-facing error is warranted for a dismissible nudge.
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
