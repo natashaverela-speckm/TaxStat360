@@ -27,7 +27,7 @@
 // marginalRate). Planned (Phase 3): Step-1 provisional liability footer,
 // Dashboard record-card top levers, Step-2 sidebar.
 
-import { calcTaxReturn } from '../taxCalc.js'
+import { calcTaxReturn, sumK1FlowThrough } from '../taxCalc.js'
 import { toEngineContext } from '../EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, normalizeF1040 } from './sessionState.js'
 import { nf } from './money.js'
@@ -37,6 +37,15 @@ import { nf } from './money.js'
 function _wholeReturnExtras(pc, entities) {
   return {
     entities: Array.isArray(entities) ? entities : [],
+    // R-2b FIX (Jul 2026, audit F1/F3): calcTaxReturn ingests pass-through income via the
+    // top-level k1Total field (NOT by re-deriving it from `entities` internally — that
+    // array drives officer-W2/§469 handling, not the K-1 aggregate). The selector omitted
+    // k1Total, so EVERY figure it produced (grossIncome, taxableIncome, marginalRate,
+    // quarterlyRecommended) silently dropped all K-1 income — a $70K-W2 + $230K-K1 owner
+    // summarized as a $70K return (12% rate, ~$1,243/qtr) instead of $300K (32% rate).
+    // Use the single canonical aggregation rule (sumK1FlowThrough) so the selector matches
+    // the k1Total TaxReturn.jsx passes to the same engine (readStep1State().k1Total).
+    k1Total: sumK1FlowThrough(entities),
     charitableContr: nf(pc.charitableContr),                    // N-9 §170(p)/floor
     capLossCarryforwardST: nf(pc.capLossCarryforwardST),        // §1212(b) (Phase 2.1)
     capLossCarryforwardLT: nf(pc.capLossCarryforwardLT),
