@@ -18,6 +18,7 @@ import {
   isRealEstateEntity,
   isPassthroughEntity,
   issuesK1Entity,
+  officerSalaryScenarioApplies,
 } from './entityPredicates.js'
 import { ENTITY_TYPES, SE_SUBJECT_TYPES, PASSTHROUGH_ENTITY_TYPES } from '../constants.js'
 
@@ -152,5 +153,19 @@ describe('getEntityNetProfit — OBS-3 unified rule (Batch 7)', () => {
     const { getEntityNetProfit } = require('./entityPredicates.js')
     expect(getEntityNetProfit({ netProfit: '75,000' })).toBe(75000)
     expect(getEntityNetProfit({})).toBe(0)
+  })
+})
+
+describe('officerSalaryScenarioApplies — What-If "+$20K Salary" chip visibility (Jul 2026)', () => {
+  it('applies to corporations (they pay W-2 officer comp)', () => {
+    expect(officerSalaryScenarioApplies('S Corporation')).toBe(true)
+    expect(officerSalaryScenarioApplies('C Corporation')).toBe(true)
+  })
+  it('is hidden for sole props / SMLLCs, partnerships / LLCs, and real estate', () => {
+    expect(officerSalaryScenarioApplies('Sole Proprietor / SMLLC')).toBe(false)
+    expect(officerSalaryScenarioApplies('Partnership / LLC')).toBe(false)
+    expect(officerSalaryScenarioApplies('Partnership / MMLLC')).toBe(false)
+    expect(officerSalaryScenarioApplies('Real Estate (Schedule E)')).toBe(false)
+    expect(officerSalaryScenarioApplies('')).toBe(false)
   })
 })
