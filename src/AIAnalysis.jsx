@@ -22,7 +22,7 @@ import MoneyInput from './components/MoneyInput.jsx'
 import { signOut } from './utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit, getEntityPnlNetShare } from './utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from './utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from './utils/calcGuard'
@@ -1865,7 +1865,11 @@ function SimulatorModal({ onClose, rec }) {
     { id:'revenue', icon:'📈', label:'+$50K Gross Receipts',        color:'#0891B2' },
     { id:'salary',  icon:'💼', label:'+$20K Salary',         color:'#475569' },
     { id:'custom',  icon:'✏️', label:'Custom',               color:'#64748B' },
-  ]
+  // F-SAL FIX (Jul 2026): the "+$20K Salary" (officer W-2) scenario only applies to
+  // corporations. Sole Proprietors / SMLLCs and Partnerships / LLCs pay owner draws /
+  // guaranteed payments — not officer W-2 comp — and Real Estate has no salary line,
+  // so hide the chip for every non-corporate entity.
+  ].filter(pr => pr.id !== 'salary' || officerSalaryScenarioApplies(entity))
 
   // F15 FIX: row() uses shared fmt() throughout — not simFmt
   const row = (label, baseVal, scenVal, indent=false) => (
