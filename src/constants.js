@@ -137,7 +137,8 @@ export const FINANCIAL_LABELS = {
   officerCompensationField: 'Officer Compensation (W-2)',
   netBusinessIncome:        'Net Business Income',
   netRentalIncome:          'Net Rental Income',
-  estTotalFederalTax:       'EST. FEDERAL INCOME TAX',
+  estFederalIncomeTax:      'EST. FEDERAL INCOME TAX',
+  estTotalFederalTax:       'EST. TOTAL FEDERAL TAX',
   // TERMINOLOGY FIX for Schedule C / real estate — separate citation per form
   grossReceiptsFieldScheduleC:  'Gross Receipts (Schedule C, Line 1)',
   grossRentsReceivedField:      'Gross Rents Received (Schedule E, Line 3)',
@@ -660,3 +661,17 @@ export const DISCLAIMER_SHORT = 'Planning and estimation tool — not tax prepar
 export const CTA_LABEL = 'Start Free 7-Day Trial'
 export const CTA_COPY_FULL = 'No charge during your 7-day trial · Card required · Cancel in one click'
 export const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
+
+
+// ── Federal-tax headline label (audit re-review, Jul 2026) ────────────────────
+// The Step-2 results headline and the Dashboard record card render result.totalTax.
+// For S-Corp / C-Corp that figure IS federal income tax (SE tax = 0; employee FICA is
+// withheld and shown separately), so "EST. FEDERAL INCOME TAX" is correct. For Sole
+// Proprietors / Partnerships the SAME figure INCLUDES self-employment tax, so the
+// income-tax label is inaccurate and contradicts the waterfall's own "Federal Income
+// Tax" line. Choose the label from whether SE tax is part of the number.
+export function federalTaxHeadlineLabel(seTax) {
+  return (Number(seTax) || 0) > 0
+    ? FINANCIAL_LABELS.estTotalFederalTax
+    : FINANCIAL_LABELS.estFederalIncomeTax
+}

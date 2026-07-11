@@ -65,6 +65,7 @@ import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
   CURRENT_TAX_YEAR,
   FINANCIAL_LABELS,
+  federalTaxHeadlineLabel,
 } from './constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
 import { fmt, pct, effectiveRate } from './utils/money.js'
@@ -877,7 +878,7 @@ export default function Dashboard() {
 
                     {/* Est. federal tax liability */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{FINANCIAL_LABELS.estTotalFederalTax}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>{federalTaxHeadlineLabel(engOk ? eng.seTax : (rec && rec.seTax))}</div>
                       {step2Computed ? (
                         <div style={{ fontSize: 18, fontWeight: 800, color: displayTax > 0 ? R : '#16A34A' }}>
                           {displayTax > 0 ? fmt(Math.round(displayTax)) : '$0'}
