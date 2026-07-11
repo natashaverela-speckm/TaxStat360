@@ -148,6 +148,30 @@ export function additionalMedicareApplies({ taxYear, filing, wages }) {
 //   the modal's on-screen P&L waterfall.
 // • C-Corp scenarios mirror Dashboard's corporate layer: 21% on profit after
 //   officer comp, after-tax profit distributed as qualified dividends.
+// F-SIM FIX (audit re-review, Jul 2026): map a saved/live record to the What-If
+// Simulator base. `w2Income` here is PERSONAL W-2 ONLY — computeSimulatorScenario
+// adds the officer salary itself (w2 = w2Own + sal). The component previously built
+// this base with getTotalW2(rec), which sums personal W-2 PLUS every entity's officer
+// salary, so the salary was counted twice — the simulator's projected tax came out
+// ~one bracket high and disagreed with Step 2. Extracted here (pure) so the contract
+// is unit-tested in whatif-simulator.test.js.
+export function buildSimulatorBase(rec) {
+  const b = (rec && rec.biz) || {}
+  const f = (rec && rec.f1040) || {}
+  const pnl = b.pnl || {}
+  return {
+    grossRevenue:      nf(b.grossRevenue) || 0,
+    cogs:              nf(b.cogs) || 0,
+    operatingExpenses: Math.max(0, nf(b.operatingExpenses) - nf(b.officerSalary) - nf(b.depreciation) - (nf(pnl.advertising) || 0) - (nf(pnl.otherDeductions) || 0)),
+    officerSalary:     nf(b.officerSalary) || 0,
+    depreciation:      nf(b.depreciation) || 0,
+    advertising:       nf(pnl.advertising) || 0,
+    otherDeductions:   nf(pnl.otherDeductions) || 0,
+    w2Income:          nf(f.w2Income) || 0,   // personal W-2 only — see note above
+    estPaid:           nf(f.estPaid) || 0,
+  }
+}
+
 export function computeSimulatorScenario(ctx = {}, delta = {}) {
   const base = ctx.base || {}
   const v = (k) => nf(base[k]) + nf(delta[k])

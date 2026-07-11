@@ -5,6 +5,7 @@ import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
   computeSimulatorScenario,
+  buildSimulatorBase,
   qbiDeductionGap,
   qbiFormSelection,
   niitApplies,
@@ -1781,21 +1782,10 @@ function SimulatorModal({ onClose, rec }) {
   const ownerPctVal = ownPct(b.ownershipPct) / 100
   const entity  = b.entityType || 'Unknown'
 
-  const base = {
-    grossRevenue:      nf(b.grossRevenue)      || 0,
-    cogs:              nf(b.cogs)               || 0,
-    operatingExpenses: Math.max(0, (nf(b.operatingExpenses))
-                       - (nf(b.officerSalary))
-                       - (nf(b.depreciation))
-                       - (nf((b.pnl || {}).advertising) || 0)
-                       - (nf((b.pnl || {}).otherDeductions) || 0)),
-    officerSalary:     nf(b.officerSalary)      || 0,
-    depreciation:      nf(b.depreciation)       || 0,
-    advertising:       nf((b.pnl || {}).advertising)     || 0,
-    otherDeductions:   nf((b.pnl || {}).otherDeductions) || 0,
-    w2Income:          getTotalW2(rec)                  || 0,
-    estPaid:           nf(f.estPaid)  || 0,
-  }
+  // F-SIM FIX (Jul 2026): base built via the shared, unit-tested helper. w2Income is
+  // PERSONAL W-2 only — computeSimulatorScenario adds officer salary itself. Previously
+  // this used getTotalW2(rec) (personal + officer), double-counting the salary.
+  const base = buildSimulatorBase(rec)
 
   const [delta, setDelta] = useState({
     grossRevenue: 0, operatingExpenses: 0, officerSalary: 0,
