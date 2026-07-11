@@ -32,6 +32,7 @@ import {
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
   FINANCIAL_LABELS,
+  federalTaxHeadlineLabel,
   FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
@@ -1982,11 +1983,15 @@ function SimulatorModal({ onClose, rec }) {
                 {row('QBI Deduction (20%)', baseline.qbi,      scenario.qbi,      true)}
                 {row('Standard Deduction', stdDed,             stdDed)}
                 {row('Taxable Income',    baseline.taxableInc, scenario.taxableInc)}
+                {/* F-SE FIX (Jul 2026): for Sole Prop / Partnership, SE tax is the largest
+                    federal component — surface it so the headline total reconciles with Step 2. */}
+                {(scenario.seTax > 0 || baseline.seTax > 0) && row('Federal Income Tax', baseline.fedTax, scenario.fedTax, true)}
+                {(scenario.seTax > 0 || baseline.seTax > 0) && row('Self-Employment Tax', baseline.seTax, scenario.seTax, true)}
                 <div style={{background: taxSaving>0?'#F0FDF4':'#FEF2F2',borderRadius:10,padding:'12px 14px',marginTop:10,border:'2px solid '+(taxSaving>0?'#86EFAC':'#FECACA')}}>
-                  <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>FEDERAL INCOME TAX</div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:4}}>{federalTaxHeadlineLabel(scenario.seTax)}</div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
-                      <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.fedTax))} before</div>
+                      <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.totalTax ?? baseline.fedTax))} before</div>
                       <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
@@ -2002,11 +2007,11 @@ function SimulatorModal({ onClose, rec }) {
             {/* F15 FIX: reconciliation line — scenario vs Step 2 full estimate */}
             {step2Estimate > 0 && (
               <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 16px',marginBottom:8,fontSize:12,color:SL,display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-                <span>Scenario total tax: <strong style={{color:N}}>{fmt(Math.round(scenario.fedTax))}</strong></span>
+                <span>Scenario total tax: <strong style={{color:N}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
-                <span>Difference: <strong style={{color: scenario.fedTax < step2Estimate ? '#059669' : '#DC2626'}}>{scenario.fedTax < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round(scenario.fedTax - step2Estimate)))}</strong></span>
+                <span>Difference: <strong style={{color: (scenario.totalTax ?? scenario.fedTax) < step2Estimate ? '#059669' : '#DC2626'}}>{(scenario.totalTax ?? scenario.fedTax) < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round((scenario.totalTax ?? scenario.fedTax) - step2Estimate)))}</strong></span>
                 <span style={{fontSize: 11,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
               </div>
             )}

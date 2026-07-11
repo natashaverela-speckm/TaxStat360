@@ -119,3 +119,31 @@ describe('buildSimulatorBase — officer W-2 is not double-counted (audit re-rev
     expect(sim.w2).toBe(70000)
   })
 })
+
+
+describe('simulator SE-awareness — Sole Prop totals reconcile (audit re-review #2, Jul 2026)', () => {
+  // Sole proprietor: $200K receipts, $40K expenses -> $160K net SE income, single.
+  // The simulator card/reconciliation now present TOTAL federal tax (income + SE), so
+  // the returned figures must expose a material SE tax and a total that includes it.
+  const ctx = {
+    base: {
+      grossRevenue: 200000, cogs: 0, operatingExpenses: 40000,
+      officerSalary: 0, depreciation: 0, advertising: 0,
+      otherDeductions: 0, w2Income: 0, estPaid: 0,
+    },
+    entityType: 'Sole Proprietor / SMLLC',
+    ownerPctVal: 1, filing: 'single', taxYear: 2026,
+  }
+  it('SPEC: self-employment tax is material and totalTax includes it', () => {
+    const sim = computeSimulatorScenario(ctx, {})
+    expect(sim.seTax).toBeGreaterThan(0)
+    expect(sim.totalTax).toBeGreaterThan(sim.fedTax)      // total > income-tax-only
+    expect(sim.totalTax).toBe(sim.fedTax + sim.seTax)     // income + SE reconcile (no NIIT/AMT here)
+  })
+  it('CHAR: an S-Corp (no SE tax) keeps totalTax === fedTax', () => {
+    const scorp = computeSimulatorScenario({ ...ctx, entityType: 'S Corporation',
+      base: { ...ctx.base, officerSalary: 60000 } }, {})
+    expect(scorp.seTax).toBe(0)
+    expect(scorp.totalTax).toBe(scorp.fedTax)
+  })
+})
