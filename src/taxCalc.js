@@ -498,15 +498,28 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const exemption    = Math.max(0, _exemptionAmt - phaseoutOver * amtTable.phaseoutRate)
   const amtTaxable   = Math.max(0, amti - exemption)
   if (amtTaxable === 0) return 0
-  const preferential = Math.max(0, ltGain) + Math.max(0, qualDiv)
-  const ordinaryAMTI = Math.max(0, amtTaxable - preferential)
+  // F-AMT FIX (audit re-review, Jul 2026): the preferential (LTCG / qualified-dividend)
+  // income taxed at capital-gains rates within AMT is limited to the AMT base AFTER the
+  // exemption — Form 6251 Part III line 38 is the SMALLER of the AMT base or the QD+LTCG
+  // amount. The prior code passed the FULL qualDiv/ltGain into calcPreferentialTax
+  // regardless of the exemption, so a taxpayer whose income is mostly QD/LTCG was charged
+  // a spurious AMT equal to the preferential rate times their added-back standard/SALT
+  // deduction (e.g. 15% × the $16,100 standard deduction = ~$2,415) even though the AMT
+  // exemption fully absorbs that addback and real AMT is $0. Cap the preferential income
+  // at amtTaxable so it can't exceed the base the exemption leaves behind.
+  const _ltPos = Math.max(0, ltGain)
+  const _qdPos = Math.max(0, qualDiv)
+  const prefInAMT = Math.min(_ltPos + _qdPos, amtTaxable)
+  const _ltAMT = Math.min(_ltPos, prefInAMT)
+  const _qdAMT = Math.max(0, prefInAMT - _ltAMT)
+  const ordinaryAMTI = Math.max(0, amtTaxable - prefInAMT)
   const threshold   = amtTable.bracket26_28[status] ?? amtTable.bracket26_28.single
   const ordinaryAMT = ordinaryAMTI <= threshold
     ? ordinaryAMTI * AMT_RATE_LOW
     : threshold * AMT_RATE_LOW + (ordinaryAMTI - threshold) * AMT_RATE_HIGH
   const preferentialAMT = calcPreferentialTax(
     ordinaryAMTI,
-    { ltcg: Math.max(0, ltGain), qualDiv: Math.max(0, qualDiv) },
+    { ltcg: _ltAMT, qualDiv: _qdAMT },
     taxYear, status
   )
   const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
