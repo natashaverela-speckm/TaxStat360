@@ -185,7 +185,12 @@ export const PLAN_FEATURES = {
   starter: '1 business + 3 rentals · core tax tracker · quarterly estimates',
   pro: '3 business entities · AI analysis · CPA Export tools',
   professional: '3 business entities · AI analysis · CPA Export tools',
-  enterprise: 'Unlimited entities · multi-user · priority support',
+  // AUDIT F-9 (Jul 2026): "multi-user" was advertised HERE and nowhere else in the
+  // product — no seats, no team management, nothing. A $299/mo customer who subscribed
+  // for team access had a clean refund claim and a bad first support ticket. Removed.
+  // If multi-user is ever built, put it back — and add it to the pricing table and the
+  // comparison grid in the same commit, so the three never drift again.
+  enterprise: 'Unlimited entities · consolidated multi-entity view · priority support',
 }
 
 // Per-plan entity caps — business vs Schedule E rentals are counted separately.
@@ -621,6 +626,44 @@ export const PLAN_PRICING = {
   enterprise:   _plan(PRICE_ENTERPRISE_MONTHLY),
 }
 export const fmtPlanPrice = (n) => '$' + n.toLocaleString('en-US')
+
+// ─── AUTO-RENEWAL DISCLOSURE (FTC negative-option / ROSCA · California ARL) ──────
+// AUDIT F-8 (Jul 2026): the word "renew" appeared ZERO times on the signup page, the
+// landing page, and the Terms of Service — while the signup form collected a card for a
+// trial that auto-bills. Every charge statement was framed NEGATIVELY ("no charge for 7
+// days", "you will not be charged until…"), which implies a future charge but never
+// states one.
+//
+// The FTC negative-option rule and California's ARL both expect, BEFORE billing
+// information is collected: (a) that it renews automatically, (b) the amount, (c) the
+// frequency, (d) the date of the first charge, and (e) how to cancel — plus affirmative
+// consent to those specific terms, separate from the general ToS acceptance.
+//
+// TRIAL_DAYS is the single source of truth; renewalDisclosure() builds the sentence.
+// Do not hand-write this copy anywhere — import it.
+export const TRIAL_DAYS = 7
+
+/** The date the trial ends, given a start date (defaults to now). */
+export const trialEndDate = (from = new Date()) =>
+  new Date(from.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+
+/** Formatted trial-end date, e.g. "July 19, 2026". */
+export const trialEndLabel = (from = new Date()) =>
+  trialEndDate(from).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+/**
+ * The affirmative auto-renewal sentence shown immediately above the card field.
+ * plan: 'starter' | 'professional' | 'enterprise'   billing: 'monthly' | 'annual'
+ */
+export function renewalDisclosure(plan, billing, from = new Date()) {
+  const p = PLAN_PRICING[plan] || PLAN_PRICING.starter
+  const isAnnual = billing === 'annual'
+  const amount = fmtPlanPrice(isAnnual ? p.annualTotal : p.monthly)
+  const cadence = isAnnual ? 'every 12 months' : 'every month'
+  return 'Your ' + TRIAL_DAYS + '-day free trial ends on ' + trialEndLabel(from) +
+    '. On that date your card will be charged ' + amount + ', and then ' + amount + ' ' +
+    cadence + ', automatically, until you cancel. Cancel any time in Settings \u2192 Billing.'
+}
 
 
 // ─── COMPANY IDENTITY / NAP — footer + local SEO ─────────────────────────────
