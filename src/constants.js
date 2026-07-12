@@ -702,8 +702,13 @@ export const DISCLAIMER_SHORT = 'Planning and estimation tool — not tax prepar
 // CTA_COPY_FULL  — used in the Landing hero
 // CTA_COPY_SHORT — used in pricing, bottom CTA, About, and ResourcesHub
 export const CTA_LABEL = 'Start Free 7-Day Trial'
-export const CTA_COPY_FULL = 'No charge during your 7-day trial · Card required · Cancel in one click'
-export const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel in one click'
+// AUDIT F-8b (Jul 2026): was "Cancel in one click" — untrue by either route. Cancelling
+// via Settings → Manage Billing is two clicks; the only genuine one-click path is Delete
+// Account, which requires typing "DELETE" and erases every saved tax record. Misdescribing
+// the cancellation mechanism is precisely what the FTC click-to-cancel rule polices, and
+// the claim bought nothing. This wording is true and just as reassuring.
+export const CTA_COPY_FULL = 'No charge during your 7-day trial · Card required · Cancel anytime in Settings'
+export const CTA_COPY_SHORT = 'No charge for 7 days · Card required · Cancel anytime in Settings'
 
 
 // ── Federal-tax headline label (audit re-review, Jul 2026) ────────────────────
