@@ -220,7 +220,10 @@ const TAX_TABLES = {
     saltCap: 40400,   // AUDIT N-1 (Jul 2026): 2026 = $40,400 / $20,200 MFS — OBBBA §70120, Rev. Proc. 2025-32
     saltPhaseDown: { threshold: 505000, floor: 10000 },  // phase-down 30% of MAGI over $505K ($252.5K MFS), floor $10K ($5K MFS)
     qbi: {
-      threshold:    { single:201775, mfj:403500, hoh:201775, mfs:201775 },
+      // AUDIT FIX F-5 (Jul 2026): Rev. Proc. 2025-32 §4.26 — MFJ $403,500 · MFS $201,775 ·
+      // ALL OTHER RETURNS $201,750. "All other returns" is where Single and HOH live; the
+      // MFS figure had been copied into the single and hoh slots.
+      threshold:    { single:201750, mfj:403500, hoh:201750, mfs:201775 },
       phaseIn:      { single:75000,  mfj:150000, hoh:75000,  mfs:75000 },
       minDeduction: 400,   // §199A(i) OBBBA minimum deduction (years beginning after 12/31/2025)
       minThreshold: 1000,  // active QBI floor that triggers the $400 minimum
@@ -535,7 +538,11 @@ function _applyMinQBI(result, activeQbiForFloor, taxYear, taxableBeforeQBI = Inf
   if (taxableBeforeQBI <= 0) return result
   const effectiveFloor = Math.min(floor, taxableBeforeQBI)
   if (result.deduction >= effectiveFloor) return { ...result, caps: { ...result.caps, min400: floor } }
-  return { deduction: effectiveFloor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
+  // AUDIT FIX: spread `result` first. The previous version built a FRESH object and silently
+  // dropped every other field (wageDataMissing, aggregationApplied, aggregationDisclosure),
+  // so whenever the §199A(i) floor bound, the Reg. §1.199A-4 aggregation warning the user
+  // was supposed to see disappeared. Changes no number.
+  return { ...result, deduction: effectiveFloor, limitApplied: 'min400', caps: { ...result.caps, min400: floor } }
 }
 /** §199A Qualified Business Income deduction. 20% of QBI, subject to W-2/UBIA wage limits
  *  above the taxable-income threshold, an overall taxable-income cap, and SSTB phase-out.
@@ -557,7 +564,6 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     entityQbiData = [],
     activeQbi,
     hasMultiEntityTypes = false,
-    strictWageCap = false,
   } = opts
   const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
   const threshold  = thresholds[status] || thresholds.single
@@ -616,39 +622,25 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     const u = parseFloat(e.box17V_ubia) || 0
     return s + (e.box17V_sstb ? u * sstbApplicablePct : u)
   }, 0)
-  if (totalWages === 0 && totalUBIA === 0) {
-    // M-2 FIX (comparison-only, opt-in): with no W-2 wages and no UBIA, the real
-    // §199A(b)(2) wage/UBIA limit above the threshold is $0. The default below instead
-    // grants the full 20% when no wage data was supplied (a convenience for incomplete
-    // input). strictWageCap opts out of that convenience and applies the actual $0 cap.
-    // Only the entity-structure comparison sets this flag; filed-return callers never do,
-    // so their results are unchanged. (For 2026 the statutory $400 minimum still applies
-    // via _applyMinQBI, which is correct.)
-    if (strictWageCap) {
-      return _applyMinQBI(
-        withMeta({
-          deduction: 0,
-          limitApplied: 'wage',
-          caps: { qbi: Math.round(scaledQbiComponent), wage: 0, income: Math.round(incomeLimitation) },
-        }),
-        activeQbiForFloor,
-        taxYear,
-        taxableBeforeQBI
-      )
-    }
-    const ded          = Math.min(scaledQbiComponent, incomeLimitation)
-    const limitApplied = scaledQbiComponent <= incomeLimitation ? 'qbi' : 'income'
-    return _applyMinQBI(
-      withMeta({
-        deduction: Math.round(ded) || 0,
-        limitApplied,
-        caps: { qbi: Math.round(scaledQbiComponent), wage: null, income: Math.round(incomeLimitation) },
-      }),
-      activeQbiForFloor,
-      taxYear,
-      taxableBeforeQBI
-    )
-  }
+  // PRE-LAUNCH AUDIT — BLOCKER 1 (Jul 2026). The "no wage data => grant the full 20%"
+  // convenience branch that used to sit here has been DELETED. It was gated behind an
+  // opt-in strictWageCap flag that NOTHING in the codebase ever set, so above the §199A
+  // threshold every filer with no payroll and no qualified property received a deduction
+  // that §199A(b)(2)(B) does not allow.
+  //
+  // Audit case (MFJ, $900,000 Schedule C, no payroll, 2026):
+  //     app said     $226,156
+  //     truth is     $286,622
+  //     understated  $60,466  (21%, always in the taxpayer's favour)
+  //
+  // With no wages and no UBIA the generic path below computes wageLimit = $0, the cap
+  // binds, and the §199A(i) $400 floor still applies via _applyMinQBI. Below the
+  // threshold nothing changes; inside the phase-in range the proportional reduction
+  // was already correct.
+  //
+  // DO NOT reintroduce a "helpful" default here. If wage/UBIA data is missing, the
+  // answer is to ASK the user (wageDataMissing) — never to guess in their favour.
+  const wageDataMissing = totalWages === 0 && totalUBIA === 0
   const wageLimit = Math.max(
     totalWages * W2_WAGE_LIMIT_RATE,
     totalWages * W2_WAGE_ALT_RATE + totalUBIA * UBIA_RATE
@@ -671,6 +663,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     withMeta({
       deduction: Math.round(ded) || 0,
       limitApplied,
+      wageDataMissing,
       caps: { qbi: Math.round(scaledQbiComponent), wage: Math.round(wageLimit), income: Math.round(incomeLimitation) },
     }),
     activeQbiForFloor,
@@ -827,9 +820,6 @@ function calcTaxReturn(input) {
     priorYearAGI,
     priorPassiveLossCarryforward = 0,
     priorSuspendedLoss = 0,
-    // M-2 FIX: comparison-only opt-in flag, forwarded to calcQBI. Defaults false, so
-    // every filed-return caller is unaffected.
-    strictWageCap = false,
     // C-10 FIX (§1366(d)/§704(d) conservative default): opt-in flag. When true, a
     // limitable entity (S-Corp / partnership) that shows a LOSS but has NO stock/debt
     // basis entered is treated as having $0 basis — the full loss is suspended and
@@ -1440,11 +1430,13 @@ function calcTaxReturn(input) {
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes, strictWageCap,
+    status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes,
   })
   const qbi                      = _qbiResult.deduction
   const qbiLimitApplied          = _qbiResult.limitApplied
   const qbiCaps                  = _qbiResult.caps
+  // AUDIT BLOCKER 2: expose the wage-data signal so AIAnalysis/Aria never recompute §199A.
+  const qbiWageDataMissing       = _qbiResult.wageDataMissing || false
   const qbiAggregationApplied    = _qbiResult.aggregationApplied
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
   const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
@@ -1628,7 +1620,7 @@ function calcTaxReturn(input) {
 
     unrec1250, collectibles,
     nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
-    qbi, qbiLimitApplied, qbiCaps,
+    qbi, qbiLimitApplied, qbiCaps, qbiWageDataMissing,
     qbiAggregationApplied,
     qbiAggregationDisclosure,
     totalPrefIncome, taxableAfterQBI, ordinaryTaxableIncome, taxableIncome,
