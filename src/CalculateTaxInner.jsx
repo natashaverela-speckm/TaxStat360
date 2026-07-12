@@ -986,8 +986,13 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
             />
           </div>
 
-          {/* QBI fields */}
-          {isPT && (
+          {/* QBI fields — pass-throughs AND directly-held rentals (Schedule E).
+              AUDIT (Jul 2026): this used to be gated on isPT alone, which excludes Real
+              Estate. Once the §199A(b)(2)(B) wage/UBIA cap was correctly enforced, that
+              left landlords above the threshold with a $0 cap and NO FIELD in which to
+              enter the UBIA that lifts it — overstating tax by tens of thousands with no
+              user recourse. Every rental has UBIA: it is the building. */}
+          {(isPT || isRE) && (
             <div style={{ marginBottom: 10 }}>
               <button onClick={e => { e.stopPropagation(); setShowQBI(s => !s) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: B, padding: '4px 0', marginBottom: 6 }}>
                 {showQBI ? '▲ Collapse' : '▼ Expand'} §199A Qualified Business Income (QBI) Deduction <span style={{ fontWeight: 500, opacity: 0.7 }}>· W-2 wages, UBIA, SSTB</span>
@@ -1026,10 +1031,24 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       </div>
                     )
                   })()}
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>§199A QBI Inputs — from K-1</div>
+                  {/* AUDIT F-19: a sole proprietor and a directly-held rental have NO K-1.
+                      Telling them to read one they never received is how these fields got
+                      skipped — which is exactly what makes the §199A cap bite. */}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>
+                    §199A QBI Inputs{issuesK1Entity(entity.type) ? ' — from your K-1' : isRE ? ' — from your rental records' : ' — from your own books'}
+                  </div>
+                  {isRE && (
+                    <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: '#1E3A8A', lineHeight: 1.5 }}>
+                      <strong>Landlords: UBIA is the one that matters.</strong> Above the §199A threshold your
+                      deduction is capped at the greater of 50% of W-2 wages, or 25% of wages plus <strong>2.5% of
+                      UBIA</strong>. Most rentals pay no W-2 wages — so UBIA is usually the only thing holding the
+                      deduction up. Enter the <strong>unadjusted cost basis of the building (land excluded)</strong>,
+                      for property still inside its depreciable life. Leave it blank and your deduction is capped at $0.
+                    </div>
+                  )}
                   {[
-                    { label: 'W-2 Wages (K-1 §199A statement)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
-                    { label: 'UBIA of Qualified Property (K-1 §199A statement)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
+                    { label: issuesK1Entity(entity.type) ? 'W-2 Wages (K-1 §199A statement)' : isRE ? 'W-2 Wages paid by the rental activity (usually $0)' : 'W-2 Wages paid by this business (Form W-3, Box 1)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,775 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
+                    { label: issuesK1Entity(entity.type) ? 'UBIA of Qualified Property (K-1 §199A statement)' : isRE ? 'UBIA — unadjusted cost basis of the building (exclude land)' : 'UBIA of Qualified Property (your depreciation schedule)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
                     { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A (if you itemize) and reduce your stock basis under §1367(a)(2)(B) — they do NOT reduce your K-1 ordinary income or QBI.' },
                     { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
