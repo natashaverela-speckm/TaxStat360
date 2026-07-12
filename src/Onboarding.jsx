@@ -79,7 +79,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice } from './constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
 import { readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
@@ -170,6 +170,9 @@ const [conf,setConf]=useState('')
 // field on blur, before the user ever reaches the card section.
 const [confErr,setConfErr]=useState('')
 const [loading,setLoading]=useState(false)
+// AUDIT F-8: affirmative consent to the AUTO-RENEWAL terms specifically — separate from
+// the general "you agree to our Terms" line below. CA ARL / FTC negative-option rule.
+const [renewOk,setRenewOk]=useState(false)
 const [err,setErr]=useState('')
 const [stripeReady,setStripeReady]=useState(false)
 const stripeRef=useRef(null)
@@ -389,15 +392,33 @@ autoComplete="new-password"
 <PasswordStrength pass={pass} />
 </div>
 
+{/* ── AUDIT F-8 (Jul 2026): AFFIRMATIVE auto-renewal disclosure ────────────────
+WAS: "No charge for 7 days. You will not be charged until after your free trial
+ends." Every statement was framed as what would NOT happen. The page never said the
+subscription renews, what it costs, on what date, or how often — while collecting a
+card. The word "renew" appeared nowhere on this page, the landing page, or the Terms.
+
+NOW: exact amount, exact date, cadence, and how to cancel — stated positively,
+immediately above the card field, with a separate unchecked consent box (CA ARL wants
+consent to THESE terms, not just the general ToS). Copy lives in constants.js →
+renewalDisclosure(). Do not hand-write it anywhere. */}
 <div style={{
-display:'flex',alignItems:'flex-start',gap:10,
-background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,
-padding:'10px 14px',marginBottom:12,
+background:'#FFFBEB',border:'1px solid #FCD34D',borderRadius:8,
+padding:'12px 14px',marginBottom:12,
 }}>
-<Icon name="lock" size={18} color="#166534" style={{marginTop:1}} />
-<p style={{fontSize:12,color:'#166534',margin:0,lineHeight:1.5}}>
-<strong>No charge for 7 days.</strong> You will <strong>not be charged</strong> until after your free trial ends. Cancel in one click anytime.
+<div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+<Icon name="lock" size={18} color="#92400E" style={{marginTop:1}} />
+<p style={{fontSize:12,color:'#92400E',margin:0,lineHeight:1.55}}>
+<strong>This subscription renews automatically.</strong>{' '}
+{renewalDisclosure(plan, billing)}
 </p>
+</div>
+<label style={{display:'flex',alignItems:'flex-start',gap:8,marginTop:10,paddingTop:10,borderTop:'1px solid #FCD34D',cursor:'pointer'}}>
+<input type="checkbox" checked={renewOk} onChange={e=>setRenewOk(e.target.checked)} style={{marginTop:2,width:16,height:16,flexShrink:0,cursor:'pointer'}} />
+<span style={{fontSize:12,color:'#92400E',fontWeight:600,lineHeight:1.45}}>
+I understand my card will be charged automatically when the trial ends, and that I can cancel any time before then to avoid being charged.
+</span>
+</label>
 </div>
 
 <div style={{marginBottom:12}}>
@@ -413,7 +434,9 @@ By creating an account you agree to our{' '}
 {' '}and{' '}
 <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
 </p>
-<button type="submit" disabled={loading} style={{width:'100%',padding:'11px',background:loading?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
+{/* AUDIT F-8: the trial cannot be started until the user has affirmatively consented to
+    the auto-renewal terms. Disabled, not hidden — the reason is visible above. */}
+<button type="submit" disabled={loading||!renewOk} style={{width:'100%',padding:'11px',background:(loading||!renewOk)?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:(loading||!renewOk)?'not-allowed':'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 
 <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>

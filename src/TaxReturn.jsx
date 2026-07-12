@@ -1684,6 +1684,21 @@ export default function TaxReturn() {
                 // income this year (and carries forward as an NOL); previously it only appeared
                 // in a callout below, so the listed rows did not appear to sum to AGI.
                 { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
+                // ── AUDIT F-6 (Jul 2026): THE WATERFALL NOW FOOTS ────────────────────────────
+                // These three are ABOVE-THE-LINE (Schedule 1) deductions — they are ALREADY
+                // inside AGI. They used to be listed AFTER the AGI row, which made the column
+                // look like it subtracted them a second time: a reader adding it up got
+                // $820,818 while the app displayed $844,309. The math was always right; the
+                // presentation implied a double deduction, and any CPA reading it would
+                // conclude the engine was broken.
+                //
+                // Order is now the order of the actual return:
+                //   income → above-the-line deductions → AGI → standard/itemized → taxable
+                // Keep it that way. If you add another above-the-line item, it goes HERE,
+                // above the AGI row — not below it.
+                { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
+                { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
+                { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 // TERMINOLOGY FIX 2.4 / PASS 3 CORRECTION: Original fix used `useItemized` (checkbox
@@ -1694,13 +1709,19 @@ export default function TaxReturn() {
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
                 { label: '§68 Itemized Limitation (2/37)',  value: result.itemizedLimitReduction,            sign: 1, hide: !result.itemizedLimitReduction, accent: '#94A3B8', note: 'OBBBA §70111 — top-bracket itemizers: deduction benefit capped at 35¢/dollar', isAddback: true },
-                { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
-                { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
-                { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
-                { label: 'Business income deduction (§199A QBI)',         value: result.qbi,                               sign: -1, hide: result.qbi === 0, accent: '#059669' },
+                // AUDIT F-6/B-1 (Jul 2026): this row used to HIDE itself when the deduction was
+                // $0 — which is exactly the case a high-income filer with no payroll most needs
+                // explained. Silence there reads as "the app forgot my QBI deduction". It now
+                // stays visible whenever a §199A limit is what drove the number, and says which.
+                { label: 'Business income deduction (§199A QBI)',         value: result.qbi,                               sign: -1,
+                  hide: result.qbi === 0 && !result.qbiWageDataMissing,
+                  accent: result.qbiWageDataMissing ? R : '#059669',
+                  note: result.qbiWageDataMissing
+                    ? 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.'
+                    : undefined },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
                 { label: '—', value: 0, divider: true },
@@ -1853,6 +1874,35 @@ export default function TaxReturn() {
                 their share of business income (whether or not it is distributed). As a sole proprietor, that
                 same income would incur SE tax on 92.35% of earnings (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in
                 SE tax avoided. This relies on paying yourself reasonable W-2 compensation first (Rev. Rul. 74-44).
+              </div>
+            </div>
+          )}
+
+          {/* ── AUDIT B-1 FOLLOW-UP (Jul 2026): ASK, DON'T GUESS ────────────────────────
+              The engine used to silently grant the full 20% §199A deduction when no W-2
+              wage or UBIA data was entered — a "convenience" that understated tax by
+              $60,466 on one audit record. It now correctly applies the $0 cap the statute
+              requires. But a $0 cap the user doesn't understand is its own failure, so
+              when the cap binds BECAUSE the data is missing, we say so and tell them
+              exactly what to enter. Missing data is a question, not a default. */}
+          {hasResult && result.qbiWageDataMissing && (result.qbiCaps?.qbi || 0) > (result.qbi || 0) && (
+            <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#991B1B', lineHeight: 1.55 }}>
+              <strong>⚠ Your §199A deduction is capped at {fmt(result.qbi || 0)} — we may be missing two numbers.</strong>
+              <div style={{ marginTop: 6 }}>
+                Your taxable income is above the §199A threshold, so the deduction is limited to the greater of
+                50% of the business&apos;s W-2 wages, or 25% of W-2 wages plus 2.5% of qualified property (UBIA).
+                This record reports <strong>$0 of both</strong>, so the cap is <strong>$0</strong>.
+              </div>
+              <div style={{ marginTop: 6 }}>
+                If that&apos;s right — a sole proprietor with no payroll and no depreciable property — then this
+                figure is correct and no action is needed. <strong>If the business does pay W-2 wages, or owns
+                property still within its depreciation period, enter those amounts in Step 1</strong> (expand
+                &ldquo;§199A QBI Deduction&rdquo; on the entity card). Without them you could be overstating your tax by up to{' '}
+                {fmt(Math.round(((result.qbiCaps?.qbi || 0) - (result.qbi || 0)) * (result.marginalRate || 0)))}.
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
+                Reg. §1.199A-2. W-2 wages are the wages the business itself paid (Form W-3, Box 1); UBIA is the
+                unadjusted cost basis of qualified property still inside its depreciable life.
               </div>
             </div>
           )}
