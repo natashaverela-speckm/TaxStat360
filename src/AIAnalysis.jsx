@@ -489,18 +489,30 @@ function RiskScan({ rec }) {
 
   const year = parseInt(b.year) || CURRENT_TAX_YEAR
   const filing = f.filingStatus || 'single'
-  const _taxableBeforeQBI_rough = taxableIncomeBeforeQBI(totalIncome, year, filing)
-  const { deduction: _qbiRough } = resolveQbiDeduction({
-    k1,
-    taxableBeforeQBI: _taxableBeforeQBI_rough,
-    entityType: b.entityType,
-    filing,
-    taxYear: year,
-    entities: rec.entities || [],
-  })
-  const _taxable = Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
-  const roughTax = calcFederalTax(_taxable, year, filing)
-  const _marginalRate = getMarginalRate(_taxable, year, filing)
+  // AUDIT BLOCKER 2 (Jul 2026): read the ENGINE's figures. This used to recompute §199A from
+  // taxableIncomeBeforeQBI(totalIncome, …) — a base built from GROSS income, which omits the
+  // §164(f) half-of-SE-tax deduction. That is why this surface reported a different QBI
+  // deduction than Step 2 for the same record. _sum1 is calcTaxReturn's own output
+  // (summarizeRecord, above). The local math survives only as a fallback for records the M2
+  // calculation guard rejects.
+  const _taxableBeforeQBI_rough = _sum1.ok
+    ? _sum1.taxableBeforeQBI
+    : taxableIncomeBeforeQBI(totalIncome, year, filing)
+  const _qbiRough = _sum1.ok
+    ? (_sum1.qbi || 0)
+    : resolveQbiDeduction({
+        k1,
+        taxableBeforeQBI: _taxableBeforeQBI_rough,
+        entityType: b.entityType,
+        filing,
+        taxYear: year,
+        entities: rec.entities || [],
+      }).deduction
+  const _taxable = _sum1.ok
+    ? _sum1.taxableAfterQBI
+    : Math.max(0, _taxableBeforeQBI_rough - _qbiRough)
+  const roughTax = _sum1.ok ? _sum1.fedTax : calcFederalTax(_taxable, year, filing)
+  const _marginalRate = _sum1.ok ? _sum1.marginalRate : getMarginalRate(_taxable, year, filing)
   const today = new Date()
   const isPastYear = year < today.getFullYear()
 
@@ -584,7 +596,7 @@ function RiskScan({ rec }) {
 
   if (k1 > 5000 && estPay === 0) {
     findings.push({ level: 'high', icon: '🚨', title: 'No Estimated Tax Payments — Penalty Risk',
-      detail: `With ${fmt(k1)} in K-1 income, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties, charged at the federal short-term rate plus 3% (IRC §6621) and reset quarterly by the IRS (recently in the 6–8% range).`,
+      detail: `With ${fmt(k1)} in ${isScheduleCType(b.entityType) ? 'Schedule C net profit' : 'K-1 income'}, you are likely required to make quarterly estimated payments. Failure to pay results in IRS underpayment penalties, charged at the federal short-term rate plus 3% (IRC §6621) and reset quarterly by the IRS (recently in the 6–8% range).`,
       // AUDIT N-6 FIX: when the saved record carries no engine-computed quarterly,
       // the fallback is a rough bracket-only estimate (no NIIT/SE/AMT). Label it as
       // such instead of presenting it with the same confidence as the engine figure.
@@ -615,21 +627,23 @@ function RiskScan({ rec }) {
   if (isPassthroughEntity(b.entityType) && k1 > 10000) {
     const _year = parseInt(b.year) || CURRENT_TAX_YEAR
     const _filing = f.filingStatus || 'single'
-    const _taxableBeforeQBI = taxableIncomeBeforeQBI(k1 + w2, _year, _filing)
-    const {
-      deduction: qbi,
-      limitApplied: _limitApplied,
-      caps: _caps,
-      aggregationApplied: _agg,
-      aggregationDisclosure: _aggDisc,
-    } = resolveQbiDeduction({
+    // AUDIT BLOCKER 2: this card reported $173,560 while Step 2 reported $168,862 for the
+    // SAME record, because it recomputed §199A from (k1 + w2 − standard deduction). The
+    // engine's number is THE number. Reason codes come from the engine too, so the copy
+    // below explains the same result the user sees in the Tracker.
+    const _qbiFallback = _sum1.ok ? null : resolveQbiDeduction({
       k1,
-      taxableBeforeQBI: _taxableBeforeQBI,
+      taxableBeforeQBI: taxableIncomeBeforeQBI(k1 + w2, _year, _filing),
       entityType: b.entityType,
       filing: _filing,
       taxYear: _year,
       entities: rec.entities || [],
     })
+    const qbi           = _sum1.ok ? (_sum1.qbi || 0)               : _qbiFallback.deduction
+    const _limitApplied = _sum1.ok ? _sum1.qbiLimitApplied          : _qbiFallback.limitApplied
+    const _caps         = _sum1.ok ? _sum1.qbiCaps                  : _qbiFallback.caps
+    const _agg          = _sum1.ok ? _sum1.qbiAggregationApplied    : _qbiFallback.aggregationApplied
+    const _aggDisc      = _sum1.ok ? _sum1.qbiAggregationDisclosure : _qbiFallback.aggregationDisclosure
     const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
     const _qbiGap = qbiDeductionGap({ deduction: qbi, caps: _caps })
     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on the K-1 §199A statement (Box 17 Code V) — could recapture it. `
@@ -638,7 +652,7 @@ function RiskScan({ rec }) {
                        : ''
     const _aggNote = _agg && _aggDisc ? ` ⚠ Aggregation assumed: ${_aggDisc}` : ''
     findings.push({ level: 'good', icon: '✅', title: `QBI Deduction Applied — ${fmt(qbi)} Deduction`,
-      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your K-1 income, reducing your taxable income by ${fmt(qbi)} — worth roughly ${fmt(Math.round(qbi * _marginalRate))} in federal tax at your ${(_marginalRate * 100).toFixed(0)}% marginal rate.`,
+      detail: `The Qualified Business Income deduction (IRC §199A) is applied to your ${isScheduleCType(b.entityType) ? 'Schedule C net profit' : 'K-1 income'}, reducing your taxable income by ${fmt(qbi)} — worth roughly ${fmt(Math.round(qbi * _marginalRate))} in federal tax at your ${(_marginalRate * 100).toFixed(0)}% marginal rate.`,
       action: `${_limitPrefix}QBI phases in W-2 wage / UBIA limits above ${fmt(_t.single)} (single) or ${fmt(_t.mfj)} (MFJ) in ${_year}.${_aggNote}` })
   }
 
@@ -1215,20 +1229,20 @@ function IRSCompliance({ rec }) {
 
   if (isPassthroughEntity(entity) && k1 > 0) {
     const _filing = f.filingStatus || 'single'
-    const _taxableBeforeQBI = taxableIncomeBeforeQBI(k1 + w2, year, _filing)
-    const {
-      deduction: _qbi,
-      limitApplied: _limitApplied,
-      caps: _caps,
-      aggregationApplied: _agg,
-    } = resolveQbiDeduction({
+    // AUDIT BLOCKER 2: engine-true, same as every other surface.
+    const _sumSched = summarizeRecord(rec)
+    const _schedFallback = _sumSched.ok ? null : resolveQbiDeduction({
       k1,
-      taxableBeforeQBI: _taxableBeforeQBI,
+      taxableBeforeQBI: taxableIncomeBeforeQBI(k1 + w2, year, _filing),
       entityType: entity,
       filing: _filing,
       taxYear: year,
       entities: rec.entities || [],
     })
+    const _qbi          = _sumSched.ok ? (_sumSched.qbi || 0)            : _schedFallback.deduction
+    const _limitApplied = _sumSched.ok ? _sumSched.qbiLimitApplied       : _schedFallback.limitApplied
+    const _caps         = _sumSched.ok ? _sumSched.qbiCaps               : _schedFallback.caps
+    const _agg          = _sumSched.ok ? _sumSched.qbiAggregationApplied : _schedFallback.aggregationApplied
     const _qbiGap = qbiDeductionGap({ deduction: _qbi, caps: _caps })
     const _isCoopPatron = !!f.isCoopPatron
     const {
