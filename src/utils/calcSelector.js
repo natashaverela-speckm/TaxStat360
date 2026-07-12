@@ -12,6 +12,26 @@
 // same display-vs-engine disagreement disease the audits eliminated for tax
 // RULES (single-sourced, CI-enforced) — extended here to figure CONSUMPTION.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// PRE-LAUNCH AUDIT — BLOCKER 2 (Jul 2026). The façade existed but AIAnalysis was
+// still recomputing §199A behind its back, from a base that omitted the §164(f)
+// half-of-SE-tax deduction. Result: THREE different QBI deductions for one record.
+//
+//   Tax Tracker (engine):  20% × (AGI − standard deduction)          $168,862
+//   Audit Risk Scan:       20% × (gross income − standard deduction) $173,560
+//   Ask Aria:              20% × business income                     $180,000
+//   Correct:               capped at 50% of $0 W-2 wages             $400
+//
+// The QBI detail fields (qbiLimitApplied / qbiCaps / qbiAggregation*) were the
+// reason AIAnalysis felt it had to re-run calcQBI: the selector returned the
+// NUMBER but not the REASON, so the cards recomputed to get their copy strings.
+// They are now part of the summary, so no consumer has any reason to recompute.
+//
+// RULE: if a surface needs a tax figure, it reads it from here. If the figure it
+// needs is missing, ADD IT TO _SUMMARY_KEYS — never recompute locally. The
+// architecture invariant test enforces the single production call site.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // Architecture: this module owns NO tax math and NO translation of its own.
 //   • Vocabulary translation reuses toEngineContext (audit F2's fix) — calling
 //     it with entityIdx = -1 keeps EVERY entity's officer W-2 / Box 17K in the
@@ -23,9 +43,8 @@
 //   • The summary object is frozen: this is a SELECTOR. Consumers that need
 //     to change inputs go through the Tracker, not through this façade.
 //
-// Consumers (Phase 2.2): AIAnalysis strategy-card gating (agi / totalIncome /
-// marginalRate). Planned (Phase 3): Step-1 provisional liability footer,
-// Dashboard record-card top levers, Step-2 sidebar.
+// Consumers: AIAnalysis (strategy-card gating AND the §199A cards), Aria's
+// session grounding, Step-1 provisional footer, Dashboard record cards.
 
 import { calcTaxReturn, sumK1FlowThrough } from '../taxCalc.js'
 import { toEngineContext } from '../EntityCompareModal.jsx'
@@ -59,6 +78,17 @@ const _SUMMARY_KEYS = [
   'capitalGainNetIncluded', 'capLossCarryoverST', 'capLossCarryoverLT',
   'capLossCarryoverTotal', 'ebl', 'ficaSavings', 'reasonableCompAlert',
   'totalSuspendedLoss', 'quarterlyRecommended',
+
+  // AUDIT BLOCKER 2 (Jul 2026): the §199A REASON CODES, not just the number.
+  // AIAnalysis needs these to render its "why is my deduction reduced" copy. Before
+  // this, it re-ran calcQBI to get them — and in doing so re-derived the DEDUCTION too,
+  // from a different base, which is how three surfaces ended up disagreeing. Exposing
+  // the reasons here removes the last excuse any consumer had to recompute.
+  'qbiLimitApplied',            // 'qbi' | 'wage' | 'income' | 'min400' | 'none'
+  'qbiCaps',                    // { qbi, wage, income, min400? }
+  'qbiAggregationApplied',
+  'qbiAggregationDisclosure',
+  'qbiWageDataMissing',         // BLOCKER 1: true when W-2 wages AND UBIA are both $0
 ]
 
 function _summarize(engineInput) {
@@ -84,15 +114,12 @@ function _summarize(engineInput) {
  * Known modeling boundary (deliberate): legacy records may carry an
  * `otherIncome` field the Tracker no longer collects and the engine does not
  * model. The old local sums counted it; this selector does not — cards now
- * agree with the filed estimate, which is the contract. If a legacy record's
- * card figures drop by exactly its otherIncome, that is the display catching
- * up to the return (same principle as OBS-1/OBS-3).
+ * agree with the filed estimate, which is the contract.
  */
 export function summarizeRecord(rec) {
   const pc = normalizeF1040((rec && rec.f1040) || {})
   // Phase 3.2 hardening: a malformed legacy record (entities not an array)
-  // must yield { ok:false }, never a throw — the guard below only catches
-  // engine errors, so the input must be safe to BUILD as well as to run.
+  // must yield { ok:false }, never a throw.
   const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
   return _summarize({
     ...toEngineContext(pc, entities, -1),   // -1 ⇒ exclude nothing: whole return
@@ -101,9 +128,9 @@ export function summarizeRecord(rec) {
 }
 
 /**
- * Engine-true summary for the LIVE SESSION (ts360_f1040 + Step-1 entities) —
- * what the Step-1 footer and Step-2 sidebar will consume in Phase 3. Reads
- * through the sessionState accessors only (ARCHITECTURE §3).
+ * Engine-true summary for the LIVE SESSION (ts360_f1040 + Step-1 entities).
+ * Consumed by Aria's grounding context (BLOCKER 4) and the Step-1 footer.
+ * Reads through the sessionState accessors only (ARCHITECTURE §3).
  */
 export function selectTaxSummary() {
   const pc = readPersonalContext()
@@ -122,3 +149,7 @@ export function buildRecordEngineInput(rec) {
   const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
   return { ...toEngineContext(pc, entities, -1), ..._wholeReturnExtras(pc, entities) }
 }
+
+/** Exposed for tests: the key list every consumer is allowed to read. A new
+ *  consumer need is met by adding a key HERE, never by recomputing downstream. */
+export const SUMMARY_KEYS = Object.freeze([..._SUMMARY_KEYS])
