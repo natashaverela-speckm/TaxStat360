@@ -128,29 +128,65 @@ describe('calcQBI early-zero returns', () => {
   })
 })
 
-describe('calcQBI above threshold without wage data (Box 17V fallback)', () => {
-  it('CHAR: falls back to simple 20% in phase-in band when no wages entered (non-SSTB)', () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// PRE-LAUNCH AUDIT — BLOCKER 1 (Jul 2026). REWRITTEN.
+//
+// This block used to be titled "calcQBI above threshold without wage data (Box 17V
+// fallback)" and it asserted that a filer with NO W-2 wages and NO UBIA still receives
+// the full 20% deduction above the §199A threshold. That is not the law — it was the
+// bug, written down as a test, which is why it went undetected.
+//
+// IRC §199A(b)(2)(B): above the phase-in range the deduction is capped at the GREATER of
+//   (a) 50% of the business's W-2 wages, or
+//   (b) 25% of W-2 wages + 2.5% of UBIA.
+// A taxpayer with $0 of both has a $0 cap. There is no "fallback to 20%".
+//
+// 2025 single: threshold $197,300 · phase-in range $50,000 · fully phased at $247,300.
+// (2025 has no §199A(i) minimum — the $400 floor starts in 2026.)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap is $0', () => {
+  it('IN the phase-in band: the limitation reduces the deduction proportionally', () => {
+    // TI 220,000 is 22,700 into the 50,000 band ⇒ 45.4% phased in.
+    // qbiComponent 10,000; wageLimit 0; reduction = 10,000 × 0.454 = 4,540.
     const r = calcQBI(50000, 220000, 0, { status: 'single', taxYear: 2025 })
-    expect(r.deduction).toBe(10000)
-    expect(r.limitApplied).toBe('qbi')
-    expect(r.caps).toEqual({ qbi: 10000, wage: null, income: 44000 })
+    expect(r.deduction).toBe(5460)
+    expect(r.limitApplied).toBe('wage')
+    expect(r.wageDataMissing).toBe(true)
+    expect(r.caps).toEqual({ qbi: 10000, wage: 0, income: 44000 })
   })
-  it('CHAR: falls back to simple 20% fully past phase-in when no wages entered', () => {
+
+  it('PAST the phase-in band: no wages and no UBIA ⇒ the deduction is $0', () => {
+    // TI 300,000 > 247,300. Cap = max(50% × $0, 25% × $0 + 2.5% × $0) = $0.
     const r = calcQBI(50000, 300000, 0, { status: 'single', taxYear: 2025 })
-    expect(r.deduction).toBe(10000)
-    expect(r.limitApplied).toBe('qbi')
+    expect(r.deduction).toBe(0)
+    expect(r.limitApplied).toBe('wage')
+    expect(r.wageDataMissing).toBe(true)
+    expect(r.caps).toEqual({ qbi: 10000, wage: 0, income: 60000 })
   })
-  it('CHAR: income limit can still bind even with no wages', () => {
+
+  it('the wage cap binds BEFORE the taxable-income limit', () => {
+    // Income limit would be 20% × (250,000 − 100,000 net cap gain) = 30,000,
+    // but the $0 wage cap is the binding constraint, so the deduction is $0.
     const r = calcQBI(80000, 250000, 100000, { status: 'single', taxYear: 2025 })
-    expect(r.deduction).toBe(16000)
-    expect(r.limitApplied).toBe('qbi')
-    expect(r.caps.income).toBe(30000)
+    expect(r.deduction).toBe(0)
+    expect(r.limitApplied).toBe('wage')
+    expect(r.caps).toEqual({ qbi: 16000, wage: 0, income: 30000 })
   })
-  it('CHAR: explicit empty entityQbiData behaves like no entities', () => {
-    const r = calcQBI(50000, 250000, 0, { status: 'single', taxYear: 2025, entityQbiData: [] })
+
+  it('an explicitly empty entityQbiData is still $0 wages ⇒ $0 cap', () => {
+    // Regression guard: "no entities supplied" must NOT be read as "limitation N/A".
+    // Treating missing wage data as a licence to grant the full 20% was the original bug.
+    const r = calcQBI(50000, 300000, 0, { status: 'single', taxYear: 2025, entityQbiData: [] })
+    expect(r.deduction).toBe(0)
+    expect(r.limitApplied).toBe('wage')
+    expect(r.wageDataMissing).toBe(true)
+  })
+
+  it('BELOW the threshold the limitation does not apply at all', () => {
+    // Sanity anchor: the fix must not disturb filers under the threshold.
+    const r = calcQBI(50000, 150000, 0, { status: 'single', taxYear: 2025 })
     expect(r.deduction).toBe(10000)
     expect(r.limitApplied).toBe('qbi')
-    expect(r.caps.wage).toBeNull()
   })
 })
 
