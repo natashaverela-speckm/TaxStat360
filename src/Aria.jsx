@@ -11,43 +11,73 @@ import { isRealEstateEntity, isSCorpEntity, isScheduleCType } from './utils/enti
 // which builds every URL from API_BASE_URL — never the raw API Gateway URL — so CloudFront /
 // WAF rules apply uniformly. raw:true below keeps Aria's per-status (401/403/5xx) handling.
 import { apiFetch } from './utils/apiClient.js'
+// PRE-LAUNCH AUDIT B-4 (Jul 2026): Aria must answer from THE ENGINE'S computed return,
+// never from the model's own arithmetic. selectTaxSummary() is the same read-only façade
+// Step 2 and the Dashboard consume, so Aria cannot disagree with the Tax Tracker.
+import { selectTaxSummary } from './utils/calcSelector.js'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
 import { NAVY as N } from './theme.js'
 
-// AUDIT N-2 REPO-SIDE MITIGATION (Jul 2026): the Aria backend model self-reports an
-// Oct-2023 knowledge cutoff and answers rate/threshold questions with repealed
-// pre-OBBBA law (audit captured it advising "20% bonus depreciation" for 2026 -- the
-// correct answer is 100%, permanent, P.L. 119-21 Sec. 70301). Until the backend gains
-// current-law injection, this client-side guard pins a verified-facts card ABOVE the
-// model's reply whenever the question matches a stale-prone topic. Facts below are
-// maintained alongside the engine's parameter tables -- update both together.
+// ─────────────────────────────────────────────────────────────────────────────
+// PRE-LAUNCH AUDIT — BLOCKER 3 & BLOCKER 4 (Jul 2026)
+//
+// B-3 (scaffolding leaked to the user). The N-2 guard used to PUSH the verified-facts
+// card into `msgs` as a visible assistant turn. Users saw:
+//
+//     "VERIFIED FIGURES -- ... (Pinned from this app's tax tables; if the answer below
+//      conflicts, trust these figures. The chat model's training data may predate the
+//      2025 tax act.)"
+//
+// That is an internal guardrail rendered as product copy. It told a paying customer the
+// AI they bought may be working from repealed law, and it made THEM the referee between
+// two of our own systems. The facts are now sent to the backend in the request body
+// (`verifiedFacts`) for the system turn, and are NEVER added to the message list.
+//
+// B-4 (Aria fabricated figures). Audit captured two hallucinations on live:
+//   • invented "$470,000 of K-1 income" that existed nowhere in the record;
+//   • invented an entire 2026 MFJ bracket table — every threshold wrong, and the 35%
+//     bracket missing altogether — while the correct thresholds sat in its own context.
+// Root cause: the model was handed raw P&L lines and left to do the tax math itself.
+// Fix: buildSessionContext() now ships the ENGINE'S COMPUTED RETURN (AGI, taxable income,
+// QBI, SE tax, total tax, marginal rate, quarterly) and the outgoing turn carries explicit
+// grounding rules forbidding the model from computing or recalling any figure. Aria
+// narrates the engine's numbers; it does not produce them.
+//
+// ANNUAL MAINTENANCE: update ARIA_SYSTEM (backend), VERIFIED_FACT_GUARDS below, and
+// TAX_TABLES (src/taxCalc.js) together. They are three views of one set of facts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// AUDIT N-2: the Aria backend model self-reports an Oct-2023 knowledge cutoff and answers
+// rate/threshold questions with repealed pre-OBBBA law. These facts are injected into the
+// SYSTEM turn server-side — they are never rendered to the user (B-3).
 const VERIFIED_FACT_GUARDS = [
   { rx: /bonus\s*depreciation|168\(k\)|cost\s*seg/i,
-    fact: 'Verified: 100% bonus depreciation is PERMANENT under IRC Sec. 168(k) as amended by OBBBA (P.L. 119-21 Sec. 70301) for qualified property acquired after Jan 19, 2025. The old 80%/60%/40%/20% phase-down no longer applies to new acquisitions. Cost-seg 5/7/15-year property placed in service in 2026 qualifies for the full 100%.' },
+    fact: '100% bonus depreciation is PERMANENT under IRC Sec. 168(k) as amended by OBBBA (P.L. 119-21 Sec. 70301) for qualified property acquired after Jan 19, 2025. The old 80/60/40/20% phase-down no longer applies to new acquisitions. Cost-seg 5/7/15-year property placed in service in 2026 qualifies for the full 100%.' },
   { rx: /\b179\b/i,
-    fact: 'Verified: Sec. 179 expensing limit is $2.5M with a $4M phase-out threshold for 2025 (OBBBA), indexed for 2026 -- confirm the current-year figure in the Tax Tracker before relying on a chat answer.' },
+    fact: 'Sec. 179 expensing for 2026: $2,560,000 limit, $4,090,000 phase-out threshold, $32,000 SUV sub-limit (Rev. Proc. 2025-32 Sec. 4.24).' },
   { rx: /401\(?k\)?|sep[- ]?ira|solo\s*401|retirement\s*limit|ira\s*limit/i,
-    fact: 'Verified 2026 limits (IRS Notice 2025-67): 401(k) elective deferral $24,500; Sec. 415(c) total DC limit $72,000; IRA $7,500 (catch-up $1,100); age-50 401(k) catch-up $8,000.' },
+    fact: '2026 retirement limits (IRS Notice 2025-67): 401(k) elective deferral $24,500; Sec. 415(c) total DC limit $72,000 (this caps a SEP-IRA); IRA $7,500 (catch-up $1,100); age-50 401(k) catch-up $8,000; ages 60-63 super catch-up $11,250. A SEP has NO catch-up. Sec. 401(a)(17) compensation limit $360,000.' },
   { rx: /salt|state and local tax/i,
-    fact: 'Verified 2026 SALT cap (OBBBA Sec. 70120): $40,400 ($20,200 MFS), reduced by 30% of MAGI above $505,000 ($252,500 MFS), floor $10,000 ($5,000 MFS). PTET elections remain available.' },
+    fact: '2026 SALT cap (OBBBA Sec. 70120): $40,400 ($20,200 MFS), reduced by 30% of MAGI above $505,000 ($252,500 MFS), floor $10,000 ($5,000 MFS).' },
   { rx: /excess business loss|461\(l\)/i,
-    fact: 'Verified 2026 excess business loss threshold (Rev. Proc. 2025-32 Sec. 4.31): $256,000 single / $512,000 MFJ. OBBBA RESET these DOWN from 2025 ($313K/$626K).' },
+    fact: '2026 excess business loss threshold (Rev. Proc. 2025-32 Sec. 4.31): $256,000 single / $512,000 MFJ. OBBBA RESET these DOWN from 2025.' },
   { rx: /qbi|199a|qualified business income/i,
-    fact: 'Verified 2026 QBI: 20% deduction, permanent (OBBBA); thresholds $201,775 single / $403,500 MFJ; $75K/$150K phase-in; $400 minimum deduction.' },
-  { rx: /standard deduction|tax bracket/i,
-    fact: 'Verified 2026 (Rev. Proc. 2025-32): standard deduction $16,100 single / $32,200 MFJ / $24,150 HOH; top 37% bracket starts at $640,600 single / $768,700 MFJ.' },
+    // AUDIT FIX F-5: the single-filer threshold was stated as $201,775 — that is the
+    // MARRIED-FILING-SEPARATELY figure. Rev. Proc. 2025-32 Sec. 4.26 reads:
+    //   MFJ $403,500 · MFS $201,775 · All other returns $201,750.
+    // "All other returns" is where Single and HOH live.
+    fact: '2026 Sec. 199A QBI: 20% deduction, made permanent by OBBBA. Threshold amounts (Rev. Proc. 2025-32 Sec. 4.26): $201,750 single/HOH, $201,775 MFS, $403,500 MFJ. Phase-in range: $75,000 (single/HOH/MFS) / $150,000 (MFJ), so the limitation is fully phased in at $276,750 / $276,775 / $553,500. ABOVE the phase-in range the deduction is capped by Sec. 199A(b)(2)(B) at the GREATER of 50% of the business W-2 wages, or 25% of W-2 wages plus 2.5% of UBIA — a sole proprietor with no payroll and no qualified property has a $0 cap. Sec. 199A(i) sets a $400 minimum deduction where active QBI is at least $1,000.' },
+  { rx: /standard deduction|tax bracket|marginal rate/i,
+    fact: '2026 (Rev. Proc. 2025-32): standard deduction $16,100 single/MFS, $32,200 MFJ, $24,150 HOH. MFJ brackets end at 24,800 (10%), 100,800 (12%), 211,400 (22%), 403,550 (24%), 512,450 (32%), 768,700 (35%), then 37%. Single brackets end at 12,400 / 50,400 / 105,700 / 201,775 / 256,225 / 640,600, then 37%.' },
+  { rx: /social security|se tax|self.?employment tax|medicare/i,
+    fact: '2026: Social Security wage base $184,500. SE tax 15.3% on 92.35% of net earnings up to the base, then 2.9% Medicare with no cap. Additional Medicare Tax 0.9% on wages plus SE earnings above $200,000 single / $250,000 MFJ / $125,000 MFS (statutory, not indexed).' },
+  { rx: /mileage/i,
+    fact: '2026 IRS standard mileage rate (Notice 2026-10): 72.5 cents per business mile.' },
 ]
 
-// AUDIT N-2 FINAL (Jul 2026): the current-law brief now lives in the BACKEND
-// system prompt (taxstat360-api app/main.py ARIA_SYSTEM), its proper home — it can
-// never be sliced out of history or spoofed by a client, and the per-request client
-// token cost is gone. The client-side LAW_PRIMER that bridged the gap has been
-// removed. The pinned VERIFIED FIGURES card below is deliberately KEPT: zero API
-// cost, renders instantly, and is defense-in-depth if the backend ever regresses.
-// ANNUAL MAINTENANCE: update ARIA_SYSTEM, these guard facts, and TAX_TABLES together.
 function verifiedFactsFor(question) {
   return VERIFIED_FACT_GUARDS.filter(g => g.rx.test(question)).map(g => g.fact)
 }
@@ -56,7 +86,6 @@ function verifiedFactsFor(question) {
 // rendered as literal asterisks in the chat bubble. This converts **…** spans to
 // <strong> via React elements only — no dangerouslySetInnerHTML, so reply text can
 // never inject HTML. Line breaks are already handled by whiteSpace: 'pre-wrap'.
-// Deliberately minimal: other markdown (links, headings) passes through as text.
 function renderAriaText(text) {
   const s = String(text ?? '')
   const parts = s.split(/(\*\*[^*]+\*\*)/g)
@@ -68,39 +97,8 @@ function renderAriaText(text) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AUDIT F10 (Jul 2026) — session grounding & entity-aware prompts.
-//
-// The audit asked Aria "Can I deduct my rental loss this year?" while the
-// active record showed net rental INCOME. Aria answered with a generic §469
-// framework and never noticed the user's own numbers; its four suggested
-// prompts were all S-Corp/K-1 flavored, none for the product's real-estate-
-// investor audience. Two client-side fixes:
-//
-//   1) buildSessionContext() summarizes the active session (entity types,
-//      tax year, filing status, key dollar figures) and it is sent with every
-//      question — appended to the outgoing message text inside a clearly
-//      delimited block (guaranteed to reach the model regardless of backend
-//      version) AND as a structured `context` field on the request body for
-//      the backend to move into the system turn when it's ready. The visible
-//      chat bubble shows only what the user typed.
-//
-//   2) suggestedPrompts() picks the welcome examples from the entity mix:
-//      rental-first for Schedule E investors, reasonable-comp for S-Corps,
-//      SE-tax/home-office for Schedule C, and the original generic set when
-//      no entities exist yet.
-//
-// Everything is read defensively — a signed-in user with no session data gets
-// exactly the old behavior.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// M7 (audit follow-up): looks like a duplicate of money.js fmt() but is NOT —
-// fmt() renders negatives accounting-style "($500)", which reads poorly inline
-// in the assistant's prose; this keeps "-$500". Kept deliberately. If you change
-// one style, change both or note why not.
-// CONSISTENCY PASS (Jul 9 2026): Aria previously had a private formatter that
-// rendered negatives as '-$500' while every other surface uses fmt()'s
-// accounting-style '($500)'. One app, one money format.
+// M7: looks like a duplicate of money.js fmt() but is NOT — see history. One app,
+// one money format: Aria uses fmt() like every other surface.
 import { fmt as fmtUSD } from './utils/money.js'
 
 function readSessionSnapshot() {
@@ -108,22 +106,70 @@ function readSessionSnapshot() {
   let k1Total = 0
   let personal = null
   let taxYear = null
+  let summary = null
   // M5 (audit F-10): each context source degrades independently to its default —
   // the assistant answers with whatever context IS readable rather than crashing.
   try { const s1 = readStep1State(); entities = s1.entities || []; k1Total = Number(s1.k1Total) || 0 } catch { entities = [] }
   try { personal = readPersonalContext() } catch { personal = null }
   try { taxYear = readTaxYear() } catch { taxYear = null }
-  return { entities, k1Total, personal, taxYear }
+  // B-4: the engine's computed return. If the guard rejects the session (incomplete
+  // input), summary.ok is false and we simply omit the computed block — Aria is then
+  // told, explicitly, that it has no computed figures and must not invent any.
+  try { const s = selectTaxSummary(); summary = (s && s.ok) ? s : null } catch { summary = null }
+  return { entities, k1Total, personal, taxYear, summary }
 }
 
-function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxYear = null } = {}) {
+/**
+ * B-4: the ENGINE-COMPUTED return, rendered for the model.
+ *
+ * These are the only tax figures Aria is ever allowed to state. Every one of them is
+ * produced by calcTaxReturn — the same call Step 2 renders — so Aria and the Tax Tracker
+ * are incapable of disagreeing about the same record.
+ */
+function buildComputedBlock(summary) {
+  if (!summary) return null
+  const rows = [
+    ['Adjusted gross income (AGI)',        summary.agi],
+    ['Taxable income before §199A',        summary.taxableBeforeQBI],
+    ['§199A QBI deduction',                summary.qbi],
+    ['Taxable income (final)',             summary.taxableAfterQBI],
+    ['Federal income tax',                 summary.fedTax],
+    ['Self-employment tax',                summary.seTax],
+    ['Additional Medicare Tax (0.9%)',     summary.additionalMedicare],
+    ['Net Investment Income Tax (3.8%)',   summary.niitAmount],
+    ['Alternative Minimum Tax',            summary.amt],
+    ['TOTAL estimated federal tax',        summary.totalTax],
+    ['Balance due / (refund)',             summary.balance],
+    ['Recommended quarterly payment',      summary.quarterlyRecommended],
+  ]
+  const lines = rows
+    .filter(([, v]) => Number.isFinite(Number(v)))
+    .map(([labelTxt, v]) => `${labelTxt}: ${fmtUSD(Number(v))}`)
+
+  if (Number.isFinite(Number(summary.marginalRate))) {
+    lines.push(`Marginal ordinary rate: ${(Number(summary.marginalRate) * 100).toFixed(0)}%`)
+  }
+  // Why the QBI number is what it is — so Aria explains the engine's reasoning instead
+  // of inventing its own. These codes come straight from calcQBI.
+  const reason = {
+    wage:   'capped by the §199A(b)(2)(B) W-2 wage / UBIA limit',
+    income: 'capped by the overall 20%-of-taxable-income limit',
+    qbi:    'the full 20% of qualified business income (no limit binds)',
+    min400: 'set to the §199A(i) OBBBA $400 minimum',
+    none:   'not applicable (no qualifying business income)',
+  }[summary.qbiLimitApplied]
+  if (reason) lines.push(`§199A limit that binds: ${reason}`)
+  if (summary.qbiWageDataMissing) {
+    lines.push('NOTE: this record reports $0 of W-2 wages and $0 of UBIA, so the §199A wage cap is $0.')
+  }
+  return lines.join('\n')
+}
+
+function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxYear = null, summary = null } = {}) {
   const lines = []
   const types = entities.map(e => e?.type).filter(Boolean)
   if (types.length) lines.push(`Entities: ${types.join('; ')}`)
-  // REGRESSION FOLLOW-UP (Jul 2026): the first grounding pass sent entity TYPES
-  // but not entity FIGURES, so Aria answered a rental-loss question for a record
-  // that showed net rental INCOME. Per-entity dollars now ride along so the
-  // model can see whether a loss even exists before reciting §469.
+  // Per-entity dollars so the model can see whether a loss even exists before reciting §469.
   for (const e of entities) {
     if (!e || !e.type) continue
     const p = e.pnl || {}
@@ -140,7 +186,7 @@ function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxY
     if (e.isActiveParticipant) flags.push('§469(i) active participation claimed')
     lines.push(`- ${e.type}${e.own ? ` (${e.own}% owned)` : ''}: ${parts.join(', ')}${flags.length ? ` [${flags.join('; ')}]` : ''}`)
   }
-  if (k1Total) lines.push(`Total K-1 income: ${fmtUSD(k1Total)}`)
+  if (k1Total) lines.push(`Total pass-through (K-1 / Schedule C) income: ${fmtUSD(k1Total)}`)
   if (taxYear) lines.push(`Tax year: ${taxYear}`)
   if (personal) {
     if (personal.filingStatus) lines.push(`Filing status: ${personal.filingStatus}`)
@@ -159,9 +205,35 @@ function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxY
     if (personal.isREP) lines.push('Real Estate Professional status: claimed')
     if (Number(personal.dependents) > 0) lines.push(`Dependents: ${personal.dependents}`)
   }
+
+  const computed = buildComputedBlock(summary)
+  if (computed) {
+    lines.push('')
+    lines.push('COMPUTED RETURN (authoritative — produced by the TaxStat360 engine):')
+    lines.push(computed)
+  }
+
   if (!lines.length) return null
   return lines.join('\n')
 }
+
+/**
+ * B-4: the grounding contract. Sent with every turn.
+ *
+ * The model is a NARRATOR of the engine's output, not a calculator. Every hallucination
+ * the audit caught was the model doing tax math or recalling a rate table from memory.
+ * Both are now prohibited in the strongest terms the prompt can express, and the
+ * backend ARIA_SYSTEM prompt carries the same rules.
+ */
+const GROUNDING_RULES = [
+  'GROUNDING RULES — follow these exactly:',
+  '1. The COMPUTED RETURN block below is authoritative. When the user asks what they owe, what their deduction is, what their AGI or taxable income or quarterly payment is, quote THOSE figures verbatim. Do not recompute them.',
+  '2. Do NOT perform tax arithmetic. Do not add brackets, do not multiply rates, do not derive a tax liability. If a number is not in the context below, you do not have it.',
+  '3. Do NOT state tax brackets, thresholds, rates, contribution limits, or wage bases from memory. Your training data predates the One Big Beautiful Bill Act (P.L. 119-21, July 2025) and is wrong for 2026. Use only figures given to you in this message.',
+  '4. Do NOT invent income, entities, or dollar amounts. If the user references something not in the context, say you do not see it in their record and ask them to add it in the Tax Tracker.',
+  '5. If you cannot answer from the figures provided, say so plainly and point the user to the Tax Tracker. An honest "I do not have that" is always correct; a plausible guess never is.',
+  '6. You explain and model. You do not determine. Never tell the user they DO or DO NOT qualify for a status (Real Estate Professional, SSTB, material participation) — explain the test and tell them to confirm it with their CPA.',
+].join('\n')
 
 function suggestedPrompts({ entities = [] } = {}) {
   const types = entities.map(e => e?.type || '')
@@ -169,32 +241,36 @@ function suggestedPrompts({ entities = [] } = {}) {
   const hasSCorp = types.some(isSCorpEntity)
   const hasSchedC = types.some(isScheduleCType)
 
+  // AUDIT F-17: the old prompts asked Aria to make DETERMINATIONS ("Do I qualify for
+  // Real Estate Professional status?", "Can I deduct my rental loss this year?").
+  // Answering those is tax advice — which the disclaimer three inches below says Aria
+  // does not give. We were inviting the question and disclaiming the answer, and in a
+  // dispute the disclaimer is the part that loses. These are reframed toward what the
+  // tool is actually good at: EXPLAINING a number the engine already computed, and
+  // MODELLING a change. Same user value, no determination.
   const out = []
-  // Rental-investor prompts lead when a Schedule E property is on file —
-  // this is the product's core real-estate audience.
   if (hasRE) {
-    out.push('"Can I deduct my rental loss this year?"')
-    out.push('"Would cost segregation or bonus depreciation help on my rental?"')
-    out.push('"Do I qualify for Real Estate Professional status?"')
+    out.push('"Why is my rental loss suspended this year?"')
+    out.push('"What are the two tests for Real Estate Professional status?"')
+    out.push('"How would a $50,000 cost segregation deduction change my estimate?"')
   }
   if (hasSCorp) {
-    out.push('"Am I paying myself a reasonable S-Corp salary?"')
-    out.push('"How does my K-1 income affect my 1040?"')
+    out.push('"How does the reasonable-compensation rule work for S-Corps?"')
+    out.push('"How does my K-1 income flow into my 1040?"')
   }
   if (hasSchedC) {
-    out.push('"How can I lower my self-employment tax?"')
-    out.push('"Should I open a Solo 401(k) or SEP-IRA this year?"')
+    out.push('"What makes up my self-employment tax?"')
+    out.push('"How do a Solo 401(k) and a SEP-IRA differ?"')
   }
-  out.push('"What\'s my estimated quarterly payment?"')
-  out.push('"What deductions am I missing?"')
+  out.push('"Explain my quarterly payment."')
+  out.push('"Walk me through how my tax was calculated."')
 
-  // De-dupe, cap at 4 so the welcome bubble stays scannable.
   return [...new Set(out)].slice(0, 4)
 }
 
 function buildWelcome(snapshot) {
   const prompts = suggestedPrompts(snapshot)
-  return `Hi, I'm Aria — your TaxStat360 AI tax strategist.\n\nI'm here to help you manage your tax liability year-round, uncover deductions, reduce what you owe, and build long-term wealth through smart tax planning.\n\nHere are a few things you can ask me:\n${prompts.map(p => `• ${p}`).join('\n')}\n\nWhat can I help you with today?`
+  return `Hi, I'm Aria — your TaxStat360 assistant.\n\nI can explain the numbers in your Tax Tracker, walk through how a figure was calculated, and model what a change would do to your estimate. I work from your saved record, so my answers match what Step 2 shows.\n\nHere are a few things you can ask me:\n${prompts.map(p => `• ${p}`).join('\n')}\n\nWhat can I help you with today?`
 }
 
 // Max conversation turns to send to API — prevents unbounded cost growth
@@ -202,11 +278,8 @@ const MAX_HISTORY_TURNS = 20
 
 // Aria is mounted globally (its own root in main.jsx, outside the Router), so it
 // would otherwise appear on every page — including the public marketing pages.
-// Gate it to the authenticated app routes only: signed-in users on the actual
-// product, never on the landing / pricing / legal / auth pages.
 const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
 function ariaAllowed() {
-  // M5 (audit F-10): auth probe failure → treat as logged out (assistant stays hidden).
   try { if (!readLoggedIn()) return false } catch { return false }
   const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/'
   if (path.startsWith('/onboarding')) return true
@@ -214,9 +287,6 @@ function ariaAllowed() {
 }
 
 export default function Aria() {
-  // FIX (CLEANUP): Removed unused `useNavigate` import and `nav` variable.
-  // The component uses plain <a href> tags for all navigation (login, upgrade),
-  // not programmatic nav() calls. The import was dead code from an earlier draft.
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState([])
   const [input, setInput] = useState('')
@@ -226,8 +296,6 @@ export default function Aria() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Visibility gate — re-evaluated on navigation so it tracks SPA route changes
-  // and login/logout without requiring a full page reload.
   const [visible, setVisible] = useState(ariaAllowed)
   useEffect(() => {
     const check = () => setVisible(ariaAllowed())
@@ -240,9 +308,6 @@ export default function Aria() {
 
   useEffect(() => {
     if (open && !welcomed) {
-      // intro:true marks the welcome as a display-only message — excluded from API history.
-      // F10: the welcome is built at open time so its example prompts reflect the
-      // entities in the CURRENT session (rental-first for Schedule E investors).
       const snapshot = readSessionSnapshot()
       setTimeout(() => { setMsgs([{ role: 'assistant', text: buildWelcome(snapshot), intro: true }]); setWelcomed(true) }, 300)
     }
@@ -258,35 +323,53 @@ export default function Aria() {
     setLoading(true)
     setPlanError(false)
     try {
-      // SEC-04: Session token now lives in an httpOnly cookie set by the login Lambda.
-      // The browser sends it automatically on credentialed requests — no localStorage read needed.
-      // Build conversation history — exclude intro welcome message and cap at MAX_HISTORY_TURNS
       const history = msgs
         .filter(m => !m.intro)
         .slice(-MAX_HISTORY_TURNS)
         .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
 
-      // F10: ground the model in the user's own record. Only the CURRENT turn
-      // carries the context block (history entries stay as displayed), so the
-      // model always sees the freshest figures without duplicated boilerplate.
       const snapshot = readSessionSnapshot()
       const context = buildSessionContext(snapshot)
-      const outgoing = context
-        ? `${userMsg}\n\n[Session context — figures from my TaxStat360 record. Ground your answer in these before citing general rules; if a rule doesn't apply to my numbers, say so:\n${context}]`
-        : userMsg
+      // B-3: verified facts go to the MODEL, never to the SCREEN.
+      const facts = verifiedFactsFor(userMsg)
+
+      // B-4: the outgoing turn carries the grounding rules + the engine's computed
+      // return + any current-law facts the question touches. The visible chat bubble
+      // still shows only what the user typed (see setMsgs above — `userMsg`, not
+      // `outgoing`), so none of this scaffolding is ever rendered.
+      const blocks = [userMsg, '', GROUNDING_RULES]
+      if (facts.length) {
+        blocks.push('')
+        blocks.push('CURRENT LAW (2026, authoritative — overrides your training data):')
+        blocks.push(facts.map(f => `- ${f}`).join('\n'))
+      }
+      if (context) {
+        blocks.push('')
+        blocks.push('MY RECORD:')
+        blocks.push(context)
+      } else {
+        blocks.push('')
+        blocks.push('MY RECORD: (empty — I have not entered figures yet. Do not invent any. Ask me to complete the Tax Tracker.)')
+      }
+      const outgoing = blocks.join('\n')
+
       const messages = [...history, { role: 'user', content: outgoing }]
 
       const r = await apiFetch('/aria', {
         method: 'POST',
-        // `context` is additive: current backends ignore unknown fields; the
-        // planned ARIA_SYSTEM upgrade will lift it into the system turn.
-        body: context ? { messages, context } : { messages },
+        // `context` / `verifiedFacts` are additive: current backends ignore unknown
+        // fields; ARIA_SYSTEM lifts them into the system turn where they belong.
+        body: {
+          messages,
+          ...(context ? { context } : {}),
+          ...(facts.length ? { verifiedFacts: facts } : {}),
+          grounding: GROUNDING_RULES,
+        },
         credentials: 'include',
         raw: true,
       })
 
       if (r.status === 401) {
-        // Cookie expired or invalid — clear local flags and redirect to login
         removeLoggedIn()
         removeSessionStart()
         setMsgs(m => [...m, {
@@ -305,11 +388,6 @@ export default function Aria() {
         return
       }
 
-      // FIX (aria-5xx): any other non-2xx response (notably a 503 when the /aria
-      // service is unavailable) previously fell through to r.json() below, threw on
-      // the non-JSON body, and surfaced the generic "Connection error" — which reads
-      // like a client/network problem. Distinguish a server outage so the user knows
-      // it's temporary and to retry, rather than re-checking their connection.
       if (!r.ok) {
         const msg = r.status >= 500
           ? 'Aria is temporarily unavailable. This is on our side — please try again in a moment.'
@@ -320,12 +398,9 @@ export default function Aria() {
       }
 
       const d = await r.json()
-      // N-2 guard: pin verified figures ahead of the model's reply on stale-prone topics.
-      const _facts = verifiedFactsFor(userMsg)
-      if (_facts.length) {
-        setMsgs(m => [...m, { role: 'assistant', verified: true,
-          text: 'VERIFIED FIGURES -- ' + _facts.join('\n\n') + '\n\n(Pinned from this app\u2019s tax tables; if the answer below conflicts, trust these figures. The chat model\u2019s training data may predate the 2025 tax act.)' }])
-      }
+      // B-3: NOTHING is pushed here except the model's reply. The verified-facts card
+      // that used to appear as an assistant turn is gone. Do not reintroduce it — if the
+      // model needs a fact, put the fact in the request body, not on the user's screen.
       setMsgs(m => [...m, { role: 'assistant', text: d.reply || d.response || d.message || 'Sorry, I had trouble responding.' }])
     } catch {
       setMsgs(m => [...m, { role: 'assistant', text: 'Connection error. Please try again.' }])
@@ -381,33 +456,12 @@ export default function Aria() {
             />
             <button onClick={send} disabled={loading} aria-label="Send message to Aria" style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
           </div>
-          {/* Planning-lane disclaimer — Aria is an AI assistant, so it carries the same
-              federal-planning-only scope the rest of the app shows (FederalScopeBanner,
-              TaxReturn footer). The authoritative guardrails live server-side in the
-              /aria system prompt; this is the user-facing reminder. */}
           <div style={{ padding: '6px 14px 10px', fontSize: 11, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
-            Aria gives general federal tax-planning information for estimates only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
+            Aria explains the figures in your record for planning purposes only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>
       )}
 
-      {/* UX-05 FIX: The trigger button now has a visible label so users know what it does
-          without having to hover or guess.
-          —
-          BEFORE (regression): A bare 56×56 navy circle with the Aria star SVG and no text.
-          The aria-label / title attributes were present for screen readers and hover tooltips,
-          but sighted users on mobile — where title tooltips never fire — had no affordance.
-          The button was invisible as a feature; click-through on the widget was low as a result.
-          —
-          AFTER: Two distinct states driven by the existing `open` boolean:
-            • Closed → pill button (auto width, 48px tall): star SVG + "Ask Aria" text.
-                        Pill shape is the industry-standard chat widget pattern (Intercom, Drift).
-                        Makes the feature discoverable on first visit without any interaction.
-            • Open   → circle button (48×48): plain × glyph.
-                        Collapses back to a compact close target that doesn't obscure the chat panel.
-          —
-          Positioning, z-index, onClick, aria-label, and title are all unchanged from the prior
-          version so nothing else in the component is affected. */}
       <button
         onClick={() => setOpen(o => !o)}
         aria-label={open ? 'Close Aria AI assistant' : 'Open Aria AI assistant'}
@@ -417,7 +471,6 @@ export default function Aria() {
           bottom: 80,
           right: 24,
           height: 48,
-          // Pill when closed (fits icon + label), circle when open (just the × glyph)
           width: open ? 48 : 'auto',
           borderRadius: 24,
           background: N,
@@ -437,12 +490,10 @@ export default function Aria() {
         }}
       >
         {open ? (
-          /* Close state — compact × so it doesn't cover the chat panel */
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M2 2L16 16M16 2L2 16" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
           </svg>
         ) : (
-          /* Open/idle state — star icon + visible label */
           <>
             <svg width="22" height="22" viewBox="0 0 30 30" fill="none" style={{ flexShrink: 0 }}>
               <path d="M15 2L16.2 10L24 12L16.2 14L15 22L13.8 14L6 12L13.8 10Z" fill="#F5C842"/>
