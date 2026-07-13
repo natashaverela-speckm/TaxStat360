@@ -1415,6 +1415,16 @@ function calcTaxReturn(input) {
   // rentalQbiContribution is computed in the §469 rental block above (legacy or
   // per-property branch) — do not redeclare here.
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
+  // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
+  // ACTIVE qualified trade or business in which the taxpayer materially participates.
+  // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
+  // so passing total QBI as the floor-eligibility figure let a passive-rental-only filer
+  // wrongly clear the $1,000 active-QBI threshold and collect $400. activeQbiForFloor
+  // strips the passive rental portion; nonpassiveRentalNet is the materially-participated
+  // (REP) rental slice, which stays. SE income and non-rental K-1 (operating businesses)
+  // remain active. This changes ONLY the floor's eligibility gate, never the 20% figure.
+  const _passiveRentalQbi = Math.max(0, rentalQbiContribution - Math.max(0, nonpassiveRentalNet))
+  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi)
   const f4797NetGain = Math.max(0, nf(f4797Inc))
   // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
   // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
@@ -1431,6 +1441,7 @@ function calcTaxReturn(input) {
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
     status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes,
+    activeQbi: activeQbiForFloor,
   })
   const qbi                      = _qbiResult.deduction
   const qbiLimitApplied          = _qbiResult.limitApplied
