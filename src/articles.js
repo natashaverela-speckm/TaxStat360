@@ -92,7 +92,7 @@ Employee FICA on Medicare: $150,000 × 1.45% = $2,175
 Total employee: $11,475 | Employer match: $11,475
 Total FICA cost: ~$22,950
 
-The difference is $12,240 in FICA taxes — real cash savings, achieved through a fully legal structure, simply by setting the right salary level.
+The difference is $12,240 in FICA taxes — but read that carefully. The savings come from the S-Corp structure legally exempting your K-1 distributions from FICA, NOT from driving your salary as low as possible. Scenario A’s $70,000 salary is just 23% of total compensation — below the 35–45% range practitioners commonly defend, and exactly the kind of split TaxStat360’s Audit Risk Scan flags. A salary that low is what invited the reclassification the IRS won in Watson. The goal is not the lowest salary; it is a reasonable salary, documented against market data, with the remainder taken as distributions. Treat Scenario A as the aggressive ceiling of the FICA advantage, not the target: a defensible figure for this owner sits higher, and TaxStat360 shows you the FICA impact at every salary level so you can pick one you can stand behind.
 
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
@@ -169,7 +169,7 @@ Third, entity structuring: a C-Corp generates no QBI and cannot pass through the
         heading: 'How TaxStat360 Handles the QBI Calculation',
         body: `TaxStat360 computes the §199A deduction using the 2026 thresholds updated for P.L. 119-21 and applies all three limitation rules simultaneously: the SSTB phase-out, the W-2/UBIA wage limitation, and the taxable income ceiling. The deduction is shown as a separate line in the Tax Waterfall so you can see exactly what it's worth in the context of your full income picture.
 
-The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied: if the calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V) — and the SSTB checkbox to see the full computation.`,
+The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied — but only when you qualify for it. Under OBBBA §199A(i), the minimum applies only if you have at least $1,000 of QBI from one or more ACTIVE qualified trades or businesses in which you materially participate. If you clear that bar and your calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Passive income — such as a rental you do not materially participate in — does not count toward the $1,000 test and does not qualify for the minimum. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V) — and the SSTB checkbox to see the full computation.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'passive-activity-loss-rules'],
