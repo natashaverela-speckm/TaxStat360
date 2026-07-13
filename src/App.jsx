@@ -599,6 +599,9 @@ export default function App() {
         <Route path="/integrations/:provider/callback" element={<OAuthCallback />} />
 
         {/* Protected app routes */}
+        {/* AUDIT #7: /tracker (the "Tax Tracker" nav label) previously 404’d; the live
+            route is /calculate-tax. Redirect so bookmarks and stale links never dead-end. */}
+        <Route path="/tracker"       element={<Navigate to="/calculate-tax" replace />} />
         <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/dashboard"     element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
