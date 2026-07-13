@@ -1048,7 +1048,9 @@ function TaxOptimization({ rec }) {
 
   opportunities.push({
     icon: '🏥', title: 'Health Savings Account (HSA)', priority: 'medium',
-    saving: Math.round(4300 * marginalRate),
+    // AUDIT: was hardcoded to the 2025 limit ($4,300), so the badge read ~$1,376 while the
+    // body below (year-bound) read $1,408 for 2026 — two numbers for one item. Same source now.
+    saving: Math.round((getTable(year)?.hsa?.selfOnly ?? 4400) * marginalRate),
     // AUDIT F-8 FIX: limits now read from TAX_TABLES[year].hsa (were hardcoded 2025
     // figures shown in every tax year).
     detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to ${fmt(getTable(year)?.hsa?.selfOnly ?? 4400)} (self-only) or ${fmt(getTable(year)?.hsa?.family ?? 8750)} (family) to an HSA for ${year}. Contributions are tax-deductible and grow tax-free.`,
@@ -1447,6 +1449,10 @@ function Modal({ onClose, children }) {
 // F20 FIX: ReportModal now reads business name from onboarding sessionStorage (O7).
 function ReportModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
+  // AUDIT: the Form 8995 line below hardcoded 2025 thresholds, so a 2026 record handed a CPA
+  // a report quoting the wrong year's figures. Derive the year the same way the rest of the
+  // file does (see the `year` const in the strategy builder).
+  const _repYear = parseInt(b.year) || CURRENT_TAX_YEAR
   const totalW2 = getTotalW2(rec)
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   // O7 FIX: use onboarding business name on report cover if available
@@ -1500,7 +1506,7 @@ function ReportModal({ onClose, rec }) {
           <div style={{ fontWeight: 700, color: '#1D4ED8', fontSize: 13, marginBottom: 10 }}>📋 IRS Schedule Mapping</div>
           {[
             ['Schedule E (Part II)', 'K-1 income from S-Corps, Partnerships, and Trusts'],
-            ['Form 8995', 'QBI deduction — up to 20% of qualified business income. Full deduction below $197,300 single / $394,600 MFJ (2025); W-2 wage / UBIA limit applies above (IRC §199A(b)(2)).'],
+            ['Form 8995', `QBI deduction — up to 20% of qualified business income. Full deduction below ${fmt(QBI_THRESHOLDS[_repYear]?.single ?? 0)} single / ${fmt(QBI_THRESHOLDS[_repYear]?.mfj ?? 0)} MFJ (${_repYear}); W-2 wage / UBIA limit applies above (IRC §199A(b)(2)).`],
             ['Form 8959', 'Additional Medicare Tax — 0.9% on wages over $200K'],
             ['Schedule A', 'Itemized deductions — mortgage, taxes, charitable'],
             ['Form 7203', 'S-Corp shareholder stock and debt basis limitations'],

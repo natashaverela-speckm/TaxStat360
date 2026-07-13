@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS } from './taxCalc.js'
+import { calcTaxReturn, getStdDed, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS, getTable } from './taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -1319,7 +1319,8 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-hsa" style={inputLbl}>
                   HSA Deduction (Form 8889)
-                  <InfoTip text="Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. 2025 limits: $4,300 (self-only) / $8,550 (family). Grows tax-free; withdrawals for medical expenses are always tax-free." />
+                  {/* AUDIT: limits were hardcoded to 2025 and shown even when 2026 was selected. */}
+                  <InfoTip text={`Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. ${taxYear} limits: ${fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / ${fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family). Grows tax-free; withdrawals for medical expenses are always tax-free.`} />
                 </label>
                 <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
               </div>
