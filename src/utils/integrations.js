@@ -69,20 +69,37 @@ export function removeIntegrationField(providerId, field) {
   localStorage.removeItem(integrationKey(providerId, field))
 }
 
-/** Token, session-first (matches every prior inline read):
- *  sessionStorage || localStorage || ''. */
-export function readIntegrationToken(providerId) {
-  return sessionStorage.getItem(integrationKey(providerId, 'token'))
-      || localStorage.getItem(integrationKey(providerId, 'token'))
-      || ''
-}
-/** OAuth-return token write: BOTH stores, matching the prior inline pair. */
-export function writeIntegrationToken(providerId, token) {
-  localStorage.setItem(integrationKey(providerId, 'token'), token)
-  sessionStorage.setItem(integrationKey(providerId, 'token'), token)
-}
-/** Session-copy removal — both disconnect paths call this alongside the
- *  localStorage removals (OBS-2 resolved, Batch 6). */
-export function removeIntegrationSessionToken(providerId) {
-  sessionStorage.removeItem(integrationKey(providerId, 'token'))
+// ─── OAuth tokens are NOT stored in the browser (audit P0-#1) ────────────────
+//
+// readIntegrationToken / writeIntegrationToken / removeIntegrationSessionToken are
+// GONE. A QuickBooks/Xero access token — and especially a Xero refresh token — is a
+// live credential to the customer's accounting system. Keeping one in localStorage
+// put it one XSS away from exfiltration, and the token then had to be passed to our
+// own API in a query string, where it landed in access logs and browser history.
+//
+// The API now holds these tokens server-side against the user's account and reads
+// them from there (GET /integrations/{p}/data authenticates by session). The browser
+// never sees, stores, or transmits a provider token. Connection state comes from
+// GET /integrations/status — a boolean, not a credential.
+//
+// `connected` / `failed` / `extra` / `syncedAt` remain in localStorage: they are UI
+// hints, not secrets.
+
+export const INTEGRATION_PROVIDERS = ['quickbooks', 'xero', 'wave', 'freshbooks']
+
+/**
+ * One-time scrub of credentials this app used to persist.
+ *
+ * Anyone who connected an integration before this fix still has a live provider
+ * token — and, for Xero, a long-lived refresh token — sitting in their browser.
+ * Shipping the fix without clearing them would leave the exposure in place for
+ * exactly the existing customers who trusted us first. Called on app load.
+ */
+export function purgeLegacyIntegrationTokens() {
+  for (const providerId of INTEGRATION_PROVIDERS) {
+    localStorage.removeItem(integrationKey(providerId, 'token'))
+    sessionStorage.removeItem(integrationKey(providerId, 'token'))
+  }
+  localStorage.removeItem('ts360_xero_refresh')
+  sessionStorage.removeItem('ts360_xero_refresh')
 }
