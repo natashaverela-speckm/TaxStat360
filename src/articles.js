@@ -32,7 +32,7 @@ import { fmt } from './utils/money.js'
 // no stable value to bind. The prose describes the mechanic instead of quoting a
 // figure that goes stale within a quarter.
 const _ssWageBase2026 = getTable(2026).ssWageBase            // 184500
-const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201775, mfj:403500, ... }
+const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201750, mfj:403500, hoh:201750, mfs:201775 }
 const _qbiPhaseIn2026 = QBI_PHASE_IN_RANGE[2026]             // { single:75000,  mfj:150000, ... }
 const _qbiCeil2026 = {                                       // full phase-out = threshold + phase-in range
   single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276775
