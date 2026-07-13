@@ -937,3 +937,44 @@ export function writeDirtyFlag(v) {
 export function readDirtyFlag() {
   try { return sessionStorage.getItem(DIRTY_KEY) === '1' } catch { return false }
 }
+
+// ─── Step-1 device-local draft (audit #6) ─────────────────────────────────────
+// Working entries live in sessionStorage, which the browser wipes on tab/window
+// close and which is per-tab — so a user who typed entity financials and then
+// closed the tab (or was idle-expired and reopened elsewhere) lost the work, even
+// though the Sign-In screen promises "your in-progress entries are still here."
+// We mirror the working copy to localStorage so it survives a tab close, a browser
+// restart, and re-login in another tab on the SAME device. It is device-local and
+// never transmitted. Cleared on explicit sign-out (SignOut.jsx AUTH_KEYS) and after
+// a successful Save (CalculateTaxInner). It is scoped to the owning email and
+// rehydrated ONLY for that same account, so a draft can never leak one user's
+// figures to the next person on a shared browser (mirrors the ts360_records_<email>
+// convention). Account deletion wipes it via wipeAccountLocalData's ts360_* sweep.
+const STEP1_DRAFT_KEY = 'ts360_step1_draft'
+function _draftEmail() { return localStorage.getItem('ts360_email') || 'default' }
+
+export function writeStep1Draft(entities, taxYear) {
+  try {
+    if (!Array.isArray(entities) || entities.length === 0) {
+      localStorage.removeItem(STEP1_DRAFT_KEY)
+      return
+    }
+    localStorage.setItem(STEP1_DRAFT_KEY, JSON.stringify({
+      email: _draftEmail(), entities, taxYear, savedAt: Date.now(),
+    }))
+  } catch { /* storage full/disabled: draft is best-effort, never fatal */ }
+}
+
+export function readStep1Draft() {
+  try {
+    const raw = localStorage.getItem(STEP1_DRAFT_KEY)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    // Only the owning account may rehydrate — never surface another user's draft.
+    return (d && d.email === _draftEmail()) ? d : null
+  } catch { return null }
+}
+
+export function clearStep1Draft() {
+  try { localStorage.removeItem(STEP1_DRAFT_KEY) } catch { /* noop */ }
+}
