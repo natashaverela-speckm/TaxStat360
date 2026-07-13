@@ -4,7 +4,7 @@
 // or enter P&L figures manually, then advance to Step 2 (TaxReturn.jsx).
 //
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { readXeroRefresh, writeXeroRefresh, writeDirtyFlag } from './utils/sessionState.js'
+import { writeDirtyFlag } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
@@ -17,11 +17,11 @@ import {
   upgradeLabelForRealEstateCap,
 } from './utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
-import { apiFetch } from './utils/apiClient.js'
+import { apiFetch, apiGet, apiPost } from './utils/apiClient.js'
 import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
-import { readIntegrationField, writeIntegrationField, removeIntegrationField, readIntegrationToken, writeIntegrationToken, removeIntegrationSessionToken } from './utils/integrations.js'
+import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from './utils/integrations.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
 // PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
@@ -760,11 +760,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const handleDisconnect = () => {
     const pid = entity.connectedId
     if (pid) {
+      // Audit P0-#1: the token now lives on the server, so disconnecting has to TELL the
+      // server. Clearing local keys alone would leave a live credential to the customer's
+      // books stored against their account indefinitely — a disconnect that disconnects
+      // nothing. Fire-and-forget: the UI must not block on it, but it must happen.
+      apiPost(`/integrations/${pid}/disconnect`).catch(() => {})
       removeIntegrationField(pid, 'connected')
-      removeIntegrationField(pid, 'token')
       removeIntegrationField(pid, 'extra')
       removeIntegrationField(pid, 'syncedAt')
-      removeIntegrationSessionToken(pid)
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
@@ -1779,16 +1782,14 @@ export default function CalculateTaxInner() {
   }, [])
 
   const handleIntegrationDisconnect = useCallback((pid) => {
-    // OBS-2 RESOLVED (Batch 6, Jul 2026): this legacy path previously left the
-    // sessionStorage token copy behind after disconnect, so a stale token stayed
-    // usable within the tab. Both disconnect paths now clear both stores — a
-    // disconnected accounting integration retains no live credential anywhere.
+    // OBS-2 (Batch 6, Jul 2026) / audit P0-#1: there is no longer a token in either
+    // browser store to leave behind — the credential lives server-side. Disconnect
+    // therefore has to revoke it there; the local keys below are only UI state.
+    apiPost(`/integrations/${pid}/disconnect`).catch(() => {})
     removeIntegrationField(pid, 'connected')
-    removeIntegrationField(pid, 'token')
     removeIntegrationField(pid, 'extra')
     removeIntegrationField(pid, 'syncedAt')
     removeIntegrationField(pid, 'failed')
-    removeIntegrationSessionToken(pid)
     setEntities(prev => {
       const next = prev.map(e =>
         e.connectedId === pid
@@ -1901,16 +1902,13 @@ export default function CalculateTaxInner() {
   // F23 FIX: fetchEntityPnL now writes a ts360_{provider}_synced_at timestamp
   // after every successful sync, and returns a diff summary string so the tile
   // can display "Revenue updated: $X → $Y (+$Z)".
-  async function fetchEntityPnL(idx, pid, tok, extra, isManualSync = false) {
+  // Audit P0-#1: the provider access token, the Xero refresh token, and the realm/
+  // tenant/account identifiers used to be appended to this URL by the browser. They
+  // are now held server-side against the user and looked up by the API from the
+  // session, so the request carries no credential at all — just the tax year.
+  async function fetchEntityPnL(idx, pid, isManualSync = false) {
     try {
-      let url = `/integrations/${pid}/data?token=${encodeURIComponent(tok)}&year=${encodeURIComponent(taxYear)}`
-      if (pid === 'quickbooks' && extra) url += '&realm='   + extra
-      if (pid === 'xero'        && extra) url += '&tenant='  + extra
-      if (pid === 'freshbooks'  && extra) url += '&account=' + extra
-      if (pid === 'xero') {
-        const xeroRefresh = readXeroRefresh()
-        if (xeroRefresh) url += '&refresh_token=' + encodeURIComponent(xeroRefresh)
-      }
+      const url = `/integrations/${pid}/data?year=${encodeURIComponent(taxYear)}`
       const d = await apiFetch(url, { raw: true }).then(r => r.json())
       if (d && !d.error) {
         const empty =
@@ -1989,67 +1987,66 @@ export default function CalculateTaxInner() {
 
   // F23 FIX: manual re-sync handler called from IntegrationTile "Sync now" button
   const handleManualSync = useCallback((pid) => {
-    const tok   = readIntegrationToken(pid)
-    const extra = readIntegrationField(pid, 'extra')
-    const idx   = entities.findIndex(e => e.connectedId === pid)
-    fetchEntityPnL(idx >= 0 ? idx : 0, pid, tok, extra, true)
+    const idx = entities.findIndex(e => e.connectedId === pid)
+    fetchEntityPnL(idx >= 0 ? idx : 0, pid, true)
   }, [entities, taxYear])
 
+  // Audit P0-#1: the OAuth return URL used to carry the provider access token (and the
+  // Xero refresh token), which this effect harvested into localStorage. The callback
+  // now returns only `?{provider}=connected&entity=N` — the tokens never leave the
+  // server. Connection state is authoritative from GET /integrations/status, which also
+  // means a connection made on one device is now visible on another (it wasn't before,
+  // since "connected" was inferred from a token in that browser's localStorage).
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    const mp = {
-      qb_token: 'quickbooks', quickbooks_token: 'quickbooks',
-      xero_token: 'xero',
-      wave_token: 'wave', wave_token2: 'wave',
-      fb_token: 'freshbooks', freshbooks_token: 'freshbooks'
-    }
-    const xeroRefresh = p.get('xero_refresh')
-    if (xeroRefresh) writeXeroRefresh(xeroRefresh)
-    // M7 (audit OBS-4): the ts360_connecting_entity session fallback had no writer —
-    // the OAuth return URL's ?entity= param is the only live source. Dead read removed.
-    const entityIdx = parseInt(p.get('entity')) || 0
-    let foundInUrl = false
+    let cancelled = false
 
-    for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
+    // Scrub any provider tokens this app persisted before the fix.
+    purgeLegacyIntegrationTokens()
+
+    const p = new URLSearchParams(window.location.search)
+    const entityIdx = parseInt(p.get('entity')) || 0
+    let justConnected = null
+
+    for (const pid of INTEGRATION_PROVIDERS) {
       if (p.get(pid) === 'connected') {
-        foundInUrl = true
+        justConnected = pid
         writeIntegrationField(pid, 'connected', 'true')
         removeIntegrationField(pid, 'failed')
-        const hasToken = Object.entries(mp).some(([k, v]) => v === pid && p.get(k))
-        if (!hasToken) {
-          fetchEntityPnL(entityIdx, pid, '', null)
-        }
         break
       }
     }
-
-    for (const [k, pid] of Object.entries(mp)) {
-      const tok = p.get(k)
-      if (tok) {
-        foundInUrl = true
-        writeIntegrationField(pid, 'connected', 'true')
-        removeIntegrationField(pid, 'failed')
-        writeIntegrationToken(pid, tok)
-        const extra = pid === 'quickbooks' ? p.get('realm')
-                    : pid === 'xero'        ? p.get('tenant')
-                    : pid === 'freshbooks'  ? p.get('account')
-                    : null
-        if (extra) writeIntegrationField(pid, 'extra', extra)
-        fetchEntityPnL(entityIdx, pid, tok, extra)
-      }
+    if (justConnected || p.get('entity') !== null) {
+      window.history.replaceState({}, '', window.location.pathname)
     }
 
-    if (!foundInUrl) {
-      for (const pid of ['quickbooks', 'xero', 'wave', 'freshbooks']) {
-        if (readIntegrationField(pid, 'connected') === 'true') {
-          const tok   = readIntegrationToken(pid)
-          const extra = readIntegrationField(pid, 'extra')
-          if (tok) { fetchEntityPnL(0, pid, tok, extra); break }
+    ;(async () => {
+      let status = null
+      try {
+        status = await apiGet('/integrations/status')
+      } catch {
+        status = null // not signed in, or the API is unreachable — fall back below
+      }
+      if (cancelled) return
+
+      if (status) {
+        for (const pid of INTEGRATION_PROVIDERS) {
+          if (status[pid]?.connected) writeIntegrationField(pid, 'connected', 'true')
+          else removeIntegrationField(pid, 'connected')
         }
+        bumpIntegrationUi()
       }
-    }
 
-    if (foundInUrl) window.history.replaceState({}, '', window.location.pathname)
+      if (justConnected) {
+        fetchEntityPnL(entityIdx, justConnected)
+        return
+      }
+      const connected = INTEGRATION_PROVIDERS.find(pid =>
+        status ? status[pid]?.connected : readIntegrationField(pid, 'connected') === 'true'
+      )
+      if (connected) fetchEntityPnL(0, connected)
+    })()
+
+    return () => { cancelled = true }
   }, [])
 
 
