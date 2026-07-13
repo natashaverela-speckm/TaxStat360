@@ -58,6 +58,10 @@ const AUTH_KEYS = [
   'ts360_wave_connected',
   'ts360_freshbooks_token',
   'ts360_freshbooks_connected',
+  // AUDIT #6: the device-local Step-1 draft is unsaved work; an explicit sign-out
+  // clears it (privacy on shared devices). Tab close / idle-expiry do NOT go through
+  // here, so those still resume from the draft.
+  'ts360_step1_draft',
 ]
 
 export function signOut(nav) {
