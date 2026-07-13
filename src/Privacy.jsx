@@ -28,7 +28,7 @@ export default function Privacy() {
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: May 31, 2026</p>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: July 13, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Privacy Policy</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>TaxStat360 is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and protect your data.</p>
         </div>
@@ -50,7 +50,7 @@ export default function Privacy() {
 
         <Section title="3. Data Security">
           <p style={{ marginBottom: 10 }}>We use bank-level 256-bit AES encryption for all data at rest and TLS 1.3 in transit. All accounting connections use read-only OAuth tokens.</p>
-          <p>Your data is stored on AWS infrastructure in the United States and is never sold or shared with third parties for advertising.</p>
+          <p>Your financial and account data is stored on AWS infrastructure in the United States and is never sold, and is never shared with third parties for advertising. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
         </Section>
 
         {/* #6 FINAL (Anthropic, external API processor):
@@ -77,14 +77,21 @@ export default function Privacy() {
           <p style={{ marginBottom: 8 }}>- Stripe (payment processing)</p>
           <p style={{ marginBottom: 8 }}>- AWS (infrastructure and data storage)</p>
           <p style={{ marginBottom: 8 }}>- QuickBooks, Xero, Wave, FreshBooks (read-only accounting data)</p>
-          <p>- Anthropic (Claude API &mdash; AI processing for explanations, risk alerts, and Ask Aria)</p>
+          <p style={{ marginBottom: 8 }}>- Anthropic (Claude API &mdash; AI processing for explanations, risk alerts, and Ask Aria)</p>
+          <p>- Meta / Facebook (advertising pixel on our marketing site &mdash; consent-gated; see &ldquo;Cookies, Analytics &amp; Advertising&rdquo;)</p>
         </Section>
 
         <Section title="7. Your Rights">
           <p>You have the right to access, correct, or delete your personal data at any time. Contact <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a>. California residents have additional rights under the CCPA. We do not sell personal information.</p>
         </Section>
 
-        <Section title="8. Contact Us">
+        <Section title="8. Cookies, Analytics &amp; Advertising">
+          <p style={{ marginBottom: 10 }}>Our public marketing site uses a Meta (Facebook) advertising pixel to measure the performance of our ads and to build advertising audiences. When active, it shares limited website-usage data &mdash; the pages you view, your IP address, general device/browser information, and Meta cookie identifiers &mdash; with Meta Platforms, Inc. It does <strong>not</strong> receive your tax figures, account data, or any information you enter into the application.</p>
+          <p style={{ marginBottom: 10 }}>The pixel is <strong>consent-gated</strong>: it does not load and no data is sent to Meta unless you click <strong>Accept</strong> on our cookie banner. Choosing <strong>Essential only</strong> prevents it entirely, and it never runs inside the signed-in application.</p>
+          <p>Aside from this pixel, we use only essential cookies required to keep you signed in and operate the service.</p>
+        </Section>
+
+        <Section title="9. Contact Us">
           <p>Questions? Email <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a>.</p>
         </Section>
       </div>

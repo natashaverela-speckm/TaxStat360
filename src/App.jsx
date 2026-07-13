@@ -506,6 +506,11 @@ function CookieBanner() {
 
   const dismiss = (choice) => {
     writeCookieConsent(choice)
+    // Consent-gated Meta Pixel (defined in index.html): load it ONLY on Accept.
+    // "Essential only" (choice === 'declined') deliberately never loads it.
+    if (choice === 'accepted' && typeof window !== 'undefined' && typeof window.__ts360LoadPixel === 'function') {
+      window.__ts360LoadPixel()
+    }
     setVisible(false)
   }
 
