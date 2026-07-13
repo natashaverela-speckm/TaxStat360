@@ -1231,9 +1231,16 @@ function IRSCompliance({ rec }) {
     const _filing = f.filingStatus || 'single'
     // AUDIT BLOCKER 2: engine-true, same as every other surface.
     const _sumSched = summarizeRecord(rec)
+    // AUDIT FIX: _taxableBeforeQBI was referenced below (qbiFormSelection + the SSTB note)
+    // but never defined in this block — a ReferenceError every time this branch rendered.
+    // Define it with the same engine-true-with-fallback pattern used elsewhere in this file
+    // (see _taxableBeforeQBI_rough / _opt), and reuse it in the fallback below.
+    const _taxableBeforeQBI = _sumSched.ok
+      ? _sumSched.taxableBeforeQBI
+      : taxableIncomeBeforeQBI(k1 + w2, year, _filing)
     const _schedFallback = _sumSched.ok ? null : resolveQbiDeduction({
       k1,
-      taxableBeforeQBI: taxableIncomeBeforeQBI(k1 + w2, year, _filing),
+      taxableBeforeQBI: _taxableBeforeQBI,
       entityType: entity,
       filing: _filing,
       taxYear: year,
