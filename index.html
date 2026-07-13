@@ -20,18 +20,32 @@
     <!-- Meta (Facebook) domain verification -->
     <meta name="facebook-domain-verification" content="3gj2ohbly09khyqohas08sb07l4yw6" />
 
-    <!-- Meta Pixel Code -->
+    <!-- Meta Pixel Code (consent-gated — audit: was firing unconditionally, which
+         contradicted the Privacy Policy and ignored the cookie banner's choice).
+         Facebook's script is NOT loaded and NO event fires until the visitor accepts
+         cookies. __ts360LoadPixel runs here only if consent was granted on a prior
+         visit; the cookie banner's Accept handler (App.jsx) calls it on first grant.
+         Choosing "Essential only" never loads it. -->
     <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '1318925679665526');
-      fbq('track', 'PageView');
+      window.__ts360LoadPixel = function () {
+        if (window.__ts360PixelLoaded) return;
+        window.__ts360PixelLoaded = true;
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '1318925679665526');
+        fbq('track', 'PageView');
+      };
+      try {
+        if (localStorage.getItem('ts360_cookie_consent') === 'accepted') {
+          window.__ts360LoadPixel();
+        }
+      } catch (e) { /* storage blocked: default to NOT loading the pixel */ }
     </script>
     <!-- End Meta Pixel Code -->
 
@@ -183,9 +197,8 @@
     </script>
   </head>
   <body>
-    <!-- Meta Pixel (noscript fallback) -->
-    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1318925679665526&ev=PageView&noscript=1" /></noscript>
-    <!-- End Meta Pixel (noscript fallback) -->
+    <!-- Meta Pixel noscript fallback removed: it fired a tracking request
+         unconditionally and could not honor the cookie-consent choice. -->
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
