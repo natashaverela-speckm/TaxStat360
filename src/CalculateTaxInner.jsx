@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { writeDirtyFlag } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities } from './utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft } from './utils/sessionState.js'
 import { signOut } from './utils/SignOut'
 import { nf } from './utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -1664,6 +1664,21 @@ export default function CalculateTaxInner() {
         if (Array.isArray(raw) && raw.length > 0) hydrated = raw
       }
 
+      // AUDIT #6: last resort — the device-local draft. This is what survives a tab
+      // close or a re-login in a different tab, when the per-tab sessionStorage above
+      // is gone. Restores both the entities and the tax year the user was working in.
+      if (!hydrated || hydrated.length === 0) {
+        const draft = readStep1Draft()
+        if (draft && Array.isArray(draft.entities) && draft.entities.length > 0) {
+          hydrated = draft.entities
+          if (draft.taxYear) {
+            hydratedTaxYear = draft.taxYear
+            setTaxYear(draft.taxYear)
+            writeTaxYear(draft.taxYear)
+          }
+        }
+      }
+
       if (hydrated && hydrated.length > 0) {
         const mapped = hydrated.map(e => ({
           ...e,
@@ -1822,6 +1837,9 @@ export default function CalculateTaxInner() {
     writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
     writeDirtyFlag(true)  // D-3
     writeTaxYear(taxYear)
+    // AUDIT #6: mirror to the device-local draft so the work survives a tab close /
+    // browser restart / cross-tab re-login (sessionStorage above does not).
+    writeStep1Draft(entities, taxYear)
     return k1Total
   }, [entities, taxYear])
 
@@ -1882,6 +1900,7 @@ export default function CalculateTaxInner() {
     try {
       await syncRecordToServer(record)
       writeDirtyFlag(false)  // D-3: saved = clean
+      clearStep1Draft()      // AUDIT #6: safely in the account now — drop the local draft
       writeActiveRecord(record.id, record.name || record.savedAt)
       setSaveStatus('saved')
       // AUDIT-2 FIX (completes the snapshot infra added above): a successful
@@ -2332,7 +2351,7 @@ export default function CalculateTaxInner() {
             The remaining truth is narrower: unsynced entries don't survive
             sign-out, and an accounting re-sync replaces them. The banner now
             says exactly that, in an informational tone instead of a warning. */}
-        {hasUnsavedChanges && (<div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 14px', color: '#0C4A6E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'✓'}</span><span>{'Your entries are saved on this device for this session. Click Save Progress to sync them to your account — unsynced entries don\u2019t survive signing out, and connecting accounting software replaces them.'}</span></div>)}
+        {hasUnsavedChanges && (<div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 14px', color: '#0C4A6E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'✓'}</span><span>{'Your entries are kept on this device — they survive a tab close or timeout so you can pick up where you left off. Click Save Progress to sync them to your account (and across devices); an explicit sign-out clears the local draft, and connecting accounting software replaces these figures.'}</span></div>)}
 
         {/* Compare button */}
         {entities.length > 0 && isPro() && (
