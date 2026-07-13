@@ -245,3 +245,30 @@ equals a direct calcTaxReturn() call on the same facts — the simulator IS the
 engine. History: the original defect showed "$0 savings" and NaN rows for
 every preset; Batch 1 replaced that with an honest "unavailable" notice;
 this batch restores the feature.
+
+## PASSIVE-PARTNER — passive / limited partnership interests are not modeled
+
+**Scope:** TaxStat360 models *active* partnership interests only. The entity picker offers
+"Partnership / LLC", which `normalizeEntityType()` maps to `Partnership / MMLLC — Active`.
+
+The engine vocabulary already distinguishes a passive variant
+(`Partnership / MMLLC — Passive`), and `SE_SUBJECT_TYPES` deliberately omits it, so a passive
+partner would correctly owe **no SE tax** (IRC §1402(a)(13)). The §199A(i) $400-minimum gate
+also now excludes passive-partner QBI (`_passiveK1Qbi` in `calcTaxReturn`).
+
+**Why it is not exposed in the UI:** the §469 passive-activity-loss machinery
+(`palAdjustedRental` / `passiveRentalNet` / `calc469iAllowance`) is **rental-scoped**. If the
+passive-partner type were made selectable today, a passive partnership *loss* would flow
+through as fully deductible against non-passive income instead of being suspended under §469 —
+a worse error than the one the type would fix. NIIT treatment of passive K-1 income would also
+need review.
+
+**To support passive partners properly, all of the following are required:**
+1. Make the passive variant selectable in `ENTITY_TYPES` / the entity picker.
+2. Suspend passive K-1 losses under §469 (extend the PAL machinery beyond rentals) with
+   carryforward tracking.
+3. Confirm NIIT treatment — passive K-1 income IS net investment income (§1411).
+4. Keep the SE-tax exemption and the §199A(i) floor exclusion (both already in place).
+
+Until then, a limited partner who does not materially participate is outside the tool's
+supported scope.
