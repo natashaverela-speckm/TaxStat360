@@ -914,8 +914,11 @@ export function writeDisclaimerSeen(val) { localStorage.setItem('ts360_disclaime
 // D-04 (dead-code audit, Jul 2026): the connected-app label accessors were removed —
 // the value was written on OAuth return and cleared on disconnect but READ nowhere
 // (no UI ever displayed it). Per-provider state lives in integrations.js.
-export function readXeroRefresh() { return localStorage.getItem('ts360_xero_refresh') }
-export function writeXeroRefresh(val) { localStorage.setItem('ts360_xero_refresh', val) }
+// Audit P0-#1: readXeroRefresh / writeXeroRefresh are gone. A Xero refresh token is a
+// long-lived, re-mintable credential to the customer's books; it must never be held in
+// the browser. It now lives only in the user's server-side record. (SignOut.jsx still
+// clears the legacy 'ts360_xero_refresh' key, and purgeLegacyIntegrationTokens() scrubs
+// it on load, so values written by the old build are actively removed.)
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 export function readOnboardingEntityType() { return localStorage.getItem('ts360_entityType') }
