@@ -66,6 +66,30 @@ describe('§199A(i) $400 minimum — active-participation gate (audit #3)', () =
     expect(r.qbiLimitApplied).not.toBe('min400')
   })
 
+  // SPEC: §199A(i) — a PASSIVE partnership interest (limited partner, no material
+  // participation) is not an active trade or business, so its QBI cannot make the filer
+  // eligible for the floor. (The passive variant is not selectable in the UI today — see
+  // KNOWN_LIMITATIONS PASSIVE-PARTNER — so this guards the engine, not a live path.)
+  it('passive partnership ($1,500 QBI) does NOT get the $400 floor', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 40000,
+      entities: [{ type: 'Partnership / LLC — Passive', own: 100,
+        pnl: { netProfit: 1500, grossRevenue: 1500, totalExpenses: 0, officerSalary: 0 } }],
+    })
+    expect(r.qbi).toBe(300)
+    expect(r.qbiLimitApplied).not.toBe('min400')
+  })
+
+  // ...while an ACTIVE partnership with the same QBI still qualifies.
+  it('active partnership ($1,500 QBI) DOES get the $400 floor', () => {
+    const r = calcTaxReturn({
+      ...BASE, w2: 40000,
+      entities: [{ type: 'Partnership / LLC', own: 100,
+        pnl: { netProfit: 1500, grossRevenue: 1500, totalExpenses: 0, officerSalary: 0 } }],
+    })
+    expect(r.qbiLimitApplied).toBe('min400')
+  })
+
   // Guard the underlying unit contract too: calcQBI must honor activeQbi < $1,000.
   it('calcQBI: passive-only activeQbi below $1,000 yields no floor', () => {
     const r = calcQBI(1500, 60000, 0, { status: 'single', taxYear: 2026, activeQbi: 0 })
