@@ -363,28 +363,12 @@ export default function Dashboard() {
       nav('/calculate-tax')
     }
 
-    const params = new URLSearchParams(window.location.search)
-    const xeroToken = params.get('xero_token')
-    if (xeroToken) {
-      setConnectedApp('Xero')
-      setXeroLoading(true)
-      // Routes through apiClient → API_BASE_URL, consistent with every other auth call.
-      // (Previously used a ts360_api_base localStorage override that was never set, so it
-      // defaulted to same-origin — the wrong host under the split app/API origins.)
-      apiGet('/auth/xero/data?token=' + encodeURIComponent(xeroToken))
-        .then(data => {
-          if (data && data.grossRevenue) {
-            setBiz(p => ({
-              ...p,
-              grossRevenue: String(Math.round(nf(data.grossRevenue))),
-              otherDeductions: String(Math.round(nf(data.otherDeductions))),
-            }))
-          }
-          setXeroLoading(false)
-          window.history.replaceState({}, '', '/dashboard')
-        })
-        .catch(() => { setXeroLoading(false); window.history.replaceState({}, '', '/dashboard') })
-    }
+    // Audit P0-#1: a dead ?xero_token= handler lived here. It read a Xero access token
+    // out of the URL and passed it to GET /auth/xero/data?token=… — an endpoint that
+    // does not exist in the API (it 404s). The OAuth callback no longer emits a token
+    // into the URL at all, and the live sync path is fetchEntityPnL() in
+    // CalculateTaxInner, which authenticates by session. Removed rather than ported:
+    // there is nothing here to keep.
 
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
