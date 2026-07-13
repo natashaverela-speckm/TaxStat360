@@ -1424,7 +1424,26 @@ function calcTaxReturn(input) {
   // (REP) rental slice, which stays. SE income and non-rental K-1 (operating businesses)
   // remain active. This changes ONLY the floor's eligibility gate, never the 20% figure.
   const _passiveRentalQbi = Math.max(0, rentalQbiContribution - Math.max(0, nonpassiveRentalNet))
-  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi)
+  // AUDIT (re-audit): the same §199A(i) "active trade or business" test excludes a PASSIVE
+  // partnership interest (a limited partner who does not materially participate). The engine
+  // vocabulary already distinguishes 'Partnership / MMLLC — Passive' (normalizeEntityType),
+  // and SE_SUBJECT_TYPES correctly omits it so no SE tax is charged (§1402(a)(13)). This guard
+  // completes the picture: passive-partner QBI must not make a filer eligible for the $400
+  // floor either. NOTE: the passive variant is NOT selectable in the UI today (only
+  // "Partnership / LLC" → Active), so this changes no current result — it is a correctness
+  // guard so the floor stays right if/when the type is exposed. Exposing it also requires
+  // §469 loss suspension for passive K-1, which is rental-scoped today — see KNOWN_LIMITATIONS.
+  const _passiveK1Qbi = entitiesLimited.reduce((sum, e) => {
+    if (!e || isRealEstateEntity(e?.type)) return sum
+    if (!/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    const k1Gross = e.k1 !== undefined
+      ? nf(e.k1)
+      : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1    = k1Gross - nf(e.box11_12)
+    const scale = e.box17V_sstb ? sstbApplicablePct : 1
+    return sum + Math.max(0, k1 * scale)
+  }, 0)
+  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi)
   const f4797NetGain = Math.max(0, nf(f4797Inc))
   // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
   // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
