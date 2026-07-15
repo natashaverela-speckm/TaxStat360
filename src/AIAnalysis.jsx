@@ -20,6 +20,11 @@ import { fmt, pct, nf } from './utils/money.js'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import BrandLogo from './BrandLogo'
 import {
+  authorizeEnterpriseReport,
+  CPA_BRIEFING_AUTHORIZE,
+  POSITION_DOCS_AUTHORIZE,
+} from './utils/enterpriseGates.js'
+import {
   CURRENT_TAX_YEAR,
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
   SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
@@ -1323,6 +1328,22 @@ function ReportModal({ onClose, rec }) {
 
 function BriefingModal({ onClose, rec }) {
   const [copied, setCopied] = useState(false)
+  // Defense in depth: never render briefing content without Enterprise entitlement
+  // (the Generate handler also checks the server; this blocks stale / forced opens).
+  if (!isEnterprise()) {
+    return (
+      <Modal onClose={onClose}>
+        <div style={{ padding: '28px 32px', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: N, margin: '0 0 10px' }}>Enterprise Feature</h2>
+          <p style={{ fontSize: 13, color: SL, lineHeight: 1.6, margin: '0 0 16px' }}>
+            CPA Briefing is available on the Enterprise plan.
+          </p>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Close</button>
+        </div>
+      </Modal>
+    )
+  }
   if (!rec) {
     return (
       <Modal onClose={onClose}>
@@ -1816,6 +1837,20 @@ function SimulatorModal({ onClose, rec }) {
 function NarrativeModal({ onClose }) {
   const [selected, setSelected] = useState(0)
   const [copied, setCopied] = useState(false)
+  if (!isEnterprise()) {
+    return (
+      <Modal onClose={onClose}>
+        <div style={{ padding: '28px 32px', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: N, margin: '0 0 10px' }}>Enterprise Feature</h2>
+          <p style={{ fontSize: 13, color: SL, lineHeight: 1.6, margin: '0 0 16px' }}>
+            Position Documentation is available on the Enterprise plan.
+          </p>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Close</button>
+        </div>
+      </Modal>
+    )
+  }
   const narratives = [
     { title: 'Real Estate Professional Status', tag: 'REP · IRC §469(c)(7)', color: P, text: `Dear IRS Representative,\n\nThis letter responds to your inquiry regarding the taxpayer's Real Estate Professional (REP) classification under IRC Section 469(c)(7) for tax year 2025.\n\nThe taxpayer qualifies as a Real Estate Professional based on the following:\n\n1. MORE THAN 50% OF PERSONAL SERVICES\nThe taxpayer performed more than 50% of all personal services in real property trades or businesses in which they materially participated.\n\n2. MORE THAN 750 HOURS\nThe taxpayer performed more than 750 hours of services during the year satisfying the statutory threshold under IRC §469(c)(7)(B).\n\n3. MATERIAL PARTICIPATION\nThe taxpayer materially participated in each rental activity meeting the 500-hour test under Treas. Reg. §1.469-5T(a)(1).\n\nAs a result, rental real estate losses are treated as non-passive and are fully deductible pursuant to IRC §469(c)(7)(A).\n\nRespectfully submitted,` },
     { title: 'S-Corp Reasonable Compensation', tag: 'Officer Compensation · Rev. Rul. 74-44', color: R, text: `Dear IRS Representative,\n\nThis letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.\n\nThe officer compensation represents reasonable compensation based on:\n\n1. INDUSTRY BENCHMARKS — Compensation was determined by reference to comparable salaries consistent with Rev. Rul. 74-44.\n\n2. DUTIES AND RESPONSIBILITIES — The officer-shareholder performs substantial services including business development, client management, and financial oversight.\n\n3. CORPORATE PROFITABILITY — The compensation represents a reasonable percentage of gross receipts consistent with industry norms.\n\nThe S-Corporation maintains complete payroll records and W-2 forms.\n\nRespectfully submitted,` },
@@ -1974,11 +2009,11 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
               </div>
               {!(t.needsConfirm && confirmingExport) && (
               <button
-                onClick={t.gated ? undefined : () => {
+                onClick={(t.gated || !t.available) ? undefined : () => {
                   if (t.needsConfirm) { setConfirmingExport(true); return }
                   t.action && t.action()
                 }}
-                disabled={t.gated}
+                disabled={t.gated || !t.available}
                 style={{
                   padding: '12px 24px',
                   background: (!t.available || t.gated) ? '#94A3B8' : t.color,
@@ -1986,7 +2021,7 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
                   fontWeight: 700, fontSize: 13,
                   cursor: t.available && !t.gated ? 'pointer' : 'not-allowed',
                   flexShrink: 0, alignSelf: 'flex-start',
-                  opacity: t.gated ? 0.65 : 1,
+                  opacity: (t.gated || !t.available) ? 0.65 : 1,
                 }}
               >
                 {t.btn}
@@ -2019,6 +2054,7 @@ export default function AIAnalysis() {
   const [showSimulator, setShowSimulator] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
   const [showBriefing, setShowBriefing] = useState(false)
+  const [gateError, setGateError] = useState('')
   // F-19 UX FIX: responsive nav
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720)
   useEffect(() => {
@@ -2027,6 +2063,24 @@ export default function AIAnalysis() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  const openEnterpriseTool = async (authorizePath, openFn) => {
+    setGateError('')
+    if (!isEnterprise()) {
+      navigate('/upgrade')
+      return
+    }
+    try {
+      const ok = await authorizeEnterpriseReport(authorizePath)
+      if (!ok) {
+        navigate('/upgrade')
+        return
+      }
+      openFn()
+    } catch (_e) {
+      setGateError('Could not verify your plan. Please try again or sign in again.')
+    }
+  }
 
   const rec = getRecord(liveState)
   const score = completeness(rec)
@@ -2140,6 +2194,11 @@ export default function AIAnalysis() {
         </div>
 
         <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', padding: '24px' }}>
+          {gateError && (
+            <div role="alert" style={{ fontSize: 12, color: '#991B1B', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+              {gateError}
+            </div>
+          )}
           {activeTab === 'risk'       && <RiskScan rec={rec} />}
           {activeTab === 'optimize'   && <TaxOptimization rec={rec} />}
           {activeTab === 'compliance' && <IRSCompliance rec={rec} />}
@@ -2148,8 +2207,8 @@ export default function AIAnalysis() {
               rec={rec}
               onReport={() => setShowReport(true)}
               onSimulator={() => setShowSimulator(true)}
-              onNarrative={() => setShowNarrative(true)}
-              onBriefing={() => setShowBriefing(true)}
+              onNarrative={() => openEnterpriseTool(POSITION_DOCS_AUTHORIZE, () => setShowNarrative(true))}
+              onBriefing={() => openEnterpriseTool(CPA_BRIEFING_AUTHORIZE, () => setShowBriefing(true))}
             />
           )}
         </div>
