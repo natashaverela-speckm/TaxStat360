@@ -20,7 +20,7 @@ import { signOut } from './utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from './utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
 import { isPro } from './LockedFeature'
@@ -1641,7 +1641,18 @@ export default function TaxReturn() {
 
               {[
                 { label: 'Business K-1 Income',        value: result.scheduleEK1Income ?? (sessionK1 || 0), sign: 1, hide: (result.scheduleEK1Income ?? sessionK1 ?? 0) === 0 },
-                { label: 'Schedule C Income',           value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
+                // FIX (A6-1): scheduleCSEIncome is the SE-taxable business bucket — it holds
+                // sole-prop Schedule C income AND partnership/active-LLC K-1 income (both are
+                // SE income). Label it by the entity types actually present so partnership
+                // income is no longer mislabeled "Schedule C Income".
+                { label: (() => {
+                    const list = Array.isArray(entities) ? entities : []
+                    const hasSchedC  = list.some(e => isScheduleCType(e?.type))
+                    const hasPartner = list.some(e => /partner|mmllc/i.test(e?.type || ''))
+                    if (hasSchedC && hasPartner) return 'Schedule C / Partnership Income'
+                    if (hasPartner) return 'Partnership / LLC Income (K-1)'
+                    return 'Schedule C Income'
+                  })(),                                 value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
                 // AI-5 FIX: split W-2 into officer salary (Step 1) + other W-2 (Step 2) so
                 // the user can immediately spot a double-entry. Both are included in
                 // result.totalW2ForFICA (= w2Total in the engine); we derive officer salary
