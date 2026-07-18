@@ -627,8 +627,17 @@ const actualEmail = (email || domEmail).toLowerCase().trim()
 const actualPass  = pass
 if (!actualEmail || !actualPass) { setErr('Please enter your email and password.'); setLoading(false); return }
 const res=await apiFetch('/auth/login',{method:'POST',credentials:'include',body:{email:actualEmail,password:actualPass},raw:true})
-const data=await res.json()
-if(!res.ok)throw new Error(data.detail||'Login failed')
+const data=await res.json().catch(()=>({}))
+if(!res.ok){
+  // Backend returns "Invalid email or password" — never show a truncated / email-only
+  // message that sends users looking at the wrong field.
+  const detail = typeof data?.detail === 'string' ? data.detail : ''
+  const isCreds =
+    res.status === 401 ||
+    /invalid email/i.test(detail) ||
+    /password/i.test(detail)
+  throw new Error(isCreds ? 'Incorrect email or password' : (detail || 'Login failed'))
+}
 if(data.mfa_required){
 // UX F-02: skip MFA challenge if this device is trusted and not expired
 if(isTrustedDevice(actualEmail)){
