@@ -42,6 +42,36 @@ import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
 
+// ── A1 FIX (Jul 2026 independent audit) — sole-proprietor SEP-IRA / Solo 401(k) base ──
+// The self-employed retirement-plan base is NET EARNINGS FROM SELF-EMPLOYMENT:
+// net profit MINUS the §164(f) one-half-of-SE-tax deduction (IRS Pub. 560, Rate
+// Worksheet). The 20% effective rate (SEP_IRA_SOLE_PROP_EFFECTIVE_RATE = 0.25 / 1.25)
+// only removes the contribution-reduces-its-own-base circularity; it does NOT
+// remove the half-SE-tax reduction. So the rate must be applied to
+// (net profit − ½ SE tax), never to raw net profit. The previous code multiplied
+// the rate by raw net profit/K-1, overstating the maximum — e.g. $30,000 instead
+// of the correct $27,881 on $150,000 of net profit.
+//
+// When the engine's own self-employment tax is available (engineSeTax), use it so
+// the figure ties exactly to the filed-return SE tax (which also accounts for any
+// W-2 wages that consume the Social Security wage base). Otherwise derive SE tax
+// from the year's SS wage base and the standard §1402/§3101 rates.
+function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
+  const income = Math.max(0, Number(netSEincome) || 0)
+  if (income === 0) return 0
+  let halfSeTax
+  if (Number.isFinite(engineSeTax) && engineSeTax > 0) {
+    halfSeTax = engineSeTax / 2
+  } else {
+    const seEarnings = income * SE_NET_EARNINGS_FACTOR              // IRC §1402(a)(12) — 92.35%
+    const ssWageBase = getTable(year)?.ssWageBase ?? 176100
+    const seTax = Math.min(seEarnings, ssWageBase) * (FICA_SS_RATE * 2) // 12.4% OASDI
+                + seEarnings * (FICA_MEDICARE_RATE * 2)                 // 2.9% Medicare
+    halfSeTax = seTax / 2                                            // §164(f)
+  }
+  return Math.max(0, income - halfSeTax)
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTotalW2(rec) {
@@ -953,7 +983,12 @@ function TaxOptimization({ rec }) {
   const { realEstate: reNetShare } = getEntityIncomeSplit(rec)
 
 
-  const sepBase = isSCorpOwner ? totalOfficerSalary : k1
+  // A1 FIX: for a sole proprietor the SEP/Solo-401(k) base is net earnings from
+  // self-employment (net profit − ½ SE tax), not raw K-1/net profit. See
+  // selfEmployedRetirementBase() above. S-Corp owners still use W-2 officer salary.
+  const sepBase = isSCorpOwner
+    ? totalOfficerSalary
+    : selfEmployedRetirementBase(k1, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
   const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
   // §415(c) overall limits are year-specific — read from the centralized table, never
   // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
@@ -1856,7 +1891,8 @@ function SimulatorModal({ onClose, rec }) {
       adv30:   { advertising: 30000 },
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
-      sep:     { otherDeductions: Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : netProfit * ownerPctVal * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
+      // A1 FIX: sole-prop SEP base is net earnings from SE (share of net profit − ½ SE tax).
+      sep:     { otherDeductions: Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : selfEmployedRetirementBase(netProfit * ownerPctVal, taxYear) * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},
