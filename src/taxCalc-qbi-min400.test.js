@@ -24,7 +24,7 @@ describe('§199A(i) $400 minimum — active-participation gate (audit #3)', () =
   // SPEC: §199A(i) — a passive rental is not an active trade/business, so the
   // $400 floor may NOT apply; the deduction is the ordinary 20% (20% × 1,500 = 300).
   it('passive rental ($1,500 QBI, non-REP) does NOT get the $400 floor', () => {
-    const r = calcTaxReturn({ ...BASE, w2: 40000, rentalNet: 1500, isREP: false })
+    const r = calcTaxReturn({ ...BASE, w2: 40000, rentalNet: 1500, rentalQbiEligible: true, isREP: false })
     expect(r.qbi).toBe(300)
     expect(r.qbiLimitApplied).not.toBe('min400')
   })
@@ -46,7 +46,7 @@ describe('§199A(i) $400 minimum — active-participation gate (audit #3)', () =
   it('REP rental with material participation ($1,500 QBI) gets the $400 floor', () => {
     const r = calcTaxReturn({
       ...BASE, w2: 40000, isREP: true, isActiveParticipant: true,
-      entities: [{ type: 'real-estate', own: 100, materiallyParticipates: true,
+      entities: [{ type: 'real-estate', own: 100, materiallyParticipates: true, qbiEligible: true,
         pnl: { netProfit: 1500, grossRevenue: 1500, totalExpenses: 0, officerSalary: 0 } }],
     })
     expect(r.qbi).toBe(400)
@@ -58,7 +58,7 @@ describe('§199A(i) $400 minimum — active-participation gate (audit #3)', () =
   // threshold and the floor must NOT apply — proving the gate uses active QBI, not total.
   it('passive rental + small active business: active QBI under $1,000 blocks the floor', () => {
     const r = calcTaxReturn({
-      ...BASE, w2: 40000, rentalNet: 800, isREP: false,
+      ...BASE, w2: 40000, rentalNet: 800, rentalQbiEligible: true, isREP: false,
       entities: [{ type: 'sole-prop', own: 100,
         pnl: { netProfit: 800, grossRevenue: 800, totalExpenses: 0, officerSalary: 0 } }],
     })

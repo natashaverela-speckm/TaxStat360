@@ -765,7 +765,7 @@ function calcTaxReturn(input) {
     // NaN. Default here + calcAMT-level fallbacks below make the engine total-safe.
     taxYear, status = 'single', dependents,
     entities: _rawEntities = [],
-    w2 = 0, k1Total = 0, rentalNet = 0,
+    w2 = 0, k1Total = 0, rentalNet = 0, rentalQbiEligible = false,   // ITEM 3 (A6): Step-2 direct-rental §199A opt-in
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -830,7 +830,18 @@ function calcTaxReturn(input) {
     // allowed) are unaffected; the live app (TaxReturn, CalculateTaxInner) passes true.
     assumeZeroBasisOnLoss = false,
   } = input
-  const entities = _rawEntities.map(e => (e ? { ...e, type: normalizeEntityType(e.type) } : e))
+  const entities = _rawEntities.map(e => {
+    if (!e) return e
+    // ITEM 4 (A6): a limited partner's distributive share of ordinary business income is
+    // NOT self-employment income (IRC §1402(a)(13)). A `limitedPartner` attestation routes
+    // the interest to the engine's existing 'Partnership / MMLLC — Passive' variant, which
+    // SE_SUBJECT_TYPES omits (no SE tax) and the §199A(i) $400-floor guard already excludes.
+    // QBI on the K-1 still applies. Default (unchecked) = Active/general partner = SE-subject.
+    // NOTE: §469 passive-loss suspension for a limited-partner K-1 LOSS is not modeled here
+    // (rental-scoped today — see KNOWN_LIMITATIONS); positive shares are handled correctly.
+    const routed = (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) ? `${e.type} passive` : e.type
+    return { ...e, type: normalizeEntityType(routed) }
+  })
   const ytdScale = (val) => Math.round(nf(val) * ytdFactor)
   const priorQBILossCO = Math.abs(nf(priorYearQBILoss))
   const perEntityQBILossCO = entities.reduce((sum, e) => {
@@ -972,6 +983,7 @@ function calcTaxReturn(input) {
   const priorSuspendedLossRemaining = Math.max(0, _priorSuspended - priorSuspendedLossApplied)
   const entityRentalResults = []
   let step1RentalNet    = 0
+  let step1RentalQbiEligibleNet = 0   // ITEM 3 (A6): §199A-eligible rental net (opt-in)
   let step1RentalREP    = false
   let step1RentalActive = false
   entities.forEach(e => {
@@ -984,6 +996,7 @@ function calcTaxReturn(input) {
     // it never reduces ordinary pass-through income. Only §179 (box11_12) nets here.
     const net = k1Gross - nf(e.box11_12)
     step1RentalNet += net
+    if (e.qbiEligible === true) step1RentalQbiEligibleNet += net   // ITEM 3: only attested trade/business or safe-harbor rentals feed QBI
     if (e.isREP) step1RentalREP = true
     if (e.isActiveParticipant) step1RentalActive = true
     entityRentalResults.push({
@@ -1416,6 +1429,18 @@ function calcTaxReturn(input) {
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
   // rentalQbiContribution is computed in the §469 rental block above (legacy or
   // per-property branch) — do not redeclare here.
+  // ITEM 3 (A6): §199A applies to rental income only when the property is a §162 trade or
+  // business, OR meets the rental safe harbor (Rev. Proc. 2019-38 / Notice 2019-07) — a
+  // per-property attestation (qbiEligible), never automatic. Scale the rental QBI
+  // contribution to the attested-eligible share of rental net (default: none). §469, EBL
+  // and NII treatment above are unchanged — only the amount entering the QBI base is gated.
+  {
+    const rentalQbiEligibleNet = step1RentalQbiEligibleNet + (rentalQbiEligible ? nf(rentalNet) : 0)
+    const rentalQbiEligibleFraction = combinedRentalNet !== 0
+      ? Math.max(0, Math.min(1, rentalQbiEligibleNet / combinedRentalNet))
+      : 0
+    rentalQbiContribution = Math.round(rentalQbiContribution * rentalQbiEligibleFraction)
+  }
   const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
   // ACTIVE qualified trade or business in which the taxpayer materially participates.
