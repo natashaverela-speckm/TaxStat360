@@ -72,6 +72,13 @@ function _wholeReturnExtras(pc, entities) {
 }
 
 const _SUMMARY_KEYS = [
+  // 'seNetIncome' (Finding 1 follow-up, Jul 2026 audit): net earnings from
+  // self-employment as the ENGINE computed them — already excludes a limited
+  // partner's distributive share (§1402(a)(13)) and S-corp K-1. Consumers that
+  // size self-employed retirement room (AIAnalysis SEP-IRA / Solo 401(k)) must
+  // read this instead of raw K-1, so they can never grant a contribution on
+  // SE-exempt income.
+  'seNetIncome',
   'fedTax', 'seTax', 'additionalMedicare', 'niitAmount', 'amt', 'childCredit',
   'totalTax', 'agi', 'grossIncome', 'taxableBeforeQBI', 'taxableIncome',
   'taxableAfterQBI', 'qbi', 'marginalRate', 'balance', 'totalPayments',
