@@ -1919,6 +1919,16 @@ function SimulatorModal({ onClose, rec }) {
   const ownerPctVal = ownPct(b.ownershipPct) / 100
   const entity  = b.entityType || 'Unknown'
 
+  // Finding 1 follow-up (Jul 2026 audit): the simulator models one business entity.
+  // When that entity is a Partnership/LLC held as a LIMITED partner, its K-1 is
+  // excluded from self-employment income (§1402(a)(13)). Detect that from the saved
+  // entities and thread it through so the simulator's SE tax — and the Max-SEP
+  // preset — match every other surface instead of charging SE tax and offering a
+  // SEP contribution on SE-exempt income.
+  const simIsPartnership = /partner|mmllc|llc/i.test(entity || '') && !isSCorpEntity(entity)
+  const simLimitedPartner = simIsPartnership && (rec?.entities || []).some(e =>
+    e && e.limitedPartner && /partner|mmllc|llc/i.test(e?.type || '') && !isSCorpEntity(e?.type))
+
   // F-SIM FIX (Jul 2026): base built via the shared, unit-tested helper. w2Income is
   // PERSONAL W-2 only — computeSimulatorScenario adds officer salary itself. Previously
   // this used getTotalW2(rec) (personal + officer), double-counting the salary.
@@ -1945,7 +1955,9 @@ function SimulatorModal({ onClose, rec }) {
       equip20: { depreciation: 20000 },
       equip50: { depreciation: 50000 },
       // A1 FIX: sole-prop SEP base is net earnings from SE (share of net profit − ½ SE tax).
-      sep:     { otherDeductions: Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : selfEmployedRetirementBase(netProfit * ownerPctVal, taxYear) * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
+      // Finding 1 follow-up: a limited partner's K-1 is not SE income (§1402(a)(13)),
+      // so it creates $0 SEP room — never model a contribution on it.
+      sep:     { otherDeductions: simLimitedPartner ? 0 : Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : selfEmployedRetirementBase(netProfit * ownerPctVal, taxYear) * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},
@@ -1962,6 +1974,7 @@ function SimulatorModal({ onClose, rec }) {
     filing,
     taxYear,
     entities: rec?.entities || [],
+    limitedPartner: simLimitedPartner,   // §1402(a)(13) — see note above
   }
   // SIM-1 REPAIRED (Batch 7): scenarios run through the engine via the same
   // translation the Dashboard Tracker uses (see aiAnalysisTaxMath.js). The guard

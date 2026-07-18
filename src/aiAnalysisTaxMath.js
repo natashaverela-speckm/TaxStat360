@@ -203,7 +203,12 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     w2Withheld: 0, estPaid: nf(base.estPaid), ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
     w2: w2Own + sal,
-    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal }],
+    // Finding 1 follow-up (Jul 2026 audit): carry the limited-partner attestation
+    // into the reconstructed entity. Without it, normalizeEntityType defaults a
+    // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged
+    // SE tax on a limited partner's K-1 (§1402(a)(13)) — diverging from the Tax
+    // Tracker, SE-savings panel, and SEP-IRA card, which all treat it as SE-exempt.
+    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner }],
   }
   validateCalcInputs(engineInput, 'WhatIfSimulator')
 
