@@ -951,7 +951,32 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
             <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Entity Type</label>
             <select
               value={entity.type || 'S Corporation'}
-              onChange={e => onUpdate(idx, { ...entity, type: e.target.value })}
+              onChange={e => {
+                const newType = e.target.value
+                // FIX (A6-2): officer W-2 compensation applies only to S/C-Corps. When the
+                // entity type changes to a non-corp type, drop the stored officer salary and
+                // add it back to net profit, so the collapsed summary (and Step-2 flow) no
+                // longer show a stale officer-comp-reduced figure. Previously the net only
+                // recomputed if the user reopened Edit Financials.
+                const keepsOfficer = isSCorpEntity(newType) || isCCorpEntity(newType)
+                const prevOfficer = nf(entity.pnl?.officerSalary ?? entity.officerW2)
+                if (!keepsOfficer && prevOfficer > 0 && entity.pnl) {
+                  const newTotalExpenses = Math.max(0, nf(entity.pnl.totalExpenses) - prevOfficer)
+                  onUpdate(idx, {
+                    ...entity,
+                    type: newType,
+                    officerW2: 0,
+                    pnl: {
+                      ...entity.pnl,
+                      officerSalary: 0,
+                      totalExpenses: newTotalExpenses,
+                      netProfit: nf(entity.pnl.grossRevenue) - newTotalExpenses,
+                    },
+                  })
+                } else {
+                  onUpdate(idx, { ...entity, type: newType })
+                }
+              }}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, background: '#fff' }}
             >
               <option value="S Corporation">S Corporation</option>
