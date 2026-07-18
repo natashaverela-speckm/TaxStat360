@@ -1,63 +1,79 @@
+// @vitest-environment jsdom
 // src/aiAnalysis-sep-limited-partner.test.js
 //
 // Finding 1 FOLLOW-UP (independent pre-launch audit, Jul 2026) — the AI Analysis
 // SEP-IRA / Solo 401(k) card recommended a contribution ("~$11,152 of net
 // self-employment income") on a LIMITED-PARTNER K-1, contradicting the Tax
 // Tracker, which correctly treats that same income as SE-EXEMPT under
-// IRC §1402(a)(13). Root cause: the card sized its base from raw K-1 and
-// re-derived SE tax whenever the engine's seTax was 0 — unable to tell "0 because
-// not supplied" from "0 because the income is legally SE-exempt."
+// IRC §1402(a)(13). Root cause: the card sized its base from the raw K-1 total.
 //
-// The fix routes the SEP base through the ENGINE's seNetIncome (which already
-// excludes a limited partner's share and S-corp K-1). This suite pins the
-// selector contract the fix depends on: summarizeRecord() must EXPOSE seNetIncome,
-// and it must be 0 for a limited partner / S-corp and equal to net profit for a
-// sole prop / active partner. If seNetIncome is 0, the SEP base is 0, so the
-// erroneous card can never render.
+// The fix derives the SE-ELIGIBLE K-1 from the entities (excluding S-corp/C-corp
+// K-1, rental, and a limited partner's §1402(a)(13) share) and feeds THAT to the
+// SEP base. This suite pins the exported helper so the erroneous card can never
+// come back: if the SE-eligible base is 0, the SEP contribution base is 0.
 //
-// Numbers (2026): $60k net K-1 → SE base 60,000 × 0.9235 = 55,410;
-// SE tax 55,410 × 0.153 = 8,477.73 → 8,478 (engine rounds).
+// Self-contained: imports only from AIAnalysis.jsx (no selector/engine wiring),
+// so applying the single component file is sufficient.
+//
+// Numbers (2026): a limited partner's $60k share → SE-eligible 0; an active
+// partner / sole prop's $60k → SE-eligible 60,000.
 
 import { describe, it, expect } from 'vitest'
-import { summarizeRecord } from './utils/calcSelector.js'
+import { seEligibleK1FromEntities, hasLimitedPartnerInterest } from './AIAnalysis.jsx'
 
 const K1 = 60000
-const EXPECTED_SE = 8478
-const f1040 = { filingStatus: 'single', taxYear: 2026 }
 
-const summarize = (entities) => summarizeRecord({ f1040, entities })
+describe('Finding 1 follow-up — SE-eligible K-1 excludes SE-exempt income', () => {
+  it('ACTIVE partnership → full K-1 is SE-eligible (SEP room exists)', () => {
+    expect(seEligibleK1FromEntities([{ type: 'Partnership / LLC', own: 100, k1: K1 }])).toBe(K1)
+  })
 
-describe('Finding 1 follow-up — selector exposes engine seNetIncome', () => {
-  it('seNetIncome is present on the summary (the field the SEP fix reads)', () => {
-    const s = summarize([{ type: 'Partnership / LLC', own: 100, k1: K1 }])
-    expect(s.ok).toBe(true)
-    expect(s.seNetIncome).toBeDefined()
-    expect(typeof s.seNetIncome).toBe('number')
+  it('LIMITED PARTNER → $0 SE-eligible (§1402(a)(13)); no SEP base', () => {
+    expect(seEligibleK1FromEntities([
+      { type: 'Partnership / LLC', own: 100, k1: K1, limitedPartner: true },
+    ])).toBe(0)
+  })
+
+  it('SOLE PROPRIETOR → full net is SE-eligible', () => {
+    expect(seEligibleK1FromEntities([{ type: 'Sole Proprietor / SMLLC', own: 100, k1: K1 }])).toBe(K1)
+  })
+
+  it('S-CORP K-1 → excluded (SEP is officer-W-2 based, handled separately)', () => {
+    expect(seEligibleK1FromEntities([{ type: 'S-Corp', own: 100, k1: K1 }])).toBe(0)
+  })
+
+  it('RENTAL (Schedule E) → excluded (not a trade-or-business K-1)', () => {
+    expect(seEligibleK1FromEntities([{ type: 'Real Estate (Schedule E)', own: 100, k1: K1 }])).toBe(0)
+  })
+
+  it('MIX: active partner +60k and limited partner +60k → only the active 60k counts', () => {
+    expect(seEligibleK1FromEntities([
+      { type: 'Partnership / LLC', own: 100, k1: K1 },
+      { type: 'Partnership / LLC', own: 100, k1: K1, limitedPartner: true },
+    ])).toBe(K1)
+  })
+
+  it('owner share is applied when K-1 is not explicit (50% of net profit)', () => {
+    expect(seEligibleK1FromEntities([
+      { type: 'Partnership / LLC', own: 50, pnl: { netProfit: K1 } },
+    ])).toBe(30000)
   })
 })
 
-describe('Finding 1 follow-up — SEP base respects §1402(a)(13)', () => {
-  it('ACTIVE partnership → seNetIncome is SE income → SEP room exists', () => {
-    const s = summarize([{ type: 'Partnership / LLC', own: 100, k1: K1 }])
-    expect(s.seNetIncome).toBe(K1)
-    expect(s.seTax).toBe(EXPECTED_SE)
+describe('Finding 1 follow-up — limited-partner detection (drives the explainer card)', () => {
+  it('flags a limited-partner interest', () => {
+    expect(hasLimitedPartnerInterest([
+      { type: 'Partnership / LLC', own: 100, k1: K1, limitedPartner: true },
+    ])).toBe(true)
   })
 
-  it('LIMITED PARTNER → seNetIncome is 0 → SEP base is $0 (no contribution card)', () => {
-    const s = summarize([{ type: 'Partnership / LLC', own: 100, k1: K1, limitedPartner: true }])
-    expect(s.seNetIncome).toBe(0)     // §1402(a)(13) — the core of the fix
-    expect(s.seTax).toBe(0)
+  it('does not flag an active partner', () => {
+    expect(hasLimitedPartnerInterest([{ type: 'Partnership / LLC', own: 100, k1: K1 }])).toBe(false)
   })
 
-  it('SOLE PROPRIETOR → seNetIncome is SE income → SEP room exists', () => {
-    const s = summarize([{ type: 'Sole Proprietor / SMLLC', own: 100, k1: K1 }])
-    expect(s.seNetIncome).toBe(K1)
-    expect(s.seTax).toBe(EXPECTED_SE)
-  })
-
-  it('S-CORP → seNetIncome is 0 (SEP is officer-W-2 based, handled separately)', () => {
-    const s = summarize([{ type: 'S-Corp', own: 100, k1: K1, officerW2: 0 }])
-    expect(s.seNetIncome).toBe(0)
-    expect(s.seTax).toBe(0)
+  it('does not treat an S-corp as a limited partner', () => {
+    expect(hasLimitedPartnerInterest([
+      { type: 'S-Corp', own: 100, k1: K1, limitedPartner: true },
+    ])).toBe(false)
   })
 })
