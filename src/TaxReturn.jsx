@@ -1866,13 +1866,34 @@ export default function TaxReturn() {
             </div>
           )}
 
-          {/* SE Tax Savings panel — Finding 4: the savings is the S-Corp's treatment of
-              K-1 BUSINESS INCOME as non-SE (true whether or not it is distributed), NOT a
-              benefit of taking distributions. Framing it as "savings on distributions" both
-              mislabels the figure (result.k1Distributions is K-1 income, not the distribution
-              amount) and nudges toward the low-salary/high-distribution posture that is the
-              top S-Corp audit trigger. */}
-          {hasResult && result.ficaSavings > 0 && (
+          {/* SE Tax Savings panel — Finding 4 + Finding 1 follow-up (audit, Jul 2026):
+              The savings is the treatment of K-1 BUSINESS INCOME as non-SE (true whether or
+              not it is distributed), NOT a benefit of taking distributions. Two DIFFERENT
+              structures produce a positive ficaSavings, and they are exempt for DIFFERENT
+              legal reasons — the copy must not conflate them:
+                • S corporation — the shareholder's K-1 ordinary income is not SE income;
+                  FICA is owed on reasonable W-2 officer wages instead (Rev. Rul. 74-44).
+                • Limited-partner interest — a limited partner's distributive share is
+                  excluded from SE income under IRC §1402(a)(13); there are no "officer
+                  wages" and Rev. Rul. 74-44 does not apply.
+              The prior copy hardcoded the S-Corp explanation for BOTH, mislabeling a
+              partnership as an "S-Corp" and citing an inapplicable rule. A general partner
+              or materially-participating LLC member is SE-subject and never reaches this
+              panel (ficaSavings === 0). */}
+          {hasResult && result.ficaSavings > 0 && (() => {
+            const seExemptFromSCorp = Array.isArray(entities)
+              && entities.some(e => e && isSCorpEntity(e.type))
+            const seExemptFromLimitedPartner = Array.isArray(entities)
+              && entities.some(e => e && e.limitedPartner
+                && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
+            // Heading names the structure actually driving the exemption; never assert
+            // "S-Corp" unless an S-corp is present.
+            const structureLabel = seExemptFromSCorp && seExemptFromLimitedPartner
+              ? 'S-Corp K-1 and limited-partner'
+              : seExemptFromLimitedPartner
+                ? 'limited-partnership K-1'
+                : 'S-Corp K-1'
+            return (
             <div style={{ background: '#0D1B3E', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#4ADE80', letterSpacing: '0.5px', marginBottom: 6 }}>
                 SE TAX SAVINGS VS. SOLE PROPRIETORSHIP
@@ -1881,14 +1902,31 @@ export default function TaxReturn() {
                 {fmt(result.ficaSavings)}
               </div>
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4, lineHeight: 1.5 }}>
-                Your {fmt(result.k1Distributions || 0)} of S-Corp K-1 business income isn't subject to
-                self-employment tax — S-Corp shareholders owe FICA only on their W-2 officer wages, not on
-                their share of business income (whether or not it is distributed). As a sole proprietor, that
-                same income would incur SE tax on 92.35% of earnings (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in
-                SE tax avoided. This relies on paying yourself reasonable W-2 compensation first (Rev. Rul. 74-44).
+                Your {fmt(result.k1Distributions || 0)} of {structureLabel} business income isn't subject to
+                self-employment tax
+                {seExemptFromLimitedPartner && !seExemptFromSCorp ? (
+                  <> — a limited partner's distributive share of ordinary business income is excluded from
+                  self-employment earnings under IRC §1402(a)(13). </>
+                ) : seExemptFromSCorp && seExemptFromLimitedPartner ? (
+                  <> — S-Corp shareholders owe FICA only on their W-2 officer wages, and a limited partner's
+                  share is excluded under IRC §1402(a)(13). </>
+                ) : (
+                  <> — S-Corp shareholders owe FICA only on their W-2 officer wages, not on their share of
+                  business income (whether or not it is distributed). </>
+                )}
+                As a sole proprietor, that same income would incur SE tax on 92.35% of earnings
+                (IRC §1402(a)(12)): ~{fmt(result.ficaSavings)} in SE tax avoided.
+                {seExemptFromSCorp && (
+                  <> This relies on paying yourself reasonable W-2 compensation first (Rev. Rul. 74-44).</>
+                )}
+                {seExemptFromLimitedPartner && !seExemptFromSCorp && (
+                  <> This exclusion applies only to a genuine limited-partner interest — a general partner or
+                  materially-participating LLC member owes SE tax on this income.</>
+                )}
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* ── AUDIT B-1 FOLLOW-UP (Jul 2026): ASK, DON'T GUESS ────────────────────────
               The engine used to silently grant the full 20% §199A deduction when no W-2
