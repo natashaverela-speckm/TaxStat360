@@ -72,6 +72,43 @@ function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
   return Math.max(0, income - halfSeTax)
 }
 
+// ── Finding 1 follow-up (Jul 2026 independent audit) — SE-ELIGIBLE K-1 BASE ──
+// The SEP-IRA / Solo 401(k) base for a non-S-corp owner must be NET EARNINGS FROM
+// SELF-EMPLOYMENT — which EXCLUDES income that isn't SE income:
+//   • S-corp / C-corp K-1 (FICA runs on W-2 officer wages instead),
+//   • personally-held rental (Schedule E), and
+//   • a LIMITED PARTNER's distributive share (excluded under IRC §1402(a)(13)).
+// The prior code sized the base from the raw K-1 total, so a limited partner (SE
+// tax = $0) was still handed a SEP recommendation — the exact cross-module
+// inconsistency the audit flagged, since the Tax Tracker correctly treats that
+// income as SE-exempt. This derives the SE-eligible share directly from the
+// entities using the shared predicates (no engine round-trip, no new selector
+// field to wire up), mirroring the engine's SE_SUBJECT_TYPES membership. It
+// returns 0 for a pure limited-partner interest, so the SEP card cannot render a
+// contribution on SE-exempt income. Per-entity K-1 mirrors the engine's rule
+// (explicit e.k1, else owner-share of net profit via the shared helper); the
+// aggregate is clamped to ≥ 0 by selfEmployedRetirementBase, so losses in one
+// entity correctly offset SE income in another rather than being floored per row.
+export function seEligibleK1FromEntities(entities) {
+  return (Array.isArray(entities) ? entities : []).reduce((sum, e) => {
+    if (!e) return sum
+    if (isSCorpEntity(e.type) || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
+    if (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) return sum  // §1402(a)(13)
+    const share = e.k1 !== undefined
+      ? nf(e.k1)
+      : Math.round(getEntityNetProfit(e) * (ownPct(e.own) / 100))
+    return sum + share
+  }, 0)
+}
+
+/** True when any entity is a limited-partner interest whose K-1 is SE-exempt
+ *  under §1402(a)(13). Used to explain WHY no SEP room exists instead of
+ *  silently dropping the card. */
+export function hasLimitedPartnerInterest(entities) {
+  return (Array.isArray(entities) ? entities : []).some(e =>
+    e && e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTotalW2(rec) {
@@ -986,21 +1023,14 @@ function TaxOptimization({ rec }) {
   // A1 FIX: for a sole proprietor the SEP/Solo-401(k) base is net earnings from
   // self-employment (net profit − ½ SE tax), not raw K-1/net profit. See
   // selfEmployedRetirementBase() above. S-Corp owners still use W-2 officer salary.
-  // Finding 1 follow-up (Jul 2026 audit): the SEP-IRA / Solo 401(k) base for a
-  // NON-S-corp owner is NET EARNINGS FROM SELF-EMPLOYMENT — which excludes a
-  // limited partner's distributive share under IRC §1402(a)(13). Use the engine's
-  // seNetIncome (0 for a limited partner; equal to the sole-prop / active-partner
-  // net profit otherwise) rather than raw K-1, so this card can never recommend a
-  // contribution on SE-exempt income. Falls back to raw k1 only if the engine
-  // summary is unavailable. A limited-partner K-1 with limitedPartner set is
-  // surfaced explicitly below instead of silently vanishing.
-  const seEarningsForRetirement = _sum2.ok ? Math.max(0, nf(_sum2.seNetIncome)) : k1
-  const hasLimitedPartnerK1 = Array.isArray(rec.entities)
-    && rec.entities.some(e => e && e.limitedPartner
-      && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
+  // Finding 1 follow-up (Jul 2026 audit): base the SEP/Solo-401(k) room on the
+  // SE-ELIGIBLE K-1 (excludes a limited partner's §1402(a)(13) share), not the raw
+  // K-1 total — otherwise the card recommends a contribution on SE-exempt income.
+  const seEligibleK1 = seEligibleK1FromEntities(rec.entities)
+  const hasLimitedPartnerK1 = hasLimitedPartnerInterest(rec.entities)
   const sepBase = isSCorpOwner
     ? totalOfficerSalary
-    : selfEmployedRetirementBase(seEarningsForRetirement, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
+    : selfEmployedRetirementBase(seEligibleK1, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
   const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
   // §415(c) overall limits are year-specific — read from the centralized table, never
   // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
@@ -1050,9 +1080,8 @@ function TaxOptimization({ rec }) {
     } else if (hasLimitedPartnerK1 && k1 > 0) {
       // Finding 1 follow-up: a limited partner's K-1 produces $0 SE earnings
       // (§1402(a)(13)), so maxSEP is 0 and the contribution card above is skipped.
-      // Explain WHY rather than let it vanish — otherwise the page silently drops a
-      // strategy the user expects to see, which is how the original inconsistency
-      // (a SEP contribution recommended on SE-exempt income) went unnoticed.
+      // Explain WHY rather than let it vanish — a silently missing strategy is how
+      // the original inconsistency (a SEP recommended on SE-exempt income) hid.
       opportunities.push({
         icon: '🏦', title: 'SEP-IRA — Limited-Partner Income Doesn’t Create Room',
         priority: 'medium', saving: null,
