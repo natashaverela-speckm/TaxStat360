@@ -694,6 +694,18 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       )}
 
       {isPartnership && (
+        <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
+            <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
+              <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
+              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nNote: §469 passive-loss suspension for a limited-partner K-1 LOSS is not modeled here — a positive distributive share is handled correctly.'} wide />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {isPartnership && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F0F9FF', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#0369A1', marginBottom: 6 }}>📋 K-1 Box Mapping — Partnership / LLC</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, color: '#334155' }}>
@@ -1438,6 +1450,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                     </label>
                   </div>
                 )}
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                  <input type="checkbox" id={'qbi_' + idx} checked={!!entity.qbiEligible} onChange={e => onUpdate(idx, { ...entity, qbiEligible: e.target.checked })} style={{ marginTop: 2 }} />
+                  <label htmlFor={'qbi_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
+                    Include this rental in the §199A QBI deduction
+                    <InfoTip label="§199A rental QBI" text={'Rental income qualifies for the 20% §199A QBI deduction only if the activity rises to a §162 trade or business, OR you meet the rental real-estate safe harbor (Rev. Proc. 2019-38 / Notice 2019-07): a separate rental enterprise with 250+ hours of rental services, separate books and records, and contemporaneous logs.\n\nMany small or triple-net (NNN) leased rentals do NOT qualify. Leave this unchecked (the default) unless your rental meets one of these tests. Checking it adds this property\'s net rental income to your QBI base.'} wide />
+                  </label>
+                </div>
 
                 {/* Prior-year passive loss carryforward (Form 8582) — moved here from Step 2 */}
                 <div style={{ marginTop: 8, marginBottom: 4 }}>
