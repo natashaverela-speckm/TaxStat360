@@ -1395,16 +1395,27 @@ function IRSCompliance({ rec }) {
     : 'Schedule 1 consolidates above-the-line deductions (retirement plan contributions, self-employed health insurance, student loan interest) and other income adjustments.'
   schedules.push({ form: 'Schedule 1', title: 'Additional Income and Adjustments', status: 'required', covered: hasK1Data || hasW2Data || hasRevenue, detail: schedule1Detail, deadline: 'Filed with Form 1040' })
 
-  schedules.push({
-    form: 'Schedule 2',
-    title: 'Additional Taxes',
-    status: 'required',
-    covered: hasK1Data || hasW2Data,
-    detail: isSCorpEntity(entity)
-      ? 'Carries Additional Medicare Tax (0.9%, Form 8959) and Net Investment Income Tax (3.8%, Form 8960) to Form 1040 Line 17. Note: SE tax does NOT apply to S-Corp K-1 income — IRC §1402(a)(2).'
-      : 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 17.',
-    deadline: 'Filed with Form 1040',
-  })
+  // Cleanup (Jul 2026 audit): Schedule 2 carries SE tax, Additional Medicare Tax,
+  // and NIIT. List it only when the return actually has one of those — a limited
+  // partner (§1402(a)(13)) with no SE tax, NIIT, or Additional Medicare has nothing
+  // to carry, so marking "Schedule 2 — data entered" overstated the filing map.
+  const _sched2Sum = summarizeRecord(rec)
+  const _hasAdditionalTax = !_sched2Sum.ok
+    || (_sched2Sum.seTax || 0) > 0
+    || (_sched2Sum.additionalMedicare || 0) > 0
+    || (_sched2Sum.niitAmount || 0) > 0
+  if (_hasAdditionalTax) {
+    schedules.push({
+      form: 'Schedule 2',
+      title: 'Additional Taxes',
+      status: 'required',
+      covered: hasK1Data || hasW2Data,
+      detail: isSCorpEntity(entity)
+        ? 'Carries Additional Medicare Tax (0.9%, Form 8959) and Net Investment Income Tax (3.8%, Form 8960) to Form 1040 Line 17. Note: SE tax does NOT apply to S-Corp K-1 income — IRC §1402(a)(2).'
+        : 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 17.',
+      deadline: 'Filed with Form 1040',
+    })
+  }
 
   const _interest = nf(f.interest ) || 0
   const _dividends = nf(f.dividends ) || 0
