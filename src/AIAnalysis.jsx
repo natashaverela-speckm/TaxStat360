@@ -986,9 +986,21 @@ function TaxOptimization({ rec }) {
   // A1 FIX: for a sole proprietor the SEP/Solo-401(k) base is net earnings from
   // self-employment (net profit − ½ SE tax), not raw K-1/net profit. See
   // selfEmployedRetirementBase() above. S-Corp owners still use W-2 officer salary.
+  // Finding 1 follow-up (Jul 2026 audit): the SEP-IRA / Solo 401(k) base for a
+  // NON-S-corp owner is NET EARNINGS FROM SELF-EMPLOYMENT — which excludes a
+  // limited partner's distributive share under IRC §1402(a)(13). Use the engine's
+  // seNetIncome (0 for a limited partner; equal to the sole-prop / active-partner
+  // net profit otherwise) rather than raw K-1, so this card can never recommend a
+  // contribution on SE-exempt income. Falls back to raw k1 only if the engine
+  // summary is unavailable. A limited-partner K-1 with limitedPartner set is
+  // surfaced explicitly below instead of silently vanishing.
+  const seEarningsForRetirement = _sum2.ok ? Math.max(0, nf(_sum2.seNetIncome)) : k1
+  const hasLimitedPartnerK1 = Array.isArray(rec.entities)
+    && rec.entities.some(e => e && e.limitedPartner
+      && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
   const sepBase = isSCorpOwner
     ? totalOfficerSalary
-    : selfEmployedRetirementBase(k1, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
+    : selfEmployedRetirementBase(seEarningsForRetirement, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
   const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
   // §415(c) overall limits are year-specific — read from the centralized table, never
   // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
@@ -1035,6 +1047,18 @@ function TaxOptimization({ rec }) {
           howTo: `At your ${pct(marginalRate * 100)} marginal rate, the max Solo 401(k) saves approx. ${fmt(solo401kTaxSaved)} — roughly ${fmt(solo401kTaxSaved - Math.round(maxSEP * marginalRate))} more than a SEP-IRA alone. Requires a plan document established before December 31 of the plan year. Employee deferral comes from your W-2 payroll (must be elected before December 31); employer contribution due by September 15 (S-Corp extension deadline). Available at Fidelity, Schwab, or Vanguard.`
         })
       }
+    } else if (hasLimitedPartnerK1 && k1 > 0) {
+      // Finding 1 follow-up: a limited partner's K-1 produces $0 SE earnings
+      // (§1402(a)(13)), so maxSEP is 0 and the contribution card above is skipped.
+      // Explain WHY rather than let it vanish — otherwise the page silently drops a
+      // strategy the user expects to see, which is how the original inconsistency
+      // (a SEP contribution recommended on SE-exempt income) went unnoticed.
+      opportunities.push({
+        icon: '🏦', title: 'SEP-IRA — Limited-Partner Income Doesn’t Create Room',
+        priority: 'medium', saving: null,
+        detail: `Your K-1 is from a limited-partner interest, whose distributive share is excluded from net earnings from self-employment under IRC §1402(a)(13). SEP-IRA and Solo 401(k) employer contributions are based on self-employment earnings, so this income supports $0 of contribution room on its own.`,
+        howTo: `If you also have self-employment income — a Schedule C business, or a general-partner / materially-participating LLC interest that DOES pay SE tax — that income can fund a SEP-IRA (up to ${Math.round(SEP_IRA_SOLE_PROP_EFFECTIVE_RATE * 100)}% of its net SE earnings, max ${fmt(sepIraMax)} in ${year}). A limited-partner share alone cannot. Confirm your partner classification with a licensed tax professional before contributing.`
+      })
     }
   }
 
