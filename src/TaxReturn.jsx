@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, QBI_THRESHOLDS, calcCCorpCorporateLayer, SALT_CAPS, getTable } from './taxCalc.js'
+import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable } from './taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -22,7 +22,7 @@ import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from './utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
-import { API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
+import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './components/InfoTip.jsx'
 import SharedMoneyInput from './components/MoneyInput.jsx'
@@ -115,14 +115,14 @@ function OBBBANotice() {
         onClick={() => setExpanded(x => !x)}
         style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 10px', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#78350F', fontSize: 11, fontFamily: 'inherit' }}
       >
-        <span><strong>⚠ OBBBA provisions apply (P.L. 119-21)</strong> — some thresholds still pending</span>
+        <span><strong>⚠ 2026 reflects OBBBA (P.L. 119-21)</strong> — official IRS figures · planning estimate, confirm before filing</span>
         <span style={{ flexShrink: 0, marginLeft: 8 }}>{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
         <div style={{ padding: '0 10px 8px' }}>
-          Some thresholds may differ from final Treasury regulations, which are still pending. Use 2026 for forward planning only — confirm key figures before filing.
+          2026 amounts are the official IRS-published figures — transcribed from Rev. Proc. 2025-32 (brackets, LTCG, §179, EBL, SALT), IRS Notice 2025-67 (retirement limits), and Rev. Proc. 2025-19 (HSA), updated for the One Big Beautiful Bill Act. TaxStat360 remains a planning estimate — confirm key figures with your tax professional before filing.
           <div style={{ marginTop: 4, fontSize: 11, color: '#64748B' }}>
-            One Big Beautiful Budget Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
+            One Big Beautiful Bill Act (OBBBA), P.L. 119-21 — TCJA permanently extended. Key 2026 changes: SALT cap raised to $40,400 · Standard deduction increased · §199A $400 minimum QBI deduction added · EBL thresholds adjusted.
           </div>
         </div>
       )}

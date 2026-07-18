@@ -170,8 +170,10 @@ const TAX_TABLES = {
       minThreshold: null,
     },
   },
-  // OBBBA (One Big Beautiful Bill Act, P.L. 119-21) Rev. Proc. figures — verify
-  // against IRS Rev. Proc. for tax year 2026 before each filing season.
+  // OBBBA (One Big Beautiful Bill Act, P.L. 119-21). The 2026 figures below are
+  // transcribed from the official IRS releases — Rev. Proc. 2025-32 (brackets, LTCG,
+  // §179, EBL, SALT), IRS Notice 2025-67 (retirement limits), and Rev. Proc. 2025-19
+  // (HSA). Re-confirm against the IRS inflation Rev. Proc. each filing season.
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
     sec179: { cap: 2560000, phaseOutStart: 4090000 },  // Rev. Proc. 2025-32 (§179(b)(6) indexing)
