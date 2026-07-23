@@ -7,11 +7,11 @@ import {
   entityLimitsForPlan,
 } from './entityLimits.js'
 
-vi.mock('../LockedFeature.jsx', () => ({
+vi.mock('../components/LockedFeature.jsx', () => ({
   getUserPlan: vi.fn(() => 'starter'),
 }))
 
-import { getUserPlan } from '../LockedFeature.jsx'
+import { getUserPlan } from '../components/LockedFeature.jsx'
 
 const biz = { type: 'S Corporation' }
 const rental = { type: 'Real Estate (Schedule E)' }

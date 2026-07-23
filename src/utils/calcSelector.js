@@ -48,7 +48,7 @@
 
 import { calcTaxReturn, sumK1FlowThrough } from '../lib/taxCalc.js'
 import { safeCalc } from './calcGuard.js'
-import { toEngineContext } from '../EntityCompareModal.jsx'
+import { toEngineContext } from '../components/EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, normalizeF1040 } from './sessionState.js'
 import { nf } from './money.js'
 
