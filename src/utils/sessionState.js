@@ -892,6 +892,64 @@ export function readPlan() { return localStorage.getItem('ts360_plan') }
 export function writePlan(val) { localStorage.setItem('ts360_plan', val) }
 export function readBilling() { return localStorage.getItem('ts360_billing') }
 export function writeBilling(val) { localStorage.setItem('ts360_billing', val) }
+
+// ── F4 (consistency audit, Jul 2026): helpers so UI components stop reaching
+//    around this data layer with raw localStorage calls. Each preserves the
+//    original key and private-mode tolerance (try/catch) exactly. ────────────
+
+// Email-verification banner UI flags (EmailVerificationBanner.jsx)
+export function readEmailBannerCollapsed() {
+  try { return localStorage.getItem('ts360_email_banner_collapsed') === '1' } catch (_e) { return false }
+}
+export function writeEmailBannerCollapsed(collapsed) {
+  try {
+    if (collapsed) localStorage.setItem('ts360_email_banner_collapsed', '1')
+    else localStorage.removeItem('ts360_email_banner_collapsed')
+  } catch (_e) { /* private mode: non-persistent is acceptable for UI state */ }
+}
+export function readEmailConfirmedAck() {
+  try { return localStorage.getItem('ts360_email_confirmed_ack') === '1' } catch (_e) { return false }
+}
+export function writeEmailConfirmedAck() {
+  try { localStorage.setItem('ts360_email_confirmed_ack', '1') } catch (_e) { /* noop */ }
+}
+export function clearEmailConfirmedAck() {
+  try { localStorage.removeItem('ts360_email_confirmed_ack') } catch (_e) { /* noop */ }
+}
+
+// Federal disclosure banner dismissal (FederalDisclosureBanner.jsx)
+export function readFedBannerDismissed() {
+  try { return localStorage.getItem('ts360_fed_banner_dismissed') === '1' } catch (_e) { return false }
+}
+export function writeFedBannerDismissed() {
+  try { localStorage.setItem('ts360_fed_banner_dismissed', '1') } catch (_e) { /* noop */ }
+}
+
+// Trusted-device record for 2FA skip (Onboarding.jsx)
+export function readTrustedDevice() {
+  try { return JSON.parse(localStorage.getItem('ts360_trusted_device') || 'null') } catch (_e) { return null }
+}
+export function writeTrustedDevice(record) {
+  try { localStorage.setItem('ts360_trusted_device', JSON.stringify(record)) } catch (_e) { /* convenience only */ }
+}
+export function clearTrustedDevice() {
+  try { localStorage.removeItem('ts360_trusted_device') } catch (_e) { /* noop */ }
+}
+
+// Full on-device data bundle for the Settings 'export my data' feature.
+export function exportAllDeviceData() {
+  const data = {}
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.startsWith('ts360_') || key === 'plan' || key === 'userName')) {
+        try { data[key] = JSON.parse(localStorage.getItem(key)) }
+        catch (_e) { data[key] = localStorage.getItem(key) }
+      }
+    }
+  } catch (_e) { /* private mode: return whatever was collected */ }
+  return data
+}
 export function readSubscriptionIncomplete() { return localStorage.getItem('ts360_subscription_incomplete') }
 export function writeSubscriptionIncomplete(val) { localStorage.setItem('ts360_subscription_incomplete', val) }
 export function removeSubscriptionIncomplete() { localStorage.removeItem('ts360_subscription_incomplete') }
