@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react'
-import { writeEmail, writePendingEmail, removeEmailVerified, readEmailVerified, writeEmailVerified } from '../utils/sessionState.js'
+import { writeEmail, writePendingEmail, removeEmailVerified, readEmailVerified, writeEmailVerified, readEmailBannerCollapsed, writeEmailBannerCollapsed, readEmailConfirmedAck, writeEmailConfirmedAck, clearEmailConfirmedAck } from '../utils/sessionState.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
 import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
-
-const CONFIRMED_ACK_KEY = 'ts360_email_confirmed_ack'
-// UX audit F10: lets the user collapse the persistent reminder to a small badge
-// so it stops eating vertical space (especially on mobile) on every screen.
-const COLLAPSED_KEY = 'ts360_email_banner_collapsed'
 
 const linkBtn = {
   background: 'none',
@@ -25,18 +20,15 @@ export default function EmailVerificationBanner({ email, verified, onEmailUpdate
   const [msg, setMsg] = useState('')
   const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState(email || '')
-  const [collapsed, setCollapsed] = useState(() => {
-    // M5: unreadable storage → banner starts expanded; harmless.
-    try { return localStorage.getItem(COLLAPSED_KEY) === '1' } catch (e) { return false }
-  })
-  const collapse = () => { setCollapsed(true); try { localStorage.setItem(COLLAPSED_KEY, '1') } catch (e) { /* noop */ } }
-  const expand = () => { setCollapsed(false); try { localStorage.removeItem(COLLAPSED_KEY) } catch (e) { /* noop */ } }
+  const [collapsed, setCollapsed] = useState(readEmailBannerCollapsed)
+  const collapse = () => { setCollapsed(true); writeEmailBannerCollapsed(true) }
+  const expand = () => { setCollapsed(false); writeEmailBannerCollapsed(false) }
 
-  const showConfirmedAck = () => localStorage.getItem(CONFIRMED_ACK_KEY) === '1'
+  const showConfirmedAck = () => readEmailConfirmedAck()
 
   useEffect(() => {
     if (!verified || showConfirmedAck()) return
-    const markSeen = () => localStorage.setItem(CONFIRMED_ACK_KEY, '1')
+    const markSeen = () => writeEmailConfirmedAck()
     window.addEventListener('beforeunload', markSeen)
     return () => {
       markSeen()
@@ -222,7 +214,7 @@ export async function fetchVerificationStatus(email) {
     )
     if (data?.verified) {
       writeEmailVerified('1')
-      localStorage.removeItem(CONFIRMED_ACK_KEY)
+      clearEmailConfirmedAck()
       return { verified: true, email: data.email || email }
     }
     return { verified: false, email: data?.email || email }
