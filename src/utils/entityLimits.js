@@ -1,5 +1,5 @@
 import { PLAN_ENTITY_LIMITS } from '../lib/constants.js'
-import { getUserPlan } from '../LockedFeature.jsx'
+import { getUserPlan } from '../components/LockedFeature.jsx'
 import { isRealEstateEntity } from './entityPredicates.js'
 
 // test seam (D-08): exported for tests only — not a production API.
