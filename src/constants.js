@@ -403,6 +403,10 @@ export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // §24(h)(3) — joint retur
 export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // §24(h)(3) — single, HOH, MFS, all other filers
 export const CTC_PHASEOUT_STEP = 1000              // §24(b)(2) — excess measured per $1,000
 export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reduction per $1,000 step
+// IRC §24(h)(2) base child tax credit. SAFETY FALLBACK ONLY — the authoritative
+// per-year amount lives in TAX_TABLES[year].ctc.perChild; this is used only if a
+// year's table is somehow missing the field, so it can never silently drift.
+export const CTC_CREDIT_PER_CHILD_FALLBACK = 2000
 
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.

@@ -21,7 +21,7 @@ import EmailVerificationBanner, { fetchVerificationStatus } from './components/E
 import { apiGet, ApiError } from './utils/apiClient.js'
 import { normalizePlanId } from './LockedFeature'
 import { writePlan } from './utils/sessionState.js'
-import { clearInvalidSession, isValidSession, AUTH_KEYS } from './utils/sessionAuth.js'
+import { clearInvalidSession, isValidSession, clearAuthKeys } from './utils/sessionAuth.js'
 // AF-02: Resources / blog section for organic SEO traffic
 import ResourcesHub from './ResourcesHub'
 import Article from './Article'
@@ -148,7 +148,7 @@ function RequireAuth({ children }) {
         if (!active) return
         if (e instanceof ApiError && e.status === 401) {
           clearInvalidSession()
-          AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+          clearAuthKeys()
         }
         setServerAuth('fail')
       })
@@ -184,7 +184,7 @@ function RequireAuth({ children }) {
     const timeoutMins = parseInt(readIdleTimeoutMins() || '0')
     if (!timeoutMins) return
     let timer
-    const handleExpiry = () => { AUTH_KEYS.forEach(k => localStorage.removeItem(k)); window.location.href = '/login?expired=1' }
+    const handleExpiry = () => { clearAuthKeys(); window.location.href = '/login?expired=1' }
     const resetTimer = () => { clearTimeout(timer); timer = setTimeout(handleExpiry, timeoutMins * 60 * 1000) }
     const EVENTS = ['mousedown','mousemove','keydown','scroll','touchstart','click']
     EVENTS.forEach(e => window.addEventListener(e, resetTimer, { passive: true }))

@@ -5,7 +5,7 @@ import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from './utils/apiClient.js'
-import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan } from './utils/sessionState.js'
+import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan, exportAllDeviceData } from './utils/sessionState.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { deleteOwnAccount } from './utils/serverApi.js'
 
@@ -193,13 +193,7 @@ export default function Settings() {
       notice: 'This file contains all TaxStat360 data stored on this device for your account. Tax records, session preferences, and account metadata are included.',
       data: {}
     }
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && (key.startsWith('ts360_') || key === 'plan' || key === 'userName')) {
-        try { exportData.data[key] = JSON.parse(localStorage.getItem(key)) }
-        catch { exportData.data[key] = localStorage.getItem(key) }
-      }
-    }
+    exportData.data = exportAllDeviceData()
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

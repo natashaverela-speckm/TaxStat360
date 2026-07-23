@@ -82,7 +82,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from './constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
-import { readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
+import { readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 import { isValidSession } from './utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
@@ -579,7 +579,6 @@ const isReturningUser = !!(readDisclaimerSeen() || readSessionStart())
 
 // UX F-02: "Remember this device for 30 days" — bypass 2FA challenge on trusted devices.
 const TRUST_DAYS = 30
-const DEVICE_KEY = 'ts360_trusted_device'
 const [rememberDevice, setRememberDevice] = useState(false)
 
 function getDeviceFingerprint() {
@@ -588,21 +587,21 @@ function getDeviceFingerprint() {
 
 function isTrustedDevice(emailAddr) {
   try {
-    const stored = JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null')
+    const stored = readTrustedDevice()
     if (!stored || stored.email !== emailAddr) return false
     if (stored.fingerprint !== getDeviceFingerprint()) return false
-    if (Date.now() > stored.expires) { localStorage.removeItem(DEVICE_KEY); return false }
+    if (Date.now() > stored.expires) { clearTrustedDevice(); return false }
     return true
   } catch { return false }
 }
 
 function trustThisDevice(emailAddr) {
   try {
-    localStorage.setItem(DEVICE_KEY, JSON.stringify({
+    writeTrustedDevice({
       email: emailAddr,
       fingerprint: getDeviceFingerprint(),
       expires: Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000,
-    }))
+    })
   } catch {/* M5/M7: device-trust persistence is a convenience — login still succeeds; 2FA asks again next time */}
 }
 
