@@ -568,7 +568,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     activeQbi,
     hasMultiEntityTypes = false,
   } = opts
-  const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+  const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
   const threshold  = thresholds[status] || thresholds.single
   const aggregationApplied = hasMultiEntityTypes && taxableBeforeQBI > threshold
   const aggregationDisclosure = aggregationApplied
@@ -604,7 +604,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
       taxableBeforeQBI
     )
   }
-  const phaseInForYear      = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
+  const phaseInForYear      = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[CURRENT_TAX_YEAR]
   const phaseInRange        = phaseInForYear[status] || phaseInForYear.single
   const excessOverThreshold = taxableBeforeQBI - threshold
   const phasePercent        = Math.min(1, excessOverThreshold / phaseInRange)
@@ -1394,8 +1394,8 @@ function calcTaxReturn(input) {
   const grossIncome      = grossIncomeBeforeNOL - nolAllowed
   const agi              = grossIncome - adjustments
   const taxableBeforeQBI = taxableBeforeNOL - nolAllowed
-  const _sstbThresholds   = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
-  const _sstbPhaseIn      = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[2025]
+  const _sstbThresholds   = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
+  const _sstbPhaseIn      = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[CURRENT_TAX_YEAR]
   const qbiThreshold      = _sstbThresholds[status] || _sstbThresholds.single
   const qbiPhaseRange     = _sstbPhaseIn[status]    || _sstbPhaseIn.single
   const sstbApplicablePct = taxableBeforeQBI <= qbiThreshold
