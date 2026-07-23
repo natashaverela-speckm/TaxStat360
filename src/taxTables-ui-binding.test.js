@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
-import { QBI_THRESHOLDS, getTable } from './taxCalc.js'
+import { QBI_THRESHOLDS, getTable } from './lib/taxCalc.js'
 
 const read = (f) => fs.readFileSync(new URL(f, import.meta.url), 'utf8')
 

@@ -10,7 +10,7 @@
 //            interest to the Passive variant: no SE tax, QBI still applies.
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
 
 const BASE = {
   taxYear: 2026, status: 'single', dependents: 0, entities: [],

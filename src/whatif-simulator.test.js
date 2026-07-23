@@ -6,9 +6,9 @@
 // simulator can never again show a number the Tax Tracker would disagree with.
 
 import { describe, it, expect } from 'vitest'
-import { computeSimulatorScenario, buildSimulatorBase } from './aiAnalysisTaxMath.js'
-import { calcTaxReturn } from './taxCalc.js'
-import { CURRENT_TAX_YEAR } from './constants.js'
+import { computeSimulatorScenario, buildSimulatorBase } from './lib/aiAnalysisTaxMath.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
+import { CURRENT_TAX_YEAR } from './lib/constants.js'
 
 const ctx = {
   base: {

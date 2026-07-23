@@ -58,7 +58,7 @@
 //   NORMALIZE: parseFloat/parseInt `|| def`, '!!' for bool,
 //          '!== false' for boolDefaultTrue, 'value || def' for string.
 
-import { DEFAULT_TAX_YEAR } from '../constants.js'
+import { DEFAULT_TAX_YEAR } from '../lib/constants.js'
 
 // Mirrors sessionState's defaultTaxYear — duplicated here (one line, pure) to
 // keep the import graph acyclic: sessionState imports THIS module.

@@ -13,7 +13,7 @@
 // Treas. Reg. §1.199A-3(b)(1)(ii)(A).
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
 
 // Common personal context for a single filer with $100k outside W-2 wages, no other
 // income, standard deduction, and taxable income comfortably under the 2024 §199A

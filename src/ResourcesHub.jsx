@@ -5,11 +5,11 @@
 
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ARTICLES } from './articles.js'
+import { ARTICLES } from './lib/articles.js'
 // #4 FIX: trial CTA label + microcopy now come from the single source in
 // constants.js (was hardcoded here as "Card for verification only" — an FTC
 // negative-option risk that contradicted the auto-billing in the Terms).
-import { CTA_LABEL, CTA_COPY_SHORT } from './constants.js'
+import { CTA_LABEL, CTA_COPY_SHORT } from './lib/constants.js'
 // #6 FIX: use the shared site nav instead of a second hand-rolled inline <nav>.
 import Nav from './Nav'
 import Icon from './Icon'
@@ -21,7 +21,7 @@ import Footer from './Footer'
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
 
 const CATEGORY_COLORS = {
   'S-Corporation': { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },

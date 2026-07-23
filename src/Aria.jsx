@@ -19,7 +19,7 @@ import { selectTaxSummary } from './utils/calcSelector.js'
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N } from './theme.js'
+import { NAVY as N } from './lib/theme.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRE-LAUNCH AUDIT — BLOCKER 3 & BLOCKER 4 (Jul 2026)

@@ -18,8 +18,8 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
-import { nf } from './utils/money.js'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, ownPct, getEntityNetProfit } from '../utils/entityPredicates'
+import { nf } from '../utils/money.js'
 import {
   CURRENT_TAX_YEAR,
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
@@ -28,7 +28,7 @@ import {
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard, enforced INSIDE the two engine
 // entry points this module exposes (resolveQbiDeduction / computeSimulatorScenario) so
 // every call site — current and future — is covered without per-site boilerplate.
-import { validateCalcInputs } from './utils/calcGuard'
+import { validateCalcInputs } from '../utils/calcGuard'
 
 // SE/FICA-savings arithmetic lives in ONE place — scorpSeTaxSavings in taxCalc.js, which
 // also produces the engine's `ficaSavings`. Re-exported here under the name the strategy

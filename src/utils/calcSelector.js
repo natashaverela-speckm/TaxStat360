@@ -46,7 +46,7 @@
 // Consumers: AIAnalysis (strategy-card gating AND the §199A cards), Aria's
 // session grounding, Step-1 provisional footer, Dashboard record cards.
 
-import { calcTaxReturn, sumK1FlowThrough } from '../taxCalc.js'
+import { calcTaxReturn, sumK1FlowThrough } from '../lib/taxCalc.js'
 import { safeCalc } from './calcGuard.js'
 import { toEngineContext } from '../EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, normalizeF1040 } from './sessionState.js'

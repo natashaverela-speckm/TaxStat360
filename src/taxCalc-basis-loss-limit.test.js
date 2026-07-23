@@ -3,7 +3,7 @@
 // Subject: §1366(d)/§704(d) basis loss limitation and the conservative
 // assumeZeroBasisOnLoss default.
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
 
 // =============================================================================
 // C-10 — §1366(d)/§704(d) conservative basis default (assumeZeroBasisOnLoss)

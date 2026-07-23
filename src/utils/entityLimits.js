@@ -1,4 +1,4 @@
-import { PLAN_ENTITY_LIMITS } from '../constants.js'
+import { PLAN_ENTITY_LIMITS } from '../lib/constants.js'
 import { getUserPlan } from '../LockedFeature.jsx'
 import { isRealEstateEntity } from './entityPredicates.js'
 
