@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { SUPPORTED_TAX_YEARS } from './constants.js'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS } from './taxCalc.js'
+import { TAX_TABLES, AMT_TABLES, SALT_CAPS, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
 
 // Every sub-table the engine and UI now read WITHOUT a literal fallback.
 const REQUIRED_TABLES = [
@@ -82,6 +82,15 @@ describe('TAX_TABLES completeness for every supported year', () => {
           Number.isFinite(SALT_CAPS[year]),
           `SALT_CAPS[${year}] is not a finite number`,
         ).toBe(true)
+      })
+
+      it('derived QBI_THRESHOLDS and QBI_PHASE_IN_RANGE resolve for this year', () => {
+        // F1 follow-up (Jul 2026): the engine no longer falls back to a hardcoded
+        // QBI_THRESHOLDS[2025] / QBI_PHASE_IN_RANGE[2025]; a missing future year must
+        // fail here instead of silently using stale §199A thresholds.
+        expect(Number.isFinite(QBI_THRESHOLDS[year]?.single), `QBI_THRESHOLDS[${year}].single`).toBe(true)
+        expect(Number.isFinite(QBI_THRESHOLDS[year]?.mfj), `QBI_THRESHOLDS[${year}].mfj`).toBe(true)
+        expect(QBI_PHASE_IN_RANGE[year], `QBI_PHASE_IN_RANGE[${year}] missing`).toBeTruthy()
       })
     })
   }

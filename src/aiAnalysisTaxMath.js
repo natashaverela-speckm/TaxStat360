@@ -93,7 +93,7 @@ export function qbiDeductionGap(qbiResult) {
 
 /** Form 8995 vs 8995-A selection — UI metadata only, thresholds from engine. */
 export function qbiFormSelection({ taxableBeforeQBI, taxYear, filing, isCoopPatron }) {
-  const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[2025]
+  const thresholds = qbiThresholdsFor(taxYear)
   const threshold = thresholds[filing] || thresholds.single
   const useForm8995A = taxableBeforeQBI > threshold || !!isCoopPatron
   return {
