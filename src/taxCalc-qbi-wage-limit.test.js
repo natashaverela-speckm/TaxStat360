@@ -32,7 +32,7 @@
 // IF ONE OF THESE FAILS, THE ENGINE IS WRONG. Do not "fix" the test.
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn, calcQBI, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
+import { calcTaxReturn, calcQBI, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './lib/taxCalc.js'
 
 const SOLE_PROP = 'Sole Proprietor / SMLLC'   // Vocabulary A; normalizeEntityType bridges it
 

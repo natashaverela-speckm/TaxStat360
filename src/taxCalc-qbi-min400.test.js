@@ -12,7 +12,7 @@
 // SPEC tests below are verified against §199A(i) as amended by OBBBA.
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn, calcQBI } from './taxCalc.js'
+import { calcTaxReturn, calcQBI } from './lib/taxCalc.js'
 
 const BASE = {
   taxYear: 2026, status: 'single', dependents: 0, entities: [],

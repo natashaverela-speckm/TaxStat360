@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { writeEmail, writePendingEmail, removeEmailVerified, readEmailVerified, writeEmailVerified, readEmailBannerCollapsed, writeEmailBannerCollapsed, readEmailConfirmedAck, writeEmailConfirmedAck, clearEmailConfirmedAck } from '../utils/sessionState.js'
-import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
 
 const linkBtn = {

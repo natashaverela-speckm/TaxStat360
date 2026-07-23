@@ -77,11 +77,11 @@ import {
   CAP_LOSS_ORDINARY_LIMIT_MFS,
   CTC_CREDIT_PER_CHILD_FALLBACK,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from './utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
 // field manifest — the single home for every persisted/scaled field list.
-import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from './utils/fieldManifest.js'
-import { nf } from './utils/money.js'
+import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from '../utils/fieldManifest.js'
+import { nf } from '../utils/money.js'
 // nf(): canonical money parser imported from utils/parseMoney.js (audit D-1).
 // Strips thousands separators; engine inputs are stored comma-free so this is
 // strictly more robust than a local copy. (nv alias removed — audit finding 3.2.)

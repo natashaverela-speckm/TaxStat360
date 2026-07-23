@@ -9,8 +9,8 @@
 // only their message wording differed — see OBS-7).
 
 import { describe, it, expect } from 'vitest'
-import { calcReasonableCompCore, calcTaxReturn } from './taxCalc.js'
-import { SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REASONABLE_COMP_MIN_TOTAL, CURRENT_TAX_YEAR } from './constants.js'
+import { calcReasonableCompCore, calcTaxReturn } from './lib/taxCalc.js'
+import { SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REASONABLE_COMP_MIN_TOTAL, CURRENT_TAX_YEAR } from './lib/constants.js'
 
 describe('calcReasonableCompCore — numeric rule', () => {
 

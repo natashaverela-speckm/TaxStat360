@@ -4,8 +4,8 @@
 // as qualified dividends on the personal return, and no QBI applies.
 
 import { describe, it, expect } from 'vitest'
-import { calcCCorpReturn, calcCCorpCorporateLayer, getTable } from './taxCalc.js'
-import { C_CORP_TAX_RATE, FICA_SS_RATE, FICA_MEDICARE_RATE, DEFAULT_OFFICER_SALARY_FRACTION } from './constants.js'
+import { calcCCorpReturn, calcCCorpCorporateLayer, getTable } from './lib/taxCalc.js'
+import { C_CORP_TAX_RATE, FICA_SS_RATE, FICA_MEDICARE_RATE, DEFAULT_OFFICER_SALARY_FRACTION } from './lib/constants.js'
 
 const YEAR = 2025
 const ctx = { taxYear: YEAR, filingStatus: 'single' }

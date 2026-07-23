@@ -8,8 +8,8 @@ import { describe, it, expect } from 'vitest'
 import {
   getStdDed, getBrackets, calcFederalTax, calcPreferentialTax,
   calcNIIT, calcAMT, getMarginalRate,
-} from './taxCalc.js'
-import { CURRENT_TAX_YEAR } from './constants.js'
+} from './lib/taxCalc.js'
+import { CURRENT_TAX_YEAR } from './lib/constants.js'
 
 // =============================================================================
 // getStdDed — standard deduction lookup by year + filing status
@@ -406,7 +406,7 @@ describe('calcAMT', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // AUDIT N-1 (Jul 2026): §164(b)(6)/(b)(7) SALT cap + OBBBA §70120 phase-down
 // ═══════════════════════════════════════════════════════════════════════════
-import { getSaltCap, calcTaxReturn as _ctrSalt } from './taxCalc.js'
+import { getSaltCap, calcTaxReturn as _ctrSalt } from './lib/taxCalc.js'
 
 describe('getSaltCap — §164(b)(6)/(b)(7) as amended by OBBBA §70120', () => {
   it('CHAR: 2026 base cap $40,400 below the phase-down threshold', () => {
@@ -466,7 +466,7 @@ describe('engine applies the SALT cap in the itemized total (AUDIT N-1)', () => 
 // AUDIT Round 3 (Jul 2026): §1368(c) AAA/E&P · §68 2/37 · charitable floor ·
 // §170(p) non-itemizer · §6654 per-installment schedule
 // ═══════════════════════════════════════════════════════════════════════════
-import { calcTaxReturn as _ctr3 } from './taxCalc.js'
+import { calcTaxReturn as _ctr3 } from './lib/taxCalc.js'
 
 describe('§1368(c) three-tier ordering with accumulated E&P (F-9 full)', () => {
   const sc = (extra) => [{ id: 's', name: 'S', type: 'S Corporation', own: 100,
