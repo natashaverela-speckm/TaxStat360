@@ -5,7 +5,7 @@ import Footer from './Footer'
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
 
 export default function Privacy() {
   const nav = useNavigate()
