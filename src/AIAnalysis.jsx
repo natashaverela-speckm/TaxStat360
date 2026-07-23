@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation } from './lib/taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation } from './taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -17,7 +17,7 @@ import {
   computeRetirementContributionRoom,
   computePassiveLossAllowance,
   qbiThresholdsFor,
-} from './lib/aiAnalysisTaxMath.js'
+} from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
 import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from './utils/sessionState.js'
@@ -26,7 +26,7 @@ import { summarizeRecord } from './utils/calcSelector.js'
 // PHASE 2.5 (M8 disposition): simulator inputs join the live-comma standard.
 import MoneyInput from './components/MoneyInput.jsx'
 import { signOut } from './utils/SignOut'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './lib/theme'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from './theme'
 import { fmt, pct, nf } from './utils/money.js'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from './utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
@@ -45,7 +45,7 @@ import {
   federalTaxHeadlineLabel,
   FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
-} from './lib/constants.js'
+} from './constants.js'
 
 // Retirement-plan base + SE-eligible-K-1 helpers (F3/F8 extraction, Jul 2026):
 // selfEmployedRetirementBase, seEligibleK1FromEntities, hasLimitedPartnerInterest

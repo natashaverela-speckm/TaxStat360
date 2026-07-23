@@ -15,7 +15,7 @@ import {
   seEligibleK1FromEntities,
   hasLimitedPartnerInterest,
   computeRetirementContributionRoom,
-} from './lib/aiAnalysisTaxMath.js'
+} from './aiAnalysisTaxMath.js'
 
 describe('selfEmployedRetirementBase (§164(f) net-of-half-SE-tax base)', () => {
   it('derives SE tax from the year table when no engine SE tax is given', () => {

@@ -2,7 +2,7 @@
 // Subject: §1231(c) 5-year lookback recharacterization and §199A treatment of
 // basis-suspended losses.
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './lib/taxCalc.js'
+import { calcTaxReturn } from './taxCalc.js'
 
 // =============================================================================
 // F5 — §1231(c) 5-year lookback recharacterization

@@ -7,7 +7,7 @@
 // here first, making a price change a conscious, test-acknowledged act.
 
 import { describe, it, expect } from 'vitest'
-import { PLAN_PRICING, fmtPlanPrice, PRICE_STARTER_MONTHLY, PRICE_PROFESSIONAL_MONTHLY, PRICE_ENTERPRISE_MONTHLY } from './lib/constants.js'
+import { PLAN_PRICING, fmtPlanPrice, PRICE_STARTER_MONTHLY, PRICE_PROFESSIONAL_MONTHLY, PRICE_ENTERPRISE_MONTHLY } from './constants.js'
 
 describe('PLAN_PRICING — derived figures match the pre-derivation literals', () => {
 

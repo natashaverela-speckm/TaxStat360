@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import PasswordInput from './components/PasswordInput.jsx'
 import { apiPost, ApiError } from './utils/apiClient.js'
-import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 
 function Logo() {

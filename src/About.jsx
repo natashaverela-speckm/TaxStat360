@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from './lib/constants'
+import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from './constants'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B } from './lib/theme.js'
+import { NAVY as N, BLUE as B } from './theme.js'
 
 const EYEBROW = {
   fontSize: 12,

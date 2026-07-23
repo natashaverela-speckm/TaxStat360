@@ -18,11 +18,11 @@
 // 10% → $12,400, 12% → $50,400, 22% → $105,700, 24% → $201,775.
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './lib/taxCalc.js'
+import { calcTaxReturn } from './taxCalc.js'
 import {
   CAP_LOSS_ORDINARY_LIMIT,
   CAP_LOSS_ORDINARY_LIMIT_MFS,
-} from './lib/constants.js'
+} from './constants.js'
 
 const base = { taxYear: 2026, entities: [] }
 

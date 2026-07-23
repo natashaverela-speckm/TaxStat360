@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable } from './lib/taxCalc.js'
+import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable } from './taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -21,8 +21,8 @@ import { signOut } from './utils/SignOut'
 import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from './utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './lib/theme.js'
-import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './lib/constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
+import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './components/InfoTip.jsx'
 import SharedMoneyInput from './components/MoneyInput.jsx'

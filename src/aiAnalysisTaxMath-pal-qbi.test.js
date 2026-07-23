@@ -9,9 +9,9 @@ import { describe, it, expect } from 'vitest'
 import {
   computePassiveLossAllowance,
   qbiThresholdsFor,
-} from './lib/aiAnalysisTaxMath.js'
-import { QBI_THRESHOLDS } from './lib/taxCalc.js'
-import { CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS } from './lib/constants.js'
+} from './aiAnalysisTaxMath.js'
+import { QBI_THRESHOLDS } from './taxCalc.js'
+import { CURRENT_TAX_YEAR, SUPPORTED_TAX_YEARS } from './constants.js'
 
 describe('computePassiveLossAllowance (§469(i) $25,000 rental-loss allowance)', () => {
   it('full $25,000 allowance below the $100K phase-out, clamped to the loss', () => {
