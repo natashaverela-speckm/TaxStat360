@@ -1404,7 +1404,7 @@ function IRSCompliance({ rec }) {
   }
 
   if (f.useItemized && (nf(f.itemizedAmt)||0) > 0) {
-    const _saltCap = SALT_CAPS[year] || SALT_CAPS[2025]
+    const _saltCap = SALT_CAPS[year] || SALT_CAPS[CURRENT_TAX_YEAR]
     schedules.push({ form: 'Schedule A', title: 'Itemized Deductions', status: 'required', covered: hasItemized, detail: `Itemizing chosen over standard deduction. Reports mortgage interest, SALT (capped at ${fmt(_saltCap)}), charitable contributions, medical.`, deadline: 'Filed with Form 1040' })
   }
 
