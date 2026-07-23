@@ -47,6 +47,7 @@
 // session grounding, Step-1 provisional footer, Dashboard record cards.
 
 import { calcTaxReturn, sumK1FlowThrough } from '../taxCalc.js'
+import { safeCalc } from './calcGuard.js'
 import { toEngineContext } from '../EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, normalizeF1040 } from './sessionState.js'
 import { nf } from './money.js'
@@ -99,17 +100,20 @@ const _SUMMARY_KEYS = [
 ]
 
 function _summarize(engineInput) {
-  let result
+  // F5 (consistency audit, Jul 2026): use the SHARED calcGuard path
+  // (safeCalc = validateCalcInputs + typed CalcInputError) so this selector and
+  // every other calc consumer share ONE error-handling convention. The outer
+  // try/catch preserves this façade's contract: a selector consumer renders a
+  // card, not an error boundary — it must receive a typed miss, never a throw.
   try {
-    result = calcTaxReturn(engineInput)
+    const { result, error } = safeCalc(engineInput, calcTaxReturn, 'calcSelector')
+    if (error) return Object.freeze({ ok: false, error: error.message })
+    const out = { ok: true }
+    for (const k of _SUMMARY_KEYS) out[k] = result[k]
+    return Object.freeze(out)
   } catch (err) {
-    // The M2 guard (and any genuine engine error) surfaces here. A selector
-    // consumer renders a card, not an error boundary — hand it a typed miss.
     return Object.freeze({ ok: false, error: String(err && err.message || err) })
   }
-  const out = { ok: true }
-  for (const k of _SUMMARY_KEYS) out[k] = result[k]
-  return Object.freeze(out)
 }
 
 /**

@@ -26,7 +26,7 @@ export function isValidSession() {
     const startMs = parseInt(start, 10)
     if (!isNaN(startMs) && Date.now() - startMs > SESSION_MAX_AGE_MS) {
       apiPost('/auth/logout', undefined, { credentials: 'include' }).catch(() => {})
-      AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+      clearAuthKeys()
       return false
     }
   }
@@ -45,6 +45,14 @@ const INVALID_SESSION_KEYS = [
 
 export function clearInvalidSession() {
   INVALID_SESSION_KEYS.forEach((k) => {
+    try { localStorage.removeItem(k) } catch (_e) { /* ignore */ }
+  })
+}
+
+// F4 (consistency audit, Jul 2026): single home for the full auth-key purge so
+// App.jsx no longer loops localStorage.removeItem itself. Owns AUTH_KEYS already.
+export function clearAuthKeys() {
+  AUTH_KEYS.forEach((k) => {
     try { localStorage.removeItem(k) } catch (_e) { /* ignore */ }
   })
 }
