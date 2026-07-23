@@ -32,7 +32,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 // D-01/D-02 cleanup (Jul 2026): stubs for the deleted FederalScopeBanner.jsx and
 // the retired MoneyInput.jsx migration target were removed — TaxReturn renders its
 // own local MoneyInput and no longer imports either component.
-vi.mock('./taxCalc', () => ({
+vi.mock('./lib/taxCalc', () => ({
   TAX_TABLES: {},
   AMT_TABLES: {},
   SALT_CAPS: { 2024: 10000, 2025: 10000, 2026: 40000 },
@@ -107,7 +107,7 @@ vi.mock('./components/DismissibleNotice', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 import TaxReturn from './TaxReturn'
-import { calcTaxReturn, calcCCorpCorporateLayer } from './taxCalc.js'
+import { calcTaxReturn, calcCCorpCorporateLayer } from './lib/taxCalc.js'
 import { readStep1State, readPersonalContext } from './utils/sessionState.js'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

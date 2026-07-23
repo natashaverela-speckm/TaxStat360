@@ -2,8 +2,8 @@
 // Subject: §1368/§1366 stock-basis ordering (Reg. §1.1368-1(e)), Form 7203 basis
 // entries, and the §469(c)(7)(B) hours gate on the REP aggregation election.
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
-import { CURRENT_TAX_YEAR } from './constants.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
+import { CURRENT_TAX_YEAR } from './lib/constants.js'
 
 // =============================================================================
 // C-11 / C-12 — remediation of the 2025 edge-case accuracy audit.

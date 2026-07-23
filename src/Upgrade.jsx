@@ -5,8 +5,8 @@ import { signOut as sharedSignOut } from './utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from './utils/apiClient.js'
-import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from './constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from './lib/constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
 
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.

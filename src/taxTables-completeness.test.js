@@ -11,8 +11,8 @@
 // row, this test fails in CI — before a wrong number ever reaches a user.
 
 import { describe, it, expect } from 'vitest'
-import { SUPPORTED_TAX_YEARS } from './constants.js'
-import { TAX_TABLES, AMT_TABLES, SALT_CAPS, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
+import { SUPPORTED_TAX_YEARS } from './lib/constants.js'
+import { TAX_TABLES, AMT_TABLES, SALT_CAPS, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './lib/taxCalc.js'
 
 // Every sub-table the engine and UI now read WITHOUT a literal fallback.
 const REQUIRED_TABLES = [

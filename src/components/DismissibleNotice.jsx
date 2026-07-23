@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NAVY as N } from '../theme.js'
+import { NAVY as N } from '../lib/theme.js'
 
 /**
  * Generic dismissible notice. Persists dismissal state in either sessionStorage

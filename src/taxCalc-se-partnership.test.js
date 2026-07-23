@@ -21,7 +21,7 @@
 // 0.9235 (§1402(a)(12)); combined SE rate 15.3% (12.4% OASDI + 2.9% Medicare).
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
 
 // $60,000 net K-1, fully below the wage base:
 //   SE base = 60,000 × 0.9235      = 55,410

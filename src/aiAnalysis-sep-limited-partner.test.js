@@ -19,7 +19,7 @@
 // partner / sole prop's $60k → SE-eligible 60,000.
 
 import { describe, it, expect } from 'vitest'
-import { seEligibleK1FromEntities, hasLimitedPartnerInterest } from './aiAnalysisTaxMath.js'
+import { seEligibleK1FromEntities, hasLimitedPartnerInterest } from './lib/aiAnalysisTaxMath.js'
 
 const K1 = 60000
 

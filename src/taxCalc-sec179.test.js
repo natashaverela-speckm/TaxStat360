@@ -12,7 +12,7 @@
 //                      proves the extraction is verbatim-equivalent.
 
 import { describe, it, expect } from 'vitest'
-import { calc179Limitation, sumK1FlowThrough } from './taxCalc.js'
+import { calc179Limitation, sumK1FlowThrough } from './lib/taxCalc.js'
 import { getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 
 // ─── getEntityPnlNet / getEntityPnlNetShare (audit F-04) ───────────────────────

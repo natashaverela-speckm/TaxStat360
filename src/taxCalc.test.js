@@ -5,7 +5,7 @@
 // authority, a per-test judgment that must not be mass-applied. Promote
 // individual tests to SPEC (with citation) as each value is re-verified.
 import { describe, it, expect } from 'vitest'
-import { calcQBI, calcTaxReturn, calcAMT } from './taxCalc.js'
+import { calcQBI, calcTaxReturn, calcAMT } from './lib/taxCalc.js'
 
 describe('calcQBI §199A(i) OBBBA minimum deduction', () => {
   it('CHAR: applies $400 floor when regular calc < $400 and active QBI ≥ $1,000 (taxYear 2026)', () => {
