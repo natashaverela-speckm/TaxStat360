@@ -2,12 +2,12 @@ import { useState } from 'react'
 import './Landing.css'
 // #4 FIX: CTA_LABEL now comes from the single source in constants.js (was a local
 // duplicate here, in Landing.jsx, and in About.jsx).
-import { CTA_LABEL } from './constants.js'
+import { CTA_LABEL } from './lib/constants.js'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B } from './theme.js'
+import { NAVY as N, BLUE as B } from './lib/theme.js'
 
 /* Shared site navigation — single source of truth for the marketing/legal pages
    (Landing, About, Privacy, Terms, Resources). Extracted from the former inline
