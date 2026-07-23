@@ -90,6 +90,15 @@ vi.mock('./utils/sessionState.js', () => ({
   readActiveRecordName: vi.fn(() => ''),
   readDirtyFlag: vi.fn(() => false),
   writeDirtyFlag: vi.fn(),
+  // F4 (consistency audit): banners rendered here now read dismissal/collapse
+  // state through the data layer instead of raw localStorage.
+  readFedBannerDismissed: vi.fn(() => false),
+  writeFedBannerDismissed: vi.fn(),
+  readEmailBannerCollapsed: vi.fn(() => false),
+  writeEmailBannerCollapsed: vi.fn(),
+  readEmailConfirmedAck: vi.fn(() => false),
+  writeEmailConfirmedAck: vi.fn(),
+  clearEmailConfirmedAck: vi.fn(),
 }))
 
 vi.mock('./components/DismissibleNotice', () => ({

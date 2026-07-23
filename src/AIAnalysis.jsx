@@ -64,7 +64,7 @@ function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
     halfSeTax = engineSeTax / 2
   } else {
     const seEarnings = income * SE_NET_EARNINGS_FACTOR              // IRC §1402(a)(12) — 92.35%
-    const ssWageBase = getTable(year)?.ssWageBase ?? 176100
+    const ssWageBase = getTable(year).ssWageBase
     const seTax = Math.min(seEarnings, ssWageBase) * (FICA_SS_RATE * 2) // 12.4% OASDI
                 + seEarnings * (FICA_MEDICARE_RATE * 2)                 // 2.9% Medicare
     halfSeTax = seTax / 2                                            // §164(f)
@@ -1034,10 +1034,10 @@ function TaxOptimization({ rec }) {
   const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
   // §415(c) overall limits are year-specific — read from the centralized table, never
   // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
-  const sepIraMax = getTable(year)?.retirement?.sepIraMax ?? 70000
+  const sepIraMax = getTable(year).retirement.sepIraMax
   const maxSEP = Math.min(sepIraMax, Math.round(sepBase * sepRate))
 
-  const solo401kDeferral = getTable(year)?.retirement?.solo401kDeferral ?? 23500
+  const solo401kDeferral = getTable(year).retirement.solo401kDeferral
   const solo401kMax = getTable(year)?.retirement?.solo401kMax ?? sepIraMax
   const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? SOLO_401K_EMPLOYER_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE))
   const maxSolo401k = Math.min(solo401kMax, maxSolo401kEmployer + solo401kDeferral)
@@ -1048,7 +1048,7 @@ function TaxOptimization({ rec }) {
         icon: '🏦', title: 'SEP-IRA / Solo 401(k) — Set Officer Compensation First',
         priority: 'high', saving: null,
         detail: `S-Corp owners can only contribute to a SEP-IRA or Solo 401(k) based on their officer W-2 compensation — not K-1 distributions (IRC §402(h); IRS Pub. 560). With $0 officer compensation recorded, your current allowable contribution is $0.`,
-        howTo: `Set reasonable officer compensation on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_IRA_RATE * 100)}% of that salary (max ${fmt(sepIraMax)} in ${year}). Example: a ${fmt(Math.round(k1 * 0.40))} salary would allow a ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepIraMax, k1 * 0.40 * SEP_IRA_RATE) * marginalRate))} in federal tax.`
+        howTo: `Set reasonable officer compensation on Step 1 first. Once salary is recorded, you can contribute up to ${Math.round(SEP_IRA_RATE * 100)}% of that salary (max ${fmt(sepIraMax)} in ${year}). Example: a ${fmt(Math.round(k1 * SCORP_REASONABLE_COMP_RATIO_THRESHOLD))} salary would allow a ${fmt(Math.round(Math.min(sepIraMax, k1 * SCORP_REASONABLE_COMP_RATIO_THRESHOLD * SEP_IRA_RATE)))} SEP-IRA contribution — saving approx. ${fmt(Math.round(Math.min(sepIraMax, k1 * SCORP_REASONABLE_COMP_RATIO_THRESHOLD * SEP_IRA_RATE) * marginalRate))} in federal tax.`
       })
     } else if (maxSEP > 0) {
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
@@ -1143,11 +1143,11 @@ function TaxOptimization({ rec }) {
     icon: '🏥', title: 'Health Savings Account (HSA)', priority: 'medium',
     // AUDIT: was hardcoded to the 2025 limit ($4,300), so the badge read ~$1,376 while the
     // body below (year-bound) read $1,408 for 2026 — two numbers for one item. Same source now.
-    saving: Math.round((getTable(year)?.hsa?.selfOnly ?? 4400) * marginalRate),
+    saving: Math.round((getTable(year)?.hsa?.selfOnly) * marginalRate),
     // AUDIT F-8 FIX: limits now read from TAX_TABLES[year].hsa (were hardcoded 2025
     // figures shown in every tax year).
-    detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to ${fmt(getTable(year)?.hsa?.selfOnly ?? 4400)} (self-only) or ${fmt(getTable(year)?.hsa?.family ?? 8750)} (family) to an HSA for ${year}. Contributions are tax-deductible and grow tax-free.`,
-    howTo: `At your rate of ${pct(marginalRate * 100)}, a max self-only HSA contribution saves approx. ${fmt(Math.round((getTable(year)?.hsa?.selfOnly ?? 4400) * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for qualified medical expenses are always tax-free.`
+    detail: `If you have a High-Deductible Health Plan (HDHP), you can contribute up to ${fmt(getTable(year)?.hsa?.selfOnly)} (self-only) or ${fmt(getTable(year)?.hsa?.family)} (family) to an HSA for ${year}. Contributions are tax-deductible and grow tax-free.`,
+    howTo: `At your rate of ${pct(marginalRate * 100)}, a max self-only HSA contribution saves approx. ${fmt(Math.round((getTable(year)?.hsa?.selfOnly) * marginalRate))}. Funds roll over each year and can be invested. Withdrawals for qualified medical expenses are always tax-free.`
   })
 
   if (isSCorpEntity(b.entityType) && revenue > 0) {
@@ -1968,7 +1968,7 @@ function SimulatorModal({ onClose, rec }) {
       // A1 FIX: sole-prop SEP base is net earnings from SE (share of net profit − ½ SE tax).
       // Finding 1 follow-up: a limited partner's K-1 is not SE income (§1402(a)(13)),
       // so it creates $0 SEP room — never model a contribution on it.
-      sep:     { otherDeductions: simLimitedPartner ? 0 : Math.min(getTable(taxYear)?.retirement?.sepIraMax ?? 70000, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : selfEmployedRetirementBase(netProfit * ownerPctVal, taxYear) * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
+      sep:     { otherDeductions: simLimitedPartner ? 0 : Math.min(getTable(taxYear).retirement.sepIraMax, Math.round(base.officerSalary > 0 ? base.officerSalary * SEP_IRA_RATE : selfEmployedRetirementBase(netProfit * ownerPctVal, taxYear) * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)) },
       revenue: { grossRevenue: 50000 },
       salary:  { officerSalary: 20000 },
       custom:  {},

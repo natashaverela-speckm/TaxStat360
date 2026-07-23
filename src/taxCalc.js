@@ -75,6 +75,7 @@ import {
   // (unindexed) dollar limits, single-sourced in constants.js per the M1 pattern.
   CAP_LOSS_ORDINARY_LIMIT,
   CAP_LOSS_ORDINARY_LIMIT_MFS,
+  CTC_CREDIT_PER_CHILD_FALLBACK,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from './utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
@@ -330,7 +331,7 @@ function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0, taxY
   // total stands in for it. Since placed-in-service >= elected, the true
   // reduction can only be LARGER; above the threshold the real limit may be
   // lower than modeled. Below the threshold the proxy is exact.
-  const sec179Table       = (TAX_TABLES[taxYear] || TAX_TABLES[2026]).sec179 || { cap: Infinity, phaseOutStart: Infinity }
+  const sec179Table       = getTable(taxYear).sec179 || { cap: Infinity, phaseOutStart: Infinity }
   const phaseOutReduction = Math.max(0, totalSec179 - sec179Table.phaseOutStart)
   const sec179DollarLimit = Math.max(0, sec179Table.cap - phaseOutReduction)
   // Order of operations: the (b)(1)/(b)(2) dollar limit binds first, then the
@@ -408,9 +409,9 @@ function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs]
 /** §1(h) LTCG/QD bracket thresholds by filing status. Inflation-adjusted — IRC §1(f)(3). */
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
 /** §1411(b) NIIT MAGI threshold by filing status. NOT inflation-adjusted (statutory). */
-function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || 200000 }
+function getNIITThreshold(year, fs) { const t = getTable(year).niit; return t[fs] || NIIT_THRESHOLD_SINGLE }
 /** §3101(b)(2) Additional Medicare Tax threshold by filing status. NOT inflation-adjusted. */
-function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || 200000 }
+function getAddlMedicareThreshold(year, fs) { const t = getTable(year).addlMed; return t[fs] || ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE }
 function getMarginalRate(taxable, year, fs) {
   let rate = 0.10, prev = 0
   for (const [cap, r] of getBrackets(year, fs)) {
@@ -489,8 +490,8 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
   // (Callers may still pass a `qbi` field; it is intentionally not read here. Do not "fix"
   // this by adding qbi back.)
-  const amtTable    = AMT_TABLES[taxYear] || AMT_TABLES[2025]
-  const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[2025]
+  const amtTable    = AMT_TABLES[taxYear] || AMT_TABLES[CURRENT_TAX_YEAR]
+  const baseSaltCap = SALT_CAPS[taxYear] || SALT_CAPS[CURRENT_TAX_YEAR]
   const saltCap     = status === 'mfs' ? baseSaltCap / 2 : baseSaltCap
   const isItemizing  = useItemized && itemized > stdDed
   const saltAddback  = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
@@ -1557,7 +1558,7 @@ function calcTaxReturn(input) {
   const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, capitalGainNetIncluded + f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
-  const ctcPerChild          = getTable(taxYear).ctc?.perChild || 2000
+  const ctcPerChild          = getTable(taxYear).ctc?.perChild || CTC_CREDIT_PER_CHILD_FALLBACK
   const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? CTC_PHASEOUT_THRESHOLD_MFJ : CTC_PHASEOUT_THRESHOLD_OTHER
   const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
   const ctcReduction         = Math.ceil(ctcExcess / CTC_PHASEOUT_STEP) * CTC_PHASEOUT_REDUCTION_PER_STEP
