@@ -22,7 +22,7 @@ import { validateCalcInputs, CalcInputError } from './utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from './utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from './utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from './theme.js'
-import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
+import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from './constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './components/InfoTip.jsx'
 import SharedMoneyInput from './components/MoneyInput.jsx'
@@ -630,7 +630,7 @@ export default function TaxReturn() {
     2026: ['Apr 15, 2026', 'Jun 15, 2026', 'Sep 15, 2026', 'Jan 15, 2027'],
   }
   const getNextDueDate = () => {
-    const dates = NEXT_DUE_DATES[taxYear] || NEXT_DUE_DATES[2025]
+    const dates = NEXT_DUE_DATES[taxYear] || NEXT_DUE_DATES[CURRENT_TAX_YEAR]
     const today = new Date()
     for (const d of dates) {
       if (new Date(d) > today) return d
