@@ -13,7 +13,7 @@
 // UX-N04: Added visible C-Corp full-dividend assumption callout near scenario cards.
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { compareEntityScenarios } from './scenarioCompare'
+import { compareEntityScenarios } from './lib/scenarioCompare'
 // CC-M01: single source of truth for colors.
 import {
   NAVY as N,
@@ -28,10 +28,10 @@ import {
   RED_BORDER,
   SURFACE_CARD as CARD_BG,
   BORDER_DEFAULT as CARD_BORDER,
-} from './theme.js'
+} from './lib/theme.js'
 // CC-M02: canonical currency formatter.
 import { fmt, nf } from './utils/money.js'
-import { CURRENT_TAX_YEAR } from './constants.js'
+import { CURRENT_TAX_YEAR } from './lib/constants.js'
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
 import { isSCorpEntity, isCCorpEntity } from './utils/entityPredicates'
 
