@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { compareEntityScenarios } from '../scenarioCompare.js'
+import { compareEntityScenarios } from './scenarioCompare.js'
 // Import rate constants directly from constants.js — scenarioCompare.js uses them
 // internally but does not re-export them. Importing from the source of truth avoids
 // the undefined values that caused 10 test failures (audit fix, June 2026).
@@ -9,7 +9,7 @@ import {
   FICA_MEDICARE_RATE,
   C_CORP_TAX_RATE,
   DEFAULT_OFFICER_SALARY_FRACTION,
-} from '../constants.js'
+} from './constants.js'
 
 // Minimal personal context — keeps test focus on entity differences, not personal 1040 details.
 // F-07 FIX: taxYear now reads from CURRENT_TAX_YEAR instead of a hardcoded literal.

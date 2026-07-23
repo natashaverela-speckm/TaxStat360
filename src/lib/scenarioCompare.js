@@ -46,7 +46,7 @@ import { calcTaxReturn, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCa
 // to the caller — EntityCompareModal already catches any throw from
 // compareEntityScenarios and renders its visible error state, so a bad input produces
 // an honest failure card instead of a silently wrong three-way comparison.
-import { validateCalcInputs } from './utils/calcGuard.js'
+import { validateCalcInputs } from '../utils/calcGuard.js'
 
 const guarded = (engineInput) => {
   validateCalcInputs(engineInput, 'scenarioCompare')

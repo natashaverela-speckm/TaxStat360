@@ -3,7 +3,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { apiUrl, apiFetch, apiGet, apiPost, ApiError } from './apiClient.js'
-import { API_BASE_URL } from '../constants.js'
+import { API_BASE_URL } from '../lib/constants.js'
 
 vi.mock('./sessionState.js', () => ({
   readToken: vi.fn(() => null),

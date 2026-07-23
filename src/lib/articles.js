@@ -8,7 +8,7 @@
 // schema. The Article.jsx template renders any entry automatically.
 
 import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION } from './taxCalc.js'
-import { fmt } from './utils/money.js'
+import { fmt } from '../utils/money.js'
 
 // ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
 // Indexed dollar figures quoted in article prose are bound to the engine's

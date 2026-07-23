@@ -6,7 +6,7 @@
 // "total" label instead of contradicting the waterfall's "Federal Income Tax" line.
 
 import { describe, it, expect } from 'vitest'
-import { federalTaxHeadlineLabel, FINANCIAL_LABELS } from './constants.js'
+import { federalTaxHeadlineLabel, FINANCIAL_LABELS } from './lib/constants.js'
 
 describe('federalTaxHeadlineLabel — entity-aware results headline', () => {
   it('SPEC: no SE tax (S-Corp / C-Corp / W-2 only) -> "EST. FEDERAL INCOME TAX"', () => {

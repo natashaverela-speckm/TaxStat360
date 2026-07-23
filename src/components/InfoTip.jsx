@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
-import { NAVY as N, SLATE as SL } from '../theme.js'
+import { NAVY as N, SLATE as SL } from '../lib/theme.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UX AUDIT (Jul 2026) — this component carries four findings; the fixes are

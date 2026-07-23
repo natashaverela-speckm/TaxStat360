@@ -73,7 +73,7 @@ import {
 //   Replace ALL direct sessionStorage.getItem/setItem calls for ts360_biz_*
 //   keys with these helpers.
 
-import { DEFAULT_TAX_YEAR } from '../constants.js'
+import { DEFAULT_TAX_YEAR } from '../lib/constants.js'
 import { buildPersonalContextPayload, extractPersonalContext, normalizeF1040Fields } from './fieldManifest.js'
 
 // C-15: a new calculation's default Tax Year is the current calendar year, but never

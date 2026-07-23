@@ -1,7 +1,7 @@
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B } from './theme.js'
+import { NAVY as N, BLUE as B } from './lib/theme.js'
 
 /* Single source of truth for the TaxStat360 brand mark (icon tile + wordmark).
    Matches the public site nav (src/Nav.jsx) exactly: navy tile, 4 ascending

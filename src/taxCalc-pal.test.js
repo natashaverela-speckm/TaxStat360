@@ -14,14 +14,14 @@
 // again silently diverge from the live formula.
 
 import { describe, it, expect } from 'vitest'
-import { calc469iAllowance, calcTaxReturn } from './taxCalc.js'
+import { calc469iAllowance, calcTaxReturn } from './lib/taxCalc.js'
 import {
   PAL_SPECIAL_ALLOWANCE_BASE,
   PAL_PHASE_OUT_START,
   PAL_PHASE_OUT_END,
   PAL_PHASE_OUT_RATE,
   NOL_CARRYFORWARD_CAP_RATE,
-} from './constants.js'
+} from './lib/constants.js'
 
 // ─── calc469iAllowance — the single source of truth ───────────────────────────
 

@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { summarizeRecord, selectTaxSummary, buildRecordEngineInput } from './calcSelector.js'
-import { calcTaxReturn } from '../taxCalc.js'
+import { calcTaxReturn } from '../lib/taxCalc.js'
 import { writePersonalContext, writeStep1State, normalizeF1040 } from './sessionState.js'
 
 const lossYearRecord = {

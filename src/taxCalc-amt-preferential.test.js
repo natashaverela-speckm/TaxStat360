@@ -7,7 +7,7 @@
 // correct AMT is $0. Form 6251 Part III caps the preferential income at the AMT base.
 
 import { describe, it, expect } from 'vitest'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn } from './lib/taxCalc.js'
 
 const base = { taxYear: 2026, status: 'single', entities: [], k1Total: 0, w2: 0 }
 

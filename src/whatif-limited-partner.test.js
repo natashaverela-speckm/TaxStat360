@@ -16,7 +16,7 @@
 // SE tax 55,410 × 0.153 = 8,477.73 → 8,478.
 
 import { describe, it, expect } from 'vitest'
-import { computeSimulatorScenario } from './aiAnalysisTaxMath.js'
+import { computeSimulatorScenario } from './lib/aiAnalysisTaxMath.js'
 
 const K1 = 60000
 const EXPECTED_SE = 8478

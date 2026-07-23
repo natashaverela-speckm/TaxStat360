@@ -79,7 +79,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from './constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from './lib/constants.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from './utils/apiClient.js'
 import { readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from './utils/sessionState.js'
