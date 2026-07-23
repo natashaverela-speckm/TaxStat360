@@ -49,7 +49,7 @@ import React, { useState, useEffect } from 'react'
 import FederalDisclosureBanner from './components/FederalDisclosureBanner.jsx'
 import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, writeMfaEnabled, readUserName, readSubscriptionIncomplete, readDirtyFlag, writeDirtyFlag, readActiveRecordName } from './utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './lib/taxCalc.js'
+import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from './taxCalc.js'
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
 import { topLeversForRecord } from './utils/topLevers.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from './utils/sessionState.js'
@@ -66,8 +66,8 @@ import {
   CURRENT_TAX_YEAR,
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
-} from './lib/constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './lib/theme.js'
+} from './constants.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from './theme.js'
 import { fmt, pct, effectiveRate } from './utils/money.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from './utils/entityPredicates.js'
 import { isPro } from './LockedFeature'

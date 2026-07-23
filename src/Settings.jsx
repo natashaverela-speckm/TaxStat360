@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { API_BASE_URL } from './lib/constants.js'
+import { API_BASE_URL } from './constants.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from './utils/SignOut'
 import { isPro } from './LockedFeature'
@@ -12,7 +12,7 @@ import { deleteOwnAccount } from './utils/serverApi.js'
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 function LOGO() {
   return <BrandLogo size={32} />

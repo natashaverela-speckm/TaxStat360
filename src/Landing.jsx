@@ -1,16 +1,16 @@
 import React, { useState } from 'react'
-import { API_BASE_URL } from './lib/constants.js'
+import { API_BASE_URL } from './constants.js'
 import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS } from './lib/constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS } from './constants'
 import './Landing.css'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B } from './lib/theme.js'
+import { NAVY as N, BLUE as B } from './theme.js'
 
 // F9 FIX (Jul 2026): entity/rental limits shown on the pricing cards and in the FAQ are
 // derived from PLAN_ENTITY_LIMITS — the same source the app enforces (utils/entityLimits)

@@ -1,4 +1,4 @@
-import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } from './lib/constants'
+import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } from './constants'
 
 // ─── SHARED SITE-WIDE FOOTER ──────────────────────────────────────────────────
 // Single source of truth for footer markup, links, the company NAP (Name / Address /

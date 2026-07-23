@@ -27,8 +27,8 @@ import ResourcesHub from './ResourcesHub'
 import Article from './Article'
 // CC FIX: RouteTitle validates /resources/:slug against the article data so that
 // unknown slugs (a soft-404 inside the indexable /resources/ pattern) get noindex.
-import { getArticle } from './lib/articles.js'
-import { NAVY as N, SLATE as SL } from './lib/theme.js'
+import { getArticle } from './articles.js'
+import { NAVY as N, SLATE as SL } from './theme.js'
 import WelcomeTourScreen from './components/WelcomeTourScreen.jsx'
 import { needsOnboardingTour } from './utils/onboardingTour.js'
 

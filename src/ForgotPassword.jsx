@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import { apiPost } from './utils/apiClient.js'
-import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 
 function Logo() {

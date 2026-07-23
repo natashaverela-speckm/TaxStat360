@@ -18,11 +18,11 @@ import {
 } from './utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from './utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './lib/constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from './constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from './utils/integrations.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R } from './theme.js'
 import { fmt, formatTimestamp, formatRelativeTime } from './utils/money.js'
 // PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
 // the engine's own code path, so Step 1's number cannot disagree with Step 2.
@@ -30,7 +30,7 @@ import { selectTaxSummary } from './utils/calcSelector.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet } from './utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
-import { sumK1FlowThrough, QBI_THRESHOLDS } from './lib/taxCalc.js'
+import { sumK1FlowThrough, QBI_THRESHOLDS } from './taxCalc.js'
 import InfoTip from './components/InfoTip.jsx'
 import SharedMoneyInput from './components/MoneyInput.jsx'
 

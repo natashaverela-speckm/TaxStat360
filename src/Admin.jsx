@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import BrandLogo from './BrandLogo'
 import { apiGet } from './utils/apiClient.js'
 import { adminDeleteUser } from './utils/serverApi.js'
-import { NAVY as N, BLUE as B, SLATE as SL } from './lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from './theme.js'
 
 
 export default function Admin() {

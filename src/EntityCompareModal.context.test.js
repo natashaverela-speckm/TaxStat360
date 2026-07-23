@@ -8,7 +8,7 @@
 //   session context → toEngineContext() → compareEntityScenarios → finite totals.
 import { describe, it, expect } from 'vitest'
 import { toEngineContext } from './EntityCompareModal.jsx'
-import { compareEntityScenarios } from './lib/scenarioCompare.js'
+import { compareEntityScenarios } from './scenarioCompare.js'
 
 const sCorpEntity = {
   type: 'S Corporation', own: '100', k1: 170000, netProfit: 170000,
