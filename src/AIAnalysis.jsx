@@ -11,6 +11,10 @@ import {
   niitApplies,
   additionalMedicareApplies,
   scorpSeTaxSavingsEstimate,
+  selfEmployedRetirementBase,
+  seEligibleK1FromEntities,
+  hasLimitedPartnerInterest,
+  computeRetirementContributionRoom,
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
@@ -34,80 +38,17 @@ import {
 } from './utils/enterpriseGates.js'
 import {
   CURRENT_TAX_YEAR,
-  FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
-  SEP_IRA_RATE, SOLO_401K_EMPLOYER_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
+  SEP_IRA_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
   FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
 } from './constants.js'
 
-// ── A1 FIX (Jul 2026 independent audit) — sole-proprietor SEP-IRA / Solo 401(k) base ──
-// The self-employed retirement-plan base is NET EARNINGS FROM SELF-EMPLOYMENT:
-// net profit MINUS the §164(f) one-half-of-SE-tax deduction (IRS Pub. 560, Rate
-// Worksheet). The 20% effective rate (SEP_IRA_SOLE_PROP_EFFECTIVE_RATE = 0.25 / 1.25)
-// only removes the contribution-reduces-its-own-base circularity; it does NOT
-// remove the half-SE-tax reduction. So the rate must be applied to
-// (net profit − ½ SE tax), never to raw net profit. The previous code multiplied
-// the rate by raw net profit/K-1, overstating the maximum — e.g. $30,000 instead
-// of the correct $27,881 on $150,000 of net profit.
-//
-// When the engine's own self-employment tax is available (engineSeTax), use it so
-// the figure ties exactly to the filed-return SE tax (which also accounts for any
-// W-2 wages that consume the Social Security wage base). Otherwise derive SE tax
-// from the year's SS wage base and the standard §1402/§3101 rates.
-function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
-  const income = Math.max(0, Number(netSEincome) || 0)
-  if (income === 0) return 0
-  let halfSeTax
-  if (Number.isFinite(engineSeTax) && engineSeTax > 0) {
-    halfSeTax = engineSeTax / 2
-  } else {
-    const seEarnings = income * SE_NET_EARNINGS_FACTOR              // IRC §1402(a)(12) — 92.35%
-    const ssWageBase = getTable(year).ssWageBase
-    const seTax = Math.min(seEarnings, ssWageBase) * (FICA_SS_RATE * 2) // 12.4% OASDI
-                + seEarnings * (FICA_MEDICARE_RATE * 2)                 // 2.9% Medicare
-    halfSeTax = seTax / 2                                            // §164(f)
-  }
-  return Math.max(0, income - halfSeTax)
-}
-
-// ── Finding 1 follow-up (Jul 2026 independent audit) — SE-ELIGIBLE K-1 BASE ──
-// The SEP-IRA / Solo 401(k) base for a non-S-corp owner must be NET EARNINGS FROM
-// SELF-EMPLOYMENT — which EXCLUDES income that isn't SE income:
-//   • S-corp / C-corp K-1 (FICA runs on W-2 officer wages instead),
-//   • personally-held rental (Schedule E), and
-//   • a LIMITED PARTNER's distributive share (excluded under IRC §1402(a)(13)).
-// The prior code sized the base from the raw K-1 total, so a limited partner (SE
-// tax = $0) was still handed a SEP recommendation — the exact cross-module
-// inconsistency the audit flagged, since the Tax Tracker correctly treats that
-// income as SE-exempt. This derives the SE-eligible share directly from the
-// entities using the shared predicates (no engine round-trip, no new selector
-// field to wire up), mirroring the engine's SE_SUBJECT_TYPES membership. It
-// returns 0 for a pure limited-partner interest, so the SEP card cannot render a
-// contribution on SE-exempt income. Per-entity K-1 mirrors the engine's rule
-// (explicit e.k1, else owner-share of net profit via the shared helper); the
-// aggregate is clamped to ≥ 0 by selfEmployedRetirementBase, so losses in one
-// entity correctly offset SE income in another rather than being floored per row.
-export function seEligibleK1FromEntities(entities) {
-  return (Array.isArray(entities) ? entities : []).reduce((sum, e) => {
-    if (!e) return sum
-    if (isSCorpEntity(e.type) || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
-    if (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) return sum  // §1402(a)(13)
-    const share = e.k1 !== undefined
-      ? nf(e.k1)
-      : Math.round(getEntityNetProfit(e) * (ownPct(e.own) / 100))
-    return sum + share
-  }, 0)
-}
-
-/** True when any entity is a limited-partner interest whose K-1 is SE-exempt
- *  under §1402(a)(13). Used to explain WHY no SEP room exists instead of
- *  silently dropping the card. */
-export function hasLimitedPartnerInterest(entities) {
-  return (Array.isArray(entities) ? entities : []).some(e =>
-    e && e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
-}
+// Retirement-plan base + SE-eligible-K-1 helpers (F3/F8 extraction, Jul 2026):
+// selfEmployedRetirementBase, seEligibleK1FromEntities, hasLimitedPartnerInterest
+// and computeRetirementContributionRoom now live in ./aiAnalysisTaxMath.js — pure,
+// unit-tested there. Imported at the top of this file.
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1028,19 +969,17 @@ function TaxOptimization({ rec }) {
   // K-1 total — otherwise the card recommends a contribution on SE-exempt income.
   const seEligibleK1 = seEligibleK1FromEntities(rec.entities)
   const hasLimitedPartnerK1 = hasLimitedPartnerInterest(rec.entities)
-  const sepBase = isSCorpOwner
-    ? totalOfficerSalary
-    : selfEmployedRetirementBase(seEligibleK1, year, _sum2.ok ? _sum2.seTax : nf(rec.seTax))
-  const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
-  // §415(c) overall limits are year-specific — read from the centralized table, never
-  // hardcode (the 2026 limit is $71,000, not $70,000). Fallback covers an unknown year.
-  const sepIraMax = getTable(year).retirement.sepIraMax
-  const maxSEP = Math.min(sepIraMax, Math.round(sepBase * sepRate))
-
-  const solo401kDeferral = getTable(year).retirement.solo401kDeferral
-  const solo401kMax = getTable(year)?.retirement?.solo401kMax ?? sepIraMax
-  const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? SOLO_401K_EMPLOYER_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE))
-  const maxSolo401k = Math.min(solo401kMax, maxSolo401kEmployer + solo401kDeferral)
+  // §415(c) overall limits are year-specific and read from the centralized table
+  // inside computeRetirementContributionRoom (never hardcoded).
+  const {
+    sepIraMax, maxSEP, solo401kDeferral, maxSolo401kEmployer, maxSolo401k,
+  } = computeRetirementContributionRoom({
+    isSCorpOwner,
+    totalOfficerSalary,
+    seEligibleK1,
+    seTax: _sum2.ok ? _sum2.seTax : nf(rec.seTax),
+    year,
+  })
 
   if (isPassthrough) {
     if (isSCorpOwner && totalOfficerSalary === 0) {
