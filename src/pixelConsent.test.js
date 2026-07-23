@@ -27,12 +27,12 @@ describe('Meta Pixel is consent-gated (re-audit)', () => {
   })
 
   it('the cookie banner loads the pixel only on Accept', () => {
-    const app = read('../src/App.jsx')
+    const app = read('../src/components/App.jsx')
     expect(app).toMatch(/choice === 'accepted'[\s\S]*__ts360LoadPixel/)
   })
 
   it('Privacy Policy discloses the Meta Pixel and scopes the advertising promise', () => {
-    const pol = read('../src/Privacy.jsx')
+    const pol = read('../src/components/Privacy.jsx')
     expect(pol).toMatch(/Cookies, Analytics/)
     expect(pol).toMatch(/Meta \(Facebook\) advertising pixel/)
     // The blanket "your data ... never shared for advertising" line is now scoped
