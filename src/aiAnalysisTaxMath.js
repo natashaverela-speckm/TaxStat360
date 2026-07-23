@@ -16,6 +16,7 @@ import {
   getAddlMedicareThreshold,
   QBI_THRESHOLDS,
   getTable,
+  calc469iAllowance,
 } from './taxCalc.js'
 import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, ownPct, getEntityNetProfit } from './utils/entityPredicates'
 import { nf } from './utils/money.js'
@@ -338,4 +339,47 @@ export function computeRetirementContributionRoom({ isSCorpOwner, totalOfficerSa
   const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? SOLO_401K_EMPLOYER_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE))
   const maxSolo401k = Math.min(solo401kMax, maxSolo401kEmployer + solo401kDeferral)
   return { sepBase, sepRate, sepIraMax, maxSEP, solo401kDeferral, solo401kMax, maxSolo401kEmployer, maxSolo401k }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAL / QBI strategy-card math (F3/F8 extraction from AIAnalysis.jsx, Jul 2026).
+// Pure functions; no React, no DOM. Unit-tested in aiAnalysisTaxMath-pal-qbi.test.js.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * §469(i) $25,000 active-participation rental-loss allowance and the portion
+ * usable against this year's net rental loss.
+ *
+ * Delegates the allowance itself to calc469iAllowance() in taxCalc.js — the SAME
+ * code path the engine uses on the filed return (so MFS correctly yields $0 per
+ * §469(i)(5)(B), and the $100K–$150K MAGI phase-out matches). `usable` clamps the
+ * allowance to the actual loss. Behaviorally identical to the block previously
+ * inlined in AIAnalysis.jsx.
+ *
+ * @param {object} p
+ * @param {number} p.agi        MAGI proxy (pre-rental AGI), per the engine model
+ * @param {string} p.filing     filing status ('single'|'mfj'|'mfs'|'hoh'|'qss')
+ * @param {number} p.reNetShare net rental share (negative = loss); |value| is clamped
+ * @returns {{ allowance: number, usable: number }}
+ */
+export function computePassiveLossAllowance({ agi, filing, reNetShare }) {
+  const allowance = calc469iAllowance(agi, filing)
+  const usable = Math.min(allowance, Math.abs(reNetShare))
+  return { allowance, usable }
+}
+
+/**
+ * §199A QBI wage/UBIA phase-in thresholds for a year, with a SAFE fallback.
+ *
+ * Replaces the inline `QBI_THRESHOLDS[year] || QBI_THRESHOLDS[2025]` in
+ * AIAnalysis.jsx — a hardcoded fallback year that would silently show a stale
+ * year's thresholds once a new tax year was added. Falls back to CURRENT_TAX_YEAR
+ * instead, so the fallback can never drift behind the latest supported year.
+ *
+ * @param {number} year
+ * @returns {{ single: number, mfj: number, mfs?: number, hoh?: number, qss?: number }}
+ */
+export function qbiThresholdsFor(year) {
+  return QBI_THRESHOLDS[year] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
 }

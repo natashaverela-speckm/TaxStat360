@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc469iAllowance, calc179Limitation } from './taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation } from './taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -15,6 +15,8 @@ import {
   seEligibleK1FromEntities,
   hasLimitedPartnerInterest,
   computeRetirementContributionRoom,
+  computePassiveLossAllowance,
+  qbiThresholdsFor,
 } from './aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './components/DismissibleNotice'
@@ -657,7 +659,7 @@ function RiskScan({ rec }) {
     const _caps         = _sum1.ok ? _sum1.qbiCaps                  : _qbiFallback.caps
     const _agg          = _sum1.ok ? _sum1.qbiAggregationApplied    : _qbiFallback.aggregationApplied
     const _aggDisc      = _sum1.ok ? _sum1.qbiAggregationDisclosure : _qbiFallback.aggregationDisclosure
-    const _t = QBI_THRESHOLDS[_year] || QBI_THRESHOLDS[2025]
+    const _t = qbiThresholdsFor(_year)
     const _qbiGap = qbiDeductionGap({ deduction: qbi, caps: _caps })
     const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on the K-1 §199A statement (Box 17 Code V) — could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
@@ -1123,8 +1125,7 @@ function TaxOptimization({ rec }) {
   if (hasRealEstate && reNetShare < 0) {
     const _unflaggedRentals = _allEntities.filter(e =>
       isRealEstateEntity(e?.type) && !e?.isREP && !e?.isActiveParticipant)
-    const _allowance = calc469iAllowance(agi, filing)
-    const _usable = Math.min(_allowance, Math.abs(reNetShare))
+    const { allowance: _allowance, usable: _usable } = computePassiveLossAllowance({ agi, filing, reNetShare })
     if (_unflaggedRentals.length > 0 && _usable > 0) {
       opportunities.push({
         icon: '🔓', title: 'Unlock the $25,000 Rental-Loss Allowance — §469(i)', priority: 'high',
