@@ -655,7 +655,12 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             <div style={{ minHeight: (isSCorp && manNetProfit > 20000) ? 90 : 0 }}>
               <ReasonableCompIndicator
                 officerSal={sal}
-                netProfit={Math.max(0, manNetProfit)}
+                /* AUDIT FIX (Finding #4): pass net BEFORE officer salary (add effectiveSal
+                   back) so the ratio denominator = total owner take = salary + K-1 net,
+                   matching calcReasonableCompCore — the Dashboard card and the return page.
+                   Passing manNetProfit alone excluded the salary and drifted (39% here vs
+                   28% everywhere else) for manually-entered S-Corps. */
+                netProfit={Math.max(0, manNetProfit + effectiveSal)}
                 grossRevenue={nf(manRev)}
                 isSCorp={isSCorp}
               />
@@ -943,18 +948,35 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                 <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}</span>
                 <span style={{ color: netProfit >= 0 ? G : R }}>{fmt(netProfit)}</span>
               </div>
+              {/* AUDIT FIX (Finding #2): when ownership < 100%, show the ownership-scaled
+                  share so the card BODY reconciles with the collapsed header (which shows
+                  k1 = net x ownership%). Previously a 0% owner saw "$310,000" in the body
+                  but "$0" in the header — two unreconciled numbers for one entity. */}
+              {own < 1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: SL, paddingTop: 4 }}>
+                  <span>Your share ({entity.own || 100}% ownership)</span>
+                  <span style={{ fontWeight: 700, color: k1 >= 0 ? N : R }}>{fmt(k1)}</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Entity Name */}
+          {/* AUDIT FIX (Finding #3): a blank name is flagged required. An entity is created
+              the instant a type is picked, and previously counted as "added" and flowed to
+              Step 2 as $0 with no name. The footer now blocks Continue/Save until every
+              entity is named (financials may legitimately be $0 in zero-income/loss years). */}
           <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>{isRE ? 'Rental Name' : 'Business Name'}</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>
+              {isRE ? 'Rental Name' : 'Business Name'}
+              {!((entity.name || '').trim()) && <span style={{ color: R, marginLeft: 6 }}>{'\u2022 required'}</span>}
+            </label>
             <input
               type="text"
               value={entity.name || ''}
               onChange={e => onUpdate(idx, { ...entity, name: e.target.value })}
               placeholder={isRE ? "e.g. 123 Main St Duplex" : "e.g. Smith Consulting S-Corp"}
-              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid ' + (!((entity.name || '').trim()) ? '#FCA5A5' : '#E2E8F0'), borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, boxSizing: 'border-box' }}
             />
           </div>
 
@@ -2120,16 +2142,26 @@ export default function CalculateTaxInner() {
   }, [])
 
 
-  // F-01 / F-02: footer buttons are disabled when no entity has been added
-  const footerDisabled = entities.length === 0
+  // F-01 / F-02: footer buttons are disabled when no entity has been added.
+  // AUDIT FIX (Finding #3): also require a name on every entity. An entity object is created
+  // the moment a type is chosen (blank name, $0 financials) and was silently counted as
+  // "added" and allowed through to Step 2. Financials may legitimately be $0 (zero-income /
+  // loss years are valid), so only a non-empty name is required here.
+  const unnamedEntityCount = (Array.isArray(entities) ? entities : []).filter(e => !((e?.name ?? '').trim())).length
+  const footerDisabled = entities.length === 0 || unnamedEntityCount > 0
 
   // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
   // The guard checks entities.length > 0 before calling persistStep1() and
   // navigate(). This prevents the new-account edge case where the footer's
   // onClick resolved to /privacy due to a missing record ID in the route param.
   const handleContinueToStep2 = () => {
-    if (footerDisabled) {
+    if (entities.length === 0) {
       setFooterError('Add at least one business entity to continue.')
+      setTimeout(() => setFooterError(null), 4000)
+      return
+    }
+    if (unnamedEntityCount > 0) {
+      setFooterError(unnamedEntityCount === 1 ? 'Name your entity before continuing.' : 'Name all entities before continuing.')
       setTimeout(() => setFooterError(null), 4000)
       return
     }
@@ -2138,8 +2170,13 @@ export default function CalculateTaxInner() {
   }
 
   const handleFooterSave = () => {
-    if (footerDisabled) {
+    if (entities.length === 0) {
       setFooterError('Add at least one business entity before saving.')
+      setTimeout(() => setFooterError(null), 4000)
+      return
+    }
+    if (unnamedEntityCount > 0) {
+      setFooterError(unnamedEntityCount === 1 ? 'Name your entity before saving.' : 'Name all entities before saving.')
       setTimeout(() => setFooterError(null), 4000)
       return
     }
@@ -2439,6 +2476,11 @@ export default function CalculateTaxInner() {
                   return (
                     <span>
                       {`${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`}
+                      {unnamedEntityCount > 0 && (
+                        <span style={{ marginLeft: 8, fontWeight: 700, color: '#B45309' }}>
+                          {` \u00b7 name ${unnamedEntityCount === 1 ? 'it' : 'all entities'} to continue`}
+                        </span>
+                      )}
                       {flowing !== 0 && (
                         <span style={{ marginLeft: 8, fontWeight: 700, color: flowing >= 0 ? N : R }}>
                           · {fmt(flowing)} flowing to your return

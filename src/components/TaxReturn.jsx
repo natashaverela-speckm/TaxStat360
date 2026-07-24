@@ -4,7 +4,7 @@
 // and adds personal income, deductions, and filing info to produce the
 // estimated federal tax liability.
 //
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable } from '../lib/taxCalc.js'
@@ -359,6 +359,16 @@ export default function TaxReturn() {
     ccorp,
   ])
 
+  // AUDIT FIX (Finding #1 — Step-2 responsiveness): calcTaxReturn() is the full engine and
+  // runs synchronously on the render path; calcInput rebuilds on every keystroke, so rapid
+  // typing stacked blocking recomputes and could freeze the tab. useDeferredValue lets React
+  // keep keystroke handling at urgent priority and run the heavy recompute at a lower,
+  // interruptible priority — inputs stay responsive and the waterfall catches up a beat
+  // later. Scheduling only; no tax math changes. ccorp is deferred in lockstep so the
+  // corporate layer and the personal figures never read different input generations mid-defer.
+  const deferredCalcInput = useDeferredValue(calcInput)
+  const deferredCcorp     = useDeferredValue(ccorp)
+
   // M2 (audit F-05): ARCHITECTURE §5 guard, wired at the primary call site. The prior
   // bare `catch { return null }` silently swallowed EVERY error — including genuine
   // engine bugs — and rendered a blank panel a user could mistake for a $0 liability.
@@ -366,10 +376,10 @@ export default function TaxReturn() {
   // so the app-level ErrorBoundary shows a real failure state instead of nothing.
   const calcOutcome = useMemo(() => {
     try {
-      validateCalcInputs(calcInput, 'TaxReturn')
-      const r = calcTaxReturn(calcInput)
+      validateCalcInputs(deferredCalcInput, 'TaxReturn')
+      const r = calcTaxReturn(deferredCalcInput)
       if (!r) return { result: r, calcError: null }
-      if (ccorp.corpTax > 0 || ccorp.dividends > 0) {
+      if (deferredCcorp.corpTax > 0 || deferredCcorp.dividends > 0) {
         // The engine has already (a) taxed the dividends (folded into qualDiv above) and
         // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
         // Adding the corporate tax here keeps the headline total, effective rate, waterfall
@@ -378,10 +388,10 @@ export default function TaxReturn() {
         return {
           result: {
             ...r,
-            ccorpCorpTax:   ccorp.corpTax,
-            ccorpDividends: ccorp.dividends,
-            totalTax: (r.totalTax || 0) + ccorp.corpTax,
-            balance:  (r.balance  || 0) + ccorp.corpTax,
+            ccorpCorpTax:   deferredCcorp.corpTax,
+            ccorpDividends: deferredCcorp.dividends,
+            totalTax: (r.totalTax || 0) + deferredCcorp.corpTax,
+            balance:  (r.balance  || 0) + deferredCcorp.corpTax,
           },
           calcError: null,
         }
@@ -391,7 +401,7 @@ export default function TaxReturn() {
       if (e instanceof CalcInputError) return { result: null, calcError: e.message }
       throw e   // real engine bugs must be visible, never a silent blank result
     }
-  }, [calcInput, ccorp])
+  }, [deferredCalcInput, deferredCcorp])
   const result    = calcOutcome.result
   const calcError = calcOutcome.calcError
 
