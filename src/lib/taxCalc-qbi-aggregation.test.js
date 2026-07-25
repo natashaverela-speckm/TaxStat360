@@ -42,3 +42,19 @@ describe('F6 — §199A aggregation opt-in', () => {
     expect(s1.qbi).toBe(s2.qbi)
   })
 })
+
+describe('F6 follow-up — election works for same-type multi-entity', () => {
+  const base = { status: 'mfj', taxYear: 2026, w2: 0 }
+  // Two partnerships above the ceiling: one wage-paying, one zero-wage, equal QBI.
+  const ents = [
+    { type: 'Partnership / LLC', own: 100, k1: 400000, box17V_wages: 200000 },
+    { type: 'Partnership / LLC', own: 100, k1: 400000, box17V_wages: 0 },
+  ]
+  it('same-type: default per-business < elected pooled (gate no longer needs mixed types)', () => {
+    const def = calcTaxReturn({ ...base, k1Total: 800000, entities: ents })
+    const agg = calcTaxReturn({ ...base, k1Total: 800000, entities: ents, electQbiAggregation: true })
+    expect(def.qbiAggregationApplied).toBe(false)
+    expect(agg.qbiAggregationApplied).toBe(true)   // now TRUE for two partnerships
+    expect(def.qbi).toBeLessThan(agg.qbi)          // election pools wages → larger deduction
+  })
+})
