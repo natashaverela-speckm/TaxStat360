@@ -1337,14 +1337,14 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
-                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
+                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025 (indexed annually — confirm the current-year figures). Cannot be claimed MFS." />
                 </label>
                 <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
+                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025 §415(c) limit — confirm the current-year figure)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
                 <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
@@ -1750,9 +1750,8 @@ export default function TaxReturn() {
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
-                // AUDIT N-3 FIX: the 0.9% Additional Medicare Tax (§3101(b)(2)) was included
-                // in Total Tax but rendered no line — invisible to the user.
-                { label: 'Additional Medicare Tax (0.9%)', value: result.additionalMedicare,                sign: 1, hide: !result.additionalMedicare || result.additionalMedicare === 0, accent: '#94A3B8', note: 'IRC §3101(b)(2) — wages/SE earnings over $200K ($250K MFJ, $125K MFS)' },
+                // AUDIT C1 (Jul 2026): removed the duplicate Additional Medicare Tax line
+                // (former AUDIT N-3). The Form 8959 line below is the single source.
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 // AUDIT F-15: annotation rendered below the waterfall when the NII base includes §1368(b)(2) stock gain
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
@@ -1890,6 +1889,20 @@ export default function TaxReturn() {
               partnership as an "S-Corp" and citing an inapplicable rule. A general partner
               or materially-participating LLC member is SE-subject and never reaches this
               panel (ficaSavings === 0). */}
+          {/* AUDIT F2 (Jul 2026): surface the reasonable-compensation audit-risk flag
+              on the return page, next to the SE-savings figure. The engine already
+              computes result.reasonableCompAlert (Rev. Rul. 74-44 / Reg. §1.162-7);
+              previously it rendered only on the Dashboard and the AI Risk Scan. */}
+          {hasResult && result.reasonableCompAlert?.triggered && (
+            <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
+              <div role="alert" style={{ fontSize: 12, fontWeight: 800, color: '#991B1B', marginBottom: 4 }}>
+                ⚠ Reasonable Compensation — Audit Risk (Rev. Rul. 74-44)
+              </div>
+              <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
+                {result.reasonableCompAlert.message}
+              </div>
+            </div>
+          )}
           {hasResult && result.ficaSavings > 0 && (() => {
             const seExemptFromSCorp = Array.isArray(entities)
               && entities.some(e => e && isSCorpEntity(e.type))
