@@ -18,7 +18,7 @@ import {
 } from '../utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from '../lib/constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from '../utils/integrations.js'
@@ -250,7 +250,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
             )}
           </div>
         ) : hasFailed ? (
-          <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Connection failed — try again</div>
+          <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Reconnect required</div>
         ) : (
           <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Click to connect →</div>
         )}
@@ -295,7 +295,7 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
               borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
               color: hasFailed ? R : '#fff', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
             }}>
-            {hasFailed ? 'Retry' : 'Connect'}
+            {hasFailed ? 'Reconnect' : 'Connect'}
           </button>
         )}
       </div>
@@ -2134,8 +2134,22 @@ export default function CalculateTaxInner() {
   async function fetchEntityPnL(idx, pid, isManualSync = false) {
     try {
       const url = `/integrations/${pid}/data?year=${encodeURIComponent(taxYear)}`
-      const d = await apiFetch(url, { raw: true }).then(r => r.json())
-      if (d && !d.error) {
+      const res = await apiFetch(url, { raw: true })
+      const d = await res.json().catch(() => null)
+
+      // Missing / expired server credentials — not a successful sync.
+      if (res.status === 401 || res.status === 400) {
+        removeIntegrationField(pid, 'connected')
+        writeIntegrationField(pid, 'failed', 'true')
+        bumpIntegrationUi()
+        setFooterError(
+          `${pid.charAt(0).toUpperCase() + pid.slice(1)} reconnect required — connect again to sync.`
+        )
+        setTimeout(() => setFooterError(null), 10000)
+        return
+      }
+
+      if (res.ok && d && !d.error) {
         const empty =
           d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
         if (empty) {
@@ -2191,10 +2205,10 @@ export default function CalculateTaxInner() {
             return updated
           })
         }
-      } else if (d?.error) {
+      } else if (d?.error || !res.ok) {
         writeIntegrationField(pid, 'failed', 'true')
         bumpIntegrationUi()
-        const detail = d.status ? ` (HTTP ${d.status})` : ''
+        const detail = ` (HTTP ${res.status})`
         setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try Sync now or reconnect.`)
         setTimeout(() => setFooterError(null), 10000)
       } else if (isManualSync) {
@@ -2239,8 +2253,18 @@ export default function CalculateTaxInner() {
         removeIntegrationField(pid, 'failed')
         break
       }
+      if (p.get(pid) === 'error') {
+        removeIntegrationField(pid, 'connected')
+        writeIntegrationField(pid, 'failed', 'true')
+        bumpIntegrationUi()
+        setFooterError(
+          `${pid.charAt(0).toUpperCase() + pid.slice(1)} connection failed — reconnect to continue.`
+        )
+        setTimeout(() => setFooterError(null), 10000)
+        break
+      }
     }
-    if (justConnected || p.get('entity') !== null) {
+    if (justConnected || p.get('entity') !== null || INTEGRATION_PROVIDERS.some(pid => p.get(pid))) {
       window.history.replaceState({}, '', window.location.pathname)
     }
 
@@ -2255,8 +2279,17 @@ export default function CalculateTaxInner() {
 
       if (status) {
         for (const pid of INTEGRATION_PROVIDERS) {
-          if (status[pid]?.connected) writeIntegrationField(pid, 'connected', 'true')
-          else removeIntegrationField(pid, 'connected')
+          if (status[pid]?.connected) {
+            writeIntegrationField(pid, 'connected', 'true')
+            removeIntegrationField(pid, 'failed')
+          } else {
+            // Authoritative: no server token → never show a dead "Connected" tile.
+            const wasConnected = readIntegrationField(pid, 'connected') === 'true'
+            removeIntegrationField(pid, 'connected')
+            if (wasConnected && !justConnected) {
+              writeIntegrationField(pid, 'failed', 'true')
+            }
+          }
         }
         bumpIntegrationUi()
       }
@@ -2273,6 +2306,23 @@ export default function CalculateTaxInner() {
 
     return () => { cancelled = true }
   }, [])
+
+  const startIntegrationConnect = useCallback(async (pid) => {
+    try {
+      const entity = expandedIdx != null ? String(expandedIdx) : '0'
+      const data = await apiGet(`/integrations/${pid}/connect-url?entity=${encodeURIComponent(entity)}`)
+      if (data?.url) {
+        window.location.href = data.url
+        return
+      }
+      setFooterError('Could not start connection — try again.')
+      setTimeout(() => setFooterError(null), 6000)
+    } catch (e) {
+      console.error('connect-url error:', e)
+      setFooterError('Sign in required to connect accounting software.')
+      setTimeout(() => setFooterError(null), 6000)
+    }
+  }, [expandedIdx])
 
 
   // F-01 / F-02: footer buttons are disabled when no entity has been added.
@@ -2512,7 +2562,7 @@ export default function CalculateTaxInner() {
                   <IntegrationTile
                     key={`${integ.id}-${integrationRevision}`}
                     integ={integ}
-                    onConnect={() => { window.location.href = `${API_BASE_URL}/integrations/${integ.id}/connect` }}
+                    onConnect={() => startIntegrationConnect(integ.id)}
                     onDisconnect={handleIntegrationDisconnect}
                     onSync={handleManualSync}
                     syncDiff={syncDiffs[integ.id] || null}
