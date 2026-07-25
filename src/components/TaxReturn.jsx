@@ -1842,7 +1842,11 @@ export default function TaxReturn() {
               {/* F6 (audit, Jul 2026): §199A aggregation is OPT-IN (Reg. §1.199A-4). The
                   engine now defaults to per-business wage limits; this control lets a taxpayer
                   who has actually made the election combine wages/UBIA across entities. */}
-              {Array.isArray(entities) && entities.filter(e => e && !isCCorpEntity(e.type)).length > 1 && result.qbi > 0 && (
+              {/* Show whenever there are 2+ pass-through businesses AND taxable income is above
+                  the §199A threshold (qbiCaps.wage is non-null only above the threshold, where the
+                  wage limit — and thus aggregation — actually matters). Do NOT gate on qbi > 0:
+                  the deduction can be $0 precisely when aggregating wages would recover it. */}
+              {Array.isArray(entities) && entities.filter(e => e && !isCCorpEntity(e.type)).length > 1 && result.qbiCaps && result.qbiCaps.wage !== null && result.qbiCaps.wage !== undefined && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#334155' }}>
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', lineHeight: 1.5 }}>
                     <input type="checkbox" checked={electQbiAggregation} onChange={e => setElectQbiAggregation(e.target.checked)} style={{ marginTop: 2 }} />
@@ -1863,7 +1867,14 @@ export default function TaxReturn() {
 
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                  {(() => {
+                    const brs = result.entityBasisResults || []
+                    const hasP = brs.some(r => r && r.suspended > 0 && /partner|mmllc/i.test(r.type || ''))
+                    const hasS = brs.some(r => r && r.suspended > 0 && /s.?corp/i.test(r.type || ''))
+                    const cite = (hasP && hasS) ? '§1366(d) / §704(d)' : hasP ? '§704(d)' : '§1366(d)'
+                    const kind = (hasP && !hasS) ? 'partnership' : (hasS && !hasP) ? 'S-Corp' : 'pass-through'
+                    return (<><strong>⚠ {cite} Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in {kind} losses suspended — not deductible this year. Carry forward to restore basis.</>)
+                  })()}
                   {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}

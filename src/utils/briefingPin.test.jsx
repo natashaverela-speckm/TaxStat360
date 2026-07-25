@@ -10,14 +10,14 @@
 // goes red before a CPA ever sees the discrepancy.
 
 import { describe, it, expect, vi } from 'vitest'
-vi.mock('../LockedFeature', () => ({
+vi.mock('../components/LockedFeature', () => ({
   default: () => null,
   isPro: () => true,
   // BriefingModal gates on isEnterprise(); pin tests need the modal body to render.
   isEnterprise: () => true,
 }))
 import { render } from '@testing-library/react'
-import { BriefingModal } from '../AIAnalysis.jsx'
+import { BriefingModal } from '../components/AIAnalysis.jsx'
 import { summarizeRecord } from './calcSelector.js'
 import { fmt } from './money.js'
 
