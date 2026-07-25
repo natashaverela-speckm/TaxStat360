@@ -1293,11 +1293,20 @@ function calcTaxReturn(input) {
   // separately stated). Pending an explicit tax-treatment decision; do not "fix" by
   // copying the nonSEk1 pattern.
   // ─────────────────────────────────────────────────────────────────────────────
+  // F4 (audit, Jul 2026): guaranteed payments (§707(c)) are ordinary income to the
+  // partner AND self-employment earnings — for GP made for SERVICES this is true even
+  // for a limited partner (§1402(a)(13) excludes the distributive share but NOT §707(c)
+  // service payments). They are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)), so this
+  // total is deliberately kept OUT of qbiBasis below. Partnership entities only.
+  const guaranteedPaymentsTotal = entities.reduce((sum, e) => {
+    if (!e || !/partnership|mmllc/i.test(e.type || '')) return sum
+    return sum + Math.max(0, nf(e.guaranteedPayments))
+  }, 0)
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
     const k1 = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
     return sum + Math.max(0, k1)
-  }, 0)
+  }, 0) + guaranteedPaymentsTotal
   const ssWageBase = getTable(taxYear).ssWageBase
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
@@ -1348,7 +1357,7 @@ function calcTaxReturn(input) {
   // it there); income is simply no longer reduced by it.
   const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
   const stdDed    = getStdDed(taxYear, status)
-  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded
+  const grossIncomeBeforeNOL = w2 + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
     + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
@@ -1442,7 +1451,11 @@ function calcTaxReturn(input) {
       : 0
     rentalQbiContribution = Math.round(rentalQbiContribution * rentalQbiEligibleFraction)
   }
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI
+  // F4: guaranteed payments are in seNetIncome (hence seK1AfterAdjustments) for SE-tax
+  // and SEHI earned-income purposes, but are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)),
+  // so remove them from the QBI base here. (The ½-SE deduction on the GP slice remains
+  // netted, a small conservative reduction — acceptable for a planning estimate.)
+  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
   // ACTIVE qualified trade or business in which the taxpayer materially participates.
   // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
@@ -1661,7 +1674,7 @@ function calcTaxReturn(input) {
   return {
     calculatedAt: Date.now(),
     grossIncome, agi,
-    seNetIncome, seEarningsSubject, seTax, halfSE,
+    seNetIncome, seEarningsSubject, seTax, halfSE, guaranteedPaymentsTotal,
     employeeFICA, totalW2ForFICA,
     ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
