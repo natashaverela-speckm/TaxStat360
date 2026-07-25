@@ -810,6 +810,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const k1     = Math.round(netProfit * own)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
+  const isPartnership = /partner|mmllc/i.test(entity.type || '')   // F5
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
 
@@ -824,7 +825,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   //   • §1366(d): the loss is then limited to whatever stock basis remains, plus debt
   //     basis. Capital contributions/income alone count as a basis entry (Finding 3).
   const scBasis = (() => {
-    if (!isSC) return null
+    if (!isSC && !isPartnership) return null   // F5: also compute §704(d) partnership basis
     const stockEntered = entity.stockBasis !== '' && entity.stockBasis !== undefined && entity.stockBasis !== null
     const contrib   = Math.max(0, nf(entity.capitalContributions))
     const basisInc  = Math.max(0, nf(entity.basisIncomeItems))
@@ -1172,6 +1173,83 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       <InfoTip text={'SSTBs (Specified Service Trades or Businesses) per IRC §199A(d)(1)(B) include:\nlaw, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage, investing/trading, and any business where the principal asset is the reputation or skill of an employee or owner.\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, and retail. (Health REMAINS an SSTB \u2014 IRC \u00a7199A(d)(2)(A); Reg. \u00a71.199A-5(b)(1)(ii). OBBBA (2025) only widened the phase-in ranges below; it did NOT reclassify health, or any field, out of SSTB status.)\n\n2025 SSTB phase-out range:\n• Single/HOH: $197,300 – $247,300\n• MFJ: $394,600 – $494,600\n\n2026 SSTB phase-out range (estimated):\n• Single/HOH: $201,750 – $276,750\n• MFJ: $403,500 – $553,500\n\nAbove the ceiling your §199A deduction is $0 on SSTB income. Below the floor there is no limitation.'} wide />
                     </label>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* F5 (audit, Jul 2026): partnership §704(d) outside-basis panel. The engine
+              already limits a partnership loss by basis; this lets the user ENTER outside
+              basis — including the §752 share of liabilities (the key difference from S-corp
+              debt basis) — so a basis-supported loss is released instead of fully suspended. */}
+          {isPartnership && (
+            <div style={{ marginBottom: 10 }}>
+              <button onClick={e => { e.stopPropagation(); setShowBasis(x => !x) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#7C3AED', padding: '4px 0', marginBottom: 6 }}>
+                {showBasis ? '▲ Collapse' : '▼ Expand'} Outside Basis <span style={{ fontWeight: 500, opacity: 0.7 }}>· §704(d) loss limit &amp; §752 liabilities</span>
+              </button>
+              {!showBasis && (
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
+                  Needed only if your partnership shows a loss — limits how much is deductible this year (§704(d))
+                </div>
+              )}
+              {showBasis && (
+                <div style={{ background: '#F5F3FF', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD6FE' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', marginBottom: 10 }}>§704(d) Outside-Basis Limitation</div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Outside Basis at Beginning of Year
+                      <InfoTip text={'Your adjusted OUTSIDE basis in the partnership at the start of the year.\n\nIt starts with your capital contributions and is increased by your share of income and by your share of partnership LIABILITIES (§752), and decreased by distributions, your share of losses, and reductions in your share of liabilities.\n\nWhy it matters — IRC §704(d): your deductible share of partnership loss cannot exceed your outside basis. Losses in excess are SUSPENDED and carried forward until basis is restored. (At-risk §465 and passive §469 limits may further restrict a loss — not modeled here.)\n\nLeave blank if unsure; the loss is then conservatively suspended.'} wide />
+                    </label>
+                    <MoneyInput value={entity.stockBasis || ''} onChange={v => onUpdate(idx, { ...entity, stockBasis: v })} placeholder="Enter basis — leave blank if unsure" style={{ fontSize: 13 }} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Share of Partnership Liabilities (§752)
+                      <InfoTip text={'Your share of partnership liabilities under IRC §752 — this INCREASES your outside basis (unlike an S-corp, where only a bona fide shareholder loan creates basis and a mere guarantee does not).\n\nRecourse liabilities are allocated to the partner who bears the economic risk of loss; nonrecourse liabilities are generally shared by profit ratio.\n\nIt raises the basis available to absorb losses under §704(d). (For §465 at-risk, most nonrecourse debt does NOT count — except qualified nonrecourse real-estate financing; the at-risk limit is not modeled here.)'} wide />
+                    </label>
+                    <MoneyInput value={entity.debtBasis || ''} onChange={v => onUpdate(idx, { ...entity, debtBasis: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Capital Contributions This Year — Optional
+                      <InfoTip text={'Cash or property you contributed to the partnership this year. Increases your outside basis before the year\'s distributions and losses are applied (§722).'} wide />
+                    </label>
+                    <MoneyInput value={entity.capitalContributions || ''} onChange={v => onUpdate(idx, { ...entity, capitalContributions: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
+                      Current-Year Basis-Increasing Income — Optional
+                      <InfoTip text={'Current-year income and tax-exempt items allocated to you that increase outside basis (§705(a)(1)). Do NOT include the ordinary business loss. Enter only positive items.'} wide />
+                    </label>
+                    <MoneyInput value={entity.basisIncomeItems || ''} onChange={v => onUpdate(idx, { ...entity, basisIncomeItems: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                  </div>
+                  {(() => {
+                    const { lossAmt, hasBasisInput, basisForLoss, allowedLoss, suspendedLoss } = scBasis || {}
+                    if (!scBasis || !lossAmt) return null
+                    if (!hasBasisInput) {
+                      return (
+                        <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ §704(d) — Enter Outside Basis</div>
+                          <div style={{ color: '#78350F', lineHeight: 1.5 }}>This partnership shows a {fmt(lossAmt)} loss. With no basis entered it is conservatively suspended and carried forward. Enter your outside basis (incl. §752 liabilities) above to release the portion your basis supports.</div>
+                        </div>
+                      )
+                    }
+                    if (suspendedLoss > 0) {
+                      return (
+                        <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ §704(d) Loss Limitation Active</div>
+                          <div style={{ color: '#7F1D1D', lineHeight: 1.5 }}>Of your {fmt(lossAmt)} loss, <strong>{fmt(allowedLoss)}</strong> is deductible this year (limited to your {fmt(basisForLoss)} outside basis, incl. §752 liabilities); <strong>{fmt(suspendedLoss)}</strong> is suspended and carries forward (§704(d)).</div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Loss Within Basis</div>
+                        <div style={{ color: '#166534', lineHeight: 1.5 }}>Your full {fmt(lossAmt)} loss is deductible — within {fmt(basisForLoss)} of outside basis (incl. §752 liabilities).</div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
