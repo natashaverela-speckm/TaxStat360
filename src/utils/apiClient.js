@@ -24,7 +24,7 @@
 // This module performs no navigation and stores nothing; auth side-effects (token/localStorage)
 // stay in the calling component, exactly as before.
 
-import { API_BASE_URL } from '../constants.js'
+import { API_BASE_URL } from '../lib/constants.js'
 import { readToken } from './sessionState.js'
 
 export class ApiError extends Error {

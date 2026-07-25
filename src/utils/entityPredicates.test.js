@@ -20,7 +20,7 @@ import {
   issuesK1Entity,
   officerSalaryScenarioApplies,
 } from './entityPredicates.js'
-import { ENTITY_TYPES, SE_SUBJECT_TYPES, PASSTHROUGH_ENTITY_TYPES } from '../constants.js'
+import { ENTITY_TYPES, SE_SUBJECT_TYPES, PASSTHROUGH_ENTITY_TYPES } from '../lib/constants.js'
 
 describe('normalizeEntityType — bridge is idempotent', () => {
   it('re-normalizing an already-normalized value is a no-op', () => {

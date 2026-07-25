@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NAVY as N, BLUE as B, SLATE as SL } from '../theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 
 export const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
