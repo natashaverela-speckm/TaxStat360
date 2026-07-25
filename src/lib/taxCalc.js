@@ -567,10 +567,11 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     entityQbiData = [],
     activeQbi,
     hasMultiEntityTypes = false,
+    electQbiAggregation = false,   // F6: Reg. §1.199A-4 aggregation is opt-in
   } = opts
   const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
   const threshold  = thresholds[status] || thresholds.single
-  const aggregationApplied = hasMultiEntityTypes && taxableBeforeQBI > threshold
+  const aggregationApplied = electQbiAggregation && hasMultiEntityTypes && taxableBeforeQBI > threshold
   const aggregationDisclosure = aggregationApplied
     ? 'Your QBI deduction assumes you have elected to aggregate your business entities ' +
       'under Reg. §1.199A-4 (combined W-2 wages applied across all entities). ' +
@@ -656,6 +657,36 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     const reduction   = Math.max(0, scaledQbiComponent - wageLimit) * phasePercent
     limitedAmount     = scaledQbiComponent - reduction
     wageBindingActive = reduction > 0
+  }
+  // F6 (audit, Jul 2026): §199A aggregation is OPT-IN (Reg. §1.199A-4). When NOT elected,
+  // each business is wage-limited SEPARATELY — a wage-paying entity may not subsidize a
+  // zero-wage entity. Allocate the (already loss-netted) aggregate QBI component to each
+  // business by its share of positive QBI, apply each business's own wage/UBIA limit, and
+  // sum. Σ allocated == scaledQbiComponent, so aggregate QBI/loss netting is preserved —
+  // only the wage cap changes. Electing aggregation keeps the pooled limit above.
+  if (!aggregationApplied && entityQbiData.length > 1) {
+    const perBiz = entityQbiData.map((e) => {
+      const scale  = e.box17V_sstb ? sstbApplicablePct : 1
+      const rawQBI = (nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))) - nf(e.box11_12)
+      const qbiPos = Math.max(0, rawQBI) * scale
+      const wages  = (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0) * scale
+      const ubia   = (parseFloat(e.box17V_ubia) || 0) * scale
+      const wLimit = Math.max(wages * W2_WAGE_LIMIT_RATE, wages * W2_WAGE_ALT_RATE + ubia * UBIA_RATE)
+      return { qbiPos, wLimit }
+    })
+    const totalPosQBI = perBiz.reduce((s, p) => s + p.qbiPos, 0)
+    if (totalPosQBI > 0) {
+      let perBizLimited = 0
+      for (const p of perBiz) {
+        if (p.qbiPos <= 0) continue
+        const allocComponent = scaledQbiComponent * (p.qbiPos / totalPosQBI)
+        perBizLimited += (excessOverThreshold >= phaseInRange)
+          ? Math.min(allocComponent, p.wLimit)
+          : allocComponent - Math.max(0, allocComponent - p.wLimit) * phasePercent
+      }
+      limitedAmount     = perBizLimited
+      wageBindingActive = perBizLimited < scaledQbiComponent - 0.5
+    }
   }
   const ded = Math.min(limitedAmount, incomeLimitation)
   let limitApplied
@@ -767,6 +798,7 @@ function calcTaxReturn(input) {
     taxYear, status = 'single', dependents,
     entities: _rawEntities = [],
     w2 = 0, k1Total = 0, rentalNet = 0, rentalQbiEligible = false,   // ITEM 3 (A6): Step-2 direct-rental §199A opt-in
+    electQbiAggregation = false,   // F6: Reg. §1.199A-4 aggregation election (opt-in)
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -1501,7 +1533,7 @@ function calcTaxReturn(input) {
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
     status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes,
-    activeQbi: activeQbiForFloor,
+    activeQbi: activeQbiForFloor, electQbiAggregation,
   })
   const qbi                      = _qbiResult.deduction
   const qbiLimitApplied          = _qbiResult.limitApplied
