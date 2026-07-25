@@ -571,7 +571,9 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   } = opts
   const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
   const threshold  = thresholds[status] || thresholds.single
-  const aggregationApplied = electQbiAggregation && hasMultiEntityTypes && taxableBeforeQBI > threshold
+  // F6 follow-up: the §1.199A-4 election applies to ANY 2+ qualified businesses, not only a
+  // mix of SE and non-SE types — gate on the business count, not hasMultiEntityTypes.
+  const aggregationApplied = electQbiAggregation && entityQbiData.length > 1 && taxableBeforeQBI > threshold
   const aggregationDisclosure = aggregationApplied
     ? 'Your QBI deduction assumes you have elected to aggregate your business entities ' +
       'under Reg. §1.199A-4 (combined W-2 wages applied across all entities). ' +
