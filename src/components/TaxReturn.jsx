@@ -1347,7 +1347,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025 §415(c) limit — confirm the current-year figure)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
+                  <InfoTip text={`Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} (${taxYear} §415(c) defined-contribution limit)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)}.`} wide />
                 </label>
                 <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
