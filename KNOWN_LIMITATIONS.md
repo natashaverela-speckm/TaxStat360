@@ -272,3 +272,40 @@ need review.
 
 Until then, a limited partner who does not materially participate is outside the tool's
 supported scope.
+
+## PARTNER-BASIS — active-partner outside basis / §704(d) / §465 not modeled
+
+Added Jul 24, 2026 (independent audit F5). Complements PASSIVE-PARTNER above.
+The S-corp path applies a full §1366(d) stock/debt-basis limit (Form 7203). The
+**partnership path has no basis section at all** — a partner's outside basis
+(including share of liabilities under §752), the §704(d) basis limit, and the
+§465 at-risk limit are not applied. An *active* partnership LOSS therefore flows
+through in full regardless of basis. To close: add a partnership outside-basis
+panel feeding a §704(d) → §465 → §469 loss-limitation chain (mirror the S-corp
+`scBasis` / engine `entityBasisResults` design).
+
+## GP-QBI — guaranteed payments not modeled (audit F4)
+
+The Partnership/LLC entity has no guaranteed-payment (K-1 Box 4) input. Guaranteed
+payments folded into net income are (wrongly) included in the §199A QBI base — they
+must be EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)) while remaining SE earnings
+for active members (§707(c); §1402(a)). Fix: add the field; exclude from QBI, keep in SE.
+
+## QBI-AGG-DEFAULT — §199A aggregation assumed ON (audit F6)
+
+`_calcQBI` (taxCalc.js) sets `aggregationApplied = hasMultiEntityTypes &&
+taxableBeforeQBI > threshold` — it pools W-2 wages across entities with no user
+election, which can OVERSTATE QBI when a high-wage entity subsidizes a zero-wage one.
+Reg. §1.199A-4 aggregation requires a formal, consistent election. Fix: gate behind an
+opt-in flag (default off; compute per-business otherwise), following the `qbiEligible`
+opt-in precedent (taxCalc-a6-optin.test.js). A disclosure already renders when applied.
+
+## SCOPE-GAPS — features intentionally not modeled (surface to users)
+
+Not calculation errors — boundaries of a simplified federal estimator; disclose in-product:
+- §1374 built-in gains tax (former C-corps): no entity-level 21% BIG input.
+- §1031 like-kind exchange: no deferral mechanics; enter recognized gain/boot manually.
+- §121 home-sale exclusion: not modeled, incl. §121(d)(6) depreciation recapture and
+  §121(b)(5) non-qualified-use proration.
+- §280A home office: no separate income limitation / carryforward.
+- Depreciation / §168(k) bonus / §179 / cost segregation: used AS ENTERED, not computed.
