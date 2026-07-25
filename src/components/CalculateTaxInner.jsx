@@ -576,6 +576,16 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             </div>
           )}
+          {/* F4 follow-up: guaranteed payments are also available in K-1-direct mode (§707(c)). */}
+          {isPartnership && (
+            <div>
+              <label style={lbl}>
+                Guaranteed Payments (K-1 Box 4) — §707(c)
+                <InfoTip text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the Box 1 figure above, or they will be counted twice.'} wide />
+              </label>
+              <MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
+            </div>
+          )}
           {nf(manK1Direct) !== 0 && (
             <div style={{ marginTop: 4, padding: '8px 12px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
               <span style={{ color: N }}>Net / K-1 Box 1</span>

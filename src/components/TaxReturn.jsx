@@ -1867,7 +1867,14 @@ export default function TaxReturn() {
 
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                  {(() => {
+                    const brs = result.entityBasisResults || []
+                    const hasP = brs.some(r => r && r.suspended > 0 && /partner|mmllc/i.test(r.type || ''))
+                    const hasS = brs.some(r => r && r.suspended > 0 && /s.?corp/i.test(r.type || ''))
+                    const cite = (hasP && hasS) ? '§1366(d) / §704(d)' : hasP ? '§704(d)' : '§1366(d)'
+                    const kind = (hasP && !hasS) ? 'partnership' : (hasS && !hasP) ? 'S-Corp' : 'pass-through'
+                    return (<><strong>⚠ {cite} Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in {kind} losses suspended — not deductible this year. Carry forward to restore basis.</>)
+                  })()}
                   {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}
