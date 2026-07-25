@@ -227,6 +227,7 @@ export default function TaxReturn() {
   const [showPriorPALMigration, setShowPriorPALMigration] = useState(orphanedPriorPAL > 0)
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
+  const [electQbiAggregation, setElectQbiAggregation] = useState(!!savedCtx.electQbiAggregation)   // F6: Reg. §1.199A-4 election (opt-in)
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
   const [mortgageInt,       setMortgageInt]      = useState(savedCtx.mortgageInt          || '')
   const [charitableContr,   setCharitableContr]  = useState(savedCtx.charitableContr     || '')
@@ -321,6 +322,7 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
+      electQbiAggregation,   // F6: Reg. §1.199A-4 §199A aggregation election (opt-in)
       // F6: the §1.469-9(g) aggregation election, derived from the Step-1 rental cards.
       // The engine treats `true` as the affirmative election that makes a REP's portfolio
       // nonpassive, and anything else (unelected) as passive.
@@ -350,6 +352,7 @@ export default function TaxReturn() {
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
+    electQbiAggregation,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -1836,9 +1839,29 @@ export default function TaxReturn() {
                 </div>
               )}
 
-              {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
-                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
-                  <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
+              {/* F6 (audit, Jul 2026): §199A aggregation is OPT-IN (Reg. §1.199A-4). The
+                  engine now defaults to per-business wage limits; this control lets a taxpayer
+                  who has actually made the election combine wages/UBIA across entities. */}
+              {/* Show whenever there are 2+ pass-through businesses AND taxable income is above
+                  the §199A threshold (qbiCaps.wage is non-null only above the threshold, where the
+                  wage limit — and thus aggregation — actually matters). Do NOT gate on qbi > 0:
+                  the deduction can be $0 precisely when aggregating wages would recover it. */}
+              {Array.isArray(entities) && entities.filter(e => e && !isCCorpEntity(e.type)).length > 1 && result.qbiCaps && result.qbiCaps.wage !== null && result.qbiCaps.wage !== undefined && (
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#334155' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', lineHeight: 1.5 }}>
+                    <input type="checkbox" checked={electQbiAggregation} onChange={e => setElectQbiAggregation(e.target.checked)} style={{ marginTop: 2 }} />
+                    <span>
+                      <strong>Aggregate my businesses for §199A</strong> (Reg. §1.199A-4). By default each business is
+                      wage-limited separately. Check this ONLY if you have formally made the aggregation election on
+                      Form 8995-A, Schedule B and apply it consistently each year — it combines W-2 wages / UBIA across
+                      entities and may raise your deduction.
+                    </span>
+                  </label>
+                  {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
+                    <div role="alert" aria-live="polite" style={{ marginTop: 8, color: '#78350F' }}>
+                      <strong>Aggregation elected:</strong> {result.qbiAggregationDisclosure}
+                    </div>
+                  )}
                 </div>
               )}
 
