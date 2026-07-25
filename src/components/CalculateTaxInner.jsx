@@ -710,6 +710,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         </div>
       )}
 
+      {/* F4 (audit, Jul 2026): guaranteed payments (§707(c)) — SE income + ordinary
+          income, but EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)). Entered separately
+          so they are not double-counted in the Box 1 net-profit figure above. */}
+      {isPartnership && (
+        <div style={{ marginTop: 10 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: N, marginBottom: 4 }}>
+            Guaranteed Payments (K-1 Box 4) — §707(c)
+            <InfoTip label="Guaranteed payments" text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the net-profit / Box 1 figure above, or they will be counted twice.'} wide />
+          </label>
+          <MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
+        </div>
+      )}
+
       {isPartnership && (
         <div style={{ marginTop: 10, padding: '12px 14px', background: '#F0F9FF', borderRadius: 8, border: '1px solid #BAE6FD', fontSize: 12 }}>
           <div style={{ fontWeight: 700, color: '#0369A1', marginBottom: 6 }}>📋 K-1 Box Mapping — Partnership / LLC</div>
