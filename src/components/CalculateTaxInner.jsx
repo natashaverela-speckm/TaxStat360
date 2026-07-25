@@ -823,9 +823,24 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
     const lossAmt = Math.abs(Math.min(0, k1Net))
     // §1367(a)(1) income-first basis (a current-year loss is a §1366 item applied LAST).
     const stockBasisForDist = sb + contrib + basisInc + Math.max(0, k1Net)
-    // §1368 excess gain only on the true excess over pre-loss basis (when basis is known).
-    const distExcessGain = hasBasisInput ? Math.max(0, dist - stockBasisForDist) : 0
-    const stockAfterDist = Math.max(0, stockBasisForDist - dist)
+    // AUDIT F3 (Jul 2026): §1368(c) three-tier ordering when the S-corp has accumulated
+    // E&P from C-corp years — MIRRORS taxCalc.js so this card agrees with the filed return.
+    // Tier 1 distributions from AAA (§1368(b) basis recovery); Tier 2 dividends to the
+    // extent of E&P (§1368(c)(2)) — these NEVER reduce stock basis; Tier 3 remainder is
+    // §1368(b) again. With no E&P entered (the default) behavior is unchanged.
+    const ep     = Math.max(0, nf(entity.accumulatedEP))
+    const begAAA = Math.max(0, nf(entity.beginningAAA))
+    let distFromAAA = dist, epDividend = 0, distTier3 = 0
+    if (ep > 0 && dist > 0) {
+      const aaaForDist = begAAA + Math.max(0, k1Net)
+      distFromAAA = Math.min(dist, aaaForDist)
+      epDividend  = Math.min(dist - distFromAAA, ep)
+      distTier3   = dist - distFromAAA - epDividend
+    }
+    const distForBasis = ep > 0 ? (distFromAAA + distTier3) : dist
+    // §1368 excess gain only on the true excess over pre-loss basis (dividends excluded).
+    const distExcessGain = hasBasisInput ? Math.max(0, distForBasis - stockBasisForDist) : 0
+    const stockAfterDist = Math.max(0, stockBasisForDist - distForBasis)
     // §1366(d): loss capped by stock basis remaining AFTER distributions, plus debt basis.
     const basisForLoss   = stockAfterDist + db
     const allowedLoss    = Math.min(lossAmt, basisForLoss)
@@ -833,7 +848,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
     return {
       hasBasisInput, sb, db, contrib, basisInc, dist, k1Net, lossAmt,
       stockBasisForDist, distExcessGain, stockAfterDist, basisForLoss,
-      allowedLoss, suspendedLoss,
+      allowedLoss, suspendedLoss, epDividend, distForBasis,
     }
   })()
 
@@ -857,13 +872,16 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
 
   const distBadge = (() => {
     if (!isSC || !scBasis) return null
-    const { dist, hasBasisInput, distExcessGain } = scBasis
+    const { dist, hasBasisInput, distExcessGain, epDividend, distForBasis } = scBasis
     if (dist <= 0) return null
     if (!hasBasisInput) {
       return { type: 'amber', msg: `§1368: ${fmt(dist)} in distributions — enter stock basis to compute capital gain.` }
     }
     if (distExcessGain > 0) {
       return { type: 'warn', msg: `§1368: ${fmt(distExcessGain)} of distributions exceeds basis — treated as capital gain.` }
+    }
+    if (epDividend > 0) {
+      return { type: 'warn', msg: `§1368(c): ${fmt(epDividend)} of distributions is a taxable dividend from C-corp E&P; ${fmt(distForBasis)} is a tax-free return of basis.` }
     }
     return { type: 'ok', msg: `§1368: All ${fmt(dist)} distributions are tax-free return of basis.` }
   })()
@@ -1138,7 +1156,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                     <input type="checkbox" id={'sstb_' + idx} checked={!!entity.box17V_sstb} onChange={e => onUpdate(idx, { ...entity, box17V_sstb: e.target.checked })} />
                     <label htmlFor={'sstb_' + idx} style={{ fontSize: 12, color: '#1D4ED8', cursor: 'pointer' }}>
                       This is a Specified Service Trade or Business (SSTB) — limits QBI deduction at high income
-                      <InfoTip text={'SSTBs (Specified Service Trades or Businesses) per IRC §199A(d)(1)(B) include:\nlaw, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage, investing/trading, and any business where the principal asset is the reputation or skill of an employee or owner.\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, retail, and health (starting 2026 under OBBBA).\n\n2025 SSTB phase-out range:\n• Single/HOH: $197,300 – $247,300\n• MFJ: $394,600 – $494,600\n\n2026 SSTB phase-out range (estimated):\n• Single/HOH: $201,750 – $276,750\n• MFJ: $403,500 – $553,500\n\nAbove the ceiling your §199A deduction is $0 on SSTB income. Below the floor there is no limitation.'} wide />
+                      <InfoTip text={'SSTBs (Specified Service Trades or Businesses) per IRC §199A(d)(1)(B) include:\nlaw, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage, investing/trading, and any business where the principal asset is the reputation or skill of an employee or owner.\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, and retail. (Health REMAINS an SSTB \u2014 IRC \u00a7199A(d)(2)(A); Reg. \u00a71.199A-5(b)(1)(ii). OBBBA (2025) only widened the phase-in ranges below; it did NOT reclassify health, or any field, out of SSTB status.)\n\n2025 SSTB phase-out range:\n• Single/HOH: $197,300 – $247,300\n• MFJ: $394,600 – $494,600\n\n2026 SSTB phase-out range (estimated):\n• Single/HOH: $201,750 – $276,750\n• MFJ: $403,500 – $553,500\n\nAbove the ceiling your §199A deduction is $0 on SSTB income. Below the floor there is no limitation.'} wide />
                     </label>
                   </div>
                 </div>
@@ -1336,7 +1354,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   </div>
 
                   {(() => {
-                    const { dist, hasBasisInput, distExcessGain, stockBasisForDist, stockAfterDist } = scBasis || {}
+                    const { dist, hasBasisInput, distExcessGain, stockBasisForDist, stockAfterDist, epDividend, distForBasis } = scBasis || {}
                     if (!scBasis || dist <= 0) return null
                     if (!hasBasisInput) {
                       return (
@@ -1363,6 +1381,20 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                             <strong>long-term capital gain</strong> on Schedule D (IRC §1368(b)(2)).
                             Distributions are applied to basis before the year's loss (Reg. §1.1368-1(e)),
                             so only this true excess is taxed. This amount is included in your tax estimate automatically.
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (epDividend > 0) {
+                      return (
+                        <div style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: '#1E3A8A', marginBottom: 4 }}>§1368(c) — Distribution Split Between AAA and E&P</div>
+                          <div style={{ color: '#1E3A8A', lineHeight: 1.5 }}>
+                            Of your {fmt(dist)} in distributions, <strong>{fmt(distForBasis)}</strong> is a tax-free return of basis
+                            (from AAA, IRC §1368(b)(1)) and <strong>{fmt(epDividend)}</strong> is a <strong>taxable dividend</strong> from
+                            accumulated C-corp E&P (IRC §1368(c)(2)) — reported as a qualified dividend and already included in your
+                            tax estimate. Dividends do NOT reduce stock basis.
+                            {stockAfterDist > 0 ? ` Your stock basis after distributions is ${fmt(stockAfterDist)}.` : ''}
                           </div>
                         </div>
                       )
