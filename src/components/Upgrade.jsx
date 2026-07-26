@@ -43,6 +43,7 @@ const FEATURES = [
   { label:FEATURE_WHATIF_SIMULATOR,                             starter:false, professional:true,  enterprise:true  },
   { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
   { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
+  { label:'Ask Aria — AI tax assistant',                                starter:false, professional:true,  enterprise:true  },
   { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
   { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
   // ── Enterprise additions ──────────────────────────────────────────────────
