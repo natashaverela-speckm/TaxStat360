@@ -136,7 +136,7 @@ export default function About() {
           <p style={{ ...EYEBROW, color: '#93b4d4' }}>Why We Built This</p>
           <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 28 }}>The Problem We Set Out to Solve</h2>
           <p style={{ fontSize: 15, color: '#93b4d4', lineHeight: 1.85, marginBottom: 20 }}>
-            One pattern shows up over and over in business tax: owners who could have legally reduced their liability by tens of thousands of dollars — but didn't — because they had no visibility into what they owed until it was April and too late to act.
+            One pattern shows up over and over in business tax: owners who could have legally reduced their liability by tens of thousands of dollars — but didn't — because they had no visibility into their liability until it was April and too late to act.
           </p>
           <p style={{ fontSize: 15, color: '#93b4d4', lineHeight: 1.85, marginBottom: 20 }}>
             S-Corp salary-to-distribution ratios set incorrectly. §199A QBI deductions missed. Quarterly payments underfunded. Depreciation strategies overlooked. Passive loss rules misapplied. These aren't exotic maneuvers — they're legal planning tools every business owner should be using, month by month, not once a year.
@@ -175,7 +175,7 @@ export default function About() {
 
       {/* ─── CTA ──────────────────────────────────────────────────────── */}
       <section style={{ padding: '72px 24px', background: '#F8FAFC', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 28, fontWeight: 800, color: N, marginBottom: 16 }}>Ready to Know What You Owe?</h2>
+        <h2 style={{ fontSize: 28, fontWeight: 800, color: N, marginBottom: 16 }}>Ready to Know Your Tax Liability?</h2>
         <p style={{ fontSize: 14, color: '#475569', maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.7 }}>
           Start your 7-day free trial and see your estimated federal tax liability in under 5 minutes.
         </p>

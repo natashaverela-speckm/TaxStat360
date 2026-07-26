@@ -138,7 +138,7 @@ function buildComputedBlock(summary) {
     ['Additional Medicare Tax (0.9%)',     summary.additionalMedicare],
     ['Net Investment Income Tax (3.8%)',   summary.niitAmount],
     ['Alternative Minimum Tax',            summary.amt],
-    ['TOTAL estimated federal tax',        summary.totalTax],
+    ['Total estimated federal tax liability', summary.totalTax],
     ['Balance due / (refund)',             summary.balance],
     ['Recommended quarterly payment',      summary.quarterlyRecommended],
   ]
@@ -186,7 +186,7 @@ function buildSessionContext({ entities = [], k1Total = 0, personal = null, taxY
     if (e.isActiveParticipant) flags.push('§469(i) active participation claimed')
     lines.push(`- ${e.type}${e.own ? ` (${e.own}% owned)` : ''}: ${parts.join(', ')}${flags.length ? ` [${flags.join('; ')}]` : ''}`)
   }
-  if (k1Total) lines.push(`Total pass-through (K-1 / Schedule C) income: ${fmtUSD(k1Total)}`)
+  if (k1Total) lines.push(`Total business income (K-1 / Schedule C): ${fmtUSD(k1Total)}`)
   if (taxYear) lines.push(`Tax year: ${taxYear}`)
   if (personal) {
     if (personal.filingStatus) lines.push(`Filing status: ${personal.filingStatus}`)
