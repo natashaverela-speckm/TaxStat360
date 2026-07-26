@@ -315,7 +315,7 @@ function missingFields(rec) {
   const b = rec.biz || {}, f = rec.f1040 || {}
   const missing = []
   const hasK1Data = Math.abs(nf(rec?.k1Income)) > 0
-  if (!(recEntityRevenue(rec) > 0) && !hasK1Data) missing.push('revenue')
+  if (!(recEntityRevenue(rec) > 0) && !hasK1Data) missing.push('gross receipts')
   if (!(getTotalW2(rec) > 0)) missing.push('W-2 / withholding')
   if (!(nf(f.estPaid) > 0)) missing.push('est. payments')
   if (!(nf(b.operatingExpenses) > 0) && !hasK1Data) missing.push('expenses')
@@ -661,7 +661,7 @@ function RiskScan({ rec }) {
     const _aggDisc      = _sum1.ok ? _sum1.qbiAggregationDisclosure : _qbiFallback.aggregationDisclosure
     const _t = qbiThresholdsFor(_year)
     const _qbiGap = qbiDeductionGap({ deduction: qbi, caps: _caps })
-    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on the K-1 §199A statement (Box 17 Code V) — could recapture it. `
+    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on your K-1's §199A statement (${isSCorpEntity(b.entityType) ? 'Box 17 Code V' : 'Box 20 Code Z'}) — could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
@@ -934,8 +934,8 @@ function TaxOptimization({ rec }) {
   if (!hasIncome) return (
     <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E2E8F0' }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>Enter your revenue to see your savings</div>
-      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>Tax-saving estimates are calibrated to your actual income and tax bracket. Add your business revenue in Step 1 and your personal info in Step 2 to see opportunities specific to your situation.</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: N, marginBottom: 8 }}>Enter your gross receipts to see your savings</div>
+      <div style={{ fontSize: 13, color: SL, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>Tax-saving estimates are calibrated to your actual income and tax bracket. Add your business gross receipts in Step 1 and your personal info in Step 2 to see opportunities specific to your situation.</div>
       <button onClick={() => window.location.href = '/calculate-tax'} style={{ padding: '10px 24px', background: B, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Go to Calculator →</button>
     </div>
   )
@@ -1141,7 +1141,7 @@ function TaxOptimization({ rec }) {
     opportunities.push({
       icon: '🏢', title: 'Bonus Depreciation', priority: 'high',
       saving: null,
-      detail: 'OBBBA (P.L. 119-21 §70301) made 100% bonus depreciation PERMANENT under IRC §168(k) for qualified property acquired after January 19, 2025 — the old TCJA phase-down (80%/60%/40%) no longer applies to new acquisitions. For rental real estate, a cost segregation study reclassifies part of the building into 5-, 7-, and 15-year property that qualifies for the full 100% write-off in year one. The building itself stays on 27.5-year (residential) or 39-year (commercial) straight-line MACRS. Caution: bonus depreciation creates §1245/§1250 recapture exposure on sale, and the resulting loss is still subject to the §469 passive activity rules — see \u201CTrack Your Real Estate Hours\u201D below.',
+      detail: 'OBBBA (P.L. 119-21 §70301) made 100% bonus depreciation PERMANENT under IRC §168(k) for qualified property acquired after January 19, 2025 — the old TCJA phase-down (80%/60%/40%) no longer applies to new acquisitions. For rental real estate, a cost segregation study reclassifies part of the building into 5-, 7-, and 15-year property that qualifies for a full 100% first-year depreciation deduction. The building itself stays on 27.5-year (residential) or 39-year (commercial) straight-line MACRS. Caution: bonus depreciation creates §1245/§1250 recapture exposure on sale, and the resulting loss is still subject to the §469 passive activity rules — see \u201CTrack Your Real Estate Hours\u201D below.',
       howTo: 'Get a cost segregation study on properties placed in service after Jan 19, 2025 (typically worthwhile above ~$300K of building basis). Enter the resulting first-year depreciation in the rental\u2019s Depreciation field in Step 1. Verify your §469 status on the same card — without REPS or the short-term-rental exception, the loss is suspended on Form 8582, not deducted.'
     })
 
@@ -1528,7 +1528,7 @@ function ReportModal({ onClose, rec }) {
               [FINANCIAL_LABELS.grossReceipts, b.grossRevenue ? fmt(b.grossRevenue) : ''],
               [FINANCIAL_LABELS.totalExpenses, b.operatingExpenses ? fmt(b.operatingExpenses) : ''],
               [FINANCIAL_LABELS.officerCompensation, b.officerSalary ? fmt(b.officerSalary) : ''],
-              ['Net Pass-Through / Schedule E Income', rec.k1Income ? fmt(rec.k1Income) : '$0'],
+              [FINANCIAL_LABELS.k1OrdinaryIncome, rec.k1Income ? fmt(rec.k1Income) : '$0'],
               ['Filing Status', (f.filingStatus || '').toUpperCase()],
               // AI-5 FIX: label distinguishes personal W-2 vs. total (incl. officer salary)
               // so CPAs are not confused by a figure larger than the "Other Employers" field.
@@ -1684,7 +1684,7 @@ export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (
   const points = []
   if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 0) {
     const ratio = officerSal / (officerSal + k1)
-    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 distributions — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
+    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 ordinary business income — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
   } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
     points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 compensation on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
   }
@@ -1717,10 +1717,10 @@ export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (
     ...(_hasEntitySplit
       ? [
           ['S-Corp K-1 ordinary income (Box 1)', _bSCorp],
-          ['Partnership K-1 income', _bPartner],
+          ['Partnership K-1 ordinary income (Box 1)', _bPartner],
           ['Rental real estate net (Schedule E)', _bRealEstate],
         ]
-      : [['K-1 ordinary income (Box 1)', k1]]),
+      : [[FINANCIAL_LABELS.k1OrdinaryIncome, k1]]),
     ['W-2 wages', w2],
     ['Rental net (Step 2)', rentalNet],
     ['Interest & dividends', interest + dividends],
@@ -2083,7 +2083,7 @@ function SimulatorModal({ onClose, rec }) {
               </div>
               <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:12,padding:'16px 18px'}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#64748B',letterSpacing:'0.5px',marginBottom:10}}>YOUR PERSONAL 1040</div>
-                {row('K-1 Income',        baseline.k1,         scenario.k1)}
+                {row(FINANCIAL_LABELS.k1OrdinaryIncome, baseline.k1, scenario.k1)}
                 {row('W-2 Wages (total)', baseline.w2,         scenario.w2)}
                 {row('QBI Deduction (20%)', baseline.qbi,      scenario.qbi,      true)}
                 {row('Standard Deduction', stdDed,             stdDed)}
@@ -2224,10 +2224,10 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
   const checklistItems = rec ? [
     { label: 'Filing status', ok: !!(rec.f1040?.filingStatus) },
     { label: 'Entity structure', ok: !!recEntityType(rec) },
-    { label: 'Gross receipts / K-1 income', ok: recEntityRevenue(rec) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
+    { label: 'Gross receipts / ' + FINANCIAL_LABELS.k1OrdinaryIncome, ok: recEntityRevenue(rec) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
     { label: 'W-2 income / withholding', ok: getTotalW2(rec) > 0 },
     { label: 'Estimated tax payments', ok: (nf(rec.f1040?.estPaid)||0) > 0 },
-    { label: 'Expenses / deductions', ok: (nf(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
+    { label: 'Business expenses (for deductions)', ok: (nf(rec.biz?.operatingExpenses)||0) > 0 || Math.abs(nf(rec.k1Income)||0) > 0 },
   ] : []
 
   // C-24: labels of the checklist items still missing — shown verbatim in the confirm gate.
@@ -2481,7 +2481,7 @@ export default function AIAnalysis() {
             <div style={{ fontSize: 32, fontWeight: 800, color: score >= 80 ? G : score >= 50 ? O : R, lineHeight: 1 }}>{score}%</div>
             {score === 0 ? (
               <div style={{ fontSize: 13, color: SL, marginTop: 8, maxWidth: 160, lineHeight: 1.5 }}>
-                Add your income in{' '}
+                Add your gross receipts in{' '}
                 <span
                   onClick={() => navigate('/calculate-tax')}
                   style={{ color: B, cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}

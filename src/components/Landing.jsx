@@ -119,7 +119,7 @@ export default function Landing() {
           <span style={{ color: B }}>&#10003;</span> No More April Surprises
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 700, color: N }}>
-          See What You&apos;re On Track to Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
+          See Your Estimated Federal Tax Liability&nbsp;&mdash;<br />Right Now, Not in April.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
           Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your estimated federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
@@ -277,7 +277,7 @@ export default function Landing() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
           {[
             { n: '01', title: 'Connect your software — or enter manually',
-              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your income and expense totals automatically. Prefer not to connect? Enter your gross receipts and expenses directly — it takes under 2 minutes.' },
+              desc: 'Link QuickBooks, Xero, Wave, or FreshBooks to pull your gross receipts and expenses automatically. Prefer not to connect? Enter your gross receipts and expenses directly — it takes under 2 minutes.' },
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
@@ -308,9 +308,9 @@ export default function Landing() {
               // explaining the year-selection mechanic or who controls it.
               // UX-08 FIX: Added explicit "federal tax only — state taxes are not included"
               // statement so users understand the scope of what is calculated.
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 pass-through income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?',
-              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
+              a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your gross receipts and expenses automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
               a: `Entity capacity depends on your plan: Starter covers ${PLAN_ENTITY_LIMITS.starter.business} business plus up to ${PLAN_ENTITY_LIMITS.starter.realEstate} rental properties; Professional covers up to ${PLAN_ENTITY_LIMITS.professional.business} businesses with unlimited rentals; and Enterprise covers unlimited businesses and rentals, with a consolidated federal tax view across all of them in one place.` },
             { q: 'Is my financial data secure?',

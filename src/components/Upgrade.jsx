@@ -47,7 +47,7 @@ const FEATURES = [
   { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
   // ── Enterprise additions ──────────────────────────────────────────────────
   { label:'Multi-entity consolidated tax view',                         starter:false, professional:false, enterprise:true  },
-  { label:'AI-Generated CPA Briefing Documents',                        starter:false, professional:false, enterprise:true  },
+  { label:'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)', starter:false, professional:false, enterprise:true  },
   { label:'Risk Tolerance Profiling',                                   starter:false, professional:false, enterprise:true  },
   { label:'CPA Collaboration Portal',                                   starter:false, professional:false, enterprise:true  },
   { label:'Dedicated onboarding & setup call',                          starter:false, professional:false, enterprise:true  },

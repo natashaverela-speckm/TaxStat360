@@ -63,6 +63,7 @@ import { signOut } from '../utils/SignOut'
 import BrandLogo from './BrandLogo'
 import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
+  SCORP_REASONABLE_COMP_GUIDELINE_RANGE,
   CURRENT_TAX_YEAR,
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
@@ -663,7 +664,7 @@ export default function Dashboard() {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>Ready to see your tax analysis?</div>
               <div style={{ fontSize: 13, color: '#3B82F6', lineHeight: 1.6, marginBottom: 12 }}>
-                Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business income and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
+                Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business revenue and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
               </div>
               <button onClick={startNewCalc} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Open Tax Tracker →</button>
             </div>
@@ -707,7 +708,7 @@ export default function Dashboard() {
                 {safeCalc.reasonableCompAlert.message}
               </div>
               <div style={{ fontSize: 13, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
-                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
+                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the {SCORP_REASONABLE_COMP_GUIDELINE_RANGE} practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
                 <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
             </div>

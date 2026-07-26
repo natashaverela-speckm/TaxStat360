@@ -31,7 +31,7 @@ import {
 } from '../lib/theme.js'
 // CC-M02: canonical currency formatter.
 import { fmt, nf } from '../utils/money.js'
-import { CURRENT_TAX_YEAR } from '../lib/constants.js'
+import { CURRENT_TAX_YEAR, SCORP_REASONABLE_COMP_GUIDELINE_RANGE } from '../lib/constants.js'
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
 import { isSCorpEntity, isCCorpEntity } from '../utils/entityPredicates'
 
@@ -394,7 +394,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               color: '#1D4ED8',
             }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
-              <span>Enter your business revenue in Step 1 to see your entity comparison. All scenarios show $0 with no income entered.</span>
+              <span>Enter your business revenue in Step 1 to see your entity comparison. All scenarios show $0 with no revenue entered.</span>
             </div>
           ) : summaryText ? (
             <div style={{
@@ -466,7 +466,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               </span>
               <div style={{ fontSize: 13, color: rcRisk.severity === 'high' ? '#7F1D1D' : AMBER_TEXT, lineHeight: 1.5 }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                  Reasonable Compensation Risk — IRS Audit Flag
+                  Reasonable Compensation Below Practitioner Guideline
                 </div>
                 <div>
                   At this salary, the S Corp scenario shows {fmt(rcRisk.sCorpProfit)} in net profit
@@ -478,7 +478,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
                   payroll tax + penalties + interest.
                   {rcRisk.severity === 'high'
                     ? ' Zero W-2 wages with a profitable S Corp is the highest-risk pattern.'
-                    : ' There is no statutory safe harbor; common practitioner heuristics fall around 35–60% of profit, and ratios below roughly 40% tend to draw scrutiny (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)).'}
+                    : ` There is no statutory safe harbor; common practitioner heuristics fall around ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of profit, and ratios below roughly 40% tend to draw scrutiny (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)).`}
                 </div>
               </div>
             </div>

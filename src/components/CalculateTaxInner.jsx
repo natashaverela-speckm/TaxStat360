@@ -598,10 +598,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={lbl}>
-            {isRE ? 'Rental Income (gross rents received)' : FINANCIAL_LABELS.grossReceiptsField}
-            <InfoTip label={isRE ? 'Rental income' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
+            {isRE ? FINANCIAL_LABELS.grossRentsReceivedField : FINANCIAL_LABELS.grossReceiptsField}
+            <InfoTip label={isRE ? 'Gross rents received' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
-          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental income (gross rents received)' : 'Gross receipts'} />
+          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? FINANCIAL_LABELS.grossRentsReceivedField : 'Gross receipts'} />
         </div>
         <div>
           <label style={lbl}>
@@ -696,7 +696,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       {rv > 0 && (
         <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
+            <span style={{ color: SL }}>{isRE ? FINANCIAL_LABELS.grossRentsReceived : FINANCIAL_LABELS.grossReceiptsField}</span><span style={{ fontWeight: 600, color: N }}>{fmt(rv)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
@@ -954,7 +954,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             {/* UX-M1 FIX: show gross rents for RE entities in collapsed header */}
             {isRE && nf(pnl.grossRevenue) > 0 && (
-              <div style={{ fontSize: 11, color: SL, marginBottom: 1 }}>Rents {fmt(nf(pnl.grossRevenue))}</div>
+              <div style={{ fontSize: 11, color: SL, marginBottom: 1 }}>{FINANCIAL_LABELS.grossRentsReceived} {fmt(nf(pnl.grossRevenue))}</div>
             )}
             <div style={{ fontSize: 11, color: SL }}>{entityResultLabel(entity.type)}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: k1 >= 0 ? N : R }}>
@@ -973,7 +973,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
           {nf(pnl.grossRevenue) > 0 && (
             <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ color: SL }}>{isRE ? 'Rental Income' : FINANCIAL_LABELS.grossReceiptsField}</span>
+                <span style={{ color: SL }}>{isRE ? FINANCIAL_LABELS.grossRentsReceived : FINANCIAL_LABELS.grossReceiptsField}</span>
                 <span style={{ fontWeight: 600, color: N }}>{fmt(nf(pnl.grossRevenue))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
