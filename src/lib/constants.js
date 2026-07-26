@@ -142,10 +142,20 @@ export const FINANCIAL_LABELS = {
   // TERMINOLOGY FIX for Schedule C / real estate — separate citation per form
   grossReceiptsFieldScheduleC:  'Gross Receipts (Schedule C, Line 1)',
   grossRentsReceivedField:      'Gross Rents Received (Schedule E, Line 3)',
+  // LABEL AUDIT 1.6/1.7/10.1: real-estate P&L cards used three different short labels
+  // ("Rents", "Rental Income", "Rental Income (gross rents received)") for the same
+  // pre-expense figure, contradicting the field's own tooltip. This is the short-form
+  // counterpart to grossRentsReceivedField, for use in summary rows (not full form labels).
+  grossRentsReceived:           'Gross Rents Received',
   // TERMINOLOGY FIX 3.1: "Other Deductions" → "Other Operating Expenses" in entity P&L forms.
   // Items entered here are operating expenses that reduce gross income on the entity return,
   // not "deductions" in the IRC sense (which reduce taxable income on the personal return).
   otherOperatingExpenses:       'Other Operating Expenses',
+  // LABEL AUDIT 10.2: the same K-1 ordinary-income figure was labeled four different ways
+  // across the CPA Export Pack, What-If Simulator, CPA Briefing, and pre-generation
+  // checklist in AIAnalysis.jsx ("Net Pass-Through / Schedule E Income", "K-1 Income",
+  // "K-1 ordinary income (Box 1)", "Gross receipts / K-1 income"). Standardized here.
+  k1OrdinaryIncome:             'K-1 Ordinary Business Income (Box 1)',
 }
 
 // ─── SUBSCRIPTION PLAN IDENTIFIERS ──────────────────────────────────────────
@@ -349,6 +359,12 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 //
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
 export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
+// LABEL AUDIT 10.5: Dashboard.jsx and AIAnalysis.jsx quoted "35-45%" as the practitioner
+// guideline range built around the 40% threshold above; EntityCompareModal.jsx
+// independently quoted "35-60%" for the identical heuristic, giving users conflicting
+// numeric guidance on the same screen pair. Single source of truth going forward —
+// import this string, never re-type the range inline.
+export const SCORP_REASONABLE_COMP_GUIDELINE_RANGE = '35–45%'  // practitioner heuristic range around the 40% threshold
 // D-10 (dead-code audit, Jul 2026): the $20,000 total-compensation floor below which
 // the reasonable-comp alert stays silent — previously a magic number duplicated in
 // taxCalc.js and Dashboard.jsx. Heuristic (noise floor), not a statutory figure.
