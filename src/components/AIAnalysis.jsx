@@ -28,7 +28,7 @@ import MoneyInput from './MoneyInput.jsx'
 import { signOut } from '../utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from '../lib/theme'
 import { fmt, pct, nf } from '../utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from '../utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from '../utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from '../utils/calcGuard'
@@ -661,7 +661,7 @@ function RiskScan({ rec }) {
     const _aggDisc      = _sum1.ok ? _sum1.qbiAggregationDisclosure : _qbiFallback.aggregationDisclosure
     const _t = qbiThresholdsFor(_year)
     const _qbiGap = qbiDeductionGap({ deduction: qbi, caps: _caps })
-    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on your K-1's §199A statement (${isSCorpEntity(b.entityType) ? 'Box 17 Code V' : 'Box 20 Code Z'}) — could recapture it. `
+    const _limitPrefix = _limitApplied === 'wage' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the §199A(b)(2) wage/UBIA limit — increasing W-2 wages paid by the entity or qualified property (UBIA) — both reported on your K-1's §199A statement (${isSCorpEntity(b.entityType) ? 'Box 17 Code V' : issuesK1Entity(b.entityType) ? 'Box 20 Code Z' : 'your K-1 or Schedule C §199A worksheet'}) — could recapture it. `
                        : _limitApplied === 'income' ? `Your deduction is currently reduced by ${fmt(_qbiGap)} due to the overall taxable-income limit (20% of taxable income less net capital gain). `
                        : _limitApplied === 'min400' ? `Your deduction is set to the §199A(i) OBBBA minimum of ${fmt(qbi)} — without this floor, your regular calc would have been lower. `
                        : ''
