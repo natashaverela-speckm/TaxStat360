@@ -42,7 +42,7 @@ export function topLeversForRecord(rec, max = 2) {
     levers.push({
       id: 'reasonable-comp',
       tone: 'alert',
-      text: `Reasonable-comp check: officer salary is ${rc.ratioPct ?? rc.ratio ?? '—'}% of distributions — review before filing`,
+      text: `Reasonable-comp check: officer salary is ${rc.ratioPct ?? rc.ratio ?? '—'}% of total compensation — review before filing`,
     })
   }
 
