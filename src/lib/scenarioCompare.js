@@ -213,7 +213,7 @@ function compareEntityScenarios(input) {
       ],
       notes: [
         `Officer salary: $${salary.toLocaleString()} — IRC §3121 reasonable comp requirement.`,
-        'K-1 distributions not subject to SE tax — IRC §1402(a)(2).',
+        'K-1 business income not subject to SE tax — IRC §1402(a)(2).',
         '20% QBI deduction may apply on K-1 income — IRC §199A.',
       ],
     },
