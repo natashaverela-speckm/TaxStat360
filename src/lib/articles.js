@@ -8,6 +8,7 @@
 // schema. The Article.jsx template renders any entry automatically.
 
 import { getTable, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION } from './taxCalc.js'
+import { SCORP_REASONABLE_COMP_GUIDELINE_RANGE } from './constants.js'
 import { fmt } from '../utils/money.js'
 
 // ── Live tax-figure bindings (AF-02 follow-up / centralization) ───────────────
@@ -71,7 +72,7 @@ Reasonable compensation is the amount a comparable employee would receive for th
       },
       {
         heading: 'The 35/65 Rule of Thumb — and Its Limits',
-        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself 35–40% of total officer compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule — it's a practitioner heuristic that has survived scrutiny when supported by documentation.
+        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of total officer compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule — it's a practitioner heuristic that has survived scrutiny when supported by documentation.
 
 The split only holds up if your business generates enough profit to make the salary plausible. A first-year S-Corp generating $40,000 of net profit paying the owner $14,000 in salary is far more defensible than a $400,000 S-Corp paying $14,000. The absolute dollar amount matters as much as the ratio.
 
@@ -92,7 +93,7 @@ Employee FICA on Medicare: $150,000 × 1.45% = $2,175
 Total employee: $11,475 | Employer match: $11,475
 Total FICA cost: ~$22,950
 
-The difference is $12,240 in FICA taxes — but read that carefully. The savings come from the S-Corp structure legally exempting your K-1 distributions from FICA, NOT from driving your salary as low as possible. Scenario A’s $70,000 salary is just 23% of total compensation — below the 35–45% range practitioners commonly defend, and exactly the kind of split TaxStat360’s Audit Risk Scan flags. A salary that low is what invited the reclassification the IRS won in Watson. The goal is not the lowest salary; it is a reasonable salary, documented against market data, with the remainder taken as distributions. Treat Scenario A as the aggressive ceiling of the FICA advantage, not the target: a defensible figure for this owner sits higher, and TaxStat360 shows you the FICA impact at every salary level so you can pick one you can stand behind.
+The difference is $12,240 in FICA taxes — but read that carefully. The savings come from the S-Corp structure legally exempting your K-1 distributions from FICA, NOT from driving your salary as low as possible. Scenario A’s $70,000 salary is just 23% of total compensation — below the ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} range practitioners commonly defend, and exactly the kind of split TaxStat360’s Audit Risk Scan flags. A salary that low is what invited the reclassification the IRS won in Watson. The goal is not the lowest salary; it is a reasonable salary, documented against market data, with the remainder taken as distributions. Treat Scenario A as the aggressive ceiling of the FICA advantage, not the target: a defensible figure for this owner sits higher, and TaxStat360 shows you the FICA impact at every salary level so you can pick one you can stand behind.
 
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
@@ -169,7 +170,7 @@ Third, entity structuring: a C-Corp generates no QBI and cannot pass through the
         heading: 'How TaxStat360 Handles the QBI Calculation',
         body: `TaxStat360 computes the §199A deduction using the 2026 thresholds updated for P.L. 119-21 and applies all three limitation rules simultaneously: the SSTB phase-out, the W-2/UBIA wage limitation, and the taxable income ceiling. The deduction is shown as a separate line in the Tax Waterfall so you can see exactly what it's worth in the context of your full income picture.
 
-The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied — but only when you qualify for it. Under OBBBA §199A(i), the minimum applies only if you have at least $1,000 of QBI from one or more ACTIVE qualified trades or businesses in which you materially participate. If you clear that bar and your calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Passive income — such as a rental you do not materially participate in — does not count toward the $1,000 test and does not qualify for the minimum. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V) — and the SSTB checkbox to see the full computation.`,
+The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied — but only when you qualify for it. Under OBBBA §199A(i), the minimum applies only if you have at least $1,000 of QBI from one or more ACTIVE qualified trades or businesses in which you materially participate. If you clear that bar and your calculated deduction would be less than ${usd(_qbiMin2026)}, TaxStat360 uses ${usd(_qbiMin2026)} as the floor. Passive income — such as a rental you do not materially participate in — does not count toward the $1,000 test and does not qualify for the minimum. Enter your K-1 §199A statement amounts — W-2 wages and UBIA (Box 17 Code V for S-Corp K-1s; Box 20 Code Z for partnership K-1s) — and the SSTB checkbox to see the full computation.`,
       },
     ],
     relatedSlugs: ['scorp-salary-vs-distribution', 'quarterly-estimated-taxes', 'passive-activity-loss-rules'],
@@ -224,7 +225,7 @@ S-Corp owners who take large distributions only in Q4 (for example, after year-e
       },
       {
         heading: 'S-Corp Officers: A Special Consideration',
-        body: `S-Corp officer salaries have federal income tax withheld on the W-2. That withholding counts as estimated taxes paid, applied ratably across all four quarters regardless of when the actual paycheck was issued. An S-Corp owner who receives a large December paycheck with significant withholding gets credit as if one-quarter of that withholding was paid in April, June, September, and December — smoothing out the penalty calculation.
+        body: `S-Corp officer salaries have federal income tax withheld on the W-2. For underpayment-penalty purposes, that withholding is treated as if paid ratably across all four quarters (IRC §6654(g)), regardless of when the actual paycheck was issued. An S-Corp owner who receives a large December paycheck with significant withholding gets credit as if one-quarter of that withholding was paid in April, June, September, and December — smoothing out the penalty calculation.
 
 This is a planning opportunity: if you know a large Q4 distribution is coming and you haven't made estimated payments, increasing the withholding on your final W-2 paycheck can cover the shortfall. The withholding appears on line 25 of Form 1040 and is treated as evenly distributed. Note: this only works for W-2 withholding, not for estimated tax vouchers.`,
       },
