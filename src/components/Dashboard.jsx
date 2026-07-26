@@ -181,7 +181,7 @@ export function calcDashboard(biz, f1040) {
       triggered: core.triggered,
       ratio: core.ratioPct,
       sal: Math.round(sal),
-      distributions: Math.round(Math.max(0, k1)),
+      k1NetIncome: Math.round(Math.max(0, k1)),
       // OBS-7 RESOLVED (Batch 7): adopts the core's hedged wording — one message everywhere.
       message: core.message,
     }
@@ -684,7 +684,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ fontSize: 13, color: '#991B1B', marginBottom: 10, fontWeight: 600 }}>
-                Formula: Salary ÷ (Salary + Distributions)
+                Formula: Salary ÷ (Salary + K-1 Net Income)
               </div>
               <div style={{
                 background: 'rgba(153,27,27,0.06)', borderRadius: 8, padding: '10px 14px',
@@ -695,13 +695,13 @@ export default function Dashboard() {
                   {' ÷ ('}
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
                   {' + '}
-                  {fmt(safeCalc.reasonableCompAlert.distributions ?? 0)}
+                  {fmt(safeCalc.reasonableCompAlert.k1NetIncome ?? 0)}
                   {') = '}
                 </span>
                 <strong style={{ color: '#DC2626', fontSize: 15 }}>
                   {safeCalc.reasonableCompAlert.ratio ?? 0}%
                 </strong>
-                <span style={{ color: '#991B1B', fontSize: 12 }}> (threshold: ≥40%)</span>
+                <span style={{ color: '#991B1B', fontSize: 12 }}> (practitioner-cited range: ~{SCORP_REASONABLE_COMP_GUIDELINE_RANGE})</span>
               </div>
 
               <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 8 }}>

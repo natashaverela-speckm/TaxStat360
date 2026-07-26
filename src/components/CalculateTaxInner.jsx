@@ -149,7 +149,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
           Paying $0 salary while taking distributions is the most common S-Corp audit trigger — the IRS
           can reclassify distributions as wages and assess back FICA plus penalties. Authority:
           Rev. Rul. 74-44; Treas. Reg. §1.162-7. The 35–45% range is a practitioner heuristic, not a
-          statutory safe harbor — reasonable comp ultimately reflects the value of services you provide.
+          statutory safe harbor — reasonable compensation ultimately reflects the value of services you provide.
         </CompSources>
       </div>
     )
@@ -174,7 +174,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
           The IRS can recharacterize distributions as wages (with back FICA and penalties) when an
           owner-employee's salary is unreasonably low. Key authority: Watson v. Commissioner,
           668 F.3d 1008 (8th Cir. 2012); Treas. Reg. §1.162-7; Rev. Rul. 74-44. The 35–45% range is a
-          practitioner heuristic, not a safe harbor — reasonable comp depends on the value of services
+          practitioner heuristic, not a safe harbor — reasonable compensation depends on the value of services
           you provide.
         </CompSources>
       </div>
@@ -1434,7 +1434,7 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                       </div>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
-                          Beginning AAA (Form 1120-S Sch. M-2)
+                          Beginning AAA — Accumulated Adjustments Account (Form 1120-S Sch. M-2)
                         </label>
                         <MoneyInput
                           value={entity.beginningAAA || ''}

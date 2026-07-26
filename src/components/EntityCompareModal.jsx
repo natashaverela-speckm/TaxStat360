@@ -445,7 +445,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             <div style={{ fontSize: 12, color: SL, marginTop: 8 }}>
               Drag to model different officer salary levels for the S-Corp and C-Corp scenarios.
               The IRS requires S-Corp owner-employees to pay themselves reasonable compensation
-              comparable to what a similarly qualified employee would earn (IRC §1.162-7;
+              comparable to what a similarly qualified employee would earn (Treas. Reg. §1.162-7;
               Rev. Rul. 74-44). Work with your CPA to set the appropriate amount for your
               role and industry.
             </div>
@@ -469,15 +469,15 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
                   Reasonable Compensation Below Practitioner Guideline
                 </div>
                 <div>
-                  At this salary, the S Corp scenario shows {fmt(rcRisk.sCorpProfit)} in net profit
+                  At this salary, the S-Corp scenario shows {fmt(rcRisk.sCorpProfit)} in net profit
                   but only {fmt(rcRisk.w2Wages)} in W-2 wages
                   ({(rcRisk.ratio * 100).toFixed(1)}% ratio).
-                  The IRS requires S Corp owner-employees to pay themselves "reasonable compensation"
+                  The IRS requires S-Corp owner-employees to pay themselves "reasonable compensation"
                   per IRC §162(a)(1), Treas. Reg. §1.162-7, and Rev. Rul. 74-44 (wage
                   treatment under IRC §3121). Distributions reclassified as wages by the IRS trigger
                   payroll tax + penalties + interest.
                   {rcRisk.severity === 'high'
-                    ? ' Zero W-2 wages with a profitable S Corp is the highest-risk pattern.'
+                    ? ' Zero W-2 wages with a profitable S-Corp is the highest-risk pattern.'
                     : ` There is no statutory safe harbor; common practitioner heuristics fall around ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of profit, and ratios below roughly 40% tend to draw scrutiny (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)).`}
                 </div>
               </div>
@@ -537,10 +537,10 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
             <div style={{ fontWeight: 700, color: N, marginBottom: 6, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               What this comparison does NOT model
             </div>
-            State income tax · Payroll service costs (~$300–1,500/yr for S/C Corp) ·
+            State income tax · Payroll service costs (~$300–1,500/yr for S-Corp/C-Corp) ·
             Entity formation and ongoing compliance fees · Retirement plan strategy
             (Solo 401(k), SEP, defined benefit) · Fringe benefits (health insurance,
-            HRA, §125 plans) · C Corp retained-earnings strategy (assumes full annual
+            HRA, §125 plans) · C-Corp retained-earnings strategy (assumes full annual
             distribution) · Multi-owner dynamics (single-officer assumption applies).
             Consult a tax professional before changing your entity structure.
           </div>

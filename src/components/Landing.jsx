@@ -281,7 +281,7 @@ export default function Landing() {
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
-              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and your entity income allocation update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
+              desc: 'Complete estimated federal tax liability, quarterly estimated payments, §199A QBI Deduction (calculated), and your entity income allocation update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 15, fontWeight: 700, color: N }}>{s.n}</div>
@@ -308,7 +308,7 @@ export default function Landing() {
               // explaining the year-selection mechanic or who controls it.
               // UX-08 FIX: Added explicit "federal tax only — state taxes are not included"
               // statement so users understand the scope of what is calculated.
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 pass-through income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, quarterly estimated payments (including a safe-harbor option based on 100%/110% of prior-year tax), K-1 pass-through income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your gross receipts and expenses automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
@@ -404,6 +404,9 @@ export default function Landing() {
                 'Multi-entity consolidated tax view',
                 'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
                 'Tax Position Documentation & IRS Notice-Response Templates (documentation — not representation)',
+                'Risk Tolerance Profiling',
+                'CPA Collaboration Portal',
+                'Dedicated onboarding & setup call',
               ],
             },
           ].map((p, i) => (
@@ -494,6 +497,7 @@ export default function Landing() {
                   // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
                   // ships on Starter too, change this row to [..., true, true, true].
                   ['Ask Aria — AI tax assistant',            false, true,  true],
+                  ['Risk Tolerance Profiling',                false, false, true],
                 ]},
                 { group: 'Integrations', rows: [
                   ['Accounting software integration',         true,  true,  true],
@@ -501,12 +505,13 @@ export default function Landing() {
                 ]},
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
-                  ['Auto-Generated CPA Briefing',           false, false, true],
-                  // #7 FIX: reworded to match the pricing card (documentation, not representation).
-                  ['Tax Position Documentation & IRS Notice-Response Templates', false, false, true],
+                  ['Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)', false, false, true],
+                  ['Tax Position Documentation & IRS Notice-Response Templates (documentation — not representation)', false, false, true],
+                  ['CPA Collaboration Portal',                false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],
+                  ['Dedicated onboarding & setup call',       false, false, true],
                 ]},
               ].map(({ group, rows }) => (
                 <React.Fragment key={group}>

@@ -3,6 +3,7 @@ import { readPlan, writePlan } from '../utils/sessionState.js'
 import { clearInvalidSession } from '../utils/sessionAuth.js'
 import { NAVY as N, BLUE as B } from '../lib/theme.js'
 import { useNavigate } from 'react-router-dom'
+import Icon from './Icon'
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Plan Constants & Normalization ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // Single source of truth for plan IDs. ALL plan-gate code must import from here.
@@ -135,7 +136,7 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
         padding: 24, textAlign: 'center',
         gap: 6,
       }}>
-        <span style={{ fontSize: 22 }}>ÃÂ°ÃÂÃÂÃÂ</span>
+        <Icon name="lock" size={26} color={N} />
         <p style={{ fontWeight: 700, fontSize: 15, color: N, margin: 0 }}>
           {label || `${planLabel} Feature`}
         </p>
@@ -152,7 +153,7 @@ export default function LockedFeature({ requiredPlan = 'professional', label, mi
             fontFamily: 'Inter, system-ui, sans-serif',
           }}
         >
-          Upgrade to {planLabel} ÃÂ¢ÃÂÃÂ
+          Upgrade to {planLabel} →
         </button>
       </div>
     </div>
