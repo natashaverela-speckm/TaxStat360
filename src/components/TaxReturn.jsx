@@ -2089,7 +2089,16 @@ export default function TaxReturn() {
           </div>
 
           {/* Save buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* UX AUDIT PASS5-F11b (Jul 27 2026): Aria's floating launcher is position:fixed,
+              bottom:80, right:24 (see Aria.jsx) and spans roughly the rightmost 150px of the
+              viewport at that height. This card sits at the end of the page's normal flow, so
+              once the user scrolls near the bottom, its centered captions ("Saves and goes to
+              AI Analysis...", "Saves this record...") land in that same bottom-right band and
+              get partially covered. Same compensation pattern as CalculateTaxInner.jsx's P0 FIX
+              and AIAnalysis.jsx's F11 fix: reserve paddingRight so nothing in this block sits
+              under the widget. Found during regression check after PASS5 deployment (Natasha
+              caught this via live QA), not one of the original 15 UX-audit findings. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 90 }}>
             {saveError && (
               <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '8px 12px', textAlign: 'center' }}>
                 {saveError}
