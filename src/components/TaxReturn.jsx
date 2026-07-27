@@ -790,7 +790,19 @@ export default function TaxReturn() {
       )}
 
       {/* PHASE 3.3: semantic <main> landmark — skip-link target, zero visual change. */}
-      <main id="main-content" style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
+      {/* UX AUDIT PASS5-F16 (Jul 27 2026): the site footer (App.jsx's <Footer>)
+          is position:fixed on every route except /calculate-tax (which has its
+          own fixed action bar), including this one. Its disclaimer sentence
+          wraps to 2-3 lines at common desktop widths and more on narrow/mobile
+          viewports, so its rendered height varies well beyond the ~36-44px a
+          single-line footer would need. The prior bottom padding (100px desktop /
+          80px mobile) left as little as 8px of clearance between the fixed
+          footer and the sidebar's trailing content (the Save/Continue button
+          captions) at some window sizes — found during a post-deploy regression
+          pass, reproduced via direct DOM measurement, not one of the original
+          15 UX-audit findings. Widened to a safer margin rather than trying to
+          measure the footer's actual rendered height at runtime. */}
+      <main id="main-content" style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 140px' : '32px 20px 160px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>

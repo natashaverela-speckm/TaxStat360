@@ -376,6 +376,21 @@ export default function Dashboard() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasNumbers = nf(biz.grossRevenue) > 0
+
+  // UX AUDIT PASS5-F7b (Jul 2026): hasNumbers only checks biz.grossRevenue,
+  // which is a single-entity Schedule C/S-Corp field this quick-calc widget
+  // uses. A record built from K-1/multi-entity income (S-Corp, partnership,
+  // rental) can be fully computed with a real liability shown in "My Saved
+  // Records" below, yet biz.grossRevenue is legitimately $0 for it — so the
+  // "Ready to see your tax analysis?" banner below claimed the saved record
+  // "doesn't have complete revenue data" while a complete one sat right under
+  // it. Reused topLeversForRecord (the same engine-true summary the record
+  // cards already read from — ARCHITECTURE §3, never recompute locally) to
+  // gate the banner on whether the ACTUAL top record has real income, not on
+  // this narrow single-entity field. Found during a post-deploy regression
+  // pass, not one of the original 15 UX-audit findings.
+  const primaryRecordSummary = records[0] ? topLeversForRecord(records[0]).summary : { ok: false }
+  const primaryRecordHasData = primaryRecordSummary.ok && nf(primaryRecordSummary.grossIncome) !== 0
   // M2 (audit F-05): calcDashboard() now validates its engine inputs and throws
   // CalcInputError on corrupted state. Catch it here into a visible error card —
   // the alternative (the zeroed `safeCalc` fallback below) would render a $0 tracker
@@ -670,7 +685,7 @@ export default function Dashboard() {
           Tax Planning Dashboard
         </h1>
 
-        {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
+        {!hasNumbers && !primaryRecordHasData && !dismissedCompAlert && records.length > 0 && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ fontSize: 28, flexShrink: 0 }}>📊</div>
             <div style={{ flex: 1 }}>
