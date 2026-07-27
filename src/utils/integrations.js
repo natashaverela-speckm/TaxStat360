@@ -103,3 +103,25 @@ export function purgeLegacyIntegrationTokens() {
   localStorage.removeItem('ts360_xero_refresh')
   sessionStorage.removeItem('ts360_xero_refresh')
 }
+
+// ─── UX AUDIT PASS5-F3 (Jul 2026): stale "Connection failed" survives a fresh
+// start ──────────────────────────────────────────────────────────────────────
+//
+// `failed` is a per-device UI hint (see the module comment above) that is
+// deliberately never cleared by a normal page load — so a real, still-broken
+// connection keeps showing "Connection failed" across sessions instead of
+// silently going quiet. That's correct for a returning user revisiting the
+// SAME calculation.
+//
+// It's the wrong behavior for "Start New Calculation" / a persona preset,
+// though: those are an explicit "begin fresh" action (see clearStep1State()
+// in sessionState.js, which this pairs with), and a failed-connection flag
+// left over from an earlier attempt has no bearing on a new one. Call this
+// alongside clearStep1State() any time a fresh calculation starts. It clears
+// ONLY the transient failure flag — `connected` / `token` / `syncedAt` for a
+// provider that is genuinely linked are left untouched, exactly as before.
+export function clearIntegrationFailures() {
+  for (const providerId of INTEGRATION_PROVIDERS) {
+    localStorage.removeItem(integrationKey(providerId, 'failed'))
+  }
+}
