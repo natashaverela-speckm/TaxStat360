@@ -21,7 +21,7 @@ import { signOut } from '../utils/SignOut'
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from '../utils/entityPredicates.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE, SUCCESS_TEXT } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
@@ -685,9 +685,15 @@ export default function TaxReturn() {
           <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {/* UX AUDIT PASS5-F15 (Jul 2026): the nav buttons to the right (Dashboard/
+                AI/Settings) already shrink to short labels on mobile (see F17 FIX below),
+                but these breadcrumb steps didn't — "Personal Return" alone is wider than
+                a 375px viewport once combined with the logo, step circles, and separators,
+                forcing this whole bar into hidden horizontal scroll with no visible
+                affordance. Same isMobile pattern as the nav buttons, applied here too. */}
             {[
-              { n: 1, label: 'Entities', active: false, done: true  },
-              { n: 2, label: 'Personal Return', active: true,  done: false },
+              { n: 1, label: 'Entities', mobileLabel: 'Entities', active: false, done: true  },
+              { n: 2, label: 'Personal Return', mobileLabel: 'Return', active: true,  done: false },
               { n: 3, label: STEP3_LABEL, active: false, done: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -726,13 +732,13 @@ export default function TaxReturn() {
                         textDecoration: 'underline', textUnderlineOffset: 2,
                       }}
                     >
-                      {s.label}
+                      {isMobile ? s.mobileLabel : s.label}
                     </button>
                   ) : (
                     // AUDIT-4 FIX: step 2 ("Personal Return") is the current page —
                     // intentionally non-interactive (clicking "you are here" has
                     // nothing to navigate to). Left as plain text, same as before.
-                    <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{isMobile ? s.mobileLabel : s.label}</span>
                   )}
                 </div>
                 {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
@@ -1743,7 +1749,7 @@ export default function TaxReturn() {
                 // stays visible whenever a §199A limit is what drove the number, and says which.
                 { label: 'Business income deduction (§199A QBI)',         value: result.qbi,                               sign: -1,
                   hide: result.qbi === 0 && !result.qbiWageDataMissing,
-                  accent: result.qbiWageDataMissing ? R : '#059669',
+                  accent: result.qbiWageDataMissing ? R : SUCCESS_TEXT,
                   note: result.qbiWageDataMissing
                     ? 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.'
                     : undefined },
@@ -1771,7 +1777,7 @@ export default function TaxReturn() {
                     : undefined
                 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
-                { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
+                { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: SUCCESS_TEXT },
                 { label: '—', value: 0, divider: true },
                 { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },

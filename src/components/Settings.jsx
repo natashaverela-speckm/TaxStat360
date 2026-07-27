@@ -12,7 +12,7 @@ import { deleteOwnAccount } from '../utils/serverApi.js'
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
 // are untouched.
-import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, SUCCESS_TEXT } from '../lib/theme.js'
 
 function LOGO() {
   return <BrandLogo size={32} />
@@ -348,12 +348,12 @@ export default function Settings() {
               <button
                 onClick={handleEmailChange}
                 disabled={loading || emailSent || !emailInput || emailInput===email}
-                style={{padding:'9px 18px',background:emailSent?'#059669':B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput)?0.5:1}}
+                style={{padding:'9px 18px',background:emailSent?SUCCESS_TEXT:B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput)?0.5:1}}
               >
                 {emailSent ? '✓ Sent' : 'Send confirmation'}
               </button>
             </div>
-            {msg && !pwSent && <div style={{fontSize:13,color:emailSent?'#059669':'#DC2626',marginTop:8}}>{emailSent?'✓ ':''}{msg}</div>}
+            {msg && !pwSent && <div style={{fontSize:13,color:emailSent?SUCCESS_TEXT:'#DC2626',marginTop:8}}>{emailSent?'✓ ':''}{msg}</div>}
           </div>
 
           <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20}}>
@@ -362,11 +362,11 @@ export default function Settings() {
             <button
               onClick={handlePasswordReset}
               disabled={loading || pwSent}
-              style={{padding:'9px 18px',background:pwSent?'#059669':'#fff',color:pwSent?'#fff':N,border:`1px solid ${pwSent?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+              style={{padding:'9px 18px',background:pwSent?SUCCESS_TEXT:'#fff',color:pwSent?'#fff':N,border:`1px solid ${pwSent?SUCCESS_TEXT:'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
             >
               {pwSent ? '✓ Reset link sent' : 'Send password reset link'}
             </button>
-            {pwSent && <div style={{fontSize:13,color:'#059669',marginTop:8}}>✓ {msg}</div>}
+            {pwSent && <div style={{fontSize:13,color:SUCCESS_TEXT,marginTop:8}}>✓ {msg}</div>}
           </div>
         </div>
 
@@ -403,7 +403,7 @@ export default function Settings() {
                   <span style={{
                     fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,
                     background: mfaEnabled ? '#F0FDF4' : '#FEF9E7',
-                    color: mfaEnabled ? '#059669' : '#D97706',
+                    color: mfaEnabled ? SUCCESS_TEXT : '#D97706',
                     border: `1px solid ${mfaEnabled ? '#86EFAC' : '#FCD34D'}`
                   }}>
                     {mfaEnabled ? '✓ Enabled' : 'Not enabled'}
@@ -478,7 +478,7 @@ export default function Settings() {
                   <button
                     onClick={handleMfaVerify}
                     disabled={mfaLoading || mfaCode.length !== 6}
-                    style={{padding:'10px 20px',background:mfaCode.length===6?'#059669':'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
+                    style={{padding:'10px 20px',background:mfaCode.length===6?SUCCESS_TEXT:'#94A3B8',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:mfaCode.length===6?'pointer':'not-allowed'}}
                   >
                     {mfaLoading ? 'Verifying…' : 'Verify & Enable'}
                   </button>
@@ -491,7 +491,7 @@ export default function Settings() {
 
             {mfaStep === 'success' && (
               <div style={{marginTop:14,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:10,padding:'20px'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#059669',marginBottom:8}}>✓ Two-factor authentication is now active</div>
+                <div style={{fontSize:14,fontWeight:700,color:SUCCESS_TEXT,marginBottom:8}}>✓ Two-factor authentication is now active</div>
                 {mfaBackupCodes.length > 0 && (
                   <>
                     <div style={{fontSize:13,color:'#166534',marginBottom:12,lineHeight:1.5}}>
@@ -509,13 +509,13 @@ export default function Settings() {
                         const text = mfaBackupCodes.join('\n')
                         navigator.clipboard?.writeText(text)
                       }}
-                      style={{padding:'7px 16px',background:'#fff',color:'#059669',border:'1px solid #86EFAC',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer',marginRight:8}}
+                      style={{padding:'7px 16px',background:'#fff',color:SUCCESS_TEXT,border:'1px solid #86EFAC',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer',marginRight:8}}
                     >
                       Copy codes
                     </button>
                   </>
                 )}
-                <button onClick={resetMfaFlow} style={{padding:'7px 16px',background:'#059669',color:'#fff',border:'none',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>
+                <button onClick={resetMfaFlow} style={{padding:'7px 16px',background:SUCCESS_TEXT,color:'#fff',border:'none',borderRadius:7,fontWeight:600,fontSize:12,cursor:'pointer'}}>
                   Done
                 </button>
               </div>
@@ -569,7 +569,7 @@ export default function Settings() {
               <option value="120">2 hours</option>
             </select>
             {idleTimeout !== '0' && (
-              <div style={{fontSize:12,color:'#059669',marginTop:8}}>
+              <div style={{fontSize:12,color:SUCCESS_TEXT,marginTop:8}}>
                 ✓ You will be signed out after {idleTimeout} minutes of inactivity.
               </div>
             )}
@@ -584,7 +584,7 @@ export default function Settings() {
                   <div style={{fontSize:13,fontWeight:600,color:N}}>This browser</div>
                   <div style={{fontSize:12,color:SL,marginTop:2}}>Session started: {sessionDisplay}</div>
                 </div>
-                <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',background:'#F0FDF4',color:'#059669',borderRadius:20}}>Active</span>
+                <span style={{fontSize:13,fontWeight:700,padding:'3px 10px',background:'#F0FDF4',color:SUCCESS_TEXT,borderRadius:20}}>Active</span>
               </div>
             </div>
           </div>
@@ -603,7 +603,7 @@ export default function Settings() {
                     <div>
                       <div style={{fontSize:13,color:N,fontWeight: i===0?600:400}}>
                         {new Date(entry.timestamp).toLocaleString()}
-                        {i===0&&<span style={{marginLeft:8,fontSize:11,fontWeight:700,color:'#059669'}}>Current</span>}
+                        {i===0&&<span style={{marginLeft:8,fontSize:13,fontWeight:700,color:SUCCESS_TEXT}}>Current</span>}
                       </div>
                       {entry.userAgent && (
                         <div style={{fontSize:11,color:'#64748B',marginTop:2,maxWidth:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -630,7 +630,7 @@ export default function Settings() {
             </div>
             <button
               onClick={handleDataExport}
-              style={{flexShrink:0,padding:'9px 18px',background:exportDone?'#059669':'#fff',color:exportDone?'#fff':N,border:`1px solid ${exportDone?'#059669':'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
+              style={{flexShrink:0,padding:'9px 18px',background:exportDone?SUCCESS_TEXT:'#fff',color:exportDone?'#fff':N,border:`1px solid ${exportDone?SUCCESS_TEXT:'#E2E8F0'}`,borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
             >
               {exportDone ? '✓ Downloaded' : '⬇ Export data'}
             </button>

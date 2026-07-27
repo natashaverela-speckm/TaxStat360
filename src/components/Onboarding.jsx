@@ -80,6 +80,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   outside this file's scope but is called out in the comment below.
 
 import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from '../lib/constants.js'
+import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
 import { readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
@@ -112,7 +113,7 @@ special: /[^A-Za-z0-9]/.test(pass),
 }
 const score = Object.values(checks).filter(Boolean).length
 const LEVELS = ['', 'Weak', 'Fair', 'Strong', 'Very Strong']
-const COLORS = ['', '#dc2626', '#d97706', '#059669', '#2563EB']
+const COLORS = ['', '#dc2626', '#d97706', SUCCESS_TEXT, '#2563EB']
 return { score, checks, label: LEVELS[score] || '', color: COLORS[score] || '' }
 }
 
@@ -143,7 +144,7 @@ transition: 'background 0.2s',
 ].map(c => (
 <span key={c.key} style={{
 fontSize: 10, fontWeight: 600,
-color: checks[c.key] ? '#059669' : '#CBD5E1',
+color: checks[c.key] ? SUCCESS_TEXT : '#CBD5E1',
 display: 'flex', alignItems: 'center', gap: 2,
 }}>
 {checks[c.key] ? '✓' : '·'} {c.text}
@@ -175,6 +176,16 @@ const [loading,setLoading]=useState(false)
 const [renewOk,setRenewOk]=useState(false)
 const [err,setErr]=useState('')
 const [stripeReady,setStripeReady]=useState(false)
+// UX AUDIT PASS5-F2 (Jul 2026): the two-circle "Account Info / Trial Setup"
+// indicator below used to be static markup — both sections rendered on one
+// continuous scroll, so the "2" step never actually gated anything. `step`
+// now drives real gating: Step 1 (name/email/password) must pass validation
+// before Step 2 (plan, renewal disclosure, card) is reachable. This also
+// mitigates PASS5-F1 (card/legal shown before any value is established) by
+// deferring the plan selector, renewal terms, and card field behind a
+// deliberate "Continue" action instead of showing all of it on load.
+const [step,setStep]=useState(1)
+const [step1Err,setStep1Err]=useState('')
 const stripeRef=useRef(null)
 const elemRef=useRef(null)
 const cardRef=useRef(null)
@@ -203,6 +214,21 @@ function handleConfBlur() {
   } else {
     setConfErr('')
   }
+}
+
+// UX AUDIT PASS5-F2 (Jul 2026): Step 1 -> Step 2 gate. Mirrors the same
+// checks submit() already performs (kept in sync deliberately — submit()'s
+// checks are the final guard, this is the earlier, friendlier one) plus a
+// basic email-shape check so a mistyped address is caught before Stripe
+// even loads, not after the user has filled in payment details.
+function handleContinueStep1(){
+  if(!name.trim()){setStep1Err('Enter your full name.');return}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){setStep1Err('Enter a valid email address.');return}
+  if(pass.length<12){setStep1Err('Password must be at least 12 characters.');return}
+  if(pass!==conf){setStep1Err('Passwords do not match.');return}
+  setStep1Err('')
+  setStep(2)
+  window.scrollTo({top:0,behavior:'smooth'})
 }
 
 async function submit(e){
@@ -274,6 +300,79 @@ return(<Page>
 <span style={{background:'#EFF6FF',color:B,fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap'}}>{planLabel}</span>
 </div>
 
+{/* UX AUDIT PASS5-F2 (Jul 2026): stepper is now driven by real `step` state
+    instead of static markup — see handleContinueStep1() above. Step 1 shows
+    a checkmark once passed; Step 2 highlights only once reached. */}
+<div style={{display:'flex',alignItems:'center',marginBottom:20,padding:'12px 16px',background:'#F8FAFC',borderRadius:10,border:'1px solid #E2E8F0'}}>
+<div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
+<div style={{width:26,height:26,borderRadius:'50%',background:step>1?SUCCESS_TEXT:B,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>{step>1?'✓':'1'}</div>
+<div>
+<div style={{fontSize:12,fontWeight:700,color:step>1?SUCCESS_TEXT:B,lineHeight:1.2}}>Account Info</div>
+<div style={{fontSize:10,color:'#94A3B8',lineHeight:1.2}}>Name, email, password</div>
+</div>
+</div>
+<div style={{flex:'0 0 28px',height:2,background:step>1?SUCCESS_TEXT:'#E2E8F0',margin:'0 6px'}}/>
+<div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
+<div style={{width:26,height:26,borderRadius:'50%',background:step===2?B:'#E2E8F0',color:step===2?'#fff':'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
+<div>
+<div style={{fontSize:12,fontWeight:700,color:step===2?B:'#94A3B8',lineHeight:1.2}}>Trial Setup</div>
+<div style={{fontSize:10,color:step===2?'#94A3B8':'#CBD5E1',lineHeight:1.2}}>Card required · no charge until trial ends</div>
+</div>
+</div>
+</div>
+
+<form onSubmit={submit}>
+{step===1 && (<>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+<Field label="Full Name" val={name} set={setName} ph="Jane Smith" mb={0} autoComplete="name"/>
+<Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0} autoComplete="email"/>
+</div>
+
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
+<div>
+<label htmlFor="signup-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
+<PasswordInput
+id="signup-password"
+value={pass}
+onChange={e=>setPass(e.target.value)}
+placeholder="Min. 12 chars"
+autoComplete="new-password"
+/>
+</div>
+{/* O5 FIX: onBlur handler validates match immediately when the user leaves the
+    confirm field — before they scroll to the card section. confErr renders
+    inline below the field. The Field component now accepts an onBlur prop. */}
+<div>
+<label htmlFor="signup-confirm-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Confirm Password</label>
+<PasswordInput
+  id="signup-confirm-password"
+  value={conf}
+  onChange={e=>{setConf(e.target.value);if(confErr)setConfErr('')}}
+  onBlur={handleConfBlur}
+  placeholder="Repeat password"
+  autoComplete="new-password"
+  hasError={!!confErr}
+/>
+{/* O5 FIX: inline error shown immediately on blur — no scrolling required */}
+{confErr && (
+  <p style={{fontSize:11,color:'#DC2626',margin:'4px 0 0',fontWeight:600}}>{confErr}</p>
+)}
+</div>
+</div>
+<div style={{marginBottom:12}}>
+<PasswordStrength pass={pass} />
+</div>
+
+{/* UX AUDIT PASS5-F1/F2 (Jul 2026): plan selection, the renewal disclosure, and
+    card entry are no longer shown until the user deliberately continues past
+    account info — see Step 2 below. */}
+{step1Err && <div role="alert" style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{step1Err}</div>}
+<button type="button" onClick={handleContinueStep1} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
+<p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
+</>)}
+
+{step===2 && (<>
+<button type="button" onClick={()=>{setStep(1);window.scrollTo({top:0,behavior:'smooth'})}} style={{background:'none',border:'none',color:B,fontSize:12,fontWeight:600,cursor:'pointer',padding:0,marginBottom:16,display:'flex',alignItems:'center',gap:4}}>← Back to account info</button>
 {/* O6 FIX: Plan selector now shows a one-line feature summary under each plan
     name. Summaries come from PLAN_FEATURES in constants.js. The 'Professional'
     plan shows a 'Most popular' badge. Users can now choose their plan without
@@ -332,65 +431,6 @@ style={{background:'none',border:'none',fontSize:11,color:B,cursor:'pointer',tex
 </div>
 </div>
 
-{/* UX-02: Two-step progress indicator */}
-<div style={{display:'flex',alignItems:'center',marginBottom:20,padding:'12px 16px',background:'#F8FAFC',borderRadius:10,border:'1px solid #E2E8F0'}}>
-<div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
-<div style={{width:26,height:26,borderRadius:'50%',background:B,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>1</div>
-<div>
-<div style={{fontSize:12,fontWeight:700,color:B,lineHeight:1.2}}>Account Info</div>
-<div style={{fontSize:10,color:'#94A3B8',lineHeight:1.2}}>Name, email, password</div>
-</div>
-</div>
-<div style={{flex:'0 0 28px',height:2,background:'#E2E8F0',margin:'0 6px'}}/>
-<div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
-<div style={{width:26,height:26,borderRadius:'50%',background:'#E2E8F0',color:'#94A3B8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>2</div>
-<div>
-<div style={{fontSize:12,fontWeight:700,color:'#94A3B8',lineHeight:1.2}}>Trial Setup</div>
-<div style={{fontSize:10,color:'#CBD5E1',lineHeight:1.2}}>Card required · no charge until trial ends</div>
-</div>
-</div>
-</div>
-
-<form onSubmit={submit}>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-<Field label="Full Name" val={name} set={setName} ph="Jane Smith" mb={0} autoComplete="name"/>
-<Field label="Email" val={email} set={setEmail} type="email" ph="jane@co.com" mb={0} autoComplete="email"/>
-</div>
-
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:4}}>
-<div>
-<label htmlFor="signup-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Password</label>
-<PasswordInput
-id="signup-password"
-value={pass}
-onChange={e=>setPass(e.target.value)}
-placeholder="Min. 12 chars"
-autoComplete="new-password"
-/>
-</div>
-{/* O5 FIX: onBlur handler validates match immediately when the user leaves the
-    confirm field — before they scroll to the card section. confErr renders
-    inline below the field. The Field component now accepts an onBlur prop. */}
-<div>
-<label htmlFor="signup-confirm-password" style={{display:'block',fontSize:12,fontWeight:600,color:SL,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>Confirm Password</label>
-<PasswordInput
-  id="signup-confirm-password"
-  value={conf}
-  onChange={e=>{setConf(e.target.value);if(confErr)setConfErr('')}}
-  onBlur={handleConfBlur}
-  placeholder="Repeat password"
-  autoComplete="new-password"
-  hasError={!!confErr}
-/>
-{/* O5 FIX: inline error shown immediately on blur — no scrolling required */}
-{confErr && (
-  <p style={{fontSize:11,color:'#DC2626',margin:'4px 0 0',fontWeight:600}}>{confErr}</p>
-)}
-</div>
-</div>
-<div style={{marginBottom:12}}>
-<PasswordStrength pass={pass} />
-</div>
 
 {/* ── AUDIT F-8 (Jul 2026): AFFIRMATIVE auto-renewal disclosure ────────────────
 WAS: "No charge for 7 days. You will not be charged until after your free trial
@@ -453,6 +493,7 @@ By creating an account you agree to our{' '}
 <span style={{fontSize:11,color:SL,fontWeight:600}}>CPA-Compatible Export</span>
 </div>
 </div>
+</>)}
 </form>
 </Page>)
 }

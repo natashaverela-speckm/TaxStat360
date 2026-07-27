@@ -53,6 +53,7 @@ import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from '
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
 import { topLeversForRecord } from '../utils/topLevers.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from '../utils/sessionState.js'
+import { clearIntegrationFailures } from '../utils/integrations.js'
 import { parseMoney, nf } from '../utils/money.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
 // this file already declares a local `safeCalc` fallback object, so calcGuard's
@@ -68,7 +69,7 @@ import {
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
 } from '../lib/constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O, SUCCESS_TEXT } from '../lib/theme.js'
 import { fmt, pct, effectiveRate } from '../utils/money.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
@@ -539,6 +540,9 @@ export default function Dashboard() {
     if (!confirmOverwriteDirty('Starting a new calculation')) return
     writeDirtyFlag(false)
     clearStep1State()
+    // UX AUDIT PASS5-F3 (Jul 2026): a stale "Connection failed" flag from a
+    // prior attempt has no bearing on a fresh calculation — see integrations.js.
+    clearIntegrationFailures()
     setSavedRecordId(null)
     setLoadedRecord(null)
     nav('/calculate-tax')
@@ -570,6 +574,10 @@ export default function Dashboard() {
     if (!confirmOverwriteDirty('Starting a new calculation')) return
     writeDirtyFlag(false)
     clearStep1State()
+    // UX AUDIT PASS5-F3 (Jul 2026): same as startNewCalc() above — a persona
+    // preset is a "begin fresh" action too, so a leftover failed-connection
+    // flag from a previous session shouldn't greet a newly-templated entity.
+    clearIntegrationFailures()
     setSavedRecordId(null)
     setLoadedRecord(null)
     const type = PRESET_ENTITY_TYPE[label]
@@ -628,7 +636,11 @@ export default function Dashboard() {
             <strong>⚠ Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing.{' '}
             <a href="/terms" style={{ color: '#92400E', fontWeight: 700, textDecoration: 'underline' }}>View full disclaimer →</a>
           </div>
-          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Got it ✓</button>
+          {/* UX AUDIT PASS5-F13 (Jul 2026): white text on this amber measured 2.15:1
+              (WCAG AA needs 4.5:1 for 12px text). NAVY on the same background
+              measures 7.86:1 — swapped rather than darkening the amber itself,
+              since #F59E0B is the shared warning-banner color used elsewhere. */}
+          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: N, cursor: 'pointer' }}>Got it ✓</button>
         </div>
       )}
 
@@ -729,6 +741,26 @@ export default function Dashboard() {
           </div>
           <button onClick={startNewCalc} style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ New Calculation</button>
         </div>
+
+        {/* UX AUDIT PASS5-F7 (Jul 2026): the empty Dashboard previously showed
+            zero tax figures — no number, no preview, nothing — on the very first
+            screen a new user lands on, for a product whose whole promise is
+            "see your tax liability right now." Recommendation was either an
+            auto-redirect into the calculator or an illustrative sample card;
+            chose the sample card so a first-time user isn't moved off the
+            Dashboard without choosing to be. Clearly labeled EXAMPLE throughout
+            (badge, caption, and a fixed non-reactive number) so it can never be
+            mistaken for the user's own figures — it does not read from rec,
+            selectTaxSummary(), or any session state. */}
+        {records.length === 0 && (
+          <div style={{ background: N, borderRadius: 16, padding: '22px 24px', marginBottom: 16, color: '#fff', position: 'relative', overflow: 'hidden' }}>
+            <span style={{ position: 'absolute', top: 14, right: 16, fontSize: 10, fontWeight: 800, letterSpacing: '1px', background: 'rgba(255,255,255,0.15)', padding: '3px 9px', borderRadius: 20 }}>EXAMPLE</span>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>WHAT YOU'LL SEE HERE</div>
+            <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1, marginBottom: 6 }}>$42,374</div>
+            <div style={{ fontSize: 13, opacity: 0.75 }}>Est. federal tax liability · updates the moment you enter a figure</div>
+            <div style={{ fontSize: 12, opacity: 0.6, marginTop: 10 }}>Pick a starting point below to see your own number in under 5 minutes.</div>
+          </div>
+        )}
 
         {records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0' }}>
