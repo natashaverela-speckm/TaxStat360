@@ -382,6 +382,47 @@ export function Step1EstimateBadge({ entities }) {
   )
 }
 
+// UX AUDIT PASS5-F8 (Jul 2026): the running estimate was correct and reactive
+// (Step1EstimateBadge above, live since Phase 3.1) — the problem was purely
+// visual weight: 12px text sharing a sticky footer row with the entity count.
+// This card reads the SAME selectTaxSummary() selector (calcSelector.js's
+// documented multi-consumer pattern — AIAnalysis and Dashboard already call it
+// from more than one place each) so the number can never drift from the
+// footer's or Step 2's. Rendered once, near the top of Step 1, instead of only
+// in the footer.
+export function Step1EstimateCard({ entities }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const est = useMemo(() => selectTaxSummary(), [entities])
+  if (entities.length === 0) return null
+  const nothingEntered = est.ok && est.grossIncome === 0 && est.agi === 0 && est.totalTax === 0
+  if (!est.ok || nothingEntered) {
+    return (
+      <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: 16, padding: '18px 22px', marginBottom: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', color: '#94A3B8', marginBottom: 4 }}>PROVISIONAL FEDERAL ESTIMATE</div>
+        <div style={{ fontSize: 15, color: '#94A3B8' }}>Enter figures below to see a live number — full estimate in Step 2.</div>
+      </div>
+    )
+  }
+  if (est.agi <= 0 && est.totalTax === 0) {
+    return (
+      <div style={{ background: N, borderRadius: 16, padding: '18px 22px', marginBottom: 18, color: '#fff' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 6 }}>PROVISIONAL FEDERAL ESTIMATE</div>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Loss year — no regular federal tax on these figures</div>
+        <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>Details in Step 2</div>
+      </div>
+    )
+  }
+  return (
+    <div aria-live="polite" style={{ background: N, borderRadius: 16, padding: '18px 22px', marginBottom: 18, color: '#fff' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 6 }}>PROVISIONAL FEDERAL ESTIMATE</div>
+      <div style={{ fontSize: 32, fontWeight: 900, lineHeight: 1 }}>{fmt(est.totalTax)}</div>
+      {est.agi > 0 && (
+        <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>{`${((est.totalTax / est.agi) * 100).toFixed(1)}% of AGI · full estimate in Step 2`}</div>
+      )}
+    </div>
+  )
+}
+
 export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   // BUG-A ROOT FIX: the live-bind useEffect below has a stale closure on `entity`
   // because `entity` is intentionally excluded from the dep array (including it would
@@ -823,6 +864,8 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const isPartnership = /partner|mmllc/i.test(entity.type || '')   // F5
   const isPT   = isPassthroughEntity(entity.type)
   const isRE   = isRealEstateEntity(entity.type)
+  // UX AUDIT PASS5-F5 (Jul 2026): drives the collapsed-card badge above.
+  const nameMissing = !((entity.name ?? '').trim())
 
   // ── Findings 1 + 3 FIX — single source of truth for S-Corp basis math ────────
   // Mirrors taxCalc.js exactly so every badge and panel on this card agrees with the
@@ -935,8 +978,19 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
             {entity.connectedId && <span style={{ marginLeft: 8, color: G, fontWeight: 600 }}>● Synced</span>}
             {entity.isManual && <span style={{ marginLeft: 8, color: '#D97706', fontWeight: 600 }}>✏ Manual</span>}
           </div>
-          {!isExpanded && (basisBadge || distBadge) && (
+          {/* UX AUDIT PASS5-F5 (Jul 2026): a card with no name previously fell back
+              to showing entity.type in the header (below) with NO visual signal
+              that anything was wrong — the only clue lived in small, easy-to-miss
+              footer text. This badge follows the exact basisBadge/distBadge
+              pattern immediately above so a collapsed card shows its own problem
+              instead of making the user open every card to find it. */}
+          {!isExpanded && (nameMissing || basisBadge || distBadge) && (
             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+              {nameMissing && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#FFFBEB', color: '#78350F', border: '1px solid #FDE68A' }}>
+                  ⚠ Add a name — required to continue
+                </span>
+              )}
               {basisBadge && (
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: basisBadge.type === 'warn' ? '#FEF2F2' : basisBadge.type === 'amber' ? '#FFFBEB' : '#F0FDF4', color: basisBadge.type === 'warn' ? R : basisBadge.type === 'amber' ? '#78350F' : '#166534', border: '1px solid ' + (basisBadge.type === 'warn' ? '#FECACA' : basisBadge.type === 'amber' ? '#FDE68A' : '#86EFAC') }}>
                   {basisBadge.msg}
@@ -1107,16 +1161,18 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
                   matches the InfoTip tooltips inside each field. */}
               {!showQBI && (
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: -4, marginBottom: 6 }}>
-                  {/* NEW-6 FIX: previous text said "only needed if taxable income exceeds
-                      the threshold" — but the prior-year QBI loss carryforward must be
-                      tracked even in LOSS years when current QBI deduction = $0.
-                      Updated text covers both cases. IRC §199A(c)(2). */}
-                  {/* AUDIT: these figures were hardcoded, and the 2026 single-filer one was
-                      wrong — it used the MFS threshold (which equals the 32% bracket start)
-                      instead of the "all other returns" amount that single/HOH take under
-                      Rev. Proc. 2025-32 §4.26. Now bound to QBI_THRESHOLDS so a table update
-                      can never leave this prose stale again, per ARCHITECTURE §1: never
-                      hard-code a rate or threshold in JSX. */}
+                  {/* UX AUDIT PASS5-F6 (Jul 2026): this hint used to open directly with
+                      statute citations (§179, Treas. Reg. §1.199A-3, Form 8995) for an
+                      audience the product describes as business owners and real-estate
+                      investors, not CPAs. Added ONE plain-language line ahead of the
+                      existing technical text — the technical text itself is UNCHANGED,
+                      since its precision is load-bearing (thresholds, the §179 exception,
+                      the loss-year carryforward rule) and isn't something to paraphrase
+                      away. This is the pattern other AI Analysis strategy cards should
+                      follow: plain sentence first, technical detail right after it. */}
+                  <div style={{ fontSize: 12, color: N, fontWeight: 600, marginBottom: 4 }}>
+                    In plain terms: this can shrink the tax you owe on business profit by up to 20%. Most filers can skip it — it only matters once your income passes the threshold below, or you have rental property (every rental has this).
+                  </div>
                   Only needed if your taxable income exceeds the §199A threshold — about {fmt(QBI_THRESHOLDS[2025].single)} (single) or {fmt(QBI_THRESHOLDS[2025].mfj)} (MFJ) for 2025 ({fmt(QBI_THRESHOLDS[2026].single)} / {fmt(QBI_THRESHOLDS[2026].mfj)} for 2026) — except §179, which always reduces QBI regardless of income level (Treas. Reg. §1.199A-3(b)(1)(ii)(A)). K-1 charitable contributions do NOT reduce QBI or your K-1 ordinary income — they are an itemized deduction on Schedule A if you itemize (Form 8995 instructions, 2021–present). <strong>Also complete this section in loss years</strong> — the QBI loss carryforward (Form 8995 Line 3) must be tracked for future years even when the current-year deduction is $0 (IRC §199A(c)(2)).
                 </div>
               )}
@@ -1792,6 +1848,19 @@ export default function CalculateTaxInner() {
 
   const [entities,         setEntities]         = useState([])
   const [expandedIdx,      setExpandedIdx]      = useState(null)
+  // UX AUDIT PASS5-F5 (Jul 2026): the footer already knew an entity was unnamed
+  // (unnamedEntityCount, below) but only said so in text — nothing scrolled the
+  // user to the actual field. Reuses the same expand+scrollIntoView technique
+  // as the "Enter my figures manually" blank-entity handler.
+  const scrollToFirstUnnamedEntity = () => {
+    const idx = entities.findIndex(e => !((e?.name ?? '').trim()))
+    if (idx === -1) return
+    setExpandedIdx(idx)
+    setTimeout(() => {
+      const cards = document.querySelectorAll('[data-entity-card]')
+      if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
   const [showCompare,      setShowCompare]      = useState(false)
   const [showNameModal,    setShowNameModal]    = useState(false)
   const [showEntityPicker, setShowEntityPicker] = useState(false)
@@ -2391,6 +2460,10 @@ export default function CalculateTaxInner() {
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and your share of business income flow to your personal return in Step 2.</p>
         </div>
 
+        {/* UX AUDIT PASS5-F8 (Jul 2026): promoted running estimate — see
+            Step1EstimateCard above. */}
+        <Step1EstimateCard entities={entities} />
+
         {/* Tax year selector */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 700, color: N, flexShrink: 0 }}>Tax Year</label>
@@ -2610,16 +2683,19 @@ export default function CalculateTaxInner() {
                     <span>
                       {`${entities.length} entit${entities.length > 1 ? 'ies' : 'y'} added`}
                       {unnamedEntityCount > 0 && (
-                        <span style={{ marginLeft: 8, fontWeight: 700, color: '#B45309' }}>
-                          {` \u00b7 name ${unnamedEntityCount === 1 ? 'it' : 'all entities'} to continue`}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={scrollToFirstUnnamedEntity}
+                          style={{ marginLeft: 8, fontWeight: 700, color: '#B45309', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                        >
+                          {`\u00b7 name ${unnamedEntityCount === 1 ? 'it' : 'all entities'} to continue`}
+                        </button>
                       )}
                       {flowing !== 0 && (
                         <span style={{ marginLeft: 8, fontWeight: 700, color: flowing >= 0 ? N : R }}>
                           · {fmt(flowing)} flowing to your return{flowing < 0 ? ' (before Step-2 basis limits)' : ''}
                         </span>
                       )}
-                      <Step1EstimateBadge entities={entities} />
                     </span>
                   )
                 })()

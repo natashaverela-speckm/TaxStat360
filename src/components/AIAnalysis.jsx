@@ -26,8 +26,8 @@ import { summarizeRecord } from '../utils/calcSelector.js'
 // PHASE 2.5 (M8 disposition): simulator inputs join the live-comma standard.
 import MoneyInput from './MoneyInput.jsx'
 import { signOut } from '../utils/SignOut'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O } from '../lib/theme'
-import { fmt, pct, nf } from '../utils/money.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O, SUCCESS_TEXT } from '../lib/theme'
+import { fmt, pct, nf, effectiveRate } from '../utils/money.js'
 import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from '../utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
@@ -993,9 +993,10 @@ function TaxOptimization({ rec }) {
       })
     } else if (maxSEP > 0) {
       const sepTaxSaved = Math.round(maxSEP * marginalRate)
+      const sepIraPlainLead = `In plain terms: this lets you set aside part of this year's business profit into a retirement account before tax is calculated on it — the money isn't taxed now, which lowers what you owe today. `
       const sepDetail = isSCorpOwner
-        ? `SEP-IRA contributions are employer-only, based on your W-2 officer compensation (not K-1 income — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer compensation, the max SEP-IRA contribution is ${Math.round(SEP_IRA_RATE * 100)}% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max ${fmt(sepIraMax)}). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
-        : `You can contribute up to ${fmt(maxSEP)} (~${Math.round(SEP_IRA_SOLE_PROP_EFFECTIVE_RATE * 100)}% of net self-employment income after SE tax deduction, max ${fmt(sepIraMax)}) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
+        ? sepIraPlainLead + `SEP-IRA contributions are employer-only, based on your W-2 officer compensation (not K-1 income — IRC §402(h)). At ${fmt(totalOfficerSalary)} officer compensation, the max SEP-IRA contribution is ${Math.round(SEP_IRA_RATE * 100)}% × ${fmt(totalOfficerSalary)} = ${fmt(maxSEP)} (max ${fmt(sepIraMax)}). The S-Corp makes the contribution at the entity level, deductible on Form 1120-S.`
+        : sepIraPlainLead + `You can contribute up to ${fmt(maxSEP)} (~${Math.round(SEP_IRA_SOLE_PROP_EFFECTIVE_RATE * 100)}% of net self-employment income after SE tax deduction, max ${fmt(sepIraMax)}) to a SEP-IRA. This reduces your AGI dollar-for-dollar.`
 
       const sepDeadline = isSCorpOwner
         ? 'your S-Corp\'s tax return due date including extensions — typically September 15 for S-Corporations (Form 1120-S). Note: October 15 (the individual return extension) does NOT extend the S-Corp\'s SEP-IRA funding deadline.'
@@ -1141,7 +1142,7 @@ function TaxOptimization({ rec }) {
     opportunities.push({
       icon: '🏢', title: 'Bonus Depreciation', priority: 'high',
       saving: null,
-      detail: 'OBBBA (P.L. 119-21 §70301) made 100% bonus depreciation PERMANENT under IRC §168(k) for qualified property acquired after January 19, 2025 — the old TCJA phase-down (80%/60%/40%) no longer applies to new acquisitions. For rental real estate, a cost segregation study reclassifies part of the building into 5-, 7-, and 15-year property that qualifies for a full 100% first-year depreciation deduction. The building itself stays on 27.5-year (residential) or 39-year (commercial) straight-line MACRS. Caution: bonus depreciation creates §1245/§1250 recapture exposure on sale, and the resulting loss is still subject to the §469 passive activity rules — see \u201CTrack Your Real Estate Hours\u201D below.',
+      detail: 'In plain terms: this can let you deduct a large chunk of a rental property\u2019s value in year one instead of spreading it over decades, which can significantly cut this year\u2019s tax bill \u2014 though unlocking the full amount usually requires a paid cost segregation study. ' + 'OBBBA (P.L. 119-21 §70301) made 100% bonus depreciation PERMANENT under IRC §168(k) for qualified property acquired after January 19, 2025 — the old TCJA phase-down (80%/60%/40%) no longer applies to new acquisitions. For rental real estate, a cost segregation study reclassifies part of the building into 5-, 7-, and 15-year property that qualifies for a full 100% first-year depreciation deduction. The building itself stays on 27.5-year (residential) or 39-year (commercial) straight-line MACRS. Caution: bonus depreciation creates §1245/§1250 recapture exposure on sale, and the resulting loss is still subject to the §469 passive activity rules — see \u201CTrack Your Real Estate Hours\u201D below.',
       howTo: 'Get a cost segregation study on properties placed in service after Jan 19, 2025 (typically worthwhile above ~$300K of building basis). Enter the resulting first-year depreciation in the rental\u2019s Depreciation field in Step 1. Verify your §469 status on the same card — without REPS or the short-term-rental exception, the loss is suspended on Form 8582, not deducted.'
     })
 
@@ -1150,7 +1151,7 @@ function TaxOptimization({ rec }) {
       saving: null,
       // AUDIT F-12 FIX: hour-tracking alone unlocks nothing. State the actual tests
       // (same framing as the REP audit-response letter template in this file).
-      detail: 'Rental losses can offset your other income only if you qualify as a Real Estate Professional — BOTH §469(c)(7)(B) tests: (1) more than 750 hours in real-property trades or businesses during the year, AND (2) more than half of ALL your personal-service hours in those businesses — plus material participation in each rental (or the §1.469-9(g) aggregation election covering your whole portfolio). Alternative path: short-term rentals with average guest stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)), so material participation alone (e.g., the 100-hour-and-most-participation or 500-hour tests, Reg. §1.469-5T) makes those losses nonpassive without REPS. Contemporaneous hour logs are what survive exam — reconstruct-after-the-fact records routinely fail in Tax Court. Coupled with 100% bonus depreciation, either path can be a powerful planning tool.',
+      detail: 'In plain terms: rental losses don\u2019t automatically offset your other income \u2014 the IRS only allows that if you can prove, with real contemporaneous records, that real estate is close to a full-time job for you (or your rentals qualify as short-term rentals). ' + 'Rental losses can offset your other income only if you qualify as a Real Estate Professional — BOTH §469(c)(7)(B) tests: (1) more than 750 hours in real-property trades or businesses during the year, AND (2) more than half of ALL your personal-service hours in those businesses — plus material participation in each rental (or the §1.469-9(g) aggregation election covering your whole portfolio). Alternative path: short-term rentals with average guest stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)), so material participation alone (e.g., the 100-hour-and-most-participation or 500-hour tests, Reg. §1.469-5T) makes those losses nonpassive without REPS. Contemporaneous hour logs are what survive exam — reconstruct-after-the-fact records routinely fail in Tax Court. Coupled with 100% bonus depreciation, either path can be a powerful planning tool.',
       howTo: 'Keep a contemporaneous log (date, property, activity, hours). Set REP status and material participation / the aggregation election on each rental card in Step 1 — the engine only treats losses as nonpassive when those flags are set and the hours tests are met.'
     })
   }
@@ -1161,7 +1162,7 @@ function TaxOptimization({ rec }) {
   const _priorityRank = { high: 0, medium: 1, low: 2 }
   opportunities.sort((a, b) => (_priorityRank[a.priority] ?? 3) - (_priorityRank[b.priority] ?? 3))
 
-  const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: G }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
+  const priorityColors = { high: { bg: '#F0FDF4', border: '#86EFAC', badge: SUCCESS_TEXT }, medium: { bg: '#EFF6FF', border: '#93C5FD', badge: B }, low: { bg: '#F5F3FF', border: '#C4B5FD', badge: P } }
 
   return (
     <div>
@@ -1181,8 +1182,14 @@ function TaxOptimization({ rec }) {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 700, color: N, fontSize: 14 }}>{o.title}</span>
-                      {o.saving && <span style={{ fontSize: 11, background: '#F0FDF4', color: G, border: '1px solid #86EFAC', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Save ~{fmt(o.saving)}</span>}
-                      <span style={{ fontSize: 11, background: c.bg, color: c.badge, border: '1px solid ' + c.border, borderRadius: 10, padding: '2px 8px', fontWeight: 700, textTransform: 'uppercase' }}>{o.priority} impact</span>
+                      {/* UX AUDIT PASS5-F12/F14 (Jul 2026): both badges measured 3.15-3.30:1
+                          against their light backgrounds (G = theme's GREEN, #16a34a) —
+                          below WCAG AA's 4.5:1 for normal text, on the exact figures meant
+                          to persuade a user to act. Swapped for SUCCESS_TEXT (#166534,
+                          6.8:1+) and bumped 11px -> 13px, since 11px compounds the same
+                          problem. priorityColors.badge below gets the same swap for 'high'. */}
+                      {o.saving && <span style={{ fontSize: 13, background: '#F0FDF4', color: SUCCESS_TEXT, border: '1px solid #86EFAC', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>Save ~{fmt(o.saving)}</span>}
+                      <span style={{ fontSize: 13, background: c.bg, color: c.badge, border: '1px solid ' + c.border, borderRadius: 10, padding: '2px 8px', fontWeight: 700, textTransform: 'uppercase' }}>{o.priority} impact</span>
                     </div>
                   </div>
                 </div>
@@ -1951,7 +1958,7 @@ function SimulatorModal({ onClose, rec }) {
   const chg = (baseVal, scenVal) => {
     const diff = scenVal - baseVal
     if (diff === 0) return null
-    return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':'#059669',marginLeft:6}}>{diff>0?'↑+'+fmt(diff):'↓'+fmt(Math.abs(diff))}</span>
+    return <span style={{fontSize:11,fontWeight:700,color:diff>0?'#DC2626':SUCCESS_TEXT,marginLeft:6}}>{diff>0?'↑+'+fmt(diff):'↓'+fmt(Math.abs(diff))}</span>
   }
 
   // F15 FIX: Step 2 estimate for the reconciliation line
@@ -1962,7 +1969,7 @@ function SimulatorModal({ onClose, rec }) {
     { id:'adv30',   icon:'📣', label:'$30K Advertising',    color:'#D97706' },
     { id:'equip20', icon:'🔧', label:'$20K Equipment',       color:'#2563EB' },
     { id:'equip50', icon:'🏗️', label:'$50K Equipment',       color:'#7C3AED' },
-    { id:'sep',     icon:'🏦', label:'Max SEP-IRA',          color:'#059669' },
+    { id:'sep',     icon:'🏦', label:'Max SEP-IRA',          color:SUCCESS_TEXT },
     { id:'revenue', icon:'📈', label:'+$50K Gross Receipts',        color:'#0891B2' },
     { id:'salary',  icon:'💼', label:'+$20K Salary',         color:'#475569' },
     { id:'custom',  icon:'✏️', label:'Custom',               color:'#64748B' },
@@ -1988,7 +1995,7 @@ function SimulatorModal({ onClose, rec }) {
       <div style={{padding:'24px 28px',fontFamily:'Inter,sans-serif'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:'#059669',letterSpacing:'1px',marginBottom:3}}>WHAT-IF TAX SIMULATOR</div>
+            <div style={{fontSize:11,fontWeight:700,color:SUCCESS_TEXT,letterSpacing:'1px',marginBottom:3}}>WHAT-IF TAX SIMULATOR</div>
             <h2 style={{fontSize:20,fontWeight:800,color:'#0D1B3E',margin:'0 0 3px'}}>How would this affect my taxes?</h2>
             <div style={{fontSize:12,color:'#64748B'}}>{entity} · Tax Year {taxYear} · {filing.toUpperCase()} · Changes don't affect your saved record</div>
           </div>
@@ -2066,7 +2073,7 @@ function SimulatorModal({ onClose, rec }) {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',marginTop:4}}>
                   <span style={{fontSize:13,fontWeight:700,color:'#0D1B3E'}}>{FINANCIAL_LABELS.netBusinessIncome}</span>
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.netBizIncome))}</span>
+                    <span style={{fontSize:15,fontWeight:800,color:scenario.netBizIncome>=0?SUCCESS_TEXT:'#DC2626'}}>{fmt(Math.round(scenario.netBizIncome))}</span>
                     {chg(baseline.netBizIncome, scenario.netBizIncome)}
                   </div>
                 </div>
@@ -2097,11 +2104,11 @@ function SimulatorModal({ onClose, rec }) {
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <div style={{fontSize:11,color:'#64748B',textDecoration:'line-through'}}>{fmt(Math.round(baseline.totalTax ?? baseline.fedTax))} before</div>
-                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:taxSaving>0?SUCCESS_TEXT:'#DC2626'}}>{fmt(Math.round(scenario.totalTax ?? scenario.fedTax))}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>{taxSaving>0?'YOU SAVE':'ADDITIONAL TAX'}</div>
-                      <div style={{fontSize:26,fontWeight:800,color:taxSaving>0?'#059669':'#DC2626'}}>
+                      <div style={{fontSize:26,fontWeight:800,color:taxSaving>0?SUCCESS_TEXT:'#DC2626'}}>
                         {fmt(Math.abs(Math.round(taxSaving)))}
                       </div>
                     </div>
@@ -2116,7 +2123,7 @@ function SimulatorModal({ onClose, rec }) {
                 <span style={{color:'#CBD5E1'}}>│</span>
                 <span>vs. your Step 2 estimate: <strong style={{color:N}}>{fmt(step2Estimate)}</strong></span>
                 <span style={{color:'#CBD5E1'}}>│</span>
-                <span>Difference: <strong style={{color: (scenario.totalTax ?? scenario.fedTax) < step2Estimate ? '#059669' : '#DC2626'}}>{(scenario.totalTax ?? scenario.fedTax) < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round((scenario.totalTax ?? scenario.fedTax) - step2Estimate)))}</strong></span>
+                <span>Difference: <strong style={{color: (scenario.totalTax ?? scenario.fedTax) < step2Estimate ? SUCCESS_TEXT : '#DC2626'}}>{(scenario.totalTax ?? scenario.fedTax) < step2Estimate ? '−' : '+'}{fmt(Math.abs(Math.round((scenario.totalTax ?? scenario.fedTax) - step2Estimate)))}</strong></span>
                 <span style={{fontSize: 11,color:'#64748B'}}>(includes income tax, SE tax, NIIT, AMT — matches Step 2)</span>
               </div>
             )}
@@ -2260,7 +2267,15 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Reports & Tools</h3>
         <p style={{ fontSize: 13, color: SL, margin: 0 }}>Four tools built for your CPA relationship and IRS preparedness.</p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* UX AUDIT PASS5-F11 (Jul 2026): Aria's floating launcher is position:fixed,
+          bottom:80, right:24 (see Aria.jsx) and spans roughly the rightmost 150px of
+          the viewport at that height. Each tool card's action button sits flush against
+          this container's right edge (alignSelf:'flex-start', flexShrink:0), so on
+          narrower/tablet widths the "Generate Report" button was landing directly under
+          the widget. Same compensation pattern as CalculateTaxInner.jsx's P0 FIX:
+          reserve paddingRight so the rightmost interactive element always clears Aria,
+          instead of patching each button individually. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 90 }}>
         {tools.map(t => {
           // PHASE 3.4 (mobile check D1): flexWrap + a real flex-basis on the text
           // column — on a phone the fixed icon+button columns were squeezing the
@@ -2398,6 +2413,15 @@ export default function AIAnalysis() {
   const rec = getRecord(liveState)
   const score = completeness(rec)
   const missing = missingFields(rec)
+
+  // UX AUDIT PASS5-F9 (Jul 2026): persistent liability summary — engine truth via
+  // summarizeRecord(), the single-sourced figure every other surface on this page
+  // already reads from (see R-2/3.1/3.2 cures above). Never recomputed locally.
+  const engSummary = summarizeRecord(rec)
+  const headlineTax = engSummary.ok ? engSummary.totalTax : (nf(rec?.totalTax) || 0)
+  const headlineRate = engSummary.ok && engSummary.agi > 0 ? effectiveRate(engSummary.totalTax, engSummary.agi) : null
+  const headlineQuarterly = engSummary.ok && (engSummary.quarterlyRecommended || 0) > 0 ? engSummary.quarterlyRecommended : (nf(rec?.quarterly) || 0)
+  const headlineHasData = score > 0
 
   if (!isPro()) {
     return (
@@ -2539,6 +2563,49 @@ export default function AIAnalysis() {
                 )}
               </div>
             ) : null}
+          </div>
+        </div>
+
+        {/* UX AUDIT PASS5-F9 (Jul 2026): persistent liability summary — the estimate
+            used to live only inside the What-If Simulator (Reports & Tools tab), so
+            switching to Audit Risk Scan or IRS Schedule Map lost the number entirely.
+            This strip stays visible across every tab. Mirrors Dashboard.jsx's saved-
+            record summary strip for visual/behavioral consistency. */}
+        <div style={{
+          display: 'flex', gap: 0, flexWrap: 'wrap',
+          background: '#fff', borderRadius: 10,
+          border: '1px solid #E2E8F0', overflow: 'hidden',
+          marginBottom: 16,
+        }}>
+          <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', flex: 1, minWidth: 160 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 3 }}>{federalTaxHeadlineLabel(engSummary.ok ? engSummary.seTax : rec?.seTax)}</div>
+            {headlineHasData ? (
+              <div style={{ fontSize: 18, fontWeight: 800, color: headlineTax > 0 ? R : SUCCESS_TEXT }}>
+                {headlineTax > 0 ? fmt(Math.round(headlineTax)) : '$0'}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: SL, fontStyle: 'italic', lineHeight: 1.4, paddingTop: 2 }}>
+                Add figures in Tax Tracker for an estimate
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
+            {engSummary.ok && engSummary.agi <= 0 && headlineHasData ? (
+              <div style={{ fontSize: 12, fontWeight: 600, color: SL }}>n/a (loss year)</div>
+            ) : headlineRate !== null ? (
+              <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{headlineRate}%</div>
+            ) : (
+              <div style={{ fontSize: 12, color: SL }}>—</div>
+            )}
+          </div>
+          <div style={{ padding: '10px 18px', minWidth: 130 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
+            {headlineQuarterly > 0 ? (
+              <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(headlineQuarterly))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
+            ) : (
+              <div style={{ fontSize: 12, color: SL }}>—</div>
+            )}
           </div>
         </div>
 
