@@ -299,7 +299,7 @@ export default function Dashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
   const [biz, setBiz] = useState({
-    entityType: 'S Corporation', year: 2025, ownershipPct: '100',
+    entityType: 'S Corporation', year: CURRENT_TAX_YEAR, ownershipPct: '100',
     grossRevenue: '', cogs: '', operatingExpenses: '', officerSalary: '',
     depreciation: '', advertising: '', otherDeductions: '', ccorpDividends: '',
   })
