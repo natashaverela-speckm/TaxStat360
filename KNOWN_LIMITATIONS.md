@@ -273,32 +273,38 @@ need review.
 Until then, a limited partner who does not materially participate is outside the tool's
 supported scope.
 
-## PARTNER-BASIS — active-partner outside basis / §704(d) / §465 not modeled
+## PARTNER-BASIS — active-partner outside-basis §704(d) — RESOLVED (Pass 5, Jul 25 2026); §465/§469 remain unmodeled
 
-Added Jul 24, 2026 (independent audit F5). Complements PASSIVE-PARTNER above.
-The S-corp path applies a full §1366(d) stock/debt-basis limit (Form 7203). The
-**partnership path has no basis section at all** — a partner's outside basis
-(including share of liabilities under §752), the §704(d) basis limit, and the
-§465 at-risk limit are not applied. An *active* partnership LOSS therefore flows
-through in full regardless of basis. To close: add a partnership outside-basis
-panel feeding a §704(d) → §465 → §469 loss-limitation chain (mirror the S-corp
-`scBasis` / engine `entityBasisResults` design).
+Partially resolved. A §704(d) outside-basis panel now lives in
+`CalculateTaxInner.jsx` (search "F5 (audit, Jul 2026)"): outside basis
+(contributions + §752 share of liabilities, per §722/§752) feeds a real
+loss-limitation chain — a partnership loss in excess of basis is SUSPENDED and
+carried forward, matching the S-corp `scBasis` design. What remains open,
+disclosed in-app rather than silently applied: the §465 at-risk limit and the
+§469 passive-activity limit are explicitly NOT modeled (the outside-basis
+InfoTip says so directly) — only the §704(d) leg of the chain closes here. A
+partner whose deductible loss is further capped by at-risk or passive rules
+will see a larger allowed loss than the correct figure. Closing §465/§469
+remains future work; not yet scheduled.
 
-## GP-QBI — guaranteed payments not modeled (audit F4)
+## GP-QBI — guaranteed payments — RESOLVED (Pass 5, Jul 25 2026)
 
-The Partnership/LLC entity has no guaranteed-payment (K-1 Box 4) input. Guaranteed
-payments folded into net income are (wrongly) included in the §199A QBI base — they
-must be EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)) while remaining SE earnings
-for active members (§707(c); §1402(a)). Fix: add the field; exclude from QBI, keep in SE.
+A guaranteed-payments (K-1 Box 4) field now exists on the Partnership/LLC
+entity (`entity.guaranteedPayments`, `CalculateTaxInner.jsx`). The engine
+(`taxCalc.js`) adds it to SE earnings and gross income (`guaranteedPaymentsTotal`
+folded into `grossIncomeBeforeNOL`) while excluding it from the §199A QBI base
+(`qbiBasis = ... - guaranteedPaymentsTotal`) — matching Reg. §1.199A-3(b)(2)(ii)(A)
+and §707(c)/§1402(a). Covered by `taxCalc-guaranteed-payments.test.js`.
 
-## QBI-AGG-DEFAULT — §199A aggregation assumed ON (audit F6)
+## QBI-AGG-DEFAULT — §199A aggregation opt-in — RESOLVED (Pass 5, Jul 25 2026)
 
-`_calcQBI` (taxCalc.js) sets `aggregationApplied = hasMultiEntityTypes &&
-taxableBeforeQBI > threshold` — it pools W-2 wages across entities with no user
-election, which can OVERSTATE QBI when a high-wage entity subsidizes a zero-wage one.
-Reg. §1.199A-4 aggregation requires a formal, consistent election. Fix: gate behind an
-opt-in flag (default off; compute per-business otherwise), following the `qbiEligible`
-opt-in precedent (taxCalc-a6-optin.test.js). A disclosure already renders when applied.
+`_calcQBI` (taxCalc.js) now gates aggregation behind `electQbiAggregation`
+(default `false`; `aggregationApplied = electQbiAggregation && entityQbiData.length > 1
+&& taxableBeforeQBI > threshold`), surfaced as an explicit opt-in checkbox on
+the return page (`TaxReturn.jsx`, "§199A aggregation election"). Per-business
+wage/UBIA limits apply unless the taxpayer affirmatively elects, per Reg.
+§1.199A-4. Covered by `taxCalc-qbi-aggregation.test.js`. The disclosure still
+renders only when aggregation is actually applied.
 
 ## SCOPE-GAPS — features intentionally not modeled (surface to users)
 
