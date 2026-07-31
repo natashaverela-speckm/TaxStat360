@@ -53,7 +53,6 @@ import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from '
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
 import { topLeversForRecord } from '../utils/topLevers.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from '../utils/sessionState.js'
-import { clearIntegrationFailures } from '../utils/integrations.js'
 import { parseMoney, nf } from '../utils/money.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
 // this file already declares a local `safeCalc` fallback object, so calcGuard's
@@ -64,15 +63,15 @@ import { signOut } from '../utils/SignOut'
 import BrandLogo from './BrandLogo'
 import {
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD,
-  SCORP_REASONABLE_COMP_GUIDELINE_RANGE,
   CURRENT_TAX_YEAR,
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
 } from '../lib/constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O, SUCCESS_TEXT } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from '../lib/theme.js'
 import { fmt, pct, effectiveRate } from '../utils/money.js'
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
+import InfoTip from './InfoTip.jsx'
 
 // Module-1 fix (F1/F2): the Dashboard previously carried its OWN copy of
 // normalizeEntityType and then gated on PASSTHROUGH_ENTITY_TYPES.includes(biz.entityType).
@@ -182,7 +181,7 @@ export function calcDashboard(biz, f1040) {
       triggered: core.triggered,
       ratio: core.ratioPct,
       sal: Math.round(sal),
-      k1NetIncome: Math.round(Math.max(0, k1)),
+      distributions: Math.round(Math.max(0, k1)),
       // OBS-7 RESOLVED (Batch 7): adopts the core's hedged wording — one message everywhere.
       message: core.message,
     }
@@ -299,7 +298,7 @@ export default function Dashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
   const [biz, setBiz] = useState({
-    entityType: 'S Corporation', year: CURRENT_TAX_YEAR, ownershipPct: '100',
+    entityType: 'S Corporation', year: 2025, ownershipPct: '100',
     grossRevenue: '', cogs: '', operatingExpenses: '', officerSalary: '',
     depreciation: '', advertising: '', otherDeductions: '', ccorpDividends: '',
   })
@@ -376,21 +375,6 @@ export default function Dashboard() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasNumbers = nf(biz.grossRevenue) > 0
-
-  // UX AUDIT PASS5-F7b (Jul 2026): hasNumbers only checks biz.grossRevenue,
-  // which is a single-entity Schedule C/S-Corp field this quick-calc widget
-  // uses. A record built from K-1/multi-entity income (S-Corp, partnership,
-  // rental) can be fully computed with a real liability shown in "My Saved
-  // Records" below, yet biz.grossRevenue is legitimately $0 for it — so the
-  // "Ready to see your tax analysis?" banner below claimed the saved record
-  // "doesn't have complete revenue data" while a complete one sat right under
-  // it. Reused topLeversForRecord (the same engine-true summary the record
-  // cards already read from — ARCHITECTURE §3, never recompute locally) to
-  // gate the banner on whether the ACTUAL top record has real income, not on
-  // this narrow single-entity field. Found during a post-deploy regression
-  // pass, not one of the original 15 UX-audit findings.
-  const primaryRecordSummary = records[0] ? topLeversForRecord(records[0]).summary : { ok: false }
-  const primaryRecordHasData = primaryRecordSummary.ok && nf(primaryRecordSummary.grossIncome) !== 0
   // M2 (audit F-05): calcDashboard() now validates its engine inputs and throws
   // CalcInputError on corrupted state. Catch it here into a visible error card —
   // the alternative (the zeroed `safeCalc` fallback below) would render a $0 tracker
@@ -555,9 +539,6 @@ export default function Dashboard() {
     if (!confirmOverwriteDirty('Starting a new calculation')) return
     writeDirtyFlag(false)
     clearStep1State()
-    // UX AUDIT PASS5-F3 (Jul 2026): a stale "Connection failed" flag from a
-    // prior attempt has no bearing on a fresh calculation — see integrations.js.
-    clearIntegrationFailures()
     setSavedRecordId(null)
     setLoadedRecord(null)
     nav('/calculate-tax')
@@ -589,10 +570,6 @@ export default function Dashboard() {
     if (!confirmOverwriteDirty('Starting a new calculation')) return
     writeDirtyFlag(false)
     clearStep1State()
-    // UX AUDIT PASS5-F3 (Jul 2026): same as startNewCalc() above — a persona
-    // preset is a "begin fresh" action too, so a leftover failed-connection
-    // flag from a previous session shouldn't greet a newly-templated entity.
-    clearIntegrationFailures()
     setSavedRecordId(null)
     setLoadedRecord(null)
     const type = PRESET_ENTITY_TYPE[label]
@@ -651,11 +628,7 @@ export default function Dashboard() {
             <strong>⚠ Estimation Tool Only:</strong> TaxStat360 calculates tax estimates for planning purposes only. This is not professional tax advice. Consult a licensed CPA before filing.{' '}
             <a href="/terms" style={{ color: '#92400E', fontWeight: 700, textDecoration: 'underline' }}>View full disclaimer →</a>
           </div>
-          {/* UX AUDIT PASS5-F13 (Jul 2026): white text on this amber measured 2.15:1
-              (WCAG AA needs 4.5:1 for 12px text). NAVY on the same background
-              measures 7.86:1 — swapped rather than darkening the amber itself,
-              since #F59E0B is the shared warning-banner color used elsewhere. */}
-          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: N, cursor: 'pointer' }}>Got it ✓</button>
+          <button onClick={dismissDisclaimer} style={{ flexShrink: 0, background: '#F59E0B', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Got it ✓</button>
         </div>
       )}
 
@@ -685,13 +658,13 @@ export default function Dashboard() {
           Tax Planning Dashboard
         </h1>
 
-        {!hasNumbers && !primaryRecordHasData && !dismissedCompAlert && records.length > 0 && (
+        {!hasNumbers && !dismissedCompAlert && records.length > 0 && (
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ fontSize: 28, flexShrink: 0 }}>📊</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', marginBottom: 6 }}>Ready to see your tax analysis?</div>
               <div style={{ fontSize: 13, color: '#3B82F6', lineHeight: 1.6, marginBottom: 12 }}>
-                Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business revenue and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
+                Your saved records don't have complete revenue data on file. Load a record and complete Step 1 with your business income and expenses to see S-Corp alerts, reasonable compensation analysis, and quarterly estimates here.
               </div>
               <button onClick={startNewCalc} style={{ padding: '8px 18px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Open Tax Tracker →</button>
             </div>
@@ -711,7 +684,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ fontSize: 13, color: '#991B1B', marginBottom: 10, fontWeight: 600 }}>
-                Formula: Salary ÷ (Salary + K-1 Net Income)
+                Formula: Salary ÷ (Salary + Distributions)
               </div>
               <div style={{
                 background: 'rgba(153,27,27,0.06)', borderRadius: 8, padding: '10px 14px',
@@ -722,20 +695,20 @@ export default function Dashboard() {
                   {' ÷ ('}
                   {fmt(safeCalc.reasonableCompAlert.sal ?? 0)}
                   {' + '}
-                  {fmt(safeCalc.reasonableCompAlert.k1NetIncome ?? 0)}
+                  {fmt(safeCalc.reasonableCompAlert.distributions ?? 0)}
                   {') = '}
                 </span>
                 <strong style={{ color: '#DC2626', fontSize: 15 }}>
                   {safeCalc.reasonableCompAlert.ratio ?? 0}%
                 </strong>
-                <span style={{ color: '#991B1B', fontSize: 12 }}> (practitioner-cited range: ~{SCORP_REASONABLE_COMP_GUIDELINE_RANGE})</span>
+                <span style={{ color: '#991B1B', fontSize: 12 }}> (threshold: ≥40%)</span>
               </div>
 
               <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 8 }}>
                 {safeCalc.reasonableCompAlert.message}
               </div>
               <div style={{ fontSize: 13, color: '#991B1B', lineHeight: 1.5, background: 'rgba(153,27,27,0.08)', borderRadius: 6, padding: '8px 12px' }}>
-                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the {SCORP_REASONABLE_COMP_GUIDELINE_RANGE} practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
+                <strong>Recommended action:</strong> Consider increasing your officer W-2 compensation to bring it within the 35–45% practitioner-recommended range. Discuss the appropriate amount with your CPA — the correct salary depends on your specific role, hours, industry, and comparable pay.{' '}
                 <a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues" target="_blank" rel="noopener noreferrer" style={{ color: '#991B1B', textDecoration: 'underline', fontWeight: 600 }}>IRS guidance on S-Corp compensation →</a>
               </div>
             </div>
@@ -756,26 +729,6 @@ export default function Dashboard() {
           </div>
           <button onClick={startNewCalc} style={{ padding: '10px 20px', background: B, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ New Calculation</button>
         </div>
-
-        {/* UX AUDIT PASS5-F7 (Jul 2026): the empty Dashboard previously showed
-            zero tax figures — no number, no preview, nothing — on the very first
-            screen a new user lands on, for a product whose whole promise is
-            "see your tax liability right now." Recommendation was either an
-            auto-redirect into the calculator or an illustrative sample card;
-            chose the sample card so a first-time user isn't moved off the
-            Dashboard without choosing to be. Clearly labeled EXAMPLE throughout
-            (badge, caption, and a fixed non-reactive number) so it can never be
-            mistaken for the user's own figures — it does not read from rec,
-            selectTaxSummary(), or any session state. */}
-        {records.length === 0 && (
-          <div style={{ background: N, borderRadius: 16, padding: '22px 24px', marginBottom: 16, color: '#fff', position: 'relative', overflow: 'hidden' }}>
-            <span style={{ position: 'absolute', top: 14, right: 16, fontSize: 10, fontWeight: 800, letterSpacing: '1px', background: 'rgba(255,255,255,0.15)', padding: '3px 9px', borderRadius: 20 }}>EXAMPLE</span>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', opacity: 0.6, marginBottom: 8 }}>WHAT YOU'LL SEE HERE</div>
-            <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1, marginBottom: 6 }}>$42,374</div>
-            <div style={{ fontSize: 13, opacity: 0.75 }}>Est. federal tax liability · updates the moment you enter a figure</div>
-            <div style={{ fontSize: 12, opacity: 0.6, marginTop: 10 }}>Pick a starting point below to see your own number in under 5 minutes.</div>
-          </div>
-        )}
 
         {records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0' }}>
@@ -924,7 +877,13 @@ export default function Dashboard() {
 
                     {/* Effective rate */}
                     <div style={{ padding: '10px 18px', borderRight: '1px solid #E2E8F0', minWidth: 120 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>EFFECTIVE RATE</div>
+                      {/* INDEPENDENT REVIEW FIX (Jul 31, 2026) — see the matching note in
+                          TaxReturn.jsx: this figure is tax ÷ AGI, not tax ÷ taxable income.
+                          Same tooltip copy so the explanation is identical wherever the stat appears. */}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        EFFECTIVE RATE
+                        <InfoTip label="Effective rate basis" text="This is your total federal tax divided by your Adjusted Gross Income (AGI) — income before the standard/itemized deduction and the §199A QBI deduction. Dividing by taxable income instead would show a higher percentage; TaxStat360 uses AGI everywhere (this tile, the Personal Return card, and the AI Analysis summary) so the number means the same thing wherever you see it." />
+                      </div>
                       {engOk && eng.agi <= 0 ? (
                         /* PHASE 3.3 (UX F15): a loss year is not "—" and not "0.0%" —
                            the honest label, single-sourced wording (see effRateLabel). */
