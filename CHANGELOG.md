@@ -12,6 +12,48 @@ record of work that predates this changelog.
 
 ---
 
+## Independent audit follow-up — July 31, 2026
+
+Owner-commissioned independent launch-readiness review (public site + in-app, logged in as
+admin). Full report delivered separately; below are the fixes landed from that pass.
+
+### Fixed
+- **`src/components/Landing.jsx`** — the "Is my financial data secure?" FAQ answer said data
+  is "never sold or shared with third parties," which contradicted `Privacy.jsx`'s own
+  disclosures (Stripe, AWS, the read-only accounting integrations, and Anthropic's Claude API
+  for AI features all receive data as needed to run the product). Reworded to match
+  `Privacy.jsx`'s precision: never sold, never shared for advertising/marketing, shared only
+  with the service providers that power the product.
+- **`src/components/TaxReturn.jsx`**, **`src/components/Dashboard.jsx`** — "Effective rate" was
+  shown with no stated basis. `effRateLabel()` (`utils/money.js`) computes tax ÷ AGI, not
+  tax ÷ taxable income — both are legitimate definitions, but leaving it unstated invites the
+  reader to assume whichever one they're used to. Added an `InfoTip` next to the label in both
+  locations explaining the AGI basis, with matching copy so the explanation is identical
+  wherever the stat appears (this card, the Dashboard summary tile, and the AI Analysis header,
+  which renders the same Dashboard tile).
+
+### Investigated, not fixable from this repo
+- **AUTH-SESSION** (see `KNOWN_LIMITATIONS.md`) — reproduced a login bug live against production:
+  `POST /auth/login` returns 200, the immediate `GET /auth/me` returns 401, user is bounced back
+  to `/login` with "session expired." Frontend `credentials: 'include'` handling in
+  `apiClient.js` and `Onboarding.jsx` is correct; likely cause is a `Set-Cookie` on the login
+  response missing `SameSite=None; Secure` for the `www.taxstat360.com` → `app.taxstat360.com`
+  cross-origin request, or a CORS `Access-Control-Allow-Origin`/`-Credentials` misconfiguration.
+  That's issued by the auth backend (`taxstat360-api`, per the "set by login Lambda" comment in
+  `App.jsx` — a separate repo, not this one). See `KNOWN_LIMITATIONS.md` → AUTH-SESSION for the
+  specific things to check there, including a working `access_token` bearer-token fallback that
+  may already sidestep the cookie issue if the backend reliably returns one.
+
+### Already fixed, pending deploy
+- **AUDIT-1 / AUDIT-1B** (`CalculateTaxInner.jsx`) — confirmed already committed at HEAD: the
+  reasonable-compensation advisory box reserves layout space via `minHeight` so it can't shift
+  the Advertising/Other Operating Expenses fields when it appears mid-entry. This was
+  independently reproduced as still-broken on the *live production* site during this review —
+  worth confirming production is actually running current `master`, since the source fix
+  predates this audit.
+
+---
+
 ## [Restored] — July 6, 2026
 
 This file was deleted on July 5, 2026 (commit ca9817e) while source comments in

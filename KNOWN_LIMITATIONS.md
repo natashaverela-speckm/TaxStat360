@@ -273,45 +273,51 @@ need review.
 Until then, a limited partner who does not materially participate is outside the tool's
 supported scope.
 
-## PARTNER-BASIS — active-partner outside-basis §704(d) — RESOLVED (Pass 5, Jul 25 2026); §465/§469 remain unmodeled
 
-Partially resolved. A §704(d) outside-basis panel now lives in
-`CalculateTaxInner.jsx` (search "F5 (audit, Jul 2026)"): outside basis
-(contributions + §752 share of liabilities, per §722/§752) feeds a real
-loss-limitation chain — a partnership loss in excess of basis is SUSPENDED and
-carried forward, matching the S-corp `scBasis` design. What remains open,
-disclosed in-app rather than silently applied: the §465 at-risk limit and the
-§469 passive-activity limit are explicitly NOT modeled (the outside-basis
-InfoTip says so directly) — only the §704(d) leg of the chain closes here. A
-partner whose deductible loss is further capped by at-risk or passive rules
-will see a larger allowed loss than the correct figure. Closing §465/§469
-remains future work; not yet scheduled.
+## AUTH-SESSION — login succeeds but /auth/me returns 401 (independent review, Jul 31 2026)
 
-## GP-QBI — guaranteed payments — RESOLVED (Pass 5, Jul 25 2026)
+**Not fixable from this repository.** Reproduced live against the deployed app: `POST
+app.taxstat360.com/auth/login` returns 200, and the very next `GET app.taxstat360.com/auth/me`
+(fired by `RequireAuth` in `src/App.jsx` immediately after login) returns 401 — every time,
+5/5 attempts. The UI shows "Your session expired and you were signed out" and bounces back to
+`/login`, which blocks every sign-in until the affected user closes the tab and retries (it
+resolved without a discernible client-side cause on a later attempt in the same session).
 
-A guaranteed-payments (K-1 Box 4) field now exists on the Partnership/LLC
-entity (`entity.guaranteedPayments`, `CalculateTaxInner.jsx`). The engine
-(`taxCalc.js`) adds it to SE earnings and gross income (`guaranteedPaymentsTotal`
-folded into `grossIncomeBeforeNOL`) while excluding it from the §199A QBI base
-(`qbiBasis = ... - guaranteedPaymentsTotal`) — matching Reg. §1.199A-3(b)(2)(ii)(A)
-and §707(c)/§1402(a). Covered by `taxCalc-guaranteed-payments.test.js`.
+**Frontend code is not the cause.** `src/utils/apiClient.js` already sends
+`credentials: 'include'` on same-origin-labeled calls to `API_BASE_URL` (the auto-upgrade from
+`'same-origin'` to `'include'` for `isOurApi` requests), and `Onboarding.jsx`'s login submit
+handler passes `credentials: 'include'` explicitly on the login POST itself. Both call sites
+are correct for a cross-origin (`www.taxstat360.com` → `app.taxstat360.com`) credentialed
+request.
 
-## QBI-AGG-DEFAULT — §199A aggregation opt-in — RESOLVED (Pass 5, Jul 25 2026)
+**Most likely root cause — backend / infrastructure, not in this repo:** a `Set-Cookie` header
+on the `/auth/login` response missing `SameSite=None; Secure` (or an incompatible `Domain`
+attribute). `www.taxstat360.com` and `app.taxstat360.com` are different origins; from the
+browser's perspective a fetch from one to the other is cross-site for cookie purposes. A
+`Set-Cookie` without `SameSite=None; Secure` is silently dropped by the browser on that
+follow-up request, which is exactly the symptom observed (cookie appears to "not exist" one
+request later). This is set by whatever issues the auth cookie — `App.jsx`'s comment says
+"set by login Lambda" — which is not part of this frontend repository.
 
-`_calcQBI` (taxCalc.js) now gates aggregation behind `electQbiAggregation`
-(default `false`; `aggregationApplied = electQbiAggregation && entityQbiData.length > 1
-&& taxableBeforeQBI > threshold`), surfaced as an explicit opt-in checkbox on
-the return page (`TaxReturn.jsx`, "§199A aggregation election"). Per-business
-wage/UBIA limits apply unless the taxpayer affirmatively elects, per Reg.
-§1.199A-4. Covered by `taxCalc-qbi-aggregation.test.js`. The disclosure still
-renders only when aggregation is actually applied.
+**Secondary path worth checking first, since it needs no cookie fix:** `Onboarding.jsx`'s
+`finishLogin()` already writes `data.access_token` (if present in the login response) to
+`ts360_token`, and `apiClient.js` attaches it as `Authorization: Bearer <token>` on every
+`API_BASE_URL` call automatically. If the backend's `/auth/login` response reliably includes
+`access_token`, this bearer-token path authenticates independently of cookies and the SameSite
+issue above becomes moot for `/auth/me` (though other endpoints may still depend on the cookie).
+Confirm whether `access_token` is present in the live login response body — if it's missing or
+empty for some accounts/environments, that is a second, independent bug to fix on the backend.
 
-## SCOPE-GAPS — features intentionally not modeled (surface to users)
-
-Not calculation errors — boundaries of a simplified federal estimator; disclose in-product:
-- §1374 built-in gains tax (former C-corps): no entity-level 21% BIG input.
-- §1031 like-kind exchange: no deferral mechanics; enter recognized gain/boot manually.
-- §121 home-sale exclusion: not modeled, incl. §121(d)(6) depreciation recapture and
-  §121(b)(5) non-qualified-use proration.
-- §280A home office: no separate income limitation / carryforward.
-- Depreciation / §168(k) bonus / §179 / cost segregation: used AS ENTERED, not computed.
+**What to check on the backend / infra side:**
+1. Inspect the actual `Set-Cookie` header returned by `POST /auth/login` in production —
+   confirm `SameSite=None; Secure` is present (not `Lax`/`Strict`/omitted).
+2. Confirm `Domain` on that cookie is either unset (defaults to `app.taxstat360.com`, which
+   matches every API call site in this repo) or explicitly `.taxstat360.com` if it's meant to
+   be shared with `www.taxstat360.com` directly — either is workable, but it must be
+   intentional and consistent with what `/auth/me` expects.
+3. Confirm `Access-Control-Allow-Credentials: true` and an exact-origin (not wildcard)
+   `Access-Control-Allow-Origin: https://www.taxstat360.com` on both the login and `/auth/me`
+   responses — a wildcard `*` origin is incompatible with credentialed requests and browsers
+   will refuse to expose/send cookies against it.
+4. Confirm the login response body includes `access_token` consistently (see above) as a
+   working fallback while the cookie configuration is fixed.
