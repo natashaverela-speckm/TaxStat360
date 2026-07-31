@@ -21,7 +21,7 @@ import { signOut } from '../utils/SignOut'
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from '../utils/entityPredicates.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE, SUCCESS_TEXT } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
@@ -227,7 +227,6 @@ export default function TaxReturn() {
   const [showPriorPALMigration, setShowPriorPALMigration] = useState(orphanedPriorPAL > 0)
 
   const [useItemized,       setUseItemized]      = useState(!!(savedCtx.useItemized))
-  const [electQbiAggregation, setElectQbiAggregation] = useState(!!savedCtx.electQbiAggregation)   // F6: Reg. §1.199A-4 election (opt-in)
   const [itemizedAmt,       setItemizedAmt]      = useState(savedCtx.itemizedAmt         || '')
   const [mortgageInt,       setMortgageInt]      = useState(savedCtx.mortgageInt          || '')
   const [charitableContr,   setCharitableContr]  = useState(savedCtx.charitableContr     || '')
@@ -322,7 +321,6 @@ export default function TaxReturn() {
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
       isREP, isActiveParticipant,
-      electQbiAggregation,   // F6: Reg. §1.199A-4 §199A aggregation election (opt-in)
       // F6: the §1.469-9(g) aggregation election, derived from the Step-1 rental cards.
       // The engine treats `true` as the affirmative election that makes a REP's portfolio
       // nonpassive, and anything else (unelected) as passive.
@@ -352,7 +350,6 @@ export default function TaxReturn() {
     taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
     estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
-    electQbiAggregation,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -685,15 +682,9 @@ export default function TaxReturn() {
           <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            {/* UX AUDIT PASS5-F15 (Jul 2026): the nav buttons to the right (Dashboard/
-                AI/Settings) already shrink to short labels on mobile (see F17 FIX below),
-                but these breadcrumb steps didn't — "Personal Return" alone is wider than
-                a 375px viewport once combined with the logo, step circles, and separators,
-                forcing this whole bar into hidden horizontal scroll with no visible
-                affordance. Same isMobile pattern as the nav buttons, applied here too. */}
             {[
-              { n: 1, label: 'Entities', mobileLabel: 'Entities', active: false, done: true  },
-              { n: 2, label: 'Personal Return', mobileLabel: 'Return', active: true,  done: false },
+              { n: 1, label: 'Entities', active: false, done: true  },
+              { n: 2, label: 'Personal Return', active: true,  done: false },
               { n: 3, label: STEP3_LABEL, active: false, done: false },
             ].map((s, i) => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -732,13 +723,13 @@ export default function TaxReturn() {
                         textDecoration: 'underline', textUnderlineOffset: 2,
                       }}
                     >
-                      {isMobile ? s.mobileLabel : s.label}
+                      {s.label}
                     </button>
                   ) : (
                     // AUDIT-4 FIX: step 2 ("Personal Return") is the current page —
                     // intentionally non-interactive (clicking "you are here" has
                     // nothing to navigate to). Left as plain text, same as before.
-                    <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{isMobile ? s.mobileLabel : s.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
                   )}
                 </div>
                 {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
@@ -790,19 +781,7 @@ export default function TaxReturn() {
       )}
 
       {/* PHASE 3.3: semantic <main> landmark — skip-link target, zero visual change. */}
-      {/* UX AUDIT PASS5-F16 (Jul 27 2026): the site footer (App.jsx's <Footer>)
-          is position:fixed on every route except /calculate-tax (which has its
-          own fixed action bar), including this one. Its disclaimer sentence
-          wraps to 2-3 lines at common desktop widths and more on narrow/mobile
-          viewports, so its rendered height varies well beyond the ~36-44px a
-          single-line footer would need. The prior bottom padding (100px desktop /
-          80px mobile) left as little as 8px of clearance between the fixed
-          footer and the sidebar's trailing content (the Save/Continue button
-          captions) at some window sizes — found during a post-deploy regression
-          pass, reproduced via direct DOM measurement, not one of the original
-          15 UX-audit findings. Widened to a safer margin rather than trying to
-          measure the footer's actual rendered height at runtime. */}
-      <main id="main-content" style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 140px' : '32px 20px 160px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
+      <main id="main-content" style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px 80px' : '32px 20px 100px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>
@@ -1358,14 +1337,14 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
-                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025 (indexed annually — confirm the current-year figures). Cannot be claimed MFS." />
+                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
                 </label>
                 <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={`Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 income (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} (${taxYear} §415(c) defined-contribution limit)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)}.`} wide />
+                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
                 <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
@@ -1595,8 +1574,17 @@ export default function TaxReturn() {
               </div>
             )}
             {hasResult && (
-              <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
+              <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Effective rate: {effRateLabel(result.totalTax, result.agi)}
+                {/* INDEPENDENT REVIEW FIX (Jul 31, 2026) — "Effective rate" alone reads as
+                    tax ÷ taxable income to most readers, but effRateLabel (utils/money.js)
+                    divides by AGI (gross income before the standard/itemized deduction and
+                    QBI), matching AIAnalysis.jsx's effectiveRate and the Dashboard summary
+                    tile below. Both are legitimate ways to define "effective rate" — the
+                    ambiguity is in leaving the basis unstated, not the math. Tooltip added
+                    instead of lengthening the headline label, which needs to stay short in
+                    the pinned card. */}
+                <InfoTip label="Effective rate basis" text="This is your total federal tax divided by your Adjusted Gross Income (AGI) — income before the standard/itemized deduction and the §199A QBI deduction. Dividing by taxable income instead would show a higher percentage; TaxStat360 uses AGI everywhere (this card, the AI Analysis summary, and your Dashboard) so the number means the same thing wherever you see it." />
               </div>
             )}
             {/* F-05 UX FIX: Surface "Estimated Balance Due" directly in the hero card.
@@ -1761,7 +1749,7 @@ export default function TaxReturn() {
                 // stays visible whenever a §199A limit is what drove the number, and says which.
                 { label: 'Business income deduction (§199A QBI)',         value: result.qbi,                               sign: -1,
                   hide: result.qbi === 0 && !result.qbiWageDataMissing,
-                  accent: result.qbiWageDataMissing ? R : SUCCESS_TEXT,
+                  accent: result.qbiWageDataMissing ? R : '#059669',
                   note: result.qbiWageDataMissing
                     ? 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.'
                     : undefined },
@@ -1771,8 +1759,9 @@ export default function TaxReturn() {
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
-                // AUDIT C1 (Jul 2026): removed the duplicate Additional Medicare Tax line
-                // (former AUDIT N-3). The Form 8959 line below is the single source.
+                // AUDIT N-3 FIX: the 0.9% Additional Medicare Tax (§3101(b)(2)) was included
+                // in Total Tax but rendered no line — invisible to the user.
+                { label: 'Additional Medicare Tax (0.9%)', value: result.additionalMedicare,                sign: 1, hide: !result.additionalMedicare || result.additionalMedicare === 0, accent: '#94A3B8', note: 'IRC §3101(b)(2) — wages/SE earnings over $200K ($250K MFJ, $125K MFS)' },
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 // AUDIT F-15: annotation rendered below the waterfall when the NII base includes §1368(b)(2) stock gain
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
@@ -1789,7 +1778,7 @@ export default function TaxReturn() {
                     : undefined
                 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },
-                { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: SUCCESS_TEXT },
+                { label: 'Child Tax Credit',            value: result.childCredit,                       sign: -1, hide: result.childCredit === 0, accent: '#059669' },
                 { label: '—', value: 0, divider: true },
                 { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
@@ -1857,42 +1846,15 @@ export default function TaxReturn() {
                 </div>
               )}
 
-              {/* F6 (audit, Jul 2026): §199A aggregation is OPT-IN (Reg. §1.199A-4). The
-                  engine now defaults to per-business wage limits; this control lets a taxpayer
-                  who has actually made the election combine wages/UBIA across entities. */}
-              {/* Show whenever there are 2+ pass-through businesses AND taxable income is above
-                  the §199A threshold (qbiCaps.wage is non-null only above the threshold, where the
-                  wage limit — and thus aggregation — actually matters). Do NOT gate on qbi > 0:
-                  the deduction can be $0 precisely when aggregating wages would recover it. */}
-              {Array.isArray(entities) && entities.filter(e => e && !isCCorpEntity(e.type)).length > 1 && result.qbiCaps && result.qbiCaps.wage !== null && result.qbiCaps.wage !== undefined && (
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#334155' }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', lineHeight: 1.5 }}>
-                    <input type="checkbox" checked={electQbiAggregation} onChange={e => setElectQbiAggregation(e.target.checked)} style={{ marginTop: 2 }} />
-                    <span>
-                      <strong>Aggregate my businesses for §199A</strong> (Reg. §1.199A-4). By default each business is
-                      wage-limited separately. Check this ONLY if you have formally made the aggregation election on
-                      Form 8995-A, Schedule B and apply it consistently each year — it combines W-2 wages / UBIA across
-                      entities and may raise your deduction.
-                    </span>
-                  </label>
-                  {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
-                    <div role="alert" aria-live="polite" style={{ marginTop: 8, color: '#78350F' }}>
-                      <strong>Aggregation elected:</strong> {result.qbiAggregationDisclosure}
-                    </div>
-                  )}
+              {result.qbiAggregationApplied && result.qbiAggregationDisclosure && (
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#78350F' }}>
+                  <strong>⚠ QBI Aggregation Assumed:</strong> {result.qbiAggregationDisclosure}
                 </div>
               )}
 
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  {(() => {
-                    const brs = result.entityBasisResults || []
-                    const hasP = brs.some(r => r && r.suspended > 0 && /partner|mmllc/i.test(r.type || ''))
-                    const hasS = brs.some(r => r && r.suspended > 0 && /s.?corp/i.test(r.type || ''))
-                    const cite = (hasP && hasS) ? '§1366(d) / §704(d)' : hasP ? '§704(d)' : '§1366(d)'
-                    const kind = (hasP && !hasS) ? 'partnership' : (hasS && !hasP) ? 'S-Corp' : 'pass-through'
-                    return (<><strong>⚠ {cite} Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in {kind} losses suspended — not deductible this year. Carry forward to restore basis.</>)
-                  })()}
+                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
                   {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}
@@ -1937,20 +1899,6 @@ export default function TaxReturn() {
               partnership as an "S-Corp" and citing an inapplicable rule. A general partner
               or materially-participating LLC member is SE-subject and never reaches this
               panel (ficaSavings === 0). */}
-          {/* AUDIT F2 (Jul 2026): surface the reasonable-compensation audit-risk flag
-              on the return page, next to the SE-savings figure. The engine already
-              computes result.reasonableCompAlert (Rev. Rul. 74-44 / Reg. §1.162-7);
-              previously it rendered only on the Dashboard and the AI Risk Scan. */}
-          {hasResult && result.reasonableCompAlert?.triggered && (
-            <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
-              <div role="alert" style={{ fontSize: 12, fontWeight: 800, color: '#991B1B', marginBottom: 4 }}>
-                ⚠ Reasonable Compensation — Audit Risk (Rev. Rul. 74-44)
-              </div>
-              <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
-                {result.reasonableCompAlert.message}
-              </div>
-            </div>
-          )}
           {hasResult && result.ficaSavings > 0 && (() => {
             const seExemptFromSCorp = Array.isArray(entities)
               && entities.some(e => e && isSCorpEntity(e.type))
@@ -2101,16 +2049,7 @@ export default function TaxReturn() {
           </div>
 
           {/* Save buttons */}
-          {/* UX AUDIT PASS5-F11b (Jul 27 2026): Aria's floating launcher is position:fixed,
-              bottom:80, right:24 (see Aria.jsx) and spans roughly the rightmost 150px of the
-              viewport at that height. This card sits at the end of the page's normal flow, so
-              once the user scrolls near the bottom, its centered captions ("Saves and goes to
-              AI Analysis...", "Saves this record...") land in that same bottom-right band and
-              get partially covered. Same compensation pattern as CalculateTaxInner.jsx's P0 FIX
-              and AIAnalysis.jsx's F11 fix: reserve paddingRight so nothing in this block sits
-              under the widget. Found during regression check after PASS5 deployment (Natasha
-              caught this via live QA), not one of the original 15 UX-audit findings. */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 90 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {saveError && (
               <div role="alert" style={{ fontSize: 12, color: R, fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '8px 12px', textAlign: 'center' }}>
                 {saveError}
