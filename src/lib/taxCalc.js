@@ -77,7 +77,7 @@ import {
   CAP_LOSS_ORDINARY_LIMIT_MFS,
   CTC_CREDIT_PER_CHILD_FALLBACK,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityPnlNetShare } from '../utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
 // field manifest — the single home for every persisted/scaled field list.
 import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from '../utils/fieldManifest.js'
@@ -398,7 +398,7 @@ function calcReasonableCompCore(officerSalary, k1Distributions) {
 function sumK1FlowThrough(entities) {
   return (Array.isArray(entities) ? entities : []).reduce((s, e) => {
     if (!e || isCCorpEntity(e.type)) return s
-    return s + getEntityPnlNetShare(e) - nf(e.box11_12)
+    return s + getEntityK1Share(e) - nf(e.box11_12)
   }, 0)
 }
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
@@ -614,7 +614,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const sstbApplicablePct   = Math.max(0, 1 - phasePercent)
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
-    const k1Income = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1Income = getEntityK1Share(e)
     return s + Math.max(0, k1Income)
   }, 0)
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
@@ -669,7 +669,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   if (!aggregationApplied && entityQbiData.length > 1) {
     const perBiz = entityQbiData.map((e) => {
       const scale  = e.box17V_sstb ? sstbApplicablePct : 1
-      const rawQBI = (nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))) - nf(e.box11_12)
+      const rawQBI = getEntityK1Share(e) - nf(e.box11_12)
       const qbiPos = Math.max(0, rawQBI) * scale
       const wages  = (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0) * scale
       const ubia   = (parseFloat(e.box17V_ubia) || 0) * scale
@@ -887,10 +887,7 @@ function calcTaxReturn(input) {
   const entityBasisResults = []
   const entitiesLimited = entities.map(e => {
     if (!e) return e
-    const own = ownPct(e.own) / 100
-    const k1Gross = e.k1 !== undefined
-      ? parseFloat(e.k1) || 0
-      : Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
+    const k1Gross = getEntityK1Share(e)
     const isLimitable = /s.?corp|partner/i.test(e.type || '')
     const isSCorpE    = /s.?corp/i.test(e.type || '')
 
@@ -1338,26 +1335,37 @@ function calcTaxReturn(input) {
   }, 0)
   const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    const k1 = nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1 = getEntityK1Share(e)
     return sum + Math.max(0, k1)
   }, 0) + guaranteedPaymentsTotal
   const ssWageBase = getTable(taxYear).ssWageBase
+  // FINDING-4 FIX (independent audit, Aug 2026): IRC §1402(b) / Form SE Part I
+  // coordination worksheet. The 12.4% OASDI portion of SE tax applies only to the
+  // wage-base ROOM remaining after W-2 Social Security wages already taxed that year
+  // (including the taxpayer's own S-Corp officer salary) — not the full annual wage
+  // base. totalW2ForFICA / ssWageBaseRoom are hoisted above the SE tax computation;
+  // previously they were computed further down and consumed ONLY by the advisory
+  // ficaSavings estimate, never by the actual seTax liability, so a filer with W-2
+  // wages from their own S-Corp plus other SE income had SE tax overstated by
+  // (FICA_SS_RATE*2) on every dollar of wage-base room their W-2 wages had already
+  // consumed (e.g. $140,000 W-2 + $234,200 SE earnings on a 2025 return: uncoordinated
+  // ~$28.1k vs. correctly-coordinated ~$10.7k).
+  const totalW2ForFICA = Math.max(0, nf(w2))
+  const ssWageBaseRoom = Math.max(0, ssWageBase - totalW2ForFICA)
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
-  const ssPortion         = Math.min(seEarningsSubject, ssWageBase) * (FICA_SS_RATE * 2)
+  const ssPortion         = Math.min(seEarningsSubject, ssWageBaseRoom) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
   const seTax             = Math.round(ssPortion + medicarePortion)
   const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
-  const totalW2ForFICA = Math.max(0, nf(w2))
   const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
   const employeeFICA   = Math.round(empSS + empMedicare)
   const nonSEDistributions = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e.type)) return sum
     if (isRealEstateEntity(e.type)) return sum
-    return sum + (nf(e.k1) || Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100)))
+    return sum + getEntityK1Share(e)
   }, 0)
   const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total))
-  const ssWageBaseRoom   = Math.max(0, ssWageBase - totalW2ForFICA)
   // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
   const ficaSavings = scorpSeTaxSavings({
     k1Income: k1Distributions,
@@ -1461,7 +1469,7 @@ function calcTaxReturn(input) {
     // QBI. A §1366(d)-suspended loss is excluded from QBI until the year it is allowed
     // (Treas. Reg. §1.199A-3(b)(1)(iv)); in the release year enter it as a prior-year
     // QBI loss so it reduces QBI then.
-    const k1Gross = e.k1 !== undefined ? nf(e.k1) : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1Gross = getEntityK1Share(e)
     // AUDIT F-13 FIX: charitable contributions do NOT reduce QBI (Form 8995
     // instructions, 2021-present); only the separately-stated §179 nets out
     // (Treas. Reg. §1.199A-3(b)(1)(ii)(A)).
@@ -1511,9 +1519,7 @@ function calcTaxReturn(input) {
   const _passiveK1Qbi = entitiesLimited.reduce((sum, e) => {
     if (!e || isRealEstateEntity(e?.type)) return sum
     if (!/passive/i.test(normalizeEntityType(e.type) || '')) return sum
-    const k1Gross = e.k1 !== undefined
-      ? nf(e.k1)
-      : Math.round(nf(e.pnl?.netProfit ?? e.netProfit) * (ownPct(e.own) / 100))
+    const k1Gross = getEntityK1Share(e)
     const k1    = k1Gross - nf(e.box11_12)
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + Math.max(0, k1 * scale)
@@ -1674,8 +1680,7 @@ function calcTaxReturn(input) {
     if (!e) return null
     const isSEType = SE_SUBJECT_TYPES.includes(e.type)
     const isRE     = isRealEstateEntity(e.type)
-    const own      = ownPct(e.own) / 100
-    const income   = parseFloat(e.k1 ?? 0) || Math.round((parseFloat(e.pnl?.netProfit) || 0) * own)
+    const income   = getEntityK1Share(e)
     return {
       name:         e.name || e.id || 'Unnamed Entity',
       type:         e.type,
@@ -1696,10 +1701,7 @@ function calcTaxReturn(input) {
     const sal = Math.max(0, parseFloat(scorp.pnl?.officerSalary ?? scorp.officerW2 ?? 0) || 0)
     // (D-10: the old `if (sal < 0)` early-return here was unreachable — sal is
     // clamped by Math.max(0, …) on the line above. Removed as dead code.)
-    const k1Val = Math.max(0,
-      parseFloat(scorp.k1 ?? 0) ||
-      Math.round((parseFloat(scorp.pnl?.netProfit || 0)) * (ownPct(scorp.own) / 100))
-    )
+    const k1Val = Math.max(0, getEntityK1Share(scorp))
     const core = calcReasonableCompCore(sal, k1Val)
     if (!core.applicable) return { triggered: false, ratio: 100, message: '' }
     // OBS-7: message now comes from the core — one wording everywhere.

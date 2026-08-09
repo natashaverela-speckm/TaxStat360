@@ -96,4 +96,24 @@ describe('§199A(i) $400 minimum — active-participation gate (audit #3)', () =
     expect(r.deduction).toBe(300)
     expect(r.limitApplied).not.toBe('min400')
   })
+
+
+  // SPEC: Section 199A(i) (OBBBA, P.L. 119-21 Section 70105) is effective "for tax years
+  // beginning after December 31, 2025" -- i.e. TY2026 forward. A TY2025 return whose
+  // regular 20%-of-QBI calculation would otherwise clear the floor's $1,000 active-QBI
+  // gate must still get $0 additional deduction from the floor that year; the $400
+  // minimum is not yet available. Independent audit, Aug 2026 (Finding 10) -- confirmed
+  // already correct: QBI_MIN_DEDUCTION / QBI_MIN_THRESHOLD are intentionally undefined
+  // for 2025 in TAX_TABLES, so _applyMinQBI's `floor == null` guard exits before
+  // applying any floor. This test pins that year-gating explicitly so a future edit to
+  // TAX_TABLES[2025] cannot silently reintroduce the floor a year early.
+  it('SPEC: Section 199A(i) $400 floor does NOT apply for TY2025 even when it would for TY2026', () => {
+    const identicalFacts = { status: 'single', dependents: 0, w2: 40000,
+      entities: [{ type: 'Partnership / LLC', own: 100,
+        pnl: { netProfit: 1500, grossRevenue: 1500, totalExpenses: 0, officerSalary: 0 } }] }
+    const r2025 = calcTaxReturn({ ...identicalFacts, taxYear: 2025 })
+    const r2026 = calcTaxReturn({ ...identicalFacts, taxYear: 2026 })
+    expect(r2025.qbiLimitApplied).not.toBe('min400')
+    expect(r2026.qbiLimitApplied).toBe('min400')
+  })
 })
