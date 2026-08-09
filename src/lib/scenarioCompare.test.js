@@ -292,3 +292,67 @@ describe('Finding 2 — REP hours gate is applied in scenario comparison', () =>
     expect(taxOf(stale)).toBe(taxOf(passing))
   })
 })
+
+
+describe('k1Total aggregation — Finding: OTHER portfolio entities were dropped (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: a second real entity (no top-level e.k1, only pnl.netProfit) still contributes its income to every scenario\'s k1Total', () => {
+    const otherEntity = { type: 'Partnership / LLC', own: 100, pnl: { netProfit: 150000, grossRevenue: 150000, totalExpenses: 0 } }
+    const withOther = compareEntityScenarios({
+      personalContext: BASE_CTX,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 100000, own: 100 }, otherEntity],
+      entityIdx: 0, netProfitShare: 100000,
+    })
+    const withoutOther = compareEntityScenarios({
+      personalContext: BASE_CTX,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 100000, own: 100 }],
+      entityIdx: 0, netProfitShare: 100000,
+    })
+    const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
+    // The other entity's $150,000 must materially raise every scenario's tax -- it must
+    // not be silently dropped just because it lacks a top-level e.k1 override.
+    expect(taxOf(withOther)).toBeGreaterThan(taxOf(withoutOther) + 30000)
+  })
+
+  it('CHAR: a k1DirectMode other entity contributes its unscaled Box 1 amount (matches an explicit e.k1 override), not a re-prorated one', () => {
+    const runWith = (otherEntity) => compareEntityScenarios({
+      personalContext: BASE_CTX,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 50000, own: 100 }, otherEntity],
+      entityIdx: 0, netProfitShare: 50000,
+    }).scenarios.find(s => s.key === 'soleProp').totalTax
+
+    // k1DirectMode, 60% owner, Box 1 = $90,000 -> should contribute the full $90,000 (unscaled).
+    const withDirect90k = runWith({ type: 'Partnership / LLC', own: 60, k1DirectMode: true, pnl: { netProfit: 90000 } })
+    // An explicit e.k1 override of $90,000 is a different path to the SAME unscaled result --
+    // getEntityK1Share() resolves both to exactly $90,000, so their totalTax must match.
+    const withExplicit90k = runWith({ type: 'Partnership / LLC', own: 60, k1: 90000, pnl: { netProfit: 90000 } })
+    expect(withDirect90k).toBe(withExplicit90k)
+
+    // A NON-k1DirectMode entity with the same $90,000 netProfit IS ownership-scaled to
+    // $54,000 (60%) and must therefore owe LESS tax than the unscaled $90,000 case above --
+    // this is the double-proration regression this fix closes.
+    const withScaled54k = runWith({ type: 'Partnership / LLC', own: 60, pnl: { netProfit: 90000 } })
+    expect(withScaled54k).toBeLessThan(withDirect90k)
+  })
+})
+
+
+describe('k1Total aggregation — Finding (independent verification pass, Aug 2026): C-Corp guard', () => {
+  it('CHAR: a C-Corp elsewhere in the portfolio (not the compared entity) contributes $0 to k1Total', () => {
+    const cCorpOther = { type: 'C Corporation', own: 100, officerW2: 100000,
+      pnl: { netProfit: 500000, grossRevenue: 700000, totalExpenses: 200000, officerSalary: 100000 } }
+    const withCCorp = compareEntityScenarios({
+      personalContext: BASE_CTX,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 100000, own: 100 }, cCorpOther],
+      entityIdx: 0, netProfitShare: 100000,
+    })
+    const withoutCCorp = compareEntityScenarios({
+      personalContext: BASE_CTX,
+      entities: [{ type: 'Sole Proprietor / Single-Member LLC', k1: 100000, own: 100 }],
+      entityIdx: 0, netProfitShare: 100000,
+    })
+    const taxOf = res => res.scenarios.find(s => s.key === 'soleProp').totalTax
+    // A C-Corp's book profit must never flow into the comparison as personal income --
+    // it reaches the owner only as a (separately-modeled) dividend after entity-level tax.
+    expect(taxOf(withCCorp)).toBe(taxOf(withoutCCorp))
+  })
+})

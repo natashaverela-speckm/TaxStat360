@@ -845,6 +845,94 @@ describe('calcTaxReturn §199A(i) $400 floor — fully-phased-out SSTB is not "a
   })
 })
 
+describe('calcTaxReturn QBI base — Finding: self-employed retirement deduction (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: a SEP-IRA/Solo 401(k) contribution reduces the QBI base by the same amount (Treas. Reg. Section 1.199A-3(b)(1)(vi))', () => {
+    const entities = [{ type: 'Sole Proprietor / SMLLC', netProfit: 150000, own: 100, k1: 150000 }]
+    const rNoRet = calcTaxReturn({ ...BASE, taxYear: 2026, status: 'mfj', w2: 150000, k1Total: 150000, entities, selfEmpRetirement: 0 })
+    const rWithRet = calcTaxReturn({ ...BASE, taxYear: 2026, status: 'mfj', w2: 150000, k1Total: 150000, entities, selfEmpRetirement: 40000 })
+    expect(rWithRet.qbiBasis).toBe(rNoRet.qbiBasis - 40000)
+  })
+})
+
+describe('calcTaxReturn QBI base — Finding: C-Corp income is not QBI (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: a C-Corp entity contributes $0 to qbiBasis (IRC Section 199A(c)(3)(B)(ii) excludes C-Corp dividends from QBI)', () => {
+    const entities = [{ type: 'C Corporation', own: 100, officerW2: 100000,
+      pnl: { netProfit: 200000, grossRevenue: 300000, totalExpenses: 100000, officerSalary: 100000 } }]
+    const r = calcTaxReturn({ ...BASE, taxYear: 2026, w2: 100000, entities, k1Total: 0 })
+    expect(r.qbiBasis).toBe(0)
+    expect(r.qbi).toBe(0)
+  })
+})
+
+describe('calcTaxReturn QBI wage-limit allocation — Finding: non-QBI entities steal wage-limit share (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: a QBI-ineligible rental with positive income must not reduce an unrelated S-Corp\'s own QBI deduction', () => {
+    const sCorp = { type: 'S Corporation', own: 100, k1: 200000, netProfit: 200000, officerW2: 150000, box17V_wages: 150000, box17V_ubia: 0 }
+    const ineligibleRental = { type: 'Real Estate', own: 100, materiallyParticipates: true, qbiEligible: false,
+      pnl: { netProfit: 100000, grossRevenue: 130000, totalExpenses: 30000 } }
+    const withRental = calcTaxReturn({ ...BASE, taxYear: 2026, intInc: 300000, k1Total: 200000, entities: [sCorp, ineligibleRental] })
+    const withoutRental = calcTaxReturn({ ...BASE, taxYear: 2026, intInc: 300000, k1Total: 200000, entities: [sCorp] })
+    expect(withRental.qbi).toBe(withoutRental.qbi)
+    expect(withRental.qbi).toBe(40000)
+  })
+  it('CHAR: a C-Corp entity in the return must not dilute another entity\'s wage-limit allocation', () => {
+    const sCorp = { type: 'S Corporation', own: 100, k1: 200000, netProfit: 200000, officerW2: 150000, box17V_wages: 150000, box17V_ubia: 0 }
+    const cCorp = { type: 'C Corporation', own: 100, officerW2: 50000,
+      pnl: { netProfit: 80000, grossRevenue: 130000, totalExpenses: 50000, officerSalary: 50000 } }
+    const withCCorp = calcTaxReturn({ ...BASE, taxYear: 2026, intInc: 300000, w2: 50000, k1Total: 200000, entities: [sCorp, cCorp] })
+    const withoutCCorp = calcTaxReturn({ ...BASE, taxYear: 2026, intInc: 300000, w2: 50000, k1Total: 200000, entities: [sCorp] })
+    expect(withCCorp.qbi).toBe(withoutCCorp.qbi)
+  })
+})
+
+describe('calcTaxReturn SE tax — Finding: cross-entity loss netting (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: a loss in one SE-subject business offsets a gain in another BEFORE any floor (Treas. Reg. Section 1.1402(a)-2(c))', () => {
+    const entities = [
+      { type: 'Sole Proprietor / SMLLC', own: 100, pnl: { netProfit: 120000, grossRevenue: 120000, totalExpenses: 0 } },
+      { type: 'Sole Proprietor / SMLLC', own: 100, pnl: { netProfit: -40000, grossRevenue: 0, totalExpenses: 40000 } },
+    ]
+    const r = calcTaxReturn({ ...BASE, taxYear: 2026, k1Total: 80000, entities })
+    const seEarningsSubject = 80000 * 0.9235
+    const expected = Math.round(Math.min(seEarningsSubject, 184500) * 0.124 + seEarningsSubject * 0.029)
+    expect(r.seTax).toBe(expected)
+  })
+})
+
+describe('calcTaxReturn AMT — Finding: Section 68 must not reach AMTI (fresh-eyes re-audit, Aug 2026)', () => {
+  it('CHAR: the Section 68 (OBBBA) itemized-deduction reduction does not inflate AMTI (IRC Section 56(b)(1)(E))', () => {
+    const r = calcTaxReturn({
+      ...BASE, taxYear: 2026, status: 'single', w2: 900000,
+      useItemized: true, itemizedAmt: 200000, saltAmount: 40000,
+      hasISO: true, isoBargainElement: 900000,
+    })
+    // AMT computed from taxableAfterQBI (pre-Section-68), not the post-Section-68 taxableIncome.
+    expect(r.itemizedLimitReduction).toBeGreaterThan(0)
+    const amtWithSec68Baked = calcAMT({
+      taxableIncome: r.taxableAfterQBI + r.itemizedLimitReduction, qbi: r.qbi, saltAmount: r.saltAllowed,
+      isoBargainElement: 900000, ltGain: 0, qualDiv: 0, regularTax: r.ordFedTax + r.prefTax,
+      status: 'single', taxYear: 2026, useItemized: true, itemized: r.itemized, stdDed: r.stdDed,
+    })
+    expect(r.amt).toBeLessThan(amtWithSec68Baked)
+  })
+})
+
+describe('calcTaxReturn SE tax — Finding (independent verification pass, Aug 2026): guaranteed payments net against the same business\'s loss', () => {
+  it('CHAR: a distributive-share loss offsets that partner\'s own guaranteed payments before the floor (IRC Section 1402(a)/Section 707(c))', () => {
+    const entities = [{ type: 'Partnership / LLC', own: 100, guaranteedPayments: 60000,
+      pnl: { netProfit: -100000, grossRevenue: 0, totalExpenses: 100000 } }]
+    const r = calcTaxReturn({ ...BASE, taxYear: 2026, k1Total: -100000, entities })
+    expect(r.seTax).toBe(0)
+  })
+})
+
+describe('calcTaxReturn — Finding (independent verification pass, Aug 2026): C-Corp is not a K-1 distribution', () => {
+  it('CHAR: a lone C-Corp entity contributes $0 to k1Distributions / the FICA-savings advisory, not its full book profit', () => {
+    const entities = [{ type: 'C Corporation', own: 100, officerW2: 100000,
+      pnl: { netProfit: 400000, grossRevenue: 600000, totalExpenses: 200000, officerSalary: 100000 } }]
+    const r = calcTaxReturn({ ...BASE, taxYear: 2026, w2: 100000, entities, k1Total: 0 })
+    expect(r.k1Distributions).toBe(0)
+  })
+})
+
 describe('calcQBI/calcTaxReturn F-M02 — ownPct() 0% ownership', () => {
   it('CHAR: own="0" (string zero) contributes $0 K-1 income, not $100k phantom income', () => {
     const entities = [{ type: 'S Corporation', netProfit: 100000, own: '0', k1: 0, box17V_wages: 0, box17V_ubia: 0 }]

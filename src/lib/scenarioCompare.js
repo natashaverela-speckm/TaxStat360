@@ -47,6 +47,9 @@ import { calcTaxReturn, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCa
 // compareEntityScenarios and renders its visible error state, so a bad input produces
 // an honest failure card instead of a silently wrong three-way comparison.
 import { validateCalcInputs } from '../utils/calcGuard.js'
+// AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): see the k1Total reduce below.
+import { getEntityK1Share, isCCorpEntity } from '../utils/entityPredicates.js'
+import { nf } from '../utils/money.js'
 
 const guarded = (engineInput) => {
   validateCalcInputs(engineInput, 'scenarioCompare')
@@ -107,10 +110,26 @@ function compareEntityScenarios(input) {
   // CRITICAL: calcTaxReturn does NOT derive k1Total from entities[] — it expects the
   // caller to pass the summed k1Total. We recompute it per scenario from the override.
   const run = (entitiesOverride, w2Boost = 0, qualDivBoost = 0) => {
+    // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): this only summed entities carrying
+    // an EXPLICIT top-level e.k1 (true for the synthetic scenario entity injected at
+    // entityIdx above, which always sets one -- see spEntity/scEntity/ccEntity) via bare
+    // parseFloat. Every OTHER real entity in the user's portfolio -- which normally carries
+    // pnl.netProfit/own and no top-level k1 override -- silently contributed $0, so a
+    // multi-entity user's Compare Entity Structures result ignored all of their OTHER
+    // businesses' income entirely (wrong bracket, wrong SALT/NIIT/QBI thresholds, and a
+    // savings/ranking number computed on an incomplete return). getEntityK1Share() is this
+    // codebase's single source of truth for owner-share resolution (comma-safe, k1DirectMode-
+    // aware, ownership%-scaled) and is what sumK1FlowThrough (taxCalc.js) uses for the same
+    // purpose on the filed-return path -- mirrored here instead of reimplemented.
     const k1Total = (entitiesOverride || []).reduce((sum, e) => {
-      if (!e) return sum
-      const k1Val = parseFloat(e.k1)
-      return sum + (isFinite(k1Val) ? k1Val : 0)
+      // AUDIT FIX (independent verification pass, Aug 2026): the very first fix to this
+      // reduce (routing it through getEntityK1Share for comma-safety and OTHER-entity
+      // inclusion) dropped the C-Corp guard that sumK1FlowThrough (taxCalc.js) has --
+      // a C-Corp elsewhere in the portfolio (not the entity being compared, which always
+      // sets k1:0 explicitly for its own synthetic C-Corp scenario) had its full book
+      // profit counted as personal pass-through income in every scenario.
+      if (!e || isCCorpEntity(e.type)) return sum
+      return sum + getEntityK1Share(e) - nf(e.box11_12)
     }, 0)
     // Finding 2 consistency: the §469(c)(7)(B) hours and the aggregation override live on
     // the rental entities, NOT in personalContext — so without this they never reach the

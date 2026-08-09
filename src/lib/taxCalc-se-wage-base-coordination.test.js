@@ -82,3 +82,62 @@ describe('Finding 4 -- SE tax Social Security wage-base coordination (IRC Sectio
     expect(r.employeeFICA).toBe(Math.round(Math.min(140000, 176100) * 0.062 + 140000 * 0.0145))
   })
 })
+
+
+describe('Finding (fresh-eyes re-audit, Aug 2026) -- SE wage-base coordination is scoped to one-person returns', () => {
+  // The Finding-4 fix above nets `w2` against SE wage-base room -- correct for a single
+  // taxpayer's own W-2 vs. their own SE income. But `w2` is a single COMBINED household
+  // figure with no spouse attribution anywhere in the app (TaxReturn.jsx: one w2Income
+  // field), while Schedule SE is filed separately per spouse (IRC Section 1402(b)). Applying
+  // the same coordination to MFJ let one spouse's W-2 zero out the OTHER spouse's SE
+  // wage-base room. Fix: MFJ does not coordinate (falls back to the pre-Finding-4,
+  // conservative/uncoordinated computation) since the app cannot tell whose wages are whose.
+
+  it('SPEC: MFJ dual-earner (spouse A W-2 only, spouse B SE-income only) gets full wage-base room -- matches a correctly-filed separate Schedule SE for spouse B', () => {
+    const r = calcTaxReturn({
+      status: 'mfj', taxYear: 2026, w2: 200000, // spouse A's W-2 only
+      entities: [smllc(120000)], // spouse B's Schedule C only
+      k1Total: 120000,
+    })
+    const seEarningsSubject = 120000 * 0.9235
+    const SS_WAGE_BASE_2026 = 184500
+    // Spouse B's own W-2 is $0, so spouse B's Schedule SE gets the FULL wage base --
+    // NOT reduced by spouse A's $200,000.
+    const expected = Math.round(Math.min(seEarningsSubject, SS_WAGE_BASE_2026) * 0.124 + seEarningsSubject * 0.029)
+    expect(r.seTax).toBe(expected)
+    expect(r.seTax).toBeGreaterThan(16000) // regression guard: must not silently regress to the ~$3,214 zeroed-OASDI bug
+  })
+
+  it('MFJ same-person profile (one spouse has both the W-2 and the SE income) falls back to the conservative uncoordinated figure, not the single-filer coordinated one', () => {
+    const w2 = 140000
+    const netProfit = 234200
+    const rMfj = calcTaxReturn({
+      status: 'mfj', taxYear: 2025, w2,
+      entities: [smllc(netProfit)],
+      k1Total: 0,
+    })
+    const rSingle = calcTaxReturn({
+      status: 'single', taxYear: 2025, w2,
+      entities: [smllc(netProfit)],
+      k1Total: 0,
+    })
+    // MFJ must NOT match the single-filer coordinated figure (that would mean the combined
+    // household W-2 wrongly reduced this SE income's own wage-base room)...
+    expect(rMfj.seTax).not.toBe(rSingle.seTax)
+    // ...and must match the pre-Finding-4 uncoordinated calculation instead (conservative --
+    // overstates when it's really the same person, but never understates).
+    const seEarningsSubject = netProfit * 0.9235
+    const uncoordinated = Math.round(Math.min(seEarningsSubject, 176100) * 0.124 + seEarningsSubject * 0.029)
+    expect(rMfj.seTax).toBe(uncoordinated)
+    expect(rMfj.seTax).toBeGreaterThan(rSingle.seTax) // conservative direction confirmed
+  })
+
+  it('MFS (a genuine one-person return) still gets the Finding-4 coordination, unlike MFJ', () => {
+    const r = calcTaxReturn({
+      status: 'mfs', taxYear: 2025, w2: 140000,
+      entities: [smllc(234200)],
+      k1Total: 0,
+    })
+    expect(r.seTax).toBeCloseTo(10748, -1)
+  })
+})
