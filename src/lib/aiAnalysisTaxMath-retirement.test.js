@@ -55,6 +55,19 @@ describe('seEligibleK1FromEntities (SE-eligible base, §1402)', () => {
     ])).toBe(60000)
     expect(seEligibleK1FromEntities(null)).toBe(0)
   })
+
+  // FINDING-2 FIX (independent audit, Aug 2026): this function used to re-inline
+  // `getEntityNetProfit(e) * (ownPct(e.own) / 100)` directly, ignoring k1DirectMode --
+  // a fourth, previously-missed copy of the same bug already fixed in taxCalc.js and
+  // AIAnalysis.jsx (and, separately, in CalculateTaxInner.jsx's entity card). A 60%-owned
+  // partner's already-allocated $132,000 K-1 Box 1 entry produced a $79,200 SEP-IRA base
+  // instead of the correct $132,000. Now delegates to the single shared getEntityK1Share().
+  it('SPEC: a k1DirectMode entity is SE-eligible base on the unscaled Box 1 amount, not Ownership % of it', () => {
+    const k1DirectPartner = { type: 'Partnership / LLC', own: 60, k1DirectMode: true,
+      pnl: { netProfit: 132000, grossRevenue: 0, totalExpenses: 0 } }
+    expect(seEligibleK1FromEntities([k1DirectPartner])).toBe(132000)
+    expect(seEligibleK1FromEntities([k1DirectPartner])).not.toBe(79200)
+  })
 })
 
 describe('hasLimitedPartnerInterest', () => {

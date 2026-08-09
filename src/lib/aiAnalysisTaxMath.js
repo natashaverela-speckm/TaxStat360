@@ -18,7 +18,7 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, ownPct, getEntityNetProfit } from '../utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, getEntityK1Share } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
 import {
   CURRENT_TAX_YEAR,
@@ -298,9 +298,11 @@ export function seEligibleK1FromEntities(entities) {
     if (!e) return sum
     if (isSCorpEntity(e.type) || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
     if (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) return sum  // §1402(a)(13)
-    const share = e.k1 !== undefined
-      ? nf(e.k1)
-      : Math.round(getEntityNetProfit(e) * (ownPct(e.own) / 100))
+    // FINDING-2 FIX (independent audit, Aug 2026): use the shared getEntityK1Share()
+    // resolver so a k1DirectMode entity's already-allocated Box 1 isn't re-scaled by
+    // Ownership % a second time here — this SEP-IRA/Solo-401(k) base calc was a
+    // fourth, previously-missed copy of the same buggy inline formula.
+    const share = getEntityK1Share(e)
     return sum + share
   }, 0)
 }
