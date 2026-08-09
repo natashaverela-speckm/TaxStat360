@@ -33,7 +33,7 @@ import {
 import { fmt, nf } from '../utils/money.js'
 import { CURRENT_TAX_YEAR, SCORP_REASONABLE_COMP_GUIDELINE_RANGE } from '../lib/constants.js'
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
-import { isSCorpEntity, isCCorpEntity } from '../utils/entityPredicates'
+import { isSCorpEntity, isCCorpEntity, getEntityK1Share } from '../utils/entityPredicates'
 
 // ─── AUDIT F2 FIX (second root cause) ────────────────────────────────────────
 // COMPARE-PC fixed personalContext arriving as a lazy getter, but a second gap
@@ -198,11 +198,19 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
   // own salary treatment (sole prop: none; S/C-corp: salary + employer FICA). The entity's
   // persisted pnl.netProfit is AFTER salary (matching the Tax Tracker/Dashboard), so add the
   // officer salary back to reconstruct before-salary profit, consistent with those surfaces.
+  // AUDIT FIX (Finding 2, fresh-eyes re-audit, Aug 2026): this was an eighth live inline
+  // reimplementation of the "netProfit * ownership%" owner-share formula. It double-prorated
+  // a k1DirectMode entity's Box 1 K-1 share (already the owner's unscaled amount) by
+  // ownership% a second time -- e.g. a 60%-owner with a $132,000 Box 1 direct entry showed
+  // $79,200 here instead of $132,000, understating the entity-comparison base and the
+  // resulting recommendation. getEntityK1Share() is the single source of truth for owner-share
+  // resolution (explicit e.k1 override -> k1DirectMode unscaled -> ownership%-scaled P&L).
+  // officerW2 is already this owner's own W-2 figure everywhere else in the app (TaxReturn.jsx,
+  // taxCalc.js sum it directly, never re-scaled by ownership%), so it's added back as-is here
+  // to reconstruct the pre-officer-salary comparison base.
+  const officerSalaryShare = parseFloat(entity?.officerW2 ?? entity?.pnl?.officerSalary) || 0
   const netProfitShare = entity && entity.pnl
-    ? Math.round(
-        ((parseFloat(entity.pnl.netProfit) || 0) + (parseFloat(entity.officerW2 ?? entity.pnl.officerSalary) || 0))
-        * (parseFloat(entity.own) / 100)
-      )
+    ? Math.round(getEntityK1Share(entity) + officerSalaryShare)
     : 0
 
   const [salary, setSalary] = useState(null)
@@ -354,8 +362,17 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
               {entity.pnl && (
                 <span style={{ color: SL }}>
                   {/* AUDIT N-4 FIX: netProfitShare adds officer salary back (pre-salary profit
-                      for apples-to-apples entity comparison) — the caption must say so. */}
-                  {' '}(({fmt(entity.pnl.netProfit)} net + {fmt(parseFloat(entity.officerW2 ?? entity.pnl.officerSalary) || 0)} officer salary) × {entity.own}%)
+                      for apples-to-apples entity comparison) — the caption must say so.
+                      AUDIT FIX (Finding 2, fresh-eyes re-audit, Aug 2026): caption now mirrors
+                      getEntityK1Share()'s actual resolution path instead of always claiming an
+                      "× own%" scaling was applied — it isn't, for a k1 override or k1DirectMode. */}
+                  {' '}(
+                  {entity.k1 !== undefined
+                    ? `${fmt(getEntityK1Share(entity))} K-1 override`
+                    : entity.k1DirectMode
+                      ? `${fmt(getEntityK1Share(entity))} K-1 (direct entry, Box 1)`
+                      : `${fmt(entity.pnl.netProfit)} net × ${entity.own}%`}
+                  {' + '}{fmt(officerSalaryShare)} officer salary)
                 </span>
               )}
             </div>
