@@ -1524,7 +1524,26 @@ function calcTaxReturn(input) {
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + Math.max(0, k1 * scale)
   }, 0)
-  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi)
+  // AUDIT FIX (Finding 1, fresh-eyes re-audit, Aug 2026): §199A(d)(3) excludes a fully- or
+  // partially-phased-out SSTB from being "qualified" business income at all -- adjQBI inside
+  // _calcQBI already nets sstbEntityQBI*(1-sstbApplicablePct) out of the 20%-deduction figure,
+  // but this floor-eligibility gate was never given the same haircut. An ACTIVE (non-passive,
+  // non-real-estate) SSTB entity above the full phase-out range therefore still counted its
+  // gross K-1 share toward activeQbiForFloor, clearing the $1,000 §199A(i) threshold and
+  // collecting the $400 minimum deduction on income that legitimately produces $0 of QBI.
+  // Repro (single, TY2026, $500k SSTB Sch-C, no other income): before this fix,
+  // qbi=400/limitApplied='min400'/caps.qbi=0; after, qbi=0/limitApplied='none'.
+  // Passive SSTB K-1s are unaffected -- they're already fully excluded from the floor via
+  // _passiveK1Qbi above regardless of SSTB status.
+  const _sstbExcludedActiveQbi = entitiesLimited.reduce((sum, e) => {
+    if (!e || !e.box17V_sstb) return sum
+    if (isRealEstateEntity(e?.type)) return sum
+    if (/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    const k1Gross = getEntityK1Share(e)
+    const k1 = Math.max(0, k1Gross - nf(e.box11_12))
+    return sum + k1 * (1 - sstbApplicablePct)
+  }, 0)
+  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi - _sstbExcludedActiveQbi)
   const f4797NetGain = Math.max(0, nf(f4797Inc))
   // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
   // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps

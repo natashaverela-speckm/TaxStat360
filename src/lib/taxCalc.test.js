@@ -807,6 +807,44 @@ describe('calcTaxReturn §199A SSTB loss — qbiCarryforward exclusion above pha
   })
 })
 
+describe('calcTaxReturn §199A(i) $400 floor — fully-phased-out SSTB is not "active QBI" (Finding 1, fresh-eyes re-audit Aug 2026)', () => {
+  // Repro: activeQbiForFloor (the eligibility gate for the $400 minimum) was computed
+  // from qbiBasis with only passive-rental and passive-K1 amounts stripped out -- it did
+  // NOT strip the SSTB-phased-out portion the way adjQBI (the actual 20% figure) does.
+  // An active SSTB entity fully above the phase-out range therefore cleared the $1,000
+  // "active QBI" threshold on GROSS K-1 income and collected a $400 deduction on income
+  // that legitimately produces $0 of QBI. Fix: activeQbiForFloor now also subtracts each
+  // active SSTB entity's phased-out share, mirroring adjQBI's own SSTB haircut.
+  const sstbEntity = (k1) => ({ type: 'S Corporation', k1, netProfit: k1, own: 100, box17V_sstb: true, box17V_wages: 0, box17V_ubia: 0 })
+  const nonSSTBEntity = (k1) => ({ type: 'S Corporation', k1, netProfit: k1, own: 100, box17V_sstb: false, box17V_wages: 0, box17V_ubia: 0 })
+  it('CHAR: fully above phase-out, SSTB is the only QBI source: no $400 floor (regular qbi = $0)', () => {
+    const r = calcTaxReturn({
+      ...BASE, taxYear: 2026, w2: 0, k1Total: 500000,
+      entities: [sstbEntity(500000)],
+    })
+    expect(r.qbi).toBe(0)
+    expect(r.qbiLimitApplied).toBe('none')
+    expect(r.qbiCaps.min400).toBeUndefined()
+  })
+  it('CHAR: fully above phase-out, non-SSTB active entity: $400 floor still applies normally', () => {
+    const r = calcTaxReturn({
+      ...BASE, taxYear: 2026, w2: 0, k1Total: 2000,
+      entities: [nonSSTBEntity(2000)],
+      intInc: 400000,
+    })
+    expect(r.qbiLimitApplied).toBe('min400')
+    expect(r.qbi).toBe(400)
+  })
+  it('CHAR: below the §199A threshold: SSTB floor eligibility unaffected (no phase-out yet)', () => {
+    const r = calcTaxReturn({
+      ...BASE, taxYear: 2026, w2: 0, k1Total: 5000,
+      entities: [sstbEntity(5000)],
+      intInc: 50000,
+    })
+    expect(r.qbiLimitApplied).not.toBe('none')
+  })
+})
+
 describe('calcQBI/calcTaxReturn F-M02 — ownPct() 0% ownership', () => {
   it('CHAR: own="0" (string zero) contributes $0 K-1 income, not $100k phantom income', () => {
     const entities = [{ type: 'S Corporation', netProfit: 100000, own: '0', k1: 0, box17V_wages: 0, box17V_ubia: 0 }]
