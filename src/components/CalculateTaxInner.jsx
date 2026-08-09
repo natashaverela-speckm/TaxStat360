@@ -27,7 +27,7 @@ import { fmt, formatTimestamp, formatRelativeTime } from '../utils/money.js'
 // PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
 // the engine's own code path, so Step 1's number cannot disagree with Step 2.
 import { selectTaxSummary } from '../utils/calcSelector.js'
-import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet } from '../utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough, QBI_THRESHOLDS } from '../lib/taxCalc.js'
@@ -858,7 +858,14 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   const netProfit = getEntityPnlNet(entity)
 
   const own    = ownPct(entity.own) / 100
-  const k1     = Math.round(netProfit * own)
+  // FINDING-2 FIX (independent audit, Aug 2026): this card previously re-inlined
+  // netProfit*own directly, so a k1DirectMode entity (Box 1 already the owner's
+  // allocated share, per the "Have a K-1? Enter Box 1 directly" toggle) was scaled
+  // by Ownership % a second time here even though taxCalc.js/AIAnalysis.jsx had
+  // already been fixed to call the shared getEntityK1Share() resolver — this card
+  // was a THIRD, previously-missed copy of the same buggy formula. A 60%-owned
+  // K-1-direct partner's real $132,000 Box 1 entry was displayed here as $79,200.
+  const k1     = getEntityK1Share(entity)
   const sal    = nf(pnl.officerSalary ?? entity.officerW2)
   const isSC   = isSCorpEntity(entity.type)
   const isPartnership = /partner|mmllc/i.test(entity.type || '')   // F5
@@ -886,7 +893,10 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
     const sb   = Math.max(0, nf(entity.stockBasis))
     const db   = entity.debtBasis !== '' && entity.debtBasis !== undefined ? Math.max(0, nf(entity.debtBasis)) : 0
     const dist = Math.max(0, nf(entity.distributions))
-    const k1Net   = netProfit * own
+    // FINDING-2 FIX: same resolver as the header k1 above, so the §1366(d)/§704(d)
+    // basis waterfall (loss limitation) agrees with the card header and the engine
+    // for a k1DirectMode entity instead of double-prorating Ownership %.
+    const k1Net   = getEntityK1Share(entity)
     const lossAmt = Math.abs(Math.min(0, k1Net))
     // §1367(a)(1) income-first basis (a current-year loss is a §1366 item applied LAST).
     const stockBasisForDist = sb + contrib + basisInc + Math.max(0, k1Net)
