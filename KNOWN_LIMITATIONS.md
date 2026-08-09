@@ -54,6 +54,31 @@ elect. Below the threshold the proxy is exact. Collecting placed-in-service
 as a separate manifest field would eliminate the residual; queued as an
 enhancement, not scheduled.
 
+## LIMITATION SE-MFJ-WAGEBASE — SE tax Social Security wage-base coordination does not apply to MFJ
+
+**Added Aug 2026 (fresh-eyes re-audit).** Exposure direction: conservative for one MFJ
+sub-case (overstates tax), exact-correct for the other.
+
+The Finding-4 fix (see `src/lib/taxCalc.js`, search "FINDING-4 FIX") nets a taxpayer's own W-2
+wages against their own SE wage-base room, per IRC Section 1402(b) / the Form SE Part I
+coordination worksheet. This is correct for a one-person return (single/HOH/QSS/MFS). For MFJ,
+`w2` is a single COMBINED household figure (`TaxReturn.jsx`: one `w2Income` field, no spouse
+attribution anywhere in the entity or income model), but Schedule SE is filed SEPARATELY per
+spouse — one spouse's W-2 must never reduce the other spouse's SE wage-base room. Because this
+app cannot tell which spouse earned which dollar, MFJ does not coordinate at all (falls back to
+the pre-Finding-4 uncoordinated computation):
+
+- **Dual-earner household** (one spouse's W-2, the other spouse's SE income): uncoordinated is
+  the CORRECT answer, since the self-employed spouse's own W-2 is genuinely $0.
+- **Single business owner filing jointly** (same person has both the W-2 and the SE income):
+  uncoordinated OVERSTATES SE tax (the original Finding-4 problem), matching this app's
+  established conservative-by-design posture for unmodeled spouse-attribution gaps (see
+  PAL-MFS below).
+
+Real fix requires collecting which spouse earned each W-2/SE income source — a schema and UI
+change, not scheduled. Owner decision: ship a "spouse's own W-2" input split, or accept the
+conservative default indefinitely.
+
 ## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart
 
 **RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax; the lived-apart $12,500 allowance is shown as $0).
@@ -93,6 +118,43 @@ interaction, and SPEC tests; owner sign-off required.
 Related engine note: the §461(l) business-gain offset (`eblOverallCapGainNI`)
 deliberately consumes the RAW (pre-§1211) figures — it models gross
 business-attributable gains, not the Schedule D result.
+
+## LIMITATION CTC-ACTC — refundable Additional Child Tax Credit not modeled
+
+**Added Aug 2026 (fresh-eyes re-audit).** Exposure direction: CAN OVERSTATE the balance due
+for lower/moderate-income filers with dependents.
+
+`childCredit` (`taxCalc.js`, search "ctcRaw") is treated as wholly nonrefundable: capped at
+`fedTax + additionalMedicare + niitAmount`. IRC Section 24(d)/(h)(5) makes up to $1,700/child
+(TY2026, Rev. Proc. 2025-32 Section 4.05(2)) refundable as the Additional Child Tax Credit,
+limited to 15% of earned income over $2,500 -- so a filer whose regular tax is fully absorbed
+by the nonrefundable credit can still receive a refund check for the rest. Separately, the
+Section 26(a)(1) nonrefundable-credit ceiling is technically "regular tax + Section 55 AMT"
+(chapter 1 taxes), not NIIT (chapter 2A) or Additional Medicare Tax (chapter 21) -- the engine's
+ceiling formula substitutes the latter two for AMT, though this rarely changes the answer in
+practice since NIIT-eligible income levels are usually well above where CTC still applies.
+
+Modeling ACTC requires an "earned income" concept the app does not currently define
+(distinct from AGI/QBI figures already computed). Owner decision: add ACTC, or document the
+nonrefundable-only figure in the UI as a planning floor (the true refund is >= what's shown).
+
+## LIMITATION 4797-NII — Form 4797 gain assumed to be investment income for NIIT
+
+**Added Aug 2026 (fresh-eyes re-audit).** Exposure direction: CAN OVERSTATE NIIT for a filer
+whose Section 4797 gain comes from selling property used in a trade or business they
+materially participate in.
+
+IRC Section 1411(c)(1)(A)(iii) / Treas. Reg. Section 1.1411-4(d)(4)(i) exclude gain on
+disposition of property held in an active (materially-participated, non-trading) trade or
+business from net investment income. `nii` (`taxCalc.js`, search "f4797NetGain") includes the
+full `f4797Inc` figure unconditionally. The same input is correctly treated as BUSINESS gain
+80 lines earlier for the Section 461(l) excess-business-loss offset (`eblBizCapGain`) -- the
+app has no material-participation flag on Form 4797 gain to reconcile the two treatments
+consistently. A passive-activity Form 4797 gain genuinely IS NII, so this is a missing
+classification, not a plainly-wrong formula either way. Owner decision: add a "business asset,
+materially participated" checkbox for Section 4797 entries, or accept the conservative-for-NIIT
+default (matches this tool's general posture of erring toward overstating tax when a fact
+isn't collected).
 
 ## LIMITATION SALT-MAGI — §164(b)(7) MAGI addbacks not modeled
 
