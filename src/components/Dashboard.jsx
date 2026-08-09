@@ -488,14 +488,23 @@ export default function Dashboard() {
             const adv = nf(b.advertising)
             const oth = nf(b.otherDeductions)
             const netProfit = rev - opEx - sal - dep - adv - oth
-            const ownPctVal = parseInt(b.ownershipPct || b.own) || 100
+            // AUDIT (Agent-2 duplicate-code finding, fresh-eyes re-audit, Aug 2026):
+            // this legacy `rec.biz`-only fallback (pre-multi-entity-schema saved records
+            // with no `entities` array at all) re-inlined the ownership-scaling formula
+            // with parseInt() instead of the shared ownPct() helper -- comma/decimal-unsafe
+            // and inconsistent with entityPredicates.js. k1DirectMode cannot apply to this
+            // legacy shape (the toggle didn't exist when these records were written, and
+            // `b` carries no such field), so this was never a k1-share tax bug like the
+            // getEntityPnlNetShare family -- routed through ownPct() here purely for
+            // formula-consistency/comma-safety, matching the single source of truth.
+            const ownPctVal = ownPct(b.ownershipPct || b.own)
             return [{
               name: b.name || normalizeEntityType(b.entityType) || 'Business',
               type: normalizeEntityType(b.entityType),
               own: ownPctVal,
               pnl: { grossRevenue: rev, totalExpenses: opEx, officerSalary: sal, netProfit },
               netProfit,
-              k1: nf(rec.k1Income) || Math.round(netProfit * (ownPctVal / 100)),
+              k1: nf(rec.k1Income) || Math.round(netProfit * ownPctVal / 100),
               box17K: 0, box11_12: 0, box12_13: 0,
               box17V_wages: 0, box17V_ubia: 0, box17V_sstb: false,
             }]
