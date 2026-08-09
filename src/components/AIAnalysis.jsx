@@ -1314,10 +1314,16 @@ function IRSCompliance({ rec }) {
       filing: _filing,
       isCoopPatron: _isCoopPatron,
     })
+    // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): this was another inline
+    // reimplementation of the owner-share formula, with the netProfit/pnl.netProfit priority
+    // INVERTED relative to getEntityNetProfit()'s established rule (pnl first, legacy
+    // top-level field only as a fallback -- OBS-3, KNOWN_LIMITATIONS.md) and no derivation
+    // from gross/expenses when netProfit itself is absent. Routed through getEntityK1Share(),
+    // this file's own established single source of truth for an owner's QBI-relevant share
+    // (comma-safe, k1DirectMode-aware, ownership%-scaled) -- advisory-text-only (no dollar
+    // figure depends on it), but a missed loss silently dropped the Form 8995-A guidance note.
     const _currentYearQbiLoss = (Array.isArray(rec.entities) ? rec.entities : []).some(e => {
-      const np = nf(e?.netProfit ?? e?.pnl?.netProfit ?? 0)
-      const own = ownPct(e?.own)
-      return (np * own / 100) < 0
+      return e && getEntityK1Share(e) < 0
     }) || k1 < 0
     const _priorQbiLoss = (nf(f.priorQBILossCO || f.priorYearLosses || 0)) > 0
     const _hasSSTB = (Array.isArray(rec.entities) ? rec.entities : []).some(e => !!(e && (e.box17V_sstb || e.sstb)))
