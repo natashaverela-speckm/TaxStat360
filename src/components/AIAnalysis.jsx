@@ -28,7 +28,7 @@ import MoneyInput from './MoneyInput.jsx'
 import { signOut } from '../utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O, SUCCESS_TEXT } from '../lib/theme'
 import { fmt, pct, nf, effectiveRate } from '../utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare } from '../utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare, getEntityK1Share } from '../utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from '../utils/calcGuard'
@@ -68,7 +68,10 @@ function getTotalW2(rec) {
 
 function getEntityIncomeSplit(rec) {
   const entities = Array.isArray(rec?.entities) ? rec.entities : []
-  const shareOf = (e) => Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
+  // FINDING-2/11 FIX (independent audit, Aug 2026): use the single-source K-1
+  // resolver so a K-1-direct-entry entity (already-allocated Box 1) is not
+  // re-scaled by Ownership % a second time here.
+  const shareOf = (e) => getEntityK1Share(e)
   const sCorp = entities
     .filter(e => isSCorpEntity(e?.type))
     .reduce((s, e) => s + shareOf(e), 0)
@@ -552,7 +555,9 @@ function RiskScan({ rec }) {
   if (sCorpEntities.length > 0) {
     sCorpEntities.forEach((e, ei) => {
       const entityName = e.name || 'S-Corp'
-      const eK1 = Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
+      // FINDING-2/11 FIX: getEntityK1Share honors k1DirectMode instead of
+      // re-scaling an already-allocated K-1 Box 1 amount by Ownership % again.
+      const eK1 = getEntityK1Share(e)
       const eOfficerSal = nf(e.pnl?.officerSalary)
       if (eOfficerSal === 0 && eK1 > 20000) {
         findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
@@ -730,7 +735,8 @@ function RiskScan({ rec }) {
   // with the current suspension behavior so it never contradicts what Step 2 now shows.
   const _sCorpLossNoBasis = (Array.isArray(rec.entities) ? rec.entities : []).reduce((s, e) => {
     if (!e || !isSCorpEntity(e?.type)) return s
-    const k1 = Math.round(getEntityNetProfit(e) * (ownPct(e.own) / 100))
+    // FINDING-2/11 FIX: see shareOf() above.
+    const k1 = getEntityK1Share(e)
     const basisEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
     return (k1 < 0 && !basisEntered) ? s + Math.abs(k1) : s
   }, 0)
