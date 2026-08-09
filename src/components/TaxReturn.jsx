@@ -20,7 +20,7 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityPnlNetShare } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
@@ -608,8 +608,15 @@ export default function TaxReturn() {
   // OBS-1 RESOLVED (Batch 7): display now matches the engine k1Total rule (F-13) —
   // charitable (box12_13) is a Schedule A item and no longer nets out of these
   // displayed K-1 figures. The four sites below changed together.
+  // FINDING-2 FIX (independent audit, Aug 2026): this display-only figure re-inlined
+  // getEntityPnlNetShare(), which always scales by Ownership % regardless of
+  // k1DirectMode -- a fifth, previously-missed copy of the bug already fixed in
+  // taxCalc.js, AIAnalysis.jsx, CalculateTaxInner.jsx, and aiAnalysisTaxMath.js.
+  // The engine total above (calcTaxReturn(entities: entityList)) was already correct
+  // since entityList is passed straight through unscaled; only this UI breakdown
+  // table showed the wrong per-entity number. Now uses the shared resolver.
   const step1RentalNetUI   = step1Rentals.reduce((s, e) =>
-    s + getEntityPnlNetShare(e) - nf(e.box11_12), 0)
+    s + getEntityK1Share(e) - nf(e.box11_12), 0)
 
   // C-10 FIX: the engine now applies the §1366(d) limit conservatively
   // (assumeZeroBasisOnLoss), suspending an S-Corp/partnership loss when no basis has
@@ -855,7 +862,7 @@ export default function TaxReturn() {
             <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>From Step 1 — Business Entities</div>
               {k1Entities.map((e, i) => {
-                const k1  = getEntityPnlNetShare(e) - nf(e.box11_12)   // OBS-1: engine rule
+                const k1  = getEntityK1Share(e) - nf(e.box11_12)   // OBS-1: engine rule (FINDING-2 FIX)
                 // AUDIT-6 FIX: this line previously showed only the raw K-1 amount with
                 // no indication that a loss may be limited by §1366(d) stock/debt basis
                 // — the same unqualified-figure pattern the rental loop below already
@@ -887,7 +894,7 @@ export default function TaxReturn() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 13, fontWeight: 700, borderTop: '1px solid #BFDBFE', marginTop: 4 }}>
                   <span style={{ color: '#1D4ED8' }}>Total K-1</span>
                   <span style={{ color: '#1D4ED8' }}>{fmt(k1Entities.reduce((s, e) =>
-                    s + getEntityPnlNetShare(e) - nf(e.box11_12), 0))}</span>
+                    s + getEntityK1Share(e) - nf(e.box11_12), 0))}</span>
                 </div>
               )}
 
@@ -899,7 +906,7 @@ export default function TaxReturn() {
                   </div>
                   <div style={{ fontSize: 11, color: PURPLE, marginBottom: 6, opacity: 0.75 }}>Passive activity rules (§469) apply — losses may be limited</div>
                   {step1Rentals.map((e, i) => {
-                    const reNet = getEntityPnlNetShare(e) - nf(e.box11_12)   // OBS-1: engine rule
+                    const reNet = getEntityK1Share(e) - nf(e.box11_12)   // OBS-1: engine rule (FINDING-2 FIX)
                     // Nonpassive only when a REP has made the §1.469-9(g) aggregation
                     // election; otherwise passive (the §469(a) default).
                     const isRepHere  = e.isREP || isREP

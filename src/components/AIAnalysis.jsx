@@ -28,7 +28,7 @@ import MoneyInput from './MoneyInput.jsx'
 import { signOut } from '../utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O, SUCCESS_TEXT } from '../lib/theme'
 import { fmt, pct, nf, effectiveRate } from '../utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityPnlNetShare, getEntityK1Share } from '../utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityK1Share } from '../utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from '../utils/calcGuard'
@@ -176,9 +176,12 @@ function getRecord(liveState) {
     const _k1NonPassive = (entities && entities.length)
       ? entities.reduce((sum, e) => {
           if (!e || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
-          // M3 (audit F-04): owner share via the single derivation rule — identical
-          // to the prior inline expression (incl. the ownPct(e.own ?? 100) variant).
-          return sum + getEntityPnlNetShare(e) - nf(e.box11_12)
+          // FINDING-2 FIX (independent audit, Aug 2026): this k1NonPassive base --
+          // which feeds the §179(b)(3) business-income limitation calc below -- was
+          // a sixth, previously-missed copy of the getEntityPnlNetShare() bug: it
+          // always scaled by Ownership %, double-proration a k1DirectMode entity's
+          // already-allocated Box 1 and understating the §179 limitation base.
+          return sum + getEntityK1Share(e) - nf(e.box11_12)
         }, 0)
       : _k1Stored
     const k1 = _k1NonPassive

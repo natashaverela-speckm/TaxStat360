@@ -585,3 +585,59 @@ describe('D-3 (A) — explicit sync: no silent overwrite of a loaded record', ()
     expect(screen.queryByText('Save your changes')).toBeNull()
   })
 })
+
+// ═══ FINDING-2 FIX (independent audit, Aug 2026) ═════════════════════════════
+// The "From Step 1 — Business Entities" K-1 summary panel re-inlined
+// getEntityPnlNetShare(), which always scales an entity's net profit by
+// Ownership % -- even for a k1DirectMode entity whose Box 1 figure is already
+// the owner's allocated share (per the "Have a K-1? Enter Box 1 directly"
+// toggle). This was a fifth, previously-missed copy of the same formula already
+// fixed in taxCalc.js, AIAnalysis.jsx, CalculateTaxInner.jsx, and
+// aiAnalysisTaxMath.js. Live-tested example: a 60%-owned partner's real K-1
+// Box 1 of $132,000 was shown here as $79,200. Note the actual tax LIABILITY
+// was never wrong -- entityList is passed unscaled straight into calcTaxReturn()
+// -- this panel is a display-only figure, now fixed to use getEntityK1Share().
+describe('TaxReturn — Finding 2: K-1 summary panel honors k1DirectMode (display)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('shows the full k1DirectMode Box 1 amount, not Ownership %-scaled', () => {
+    readStep1State.mockReturnValue({
+      entities: [{
+        type: 'Partnership / LLC', own: 60, k1DirectMode: true,
+        pnl: { netProfit: 132000, grossRevenue: 0, totalExpenses: 0 },
+      }],
+      k1Total: 132000,
+      isCoopPatron: false,
+    })
+
+    const { getAllByText, queryByText } = renderTaxReturn()
+
+    expect(getAllByText('$132,000').length).toBeGreaterThan(0)
+    expect(queryByText('$79,200')).toBeNull()
+  })
+
+  it('Total K-1 footer also reflects the unscaled sum across multiple entities', () => {
+    readStep1State.mockReturnValue({
+      entities: [
+        { type: 'Partnership / LLC', own: 60, k1DirectMode: true,
+          pnl: { netProfit: 132000, grossRevenue: 0, totalExpenses: 0 } },
+        { type: 'S Corporation', own: 100, k1: 20000, pnl: { netProfit: 20000 } },
+      ],
+      k1Total: 152000,
+      isCoopPatron: false,
+    })
+
+    const { getByText, getAllByText, queryByText } = renderTaxReturn()
+
+    expect(getByText('Total K-1')).toBeTruthy()
+    expect(getAllByText('$152,000').length).toBeGreaterThan(0)
+    // Old bug would have double-prorated the k1DirectMode entity to $79,200,
+    // producing a wrong total of $99,200 ($79,200 + $20,000) instead of $152,000.
+    expect(queryByText('$99,200')).toBeNull()
+  })
+})

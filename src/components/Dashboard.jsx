@@ -69,7 +69,7 @@ import {
 } from '../lib/constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from '../lib/theme.js'
 import { fmt, pct, effectiveRate } from '../utils/money.js'
-import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity } from '../utils/entityPredicates.js'
+import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 
@@ -448,14 +448,23 @@ export default function Dashboard() {
       ? rec.entities
       : rec.biz ? [rec.biz] : []
 
+    // FINDING-2 FIX (independent audit, Aug 2026): loadRecord() previously (a) always
+    // recomputed k1 as netProfit*Ownership%, ignoring a k1DirectMode entity's
+    // already-allocated Box 1, AND (b) never copied k1DirectMode onto the rebuilt
+    // entity object at all. The dropped flag made this worse than a display bug:
+    // the wrong k1 got written as an EXPLICIT e.k1 override, which every resolver
+    // (including the correctly-fixed getEntityK1Share) trusts as ground truth —
+    // silently poisoning every downstream calculation for the rest of the session,
+    // even after this file's own display bugs are fixed. Reopening the entity's
+    // K-1-direct panel in Step 1 also came up wrong/reset since k1DirectMode was gone.
     const entitiesToWrite = sourceEntities.filter(e => e && e.pnl).map(e => {
       const pnl = e.pnl || {}
-      const ownPctVal = parseInt(e.own) || 100
-      const k1 = Math.round((pnl.netProfit || 0) * (ownPctVal / 100))
+      const k1 = getEntityK1Share(e)
         - (parseMoney(e.box11_12) || 0)
         - (parseMoney(e.box12_13) || 0)
       return {
         name: e.name, type: normalizeEntityType(e.type), own: e.own,
+        k1DirectMode: !!e.k1DirectMode,
         pnl: { ...pnl },
         netProfit: pnl.netProfit || 0, k1,
         box17K: parseMoney(e.box17K) || 0,
