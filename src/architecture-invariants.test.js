@@ -79,6 +79,21 @@ describe('ARCHITECTURE invariants (CI-enforced)', () => {
       ['taxCalc.js', 'constants.js'])).toEqual([])
   })
 
+  it('§1 (Finding 2 regression guard, Aug 2026) — K-1/entity-income share resolution exists only in entityPredicates.js', () => {
+    // Independent audit, Aug 2026: the SAME "owner share = netProfit * Ownership%"
+    // formula was independently re-inlined SIX times across the codebase (taxCalc.js
+    // x9 call sites, AIAnalysis.jsx x4, CalculateTaxInner.jsx x2, aiAnalysisTaxMath.js,
+    // TaxReturn.jsx x4, Dashboard.jsx's loadRecord) before getEntityK1Share() became
+    // the single source of truth. None of those duplicates knew about k1DirectMode
+    // (the "Have a K-1? Enter Box 1 directly" toggle — the entered figure is already
+    // the owner's allocated share and must NOT be scaled by Ownership % again), so
+    // each one independently double-prorated a k1DirectMode entity's income. Every
+    // new call site must go through getEntityK1Share(); getEntityPnlNetShare() is
+    // the deprecated pre-k1DirectMode helper and must not gain new callers.
+    expect(violations(/getEntityPnlNetShare\s*\(/,
+      ['utils/entityPredicates.js'])).toEqual([])
+  })
+
   it('§7 (M5) — no bare silent catches: every swallowed error carries a justification', () => {
     // The error-handling convention (ARCHITECTURE §7, audit F-10): a catch may
     // swallow only with an explanatory comment; otherwise it must surface, log,
