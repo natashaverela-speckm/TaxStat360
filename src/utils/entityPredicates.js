@@ -151,6 +151,42 @@ export function getEntityPnlNetShare(e) {
 }
 
 /**
+ * Resolves an entity's K-1 (or K-1-equivalent) share for tax computation, honoring
+ * three possible input shapes in priority order (independent audit, Aug 2026 —
+ * Finding 2: partner's distributive share, IRC §702(a)/§704(b)):
+ *
+ *  1. An explicit e.k1 dollar amount — already the OWNER's final share (used by
+ *     synthetic/test entities and any future explicit-override field). 0 is a
+ *     valid, intentional value (e.g. a fully §1366(d) basis-suspended K-1 loss)
+ *     and is NOT treated as "missing" (F3 — §199A x §1366(d)).
+ *  2. K-1 direct-entry mode (e.k1DirectMode — set by the ManualEntryPanel "Have a
+ *     K-1? Enter Box 1 directly" toggle, FINDING-1 FIX). The user typed Box 1
+ *     exactly as shown on a real K-1, which the field's own instructions describe
+ *     as "already scaled by your ownership percentage on the K-1." Applying
+ *     Ownership % again on top of an already-allocated K-1 figure double-prorates
+ *     the owner's income. Returns the stored P&L net AS-IS, unscaled.
+ *  3. Gross-receipts / P&L entry mode (the default): e.pnl carries the ENTITY's
+ *     total P&L, which must be scaled by Ownership % to derive the owner's share.
+ *
+ * SINGLE SOURCE for this resolution. Every call site in taxCalc.js that resolves an
+ * entity's K-1 share (SE tax, QBI, the basis waterfall, distributions, the
+ * reasonable-comp alert, and the entity income breakdown) must use this function
+ * rather than re-inlining `nf(e.k1) || Math.round(netProfit * ownPct(e.own) / 100)`
+ * — that inline pattern is exactly what silently double-prorated a K-1-direct-entry
+ * partner's income before this fix (a 60%-owned partner's already-allocated $132,000
+ * Box 1 entry was displayed and taxed as $79,200).
+ */
+export function getEntityK1Share(e) {
+  if (!e) return 0
+  if (e.k1 !== undefined) return nf(e.k1)
+  // Built on getEntityNetProfit() (not getEntityPnlNet()) so this also supports
+  // pre-pnl legacy records (top-level e.netProfit, no e.pnl object at all) — the
+  // same dual-path data model getEntityNetProfit() already resolves (CC-M04 / OBS-3).
+  if (e.k1DirectMode) return getEntityNetProfit(e)
+  return Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
+}
+
+/**
  * Resolve ownership percentage safely — fixes the JS falsy 0% bug (F-M02).
  *
  * The legacy pattern (parseFloat(e.own) || 100) silently treats explicit 0%
