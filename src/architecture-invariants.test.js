@@ -113,4 +113,20 @@ describe('ARCHITECTURE invariants (CI-enforced)', () => {
     }
     expect(hits).toEqual([])
   })
+
+  it('§1 (M1 regression guard, Aug 2026) — the reasonable-comp ratio test exists only in calcReasonableCompCore', () => {
+    // Independent audit, Aug 2026 (finding F-1): the SAME salary-to-total-compensation
+    // ratio test ("officerSal / (officerSal + k1) < THRESHOLD") was independently
+    // re-inlined FOUR times — AIAnalysis.jsx (x3), CalculateTaxInner.jsx's
+    // ReasonableCompIndicator, and EntityCompareModal.jsx's detectRcRisk (which had
+    // also drifted to a hard-coded 0.4 and a different denominator entirely) — before
+    // being consolidated into calcReasonableCompCore(). This guard has two parts: the
+    // specific ratio-comparison shape, and a bare 0.4/0.40 literal used as a comp-ratio
+    // threshold outside the two sanctioned files.
+    const ratioShape = /\w+\s*\/\s*\(\s*\w+\s*\+\s*\w+\s*\)\s*<\s*SCORP_REASONABLE_COMP_RATIO_THRESHOLD/
+    expect(violations(ratioShape, ['taxCalc.js', 'constants.js'])).toEqual([])
+
+    const bareRatioLiteral = /(?:salary|sal|officerSal|comp|wages)\s*\/\s*\w+\s*<\s*0\.4[05]?\b/i
+    expect(violations(bareRatioLiteral, ['taxCalc.js', 'constants.js'])).toEqual([])
+  })
 })
