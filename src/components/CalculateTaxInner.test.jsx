@@ -94,6 +94,69 @@ describe('Finding 2 — inline manual P&L live-commits without clicking the conf
   })
 })
 
+describe('Fresh-eyes fix (Aug 2026) — K-1 direct-entry "Done" saves the typed K-1 value', () => {
+  // Bug: applyManual() (the Done button's handler) always computed
+  // netProfit as rv - totalExpenses, ignoring manK1Direct even when K-1
+  // direct-entry mode was active. Since rv/totalExpenses collapse to just
+  // effectiveSal (officer comp) in that mode, Done silently saved
+  // -officerComp (S-Corp) or $0 (Partnership) instead of the K-1 amount
+  // the user actually typed. The live preview looked correct because a
+  // separate live-bind effect computed it correctly on every keystroke —
+  // only the terminal Done click used the wrong formula.
+  it('S-Corp: Done saves the typed K-1 loss, not -officerComp', () => {
+    const onUpdate = vi.fn()
+    const entity = { type: 'S Corporation', own: '100', pnl: {}, isManual: true }
+    const { container, getByText } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} />,
+    )
+    fireEvent.click(getByText(/Have a K-1\? Enter Box 1 directly/))
+    const inputs = container.querySelectorAll('input')
+    fireEvent.change(inputs[0], { target: { value: '-200000' } }) // K-1 Box 1
+    fireEvent.change(inputs[1], { target: { value: '45000' } })   // Officer Compensation
+    onUpdate.mockClear()
+    fireEvent.click(getByText('Done'))
+    const [, updated] = lastUpdate(onUpdate)
+    expect(updated.pnl.netProfit).toBe(-200000)
+    expect(updated.pnl.netProfit).not.toBe(-45000)
+  })
+
+  it('Partnership: Done saves the typed K-1 value, not $0', () => {
+    const onUpdate = vi.fn()
+    const entity = { type: 'Partnership / LLC', own: '100', pnl: {}, isManual: true }
+    const { container, getByText } = render(
+      <ManualEntryPanel entity={entity} idx={1} onUpdate={onUpdate} onCancel={() => {}} />,
+    )
+    fireEvent.click(getByText(/Have a K-1\? Enter Box 1 directly/))
+    const inputs = container.querySelectorAll('input')
+    fireEvent.change(inputs[0], { target: { value: '-50000' } }) // K-1 Box 1
+    onUpdate.mockClear()
+    fireEvent.click(getByText('Done'))
+    const [, updated] = lastUpdate(onUpdate)
+    expect(updated.pnl.netProfit).toBe(-50000)
+    expect(updated.pnl.netProfit).not.toBe(0)
+  })
+
+  it('S-Corp: re-editing an already-saved K-1 entity and clicking Done persists the new value', () => {
+    const onUpdate = vi.fn()
+    // Entity as it would look after a prior K-1-direct save.
+    const entity = {
+      type: 'S Corporation', own: '100', isManual: true, k1DirectMode: true,
+      officerW2: 80000,
+      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: 0, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: -80000, categories: {} },
+    }
+    const { container, getByText } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} />,
+    )
+    // K-1 direct mode should already be selected on re-open (k1DirectMode: true).
+    const inputs = container.querySelectorAll('input')
+    fireEvent.change(inputs[0], { target: { value: '-100000' } }) // edit K-1 Box 1
+    onUpdate.mockClear()
+    fireEvent.click(getByText('Done'))
+    const [, updated] = lastUpdate(onUpdate)
+    expect(updated.pnl.netProfit).toBe(-100000)
+  })
+})
+
 describe('Category A — entityResultLabel says "K-1" ONLY for K-1 issuers', () => {
   // The old code (isCCorp ? 'Net Profit' : 'Net / K-1') labeled directly-held Schedule E
   // rentals and Schedule C sole props as "K-1" — neither issues one. These pin the fix.

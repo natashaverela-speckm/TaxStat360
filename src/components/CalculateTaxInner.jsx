@@ -480,10 +480,43 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const officerExceedsNetProfit = !officerExceedsRevenue && effectiveSal > (rv - ex - dep) && effectiveSal > 0 && rv > 0
 
   function applyManual() {
+    // FRESH-EYES FIX (fresh-pass audit, Aug 2026): the "Done" button always
+    // recomputed netProfit as rv - totalExpenses, even in K-1 direct-entry
+    // mode — where rv/totalExpenses are always 0/effectiveSal because those
+    // P&L fields are hidden. That silently saved -effectiveSal (S-Corp) or
+    // $0 (Partnership, no officer comp) instead of the K-1 value the user
+    // actually typed into manK1Direct, discarding it with no error shown.
+    // The live-bind useEffect above already branches on useK1Direct
+    // correctly (that's why the live preview always looked right) — this
+    // branch makes the Done button match it exactly, using manK1Direct as
+    // the source of truth for netProfit whenever K-1 direct mode is active.
+    if (useK1Direct) {
+      const k1Net = nf(manK1Direct)
+      onUpdate(idx, {
+        ...entityRef.current,
+        officerW2: effectiveSal,
+        k1DirectMode: true,
+        pnl: {
+          grossRevenue:    0,
+          totalExpenses:   0,
+          officerSalary:   0,
+          depreciation:    0,
+          advertising:     0,
+          otherDeductions: 0,
+          netProfit:       k1Net,
+          categories: (entityRef.current.pnl && entityRef.current.pnl.categories) || {},
+        },
+        connectedId: null,
+        isManual: true,
+      })
+      onCancel()
+      return
+    }
     if (rv > 0 || totalExpenses > 0) {
       onUpdate(idx, {
         ...entityRef.current,   // BUG-A ROOT FIX: use ref, not stale closure
         officerW2: effectiveSal,
+        k1DirectMode: false,
         pnl: {
           grossRevenue:    rv,
           totalExpenses,
