@@ -24,7 +24,19 @@ customHeaders:
       # ── Content Security Policy ───────────────────────────────────────────
       # Allows: Stripe (payments), Vimeo (landing video), Google Fonts,
       # QuickBooks/Xero/Wave/FreshBooks APIs, Web3Forms (contact form),
-      # Mailchimp (newsletter), and app.taxstat360.com (backend API).
+      # Mailchimp (newsletter), app.taxstat360.com (backend API), and the Meta
+      # (Facebook) advertising pixel.
+      #
+      # FIX (fresh-pass audit, Aug 2026): the Meta Pixel (index.html's deferred,
+      # consent-gated loader -- see pixelConsent.test.js) loads
+      # https://connect.facebook.net/en_US/fbevents.js and reports events to
+      # https://www.facebook.com/tr -- neither domain was listed here, a real
+      # gap between this source file and the site's actual, intended behavior
+      # (the pixel is a deliberate, disclosed, consent-gated feature per
+      # Privacy.jsx, not something that should've needed an undocumented
+      # allowance). Listed explicitly below rather than relying on img-src's
+      # broad `https:` catch-all, since the pixel's script tag and its
+      # tracking beacon are governed by script-src/connect-src, not img-src.
       #
       # IMPORTANT: Test first by temporarily changing the key above to:
       #   Content-Security-Policy-Report-Only
@@ -33,7 +45,7 @@ customHeaders:
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
-          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com;
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://connect.facebook.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' https://fonts.gstatic.com;
           img-src 'self' data: https: blob:;
@@ -46,7 +58,9 @@ customHeaders:
             https://api.wave.com
             https://api.freshbooks.com
             https://api.web3forms.com
-            https://taxstat360.us4.list-manage.com;
+            https://taxstat360.us4.list-manage.com
+            https://www.facebook.com
+            https://connect.facebook.net;
           frame-src https://js.stripe.com https://hooks.stripe.com https://player.vimeo.com;
           worker-src 'self' blob:;
           object-src 'none';
