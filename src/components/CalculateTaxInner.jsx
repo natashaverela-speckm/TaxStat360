@@ -30,7 +30,7 @@ import { selectTaxSummary } from '../utils/calcSelector.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
-import { sumK1FlowThrough, QBI_THRESHOLDS } from '../lib/taxCalc.js'
+import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
 import InfoTip from './InfoTip.jsx'
 import SharedMoneyInput from './MoneyInput.jsx'
 
@@ -112,15 +112,15 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   // F4 FIX (Jul 2026): `netProfit` is the entity's net BEFORE officer salary — i.e. the
   // whole owner take (salary + distributions), matching the engine's canonical model in
   // calcReasonableCompCore (totalComp = salary + K-1 distributions = net before salary).
-  // The prior code treated netProfit as if it were distributions only: totalComp
-  // double-counted the salary, and minTarget used ratio/(1-ratio) (~67% of net) instead
-  // of ratio-of-total, so a $300K net wrongly suggested ~$200K rather than the ~$120K
-  // that 40% of total take implies — contradicting the "35-45%" text beside it. Both the
-  // ratio and the suggested salary now measure against the same total-take denominator.
   const totalComp = Math.max(0, netProfit)
-  const ratio = totalComp > 0 ? officerSal / totalComp : 0
-  const _compRatio = SCORP_REASONABLE_COMP_RATIO_THRESHOLD
-  const minTarget = Math.round(_compRatio * totalComp)
+  const minTarget = Math.round(SCORP_REASONABLE_COMP_RATIO_THRESHOLD * totalComp)
+  // M1 (audit F-1, Aug 2026): the ratio-vs-threshold DETERMINATION (and the displayed
+  // percentage) now comes from calcReasonableCompCore (taxCalc.js) — the single source
+  // of truth for this rule — instead of a third independent inline copy. totalComp
+  // stays anchored to netProfit per the F4 fix above (the residual passed as
+  // k1Distributions reconstructs the same total in the normal case where
+  // officerSal <= netProfit); minTarget above stays a local presentation value.
+  const reasonableComp = calcReasonableCompCore(officerSal, totalComp - officerSal)
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
@@ -155,13 +155,13 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     )
   }
 
-  if (ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
+  if (reasonableComp.triggered) {
     return (
       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
           Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
-          {' '}{(ratio * 100).toFixed(0)}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
+          {' '}{reasonableComp.ratioPct}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
           a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
           distributions, is what keeps the S-Corp structure defensible.
           {watsonWarning && (
@@ -185,7 +185,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
       <div style={{ color: '#166534', lineHeight: 1.6 }}>
-        Your salary is {(ratio * 100).toFixed(0)}% of total officer compensation — within the commonly
+        Your salary is {reasonableComp.ratioPct}% of total officer compensation — within the commonly
         recommended 35–45% range. Make sure FICA payroll taxes are withheld and remitted (quarterly
         Form 941).
         {watsonWarning && (

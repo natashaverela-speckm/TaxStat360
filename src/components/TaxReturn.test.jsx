@@ -41,6 +41,10 @@ vi.mock('../lib/taxCalc', () => ({
   getBrackets: vi.fn(() => []),
   getLTCGThresholds: vi.fn(() => ({})),
   getAddlMedicareThreshold: vi.fn(() => 200000),
+  // M2 (audit F-2, Aug 2026): getSaltPhaseDownParams backs TaxReturn.jsx's SALT
+  // explanatory text; mocked null here (no phase-down) same as this suite's flat
+  // $10,000/$40,000 SALT_CAPS stub above, which predates OBBBA's 2025+ phase-down.
+  getSaltPhaseDownParams: vi.fn(() => null),
   calcFederalTax: vi.fn(() => 0),
   calcPreferentialTax: vi.fn(() => 0),
   calcNIIT: vi.fn(() => 0),

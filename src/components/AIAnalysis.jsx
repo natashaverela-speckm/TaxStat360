@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation } from '../lib/taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation, calcReasonableCompCore } from '../lib/taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -562,13 +562,18 @@ function RiskScan({ rec }) {
       // re-scaling an already-allocated K-1 Box 1 amount by Ownership % again.
       const eK1 = getEntityK1Share(e)
       const eOfficerSal = nf(e.pnl?.officerSalary)
-      if (eOfficerSal === 0 && eK1 > 20000) {
+      // M1 (audit F-1, Aug 2026): the ratio-vs-threshold determination now comes from
+      // calcReasonableCompCore (taxCalc.js) — the single source of truth for this rule
+      // (see ARCHITECTURE.md §1) — instead of a fourth independent inline copy. Only
+      // presentation (copy, severity icon) stays local, per the OBS-7 pattern.
+      const eComp = calcReasonableCompCore(eOfficerSal, eK1)
+      if (eOfficerSal === 0 && eComp.applicable) {
         findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
-      } else if (eOfficerSal > 0 && eK1 > 30000 && eOfficerSal / (eOfficerSal + eK1) < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
+      } else if (eOfficerSal > 0 && eComp.triggered) {
         findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Compensation May Be Too Low — ${entityName}`,
-          detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${((eOfficerSal/(eOfficerSal+eK1))*100).toFixed(1)}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+          detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${eComp.ratioPct}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Consider increasing ${entityName}'s officer compensation to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0) {
         findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Compensation Recorded — ${entityName}`,
@@ -579,12 +584,10 @@ function RiskScan({ rec }) {
         // low-salary finding above did NOT fire) is still flagged here as an informational
         // reminder to document the basis for the salary — the IRS scrutinizes S-Corp comp
         // under a facts-and-circumstances test regardless of ratio (Rev. Rul. 74-44).
-        const eTotalComp = eOfficerSal + Math.max(0, eK1)
-        if (eTotalComp > 20000) {
-          const eRatio = (eOfficerSal / eTotalComp * 100).toFixed(1)
+        if (eComp.applicable) {
           findings.push({ key: 'scorp-comp-doc-' + ei, level: 'info', icon: '📋',
             title: `Reasonable Compensation — Document the Basis (${entityName})`,
-            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
             action: `Maintain a contemporaneous record showing: (1) a description of the services you personally performed; (2) hours spent; (3) comparable industry salaries for those services (BLS Occupational Employment Stats or a compensation survey); and (4) years of experience and qualifications. If your salary changed from prior years, document why. Your CPA should review the reasonableness determination annually.`,
           })
         }
@@ -592,25 +595,25 @@ function RiskScan({ rec }) {
     })
   } else if (isSCorpEntity(b.entityType)) {
     const ownerComp = officerSal > 0 ? officerSal : w2
-    if (ownerComp === 0 && k1 > 20000) {
+    // M1 (audit F-1, Aug 2026): see per-entity branch above — same consolidation.
+    const legacyComp = calcReasonableCompCore(ownerComp, k1)
+    if (ownerComp === 0 && legacyComp.applicable) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Compensation — Audit Risk',
         detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
         action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of total officer compensation (salary + K-1 income). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
-    } else if (ownerComp > 0 && k1 > 30000 && ownerComp / (ownerComp + k1) < SCORP_REASONABLE_COMP_RATIO_THRESHOLD) {
+    } else if (ownerComp > 0 && legacyComp.triggered) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Compensation May Be Too Low',
-        detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${((ownerComp/(ownerComp+k1))*100).toFixed(1)}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
+        detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${legacyComp.ratioPct}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
         action: `Consider increasing your salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
     } else if (ownerComp > 0) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Compensation Recorded',
         detail: `Owner compensation of ${fmt(ownerComp)} is on file. Ensure payroll taxes (FICA) are being withheld and remitted quarterly.`,
         action: null })
       // AI-3 FIX: reasonable compensation documentation reminder (see per-entity branch above).
-      const _legacyTotalComp = ownerComp + Math.max(0, k1)
-      if (_legacyTotalComp > 20000) {
-        const _legacyRatio = (ownerComp / _legacyTotalComp * 100).toFixed(1)
+      if (legacyComp.applicable) {
         findings.push({ level: 'info', icon: '📋',
           title: 'Reasonable Compensation — Document the Basis',
-          detail: `Officer compensation (${fmt(ownerComp)}) is ${_legacyRatio}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+          detail: `Officer compensation (${fmt(ownerComp)}) is ${legacyComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
           action: `Maintain records showing: services performed, hours spent, comparable industry salaries (BLS OES or compensation surveys), and your qualifications. Discuss the reasonableness determination with your CPA annually.`,
         })
       }
@@ -1314,16 +1317,10 @@ function IRSCompliance({ rec }) {
       filing: _filing,
       isCoopPatron: _isCoopPatron,
     })
-    // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): this was another inline
-    // reimplementation of the owner-share formula, with the netProfit/pnl.netProfit priority
-    // INVERTED relative to getEntityNetProfit()'s established rule (pnl first, legacy
-    // top-level field only as a fallback -- OBS-3, KNOWN_LIMITATIONS.md) and no derivation
-    // from gross/expenses when netProfit itself is absent. Routed through getEntityK1Share(),
-    // this file's own established single source of truth for an owner's QBI-relevant share
-    // (comma-safe, k1DirectMode-aware, ownership%-scaled) -- advisory-text-only (no dollar
-    // figure depends on it), but a missed loss silently dropped the Form 8995-A guidance note.
     const _currentYearQbiLoss = (Array.isArray(rec.entities) ? rec.entities : []).some(e => {
-      return e && getEntityK1Share(e) < 0
+      const np = nf(e?.netProfit ?? e?.pnl?.netProfit ?? 0)
+      const own = ownPct(e?.own)
+      return (np * own / 100) < 0
     }) || k1 < 0
     const _priorQbiLoss = (nf(f.priorQBILossCO || f.priorYearLosses || 0)) > 0
     const _hasSSTB = (Array.isArray(rec.entities) ? rec.entities : []).some(e => !!(e && (e.box17V_sstb || e.sstb)))
@@ -1705,8 +1702,10 @@ export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (
 
   const points = []
   if (isSCorpEntity(b.entityType) && officerSal > 0 && k1 > 0) {
-    const ratio = officerSal / (officerSal + k1)
-    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 ordinary business income — a ${pct(ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${ratio < SCORP_REASONABLE_COMP_RATIO_THRESHOLD ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
+    // M1 (audit F-1, Aug 2026): ratio/triggered now come from calcReasonableCompCore
+    // (taxCalc.js) instead of a fifth independent inline copy of the same formula.
+    const _posComp = calcReasonableCompCore(officerSal, k1)
+    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 ordinary business income — a ${pct(_posComp.ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${_posComp.triggered ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
   } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
     points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 compensation on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
   }

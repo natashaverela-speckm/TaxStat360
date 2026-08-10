@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
 import { useNavigate } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable } from '../lib/taxCalc.js'
+import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable, getSaltPhaseDownParams } from '../lib/taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -575,6 +575,10 @@ export default function TaxReturn() {
   }, [])
 
   const stdDed      = getStdDed(taxYear, filingStatus)
+  // M2 (audit F-2, Aug 2026): resolved once here so both explanatory text blocks
+  // below read the SAME numbers the engine actually applies (getSaltCap uses the
+  // identical taxCalc.js table) instead of each retyping the figures as prose.
+  const saltPd      = getSaltPhaseDownParams(taxYear, filingStatus)
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
@@ -1446,14 +1450,16 @@ export default function TaxReturn() {
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
-                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap, including the OBBBA §70120 phase-down: above $505,000 MAGI ($252,500 MFS) for 2026, the cap shrinks by 30% of the excess, to a floor of $10,000 ($5,000 MFS).`} />
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap${saltPd ? `, including the OBBBA §70120 phase-down: above $${Math.round(saltPd.threshold).toLocaleString()} MAGI for ${taxYear}, the cap shrinks by ${Math.round(saltPd.rate * 100)}% of the excess, to a floor of $${Math.round(saltPd.floor).toLocaleString()}` : ''}.`} />
                       </label>
                       <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                       {result?.saltDisallowed > 0 && (
                         <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                           ⚠ SALT deduction limited to {fmt(result.saltAllowed)} of the {fmt(result.saltEntered)} entered —
-                          IRC §164(b)(6)/(b)(7) as amended by OBBBA §70120. For 2026 the cap is $40,400 ($20,200 MFS),
-                          reduced by 30% of MAGI above $505,000 ($252,500 MFS) to a floor of $10,000 ($5,000 MFS).
+                          IRC §164(b)(6)/(b)(7) as amended by OBBBA §70120.{saltPd && (
+                            <> For {taxYear} the cap is {fmt(saltPd.cap)}, reduced by {Math.round(saltPd.rate * 100)}%
+                            of MAGI above {fmt(saltPd.threshold)} to a floor of {fmt(saltPd.floor)}.</>
+                          )}
                           Note for pass-through owners: a state PTET election changes your FEDERAL deduction —
                           state tax on business income moves from this capped line to an uncapped entity-level
                           expense on your K-1. This app models federal tax only; ask your CPA whether the
