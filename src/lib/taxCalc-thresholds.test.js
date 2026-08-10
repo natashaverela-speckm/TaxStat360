@@ -83,8 +83,15 @@ describe('getAddlMedicareThreshold — IRC §3101(b)(2) thresholds (statutory, n
     expect(getAddlMedicareThreshold(2025, 'mfs')).toBe(125000)
   })
 
-  it('SPEC: qualifying surviving spouse grouped with MFJ at $250,000', () => {
-    expect(getAddlMedicareThreshold(2025, 'qss')).toBe(250000)
+  it('SPEC: §3101(b)(2)(C) — qualifying surviving spouse is $200,000, NOT $250,000', () => {
+    // QSS does not file a joint return (it borrows the MFJ rate schedule under §2(a)),
+    // so §3101(b)(2)(A)'s $250,000 "joint return" threshold does not apply to it —
+    // §3101(b)(2)(C)'s $200,000 "any other case" threshold does (Form 8959 instructions
+    // confirm: Single $200,000 / HOH $200,000 / QSS $200,000 / MFJ $250,000 / MFS
+    // $125,000). This is the ONE place Additional Medicare Tax and NIIT diverge — NIIT's
+    // own QSS threshold IS $250,000, because IRC §1411(b)(1) explicitly groups "a joint
+    // return or a surviving spouse" with MFJ, unlike §3101(b)(2).
+    expect(getAddlMedicareThreshold(2025, 'qss')).toBe(200000)
   })
 
   it('SPEC: thresholds are fixed by statute — identical across supported years', () => {

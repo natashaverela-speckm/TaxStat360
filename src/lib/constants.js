@@ -240,7 +240,17 @@ export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ = 250000  // IRC §3101(b)(2)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS = 125000  // IRC §3101(b)(2)(B)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000 // IRC §3101(b)(2)(C)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH = 200000 // IRC §3101(b)(2)(C) — head of household (any other case)
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 250000 // preserves prior tax-table value for qualifying surviving spouse
+// AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): IRC §3101(b)(2) sets $250,000 only "in
+// the case of a joint return" (subpara. (A)) and $200,000 "in any other case" (subpara. (C)).
+// A qualifying surviving spouse does not file a joint return -- QSS merely borrows the MFJ
+// rate schedule (§2(a)) -- so the correct threshold is $200,000, matching the Instructions
+// for Form 8959 ("Threshold Amounts for Additional Medicare Tax": Single $200,000 · Head of
+// household $200,000 · Qualifying surviving spouse $200,000 · MFJ $250,000 · MFS $125,000).
+// Was $250,000, carried over without a primary-source check ("preserves prior tax-table
+// value"). Contrast with NIIT (IRC §1411(b)(1)), which DOES say "a joint return or a
+// surviving spouse (as defined in section 2(a))" -- NIIT_THRESHOLD_QSS = 250000 above is
+// correct and unaffected by this fix.
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 200000
 
 // ─── NET INVESTMENT INCOME TAX (NIIT) — IRC §1411 ────────────────────────────
 // 3.8% on the lesser of:
