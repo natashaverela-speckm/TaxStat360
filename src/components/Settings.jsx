@@ -39,6 +39,12 @@ export default function Settings() {
   const [emailSent, setEmailSent] = useState(false)
   const [pwSent, setPwSent] = useState(false)
   const [emailInput, setEmailInput] = useState('')
+  // SECURITY FIX (fresh-pass audit, Aug 2026): the backend now requires re-proof of
+  // the current credential before changing the account email (current password, or
+  // the current MFA code if two-factor is enabled) -- see main.py change_email().
+  // This single field holds whichever one applies; the label/input type switches
+  // based on mfaEnabled below.
+  const [changeEmailAuth, setChangeEmailAuth] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -155,11 +161,20 @@ export default function Settings() {
 
   const handleEmailChange = async () => {
     if (!emailInput || emailInput === email) return
+    // SECURITY FIX (fresh-pass audit, Aug 2026): current password/MFA code is now
+    // required by the backend -- see change_email() in main.py. Guard client-side
+    // too so the user gets an immediate, specific prompt instead of a round-trip 401.
+    if (!changeEmailAuth) {
+      setMsg(mfaEnabled ? 'Enter your current 6-digit authenticator code to confirm.' : 'Enter your current password to confirm.')
+      return
+    }
     setLoading(true)
     setMsg('')
     try {
-      await apiPost('/auth/change-email', { new_email: emailInput }, { credentials: 'include' })
+      const authField = mfaEnabled ? { mfa_code: changeEmailAuth } : { password: changeEmailAuth }
+      await apiPost('/auth/change-email', { new_email: emailInput, ...authField }, { credentials: 'include' })
       setEmailSent(true)
+      setChangeEmailAuth('')
       setMsg(`A confirmation link has been sent to ${emailInput}. Click it to confirm your new email address.`)
     } catch (e) {
       if (e instanceof ApiError) {
@@ -337,18 +352,32 @@ export default function Settings() {
 
           <div style={{borderTop:'1px solid #F1F5F9',paddingTop:20,marginBottom:20}}>
             <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:10}}>Change email address</div>
-            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
               <input
                 type="email"
                 value={emailInput}
                 onChange={e=>setEmailInput(e.target.value)}
                 placeholder="New email address"
-                style={{flex:1,padding:'9px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,outline:'none'}}
+                style={{flex:1,minWidth:180,padding:'9px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,outline:'none'}}
+              />
+              {/* SECURITY FIX (fresh-pass audit, Aug 2026): re-proof of the current
+                  credential, required by the backend before an email change is
+                  accepted -- password normally, or the current TOTP code if MFA
+                  is enabled (a password wouldn't be enough re-proof on its own
+                  once a second factor is set up). */}
+              <input
+                type={mfaEnabled ? 'text' : 'password'}
+                value={changeEmailAuth}
+                onChange={e=>setChangeEmailAuth(e.target.value)}
+                placeholder={mfaEnabled ? 'Current 6-digit code' : 'Current password'}
+                inputMode={mfaEnabled ? 'numeric' : undefined}
+                maxLength={mfaEnabled ? 6 : undefined}
+                style={{flex:1,minWidth:160,padding:'9px 14px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:14,color:N,outline:'none'}}
               />
               <button
                 onClick={handleEmailChange}
-                disabled={loading || emailSent || !emailInput || emailInput===email}
-                style={{padding:'9px 18px',background:emailSent?SUCCESS_TEXT:B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput)?0.5:1}}
+                disabled={loading || emailSent || !emailInput || emailInput===email || !changeEmailAuth}
+                style={{padding:'9px 18px',background:emailSent?SUCCESS_TEXT:B,color:'#fff',border:'none',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',flexShrink:0,opacity:(emailInput===email||!emailInput||!changeEmailAuth)?0.5:1}}
               >
                 {emailSent ? '✓ Sent' : 'Send confirmation'}
               </button>

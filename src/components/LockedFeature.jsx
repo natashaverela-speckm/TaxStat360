@@ -5,9 +5,9 @@ import { NAVY as N, BLUE as B } from '../lib/theme.js'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Plan Constants & Normalization ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ─── Plan Constants & Normalization ──────────────────────────────────────────
 // Single source of truth for plan IDs. ALL plan-gate code must import from here.
-// Never compare against raw localStorage values ÃÂ¢ÃÂÃÂ always use getUserPlan() which
+// Never compare against raw localStorage values — always use getUserPlan() which
 // normalises legacy names via PLAN_ALIASES transparently.
 
 export const PLAN_IDS = {
@@ -16,7 +16,7 @@ export const PLAN_IDS = {
   ENTERPRISE:   'enterprise',
 }
 
-// Legacy plan name aliases ÃÂ¢ÃÂÃÂ maps old DB/Lambda values to canonical PLAN_IDS.
+// Legacy plan name aliases — maps old DB/Lambda values to canonical PLAN_IDS.
 // "basic" is the pre-migration DB value for Starter accounts (C-01).
 // Add new aliases here; never scatter alias logic across other components.
 const PLAN_ALIASES = {
@@ -27,9 +27,9 @@ const PLAN_ALIASES = {
   'essential': PLAN_IDS.ENTERPRISE,
 }
 
-// normalizePlanId ÃÂ¢ÃÂÃÂ converts any raw plan string (from localStorage, Lambda,
+// normalizePlanId — converts any raw plan string (from localStorage, Lambda,
 // or DynamoDB) into a canonical PLAN_IDS value. Import and use this anywhere
-// a plan string is read outside of getUserPlan() ÃÂ¢ÃÂÃÂ e.g. Upgrade.jsx planMap.
+// a plan string is read outside of getUserPlan() — e.g. Upgrade.jsx planMap.
 export function normalizePlanId(raw) {
   const lower = (raw || '').toLowerCase().trim()
   return PLAN_ALIASES[lower] || (Object.values(PLAN_IDS).includes(lower) ? lower : PLAN_IDS.STARTER)
@@ -42,7 +42,7 @@ export function getUserPlan() {
   return PLAN_ALIASES[raw] || raw
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Server-side plan re-validation (SEC-05) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ─── Server-side plan re-validation (SEC-05) ─────────────────────────────────
 // The browser cannot be trusted to report its own plan: anyone can run
 // writePlan('enterprise') in dev tools. The SERVER is the
 // source of truth. On every app load we ask GET /auth/me (which reads the
@@ -90,7 +90,7 @@ export function canAccess(requiredPlan) {
   return (rank[getUserPlan()] ?? 0) >= (rank[requiredPlan] ?? 0)
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ LockedFeature Component ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ─── LockedFeature Component ──────────────────────────────────────────────────
 // Wraps any feature section with a blurred overlay + upgrade prompt.
 //
 // Usage:
@@ -99,10 +99,10 @@ export function canAccess(requiredPlan) {
 //   </LockedFeature>
 //
 // Props:
-//   requiredPlan  ÃÂ¢ÃÂÃÂ 'professional' | 'enterprise'  (default: 'professional')
-//   label         ÃÂ¢ÃÂÃÂ Feature name shown in the overlay
-//   minHeight     ÃÂ¢ÃÂÃÂ Minimum height for the locked area (default: 120)
-//   children      ÃÂ¢ÃÂÃÂ The feature to render (shown blurred when locked)
+//   requiredPlan  — 'professional' | 'enterprise'  (default: 'professional')
+//   label         — Feature name shown in the overlay
+//   minHeight     — Minimum height for the locked area (default: 120)
+//   children      — The feature to render (shown blurred when locked)
 //
 // If the user's plan meets the requirement, children render normally.
 // If not, a blurred preview with an upgrade CTA is shown instead.

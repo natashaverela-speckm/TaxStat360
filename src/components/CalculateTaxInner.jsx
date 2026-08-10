@@ -865,7 +865,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 }
 
 // ─── Entity card ──────────────────────────────────────────────────────────────
-function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+// Exported for testing (fresh-pass audit, Aug 2026), mirroring ManualEntryPanel
+// below — lets the Partnership §704(d) basis-badge regression test render this
+// card directly instead of the whole Step-1 page tree.
+export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const [showBasis,  setShowBasis]  = useState(false)
@@ -963,21 +966,34 @@ function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAgg
   })()
 
   // ── PASS4B-02b: Inline badge computations ─────────────────────────────────
+  // UX FIX (fresh-pass audit, Aug 2026): this badge used to be S-Corp-only
+  // (`if (!isSC || !scBasis) return null`), even though scBasis itself is
+  // already computed for BOTH S-Corp and Partnership (see the `!isSC &&
+  // !isPartnership` guard above). The result: an S-Corp with sufficient basis
+  // got an immediate green "Full loss is deductible" confirmation on the
+  // collapsed entity card, but a Partnership in the exact same position got
+  // no card-level confirmation at all — the same "✅ Loss Within Basis"
+  // message existed, but only inside the collapsed-by-default "Outside
+  // Basis" panel, an extra click away. Same math, same underlying data,
+  // inconsistent visibility. Extended to Partnership with §704(d) citation
+  // and outside-basis wording instead of §1366(d)/stock-basis wording.
   const basisBadge = (() => {
-    if (!isSC || !scBasis) return null
+    if ((!isSC && !isPartnership) || !scBasis) return null
     const { lossAmt, hasBasisInput, basisForLoss, suspendedLoss, dist } = scBasis
     if (lossAmt === 0) return null
+    const cite = isSC ? '§1366(d)' : '§704(d)'
+    const basisWord = isSC ? 'basis' : 'outside basis'
     // C-10: a loss with no basis figure at all is conservatively suspended — prompt for basis.
     if (!hasBasisInput) {
-      return { type: 'amber', msg: `§1366(d): enter stock basis — ${fmt(lossAmt)} loss may be limited.` }
+      return { type: 'amber', msg: `${cite}: enter ${isSC ? 'stock basis' : 'outside basis'} — ${fmt(lossAmt)} loss may be limited.` }
     }
     if (suspendedLoss > 0) {
-      const why = dist > 0
+      const why = isSC && dist > 0
         ? `basis insufficient after §1368 distributions`
-        : `basis insufficient`
-      return { type: 'warn', msg: `§1366(d): ${fmt(suspendedLoss)} of your ${fmt(lossAmt)} loss is suspended — ${why}.` }
+        : `${basisWord} insufficient`
+      return { type: 'warn', msg: `${cite}: ${fmt(suspendedLoss)} of your ${fmt(lossAmt)} loss is suspended — ${why}.` }
     }
-    return { type: 'ok', msg: `§1366(d): Full ${fmt(lossAmt)} loss is deductible — within ${fmt(basisForLoss)} basis.` }
+    return { type: 'ok', msg: `${cite}: Full ${fmt(lossAmt)} loss is deductible — within ${fmt(basisForLoss)} ${basisWord}.` }
   })()
 
   const distBadge = (() => {

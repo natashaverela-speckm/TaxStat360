@@ -31,7 +31,7 @@ vi.mock('./EntityCompareModal', async (importOriginal) => {
 vi.mock('../utils/apiClient.js', () => ({ apiFetch: vi.fn() }))
 vi.mock('./utils/signOut', () => ({ signOut: vi.fn() }))
 
-import { ManualEntryPanel, entityResultLabel, Step1EstimateBadge } from './CalculateTaxInner.jsx'
+import { ManualEntryPanel, entityResultLabel, Step1EstimateBadge, EntityCard } from './CalculateTaxInner.jsx'
 import { writePersonalContext, writeStep1State, normalizeF1040 } from '../utils/sessionState.js'
 import { selectTaxSummary } from '../utils/calcSelector.js'
 import { fmt } from '../utils/money.js'
@@ -154,6 +154,66 @@ describe('Fresh-eyes fix (Aug 2026) — K-1 direct-entry "Done" saves the typed 
     fireEvent.click(getByText('Done'))
     const [, updated] = lastUpdate(onUpdate)
     expect(updated.pnl.netProfit).toBe(-100000)
+  })
+})
+
+describe('UX fix (fresh-pass audit, Aug 2026) — Partnership §704(d) gets the same collapsed-card basis badge as S-Corp §1366(d)', () => {
+  // Bug: basisBadge (the collapsed-entity-card confirmation/warning) was gated
+  // `if (!isSC || !scBasis) return null` even though scBasis itself is already
+  // computed for both S-Corp AND Partnership. An S-Corp with sufficient basis
+  // got an immediate "Full loss is deductible" badge on the collapsed card; a
+  // Partnership in the identical position got nothing at the card level (the
+  // same confirmation existed, but only inside the collapsed-by-default
+  // "Outside Basis" panel). Fix extends the badge to Partnership with §704(d)
+  // citation and "outside basis" wording instead of §1366(d)/"basis".
+  const baseProps = {
+    idx: 0,
+    onUpdate: () => {},
+    onAggregationElection: () => {},
+    portfolioAggregationElected: false,
+    onRemove: () => {},
+    colorAccent: '#000',
+    isExpanded: false,
+    onToggleExpand: () => {},
+  }
+
+  it('S-Corp: shows the §1366(d) "Full loss is deductible" badge when basis is sufficient', () => {
+    const entity = {
+      type: 'S Corporation', name: 'Test S-Corp', own: '100',
+      k1DirectMode: true, pnl: { netProfit: -50000 },
+      stockBasis: '80000', debtBasis: '',
+    }
+    const { container } = render(<EntityCard entity={entity} {...baseProps} />)
+    expect(container.textContent).toContain('§1366(d): Full $50,000 loss is deductible — within $80,000 basis.')
+  })
+
+  it('Partnership: shows the equivalent §704(d) badge when outside basis is sufficient (previously showed nothing)', () => {
+    const entity = {
+      type: 'Partnership / LLC', name: 'Test Partnership', own: '100',
+      k1DirectMode: true, pnl: { netProfit: -60000 },
+      stockBasis: '80000', debtBasis: '',
+    }
+    const { container } = render(<EntityCard entity={entity} {...baseProps} />)
+    expect(container.textContent).toContain('§704(d): Full $60,000 loss is deductible — within $80,000 outside basis.')
+  })
+
+  it('Partnership: shows the "enter outside basis" prompt when no basis is entered', () => {
+    const entity = {
+      type: 'Partnership / LLC', name: 'Test Partnership 2', own: '100',
+      k1DirectMode: true, pnl: { netProfit: -60000 },
+    }
+    const { container } = render(<EntityCard entity={entity} {...baseProps} />)
+    expect(container.textContent).toContain('§704(d): enter outside basis — $60,000 loss may be limited.')
+  })
+
+  it('Partnership: shows the suspended-loss badge when outside basis is insufficient', () => {
+    const entity = {
+      type: 'Partnership / LLC', name: 'Test Partnership 3', own: '100',
+      k1DirectMode: true, pnl: { netProfit: -60000 },
+      stockBasis: '20000', debtBasis: '',
+    }
+    const { container } = render(<EntityCard entity={entity} {...baseProps} />)
+    expect(container.textContent).toContain('§704(d): $40,000 of your $60,000 loss is suspended — outside basis insufficient.')
   })
 })
 
