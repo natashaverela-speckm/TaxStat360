@@ -38,6 +38,22 @@ customHeaders:
       # broad `https:` catch-all, since the pixel's script tag and its
       # tracking beacon are governed by script-src/connect-src, not img-src.
       #
+      # FIX (fresh-pass audit, Aug 2026, finding M-7): 'unsafe-inline' and
+      # 'unsafe-eval' dropped from script-src. A repo-wide scan found zero use
+      # of dangerouslySetInnerHTML, innerHTML, or eval() anywhere in the
+      # codebase, so unsafe-eval was pure unused risk. The one genuinely
+      # inline script (the pixel loader above, in index.html) is a static,
+      # unchanging block, so a nonce (which needs a server to mint one per
+      # request -- not available on this static CloudFront/S3 site) isn't the
+      # right tool; a SHA-256 hash of that exact script's content is the
+      # standard replacement for a static site and is listed below instead.
+      # MAINTENANCE NOTE: if the inline pixel-loader script in index.html
+      # (the block containing `window.__ts360LoadPixel = function`) is EVER
+      # edited -- even whitespace -- this hash must be recomputed or the
+      # pixel will silently stop loading (CSP blocks it, no console error
+      # beyond a CSP violation report). Recompute with:
+      #   node -e "const fs=require('fs');const html=fs.readFileSync('index.html','utf8');const m='window.__ts360LoadPixel = function';const i=html.indexOf(m);const s=html.lastIndexOf('<script>',i)+8;const e=html.indexOf('</script>',i);const c=html.slice(s,e);console.log('sha256-'+require('crypto').createHash('sha256').update(c,'utf8').digest('base64'))"
+      #
       # IMPORTANT: Test first by temporarily changing the key above to:
       #   Content-Security-Policy-Report-Only
       # Check the browser console for any violations, fix them, then switch
@@ -45,7 +61,7 @@ customHeaders:
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
-          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://connect.facebook.net;
+          script-src 'self' 'sha256-JDkn9a3LuxhlkDKGUUjQEh+1Lr1h4eNAZJnyw9ARJmU=' https://js.stripe.com https://connect.facebook.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' https://fonts.gstatic.com;
           img-src 'self' data: https: blob:;
