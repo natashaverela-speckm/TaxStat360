@@ -1,46 +1,66 @@
-# React + Vite
+# TaxStat360
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + Vite web app that estimates federal income tax across entity types
+(sole proprietor, S-Corp, partnership/LLC, C-Corp) and surfaces planning and
+audit-risk guidance based on the result.
 
-Currently, two official plugins are available:
+## Where things live
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+This repo follows a strict separation between tax math, UI, and shared
+utilities — see **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full, CI-enforced
+rules before touching anything under `src/`. In short:
 
-## React Compiler
+- `src/lib/` — the tax engine (`taxCalc.js`), statutory constants
+  (`constants.js`), and related calculation modules. This is the single
+  source of truth for all tax formulas and rates.
+- `src/components/` — UI screens and components. Components call into
+  `src/lib/` for any tax number; they never compute one inline.
+- `src/utils/` — cross-cutting helpers (API client, session storage gateway,
+  entity/field helpers) shared across components.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Two other docs are part of the same contract:
 
-## Expanding the ESLint configuration
+- **[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md)** — deliberate modeling
+  simplifications and owner-ratified decisions, with exposure direction
+  stated for each.
+- **[CHANGELOG.md](./CHANGELOG.md)** — the history of audits, fixes, and the
+  reasoning behind them. Check here before assuming something is a bug —
+  it may be a documented, deliberate trade-off.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Getting started
 
-## Branch Protection
-
-The `master` branch is intended to be protected — direct pushes blocked, all changes via pull requests with a passing build check.
-
-### Current enforcement
-
-| Layer | Mechanism | Catches |
-|-------|-----------|---------|
-| CI gate | `.github/workflows/deploy.yml` runs `npm run build` on every PR; deploy step is skipped on PRs and runs only on master pushes (PR #101) | Silent build breaks before merge |
-| Local | `scripts/pre-push-master-block.sh` installed as a git pre-push hook | Direct `git push origin master` from a developer machine |
-
-### Install the local hook
-
-```sh
-cp scripts/pre-push-master-block.sh .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
+```bash
+npm install
+npm run dev        # start the local dev server (Vite)
 ```
 
-Override in genuine emergencies with `git push --no-verify`.
+## Testing
 
-### Future: GitHub-level enforcement
+```bash
+npm test           # run the full vitest suite once
+npm run test:watch # watch mode
+```
 
-GitHub branch protection / rulesets do not enforce on private personal-account repos under the free plan. When this repo migrates to a GitHub Team organization account, configure a ruleset for the `master` branch with:
+The suite includes `src/architecture-invariants.test.js`, which scans
+production source for regressions of specific past issues (duplicated tax
+formulas, direct `sessionStorage` access outside the sanctioned gateway, bare
+`catch` blocks, etc.) and fails the build if one reappears. This runs in CI
+on every push — see `ARCHITECTURE.md` §3 and §7 for what it checks and why.
 
-- Enforcement: Active
-- Target: default branch
-- Rules: Restrict deletions; Block force pushes; Require a pull request before merging; Require status checks to pass (required check: `deploy`)
+## Building
 
-This locks down the same intent at the platform layer.
+```bash
+npm run build      # production build via Vite
+npm run preview    # preview the production build locally
+npm run lint       # ESLint
+```
+
+## Before you change tax logic
+
+Read `ARCHITECTURE.md` §1 and §6 first. Every function in
+`src/lib/taxCalc.js` is expected to have a corresponding test file
+(`taxCalc-*.test.js`), and every tax-relevant code path should carry a
+comment naming the IRC section or Treasury guidance it implements. Tests are
+labeled `SPEC` (value independently verified against an IRS/Treasury source)
+or `CHAR` (pins current behavior as a refactor guard, not proof of
+correctness) — see ARCHITECTURE.md §6 for the convention.

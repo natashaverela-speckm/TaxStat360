@@ -3,36 +3,55 @@
 This file is the authoritative reference for structural rules that must not be
 broken when adding features or fixing bugs. Read before touching any file in src/.
 
+**Directory map** (fixed Aug 2026 — this file previously referenced bare
+filenames like `src/taxCalc.js` that don't exist at that path and misdirected
+at least one prior edit; see CHANGELOG.md): tax logic lives under `src/lib/`,
+UI components under `src/components/`, and cross-cutting helpers under
+`src/utils/`. Every path below is written out in full for that reason.
+
 ---
 
 ## 1. Tax Calculation Layer
 
-**Single source of truth for all tax math is `src/taxCalc.js`.**
+**Single source of truth for all tax math is `src/lib/taxCalc.js`.**
 
-- ALL tax formulas live in `src/taxCalc.js` only.
+- ALL tax formulas live in `src/lib/taxCalc.js` only.
 - ALL permanent rate constants (IRC rates, FICA structure, ERISA ages, statutory
-  dollar amounts that do NOT inflate) live in `src/constants.js` only.
+  dollar amounts that do NOT inflate) live in `src/lib/constants.js` only.
 - Year-specific dollar figures (brackets, thresholds, standard deductions,
   phase-outs) live in `TAX_TABLES[year]`
-  inside `taxCalc.js`. When a new tax year is released, update ONLY that object.
-- `src/aiAnalysisTaxMath.js` imports FROM `taxCalc.js`. Never the reverse.
+  inside `src/lib/taxCalc.js`. When a new tax year is released, update ONLY that object.
+- `src/lib/aiAnalysisTaxMath.js` imports FROM `src/lib/taxCalc.js`. Never the reverse.
 - Components call `calcTaxReturn()` for final federal tax liability.
   No component may compute a final tax number inline.
-- `src/scenarioCompare.js` routes all three entity scenarios through
+- `src/lib/scenarioCompare.js` routes all three entity scenarios through
   `calcTaxReturn()` — not through any component.
 - (M3, Jul 2026) The §179(b)(3) business-income limitation lives ONLY in
-  `calc179Limitation()` (taxCalc.js); the flow-through k1Total rule lives ONLY
-  in `sumK1FlowThrough()` (taxCalc.js); the P&L net-derivation rule
+  `calc179Limitation()` (src/lib/taxCalc.js); the flow-through k1Total rule lives ONLY
+  in `sumK1FlowThrough()` (src/lib/taxCalc.js); the P&L net-derivation rule
   (`netProfit ?? gross − expenses`) lives ONLY in `getEntityPnlNet()` /
-  `getEntityPnlNetShare()` (utils/entityPredicates.js). Never re-inline any of
+  `getEntityPnlNetShare()` (src/utils/entityPredicates.js). Never re-inline any of
   them — `src/architecture-invariants.test.js` fails the build if you do.
 - (D-10/D-11, Jul 2026) The S-Corp reasonable-comp numeric rule lives ONLY in
-  `calcReasonableCompCore()` (taxCalc.js); session validity lives ONLY in
-  `isValidSession()` (utils/sessionAuth.js).
+  `calcReasonableCompCore()` (src/lib/taxCalc.js); session validity lives ONLY in
+  `isValidSession()` (src/utils/sessionAuth.js).
+- (M1 regression guard, Aug 2026) The salary-to-total-compensation ratio TEST
+  (`officerSal / (officerSal + k1) < SCORP_REASONABLE_COMP_RATIO_THRESHOLD`, or any
+  hard-coded 0.4/0.40 standing in for the constant) must never be re-inlined outside
+  `calcReasonableCompCore()` — `src/architecture-invariants.test.js` fails the build
+  if it reappears. Four independent copies (AIAnalysis.jsx ×3, CalculateTaxInner.jsx,
+  EntityCompareModal.jsx) were consolidated into that function in Aug 2026; each
+  surface keeps its own message/presentation, per the OBS-7 pattern below.
+- (M2, Aug 2026) The SALT §70120 phase-down parameters (threshold, floor, and the
+  30% rate) live ONLY in `TAX_TABLES[year].saltPhaseDown` and
+  `SALT_PHASE_DOWN_RATE` (src/lib/constants.js), read through `getSaltCap()` for the
+  calculation and `getSaltPhaseDownParams()` (both src/lib/taxCalc.js) for any
+  surface that needs to explain the rule in text. Never retype the threshold/floor/
+  rate as prose in a component — interpolate from `getSaltPhaseDownParams()`.
 
 **Consequence:** if you need a tax rate or threshold in a component,
-import it from `constants.js` or via a getter from `taxCalc.js`.
-Never hard-code it in JSX.
+import it from `src/lib/constants.js` or via a getter from `src/lib/taxCalc.js`.
+Never hard-code it in JSX — including inside explanatory/tooltip text.
 
 ---
 
@@ -40,12 +59,12 @@ Never hard-code it in JSX.
 
 | File | Contains |
 |------|----------|
-| `src/constants.js` | Statutory / permanent values — IRC rates, FICA %, ERISA ages, SALT cap, mileage rates, company identity strings |
-| `src/taxCalc.js` → `TAX_TABLES[year]` | Annual / inflation-adjusted values — standard deductions, brackets, §199A thresholds, NIIT/Medicare thresholds. (§179 DOLLAR limits are NOT modeled — see KNOWN_LIMITATIONS.md `179-DOLLAR`; only the §179(b)(3) income limitation exists, in `calc179Limitation()`) |
+| `src/lib/constants.js` | Statutory / permanent values — IRC rates, FICA %, ERISA ages, SALT cap phase-down rate, mileage rates, company identity strings |
+| `src/lib/taxCalc.js` → `TAX_TABLES[year]` | Annual / inflation-adjusted values — standard deductions, brackets, §199A thresholds, NIIT/Medicare thresholds, SALT cap + phase-down threshold/floor. (§179 DOLLAR limits are NOT modeled — see KNOWN_LIMITATIONS.md `179-DOLLAR`; only the §179(b)(3) income limitation exists, in `calc179Limitation()`) |
 | `src/utils/integrations.js` | Third-party API keys and integration credential helpers — NOT tax constants |
 
-Never add a year-specific dollar amount to `constants.js`.
-Never add a credential or API key to `constants.js`.
+Never add a year-specific dollar amount to `src/lib/constants.js`.
+Never add a credential or API key to `src/lib/constants.js`.
 
 ---
 
@@ -79,15 +98,16 @@ Never add a credential or API key to `constants.js`.
 ## 4. Import Chain (must not be reversed)
 
 ```
-constants.js
+src/lib/constants.js
     ↓
-taxCalc.js  ←  aiAnalysisTaxMath.js  ←  AIAnalysis.jsx
-    ↓                                        ↓
-TaxReturn.jsx                         scenarioCompare.js
-CalculateTaxInner.jsx
+src/lib/taxCalc.js  ←  src/lib/aiAnalysisTaxMath.js  ←  src/components/AIAnalysis.jsx
+    ↓                                                          ↓
+src/components/TaxReturn.jsx                         src/lib/scenarioCompare.js
+src/components/CalculateTaxInner.jsx
 ```
 
-`taxCalc.js` must never import from a component or from `aiAnalysisTaxMath.js`.
+`src/lib/taxCalc.js` must never import from a component or from
+`src/lib/aiAnalysisTaxMath.js`.
 
 ---
 
@@ -102,7 +122,7 @@ never let a NaN result reach the user silently.
 
 ## 6. Test Contracts
 
-- Every function in `taxCalc.js` must have tests in a `taxCalc-*.test.js` file.
+- Every function in `src/lib/taxCalc.js` must have tests in a `taxCalc-*.test.js` file.
 - A change to `TAX_TABLES[year]` requires a corresponding test update for that year.
 - Tests labelled `// CHAR` freeze current behaviour (characterisation tests).
 - Tests labelled `// SPEC: <citation>` have expected values independently verified
@@ -134,12 +154,13 @@ Every `catch` block must produce exactly one of these outcomes:
    storage reads, JSON parses, and best-effort side writes, but the block MUST
    carry a comment explaining why silence is the correct behavior.
 4. **Re-throw** — anything unexpected in a calculation path re-throws to the
-   route ErrorBoundary (see §5; TaxReturn's useMemo is the model).
+   route ErrorBoundary (see §5; `src/components/TaxReturn.jsx`'s useMemo is the model).
 
 Hard rules:
 - Bare `catch {}` / `catch (e) {}` with an empty, comment-free body is forbidden —
-  CI-enforced by `src/architecture-invariants.test.js` (Onboarding.jsx carries a
-  temporary allowance until M7 touches those lines; see the test for the TODO).
+  CI-enforced by `src/architecture-invariants.test.js`. M7 closed the prior
+  temporary Onboarding.jsx allowance; the convention now holds with ZERO
+  exceptions across production source.
 - Tax-math paths NEVER swallow: guard rejections surface as banners (§5), and
   engine exceptions re-throw. A silent `$0`/blank render caused by a swallowed
   error is indistinguishable from a real liability figure to the user — in a tax
@@ -151,11 +172,11 @@ Hard rules:
 
 When a new tax year's figures are released (typically October–December):
 
-1. Add `TAX_TABLES[newYear]` entry in `src/taxCalc.js`.
-2. Add `newYear` to `SUPPORTED_TAX_YEARS` in `src/constants.js`.
-3. Update `IRS_MILEAGE_RATES[newYear]` in `src/constants.js`.
+1. Add `TAX_TABLES[newYear]` entry in `src/lib/taxCalc.js`.
+2. Add `newYear` to `SUPPORTED_TAX_YEARS` in `src/lib/constants.js`.
+3. Update `IRS_MILEAGE_RATES[newYear]` in `src/lib/constants.js`.
 4. Run all `taxCalc-*.test.js` suites — add test cases for the new year.
-5. Update `CURRENT_TAX_YEAR` default in `src/constants.js` only after
+5. Update `CURRENT_TAX_YEAR` default in `src/lib/constants.js` only after
    the new year begins (January 1).
 
 Do NOT update `CURRENT_TAX_YEAR` before January 1 — use the year dropdown

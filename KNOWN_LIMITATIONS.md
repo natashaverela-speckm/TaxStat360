@@ -1,7 +1,7 @@
 # TaxStat360 — Known Limitations & Owner Decisions
 
 This file is referenced from source comments (e.g. the SE-179 block in
-`src/taxCalc.js`) and was missing from the repository (audit F-08 — it was
+`src/lib/taxCalc.js`) and was missing from the repository (audit F-08 — it was
 never committed; the CHANGELOG.md sibling was deleted Jul 5 and has been
 restored from git history). Reconstructed July 6, 2026 as part of audit
 Batch 2 (M3 + M4).
@@ -32,12 +32,12 @@ mirroring the nonSEk1 QBI-179 fix, because netting §179 here changes SE TAX
 SE earnings where the law does not; (b) respect the §179(b)(3) business-income
 limitation; and (c) treat a sole proprietor (§179 already inside Schedule C
 net profit — box11_12 should be blank) differently from a partnership (§179
-separately stated). See the inline block in `src/taxCalc.js` (search "SE-179").
+separately stated). See the inline block in `src/lib/taxCalc.js` (search "SE-179").
 
 ## LIMITATION 179-DOLLAR — RESOLVED Jul 8 2026 (owner-approved, T-3)
 
 The §179(b)(1)/(b)(2) annual dollar limitation and investment phase-out are
-now MODELED in `calc179Limitation()` (`src/taxCalc.js`), with
+now MODELED in `calc179Limitation()` (`src/lib/taxCalc.js`), with
 `TAX_TABLES[year].sec179` entries transcribed from primary sources — 2024:
 $1,220,000 / $3,050,000 (Rev. Proc. 2023-34); 2025: $2,500,000 / $4,000,000
 (P.L. 119-21 §70306); 2026: $2,560,000 / $4,090,000 (Rev. Proc. 2025-32) —
