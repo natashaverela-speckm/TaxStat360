@@ -62,6 +62,7 @@ import {
   CTC_PHASEOUT_REDUCTION_PER_STEP,
   C_CORP_TAX_RATE,
   DEFAULT_OFFICER_SALARY_FRACTION,
+  SALT_PHASE_DOWN_RATE,
   // M1 (audit F-01/F-02, Jul 2026): the engine previously hardcoded these figures as
   // raw literals (25000 / 100000 / 0.5 / 0.80) while the named constants sat unused in
   // constants.js — a "dead constant shadowing a live literal" hazard. The literals now
@@ -262,8 +263,28 @@ function getSaltCap(taxYear, status, magi) {
   if (!pd) return base
   const threshold = pd.threshold * half
   const floor     = pd.floor * half
-  const reduced   = base - 0.30 * Math.max(0, (magi || 0) - threshold)
+  const reduced   = base - SALT_PHASE_DOWN_RATE * Math.max(0, (magi || 0) - threshold)
   return Math.max(floor, Math.min(base, reduced))
+}
+
+/** M2 (audit F-2, Aug 2026): resolved SALT phase-down parameters for a year/status,
+ *  for any caller (currently TaxReturn.jsx's two explanatory text blocks) that needs
+ *  to DISPLAY the rule rather than apply it. Single source of truth for both the
+ *  calculation (getSaltCap, above) and the explanation — previously the explanation
+ *  was hand-typed prose in two places in TaxReturn.jsx, independent of this table and
+ *  of each other. Returns null for years with no phase-down (pre-2025), matching
+ *  getSaltCap's own "no pd → flat cap" behavior. cap/threshold/floor are already
+ *  MFS-halved when status === 'mfs', exactly as getSaltCap applies them. */
+function getSaltPhaseDownParams(taxYear, status) {
+  const half = status === 'mfs' ? 0.5 : 1
+  const pd = SALT_PHASE_DOWN[taxYear] !== undefined ? SALT_PHASE_DOWN[taxYear] : SALT_PHASE_DOWN[CURRENT_TAX_YEAR]
+  if (!pd) return null
+  return {
+    cap:       (SALT_CAPS[taxYear] ?? SALT_CAPS[CURRENT_TAX_YEAR]) * half,
+    threshold: pd.threshold * half,
+    floor:     pd.floor * half,
+    rate:      SALT_PHASE_DOWN_RATE,
+  }
 }
 /** §469(i) special $25,000 allowance — rental real estate losses of an active
  *  participant may offset nonpassive income up to this allowance, phased out
@@ -1020,20 +1041,10 @@ function calcTaxReturn(input) {
   let step1RentalActive = false
   entities.forEach(e => {
     if (!e || !isRealEstateEntity(e.type)) return
-    // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026; reachability caveat added on
-    // independent verification pass): this was an inline reimplementation of the owner-share
-    // formula using bare parseFloat() instead of the comma-safe nf() every other call site
-    // uses. The live typing UI (MoneyInput.jsx) strips commas before they reach entity state,
-    // so a comma-formatted string is NOT reachable through ordinary manual entry today --
-    // but entity data also arrives via accounting-integration sync (QuickBooks/Xero/etc.) and
-    // loaded legacy records (Dashboard.loadRecord), neither of which is guaranteed to route
-    // through that same input component. getEntityK1Share() is this codebase's established
-    // single source of truth precisely so every entity-data consumer gets comma-safety and
-    // k1DirectMode-awareness as defense-in-depth, not because any ONE path is provably unsafe
-    // today. Independently, this also fixes a real (if currently unreachable-via-UI)
-    // k1DirectMode double-proration risk, since Real Estate entities cannot set that flag via
-    // the current UI but the type already carries the field.
-    const k1Gross = getEntityK1Share(e)
+    const own = ownPct(e.own) / 100
+    const k1Gross = e.k1 !== undefined
+      ? parseFloat(e.k1) || 0
+      : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
     // AUDIT F-13 FIX: K-1 charitable (box12_13) is a Schedule A itemized deduction —
     // it never reduces ordinary pass-through income. Only §179 (box11_12) nets here.
     const net = k1Gross - nf(e.box11_12)
@@ -1258,10 +1269,10 @@ function calcTaxReturn(input) {
       let np = 0, pv = 0
       entities.forEach(e => {
         if (!e || !isRealEstateEntity(e.type)) return
-        // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): same comma-unsafe inline
-        // reimplementation as step1RentalNet above -- see that comment. Routed through the
-        // single source of truth for comma-safety.
-        const k1Gross = getEntityK1Share(e)
+        const own = ownPct(e.own) / 100
+        const k1Gross = e.k1 !== undefined
+          ? parseFloat(e.k1) || 0
+          : Math.round((parseFloat(e.pnl?.netProfit ?? e.netProfit) || 0) * own)
         const net = k1Gross - nf(e.box11_12)  // F-13: charitable (box12_13) excluded
         if (effectiveIsREP && e.materiallyParticipates === true) np += net
         else pv += net
@@ -1343,26 +1354,11 @@ function calcTaxReturn(input) {
     if (!e || !/partnership|mmllc/i.test(e.type || '')) return sum
     return sum + Math.max(0, nf(e.guaranteedPayments))
   }, 0)
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. §1.1402(a)-2(c) requires
-  // net earnings from self-employment to be the AGGREGATE of net income AND LOSSES across all
-  // of an individual's trades/businesses -- a loss in one SE-subject business offsets a gain
-  // in another before any floor is applied. This reducer floored each entity at $0
-  // individually, so a second SE business running a loss was silently ignored instead of
-  // reducing the SE tax base (a $120,000 profit + a $40,000 loss taxed as if the loss did not
-  // exist: $16,955 of SE tax instead of the correct ~$11,304 on the true $80,000 net).
-  const seNetIncomeAggregate = entitiesLimited.reduce((sum, e) => {
+  const seNetIncome = entitiesLimited.reduce((sum, e) => {
     if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    return sum + getEntityK1Share(e)
-  }, 0)
-  // AUDIT FIX (independent verification pass, Aug 2026): guaranteed payments (IRC §707(c))
-  // are a component of the SAME net-earnings-from-self-employment figure under IRC §1402(a) --
-  // not a separate, floor-immune addend. The first version of this fix aggregated the
-  // distributive shares correctly but still added guaranteedPaymentsTotal AFTER the single
-  // Math.max(0, ...) floor, so a partnership loss could not offset that partner's own
-  // guaranteed payments either (e.g. -$100,000 distributive share + $60,000 GP = true NESE
-  // -$40,000 / $0 SE tax, but the floor-after-addition version still taxed the full $60,000
-  // GP as if the loss did not exist). Both must net together before the single floor applies.
-  const seNetIncome = Math.max(0, seNetIncomeAggregate + guaranteedPaymentsTotal)
+    const k1 = getEntityK1Share(e)
+    return sum + Math.max(0, k1)
+  }, 0) + guaranteedPaymentsTotal
   const ssWageBase = getTable(taxYear).ssWageBase
   // FINDING-4 FIX (independent audit, Aug 2026): IRC §1402(b) / Form SE Part I
   // coordination worksheet. The 12.4% OASDI portion of SE tax applies only to the
@@ -1376,30 +1372,7 @@ function calcTaxReturn(input) {
   // consumed (e.g. $140,000 W-2 + $234,200 SE earnings on a 2025 return: uncoordinated
   // ~$28.1k vs. correctly-coordinated ~$10.7k).
   const totalW2ForFICA = Math.max(0, nf(w2))
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the Finding-4 coordination above is
-  // only valid when totalW2ForFICA and seNetIncome belong to the SAME individual -- true for
-  // single/HOH/QSS/MFS (each a one-person return) but NOT for MFJ, where `w2` is the COMBINED
-  // household wage figure (TaxReturn.jsx: w2Total = w2Income + officerW2Total -- one field, no
-  // spouse attribution anywhere in the entity/income model) while Schedule SE is filed
-  // SEPARATELY per spouse (IRC §1402(b); Schedule SE instructions: "If you and your spouse
-  // both have self-employment income, you must each file a separate Schedule SE"). Letting
-  // one spouse's W-2 consume the OTHER spouse's SE wage-base room understated SE tax by
-  // $13,741 on a $200k-W-2 + $120k-Sch-C MFJ household (TY2026) -- the OASDI portion was
-  // zeroed out entirely because the combined W-2 alone exceeded the wage base, even though
-  // the self-employed spouse's OWN W-2 was $0. Conservative-by-design fix (matching this
-  // codebase's established risk posture for every other unmodeled spouse-attribution gap --
-  // see PAL-MFS in KNOWN_LIMITATIONS.md): for MFJ, do not let the combined W-2 reduce SE
-  // wage-base room. This is exactly correct for the dual-earner case (confirmed above) and
-  // conservative -- overstates, never understates -- for a single business owner whose W-2
-  // and SE income are actually the same person filing jointly (the original Finding-4 case).
-  // See LIMITATION SE-MFJ-WAGEBASE in KNOWN_LIMITATIONS.md.
-  // Defensive lowercase compare (independent verification pass, Aug 2026): every other
-  // filing-status branch in this file assumes the UI's lowercase enum, but nowhere is that
-  // enforced -- given the size of the swing this branch controls (MFJ vs. everything else),
-  // normalize defensively rather than silently mis-route an unexpected-case status string.
-  const ssWageBaseRoom = String(status).toLowerCase() === 'mfj'
-    ? ssWageBase
-    : Math.max(0, ssWageBase - totalW2ForFICA)
+  const ssWageBaseRoom = Math.max(0, ssWageBase - totalW2ForFICA)
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBaseRoom) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
@@ -1408,18 +1381,9 @@ function calcTaxReturn(input) {
   const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
   const employeeFICA   = Math.round(empSS + empMedicare)
-  // AUDIT FIX (independent verification pass, Aug 2026): same missing-C-Corp-guard class as
-  // the nonSEk1 QBI fix above -- a C-Corp's book profit is never a personal K-1 distribution
-  // (it reaches the owner only as a dividend after entity-level tax), but this reducer had no
-  // isCCorpEntity check. Consequence: k1Distributions and the "distributions not subject to
-  // SE tax" ficaSavings advisory (TaxReturn.jsx's S-Corp savings estimate) both counted a
-  // C-Corp's full book profit as an SE-tax-free distribution -- e.g. a lone $400,000-profit
-  // C-Corp fabricated a "~$21,191 in SE tax avoided" advisory for a structure that never had
-  // SE tax exposure to begin with.
   const nonSEDistributions = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e.type)) return sum
     if (isRealEstateEntity(e.type)) return sum
-    if (isCCorpEntity(e.type)) return sum
     return sum + getEntityK1Share(e)
   }, 0)
   const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total))
@@ -1512,15 +1476,6 @@ function calcTaxReturn(input) {
   const nonSEk1 = entitiesLimited.reduce((sum, e) => {
     if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
     if (isRealEstateEntity(e?.type)) return sum
-    // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): a C-Corp is not a "qualified trade
-    // or business" of a non-corporate taxpayer under IRC Section 199A(a)/(c)(1) -- its profit
-    // is taxed at the entity level and reaches the owner only as a Section 301 dividend
-    // (expressly excluded from QBI by Section 199A(c)(3)(B)(ii)), never as QBI. This reducer
-    // excluded SE-subject and real-estate types but had no C-Corp guard, so a C-Corp entity's
-    // full K-1 share (its book profit) was granted a phantom 20% QBI deduction. sumK1FlowThrough
-    // (this file, ~line 400) already excludes C-Corps correctly for AGI/k1Total -- only this
-    // QBI base disagreed.
-    if (isCCorpEntity(e?.type)) return sum
     // QBI-179 FIX: net the separately-stated §179 (box11_12) and box12/13 out of the
     // QBI basis, mirroring the ordinary K-1 net used everywhere else (the rental net
     // in the §469 blocks above and persistStep1's k1Total = net − box11_12 − box12_13).
@@ -1543,14 +1498,7 @@ function calcTaxReturn(input) {
     const scale   = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + k1 * scale
   }, 0)
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. Section 1.199A-3(b)(1)(vi)
-  // (and the Form 8995/8995-A instructions) require QBI to be reduced by the deductible
-  // portion of SE tax, the self-employed health insurance deduction, AND the deduction for
-  // contributions to a qualified retirement plan (IRC Section 404) attributable to the trade
-  // or business -- this line subtracted the first two but omitted selfEmpRetirementDed
-  // entirely, so a SEP-IRA/Solo 401(k) contribution reduced AGI but never reduced the QBI
-  // base, overstating the QBI deduction by 20% of the full contribution amount.
-  const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed - selfEmpRetirementDed)
+  const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed)
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
   // rentalQbiContribution is computed in the §469 rental block above (legacy or
   // per-property branch) — do not redeclare here.
@@ -1597,26 +1545,7 @@ function calcTaxReturn(input) {
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
     return sum + Math.max(0, k1 * scale)
   }, 0)
-  // AUDIT FIX (Finding 1, fresh-eyes re-audit, Aug 2026): §199A(d)(3) excludes a fully- or
-  // partially-phased-out SSTB from being "qualified" business income at all -- adjQBI inside
-  // _calcQBI already nets sstbEntityQBI*(1-sstbApplicablePct) out of the 20%-deduction figure,
-  // but this floor-eligibility gate was never given the same haircut. An ACTIVE (non-passive,
-  // non-real-estate) SSTB entity above the full phase-out range therefore still counted its
-  // gross K-1 share toward activeQbiForFloor, clearing the $1,000 §199A(i) threshold and
-  // collecting the $400 minimum deduction on income that legitimately produces $0 of QBI.
-  // Repro (single, TY2026, $500k SSTB Sch-C, no other income): before this fix,
-  // qbi=400/limitApplied='min400'/caps.qbi=0; after, qbi=0/limitApplied='none'.
-  // Passive SSTB K-1s are unaffected -- they're already fully excluded from the floor via
-  // _passiveK1Qbi above regardless of SSTB status.
-  const _sstbExcludedActiveQbi = entitiesLimited.reduce((sum, e) => {
-    if (!e || !e.box17V_sstb) return sum
-    if (isRealEstateEntity(e?.type)) return sum
-    if (/passive/i.test(normalizeEntityType(e.type) || '')) return sum
-    const k1Gross = getEntityK1Share(e)
-    const k1 = Math.max(0, k1Gross - nf(e.box11_12))
-    return sum + k1 * (1 - sstbApplicablePct)
-  }, 0)
-  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi - _sstbExcludedActiveQbi)
+  const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi)
   const f4797NetGain = Math.max(0, nf(f4797Inc))
   // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
   // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
@@ -1631,26 +1560,8 @@ function calcTaxReturn(input) {
   const hasMultiEntityTypes = entities.length > 1
     && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
     && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): entityQbiData drives the per-business
-  // §199A(b)(2) wage/UBIA allocation inside _calcQBI (Reg. §1.199A-4: each business's wage
-  // limit is applied separately unless aggregation is elected). It was passed the FULL
-  // entitiesLimited list, including entities that contribute NOTHING to qbiBasis -- a C-Corp
-  // (never QBI; Section 199A(c)(3)(B)(ii)) or a rental never attested QBI-eligible
-  // (step1RentalQbiEligibleNet gate above). A positive-income, zero-QBI entity still counted
-  // toward totalPosQBI, "stealing" allocation share from real QBI-eligible businesses while
-  // itself absorbing $0 (its own wage limit is $0), permanently destroying that share of the
-  // deduction instead of returning it to the entity that actually earned it. Confirmed
-  // numerically: an S-Corp with $150k of wages entitled to the full $40,000 QBI deduction on
-  // its own dropped to $26,667 the moment an unrelated, QBI-ineligible rental with positive
-  // net income was added to the return -- a $13,333 loss purely from the rental's presence.
-  const qbiEligibleEntities = entitiesLimited.filter(e => {
-    if (!e) return false
-    if (isCCorpEntity(e.type)) return false
-    if (isRealEstateEntity(e.type)) return e.qbiEligible === true
-    return true
-  })
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status, taxYear, entityQbiData: qbiEligibleEntities, hasMultiEntityTypes,
+    status, taxYear, entityQbiData: entitiesLimited, hasMultiEntityTypes,
     activeQbi: activeQbiForFloor, electQbiAggregation,
   })
   const qbi                      = _qbiResult.deduction
@@ -1727,19 +1638,8 @@ function calcTaxReturn(input) {
   const ctcReduction         = Math.ceil(ctcExcess / CTC_PHASEOUT_STEP) * CTC_PHASEOUT_REDUCTION_PER_STEP
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
   const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the comment above ("AMT: §68 is
-  // disregarded for AMTI ... calcAMT below receives the pre-limitation figure") describes the
-  // correct rule (IRC §56(b)(1)(F): "Section 68 shall not apply") but the code passed
-  // `taxableIncome`, which IS the post-§68 figure (taxableAfterQBI + itemizedLimitReduction --
-  // itemizedLimitReduction is a positive addback for itemized deductions §68 disallowed on the
-  // regular-tax side). Passing it into AMTI let the §68 addback flow through twice: once via
-  // the (correct) saltAddback/stdDedAddback addbacks calcAMT already applies, and a second
-  // time baked into the starting `taxableIncome` itself -- overstating AMT by the §68
-  // reduction × the 28% AMT rate wherever both bind (high income, itemizing, in AMT --
-  // exactly the ISO-exercise population this tool's audience hits). Pass taxableAfterQBI (the
-  // pre-§68 figure) instead, matching the comment's stated intent.
   const amt = calcAMT({
-    taxableIncome: taxableAfterQBI, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
+    taxableIncome, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
     ltGain: _netLTForPref + f4797PrefGain, qualDiv: _qualDivEff, regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
@@ -2021,6 +1921,7 @@ export {
   AMT_TABLES,
   SALT_CAPS,
   getSaltCap,
+  getSaltPhaseDownParams,
   getTable,
   getStdDed,
   getBrackets,

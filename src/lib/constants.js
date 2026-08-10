@@ -240,17 +240,7 @@ export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ = 250000  // IRC §3101(b)(2)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS = 125000  // IRC §3101(b)(2)(B)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE = 200000 // IRC §3101(b)(2)(C)
 export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH = 200000 // IRC §3101(b)(2)(C) — head of household (any other case)
-// AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): IRC §3101(b)(2) sets $250,000 only "in
-// the case of a joint return" (subpara. (A)) and $200,000 "in any other case" (subpara. (C)).
-// A qualifying surviving spouse does not file a joint return -- QSS merely borrows the MFJ
-// rate schedule (§2(a)) -- so the correct threshold is $200,000, matching the Instructions
-// for Form 8959 ("Threshold Amounts for Additional Medicare Tax": Single $200,000 · Head of
-// household $200,000 · Qualifying surviving spouse $200,000 · MFJ $250,000 · MFS $125,000).
-// Was $250,000, carried over without a primary-source check ("preserves prior tax-table
-// value"). Contrast with NIIT (IRC §1411(b)(1)), which DOES say "a joint return or a
-// surviving spouse (as defined in section 2(a))" -- NIIT_THRESHOLD_QSS = 250000 above is
-// correct and unaffected by this fix.
-export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 200000
+export const ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS = 250000 // preserves prior tax-table value for qualifying surviving spouse
 
 // ─── NET INVESTMENT INCOME TAX (NIIT) — IRC §1411 ────────────────────────────
 // 3.8% on the lesser of:
@@ -414,6 +404,15 @@ export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson 
 // ⚠ This is a PLANNING HEURISTIC, not a statutory floor. See also:
 // SCORP_REASONABLE_COMP_RATIO_THRESHOLD (40%) which drives the alert threshold.
 export const DEFAULT_OFFICER_SALARY_FRACTION = 0.30  // Rev. Rul. 74-44 / BLS p25 methodology
+
+// ─── SALT DEDUCTION CAP PHASE-DOWN RATE — IRC §164(b)(6)/(b)(7), OBBBA §70120 ────
+// M2 (audit F-2, Aug 2026): previously an inline 0.30 literal inside getSaltCap()
+// (taxCalc.js), and separately retyped as prose ("30% of the excess") in two places
+// in TaxReturn.jsx, independent of both the code and each other. The per-year dollar
+// threshold and floor stay in TAX_TABLES[year].saltPhaseDown (they're inflation-
+// adjusted); this rate is the one figure OBBBA §70120 fixed permanently, so it lives
+// here per the constants.js/TAX_TABLES split (ARCHITECTURE.md §2).
+export const SALT_PHASE_DOWN_RATE = 0.30  // OBBBA §70120 — cap reduced 30% of MAGI over the threshold
 
 // ─── CORPORATE INCOME TAX — IRC §11 ──────────────────────────────────────────
 // Flat 21% post-TCJA (P.L. 115-97, enacted 2017-12-22).
