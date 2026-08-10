@@ -198,7 +198,7 @@ export default function Settings() {
   }
 
   const handleManageBilling = () => {
-    window.open('https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00', '_blank')
+    window.open('https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00', '_blank', 'noopener')
   }
 
   const handleDataExport = () => {

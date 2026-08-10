@@ -174,7 +174,7 @@ export default function Upgrade() {
   // Click-to-Cancel rule (16 CFR §425) — users must be able to cancel as
   // easily as they signed up, via the same channel (online → online).
   const handleManageSubscription = () => {
-    window.open(STRIPE_PORTAL_URL, '_blank')
+    window.open(STRIPE_PORTAL_URL, '_blank', 'noopener')
   }
 
   if (success) return (

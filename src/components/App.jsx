@@ -155,6 +155,30 @@ function RequireAuth({ children }) {
     return () => { active = false }
   }, [sessionOk])
 
+  // L-8 FIX (fresh-pass audit, Aug 2026): the server-authoritative plan refresh
+  // above only re-runs when `sessionOk` changes -- effectively once per mount,
+  // not on every in-app navigation -- so a user editing ts360_plan directly in
+  // localStorage could see gated UI unlock cosmetically until the next of a
+  // handful of other touchpoints (Onboarding.jsx, LockedFeature.jsx) happened
+  // to run. This is a SEPARATE, silent background refresh keyed on the route
+  // path itself, so the client-side plan value gets re-synced from the server
+  // on every navigation. Deliberately does NOT touch serverAuth/setPlanChecked
+  // (the auth-gate state) -- doing so would re-trigger the `serverAuth ===
+  // 'pending' -> return null` branch above on every navigation, blanking the
+  // page on each route change. This is cosmetic hygiene only: every actually
+  // sensitive action (e.g. Enterprise report generation) is already gated
+  // server-side, independent of this client-side value.
+  useEffect(() => {
+    if (!sessionOk || serverAuth !== 'ok') return
+    let active = true
+    apiGet('/auth/me', { headers: { Accept: 'application/json' } })
+      .then((data) => {
+        if (active && data?.plan) writePlan(normalizePlanId(data.plan))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [location.pathname, sessionOk, serverAuth])
+
   useEffect(() => {
     if (!sessionOk || serverAuth !== 'ok') return
     const email = (readEmail() || '').trim().toLowerCase()
