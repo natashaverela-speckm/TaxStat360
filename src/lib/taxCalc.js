@@ -1635,7 +1635,22 @@ function calcTaxReturn(input) {
   // and SEHI earned-income purposes, but are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)),
   // so remove them from the QBI base here. (The ½-SE deduction on the GP slice remains
   // netted, a small conservative reduction — acceptable for a planning estimate.)
-  const qbiBasis = nonSEk1 + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal
+  // EXT-7 (Round 3, Aug 2026 — independent reviewer's adjacent-gap finding, following the
+  // EXT-1/EXT-1-FOLLOW-UP SEHI wage-grossup fixes): Treas. Reg. §1.199A-3(b)(1)(vi) requires
+  // QBI to be reduced by the §162(l) SEHI deduction attributable to the trade/business. The
+  // sole-prop/partner leg was already netted (seK1AfterAdjustments, above, via selfEmpHealthDed).
+  // The S-corp leg was never netted out of nonSEk1 -- a >2% shareholder's SEHI deduction
+  // reduced AGI but left the S-corp's QBI (and 20% deduction) overstated by up to 20% of the
+  // premium. Netted here in the SAME unambiguous case as the EXT-1 wage grossup (single,
+  // unmixed SEHI source -- no separate SE-earned income also in the return); the mixed-source
+  // case falls back to no QBI adjustment, consistent with the wage-grossup fallback and
+  // documented under the same KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE entry. Deliberately
+  // does NOT touch `nonSEk1` itself (used elsewhere for `scheduleEK1Income` display, which is
+  // not itself reduced by the SEHI deduction) -- only this QBI-specific derived value.
+  const sehiUnambiguousForQBI = _scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0 && selfEmpHealthDed > 0
+  const scorpSEHIQbiReduction = sehiUnambiguousForQBI ? selfEmpHealthDed : 0
+  const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
+  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
   // ACTIVE qualified trade or business in which the taxpayer materially participates.
   // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
@@ -1714,8 +1729,27 @@ function calcTaxReturn(input) {
     if (isRealEstateEntity(e.type)) return e.qbiEligible === true
     return true
   })
+  // EXT-7 (Round 3, Aug 2026): the §199A(b)(4) W-2 wage limitation is defined by reference to
+  // the same Box-1/§6051(a)(3) wage-reporting concept as the EXT-1 SEHI wage grossup -- IRS
+  // Notice 2018-64's W-2 safe-harbor methods (read with Notice 2008-1) treat a >2% S-corp
+  // shareholder's SEHI as W-2 wages for §199A purposes, same as it's now correctly included
+  // in Box 1 for income-tax purposes. Bump each S-corp entity's QBI-wage figure by its
+  // proportional share of the (unambiguous-case-only) grossup before the wage-limit
+  // computation -- opposite exposure direction from the AGI bug: leaving this uncorrected
+  // UNDERSTATES the wage cap and therefore UNDERSTATES the QBI deduction. Does not touch
+  // entitiesLimited itself (used elsewhere for AGI/basis) -- only this QBI-specific derived
+  // copy passed to calcQBI.
+  const qbiEligibleEntitiesForCalc = sehiUnambiguousForQBI && sehiScorpWageGrossUp > 0
+    ? qbiEligibleEntities.map(e => {
+        if (!e || !isSCorpEntity(e.type)) return e
+        const ownWage = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
+        const share   = _scorpOfficerW2ForSEHI > 0 ? ownWage / _scorpOfficerW2ForSEHI : 0
+        const bumped  = ownWage + sehiScorpWageGrossUp * share
+        return { ...e, box17V_wages: String(bumped) }
+      })
+    : qbiEligibleEntities
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status, taxYear, entityQbiData: qbiEligibleEntities, hasMultiEntityTypes,
+    status, taxYear, entityQbiData: qbiEligibleEntitiesForCalc, hasMultiEntityTypes,
     activeQbi: activeQbiForFloor, electQbiAggregation,
   })
   const qbi                      = _qbiResult.deduction
@@ -1912,7 +1946,7 @@ function calcTaxReturn(input) {
     itemizedLimitReduction,                                    // N-8 new §68 2/37
 
     unrec1250, collectibles,
-    nonSEk1, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
+    nonSEk1, nonSEk1ForQBI, scorpSEHIQbiReduction, sehiUnambiguousForQBI, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
     qbi, qbiLimitApplied, qbiCaps, qbiWageDataMissing,
     qbiAggregationApplied,
     qbiAggregationDisclosure,
