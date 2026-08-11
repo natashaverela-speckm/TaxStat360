@@ -129,4 +129,21 @@ describe('ARCHITECTURE invariants (CI-enforced)', () => {
     const bareRatioLiteral = /(?:salary|sal|officerSal|comp|wages)\s*\/\s*\w+\s*<\s*0\.4[05]?\b/i
     expect(violations(bareRatioLiteral, ['taxCalc.js', 'constants.js'])).toEqual([])
   })
+
+  it('§1 (Module A regression guard, Aug 2026) — no literal-year SALT_CAPS fallback outside taxCalc.js', () => {
+    // Independent audit, Aug 2026 (finding F-1 / consistency pass): TaxReturn.jsx's
+    // SALT-cap InfoTip hardcoded `SALT_CAPS[2024] || 10000`, `SALT_CAPS[2025] || 40000`,
+    // `SALT_CAPS[2026] || 40400` — three hand-picked years with literal dollar
+    // fallbacks duplicating TAX_TABLES, and a year list that would silently stop
+    // growing once SUPPORTED_TAX_YEARS gained a fourth year. Fixed by deriving
+    // saltCapsSummary from SALT_CAPS/SUPPORTED_TAX_YEARS only (see TaxReturn.jsx).
+    // This guard blocks a bare `SALT_CAPS[<4-digit year>] || <number>` /
+    // `SALT_CAPS[<4-digit year>] ?? <number>` literal from reappearing in a
+    // component; the sanctioned taxCalc.js pattern is
+    // `SALT_CAPS[taxYear] ?? SALT_CAPS[CURRENT_TAX_YEAR]` (a variable, not a
+    // 4-digit literal, on the left of the year index and on both sides of the
+    // fallback), which this regex does not match.
+    const saltCapLiteralFallback = /SALT_CAPS\s*\[\s*\d{4}\s*\]\s*(\|\||\?\?)\s*\d/
+    expect(violations(saltCapLiteralFallback, ['taxCalc.js', 'constants.js'])).toEqual([])
+  })
 })
