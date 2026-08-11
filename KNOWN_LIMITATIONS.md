@@ -375,6 +375,53 @@ stated non-accountant audience, a future soft warning (not a hard block) when en
 depreciation is large relative to gross receipts could reduce silent overstatement risk without
 attempting in-app §179/bonus computation. Owner decision; not scheduled.
 
+## LIMITATION SEHI-MIXED-SOURCE — combined SEHI entry not attributed when both S-corp and independent SE income are present
+
+**Added Aug 2026 (independent fresh-eyes re-audit, Finding 1 regression fix); UI warning added
+same pass after a second independent review flagged the silent gap below.** Exposure direction:
+CAN MISSTATE TAX IN EITHER DIRECTION for a taxpayer with both an S-corp and separate SE-earned
+income (sole prop / active partnership) in the same return — understating it if the combined SEHI
+entry is actually all S-corp-paid (the fallback under-attributes to wages), or overstating it if
+the entry is actually all paid by the other business (the fallback over-attributes to wages).
+Magnitude is bounded by the smaller of the two business's earned-income legs.
+
+The EXT-1 fix (`src/lib/taxCalc.js`, search "EXT-1 FOLLOW-UP FIX") now correctly grosses up W-2
+wages by the FULL >2%-shareholder health premium — not just the capped deduction — whenever the
+S-corp officer wage base is the entire `sehiLimit` (i.e. no independent SE-earned income is also
+present for this taxpayer). This closes the material AGI-understatement bug the re-audit found
+(premium exceeding officer wages was silently dropped from income).
+
+When a taxpayer has BOTH an S-corp (officer W-2) AND separate SE-earned income (sole prop /
+active partnership) in the same return, `selfEmpHealthIns` is a single combined field with no
+way to attribute which dollars are S-corp-sourced (wage-includible) vs. sole-prop/partner-sourced
+(never wages). The engine falls back to the pre-follow-up-fix formula (grossup capped at the
+lesser of the allowed deduction and the officer wage base) in that mixed case — a conservative,
+previously-reviewed fallback, not a new behavior; mixed-source filers are no worse off than before
+this pass. `sehiMixedSourceFallback` is now returned from `calcTaxReturn()` and surfaced as a
+banner in `TaxReturn.jsx` (independent of `sehiClamped`, which does not reliably fire in this
+case) telling the user TaxStat360 could not attribute the entry and to confirm the wage inclusion
+with their preparer. A full fix requires splitting the SEHI input into an S-corp leg and a
+sole-prop/partner leg; a schema and UI change, not scheduled. Owner decision.
+
+## LIMITATION 163J-NOT-MODELED — §163(j) business interest expense limitation not modeled
+
+**Added Aug 2026 (independent fresh-eyes re-audit, Finding 2).** Exposure direction: CAN
+UNDERSTATE tax for an entity subject to the limitation that nonetheless deducts its full
+business interest expense.
+
+No field exists anywhere in the app (entity level or personal level) for business interest
+expense or the §163(j) adjusted-taxable-income-based 30% limitation. For entities with average
+annual gross receipts over the indexed threshold (~$29M for 2026), business interest deductions
+in excess of business interest income plus 30% of ATI are disallowed and carried forward
+(real estate and certain other trades can elect out, at the cost of ADS depreciation). Any
+business interest a user enters as part of a lump-sum expense figure flows through fully
+deducted, with no limitation or carryforward computed. Most small/mid-size filers this product
+targets fall under the gross-receipts threshold and are unaffected, but the app has no
+disclosure alerting a larger filer that the limitation isn't applied. Recommended: at minimum,
+add a disclosure (mirroring the §1031/§1374 hand-off pattern) when an entity's revenue suggests
+it may exceed the threshold; a full worksheet is a larger scope decision. Owner decision; not
+scheduled.
+
 ## PASSIVE-PARTNER — passive / limited partnership interests are not modeled
 
 **Scope:** TaxStat360 models *active* partnership interests only. The entity picker offers
