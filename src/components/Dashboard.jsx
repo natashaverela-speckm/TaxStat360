@@ -68,7 +68,7 @@ import {
   federalTaxHeadlineLabel,
 } from '../lib/constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from '../lib/theme.js'
-import { fmt, pct, effectiveRate } from '../utils/money.js'
+import { fmt, effectiveRate } from '../utils/money.js'  // Module E (audit F-3): unused `pct` import removed
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
@@ -315,8 +315,7 @@ export default function Dashboard() {
     readActiveRecordId()
   )
   // D-09: write-only state (see D-04 — the connected-app label was never displayed).
-  const [, setConnectedApp] = useState(null)
-  const [xeroLoading, setXeroLoading] = useState(false)
+  const [xeroLoading] = useState(false)  // Module E (audit F-3): unused setter removed; flag is currently always false
   const [dismissedCompAlert, setDismissedCompAlert] = useState(false)
 
   // F-19 UX FIX: responsive nav — collapse labels to icons on narrow viewports

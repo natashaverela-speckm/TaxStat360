@@ -25,7 +25,7 @@ import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from 
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
-import SharedMoneyInput from './MoneyInput.jsx'
+import MoneyInput from './MoneyInput.jsx'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // F16 FIX: MoneyInput gains a `nonNegative` prop.
@@ -38,9 +38,15 @@ import SharedMoneyInput from './MoneyInput.jsx'
 // base styling (padding 9/11, zIndex overlay-guard), nonNegative blur clamp,
 // the "Enter a number \u2265 0" invalid-blur message via onError, and the
 // nf('')===0 empty-blur-normalizes-to-'0' semantics (coerceEmptyBlurToZero).
-function MoneyInput({ style: sx, disabled, ...props }) {
+// Module B (audit F-2, Aug 2026): renamed from the former local `MoneyInput` —
+// it collided by name with the shared core this adapter wraps (imported just
+// above, now simply as MoneyInput), forcing an import-time alias
+// (`SharedMoneyInput`) that made the two easy to confuse when grepping. This is
+// Step 2's adapter specifically (nonNegative blur clamp + coerceEmptyBlurToZero),
+// consistent with the D-12 CONSOLIDATION comment above.
+function Step2MoneyInput({ style: sx, disabled, ...props }) {
   return (
-    <SharedMoneyInput
+    <MoneyInput
       {...props}
       disabled={disabled}
       coerceEmptyBlurToZero
@@ -65,7 +71,7 @@ function IncomeField({ id, label, value, onChange, placeholder, tip, onClick, st
           {label}{tip}
         </label>
       )}
-      <MoneyInput
+      <Step2MoneyInput
         id={id}
         value={value}
         onChange={v => { onChange(v); if (errMsg) setErrMsg('') }}
@@ -579,6 +585,16 @@ export default function TaxReturn() {
   // below read the SAME numbers the engine actually applies (getSaltCap uses the
   // identical taxCalc.js table) instead of each retyping the figures as prose.
   const saltPd      = getSaltPhaseDownParams(taxYear, filingStatus)
+  // Module A (audit F-1, Aug 2026): the SALT-cap InfoTip used to hardcode
+  // `SALT_CAPS[2024] || 10000` (etc.) as literal fallbacks for three hand-picked
+  // years — a second, undetected copy of the cap figures that could silently
+  // drift from TAX_TABLES, and that never grows when SUPPORTED_TAX_YEARS gains a
+  // new year. Derive it here instead, from SALT_CAPS/SUPPORTED_TAX_YEARS only —
+  // no literal dollar amounts, no literal year list.
+  const saltCapsSummary = SUPPORTED_TAX_YEARS
+    .map(y => `$${(SALT_CAPS[y] ?? SALT_CAPS[CURRENT_TAX_YEAR]).toLocaleString()} for ${y}`)
+    .join(', ')
+    .replace(/, ([^,]*)$/, ', and $1')
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
@@ -1022,7 +1038,7 @@ export default function TaxReturn() {
                   Federal Tax Withheld (W-2 Box 2)
                   <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
                 </label>
-                <MoneyInput
+                <Step2MoneyInput
                   id="tr-w2-withheld"
                   value={w2Withheld}
                   onChange={setW2Withheld}
@@ -1181,10 +1197,10 @@ export default function TaxReturn() {
                   Optional — payment by installment (overrides the total for the penalty schedule):
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginTop: 4 }}>
-                  <MoneyInput ariaLabel="Q1 paid (Apr 15)" value={estQ1} onChange={setEstQ1} placeholder="Q1" nonNegative style={{ fontSize: 12 }} />
-                  <MoneyInput ariaLabel="Q2 paid (Jun 15)" value={estQ2} onChange={setEstQ2} placeholder="Q2" nonNegative style={{ fontSize: 12 }} />
-                  <MoneyInput ariaLabel="Q3 paid (Sep 15)" value={estQ3} onChange={setEstQ3} placeholder="Q3" nonNegative style={{ fontSize: 12 }} />
-                  <MoneyInput ariaLabel="Q4 paid (Jan 15)" value={estQ4} onChange={setEstQ4} placeholder="Q4" nonNegative style={{ fontSize: 12 }} />
+                  <Step2MoneyInput ariaLabel="Q1 paid (Apr 15)" value={estQ1} onChange={setEstQ1} placeholder="Q1" nonNegative style={{ fontSize: 12 }} />
+                  <Step2MoneyInput ariaLabel="Q2 paid (Jun 15)" value={estQ2} onChange={setEstQ2} placeholder="Q2" nonNegative style={{ fontSize: 12 }} />
+                  <Step2MoneyInput ariaLabel="Q3 paid (Sep 15)" value={estQ3} onChange={setEstQ3} placeholder="Q3" nonNegative style={{ fontSize: 12 }} />
+                  <Step2MoneyInput ariaLabel="Q4 paid (Jan 15)" value={estQ4} onChange={setEstQ4} placeholder="Q4" nonNegative style={{ fontSize: 12 }} />
                 </div>
               </div>
             </div>
@@ -1202,7 +1218,7 @@ export default function TaxReturn() {
                     Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
                     <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
                   </label>
-                  <MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
+                  <Step2MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
                 </div>
               </div>
             </CollapsibleSection>
@@ -1217,32 +1233,32 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
-                <MoneyInput id="tr-st-gain" value={stGain} onChange={setStGain} placeholder="0" />
+                <Step2MoneyInput id="tr-st-gain" value={stGain} onChange={setStGain} placeholder="0" />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-lt-gain" style={inputLbl}>
                   Long-Term Capital Gains (or losses)
                   <InfoTip text="Net long-term capital gains on assets held more than 1 year. Taxed at 0%, 15%, or 20% depending on taxable income — not at ordinary rates." />
                 </label>
-                <MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
+                <Step2MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-caploss-st" style={inputLbl}>
                   Capital Loss Carryforward — Short-Term
                   <InfoTip text="Unused short-term capital loss carried from last year's Schedule D. Nets against this year's gains; up to $3,000 of any remaining net loss ($1,500 married filing separately) offsets other income, and the rest carries forward again (IRC §1211(b), §1212(b))." />
                 </label>
-                <MoneyInput id="tr-caploss-st" value={capLossCarryST} onChange={setCapLossCarryST} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-caploss-st" value={capLossCarryST} onChange={setCapLossCarryST} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-caploss-lt" style={inputLbl}>
                   Capital Loss Carryforward — Long-Term
                   <InfoTip text="Unused long-term capital loss carried from last year's Schedule D. Enter as a positive number — it reduces this year's gains before the §1211(b) $3,000 limit applies." />
                 </label>
-                <MoneyInput id="tr-caploss-lt" value={capLossCarryLT} onChange={setCapLossCarryLT} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-caploss-lt" value={capLossCarryLT} onChange={setCapLossCarryLT} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-interest" style={inputLbl}>Interest Income (Schedule B)</label>
-                <MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-interest" value={interest} onChange={setInterest} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 {/* TERMINOLOGY FIX 4.1: Added tooltip to clarify ordinary vs qualified dividends.
@@ -1253,7 +1269,7 @@ export default function TaxReturn() {
                   Ordinary Dividends
                   <InfoTip text="Total dividends from Form 1099-DIV, Box 1a. Ordinary dividends are taxed at ordinary income rates — NOT the preferential 0/15/20% rate. Only the qualified dividend portion (Box 1b, entered below) receives preferential treatment. Enter the full Box 1a amount here; enter Box 1b separately in the field below." />
                 </label>
-                <MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-dividends" value={dividends} onChange={setDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qual-div" style={inputLbl}>
@@ -1261,7 +1277,7 @@ export default function TaxReturn() {
                   Qualified Dividends
                   <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above. From Form 1099-DIV Box 1b." />
                 </label>
-                <MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-form4797" style={inputLbl}>
@@ -1270,7 +1286,7 @@ export default function TaxReturn() {
                   Form 4797 Gains / Losses (§1231)
                   <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain — portion of the long-term gain above" field below.'} wide />
                 </label>
-                <MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
+                <Step2MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nonrecap1231" style={inputLbl}>
@@ -1278,7 +1294,7 @@ export default function TaxReturn() {
                   Prior §1231 Losses (5 yrs)
                   <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
                 </label>
-                <MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
                 {(result?.ordinary1231Recapture || 0) > 0 && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     §1231(c): {fmt(result.ordinary1231Recapture)} of your §1231 gain is recharacterized as <strong>ordinary income</strong> (taxed at ordinary rates, not 0/15/20%) because of nonrecaptured §1231 losses in the prior five years. IRC §1231(c)(1).
@@ -1290,7 +1306,7 @@ export default function TaxReturn() {
                   Unrecaptured §1250 Gain — portion of the long-term gain above
                   <InfoTip text="Depreciation recapture on real property sold at a gain. Taxed at max 25% (lesser of 25% or ordinary rate). This is the accumulated depreciation portion of your gain on real property sales." />
                 </label>
-                <MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-unrec1250" value={unrecap1250} onChange={setUnrecap1250} placeholder="0" nonNegative />
                 {(parseFloat(String(form4797).replace(/,/g,'')) || 0) > 0 && (parseFloat(String(unrecap1250).replace(/,/g,'')) || 0) === 0 && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     ⚠ You entered a Form 4797 gain. If this included <strong>depreciable real property</strong>, enter accumulated straight-line depreciation here — that amount is taxed at up to 25%, not 20%. Schedule D Unrecaptured §1250 Worksheet · IRC §1(h)(1)(E).
@@ -1306,7 +1322,7 @@ export default function TaxReturn() {
                   Collectibles Gain
                   <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year — losses are entered as negative numbers)." />
                 </label>
-                <MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
               </div>
             </div>
           </CollapsibleSection>
@@ -1319,7 +1335,7 @@ export default function TaxReturn() {
                   Self-Employed Health Insurance Premiums
                   <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
                 </label>
-                <MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
                 {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it. */}
                 {result?.sehiClamped && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
@@ -1343,28 +1359,28 @@ export default function TaxReturn() {
                   {/* AUDIT: limits were hardcoded to 2025 and shown even when 2026 was selected. */}
                   <InfoTip text={`Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. ${taxYear} limits: ${fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / ${fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family). Grows tax-free; withdrawals for medical expenses are always tax-free.`} />
                 </label>
-                <MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
                   <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
                 </label>
-                <MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
                   <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
                 </label>
-                <MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nol" style={inputLbl}>
                   NOL Carryforward (IRC §172)
                   <InfoTip text="Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically." />
                 </label>
-                <MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-nol" value={nolCarryforward} onChange={setNolCarryforward} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-qbi-loss" style={inputLbl}>
@@ -1374,7 +1390,7 @@ export default function TaxReturn() {
                   Prior-Year QBI Loss Carryforward (Form 8995, Line 3)
                   <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's §199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. §1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
                 </label>
-                <MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
               </div>
             </div>
 
@@ -1396,7 +1412,7 @@ export default function TaxReturn() {
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
                     Charitable Contributions — non-itemizer deduction (IRC §170(p))
                   </label>
-                  <MoneyInput ariaLabel="Charitable Contributions (non-itemizer, §170(p))" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
+                  <Step2MoneyInput ariaLabel="Charitable Contributions (non-itemizer, §170(p))" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
                   <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
                     Deductible up to $1,000 ($2,000 MFJ) in addition to the standard deduction, 2026+.
                   </div>
@@ -1418,14 +1434,14 @@ export default function TaxReturn() {
                         Mortgage Interest (Schedule A Line 8)
                         <InfoTip text="Home mortgage interest paid on your primary and/or second home (Form 1098). Deductible on acquisition debt up to $750K ($1M if pre-Dec 2017 loan)." />
                       </label>
-                      <MoneyInput ariaLabel="Mortgage Interest (Schedule A Line 8)" value={mortgageInt} onChange={setMortgageInt} placeholder="0" nonNegative />
+                      <Step2MoneyInput ariaLabel="Mortgage Interest (Schedule A Line 8)" value={mortgageInt} onChange={setMortgageInt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         Charitable Contributions (Schedule A Line 11-12)
                         <InfoTip text="Cash contributions to qualified 501(c)(3) organizations (Line 11) and non-cash contributions (Line 12). Cash contributions generally limited to 60% of AGI." />
                       </label>
-                      <MoneyInput ariaLabel="Charitable Contributions (Schedule A Line 11-12)" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
+                      <Step2MoneyInput ariaLabel="Charitable Contributions (Schedule A Line 11-12)" value={charitableContr} onChange={setCharitableContr} placeholder="0" nonNegative />
                       {result?.charFloorDisallowed > 0 && (
                         <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                           ⚠ {fmt(result.charFloorDisallowed)} of charitable contributions disallowed — OBBBA 0.5%-of-AGI
@@ -1445,14 +1461,14 @@ export default function TaxReturn() {
                         Medical Expenses (Schedule A Line 4)
                         <InfoTip text="Unreimbursed medical and dental expenses exceeding 7.5% of your AGI. Only the amount ABOVE the 7.5% AGI floor is deductible (IRC §213(a)). Enter your total medical expenses paid — TaxStat360 applies the 7.5% AGI floor automatically." />
                       </label>
-                      <MoneyInput ariaLabel="Medical Expenses (Schedule A Line 4)" value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
+                      <Step2MoneyInput ariaLabel="Medical Expenses (Schedule A Line 4)" value={medicalAmt} onChange={setMedicalAmt} placeholder="0" nonNegative />
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>
                         SALT Amount (before cap)
-                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at $${(SALT_CAPS[2024] || 10000).toLocaleString()} for 2024, $${(SALT_CAPS[2025] || 40000).toLocaleString()} for 2025, and $${(SALT_CAPS[2026] || 40400).toLocaleString()} for 2026 (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap${saltPd ? `, including the OBBBA §70120 phase-down: above $${Math.round(saltPd.threshold).toLocaleString()} MAGI for ${taxYear}, the cap shrinks by ${Math.round(saltPd.rate * 100)}% of the excess, to a floor of $${Math.round(saltPd.floor).toLocaleString()}` : ''}.`} />
+                        <InfoTip text={`State and local taxes (state income tax + property taxes). The SALT deduction is capped at ${saltCapsSummary} (OBBBA). Enter your total SALT paid — TaxStat360 applies the cap${saltPd ? `, including the OBBBA §70120 phase-down: above $${Math.round(saltPd.threshold).toLocaleString()} MAGI for ${taxYear}, the cap shrinks by ${Math.round(saltPd.rate * 100)}% of the excess, to a floor of $${Math.round(saltPd.floor).toLocaleString()}` : ''}.`} />
                       </label>
-                      <MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
+                      <Step2MoneyInput ariaLabel="SALT Amount (before cap)" value={saltAmount} onChange={setSaltAmount} placeholder="0" nonNegative />
                       {result?.saltDisallowed > 0 && (
                         <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                           ⚠ SALT deduction limited to {fmt(result.saltAllowed)} of the {fmt(result.saltEntered)} entered —
@@ -1475,7 +1491,7 @@ export default function TaxReturn() {
                     </div>
                     <div style={inpWrap}>
                       <label style={inputLbl}>Or enter total directly (overrides sub-fields if sub-fields are $0)</label>
-                      <MoneyInput ariaLabel="Itemized deductions total (overrides sub-fields)" value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} nonNegative />
+                      <Step2MoneyInput ariaLabel="Itemized deductions total (overrides sub-fields)" value={itemizedAmt} onChange={setItemizedAmt} placeholder={String(stdDed)} nonNegative />
                     </div>
                   </div>
                 </div>
@@ -1493,7 +1509,7 @@ export default function TaxReturn() {
               {hasISO && (
                 <div style={inpWrap}>
                   <label style={inputLbl}>ISO Bargain Element (FMV − Exercise Price × Shares)</label>
-                  <MoneyInput ariaLabel="ISO Bargain Element (FMV minus exercise price, times shares)" value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
+                  <Step2MoneyInput ariaLabel="ISO Bargain Element (FMV minus exercise price, times shares)" value={isoBargainElement} onChange={setIsoBargainElement} placeholder="0" nonNegative />
                 </div>
               )}
             </div>
@@ -1508,11 +1524,11 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-tax" style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
-                <MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-agi" style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
-                <MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" nonNegative />
               </div>
             </div>
 

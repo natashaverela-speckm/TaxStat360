@@ -32,7 +32,7 @@ import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstate
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
 import InfoTip from './InfoTip.jsx'
-import SharedMoneyInput from './MoneyInput.jsx'
+import MoneyInput from './MoneyInput.jsx'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
@@ -68,9 +68,15 @@ export function entityResultLabel(type) {
 // (padding 10/12) and its allowNegative flag (audit F9: minus stripped where
 // negatives are invalid). One documented micro-unification: a lone '-' now
 // clears on blur (previously stayed in place here).
-function MoneyInput({ style, disabled, ...props }) {
+// Module B (audit F-2, Aug 2026): renamed from the former local `MoneyInput` —
+// it collided by name with the shared core this adapter wraps (imported just
+// above, now simply as MoneyInput), forcing an import-time alias
+// (`SharedMoneyInput`) that made the two easy to confuse when grepping. This is
+// Step 1's adapter specifically (base styling + allowNegative), so it's named
+// for that, consistent with the D-13 CONSOLIDATION comment above.
+function Step1MoneyInput({ style, disabled, ...props }) {
   return (
-    <SharedMoneyInput
+    <MoneyInput
       {...props}
       disabled={disabled}
       style={{
@@ -634,7 +640,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               K-1 Box 1 — Net Ordinary Business Income (Loss)
               <InfoTip text={'Enter the amount from Box 1 of your K-1 exactly as shown — positive for profit, negative for loss.\n\nS-Corp: Form 1120-S, Schedule K-1, Box 1 "Ordinary business income (loss)"\nPartnership: Form 1065, Schedule K-1, Box 1 "Ordinary business income (loss)"\n\nThis is your SHARE of the entity\'s ordinary income — already scaled by your ownership percentage on the K-1. Do not enter the entity\'s total income; enter only your share as shown on your K-1.\n\nA K-1 loss (negative Box 1) may be limited by your stock or debt basis under IRC §1366(d). If your loss is limited, expand the Stock & Debt Basis section below to enter your Form 7203 basis — the engine will apply the §1366(d) limitation automatically.'} wide />
             </label>
-            <MoneyInput
+            <Step1MoneyInput
               value={manK1Direct}
               onChange={setManK1Direct}
               placeholder="0 (negative for a loss)"
@@ -647,7 +653,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 {FINANCIAL_LABELS.officerCompensationField}
                 <InfoTip text={'Your W-2 officer salary from this S-Corp. Enter this even in K-1 direct mode — the salary appears on your W-2 and flows to your personal return separately from the K-1 income. It also determines your §199A W-2 wage limitation and your FICA tax obligation.'} wide />
               </label>
-              <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
+              <Step1MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             </div>
           )}
           {/* F4 follow-up: guaranteed payments are also available in K-1-direct mode (§707(c)). */}
@@ -657,7 +663,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 Guaranteed Payments (K-1 Box 4) — §707(c)
                 <InfoTip text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the Box 1 figure above, or they will be counted twice.'} wide />
               </label>
-              <MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
+              <Step1MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
             </div>
           )}
           {nf(manK1Direct) !== 0 && (
@@ -675,14 +681,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             {isRE ? FINANCIAL_LABELS.grossRentsReceivedField : FINANCIAL_LABELS.grossReceiptsField}
             <InfoTip label={isRE ? 'Gross rents received' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
-          <MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? FINANCIAL_LABELS.grossRentsReceivedField : 'Gross receipts'} />
+          <Step1MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? FINANCIAL_LABELS.grossRentsReceivedField : 'Gross receipts'} />
         </div>
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
             <InfoTip label={isRE ? 'Rental operating expenses' : 'Operating expenses'} text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
           </label>
-          <MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental operating expenses' : 'Operating expenses'} />
+          <Step1MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental operating expenses' : 'Operating expenses'} />
         </div>
         <div>
           <label style={lbl}>
@@ -696,7 +702,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Depreciation — total deduction this year
             <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
-          <MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
+          <Step1MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
         </div>
         {(isSCorp || isCCorp) && (
           <div>
@@ -706,7 +712,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
                 : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is an audit trigger.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
-            <MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
+            <Step1MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             {/* AUDIT-1 FIX: reserve layout space for these conditional warnings so their
                 appearance doesn't shift the Advertising & Marketing field below — a sudden
                 layout shift mid-entry can cause the next click (aimed at the pre-shift
@@ -756,14 +762,14 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Advertising & Marketing
             <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
           </label>
-          <MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
+          <Step1MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
         </div>
         <div>
           <label style={lbl}>
             Other Operating Expenses
             <InfoTip label="Other operating expenses" text="Miscellaneous business operating expenses not captured in the fields above. Must be ordinary and necessary under IRC §162. Exclude depreciation, advertising, and officer compensation — those have dedicated fields." />
           </label>
-          <MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} allowNegative={false} />
+          <Step1MoneyInput value={manOther} onChange={setManOther} placeholder="0" style={inp} allowNegative={false} />
         </div>
       </div>
 
@@ -803,7 +809,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             Guaranteed Payments (K-1 Box 4) — §707(c)
             <InfoTip label="Guaranteed payments" text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the net-profit / Box 1 figure above, or they will be counted twice.'} wide />
           </label>
-          <MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
+          <Step1MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
         </div>
       )}
 
@@ -1283,7 +1289,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         {label}
                         <InfoTip text={tip} wide />
                       </label>
-                      <MoneyInput
+                      <Step1MoneyInput
                         value={entity[key] || ''}
                         onChange={v => onUpdate(idx, { ...entity, [key]: v })}
                         placeholder="0"
@@ -1326,28 +1332,28 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Outside Basis at Beginning of Year
                       <InfoTip text={'Your adjusted OUTSIDE basis in the partnership at the start of the year.\n\nIt starts with your capital contributions and is increased by your share of income and by your share of partnership LIABILITIES (§752), and decreased by distributions, your share of losses, and reductions in your share of liabilities.\n\nWhy it matters — IRC §704(d): your deductible share of partnership loss cannot exceed your outside basis. Losses in excess are SUSPENDED and carried forward until basis is restored. (At-risk §465 and passive §469 limits may further restrict a loss — not modeled here.)\n\nLeave blank if unsure; the loss is then conservatively suspended.'} wide />
                     </label>
-                    <MoneyInput value={entity.stockBasis || ''} onChange={v => onUpdate(idx, { ...entity, stockBasis: v })} placeholder="Enter basis — leave blank if unsure" style={{ fontSize: 13 }} />
+                    <Step1MoneyInput value={entity.stockBasis || ''} onChange={v => onUpdate(idx, { ...entity, stockBasis: v })} placeholder="Enter basis — leave blank if unsure" style={{ fontSize: 13 }} />
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Share of Partnership Liabilities (§752)
                       <InfoTip text={'Your share of partnership liabilities under IRC §752 — this INCREASES your outside basis (unlike an S-corp, where only a bona fide shareholder loan creates basis and a mere guarantee does not).\n\nRecourse liabilities are allocated to the partner who bears the economic risk of loss; nonrecourse liabilities are generally shared by profit ratio.\n\nIt raises the basis available to absorb losses under §704(d). (For §465 at-risk, most nonrecourse debt does NOT count — except qualified nonrecourse real-estate financing; the at-risk limit is not modeled here.)'} wide />
                     </label>
-                    <MoneyInput value={entity.debtBasis || ''} onChange={v => onUpdate(idx, { ...entity, debtBasis: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                    <Step1MoneyInput value={entity.debtBasis || ''} onChange={v => onUpdate(idx, { ...entity, debtBasis: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Capital Contributions This Year — Optional
                       <InfoTip text={'Cash or property you contributed to the partnership this year. Increases your outside basis before the year\'s distributions and losses are applied (§722).'} wide />
                     </label>
-                    <MoneyInput value={entity.capitalContributions || ''} onChange={v => onUpdate(idx, { ...entity, capitalContributions: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                    <Step1MoneyInput value={entity.capitalContributions || ''} onChange={v => onUpdate(idx, { ...entity, capitalContributions: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
                   </div>
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Current-Year Basis-Increasing Income — Optional
                       <InfoTip text={'Current-year income and tax-exempt items allocated to you that increase outside basis (§705(a)(1)). Do NOT include the ordinary business loss. Enter only positive items.'} wide />
                     </label>
-                    <MoneyInput value={entity.basisIncomeItems || ''} onChange={v => onUpdate(idx, { ...entity, basisIncomeItems: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
+                    <Step1MoneyInput value={entity.basisIncomeItems || ''} onChange={v => onUpdate(idx, { ...entity, basisIncomeItems: v })} placeholder="0 (optional)" style={{ fontSize: 13 }} />
                   </div>
                   {(() => {
                     const { lossAmt, hasBasisInput, basisForLoss, allowedLoss, suspendedLoss } = scBasis || {}
@@ -1409,7 +1415,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Stock Basis at Beginning of Year (Form 7203, Line 1)
                       <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year it increases for income and tax-exempt items allocated to you, and decreases for losses, deductions, and distributions.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
                     </label>
-                    <MoneyInput
+                    <Step1MoneyInput
                       value={entity.stockBasis || ''}
                       onChange={v => onUpdate(idx, { ...entity, stockBasis: v })}
                       placeholder="Enter basis — leave blank if unsure"
@@ -1427,7 +1433,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Capital Contributions This Year (Form 7203, Line 2) — Optional
                       <InfoTip text={'Cash or property you contributed to the S-Corp during THIS tax year, plus any additional stock you acquired (Form 7203, Line 2).\n\nThese contributions increase your stock basis under IRC §1367(a)(1) BEFORE the year\'s distributions and losses are applied. If you funded a loss year with new contributions rather than relying on beginning basis, enter that amount here — otherwise the loss may be understated (suspended) and distributions may be incorrectly treated as a capital gain.\n\nLeave blank if you made no contributions this year.'} wide />
                     </label>
-                    <MoneyInput
+                    <Step1MoneyInput
                       value={entity.capitalContributions || ''}
                       onChange={v => onUpdate(idx, { ...entity, capitalContributions: v })}
                       placeholder="0 (optional)"
@@ -1442,7 +1448,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Other Basis-Restoring Income (Form 7203, Lines 3a–3m) — Optional
                       <InfoTip text={'Current-year income and tax-exempt items allocated to you that increase stock basis (Form 7203, Lines 3a–3m) — for example separately stated income, interest, dividends, capital gains, or tax-exempt income.\n\nDo NOT include the ordinary business loss here (that is entered as the entity\'s P&L and applied last under §1366). Enter only positive basis-increasing items. These raise basis under §1367(a)(1) before distributions and losses.\n\nLeave blank if not applicable.'} wide />
                     </label>
-                    <MoneyInput
+                    <Step1MoneyInput
                       value={entity.basisIncomeItems || ''}
                       onChange={v => onUpdate(idx, { ...entity, basisIncomeItems: v })}
                       placeholder="0 (optional)"
@@ -1455,7 +1461,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Debt Basis (Form 7203, Part II) — Optional
                       <InfoTip text={'Debt basis arises from bona fide loans you have personally made to the S-Corp — NOT loans the corporation took from a bank or third party.\n\nDebt basis absorbs losses after stock basis is exhausted (IRC §1366(d)(1)(B)).\n\nThis is an advanced field. Most shareholders only have stock basis. Leave blank if you have not personally loaned money to your S-Corp.\n\nSee Form 7203, Part II for the calculation.'} wide />
                     </label>
-                    <MoneyInput
+                    <Step1MoneyInput
                       value={entity.debtBasis || ''}
                       onChange={v => onUpdate(idx, { ...entity, debtBasis: v })}
                       placeholder="0 (optional)"
@@ -1512,7 +1518,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       Distributions Received This Year (Form 7203, Line 6)
                       <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nAAA note: If your S-Corp has accumulated earnings and profits (E&P) from a prior C-Corp period, AAA ordering rules (§1368(c)) apply — distributions reduce AAA first, then E&P (taxable as an ordinary dividend). Consult your CPA if prior C-Corp E&P exists.'} wide />
                     </label>
-                    <MoneyInput
+                    <Step1MoneyInput
                       value={entity.distributions || ''}
                       onChange={v => onUpdate(idx, { ...entity, distributions: v })}
                       placeholder="0"
@@ -1540,7 +1546,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
                           Accumulated E&amp;P (C-corp years) — §1368(c)
                         </label>
-                        <MoneyInput
+                        <Step1MoneyInput
                           value={entity.accumulatedEP || ''}
                           onChange={v => onUpdate(idx, { ...entity, accumulatedEP: v })}
                           placeholder="0"
@@ -1551,7 +1557,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
                           Beginning AAA — Accumulated Adjustments Account (Form 1120-S Sch. M-2)
                         </label>
-                        <MoneyInput
+                        <Step1MoneyInput
                           value={entity.beginningAAA || ''}
                           onChange={v => onUpdate(idx, { ...entity, beginningAAA: v })}
                           placeholder="0"
@@ -1735,7 +1741,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     Unused rental losses from prior years (Form 8582)
                     <InfoTip text={'Suspended passive losses from prior years on this rental (Form 8582, Line 3). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
                   </label>
-                  <MoneyInput
+                  <Step1MoneyInput
                     value={entity.priorPAL || ''}
                     onChange={v => onUpdate(idx, { ...entity, priorPAL: v })}
                     placeholder="0"
