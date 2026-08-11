@@ -308,6 +308,73 @@ engine. History: the original defect showed "$0 savings" and NaN rows for
 every preset; Batch 1 replaced that with an honest "unavailable" notice;
 this batch restores the feature.
 
+## LIMITATION BIG-1374 — §1374 built-in gains tax not modeled
+
+**Added Aug 2026 (external accuracy audit, Finding 2).** Exposure direction: CAN UNDERSTATE
+tax for a former C-corp within its 5-year §1374 recognition period that disposes of an asset
+with built-in gain.
+
+No field, computation, or asset-level recognition-period tracking exists anywhere in the S-Corp
+entity flow for §1374 built-in gains (BIG) tax. A C-corp that elects S status must track any net
+unrealized built-in gain (NUBIG) as of the conversion date; gain recognized on a disposition
+within the recognition period (5 years, PATH Act) is taxed at the corporate level at 21% before
+flowing through to shareholders — entirely outside what this engine computes.
+
+`CalculateTaxInner.jsx` now shows a disclosure warning (search "EXT-2") whenever the entity
+carries accumulated C-corp E&P (`entity.accumulatedEP > 0` — the only existing signal in the
+data model that an S-corp has C-corp history), directing the user to confirm §1374 exposure with
+their CPA. This is a disclosure only, not a fix: it does not compute BIG tax, does not know the
+S-election date, and does not know whether the specific disposition is asset-level built-in-gain
+property. A former C-corp with NO retained E&P at conversion (fully distributed before
+electing S status) would carry this exposure with no accumulated E&P to trigger the warning —
+a real gap in the disclosure trigger itself, not just the underlying calculation.
+
+Full support requires: (1) an S-election date field, (2) a NUBIG-at-conversion figure, (3)
+asset-level recognition tracking across the 5-year window, and (4) the corporate-level 21% tax
+computation feeding into the shareholder-level K-1. Owner decision: build BIG tax support, or
+formally accept this as an out-of-scope entity type (former C-corps within 5 years of S-election)
+and strengthen the disclosure trigger to fire on any S-corp entity regardless of accumulated E&P
+(e.g., a "was this ever a C-corp?" checkbox, independent of the E&P figure).
+
+## LIMITATION 121-HOME-SALE — §121 principal residence exclusion not modeled
+
+**Added Aug 2026 (external accuracy audit, Finding 6).** Exposure direction: N/A — feature not
+present, not a miscalculation of a feature that exists.
+
+There is no home-sale entry point anywhere in the app (the "Real Estate" entity type is scoped
+to Schedule E rental activity only — see `isRealEstateEntity()` in `src/utils/entityPredicates.js`).
+Gain on sale of a principal residence excludable up to $250,000 (single) / $500,000 (MFJ) under
+IRC §121, including the post-2008 "nonqualified use" allocation for a residence with any rental
+history (§121(b)(5)), is out of scope. This matches the product's stated focus ("built for
+business owners", not a full 1040 replacement) and is not believed to require a code change —
+recorded here per the external audit's recommendation to make the scope boundary explicit and
+owner-ratified rather than implicit. Owner decision: confirm this boundary, or add a lightweight
+home-sale entry point alongside Schedule E.
+
+## LIMITATION DEP-UNVALIDATED — manual depreciation entry has no statutory cap check
+
+**Added Aug 2026 (external accuracy audit, Finding 7).** Exposure direction: CAN UNDERSTATE tax
+if a user enters a depreciation figure that already reflects an over-the-statutory-cap §179
+election or an implausible bonus-depreciation amount.
+
+The per-entity "Depreciation — total deduction this year" field (`CalculateTaxInner.jsx`, P&L
+manual entry) is a single lump-sum figure the engine trusts as entered — by design (see the
+tooltip: "TaxStat360 uses this figure as entered and does not calculate bonus depreciation for
+you"), and NOT the same thing as the §179(b)(3) business-income limitation that
+`calc179Limitation()` already applies to the separately-stated K-1 §179 box (see
+`179-DOLLAR`, resolved, above). No validation exists anywhere against the §179(b)(1)/(b)(2)
+annual dollar cap ($2,560,000 / $4,090,000 phase-out for 2026, `TAX_TABLES[year].sec179`) for
+the aggregate P&L depreciation figure itself, since the engine has no way to know how much of a
+manually-entered lump sum is a §179 election vs. MACRS vs. bonus depreciation.
+
+This is a disclosed, reasonable design choice for a tool whose depreciation figure is meant to
+be pre-computed by the user or their accountant — full validation would require collecting
+placed-in-service dates, asset classes, and election details well beyond this product's current
+scope. Recorded here (external audit's recommendation) rather than acted on: given the product's
+stated non-accountant audience, a future soft warning (not a hard block) when entered
+depreciation is large relative to gross receipts could reduce silent overstatement risk without
+attempting in-app §179/bonus computation. Owner decision; not scheduled.
+
 ## PASSIVE-PARTNER — passive / limited partnership interests are not modeled
 
 **Scope:** TaxStat360 models *active* partnership interests only. The entity picker offers

@@ -12,6 +12,72 @@ record of work that predates this changelog.
 
 ---
 
+## External tax-accuracy audit remediation — August 11, 2026
+
+Independent external audit (S-Corp, Individual/1040, Real Estate/Schedule E modules, TY2026)
+conducted by live-testing purpose-built edge-case scenarios against the deployed app, not a
+source-code review. Full report delivered separately; this entry covers the fixes made in this
+repository in response to it. Findings numbered per that report; labeled `EXT-N` in code/comments
+to avoid colliding with this repo's own internal `F-N`/`D-N`/`M-N` audit identifiers.
+
+### Fixed
+- **`src/lib/taxCalc.js`** (EXT-1, Finding 1 — MATERIAL) — >2% S-Corp shareholder self-employed
+  health insurance premiums were deducted from AGI (`selfEmpHealthDed`, F-7's §162(l)(5)(A) cap)
+  with NO corresponding wage inclusion anywhere in the engine. IRC §1372 / Rev. Rul. 91-26 require
+  the premium to first be included in Box 1 W-2 wages before the offsetting Schedule 1, Line 17
+  deduction — the two are supposed to net to zero AGI effect. Live test: a $12,000 SEHI entry
+  reduced AGI (and tax) by the full $12,000 with no offsetting income. Fixed by introducing
+  `sehiScorpWageGrossUp` — the lesser of the allowed deduction and the S-corp officer W-2 base
+  (`_scorpOfficerW2ForSEHI`, already computed for the F-7 cap) — added to `grossIncomeBeforeNOL`.
+  Deliberately does NOT touch `totalW2ForFICA` / `additionalMedicare`, which continue reading the
+  raw `w2`: S-corp SEHI is exempt from FICA/Medicare tax (Notice 2008-1), so grossing up the
+  income-tax-side wage figure while leaving the FICA-side figure untouched is required, not
+  optional. Sole-prop/partner SEHI (never "wages" to begin with) is unaffected — `sehiScorpWageGrossUp`
+  is 0 with no S-corp officer wage base to gross up against.
+- **`src/lib/taxCalc-sehi-scorp-grossup.test.js`** (new) — 4 SPEC tests: full coverage by the
+  S-corp wage base nets AGI to the no-SEHI baseline; the grossup never leaks into FICA wages or
+  Additional Medicare Tax; a premium exceeding the officer wage base grosses up only to the
+  (also §162(l)(5)(A)-capped) allowed deduction; sole-prop SEHI is unaffected (grossup = 0).
+- **`src/components/TaxReturn.jsx`** (EXT-1 UX + Finding 3) — the SEHI tooltip and the
+  `sehiClamped` warning banner both described the wage-inclusion requirement in a way the
+  calculation didn't actually enforce; reworded to reflect the automatic grossup above. Separately
+  (Finding 3), the tooltip's earned-income cap sentence previously said the deduction "cannot
+  exceed your net self-employment income" for ALL filer types — wrong for S-corp shareholders, who
+  have no SE income from the S-corp; their §162(l)(2)(A) cap is W-2 wages from that S-corp, not net
+  SE income. Split the sentence by entity type.
+- **`src/components/CalculateTaxInner.jsx`** (Finding 4) — the per-entity Depreciation tooltip
+  led with "For 2025 the §168(k) bonus rate is 40%..." regardless of the selected tax year (the
+  underlying rule is placed-in-service-date-based, not filing-year-based, so it was substantively
+  correct for 2026 too, but the framing risked users on a 2026 return second-guessing a correct
+  100% entry). Reworded to state the permanent 100% rate first and the year-agnostic 1/19/2025
+  cutover, rather than leading with "For 2025."
+- **`src/components/CalculateTaxInner.jsx`** (Finding 5) — added a "Sold or exchanged this
+  property?" disclosure to the Real Estate entity card pointing users to Form 8824 for §1031
+  like-kind exchanges and to the correct existing Step 2 fields (Capital Gains/Form 4797,
+  Unrecaptured §1250 Gain) for recognized gain and recapture — none of which this rental-income
+  card computes on its own.
+- **`src/components/CalculateTaxInner.jsx`** (Finding 2) — added a §1374 built-in-gains-tax
+  disclosure warning, keyed off `entity.accumulatedEP > 0` (the existing signal that an S-corp has
+  C-corp history, already used for §1368(c) AAA/E&P ordering). Disclosure only; BIG tax itself is
+  not computed. See `KNOWN_LIMITATIONS.md` "BIG-1374" for the residual gap (the trigger only fires
+  when E&P was retained at conversion) and what full support would require.
+- **`KNOWN_LIMITATIONS.md`** — three new entries: `BIG-1374` (Finding 2, §1374 not modeled),
+  `121-HOME-SALE` (Finding 6, §121 principal-residence exclusion out of scope — no code change,
+  scope boundary recorded per the audit's recommendation), `DEP-UNVALIDATED` (Finding 7, no
+  statutory cap check on the manual P&L depreciation entry — distinct from the already-modeled
+  `179-DOLLAR` business-income limitation on the separately-stated K-1 §179 box).
+
+### Verified, not changed
+- Full suite: 817/817 tests passing (813 pre-existing + 4 new EXT-1 SPEC tests). `npx eslint .`
+  and `vite build` both clean — see this pass's verification notes.
+- Findings 2, 6, 7 deliberately NOT given full computational fixes in this pass — each requires
+  either new data collection (BIG tax: S-election date, NUBIG; §121: home-sale entry point) or
+  owner sign-off on a scope decision, consistent with this repo's own `KNOWN_LIMITATIONS.md`
+  process ("Changing one requires the owner's sign-off, SPEC tests, and a CHANGELOG entry").
+
+
+---
+
 ## Post-deploy regression review — August 10, 2026 (same-day follow-up #2)
 
 Owner-requested review of both prior same-day passes (the consistency audit fixes and
