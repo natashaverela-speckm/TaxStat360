@@ -587,7 +587,10 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     taxYear = 2025,
     entityQbiData = [],
     activeQbi,
-    hasMultiEntityTypes = false,
+    // Module E (audit F-3, Aug 2026): hasMultiEntityTypes removed — dead since the
+    // F6 follow-up switched the §1.199A-4 aggregation gate to entity COUNT
+    // (entityQbiData.length > 1, below), not entity-type mix. Flagged by ESLint
+    // as an unused destructured binding.
     electQbiAggregation = false,   // F6: Reg. §1.199A-4 aggregation is opt-in
   } = opts
   const thresholds = QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]

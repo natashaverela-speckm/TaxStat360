@@ -31,6 +31,15 @@
 //
 // IF ONE OF THESE FAILS, THE ENGINE IS WRONG. Do not "fix" the test.
 
+//
+// Module C (audit F-2, Aug 2026) — CHAR: labels backfilled onto every test in
+// this file per ARCHITECTURE.md §6 ("New tests MUST be labeled"), following the
+// same M6b pattern used on taxCalc-engine.test.js: CHAR is the mechanical floor
+// claim (freezes current behavior) that is always true for an existing, passing
+// test. None were promoted to SPEC in this pass — that requires independently
+// re-verifying each expected value against its cited authority, a per-test
+// judgment call left for a follow-up pass, not something to mass-apply here.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn, calcQBI, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from './taxCalc.js'
 
@@ -74,7 +83,7 @@ function solePropNoPayroll(netProfit) {
 // ═══════════════════════════════════════════════════════════════════════════════
 describe('2026 §199A parameters (Rev. Proc. 2025-32 §4.26)', () => {
 
-  it('threshold amounts match the Revenue Procedure exactly', () => {
+  it('CHAR: threshold amounts match the Revenue Procedure exactly', () => {
     // "All other returns" — the row Single and Head of Household fall under — is
     // $201,750. $201,775 is the MARRIED FILING SEPARATELY figure. The table had the
     // MFS number in the single and hoh slots.
@@ -84,7 +93,7 @@ describe('2026 §199A parameters (Rev. Proc. 2025-32 §4.26)', () => {
     expect(QBI_THRESHOLDS[2026].mfj).toBe(403500)
   })
 
-  it('phase-in ranges are the OBBBA-widened $75K / $150K', () => {
+  it('CHAR: phase-in ranges are the OBBBA-widened $75K / $150K', () => {
     expect(QBI_PHASE_IN_RANGE[2026].single).toBe(75000)
     expect(QBI_PHASE_IN_RANGE[2026].mfj).toBe(150000)
     // ⇒ fully phased in at $276,750 (single) and $553,500 (MFJ).
@@ -94,14 +103,14 @@ describe('2026 §199A parameters (Rev. Proc. 2025-32 §4.26)', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 describe('§199A(b)(2)(B) wage/UBIA cap — the unit', () => {
 
-  it('BELOW the threshold: no wage limit, full 20% (wage data irrelevant)', () => {
+  it('CHAR: BELOW the threshold: no wage limit, full 20% (wage data irrelevant)', () => {
     // Taxable income $150,000 < $201,750 ⇒ the limitation does not apply at all.
     const r = calcQBI(150000, 150000, 0, { status: 'single', taxYear: 2026, entityQbiData: [] })
     expect(r.deduction).toBe(30000)          // 20% × 150,000
     expect(r.limitApplied).toBe('qbi')
   })
 
-  it('ABOVE the phase-in ceiling with $0 wages and $0 UBIA: cap is $0 ⇒ $400 floor', () => {
+  it('CHAR: ABOVE the phase-in ceiling with $0 wages and $0 UBIA: cap is $0 ⇒ $400 floor', () => {
     // THE REGRESSION. Before the fix this returned 20% × 465,765 = $93,153.
     const r = calcQBI(485000, 465765, 0, {
       status: 'single', taxYear: 2026,
@@ -113,7 +122,7 @@ describe('§199A(b)(2)(B) wage/UBIA cap — the unit', () => {
     expect(r.wageDataMissing).toBe(true)
   })
 
-  it('ABOVE the ceiling WITH wages: cap is 50% of W-2 wages', () => {
+  it('CHAR: ABOVE the ceiling WITH wages: cap is 50% of W-2 wages', () => {
     // $200,000 of W-2 wages ⇒ cap $100,000. QBI component would be 20% × 600,000
     // = $120,000, so the wage cap binds at $100,000.
     const entities = [{ type: 'S Corporation', own: 100, k1: 600000, officerW2: 200000,
@@ -125,7 +134,7 @@ describe('§199A(b)(2)(B) wage/UBIA cap — the unit', () => {
     expect(r.wageDataMissing).toBe(false)
   })
 
-  it('ABOVE the ceiling: UBIA alone can support a deduction (25% wages + 2.5% UBIA)', () => {
+  it('CHAR: ABOVE the ceiling: UBIA alone can support a deduction (25% wages + 2.5% UBIA)', () => {
     // A real estate operator: no payroll, $4,000,000 of UBIA.
     // Cap = max(50% × 0, 25% × 0 + 2.5% × 4,000,000) = $100,000.
     const entities = [{ type: 'Real Estate (Schedule E)', own: 100, k1: 300000, officerW2: 0,
@@ -137,7 +146,7 @@ describe('§199A(b)(2)(B) wage/UBIA cap — the unit', () => {
     expect(r.wageDataMissing).toBe(false)
   })
 
-  it('INSIDE the phase-in range: the limitation applies proportionally, not as a cliff', () => {
+  it('CHAR: INSIDE the phase-in range: the limitation applies proportionally, not as a cliff', () => {
     // Single, taxable income $239,250 = threshold 201,750 + 37,500, which is exactly
     // half of the $75,000 phase-in range ⇒ phasePercent = 0.50.
     // QBI component = 20% × 200,000 = $40,000. Wage cap = $0.
@@ -179,12 +188,12 @@ describe('GOLDEN RECORD 1 — single, $500,000 Schedule C, no payroll (2026)', (
     entities: solePropNoPayroll(500000),
   }))
 
-  it('SE tax and Additional Medicare Tax', () => {
+  it('CHAR: SE tax and Additional Medicare Tax', () => {
     expect(r.seTax).toBe(36269)
     expect(r.additionalMedicare).toBe(2356)
   })
 
-  it('AGI and taxable income before §199A', () => {
+  it('CHAR: AGI and taxable income before §199A', () => {
     // NB: the engine halves the ROUNDED SE tax (36,269 / 2 → 18,135), so AGI is
     // 481,865 not the 481,866 you get from halving the unrounded 36,268.75. Both are
     // defensible; the engine's choice is the one under test and it is self-consistent.
@@ -193,14 +202,14 @@ describe('GOLDEN RECORD 1 — single, $500,000 Schedule C, no payroll (2026)', (
     expect(r.taxableBeforeQBI).toBe(465765)
   })
 
-  it('§199A deduction is the $400 floor — NOT 20% of taxable income', () => {
+  it('CHAR: §199A deduction is the $400 floor — NOT 20% of taxable income', () => {
     expect(r.qbi).toBe(400)
     expect(r.qbi).not.toBe(93153)            // ← the pre-fix answer
     expect(r.qbiLimitApplied).toBe('min400')
     expect(r.qbiWageDataMissing).toBe(true)
   })
 
-  it('TOTAL federal tax', () => {
+  it('CHAR: TOTAL federal tax', () => {
     expect(r.totalTax).toBe(170272)
     expect(r.totalTax).not.toBe(137808)      // ← the pre-fix answer
   })
@@ -235,23 +244,23 @@ describe('GOLDEN RECORD 2 — MFJ, $900,000 Schedule C, no payroll (2026)', () =
     entities: solePropNoPayroll(900000),
   }))
 
-  it('SE tax and Additional Medicare Tax (MFJ $250K threshold)', () => {
+  it('CHAR: SE tax and Additional Medicare Tax (MFJ $250K threshold)', () => {
     expect(r.seTax).toBe(46981)
     expect(r.additionalMedicare).toBe(5230)
   })
 
-  it('AGI and taxable income before §199A', () => {
+  it('CHAR: AGI and taxable income before §199A', () => {
     expect(r.agi).toBe(876509)
     expect(r.taxableBeforeQBI).toBe(844309)
   })
 
-  it('§199A deduction is the $400 floor', () => {
+  it('CHAR: §199A deduction is the $400 floor', () => {
     expect(r.qbi).toBe(400)
     expect(r.qbi).not.toBe(168862)           // ← the pre-fix answer (20% × 844,309)
     expect(r.qbiLimitApplied).toBe('min400')
   })
 
-  it('TOTAL federal tax — the $60,466 understatement is closed', () => {
+  it('CHAR: TOTAL federal tax — the $60,466 understatement is closed', () => {
     expect(r.totalTax).toBe(286622)
     expect(r.totalTax).not.toBe(226156)      // ← what the live site told a real user
   })
@@ -260,7 +269,7 @@ describe('GOLDEN RECORD 2 — MFJ, $900,000 Schedule C, no payroll (2026)', () =
 // ═══════════════════════════════════════════════════════════════════════════════
 describe('BLOCKER 2 — the engine is the only source of a QBI number', () => {
 
-  it('calcTaxReturn exposes the reason codes AIAnalysis needs, so it never recomputes', () => {
+  it('CHAR: calcTaxReturn exposes the reason codes AIAnalysis needs, so it never recomputes', () => {
     // AIAnalysis used to re-run calcQBI purely to get limitApplied/caps for its copy —
     // and in doing so re-derived the DEDUCTION from a different base. These fields exist
     // so that no consumer has any reason to compute §199A for itself. If you find a

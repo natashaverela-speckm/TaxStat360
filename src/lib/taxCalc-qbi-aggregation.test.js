@@ -8,6 +8,15 @@
 // on Form 8995-A, Sch. B. The engine now defaults to PER-BUSINESS wage limits and pools
 // only when electQbiAggregation is set.
 
+//
+// Module C (audit F-2, Aug 2026) — CHAR: labels backfilled onto every test in
+// this file per ARCHITECTURE.md §6 ("New tests MUST be labeled"), following the
+// same M6b pattern used on taxCalc-engine.test.js: CHAR is the mechanical floor
+// claim (freezes current behavior) that is always true for an existing, passing
+// test. None were promoted to SPEC in this pass — that requires independently
+// re-verifying each expected value against its cited authority, a per-test
+// judgment call left for a follow-up pass, not something to mass-apply here.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
 
@@ -21,21 +30,21 @@ const def = calcTaxReturn({ ...base, k1Total: 800000, entities })
 const agg = calcTaxReturn({ ...base, k1Total: 800000, entities, electQbiAggregation: true })
 
 describe('F6 — §199A aggregation opt-in', () => {
-  it('defaults to per-business (no election assumed)', () => {
+  it('CHAR: defaults to per-business (no election assumed)', () => {
     expect(def.qbiAggregationApplied).toBe(false)
     expect(def.qbi).toBe(78320)   // S-corp QBI-bound; zero-wage partnership contributes $0
   })
 
-  it('electing aggregation pools W-2 wages across entities', () => {
+  it('CHAR: electing aggregation pools W-2 wages across entities', () => {
     expect(agg.qbiAggregationApplied).toBe(true)
     expect(agg.qbi).toBe(100000)  // 50% × $200k pooled wages
   })
 
-  it('the default never exceeds the elected (aggregation can only help)', () => {
+  it('CHAR: the default never exceeds the elected (aggregation can only help)', () => {
     expect(def.qbi).toBeLessThan(agg.qbi)
   })
 
-  it('single entity: election makes no difference (nothing to aggregate)', () => {
+  it('CHAR: single entity: election makes no difference (nothing to aggregate)', () => {
     const one = [{ type: 'S Corporation', own: 100, k1: 400000, box17V_wages: 200000 }]
     const s1 = calcTaxReturn({ ...base, k1Total: 400000, entities: one })
     const s2 = calcTaxReturn({ ...base, k1Total: 400000, entities: one, electQbiAggregation: true })
@@ -50,7 +59,7 @@ describe('F6 follow-up — election works for same-type multi-entity', () => {
     { type: 'Partnership / LLC', own: 100, k1: 400000, box17V_wages: 200000 },
     { type: 'Partnership / LLC', own: 100, k1: 400000, box17V_wages: 0 },
   ]
-  it('same-type: default per-business < elected pooled (gate no longer needs mixed types)', () => {
+  it('CHAR: same-type: default per-business < elected pooled (gate no longer needs mixed types)', () => {
     const def = calcTaxReturn({ ...base, k1Total: 800000, entities: ents })
     const agg = calcTaxReturn({ ...base, k1Total: 800000, entities: ents, electQbiAggregation: true })
     expect(def.qbiAggregationApplied).toBe(false)

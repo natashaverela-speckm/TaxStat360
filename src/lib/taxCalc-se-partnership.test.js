@@ -20,6 +20,15 @@
 // Reference constants (2026): SS wage base $184,500; SE net-earnings factor
 // 0.9235 (§1402(a)(12)); combined SE rate 15.3% (12.4% OASDI + 2.9% Medicare).
 
+//
+// Module C (audit F-2, Aug 2026) — CHAR: labels backfilled onto every test in
+// this file per ARCHITECTURE.md §6 ("New tests MUST be labeled"), following the
+// same M6b pattern used on taxCalc-engine.test.js: CHAR is the mechanical floor
+// claim (freezes current behavior) that is always true for an existing, passing
+// test. None were promoted to SPEC in this pass — that requires independently
+// re-verifying each expected value against its cited authority, a per-test
+// judgment call left for a follow-up pass, not something to mass-apply here.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
 
@@ -33,13 +42,13 @@ const base = { filingStatus: 'single', year: 2026, w2: 0 }
 
 describe('Finding 1 — Partnership/LLC K-1 is self-employment income by default', () => {
 
-  it('default Partnership / LLC → SE tax IS charged (materially-participating owner)', () => {
+  it('CHAR: default Partnership / LLC → SE tax IS charged (materially-participating owner)', () => {
     const r = calcTaxReturn({ ...base, entities: [{ type: 'Partnership / LLC', own: 100, k1: K1 }] })
     expect(r.seTax).toBe(EXPECTED_SE)          // NOT zero — the core of the finding
     expect(r.seNetIncome).toBe(K1)
   })
 
-  it('default Partnership / LLC → NO "S-Corp" SE-savings panel is shown', () => {
+  it('CHAR: default Partnership / LLC → NO "S-Corp" SE-savings panel is shown', () => {
     const r = calcTaxReturn({ ...base, entities: [{ type: 'Partnership / LLC', own: 100, k1: K1 }] })
     // The panel renders only when ficaSavings > 0; a materially-participating
     // partner has NO such savings and must not be labeled an S-corp.
@@ -47,7 +56,7 @@ describe('Finding 1 — Partnership/LLC K-1 is self-employment income by default
     expect(r.k1Distributions).toBe(0)
   })
 
-  it('default Partnership / LLC → SE tax is included in totalTax', () => {
+  it('CHAR: default Partnership / LLC → SE tax is included in totalTax', () => {
     const r = calcTaxReturn({ ...base, entities: [{ type: 'Partnership / LLC', own: 100, k1: K1 }] })
     // totalTax must be at least the SE tax (income tax may add more). The live
     // bug showed a total that EXCLUDED SE tax entirely.
@@ -57,7 +66,7 @@ describe('Finding 1 — Partnership/LLC K-1 is self-employment income by default
 
 describe('Finding 1 — legitimate SE-exempt structures still behave correctly', () => {
 
-  it('limited-partner attestation → SE-EXEMPT under §1402(a)(13)', () => {
+  it('CHAR: limited-partner attestation → SE-EXEMPT under §1402(a)(13)', () => {
     const r = calcTaxReturn({
       ...base,
       entities: [{ type: 'Partnership / LLC', own: 100, k1: K1, limitedPartner: true }],
@@ -67,13 +76,13 @@ describe('Finding 1 — legitimate SE-exempt structures still behave correctly',
     expect(r.k1Distributions).toBe(K1)          // ...but the UI must NOT call it "S-Corp"
   })
 
-  it('S corporation → SE-EXEMPT (FICA is on W-2 officer wages instead)', () => {
+  it('CHAR: S corporation → SE-EXEMPT (FICA is on W-2 officer wages instead)', () => {
     const r = calcTaxReturn({ ...base, entities: [{ type: 'S Corporation', own: 100, k1: K1 }] })
     expect(r.seTax).toBe(0)
     expect(r.ficaSavings).toBe(EXPECTED_SE)
   })
 
-  it('sole proprietor → SE tax charged (baseline the "savings" compares against)', () => {
+  it('CHAR: sole proprietor → SE tax charged (baseline the "savings" compares against)', () => {
     const r = calcTaxReturn({ ...base, entities: [{ type: 'Sole Proprietor / SMLLC', own: 100, k1: K1 }] })
     expect(r.seTax).toBe(EXPECTED_SE)
     expect(r.ficaSavings).toBe(0)

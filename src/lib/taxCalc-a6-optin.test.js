@@ -9,6 +9,15 @@
 //            employment tax (IRC §1402(a)(13)). The `limitedPartner` flag routes the
 //            interest to the Passive variant: no SE tax, QBI still applies.
 
+//
+// Module C (audit F-2, Aug 2026) — CHAR: labels backfilled onto every test in
+// this file per ARCHITECTURE.md §6 ("New tests MUST be labeled"), following the
+// same M6b pattern used on taxCalc-engine.test.js: CHAR is the mechanical floor
+// claim (freezes current behavior) that is always true for an existing, passing
+// test. None were promoted to SPEC in this pass — that requires independently
+// re-verifying each expected value against its cited authority, a per-test
+// judgment call left for a follow-up pass, not something to mass-apply here.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
 
@@ -25,24 +34,24 @@ describe('ITEM 3 — rental QBI is opt-in (§162 trade/business or safe harbor)'
     ...extra,
   })
 
-  it('a Step-1 rental does NOT get the §199A deduction by default', () => {
+  it('CHAR: a Step-1 rental does NOT get the §199A deduction by default', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 50000, entities: [rentalEntity()] })
     expect(r.qbi).toBe(0)
   })
 
-  it('a Step-1 rental WITH qbiEligible:true gets the §199A deduction', () => {
+  it('CHAR: a Step-1 rental WITH qbiEligible:true gets the §199A deduction', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 50000, entities: [rentalEntity({ qbiEligible: true })] })
     expect(r.qbi).toBeGreaterThan(0)
   })
 
-  it('eligible rental QBI exceeds the non-eligible baseline by 20% of the rental (cap permitting)', () => {
+  it('CHAR: eligible rental QBI exceeds the non-eligible baseline by 20% of the rental (cap permitting)', () => {
     const off = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 50000, entities: [rentalEntity()] })
     const on  = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 50000, entities: [rentalEntity({ qbiEligible: true })] })
     // Taxable income is well above 20% × rental, so the QBI component binds: 20% × 50,000 = 10,000.
     expect(on.qbi - off.qbi).toBe(10000)
   })
 
-  it('Step-2 direct rental is also opt-in via rentalQbiEligible', () => {
+  it('CHAR: Step-2 direct rental is also opt-in via rentalQbiEligible', () => {
     const off = calcTaxReturn({ ...BASE, w2: 30000, rentalNet: 50000 })
     const on  = calcTaxReturn({ ...BASE, w2: 30000, rentalNet: 50000, rentalQbiEligible: true })
     expect(off.qbi).toBe(0)
@@ -57,22 +66,22 @@ describe('ITEM 4 — limited partner is not subject to SE tax (§1402(a)(13))', 
     ...extra,
   })
 
-  it('a general/active partner IS subject to SE tax (default)', () => {
+  it('CHAR: a general/active partner IS subject to SE tax (default)', () => {
     const r = calcTaxReturn({ ...BASE, k1Total: 100000, entities: [partnership()] })
     expect(r.seTax).toBeGreaterThan(0)
   })
 
-  it('a limited partner is NOT subject to SE tax', () => {
+  it('CHAR: a limited partner is NOT subject to SE tax', () => {
     const r = calcTaxReturn({ ...BASE, k1Total: 100000, entities: [partnership({ limitedPartner: true })] })
     expect(r.seTax).toBe(0)
   })
 
-  it('a limited partner still receives the §199A QBI deduction on the K-1', () => {
+  it('CHAR: a limited partner still receives the §199A QBI deduction on the K-1', () => {
     const r = calcTaxReturn({ ...BASE, k1Total: 100000, entities: [partnership({ limitedPartner: true })] })
     expect(r.qbi).toBeGreaterThan(0)
   })
 
-  it('the active partner has SE tax and the limited partner does not; both returns compute', () => {
+  it('CHAR: the active partner has SE tax and the limited partner does not; both returns compute', () => {
     const active  = calcTaxReturn({ ...BASE, k1Total: 100000, entities: [partnership()] })
     const limited = calcTaxReturn({ ...BASE, k1Total: 100000, entities: [partnership({ limitedPartner: true })] })
     expect(active.seTax).toBeGreaterThan(0)

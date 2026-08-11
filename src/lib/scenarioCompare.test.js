@@ -101,7 +101,7 @@ describe('return shape', () => {
   })
 
   it('savings = 2nd-cheapest.totalTax - cheapest.totalTax', () => {
-    const { scenarios, best, savings } = compare(100000, 30000)
+    const { scenarios, savings } = compare(100000, 30000)  // Module E (audit F-3): unused `best` removed
     const sorted = [...scenarios].sort((a, b) => a.totalTax - b.totalTax)
     const cheapest = sorted[0].totalTax
     const secondCheapest = sorted[1].totalTax
