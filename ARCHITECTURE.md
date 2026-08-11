@@ -134,9 +134,20 @@ never let a NaN result reach the user silently.
   (`taxCalc-basis-waterfall.test.js`, not `taxCalc-c11c12.test.js`). Ticket history
   belongs in the file header. Renamed in M6: c10 → basis-loss-limit,
   c11c12 → basis-waterfall, f3f5 → 1231-lookback, qbi179 → qbi-sec179.
-- GRANDFATHERED: the two pre-convention suites `taxCalc.test.js` (137) and
-  `taxCalc-engine.test.js` (105) predate the labeling rule; labeling 242 legacy
-  tests is queued as M6b so the diff stays reviewable. New tests MUST be labeled.
+- M6b STATUS (updated Aug 2026, consistency audit Module D — this entry was stale:
+  it previously described the backfill below as still queued after it had already
+  landed): `taxCalc-engine.test.js` is fully backfilled, 105/105 `CHAR:`. New
+  tests MUST be labeled — as of Aug 2026 this held for every `taxCalc-*.test.js`
+  file EXCEPT five with a handful of pre-M6 stragglers left: `taxCalc.test.js`
+  (144/149), `taxCalc-se-wage-base-coordination.test.js` (2/7),
+  `taxCalc-k1direct-ownership.test.js` (4/6), `taxCalc-reasonable-comp.test.js`
+  (8/9), and `taxCalc-amt-preferential.test.js` (3/4) — 19 assertions total still
+  unlabeled, tracked as the M6b tail. (The eight files that were fully
+  0-labeled — sec179, qbi-wage-limit, pal, a6-optin, guaranteed-payments,
+  qbi-aggregation, partnership-basis, se-partnership — plus the mostly-unlabeled
+  qbi-min400, were backfilled to 100% `CHAR:` in that same pass.) None were
+  promoted to `SPEC:` — that is a per-test, independently-verified judgment call,
+  not something a mechanical backfill should do.
 - Test-helper files (e.g. `aiAnalysisTaxMath.test-helpers.js`) must never be
   imported by production code. Import path: test files only.
 

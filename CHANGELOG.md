@@ -12,6 +12,59 @@ record of work that predates this changelog.
 
 ---
 
+## Code consistency audit follow-up — August 10, 2026
+
+Owner-commissioned code consistency audit (naming, architecture, duplication, state,
+error handling, documentation, tests, configuration, dead code — tax-law accuracy and
+UX explicitly out of scope). Full report delivered separately; below are the fixes
+landed from that pass (Modules A, B, C, E; Module D is this file's sibling edit to
+ARCHITECTURE.md; Module F — a possible future session-state access-layer refactor —
+was scoped but not implemented).
+
+### Fixed
+- **`src/components/TaxReturn.jsx`** (Module A) — the SALT-cap `InfoTip` hardcoded
+  `SALT_CAPS[2024] || 10000` / `SALT_CAPS[2025] || 40000` / `SALT_CAPS[2026] || 40400`
+  as literal fallbacks for three hand-picked years, duplicating TAX_TABLES and never
+  growing when `SUPPORTED_TAX_YEARS` gains a year — the one active violation found of
+  ARCHITECTURE.md §1's "never retype a tax figure as prose in a component" rule. Now
+  derives `saltCapsSummary` from `SALT_CAPS`/`SUPPORTED_TAX_YEARS` only, no literals.
+  `src/architecture-invariants.test.js` gained a matching CI guard.
+- **`src/components/CalculateTaxInner.jsx`, `src/components/TaxReturn.jsx`** (Module B)
+  — both files declared a local component literally named `MoneyInput`, forcing the
+  shared `src/components/MoneyInput.jsx` import to be aliased as `SharedMoneyInput` to
+  avoid colliding with it. (On inspection, both locals are thin styling adapters that
+  already delegate all formatting/parsing logic to the shared core per the D-12/D-13
+  consolidation — this was a naming collision, not a re-duplicated implementation.)
+  Renamed to `Step1MoneyInput` / `Step2MoneyInput`; the shared import now keeps its
+  natural name, `MoneyInput`.
+- **9 `taxCalc-*.test.js` files** (Module C) — backfilled `CHAR:` labels onto all 89
+  previously-unlabeled or partially-labeled tests (sec179, qbi-wage-limit, pal,
+  a6-optin, guaranteed-payments, qbi-aggregation, partnership-basis, se-partnership,
+  qbi-min400), per ARCHITECTURE.md §6's "new tests MUST be labeled" — these were the
+  files sitting at 0 (or near-0) labeled out of the `taxCalc-*` family. None promoted
+  to `SPEC:` in this pass; that requires independently re-verifying each expected
+  value against its cited authority. `taxCalc-pal.test.js` and `taxCalc-sec179.test.js`
+  also had a redundant pre-existing trailing `(CHAR)` marker removed now that the
+  `CHAR:` prefix is in place. A further 19 stragglers remain across
+  `taxCalc.test.js`, `taxCalc-se-wage-base-coordination.test.js`,
+  `taxCalc-k1direct-ownership.test.js`, `taxCalc-reasonable-comp.test.js`, and
+  `taxCalc-amt-preferential.test.js` — not in scope for this pass, tracked in
+  ARCHITECTURE.md §6.
+- **`src/lib/taxCalc.js`, `src/components/Dashboard.jsx`,
+  `src/lib/scenarioCompare.test.js`, `src/utils/calcGuard.test.js`** (Module E) —
+  removed 5 ESLint-flagged unused bindings (`hasMultiEntityTypes`, `pct`,
+  `setConnectedApp` (and its unused getter), `setXeroLoading`, `best`, `beforeEach`).
+  No behavior change; `npm run lint` warning count 27 → 21.
+
+### Verified, not changed
+- Full suite: 812/812 tests passing (811 pre-existing + 1 new CI guard from Module A).
+- `npx eslint .`: 0 errors both before and after (21 warnings remaining, all
+  pre-existing React-hooks-dependency and fast-refresh notices unrelated to this pass).
+- No commented-out code or leftover dead patches found anywhere in `src/` — nothing to
+  clean up there.
+
+---
+
 ## Independent audit follow-up — July 31, 2026
 
 Owner-commissioned independent launch-readiness review (public site + in-app, logged in as
