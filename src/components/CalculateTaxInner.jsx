@@ -18,7 +18,7 @@ import {
 } from '../utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD } from '../lib/constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from '../utils/integrations.js'
@@ -699,8 +699,21 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
                 stack (§179 + MACRS + §168(k)) moved into the tooltip, where it
                 already lived in full. Non-CPAs read "what number goes here"; the
                 citations stay one tap away for CPA hand-off. */}
+            {/* EXT-4 (external accuracy audit, Aug 2026 — Finding 4): the tooltip below used
+                to lead with "For 2025 the §168(k) bonus rate is 40%..." regardless of the
+                selected tax year. The underlying rule is placed-in-service-date-based, not
+                filing-year-based, so it was substantively correct for 2026 too, but the framing
+                risked a user on a 2026 return second-guessing a correct 100% entry. Reworded to
+                lead with the permanent 100% rate. NOTE (consistency review, Aug 2026): the 100%/
+                40% figures remain hardcoded prose here, same as before this fix — there is no
+                bonus-depreciation-rate constant in constants.js to interpolate (the engine
+                deliberately does not compute bonus depreciation; see the tooltip's own
+                "TaxStat360 ... does not calculate bonus depreciation for you"). Flagged as a
+                possible future KNOWN_LIMITATIONS-style item, not fixed in this pass — same
+                category as the pre-existing hardcoded 21% C-corp rate at ~line 712 and ~2891,
+                which this pass also did not touch. */}
             Depreciation — total deduction this year
-            <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. For 2025 the §168(k) bonus rate is 40% for property placed in service on or before Jan 19, 2025 and 100% for property placed in service after Jan 19, 2025 (OBBBA; IRS Notice 2026-11).'} wide />
+            <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. Bonus depreciation is 100% (permanent) for property placed in service after Jan 19, 2025 — this applies to 2025, 2026, and all later years, not just 2025. Only property placed in service ON OR BEFORE Jan 19, 2025 used the prior 40% rate (OBBBA; IRS Notice 2026-11).'} wide />
           </label>
           <Step1MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
         </div>
@@ -853,6 +866,24 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
             </summary>
             <div style={{ color: '#334155', lineHeight: 1.5, fontSize: 13, marginTop: 6 }}>
               Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than 750 hours in real-property trades or businesses AND more than half of all your personal-service hours — plus material participation in each rental (or the §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Officer compensation doesn't apply to rentals.
+            </div>
+          </details>
+          {/* EXT-5 (external accuracy audit, Aug 2026 — Finding 5): §1031 like-kind exchanges
+              are not modeled — a fully-deferred exchange has nothing to enter, but a partial
+              exchange with boot received requires the recognized gain to be computed outside
+              this tool (Form 8824) and entered manually in the right place downstream. */}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: 'pointer', color: '#6D28D9', fontWeight: 600, fontSize: 13 }}>
+              Sold or exchanged this property? (§1031, depreciation recapture)
+            </summary>
+            <div style={{ color: '#334155', lineHeight: 1.5, fontSize: 13, marginTop: 6 }}>
+              This card models ongoing rental income/expense only — it does not compute gain, loss,
+              or recapture on a sale or exchange. A fully-deferred §1031 like-kind exchange has
+              nothing to enter here. A partial exchange (boot received) or an outright sale requires
+              computing the recognized gain yourself (Form 8824 for a like-kind exchange), then
+              entering it in Step 2: ordinary §1245/§1250 recapture and net §1231 gain/loss go in the
+              "Capital Gains (Form 4797)" field, and the depreciation-attributable portion of a
+              real-property gain goes in "Unrecaptured §1250 Gain." Do not enter it here.
             </div>
           </details>
         </div>
@@ -1571,6 +1602,25 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         extent of E&amp;P (reported on the 1040 as qualified dividends) and do not reduce
                         stock basis. Consider whether a §1368(e)(3) election to distribute E&amp;P first,
                         or an AAA bypass, fits the plan — elections are not modeled here.
+                      </div>
+                    )}
+                    {/* EXT-2 (external accuracy audit, Aug 2026 — Finding 2): accumulated C-corp
+                        E&P is this card's only existing signal that the S-corp has C-corp history,
+                        which is also the fact pattern that can trigger §1374 built-in-gains tax on
+                        a disposition within the 5-year recognition period. Disclosure only — BIG
+                        tax itself (net unrealized built-in gain at conversion, asset-level
+                        recognition tracking, corporate-level C_CORP_TAX_RATE tax) is NOT computed
+                        anywhere in this engine; see KNOWN_LIMITATIONS.md "BIG-1374". Rate below is
+                        interpolated from constants.js, per ARCHITECTURE.md §1 — never hard-code a
+                        tax rate in JSX, including tooltip/disclosure text. */}
+                    {Math.max(0, parseFloat(String(entity.accumulatedEP || '').replace(/,/g, '')) || 0) > 0 && (
+                      <div role="alert" style={{ marginTop: 6, padding: '6px 9px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
+                        ⚠ §1374 Built-In Gains Tax — Not Calculated: entering accumulated E&amp;P means
+                        this S-Corp has C-corp history. If the S-election was made within the last 5
+                        years and this entity disposes of an asset with built-in gain from the C-corp
+                        period, a corporate-level {(C_CORP_TAX_RATE * 100).toFixed(0)}% BIG tax may apply (IRC §1374) — this
+                        tool does not compute it. Confirm the S-election date and any built-in-gain
+                        exposure with your CPA before relying on this estimate for a disposition year.
                       </div>
                     )}
                   </div>

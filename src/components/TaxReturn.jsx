@@ -1347,18 +1347,28 @@ export default function TaxReturn() {
           <CollapsibleSection title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
+                {/* EXT-3 (external accuracy audit, Aug 2026 — Finding 3): the earned-income
+                    cap sentence previously said the deduction "cannot exceed your net
+                    self-employment income" for ALL filer types — wrong for S-corp shareholders,
+                    who have no SE income from the S-corp; their §162(l)(2)(A) cap is W-2 wages
+                    from that S-corp. Split by entity type. Also reworded to describe the EXT-1
+                    automatic wage grossup (taxCalc.js) rather than instructing the user to
+                    pre-gross-up the figure themselves. */}
                 <label htmlFor="tr-health-ins" style={inputLbl}>
                   Self-Employed Health Insurance Premiums
-                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Your premiums must first be included in your W-2 Box 1 wages by the S-Corp (IRC §1372 / Rev. Rul. 91-26). Enter the W-2-grossed-up premium amount here.\n\nSole proprietors and partners: Enter premiums paid directly. Cannot exceed your net self-employment income."} />
+                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Enter the premium amount paid. TaxStat360 automatically includes it in your S-Corp W-2 wages for income-tax purposes and applies the offsetting deduction (IRC §1372 / Rev. Rul. 91-26) — it does NOT add it to FICA/Medicare wages (Notice 2008-1). Capped at your W-2 wages from that S-Corp (IRC §162(l)(2)(A)), not your net self-employment income.\n\nSole proprietors and partners: Enter premiums paid directly. Capped at your net self-employment earned income from that business (IRC §162(l)(2)(A))."} />
                 </label>
                 <Step2MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
-                {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it. */}
+                {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it.
+                    EXT-3/EXT-1 (Aug 2026): banner text updated to describe the automatic wage
+                    grossup (taxCalc.js "EXT-1") rather than an unenforced prerequisite. */}
                 {result?.sehiClamped && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     ⚠ Deduction limited to {fmt(result.selfEmpHealthDed)} — §162(l)(5)(A) caps the self-employed health
                     insurance deduction at your earned income from the business (S-Corp W-2 officer wages / net SE
-                    earnings). You entered {fmt(result.sehiEntered)}. For S-Corp owners, premiums must also be included
-                    in your W-2 Box 1 wages to be deductible at all (Notice 2008-1).
+                    earnings). You entered {fmt(result.sehiEntered)}. For S-Corp owners, TaxStat360 automatically
+                    includes the allowed amount in your W-2 wages for income-tax purposes (IRC §1372), excluded from
+                    FICA/Medicare wages (Notice 2008-1).
                   </div>
                 )}
                 {result?.k1CharitableTotal > 0 && (
