@@ -1473,21 +1473,41 @@ function calcTaxReturn(input) {
   const sehiClamped          = sehiEntered > selfEmpHealthDed
   // EXT-1 FIX (Aug 2026, external accuracy audit — Finding 1): §1372 / Rev. Rul. 91-26
   // require a >2% S-corp shareholder's health premium to be INCLUDED in Box 1 W-2 wages
-  // before the offsetting Schedule 1, Line 17 deduction is taken — the two are supposed
-  // to net to zero AGI effect (the tax benefit is avoiding FICA/SE tax on the premium,
-  // not avoiding income tax on it). Previously `selfEmpHealthDed` reduced AGI with NO
-  // corresponding wage inclusion anywhere in the engine: a $12,000 SEHI entry cut AGI
-  // (and tax) by the full $12,000 with no offsetting income for any user who (reasonably)
-  // entered their actual cash salary in Step 1 rather than manually pre-grossing it up.
+  // before the offsetting Schedule 1, Line 17 deduction is taken. Previously
+  // `selfEmpHealthDed` reduced AGI with NO corresponding wage inclusion anywhere in the
+  // engine: a $12,000 SEHI entry cut AGI (and tax) by the full $12,000 with no offsetting
+  // income for any user who (reasonably) entered their actual cash salary in Step 1 rather
+  // than manually pre-grossing it up.
   //
-  // Fix: gross up INCOME (not FICA wages — S-corp SEHI is exempt from FICA/Medicare tax
-  // per Notice 2008-1, so `totalW2ForFICA` / `additionalMedicare` below deliberately keep
-  // reading the raw `w2`) by the LESSER of the health deduction actually allowed and the
-  // S-corp officer W-2 base (`_scorpOfficerW2ForSEHI`, already computed above for the
-  // §162(l)(5)(A) cap). Any remainder of the deduction — attributable to the sole-prop/
-  // partner SE-earned-income leg of `sehiLimit` — correctly stays a pure deduction with no
-  // wage inclusion, since sole-prop/partner SEHI was never "wages" to begin with.
-  const sehiScorpWageGrossUp = Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI)
+  // EXT-1 FOLLOW-UP FIX (Aug 2026, independent fresh-eyes re-audit — Finding 1 regression):
+  // the original EXT-1 fix above grossed wages up by the DEDUCTION amount (already capped
+  // at sehiLimit, then again at the officer W-2 base), not the FULL premium. That is wrong
+  // whenever premium exceeds the cap: Notice 2008-1 / Rev. Rul. 91-26 include the ENTIRE
+  // S-corp-paid premium in Box 1 wages regardless of the §162(l) deduction limitation — the
+  // wage inclusion and the deduction are NOT supposed to net to zero in that case; the
+  // excess premium is taxable wage income with no offsetting deduction. The prior formula
+  // silently dropped that excess from AGI entirely (re-audit case: $80,000 officer wages,
+  // $120,000 premium — AGI understated by $40,000; confirmed live in production).
+  //
+  // This engine collects SEHI as a single combined figure (`selfEmpHealthIns`) rather than
+  // separate S-corp vs. sole-prop/partner fields, so it cannot always tell which dollars are
+  // S-corp-sourced when a taxpayer has BOTH an S-corp and independent SE-earned income
+  // (`_seEarnedForSEHI > 0`) in the same return. The full-premium gross-up below is applied
+  // only when the S-corp leg is the ENTIRE `sehiLimit` base (no sole-prop/partner earned
+  // income present) — i.e. no ambiguity about sourcing. When both legs are present, the
+  // engine cannot safely attribute the combined entry and falls back to the prior (partial,
+  // capped) behavior; see KNOWN_LIMITATIONS.md → SEHI-MIXED-SOURCE. FICA wages are untouched
+  // either way — S-corp SEHI is exempt from FICA/Medicare tax per Notice 2008-1, so
+  // `totalW2ForFICA` / `additionalMedicare` below deliberately keep reading the raw `w2`.
+  const sehiScorpWageGrossUp = (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0)
+    ? sehiEntered
+    : Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI)
+  // EXT-1 FOLLOW-UP (independent review, Aug 2026): surface WHEN the mixed-source fallback
+  // above was actually used, so the UI can warn even in cases where `sehiClamped` is false
+  // (i.e. the combined earned-income cap was generous enough that the deduction itself
+  // wasn't limited, but the wage-grossup attribution between S-corp and sole-prop/partner
+  // legs is still only approximate). See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE.
+  const sehiMixedSourceFallback = _scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0
   const hsaDed               = ytdScale(hsaDeduction)
   const studentLoanDed       = Math.min(ytdScale(studentLoanInt), 2500)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
@@ -1498,8 +1518,9 @@ function calcTaxReturn(input) {
   const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
   const stdDed    = getStdDed(taxYear, status)
   // EXT-1: sehiScorpWageGrossUp restores the S-corp SEHI wage inclusion to gross income —
-  // see the definition above. Net AGI effect is zero to the extent the grossup covers the
-  // deduction (see EXT-1 comment above); it never touches totalW2ForFICA/additionalMedicare.
+  // see the definition above. Net AGI effect is zero only when the full premium is covered
+  // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
+  // FOLLOW-UP FIX comment above). Never touches totalW2ForFICA/additionalMedicare.
   const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
     + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
@@ -1880,7 +1901,7 @@ function calcTaxReturn(input) {
     ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     // AUDIT FIX result fields (Jul 2026):
-    sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
+    sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp, sehiMixedSourceFallback,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
     k1CharitableTotal,                                      // F-13 route to Schedule A
     distributionCapGainST, distributionCapGainLT,           // F-10 §1368 gain character
     niitIncludesSCorpStockGain: distributionCapGain > 0,    // F-15 §1411(c)(4) flag
