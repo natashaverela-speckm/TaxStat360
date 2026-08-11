@@ -591,10 +591,26 @@ export default function TaxReturn() {
   // drift from TAX_TABLES, and that never grows when SUPPORTED_TAX_YEARS gains a
   // new year. Derive it here instead, from SALT_CAPS/SUPPORTED_TAX_YEARS only —
   // no literal dollar amounts, no literal year list.
-  const saltCapsSummary = SUPPORTED_TAX_YEARS
-    .map(y => `$${(SALT_CAPS[y] ?? SALT_CAPS[CURRENT_TAX_YEAR]).toLocaleString()} for ${y}`)
-    .join(', ')
-    .replace(/, ([^,]*)$/, ', and $1')
+  //
+  // REGRESSION FIX (Aug 2026, post-deploy review): the first cut of this joiner
+  // used a single regex — `.join(', ').replace(/, ([^,]*)$/, ', and $1')` — to
+  // turn the final ", " into ", and ". That regex assumed the LAST list item
+  // was comma-free, which is false here: toLocaleString() puts a thousands-
+  // separator comma into every one of these dollar figures (e.g. "$40,400"), so
+  // `[^,]*` never reached the end of the string and the replace silently never
+  // fired. Net effect: the tooltip read "...for 2025, $40,400 for 2026" with no
+  // "and" — a wording regression (not a wrong number; SALT_CAPS itself was
+  // correct throughout) shipped in Module A and caught in this review. Fixed by
+  // joining the ARRAY of parts with an Oxford-comma-safe helper instead of
+  // regexing the already-joined, comma-containing string.
+  const joinWithAnd = (parts) => {
+    if (parts.length <= 1) return parts.join('')
+    if (parts.length === 2) return `${parts[0]} and ${parts[1]}`
+    return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+  }
+  const saltCapsSummary = joinWithAnd(
+    SUPPORTED_TAX_YEARS.map(y => `$${(SALT_CAPS[y] ?? SALT_CAPS[CURRENT_TAX_YEAR]).toLocaleString()} for ${y}`)
+  )
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 

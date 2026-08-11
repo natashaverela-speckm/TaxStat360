@@ -435,6 +435,42 @@ describe('TaxReturn — Category C: unified "Est. Total Federal Tax" headline', 
   })
 })
 
+// ─── Regression: SALT-cap InfoTip Oxford-comma joiner (post-deploy review, Aug 2026) ──
+// Module A (audit F-1) replaced three hardcoded SALT-cap fallback literals with a
+// derivation from SALT_CAPS/SUPPORTED_TAX_YEARS. The FIRST version of that fix used
+// `.join(', ').replace(/, ([^,]*)$/, ', and $1')` to add the Oxford "and" — a regex
+// that silently never matched, because every SALT cap figure here is >= $10,000 and
+// toLocaleString() gives it its own thousands-separator comma (e.g. "$40,400"), which
+// `[^,]*` can never cross to reach the string's true end. Shipped without a test
+// catching it; found in a post-deploy regression review and fixed with an
+// Oxford-comma-safe array joiner instead of a string regex. Pinned here so it can't
+// silently regress again.
+describe('TaxReturn — SALT-cap InfoTip wording (regression, Aug 2026)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('joins all three years with a trailing ", and" — not a bare comma', () => {
+    // The SALT field only renders once (a) itemized deductions are toggled on
+    // (useItemized, TaxReturn.jsx ~1442) AND (b) the "Above-the-Line Deductions &
+    // Adjustments" CollapsibleSection is expanded — collapsed sections don't just
+    // hide via CSS, children are unmounted entirely (TaxReturn.jsx ~105, `{open &&
+    // <div>...}`). Neither is the SALT-joiner bug under test, just what it takes
+    // to mount the field at all.
+    readPersonalContext.mockReturnValue({ useItemized: true })
+    const { container } = renderTaxReturn()
+    fireEvent.click(screen.getByText('Above-the-Line Deductions & Adjustments (Schedule 1)'))
+    const text = container.textContent
+    // Mocked SALT_CAPS (top of this file): { 2024: 10000, 2025: 10000, 2026: 40000 }
+    expect(text).toContain('$10,000 for 2024, $10,000 for 2025, and $40,000 for 2026')
+    // The bug this guards against: the same text with the "and" silently dropped.
+    expect(text).not.toContain('$10,000 for 2025, $40,000 for 2026')
+  })
+})
+
 // ─── Findings 1–3: filed-return plumbing to calcTaxReturn ─────────────────────
 // Verifies TaxReturn.jsx forwards the new audit-remediation inputs to the engine:
 //   • Finding 2 — §469(c)(7)(B) hours (repHoursRE/repHoursTotal) and the explicit
