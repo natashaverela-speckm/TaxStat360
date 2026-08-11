@@ -403,6 +403,34 @@ case) telling the user TaxStat360 could not attribute the entry and to confirm t
 with their preparer. A full fix requires splitting the SEHI input into an S-corp leg and a
 sole-prop/partner leg; a schema and UI change, not scheduled. Owner decision.
 
+**Round 3 (Aug 2026) — RESOLVED for QBI, same ambiguity gate/fallback extended.** A second
+independent reviewer flagged that the same S-corp SEHI attribution question also reaches §199A:
+(a) Treas. Reg. §1.199A-3(b)(1)(vi) requires QBI to be reduced by the SEHI deduction attributable
+to the business — the sole-prop/partner leg was already netted, but the S-corp leg (`nonSEk1`)
+never was, overstating QBI; (b) IRS Notice 2018-64 (read with Notice 2008-1) treats a >2%
+shareholder's SEHI as W-2 wages for the §199A(b)(4) wage limitation too, so leaving the QBI wage
+base un-grossed-up understated the wage cap — the opposite exposure direction from (a) and from
+the original AGI bug. Both are now fixed in `src/lib/taxCalc.js` (search "EXT-7"), gated by the
+SAME unambiguous-single-source condition as the EXT-1-FOLLOW-UP wage grossup. The mixed-source
+case (both an S-corp and independent SE income present) still falls back to leaving QBI
+unadjusted — same limitation, not newly introduced, and consistent with the wage-grossup
+fallback above. **This means the original QBI-overstatement exposure (item 1) is NOT resolved
+for mixed-source filers** — a >2% shareholder with both an S-corp and separate SE-earned income
+still gets no SEHI-driven QBI reduction, same as before this round. 5 SPEC tests
+(`taxCalc-sehi-qbi-attribution.test.js`, including a dedicated case confirming the QBI
+reduction uses the CAPPED §162(l) deduction while the wage bump uses the FULL uncapped
+premium — these are deliberately different amounts); prove-it-fails verified (reverted both
+changes, confirmed the 2 dedicated tests fail, the 2 unrelated tests still pass, restored).
+
+**Follow-up flagged, not fixed (pre-existing, not introduced by Round 3):** when 2+ QBI-eligible
+entities exist and §1.199A-4 aggregation is not elected, `_calcQBI`'s per-business wage-cap
+allocation loop weights each entity by its raw K1 share, not by the aggregate adjustments baked
+into `qbiBasis` (this was already true for `rentalQbiContribution`, `effectiveQBILossCO`, and
+`guaranteedPaymentsTotal` before this round, and now also for the new SEHI reduction). In a
+non-aggregated household with an unambiguous-SEHI S-corp plus another QBI-eligible entity, the
+SEHI haircut could be misallocated between entities even though the aggregate total deduction
+stays correct. Untested by the current suite; candidate for a future pass.
+
 ## LIMITATION 163J-NOT-MODELED — §163(j) business interest expense limitation not modeled
 
 **Added Aug 2026 (independent fresh-eyes re-audit, Finding 2).** Exposure direction: CAN
