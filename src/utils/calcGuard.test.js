@@ -1,6 +1,6 @@
 // src/utils/calcGuard.test.js
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'  // Module E (audit F-3): unused beforeEach import removed
 import { validateCalcInputs, CalcInputError, safeCalc } from './calcGuard'
 
 // ── Base valid input ──────────────────────────────────────────────────────────
