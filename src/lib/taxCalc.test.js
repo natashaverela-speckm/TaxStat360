@@ -4,6 +4,10 @@
 // SPEC asserts the expected value was INDEPENDENTLY VERIFIED against the cited
 // authority, a per-test judgment that must not be mass-applied. Promote
 // individual tests to SPEC (with citation) as each value is re-verified.
+//
+// Consistency-audit follow-up (Aug 2026): the 5 tests M6b's mass-label pass
+// missed (added after that batch, so they postdated the sweep) are now CHAR:
+// labeled too. File is 149/149 labeled.
 import { describe, it, expect } from 'vitest'
 import { calcQBI, calcTaxReturn, calcAMT } from './taxCalc.js'
 
@@ -145,7 +149,7 @@ describe('calcQBI early-zero returns', () => {
 // (2025 has no §199A(i) minimum — the $400 floor starts in 2026.)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap is $0', () => {
-  it('IN the phase-in band: the limitation reduces the deduction proportionally', () => {
+  it('CHAR: IN the phase-in band: the limitation reduces the deduction proportionally', () => {
     // TI 220,000 is 22,700 into the 50,000 band ⇒ 45.4% phased in.
     // qbiComponent 10,000; wageLimit 0; reduction = 10,000 × 0.454 = 4,540.
     const r = calcQBI(50000, 220000, 0, { status: 'single', taxYear: 2025 })
@@ -155,7 +159,7 @@ describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap 
     expect(r.caps).toEqual({ qbi: 10000, wage: 0, income: 44000 })
   })
 
-  it('PAST the phase-in band: no wages and no UBIA ⇒ the deduction is $0', () => {
+  it('CHAR: PAST the phase-in band: no wages and no UBIA ⇒ the deduction is $0', () => {
     // TI 300,000 > 247,300. Cap = max(50% × $0, 25% × $0 + 2.5% × $0) = $0.
     const r = calcQBI(50000, 300000, 0, { status: 'single', taxYear: 2025 })
     expect(r.deduction).toBe(0)
@@ -164,7 +168,7 @@ describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap 
     expect(r.caps).toEqual({ qbi: 10000, wage: 0, income: 60000 })
   })
 
-  it('the wage cap binds BEFORE the taxable-income limit', () => {
+  it('CHAR: the wage cap binds BEFORE the taxable-income limit', () => {
     // Income limit would be 20% × (250,000 − 100,000 net cap gain) = 30,000,
     // but the $0 wage cap is the binding constraint, so the deduction is $0.
     const r = calcQBI(80000, 250000, 100000, { status: 'single', taxYear: 2025 })
@@ -173,7 +177,7 @@ describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap 
     expect(r.caps).toEqual({ qbi: 16000, wage: 0, income: 30000 })
   })
 
-  it('an explicitly empty entityQbiData is still $0 wages ⇒ $0 cap', () => {
+  it('CHAR: an explicitly empty entityQbiData is still $0 wages ⇒ $0 cap', () => {
     // Regression guard: "no entities supplied" must NOT be read as "limitation N/A".
     // Treating missing wage data as a licence to grant the full 20% was the original bug.
     const r = calcQBI(50000, 300000, 0, { status: 'single', taxYear: 2025, entityQbiData: [] })
@@ -182,7 +186,7 @@ describe('calcQBI above the threshold with no wage data — §199A(b)(2)(B) cap 
     expect(r.wageDataMissing).toBe(true)
   })
 
-  it('BELOW the threshold the limitation does not apply at all', () => {
+  it('CHAR: BELOW the threshold the limitation does not apply at all', () => {
     // Sanity anchor: the fix must not disturb filers under the threshold.
     const r = calcQBI(50000, 150000, 0, { status: 'single', taxYear: 2025 })
     expect(r.deduction).toBe(10000)

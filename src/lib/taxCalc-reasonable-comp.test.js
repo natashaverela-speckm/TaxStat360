@@ -8,6 +8,14 @@
 // executing the ORIGINAL inline formulas (both copies agreed on the numbers;
 // only their message wording differed — see OBS-7).
 
+//
+// Consistency-audit follow-up (Aug 2026): 1 of 9 tests (plus a non-standard `SPEC-note:` prefix normalized to `CHAR:` — it guarded a constants-wiring relationship, not an independently-verified statutory figure, so SPEC was the wrong label) in this file were still
+// unlabeled — the ARCHITECTURE §6 tail left over from the Aug 2026 Module C
+// backfill (that pass covered the 8 fully-unlabeled taxCalc-* files; this one
+// was already mostly labeled, so it wasn't in scope for that batch). Now fully
+// CHAR: labeled. None promoted to SPEC — that requires independently
+// re-verifying each expected value against its cited authority.
+
 import { describe, it, expect } from 'vitest'
 import { calcReasonableCompCore, calcTaxReturn } from './taxCalc.js'
 import { SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REASONABLE_COMP_MIN_TOTAL, CURRENT_TAX_YEAR } from './constants.js'
@@ -57,7 +65,7 @@ describe('calcReasonableCompCore — numeric rule', () => {
     expect(r.ratioPct).toBe(0)
   })
 
-  it('SPEC-note: the threshold is a heuristic, not a statutory figure (Treas. Reg. §1.162-7 facts-and-circumstances; Watson v. Commissioner, 668 F.3d 1008) — constants stay wired', () => {
+  it('CHAR: the threshold is a heuristic, not a statutory figure (Treas. Reg. §1.162-7 facts-and-circumstances; Watson v. Commissioner, 668 F.3d 1008) — constants stay wired', () => {
     // Guards the constants relationship rather than a legal value: the floor and
     // threshold the core consumes are the exported constants, not re-inlined.
     expect(SCORP_REASONABLE_COMP_MIN_TOTAL).toBe(20000)

@@ -17,6 +17,14 @@
 // the basis waterfall, distributions, the reasonable-comp alert, and the entity
 // income breakdown) uses it instead of the inline formula.
 
+//
+// Consistency-audit follow-up (Aug 2026): 2 of 6 tests in this file were still
+// unlabeled — the ARCHITECTURE §6 tail left over from the Aug 2026 Module C
+// backfill (that pass covered the 8 fully-unlabeled taxCalc-* files; this one
+// was already mostly labeled, so it wasn't in scope for that batch). Now fully
+// CHAR: labeled. None promoted to SPEC — that requires independently
+// re-verifying each expected value against its cited authority.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn, sumK1FlowThrough } from './taxCalc.js'
 import { getEntityK1Share } from '../utils/entityPredicates.js'
@@ -55,7 +63,7 @@ describe('Finding 2 -- end-to-end via calcTaxReturn (regression, live-tested fac
   // the SAME entities array and cannot silently drift apart.
   const call = (entities) => calcTaxReturn({ ...base, entities, k1Total: sumK1FlowThrough(entities) })
 
-  it('a 60%-owned K-1-direct partner is taxed on the full $132,000 Box 1 share, not $79,200', () => {
+  it('CHAR: a 60%-owned K-1-direct partner is taxed on the full $132,000 Box 1 share, not $79,200', () => {
     const sixty   = call([k1DirectPartner(60, 132000)])
     const hundred = call([k1DirectPartner(100, 132000)])
     expect(sixty.seNetIncome).toBe(132000)
@@ -63,7 +71,7 @@ describe('Finding 2 -- end-to-end via calcTaxReturn (regression, live-tested fac
     expect(sixty.agi).toBe(hundred.agi)
     expect(sixty.agi).toBeCloseTo(132000 - sixty.halfSE, 0) // sanity: full $132k reaches AGI, not $79.2k
   })
-  it('QBI basis also reflects the unscaled $132,000, not $79,200', () => {
+  it('CHAR: QBI basis also reflects the unscaled $132,000, not $79,200', () => {
     const r = call([k1DirectPartner(60, 132000)])
     // qbiCaps.qbi = 20% of (net SE earnings less half-SE-tax), per Section 199A(c)(3)(B) --
     // NOT a bare 20% of $132,000, and (this is the regression guard) nowhere near the

@@ -6,6 +6,14 @@
 // ~$2,415 of AMT (= 15% × the $16,100 standard deduction added back) even though the
 // correct AMT is $0. Form 6251 Part III caps the preferential income at the AMT base.
 
+//
+// Consistency-audit follow-up (Aug 2026): 1 of 4 tests (plus a non-standard `GUARD:` prefix normalized to `CHAR:`, same reasoning) in this file were still
+// unlabeled — the ARCHITECTURE §6 tail left over from the Aug 2026 Module C
+// backfill (that pass covered the 8 fully-unlabeled taxCalc-* files; this one
+// was already mostly labeled, so it wasn't in scope for that batch). Now fully
+// CHAR: labeled. None promoted to SPEC — that requires independently
+// re-verifying each expected value against its cited authority.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
 
@@ -27,7 +35,7 @@ describe('AMT — preferential income must not generate phantom AMT', () => {
   it('CHAR: ordinary-income wages generate no AMT (unchanged)', () => {
     expect(calcTaxReturn({ ...base, w2: 120000 }).amt).toBe(0)
   })
-  it('GUARD: a large ISO bargain element still triggers AMT (fix does not neuter real AMT)', () => {
+  it('CHAR: a large ISO bargain element still triggers AMT (fix does not neuter real AMT)', () => {
     const r = calcTaxReturn({ ...base, w2: 100000, hasISO: true, isoBargainElement: 300000 })
     expect(r.amt).toBeGreaterThan(0)
   })

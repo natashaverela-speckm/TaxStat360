@@ -13,6 +13,14 @@
 // ssWageBase; totalW2ForFICA/ssWageBaseRoom are hoisted above the SE tax block so
 // they exist before ssPortion needs them.
 
+//
+// Consistency-audit follow-up (Aug 2026): 5 of 7 tests in this file were still
+// unlabeled — the ARCHITECTURE §6 tail left over from the Aug 2026 Module C
+// backfill (that pass covered the 8 fully-unlabeled taxCalc-* files; this one
+// was already mostly labeled, so it wasn't in scope for that batch). Now fully
+// CHAR: labeled. None promoted to SPEC — that requires independently
+// re-verifying each expected value against its cited authority.
+
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
 
@@ -51,7 +59,7 @@ describe('Finding 4 -- SE tax Social Security wage-base coordination (IRC Sectio
     expect(r.seTax).toBeCloseTo(10748, -1) // ~$10,748 coordinated vs. ~$28,109 uncoordinated
   })
 
-  it('W-2 wages already at/above the wage base -> $0 OASDI portion, Medicare portion only', () => {
+  it('CHAR: W-2 wages already at/above the wage base -> $0 OASDI portion, Medicare portion only', () => {
     const r = calcTaxReturn({
       status: 'single', taxYear: 2025, w2: 200000, // already exceeds the $176,100 2025 wage base
       entities: [smllc(50000)],
@@ -62,7 +70,7 @@ describe('Finding 4 -- SE tax Social Security wage-base coordination (IRC Sectio
     expect(r.seTax).toBe(expectedMedicareOnly)
   })
 
-  it('no W-2 wages -> full wage-base room available, matches the simple (uncoordinated) case', () => {
+  it('CHAR: no W-2 wages -> full wage-base room available, matches the simple (uncoordinated) case', () => {
     const r = calcTaxReturn({
       status: 'single', taxYear: 2025, w2: 0,
       entities: [smllc(50000)],
@@ -73,7 +81,7 @@ describe('Finding 4 -- SE tax Social Security wage-base coordination (IRC Sectio
     expect(r.seTax).toBe(expected)
   })
 
-  it('employee-side FICA withholding (a separate figure) is unaffected -- still caps at the FULL wage base for that one employer', () => {
+  it('CHAR: employee-side FICA withholding (a separate figure) is unaffected -- still caps at the FULL wage base for that one employer', () => {
     const r = calcTaxReturn({
       status: 'single', taxYear: 2025, w2: 140000,
       entities: [smllc(234200)],
@@ -108,7 +116,7 @@ describe('Finding (fresh-eyes re-audit, Aug 2026) -- SE wage-base coordination i
     expect(r.seTax).toBeGreaterThan(16000) // regression guard: must not silently regress to the ~$3,214 zeroed-OASDI bug
   })
 
-  it('MFJ same-person profile (one spouse has both the W-2 and the SE income) falls back to the conservative uncoordinated figure, not the single-filer coordinated one', () => {
+  it('CHAR: MFJ same-person profile (one spouse has both the W-2 and the SE income) falls back to the conservative uncoordinated figure, not the single-filer coordinated one', () => {
     const w2 = 140000
     const netProfit = 234200
     const rMfj = calcTaxReturn({
@@ -132,7 +140,7 @@ describe('Finding (fresh-eyes re-audit, Aug 2026) -- SE wage-base coordination i
     expect(rMfj.seTax).toBeGreaterThan(rSingle.seTax) // conservative direction confirmed
   })
 
-  it('MFS (a genuine one-person return) still gets the Finding-4 coordination, unlike MFJ', () => {
+  it('CHAR: MFS (a genuine one-person return) still gets the Finding-4 coordination, unlike MFJ', () => {
     const r = calcTaxReturn({
       status: 'mfs', taxYear: 2025, w2: 140000,
       entities: [smllc(234200)],
