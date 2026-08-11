@@ -12,6 +12,60 @@ record of work that predates this changelog.
 
 ---
 
+## Post-deploy regression review — August 10, 2026 (same-day follow-up #2)
+
+Owner-requested review of both prior same-day passes (the consistency audit fixes and
+the test-labeling tail closure) for regressions, accuracy issues, or new bugs before
+trusting the deploy. Found one real, live bug; everything else checked out clean.
+
+### Fixed
+- **`src/components/TaxReturn.jsx`** — the Module A SALT-cap-joiner fix (see the first
+  entry below) shipped with a broken "and": `.join(', ').replace(/, ([^,]*)$/, ', and $1')`
+  assumed the last list item was comma-free, but every SALT cap figure here is
+  `>= $10,000` and `toLocaleString()` gives each one its own thousands-separator comma
+  (e.g. "$40,400") — so `[^,]*` could never reach the string's true end and the regex
+  silently never matched. Net effect: the tooltip read "...for 2025, $40,400 for 2026"
+  with the "and" missing, live in production. This was a WORDING regression only — the
+  dollar figures themselves (from `SALT_CAPS`) were correct and unchanged throughout;
+  no tax math was affected. Fixed by replacing the regex with an Oxford-comma-safe
+  array joiner (`joinWithAnd`) that operates on the list of parts, not the
+  already-joined, comma-containing string — immune to this class of bug regardless of
+  how large the dollar figures get.
+- **`src/components/TaxReturn.test.jsx`** — added a regression test asserting the exact
+  joined SALT-cap wording (`"...2025, and $40,000 for 2026"`, not a bare comma). This
+  is also a gap-closure: none of the 812 tests passing at the time Module A shipped
+  actually rendered and asserted on this tooltip's text, which is why the bug reached
+  production despite a clean test run. The new test expands the itemized-deductions
+  accordion (`useItemized: true`) and the "Above-the-Line Deductions & Adjustments"
+  `CollapsibleSection` (both required just to mount the field — neither is the bug
+  itself) before asserting on `container.textContent`.
+
+### Verified, not changed (full review of both prior passes)
+- **Module B (MoneyInput rename)** — re-audited call-site counts (23 `Step1MoneyInput`
+  in CalculateTaxInner.jsx, 33 `Step2MoneyInput` in TaxReturn.jsx, matching the original
+  tag counts exactly) and confirmed zero leftover `SharedMoneyInput` references and
+  zero un-renamed bare `<MoneyInput` call sites. Clean.
+- **Module E (dead-code removal)** — confirmed `hasMultiEntityTypes` is still computed
+  and passed by `calcTaxReturn()` (taxCalc.js ~1655) even though `_calcQBI` no longer
+  reads it; this is inert (JS destructuring silently ignores extra object properties)
+  and was already inert before the cleanup — not a regression, though the upstream
+  computation is itself now a minor dangling leftover worth a future tidy-up. All 5
+  removed bindings reconfirmed genuinely unused with no call sites anywhere.
+- **Module C + tail (89 + 14 CHAR labels)** — diffed all 14 affected files line-by-line;
+  confirmed every changed line is either an `it(...)` label or a comment, confirmed
+  test counts are unchanged per file (no `it()` blocks merged, split, or lost), and
+  confirmed no double-labeling (`CHAR: CHAR:` etc.) anywhere.
+- **New CI guard** (`architecture-invariants.test.js`, SALT-cap literal-fallback check)
+  — confirmed it correctly flags the original bug pattern
+  (`SALT_CAPS[2024] || 10000`) and does not false-positive on the sanctioned
+  `SALT_CAPS[taxYear] ?? SALT_CAPS[CURRENT_TAX_YEAR]` pattern already in `taxCalc.js`.
+- **ARCHITECTURE.md, CHANGELOG.md** — backtick-balance and Pandoc render checks both
+  clean; no broken Markdown.
+- Full suite: 813/813 tests passing (812 + 1 new regression test). `npx eslint .`:
+  0 errors, 21 warnings (unchanged, all pre-existing). `vite build`: succeeds.
+
+---
+
 ## Test-labeling tail closure — August 10, 2026 (same-day follow-up)
 
 Closes the M6b tail left open by the code consistency audit's Module C (below):
