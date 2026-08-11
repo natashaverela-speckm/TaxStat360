@@ -1371,6 +1371,18 @@ export default function TaxReturn() {
                     FICA/Medicare wages (Notice 2008-1).
                   </div>
                 )}
+                {/* EXT-1 FOLLOW-UP (independent review, Aug 2026): this can fire even when
+                    sehiClamped is false — the deduction cap and the wage-attribution question
+                    are separate. See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE. */}
+                {result?.sehiMixedSourceFallback && (
+                  <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    ⚠ You have both an S-Corp and separate self-employment income (sole prop / partnership) in this
+                    return. TaxStat360 can't tell how much of your {fmt(result.sehiEntered)} health insurance entry was
+                    paid by the S-Corp vs. the other business, so the W-2 wage inclusion (IRC §1372) may be
+                    approximate. If all (or none) of this premium was S-Corp-paid, review the wage inclusion with your
+                    preparer.
+                  </div>
+                )}
                 {result?.k1CharitableTotal > 0 && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     Note: {fmt(result.k1CharitableTotal)} of K-1 charitable contributions from Step 1 no longer reduces

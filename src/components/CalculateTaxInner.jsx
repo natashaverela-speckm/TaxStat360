@@ -773,7 +773,10 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         <div>
           <label style={lbl}>
             Advertising & Marketing
-            <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so AIAnalysis.jsx can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
+            {/* EXT-6 (fresh-eyes re-audit, Aug 2026 — Finding 5): tooltip previously named the
+                internal source file "AIAnalysis.jsx" in customer-facing copy. Reworded to
+                describe the feature, not the implementation file. */}
+            <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so our audit-risk analysis can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
           </label>
           <Step1MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
         </div>
