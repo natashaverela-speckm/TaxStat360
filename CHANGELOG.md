@@ -12,6 +12,38 @@ record of work that predates this changelog.
 
 ---
 
+## Test-labeling tail closure — August 10, 2026 (same-day follow-up)
+
+Closes the M6b tail left open by the code consistency audit's Module C (below):
+5 `taxCalc-*.test.js` files that were already mostly labeled (so out of scope for
+that batch's "fully-0-labeled files" list) had a combined 14 stragglers.
+
+### Fixed
+- **`src/lib/taxCalc.test.js`** (144/149 → 149/149) — 5 tests added after the
+  original M6b mass-label pass, so they postdated it and were missed.
+- **`src/lib/taxCalc-se-wage-base-coordination.test.js`** (2/7 → 7/7),
+  **`src/lib/taxCalc-k1direct-ownership.test.js`** (4/6 → 6/6) — mechanical
+  `CHAR:` backfill.
+- **`src/lib/taxCalc-reasonable-comp.test.js`** (8/9 → 9/9) — the 1 remaining test
+  used a non-standard `SPEC-note:` prefix; normalized to `CHAR:` since the test
+  itself says it "guards the constants relationship rather than a legal value" —
+  exactly the CHAR definition, and the opposite of what a `SPEC` label claims.
+- **`src/lib/taxCalc-amt-preferential.test.js`** (3/4 → 4/4) — same story with a
+  non-standard `GUARD:` prefix, normalized to `CHAR:`.
+- **`ARCHITECTURE.md`** §6 — M6b marked CLOSED; every `taxCalc-*.test.js` file is
+  now 100% labeled. Also corrects an arithmetic error in the prior entry (it said
+  "19 assertions... unlabeled"; the actual count was 14).
+
+None promoted to `SPEC:` in this pass — that remains a per-test, independently-
+verified judgment call for a future pass, not something a mechanical backfill
+should do.
+
+### Verified, not changed
+- Full suite: 812/812 tests passing (no new tests added, only labels changed).
+- `npx eslint .`: 0 errors, 21 warnings (unchanged from the prior pass).
+
+---
+
 ## Code consistency audit follow-up — August 10, 2026
 
 Owner-commissioned code consistency audit (naming, architecture, duplication, state,
