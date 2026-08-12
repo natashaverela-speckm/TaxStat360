@@ -2162,6 +2162,41 @@ export default function CalculateTaxInner() {
     setShowEntityPicker(true)
   }, [entities, navigate])
 
+  // Module F (narrow fix, Aug 2026 — Audit Synthesis Phase 2): these two helpers
+  // deduplicate literal write bodies that were previously repeated verbatim at
+  // multiple entities-mutation call sites below. Deliberately narrow: this does
+  // NOT change WHEN or under what condition any call site persists — each site
+  // still decides independently whether to call the light write, the full write,
+  // both, or (removeEntity) neither and let the persistStep1 effect catch it.
+  // Only the repeated literal bodies are shared. See KNOWN_LIMITATIONS.md /
+  // ARCHITECTURE.md "Module F" for the fuller rationale and what was
+  // deliberately NOT attempted (a single hook spanning TaxReturn.jsx and
+  // AIAnalysis.jsx as well — their read/write patterns are not the same shape
+  // as this one and were left untouched).
+  //
+  // Light write: syncs only the session working copy (ts360_step1_entities).
+  // Previously duplicated verbatim in addEntityOfType, setRentalAggregationElectionAll,
+  // handleIntegrationDisconnect, and as the first line of updateEntity.
+  const persistEntitiesWorkingCopy = useCallback((next) => {
+    writeStep1Entities(next)
+    return next
+  }, [])
+
+  // Full write: the canonical Step-1 payload (entities + derived k1Total) plus
+  // the dirty flag. Previously duplicated verbatim between updateEntity's inline
+  // synchronous write (BUG-A FIX, below — kept inline and synchronous for the
+  // same race-condition reason as before) and persistStep1 (the debounced-effect
+  // / save-time write, further below). writeStep1State's own entitiesRaw side
+  // effect already re-syncs ts360_step1_entities, so this helper does not also
+  // call persistEntitiesWorkingCopy — matching the original code's behavior,
+  // which never wrote the same key twice from persistStep1 either.
+  const persistCanonicalStep1 = useCallback((next) => {
+    const k1Total = sumK1FlowThrough(next)
+    writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
+    writeDirtyFlag(true)
+    return k1Total
+  }, [])
+
   const addEntityOfType = useCallback((type) => {
     const addingRE = isRealEstateEntity(type)
     if (addingRE ? !canAddRealEstateEntity(entities) : !canAddBusinessEntity(entities)) {
@@ -2191,12 +2226,11 @@ export default function CalculateTaxInner() {
         ? { ...newEnt, rentalAggregationElection: true }
         : newEnt
       const next = [...prev, seeded]
-      writeStep1Entities(next)
-      return next
+      return persistEntitiesWorkingCopy(next)
     })
     setExpandedIdx(entities.length)
     setShowEntityPicker(false)
-  }, [entities, navigate])
+  }, [entities, navigate, persistEntitiesWorkingCopy])
 
   // F-FUNC-05: consume a Dashboard entity-preset hand-off once on mount. If the
   // user arrived via a preset card (e.g. "S-Corp Owner") and Step 1 is empty,
@@ -2218,7 +2252,7 @@ export default function CalculateTaxInner() {
     setEntities(prev => {
       const next = [...prev]
       next[idx] = updated
-      writeStep1Entities(next)
+      persistEntitiesWorkingCopy(next)
       // BUG-A FIX (SSTB / QBI fields not reaching Step 2 via nav): writeStep1Entities
       // writes only the session working copy; Step 2 reads via readStep1State() which
       // reads writeStep1State. If the user navigates to Step 2 via the breadcrumb before
@@ -2228,12 +2262,10 @@ export default function CalculateTaxInner() {
       // readStep1State always reflects the latest entity state regardless of nav path.
       // M3 (audit F-04): k1Total via the engine's single rule (share − §179,
       // C-Corps skipped, charitable NOT netted per F-13 — see sumK1FlowThrough).
-      const k1Total = sumK1FlowThrough(next)
-      writeStep1State({ entities: next, entitiesRaw: next, k1Total, isCoopPatron: false })
-      writeDirtyFlag(true)  // D-3: entity edits dirty the session
+      persistCanonicalStep1(next)
       return next
     })
-  }, [])
+  }, [persistEntitiesWorkingCopy, persistCanonicalStep1])
 
   // F-FUNC-07: the §1.469-9(g) aggregation election is a SINGLE taxpayer-level
   // election covering the entire rental portfolio (the engine already reads it as
@@ -2247,10 +2279,9 @@ export default function CalculateTaxInner() {
       const next = prev.map(e =>
         isRealEstateEntity(e.type) ? { ...e, rentalAggregationElection: value === true } : e
       )
-      writeStep1Entities(next)
-      return next
+      return persistEntitiesWorkingCopy(next)
     })
-  }, [])
+  }, [persistEntitiesWorkingCopy])
 
   const removeEntity = useCallback((idx) => {
     setEntities(prev => prev.filter((_, i) => i !== idx))
@@ -2278,25 +2309,25 @@ export default function CalculateTaxInner() {
             }
           : e
       )
-      writeStep1Entities(next)
-      return next
+      return persistEntitiesWorkingCopy(next)
     })
-  }, [])
+  }, [persistEntitiesWorkingCopy])
 
   const persistStep1 = useCallback(() => {
-    writeStep1Entities(entities)
-    // M3 (audit F-04): k1Total via the engine's single rule. C-Corp exclusion
-    // (entity-level 21% tax; owner receives dividends, not K-1 — see the corporate
-    // layer in TaxReturn) and the F-13 charitable rule live in sumK1FlowThrough.
-    const k1Total = sumK1FlowThrough(entities)
-    writeStep1State({ entities, entitiesRaw: entities, k1Total, isCoopPatron: false })  // F-05: persist qbiLossCarryforward in raw shape
-    writeDirtyFlag(true)  // D-3
+    // Module F (narrow fix, Aug 2026): shares its canonical-write body with
+    // updateEntity's inline write via persistCanonicalStep1 (see that helper's
+    // comment, above). The standalone writeStep1Entities(entities) call that used
+    // to open this function was truly redundant with writeStep1State's own
+    // entitiesRaw side effect a few lines later — both wrote the identical value
+    // to the identical key — so folding it into the shared helper removes a
+    // second, pointless write rather than just deduplicating source text.
+    const k1Total = persistCanonicalStep1(entities)  // F-05: persist qbiLossCarryforward in raw shape
     writeTaxYear(taxYear)
     // AUDIT #6: mirror to the device-local draft so the work survives a tab close /
     // browser restart / cross-tab re-login (sessionStorage above does not).
     writeStep1Draft(entities, taxYear)
     return k1Total
-  }, [entities, taxYear])
+  }, [entities, taxYear, persistCanonicalStep1])
 
   // FIX (k1-sync): keep the persisted Step-1 payload — entities AND the derived
   // k1Total — current on every edit, not only when "Save P&L"/"Continue" runs.
