@@ -164,6 +164,44 @@ isn't collected).
 The OBBBA SALT phase-down uses MAGI = AGI; the §911/931/933 exclusion
 addbacks are not modeled (see `getSaltCap()` in taxCalc.js).
 
+## LIMITATION C-10-BASIS — §1366(d)/§704(d) loss suspended when no basis is entered
+
+**Added Aug 12 2026 (Audit Synthesis, Phase 1); formalizes engine behavior live since
+before Jul 23 2026 (Pass 1 functionality audit) — owner ratification of this entry
+requested, not yet obtained.** Exposure direction: conservative (can overstate tax by
+suspending a loss the shareholder/partner could legitimately deduct, until basis is
+entered).
+
+`calcTaxReturn()` accepts an `assumeZeroBasisOnLoss` flag (see the C-10 FIX block in
+`src/lib/taxCalc.js`); the live app (`TaxReturn.jsx`, `CalculateTaxInner.jsx`) always
+passes `true`. When an S-Corp or partnership entity shows a current-year LOSS and the
+shareholder/partner has not entered stock/debt basis (S-Corp, Form 7203) or outside
+basis (partnership, §704(d)), the engine conservatively treats basis as $0 and suspends
+the full loss (carried forward, §1366(d)(2) / §704(d)) rather than deducting it against
+other income. This is NOT a missing feature — basis entry is fully supported:
+
+- Step 1 entity cards have a "Stock & Debt Basis (Form 7203)" section
+  (`CalculateTaxInner.jsx`) with a same-screen badge (`basisBadge`, search "C-10")
+  that reads e.g. *"§1366(d): enter stock basis — $X loss may be limited"* or, once
+  basis is entered, *"§1366(d): $X of your $Y loss is suspended — basis insufficient"*
+  or *"Full $X loss is deductible — within $Y basis."*
+- Step 2 (`TaxReturn.jsx`) has a "Prior-Year S-Corp Suspended Loss Carryforward (Form
+  7203 Part III)" field, and a portfolio-level "enter your basis" prompt
+  (`assumedZeroBasisSuspended`) driven directly off the engine's own suspended-loss
+  result, so the same-screen cue can never contradict the authoritative figure.
+
+What remains undocumented until now: unlike every other conservative-default engine
+behavior (SE-179, PAL-MFS, NOL-80, SALT-MAGI above; SEHI-MIXED-SOURCE, 163J-NOT-MODELED
+below), this one had no LIMITATION entry in this file despite being flagged twice —
+first by the Jul 23 2026 functionality audit ("recorded here so it is not missed in a
+later accuracy pass"), and again not picked up by the Aug 11 2026 tax-accuracy
+engagement's closing report. This entry closes that documentation gap. No code change
+accompanies it — the underlying behavior, and its UI support, were already correct and
+live; this pass only formalizes the decision record. Owner decision: ratify the $0-basis
+conservative default as permanent (recommended — it matches this app's established
+conservative-by-design posture elsewhere in this file), or revisit whether a different
+default is warranted.
+
 ---
 
 ## OBS-1 — K-1 display vs engine — RESOLVED (Batch 7, Jul 2026)
@@ -375,6 +413,15 @@ stated non-accountant audience, a future soft warning (not a hard block) when en
 depreciation is large relative to gross receipts could reduce silent overstatement risk without
 attempting in-app §179/bonus computation. Owner decision; not scheduled.
 
+**Partial mitigation — Aug 12 2026 (Audit Synthesis, Phase 1):** the soft warning recommended
+above is now implemented. `CalculateTaxInner.jsx` (search "DEP-UNVALIDATED") shows a
+non-blocking advisory when entered depreciation exceeds `DEPRECIATION_WARNING_RATIO` (50%) of
+the entity's own gross receipts (floored at `DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR`,
+$100,000, so a low/zero-revenue entity still gets a sane comparison base — both in
+`constants.js`). This does not validate anything against the actual §179 dollar cap or change
+the calculation in any way; it is a plausibility nudge only. Full validation (placed-in-service
+dates, asset classes, election detail) remains out of scope, unchanged from above.
+
 ## LIMITATION SEHI-MIXED-SOURCE — combined SEHI entry not attributed when both S-corp and independent SE income are present
 
 **Added Aug 2026 (independent fresh-eyes re-audit, Finding 1 regression fix); UI warning added
@@ -472,6 +519,16 @@ disclosure alerting a larger filer that the limitation isn't applied. Recommende
 add a disclosure (mirroring the §1031/§1374 hand-off pattern) when an entity's revenue suggests
 it may exceed the threshold; a full worksheet is a larger scope decision. Owner decision; not
 scheduled.
+
+**Partial mitigation — Aug 12 2026 (Audit Synthesis, Phase 1):** the disclosure recommended
+above is now implemented, mirroring the §1374 (EXT-2) hand-off pattern. `CalculateTaxInner.jsx`
+(search "SEC163J") shows an advisory banner when an entity's gross receipts exceed
+`SEC163J_DISCLOSURE_TRIGGER_RATIO` (75%) of `SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX`
+($29,000,000, both in `constants.js`) — i.e. before the entity actually crosses the line, since
+the real §448(c) test averages three years and this app only sees the current one. The dollar
+figure is explicitly approximate and used only to decide when to show the banner; it is not,
+and does not become, a modeled §163(j) computation. A full worksheet remains out of scope,
+unchanged from above.
 
 ## PASSIVE-PARTNER — passive / limited partnership interests are not modeled
 
