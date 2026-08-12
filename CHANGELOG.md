@@ -12,6 +12,59 @@ record of work that predates this changelog.
 
 ---
 
+## Pre-launch fresh-eyes audit remediation (Round 4) — August 11, 2026
+
+Independent pre-launch audit (fresh eyes, no memory of prior findings) live-tested the deployed
+app across S-Corp, Individual/1040, and Real Estate scope, with extra scrutiny on the recently
+modified §199A QBI / SEHI interaction. Findings labeled `EXT-N` continuing the numbering from the
+prior rounds. Two of the audit's flagged items (§1368(c) AAA/E&P "ordering broken", combined QBI
+total "not reconcilable") did NOT reproduce against the actual engine or a clean test entity —
+verified false positives caused by the audit agent testing against a reused entity with
+unrelated leftover K-1 income data; see the Round 4 findings map for the verification detail.
+The remaining items were real and are fixed below.
+
+### Fixed
+- **`src/components/CalculateTaxInner.jsx`** (EXT-8, Finding 2 — MATERIAL) — the "BUG-B FIX"
+  P&L live-bind effect reset `box17V_wages` (the §199A K-1-statement W-2 wage figure) to `''`
+  whenever ANY P&L field changed (its effect deps include revenue, expenses, depreciation,
+  advertising, other deductions — not just officer salary), as long as officer comp was nonzero.
+  `box17V_wages` is never auto-populated to mirror officer salary anywhere in this codebase — it
+  only ever holds a deliberately-entered or imported figure — so the "staleness cleanup" premise
+  was wrong, and the actual effect was silently discarding real data (a company's TOTAL W-2
+  payroll, routinely larger than just the officer's own salary) on unrelated edits. Understated
+  the §199A(b)(2) wage-limited QBI deduction for any S-Corp with employees beyond the
+  shareholder-officer. Fix: removed the destructive reset entirely; 2 new regression tests in
+  `CalculateTaxInner.test.jsx`, prove-it-fails verified.
+- **`src/components/CalculateTaxInner.jsx`** (EXT-8, Finding 4) — the rental "Sold or exchanged
+  this property?" disclosure told users ordinary §1245/§1250 recapture goes in the "Capital
+  Gains (Form 4797)" field, directly contradicting that field's own tooltip in `TaxReturn.jsx`
+  ("Do NOT enter ordinary depreciation recapture here"). Reworded so both agree: that field is
+  for the NET §1231 gain/loss only. §1245 ordinary recapture has no dedicated field in this app;
+  the disclosure now says so explicitly rather than pointing to an incorrect field. Documented as
+  `KNOWN_LIMITATIONS.md` → `1245-ORDINARY-RECAPTURE`.
+- **`src/components/TaxReturn.jsx`** (EXT-10, Finding 5) — added a double-count warning to the
+  SEHI premium field: nothing previously flagged that the same premium could already be inside
+  Step 1's business net income (manual entry or an accounting-software sync), in which case
+  entering it again in Step 2 deducts it twice.
+- **`src/components/TaxReturn.jsx`** (EXT-11, Finding 6) — the Tax Waterfall never showed the
+  EXT-1 SEHI wage grossup as its own line, so the displayed income rows didn't visibly sum to
+  the displayed AGI (the bottom-line number was always correct; the audit trail wasn't). Added
+  a dedicated "SEHI Wage Grossup (S-Corp, IRC §1372)" row.
+- **`src/components/CalculateTaxInner.jsx`** (EXT-9, Finding 7) — the "Officer Compensation
+  Looks Reasonable" banner said salary was some percentage "of total officer compensation" —
+  self-referential as written (salary IS that figure). Reworded to "of your total S-Corp
+  compensation (salary + K-1 income)", matching every other reasonable-comp disclosure in the app.
+- **`KNOWN_LIMITATIONS.md`** — added `1245-ORDINARY-RECAPTURE`.
+
+### Verified correct, not changed
+- AMT exemption/phase-out for 2026 (Finding 8): exemption $90,100/$140,200, phase-out threshold
+  $500,000/$1,000,000, 50% phase-out rate — confirmed against Rev. Proc. 2025-32 via independent
+  web research; matches `TAX_TABLES[2026].amt` exactly.
+- §469(i) $25,000 active-participation allowance phase-out (Finding 9): single-source-of-truth
+  `calc469iAllowance()` matches the statute exactly ($25,000 base, phases out 50¢/$1 of MAGI over
+  $100,000); already numerically verified in the Round 2 fresh-eyes pass at $120,000 MAGI
+  ($15,000 allowed).
+
 ## External tax-accuracy audit remediation — August 11, 2026
 
 Independent external audit (S-Corp, Individual/1040, Real Estate/Schedule E modules, TY2026)

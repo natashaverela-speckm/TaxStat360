@@ -431,6 +431,29 @@ non-aggregated household with an unambiguous-SEHI S-corp plus another QBI-eligib
 SEHI haircut could be misallocated between entities even though the aggregate total deduction
 stays correct. Untested by the current suite; candidate for a future pass.
 
+## LIMITATION 1245-ORDINARY-RECAPTURE — no dedicated field for §1245 ordinary depreciation recapture
+
+**Added Aug 2026 (pre-launch fresh-eyes audit, Finding 4).** Exposure direction: user error risk
+(contradictory guidance could cause omission or miscategorization), not a computation error —
+the engine doesn't compute this figure at all today, by design.
+
+The rental "Sold or exchanged this property?" disclosure (`CalculateTaxInner.jsx`) used to tell
+users that "ordinary §1245/§1250 recapture" belongs in the "Capital Gains (Form 4797)" field —
+directly contradicting that field's own tooltip (`TaxReturn.jsx`), which correctly states §1245
+recapture is ordinary income and does not belong there. Reworded (EXT-8) so both agree: the
+"Capital Gains (Form 4797)" field is for the NET §1231 gain/loss only (ordinary recapture already
+backed out, per §1231(a)(3)(A)(i)), and "Unrecaptured §1250 Gain" is for the depreciation-
+attributable portion of a real-property gain specifically.
+
+§1245 recapture itself (personal property component of a disposition — most relevant to a
+furnished rental's appliances/furniture, since the building itself is §1250 real property) has NO
+dedicated field anywhere in the app. Rather than guess at an incorrect routing (e.g., silently
+folding it into ongoing rental net income, which would distort the passive-activity figure a
+different way), the disclosure now tells the user to add it as ordinary income outside this tool
+or confirm treatment with their preparer. A full fix requires a dedicated ordinary-recapture input
+that flows to Schedule 1 ordinary income without touching the rental's ongoing passive-income
+figure — a schema and engine change, not scheduled. Owner decision.
+
 ## LIMITATION 163J-NOT-MODELED — §163(j) business interest expense limitation not modeled
 
 **Added Aug 2026 (independent fresh-eyes re-audit, Finding 2).** Exposure direction: CAN
