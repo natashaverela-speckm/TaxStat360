@@ -72,7 +72,7 @@ Reasonable compensation is the amount a comparable employee would receive for th
       },
       {
         heading: 'The 35/65 Rule of Thumb — and Its Limits',
-        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of total officer compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule — it's a practitioner heuristic that has survived scrutiny when supported by documentation.
+        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of your total S-Corp compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule — it's a practitioner heuristic that has survived scrutiny when supported by documentation.
 
 The split only holds up if your business generates enough profit to make the salary plausible. A first-year S-Corp generating $40,000 of net profit paying the owner $14,000 in salary is far more defensible than a $400,000 S-Corp paying $14,000. The absolute dollar amount matters as much as the ratio.
 
