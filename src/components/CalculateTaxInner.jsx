@@ -191,9 +191,14 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
       <div style={{ color: '#166534', lineHeight: 1.6 }}>
-        Your salary is {reasonableComp.ratioPct}% of total officer compensation — within the commonly
-        recommended 35–45% range. Make sure FICA payroll taxes are withheld and remitted (quarterly
-        Form 941).
+        {/* EXT-9 (Round 4, pre-launch fresh-eyes audit — Finding 7): "% of total officer
+            compensation" was self-referential (salary IS the officer compensation figure).
+            The intended denominator, matching every other reasonable-comp disclosure in this
+            app (e.g. the InfoTip above: "salary ÷ (salary + K-1 net income)"), is salary plus
+            K-1 net income — the S-Corp's total economic benefit to the shareholder. Reworded. */}
+        Your salary is {reasonableComp.ratioPct}% of your total S-Corp compensation (salary + K-1
+        income) — within the commonly recommended 35–45% range. Make sure FICA payroll taxes are
+        withheld and remitted (quarterly Form 941).
         {watsonWarning && (
           <> One thing to watch: your salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross
           receipts ({fmt(officerSal)} ÷ {fmt(grossRevenue)}) — under the ~30% some advisors flag even when
@@ -588,12 +593,23 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       ...entityRef.current,
       officerW2: effectiveSal,
       k1DirectMode: false,
-      // BUG-B FIX (W-2 wages disconnected from officer comp): reset box17V_wages
-      // to '' whenever officer salary changes so the engine's fallback chain at
-      // taxCalc.js L389 (box17V_wages || officerW2 || pnl.officerSalary) resolves
-      // to officerW2, which IS synced above. A stale box17V_wages value would
-      // otherwise shadow officerW2 and compute the wage limit on the wrong figure.
-      ...(effectiveSal > 0 || entityRef.current.box17V_wages !== '' ? { box17V_wages: '' } : {}),
+      // BUG-B FIX (Round 4, Aug 2026 — reverted; the original "fix" was itself the bug):
+      // this used to reset box17V_wages to '' whenever ANY P&L field changed (this effect's
+      // dep array is [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses, ...] -- not
+      // just officer salary), as long as effectiveSal > 0 -- which is true for nearly every
+      // real S-Corp. box17V_wages is NEVER auto-populated to mirror officerW2 anywhere in
+      // this codebase (grep confirms: it's set only by direct user input on the dedicated
+      // "W-2 Wages (K-1 §199A statement)" field, or by an accounting-software import) -- so
+      // there is no "stale mirrored value" for this line to be cleaning up. Its actual effect
+      // was to silently discard a real, deliberately-entered figure (per the field's own
+      // tooltip: "Your share of W-2 wages paid by the ENTITY", i.e. total company payroll --
+      // routinely different from, and often larger than, just the officer's own salary) any
+      // time the user edited revenue, expenses, depreciation, advertising, or other
+      // deductions on the SAME entity. Confirmed reproducible in a pre-launch fresh-eyes
+      // audit. Since the wage figure feeds the §199A(b)(2) W-2 wage limitation directly,
+      // this silently understated the QBI deduction for any S-Corp with employees beyond
+      // the shareholder-officer, every time the user touched an unrelated P&L field after
+      // entering it. Removed; box17V_wages is left untouched by this effect entirely.
       pnl: {
         grossRevenue:    rv,
         totalExpenses,
@@ -874,7 +890,18 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           {/* EXT-5 (external accuracy audit, Aug 2026 — Finding 5): §1031 like-kind exchanges
               are not modeled — a fully-deferred exchange has nothing to enter, but a partial
               exchange with boot received requires the recognized gain to be computed outside
-              this tool (Form 8824) and entered manually in the right place downstream. */}
+              this tool (Form 8824) and entered manually in the right place downstream.
+              EXT-8 (Round 4, pre-launch fresh-eyes audit — Finding 4): this card used to tell
+              users that "ordinary §1245/§1250 recapture" goes in the "Capital Gains (Form 4797)"
+              field — directly contradicting that field's OWN tooltip (TaxReturn.jsx), which
+              correctly says "Do NOT enter ordinary depreciation recapture here... §1245 recapture
+              is ordinary income." Reworded so the two agree: only the NET §1231 gain/loss (with
+              ordinary §1245 recapture already backed out, per §1231(a)(3)(A)(i)) goes in that
+              field. §1245 recapture itself has no dedicated field in this app (rentals are
+              usually real property under §1250, but personal property within a rental — e.g.
+              furnished-rental appliances/furniture — can trigger §1245); flagged for the user to
+              add as ordinary income outside this tool rather than guessing at an incorrect
+              routing. See KNOWN_LIMITATIONS.md -> 1245-ORDINARY-RECAPTURE. */}
           <details style={{ marginTop: 6 }}>
             <summary style={{ cursor: 'pointer', color: '#6D28D9', fontWeight: 600, fontSize: 13 }}>
               Sold or exchanged this property? (§1031, depreciation recapture)
@@ -884,9 +911,15 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
               or recapture on a sale or exchange. A fully-deferred §1031 like-kind exchange has
               nothing to enter here. A partial exchange (boot received) or an outright sale requires
               computing the recognized gain yourself (Form 8824 for a like-kind exchange), then
-              entering it in Step 2: ordinary §1245/§1250 recapture and net §1231 gain/loss go in the
-              "Capital Gains (Form 4797)" field, and the depreciation-attributable portion of a
-              real-property gain goes in "Unrecaptured §1250 Gain." Do not enter it here.
+              entering it in Step 2: the NET §1231 gain/loss (capital gains and losses on business
+              property, after backing out any ordinary recapture below) goes in the "Capital Gains
+              (Form 4797)" field, and the depreciation-attributable portion of a real-property gain
+              goes in "Unrecaptured §1250 Gain."
+              <br /><br />
+              <strong>§1245 ordinary recapture is NOT capital gain</strong> — do not include it in
+              either field above. This app has no dedicated field for it; add it as ordinary income
+              on your return outside this tool, or confirm the correct treatment with your preparer.
+              Do not enter any of this here.
             </div>
           </details>
         </div>

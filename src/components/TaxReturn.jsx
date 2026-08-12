@@ -1353,10 +1353,18 @@ export default function TaxReturn() {
                     who have no SE income from the S-corp; their §162(l)(2)(A) cap is W-2 wages
                     from that S-corp. Split by entity type. Also reworded to describe the EXT-1
                     automatic wage grossup (taxCalc.js) rather than instructing the user to
-                    pre-gross-up the figure themselves. */}
+                    pre-gross-up the figure themselves.
+                    EXT-10 (Round 4, pre-launch fresh-eyes audit — Finding 5): added a
+                    double-count warning. This premium is entered here as a personal deduction,
+                    but nothing prevents the SAME premium from already being included as a
+                    corporate expense in the Step 1 P&L (manual entry OR an accounting-software
+                    sync — QuickBooks/Xero/Wave/FreshBooks all reduce net income by whatever
+                    expense categories the books use, which commonly include health insurance).
+                    If so, entering it again here double-counts it, understating QBI/AGI a
+                    second time. */}
                 <label htmlFor="tr-health-ins" style={inputLbl}>
                   Self-Employed Health Insurance Premiums
-                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Enter the premium amount paid. TaxStat360 automatically includes it in your S-Corp W-2 wages for income-tax purposes and applies the offsetting deduction (IRC §1372 / Rev. Rul. 91-26) — it does NOT add it to FICA/Medicare wages (Notice 2008-1). Capped at your W-2 wages from that S-Corp (IRC §162(l)(2)(A)), not your net self-employment income.\n\nSole proprietors and partners: Enter premiums paid directly. Capped at your net self-employment earned income from that business (IRC §162(l)(2)(A))."} />
+                  <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Enter the premium amount paid. TaxStat360 automatically includes it in your S-Corp W-2 wages for income-tax purposes and applies the offsetting deduction (IRC §1372 / Rev. Rul. 91-26) — it does NOT add it to FICA/Medicare wages (Notice 2008-1). Capped at your W-2 wages from that S-Corp (IRC §162(l)(2)(A)), not your net self-employment income.\n\nSole proprietors and partners: Enter premiums paid directly. Capped at your net self-employment earned income from that business (IRC §162(l)(2)(A)).\n\n⚠ Double-count check: if your Step 1 business net income already reflects this premium as a corporate expense (common with a manually-entered P&L or a QuickBooks/Xero/Wave/FreshBooks sync), do NOT also enter it here — that would deduct it twice. Enter it here only if Step 1's net income does NOT already include it."} />
                 </label>
                 <Step2MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
                 {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it.
@@ -1759,6 +1767,19 @@ export default function TaxReturn() {
                   }
                   return [{ label: 'W-2 Wages', value: result.totalW2ForFICA || 0, sign: 1, hide: !(result.totalW2ForFICA > 0) }]
                 })()),
+                // EXT-11 (Round 4, pre-launch fresh-eyes audit — Finding 6): the SEHI wage
+                // grossup (EXT-1/EXT-1-FOLLOW-UP, taxCalc.js) was computed correctly and
+                // flowed into AGI, but never appeared as its own waterfall row — so the
+                // "W-2 Wages" line above still showed the RAW entered officer salary, and a
+                // reader adding up the visible rows would land short of the displayed AGI by
+                // exactly the grossup amount (a >2% shareholder whose SEHI premium exceeds
+                // their entered salary sees the biggest gap). The bottom-line number was
+                // always right; the audit trail didn't reconcile, which reads as "broken" to
+                // anyone checking the math by hand. Surfaced as its own line so income → AGI
+                // sums correctly again, same principle as the F-6 fix above.
+                { label: 'SEHI Wage Grossup (S-Corp, IRC §1372)', value: result.sehiScorpWageGrossUp || 0, sign: 1,
+                  hide: !(result.sehiScorpWageGrossUp > 0),
+                  note: 'Included in Box 1 W-2 wages (Notice 2008-1) — not shown in the W-2 Wages row above; offset by the Health Insurance Ded. row below' },
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },

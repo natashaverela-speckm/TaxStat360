@@ -94,6 +94,56 @@ describe('Finding 2 — inline manual P&L live-commits without clicking the conf
   })
 })
 
+describe('Round 4 (pre-launch fresh-eyes audit) — editing unrelated P&L fields must not clear box17V_wages', () => {
+  it('S-Corp: box17V_wages (the §199A K-1 statement wage figure) survives an edit to an UNRELATED P&L field (revenue)', () => {
+    // Regression test for the BUG-B "fix" that was itself the bug: it reset box17V_wages to
+    // '' whenever this effect re-ran for ANY reason (its deps include every P&L field, not
+    // just officer salary), as long as officer comp was nonzero. box17V_wages is a
+    // deliberately-entered, independent figure (total company W-2 wages, from the K-1's
+    // §199A statement) -- not something meant to track officer salary -- so it must never be
+    // silently cleared by editing revenue, expenses, depreciation, advertising, or other
+    // deductions.
+    const onUpdate = vi.fn()
+    const entity = {
+      type: 'S Corporation', own: '100', isManual: true,
+      box17V_wages: 500000,  // company-wide W-2 wages, deliberately entered, different from officer comp
+      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: 150000, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: 0 },
+    }
+    const { container } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} />,
+    )
+    const inputs = container.querySelectorAll('input')
+    fireEvent.change(inputs[0], { target: { value: '900000' } }) // gross receipts — unrelated to box17V_wages
+
+    expect(onUpdate).toHaveBeenCalled()
+    const [, updated] = lastUpdate(onUpdate)
+    expect(updated.pnl.grossRevenue).toBe(900000)
+    expect(updated.box17V_wages).toBe(500000)  // must survive — this is the exact bug
+  })
+
+  it('S-Corp: box17V_wages survives even when officer compensation itself changes', () => {
+    // The ORIGINAL stated intent of BUG-B ("officer salary changed, so clear a stale mirror")
+    // still doesn't apply -- box17V_wages is never an auto-populated mirror of officer salary
+    // anywhere in this codebase, so it must survive this edit too.
+    const onUpdate = vi.fn()
+    const entity = {
+      type: 'S Corporation', own: '100', isManual: true,
+      box17V_wages: 500000,
+      pnl: { grossRevenue: 900000, totalExpenses: 0, officerSalary: 150000, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: 900000 },
+    }
+    const { container } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} />,
+    )
+    const officerInput = container.querySelector('[aria-label="Officer salary (your W-2 wages from this entity)"]')
+    expect(officerInput).toBeTruthy()
+    fireEvent.change(officerInput, { target: { value: '175000' } })
+
+    const [, updated] = lastUpdate(onUpdate)
+    expect(updated.pnl.officerSalary).toBe(175000)
+    expect(updated.box17V_wages).toBe(500000)
+  })
+})
+
 describe('Fresh-eyes fix (Aug 2026) — K-1 direct-entry "Done" saves the typed K-1 value', () => {
   // Bug: applyManual() (the Done button's handler) always computed
   // netProfit as rv - totalExpenses, ignoring manK1Direct even when K-1
