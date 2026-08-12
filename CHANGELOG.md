@@ -12,6 +12,39 @@ record of work that predates this changelog.
 
 ---
 
+## Cosmetic wording sweep (Round 5) — August 11, 2026
+
+Round 4's post-deploy regression review (fresh clone + full verification, no code regressions
+found) flagged that the same circular "% of total officer compensation" wording fixed in
+`CalculateTaxInner.jsx` (Round 4, Finding 7) still appeared verbatim in two other user-facing
+surfaces not touched by that round. Same fix applied for consistency: renamed "officer
+compensation" to "S-Corp compensation" and confirmed/clarified the "(salary + K-1 income)" or
+"(salary + distributions)" parenthetical in each. Text-only change; no calculation, test
+behavior, or data flow affected.
+
+### Fixed
+- **`src/components/AIAnalysis.jsx`** (line ~603, "No Officer Compensation" finding action
+  text) — "35–45% of total officer compensation (salary + K-1 income)" → "35–45% of your total
+  S-Corp compensation (salary + K-1 income)".
+- **`src/components/AIAnalysis.jsx`** (line ~1091, S-Corp salary-vs-distribution opportunity
+  `howTo` text) — "35–45% of total officer compensation (salary ÷ (salary + K-1 income))" →
+  "35–45% of your total S-Corp compensation (salary + K-1 income)" (also dropped the embedded
+  ratio-formula aside, which was confusing alongside the "%" figure already stating the ratio).
+- **`src/lib/articles.js`** (line ~75, "The 35/65 Rule of Thumb" knowledge-base article) —
+  "{SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of total officer compensation (salary +
+  distributions)" → "{SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of your total S-Corp compensation
+  (salary + distributions)".
+
+### Verified correct, not changed
+- Plain "% of total compensation" ratio statements (no "officer" in the phrase — e.g.,
+  "salary is 23% of total compensation" in `src/lib/articles.js` lines 96, 112, 305,
+  `src/utils/topLevers.js` line 45, and `src/components/AIAnalysis.jsx` line 606) are not the
+  same circular pattern: they state a computed ratio (`ratioPct`) against a plainly-named
+  denominator, without self-referentially calling that denominator "officer compensation." Left
+  as-is.
+
+---
+
 ## Pre-launch fresh-eyes audit remediation (Round 4) — August 11, 2026
 
 Independent pre-launch audit (fresh eyes, no memory of prior findings) live-tested the deployed
