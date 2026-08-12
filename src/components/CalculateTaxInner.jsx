@@ -18,7 +18,7 @@ import {
 } from '../utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE } from '../lib/constants.js'
+import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from '../utils/integrations.js'
@@ -127,15 +127,6 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   // k1Distributions reconstructs the same total in the normal case where
   // officerSal <= netProfit); minTarget above stays a local presentation value.
   const reasonableComp = calcReasonableCompCore(officerSal, totalComp - officerSal)
-  // O-2 FIX (Audit Synthesis, Aug 2026): calcReasonableCompCore clamps its own k1 leg
-  // at $0 (Math.max(0, k1Distributions)), so when officerSal exceeds totalComp (the
-  // officerExceedsNetProfit edge case, see the entity-card logic below) the ratio
-  // itself is already correctly clamped to 100% — but the raw `totalComp` used for
-  // *display* below was not, so the parenthetical breakdown could show a denominator
-  // smaller than officerSal while the labeled percentage read 100% (e.g. "100% ...
-  // (80,000 of 30,000)"). Mirror the engine's own clamp for display so the percentage
-  // and the breakdown never contradict each other.
-  const totalCompDisplay = Math.max(totalComp, officerSal)
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
@@ -176,7 +167,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
           Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
-          {' '}{reasonableComp.ratioPct}% of your total officer take ({fmt(officerSal)} of {fmt(totalCompDisplay)});
+          {' '}{reasonableComp.ratioPct}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
           a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
           distributions, is what keeps the S-Corp structure defensible.
           {watsonWarning && (
@@ -742,6 +733,41 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           </label>
           <Step1MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
         </div>
+        {/* DEP-UNVALIDATED (Phase 1, Audit Synthesis, Aug 2026): KNOWN_LIMITATIONS.md —
+            this engine trusts the depreciation figure above as entered, with no check
+            against the §179(b)(1)/(b)(2) annual dollar cap or any bonus-depreciation
+            plausibility bound. Soft, non-blocking advisory only — never a hard block —
+            triggered when entered depreciation is large relative to this entity's own
+            gross receipts (with a floor so a low/zero-revenue entity still gets a sane
+            comparison base). Does not alter the tax calculation in any way. */}
+        {nf(manDep) > Math.max(nf(manRev), DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR) * DEPRECIATION_WARNING_RATIO && (
+          <div role="alert" style={{ padding: '6px 9px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
+            ⚠ Depreciation Looks Large Relative to Gross Receipts: {fmt(nf(manDep))} in depreciation
+            against {fmt(nf(manRev))} in gross receipts for this entity. TaxStat360 uses this figure
+            exactly as entered and does not check it against the §179(b)(1)/(b)(2) annual dollar cap
+            or validate a bonus-depreciation election — if this number already reflects an
+            over-the-cap §179 election, your deduction may be overstated. Confirm the figure with
+            your accountant before relying on this estimate.
+          </div>
+        )}
+        {/* SEC163J (Phase 1, Audit Synthesis, Aug 2026): KNOWN_LIMITATIONS.md
+            "163J-NOT-MODELED" — no field or computation for business interest expense
+            exists anywhere in this engine, so the §163(j) 30%-of-ATI limitation is never
+            applied to any entity, regardless of size. Disclosure only, mirrors the
+            existing §1374 (EXT-2) / §1031 hand-off pattern elsewhere in this file. The
+            threshold below is approximate and used only to decide when to show this
+            banner — see the constant's own comment in constants.js. */}
+        {nf(manRev) > SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX * SEC163J_DISCLOSURE_TRIGGER_RATIO && (
+          <div role="alert" style={{ padding: '6px 9px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
+            ⚠ §163(j) Business Interest Limitation — Not Calculated: this entity's gross receipts
+            ({fmt(nf(manRev))}) are approaching or above the indexed threshold at which the §163(j)
+            30%-of-adjusted-taxable-income limit on business interest expense can apply. TaxStat360
+            does not model this limitation — any interest expense included in your expense figures
+            flows through fully deducted, with no cap or carryforward. If this entity has meaningful
+            business interest expense, confirm §163(j) exposure with your CPA before relying on this
+            estimate.
+          </div>
+        )}
         {(isSCorp || isCCorp) && (
           <div>
             <label style={lbl}>
