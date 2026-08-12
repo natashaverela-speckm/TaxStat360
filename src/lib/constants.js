@@ -429,6 +429,39 @@ export const SALT_PHASE_DOWN_RATE = 0.30  // OBBBA §70120 — cap reduced 30% o
 // Applies to C-Corps only; S-Corps, partnerships, and sole props are pass-through.
 export const C_CORP_TAX_RATE = 0.21
 
+// ─── BUSINESS INTEREST LIMITATION — IRC §163(j) (DISCLOSURE ONLY) ────────────
+// KNOWN_LIMITATIONS.md "163J-NOT-MODELED": no field or computation for business
+// interest expense exists anywhere in this engine, so the §163(j) 30%-of-ATI
+// limitation (entities over the indexed §448(c) gross-receipts threshold) is
+// never applied — any interest expense a user folds into a lump-sum expense
+// figure flows through fully deducted. This can UNDERSTATE tax for a filer over
+// the threshold. Phase 1 (Audit Synthesis, Aug 2026) adds a disclosure only —
+// mirrors the existing §1374/§1031 hand-off pattern (see CalculateTaxInner.jsx,
+// search "SEC163J"). The dollar figure below is APPROXIMATE and NOT used in any
+// tax calculation — §163(j)(3)/§448(c)'s real test is a 3-year average of gross
+// receipts, indexed annually (Rev. Proc.), and is not itself modeled here. Do
+// not treat this as an authoritative cutoff; it exists solely to decide when to
+// show an advisory banner. Update the approximate figure at each annual review
+// (ARCHITECTURE.md §8) alongside TAX_TABLES.
+export const SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX = 29000000  // ~2026 §448(c) test, approximate — disclosure trigger only
+// Show the disclosure before an entity actually crosses the line — gross
+// receipts trending toward the threshold still warrant a heads-up, since the
+// real test averages three years and this app only sees the current one.
+export const SEC163J_DISCLOSURE_TRIGGER_RATIO = 0.75  // trigger at 75% of the approximate threshold
+
+// ─── MANUAL DEPRECIATION ENTRY — PLAUSIBILITY WARNING (DISCLOSURE ONLY) ──────
+// KNOWN_LIMITATIONS.md "DEP-UNVALIDATED": the P&L "Depreciation — total
+// deduction this year" field is a trusted lump sum with no statutory cap check
+// against §179(b)(1)/(b)(2) or any bonus-depreciation plausibility bound. This
+// can UNDERSTATE tax if the entered figure already reflects an over-the-cap
+// election. Phase 1 (Audit Synthesis, Aug 2026) adds a soft, non-blocking
+// warning (not a hard validation) when entered depreciation is large relative
+// to the entity's own gross receipts — see CalculateTaxInner.jsx, search
+// "DEP-UNVALIDATED". Heuristic only; deliberately generous to avoid false
+// alarms on legitimately capital-intensive or early-loss-year entities.
+export const DEPRECIATION_WARNING_RATIO = 0.50            // flag when depreciation exceeds 50% of the receipts floor below
+export const DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR = 100000  // floor so a low/zero-revenue entity still gets a sane comparison base
+
 // ─── CHILD TAX CREDIT — IRC §24 ─────────────────────────────────
 // Per-child credit amount lives in the year tables (taxCalc.js → ctc.perChild).
 // §24(b)(2)/(h)(3): the credit is reduced by $50 for each $1,000 (or fraction) of
