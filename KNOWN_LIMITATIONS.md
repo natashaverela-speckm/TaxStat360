@@ -301,6 +301,16 @@ and error-prop support — so dollar-entry behavior can differ subtly between
 the two screens. The deleted canonical file is recoverable from git history
 (commit 4697de0^) if unification is ever revisited.
 
+**Ratified — Aug 12 2026 (Audit Synthesis, Phase 2, owner decision).** Reviewed
+during Module F scoping and left as permanent, accepted debt rather than
+revived. Rationale: Pass 4's own investigation already confirmed both local
+components are thin styling adapters that delegate all parsing/formatting
+logic to the shared core — this is a styling duplication, not a functional
+one, so the risk this creates is already low. Migrating ~94 call sites across
+the app's two largest components for a purely cosmetic consolidation, on a
+live tax product, was judged not worth the testing surface it would add. No
+code changed. Still recoverable per the note above if this calculus changes.
+
 ## OBS-7 — Reasonable-comp wording — RESOLVED (Batch 7, Jul 2026)
 
 One message everywhere: the fully hedged wording now lives in
@@ -336,6 +346,47 @@ rounding artifact of the ÷12 display price). Both pre-date the D-06 pricing
 single-source and are preserved verbatim (and pinned by planPricing.test.js).
 Owner decision: unify on one formula — Landing's ×2 matches the "Save 2
 months" badge copy and is the cleaner marketing claim.
+
+## OBS-10 — Module F: entities-persistence write duplication in CalculateTaxInner.jsx — PARTIALLY RESOLVED (Aug 12 2026, Audit Synthesis Phase 2)
+
+Pass 4 (code consistency audit) scoped "Module F" as extracting a shared hook
+over common session-state reads across TaxReturn.jsx, CalculateTaxInner.jsx,
+and AIAnalysis.jsx, and deferred it as "not urgent, consider only when these
+files are next touched for other reasons." When actually scoped for
+implementation, the three files turned out not to share one duplicated
+pattern: TaxReturn.jsx has a single auto-save effect over its form fields;
+AIAnalysis.jsx never writes these keys, only re-reads them fresh in several
+functions (apparently intentional — it wants current data, not cached state);
+only CalculateTaxInner.jsx had real, narrow duplication — the literal body of
+`writeStep1Entities(next)` (a "light" working-copy sync) and, separately, the
+literal body of `writeStep1State(...) + writeDirtyFlag(true)` (a "full"
+canonical write) were each repeated verbatim across multiple entity-mutation
+call sites, including one (`updateEntity`) with a documented race-condition
+fix (BUG-A) requiring a synchronous inline write ahead of the debounced
+`persistStep1` effect.
+
+**What shipped:** two local helpers in CalculateTaxInner.jsx,
+`persistEntitiesWorkingCopy()` and `persistCanonicalStep1()` (search "Module
+F" in that file), each holding one of those two previously-repeated bodies.
+Every call site's existing decision about WHEN and WHETHER to persist is
+unchanged — this only removes literal code duplication, not any timing or
+conditional logic. One incidental improvement: `persistStep1` previously
+opened with a `writeStep1Entities(entities)` call that was already fully
+redundant with `writeStep1State`'s own entitiesRaw side effect three lines
+later (both wrote the same value to the same key) — folding it into the
+shared helper removed that redundant write rather than just deduplicating
+source text.
+
+**What did NOT ship, and why:** a single hook spanning all three files, as
+Pass 4's original scoping implied. TaxReturn.jsx's auto-save effect and
+AIAnalysis.jsx's live-read pattern are shaped differently from
+CalculateTaxInner.jsx's mutation-then-persist pattern and from each other;
+forcing them into one shared abstraction would mean re-deriving sequencing
+that several past bug fixes (BUG-A among them) depend on, on the app's three
+largest and most calculation-critical components, for a benefit smaller than
+the original scoping description implied. Owner decision (Aug 12 2026):
+proceed with the narrow fix only. TaxReturn.jsx and AIAnalysis.jsx were not
+touched by this pass.
 
 ## Defect SIM-1 — What-If Simulator — RESOLVED (Batch 7, Jul 2026)
 
@@ -412,15 +463,6 @@ scope. Recorded here (external audit's recommendation) rather than acted on: giv
 stated non-accountant audience, a future soft warning (not a hard block) when entered
 depreciation is large relative to gross receipts could reduce silent overstatement risk without
 attempting in-app §179/bonus computation. Owner decision; not scheduled.
-
-**Partial mitigation — Aug 12 2026 (Audit Synthesis, Phase 1):** the soft warning recommended
-above is now implemented. `CalculateTaxInner.jsx` (search "DEP-UNVALIDATED") shows a
-non-blocking advisory when entered depreciation exceeds `DEPRECIATION_WARNING_RATIO` (50%) of
-the entity's own gross receipts (floored at `DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR`,
-$100,000, so a low/zero-revenue entity still gets a sane comparison base — both in
-`constants.js`). This does not validate anything against the actual §179 dollar cap or change
-the calculation in any way; it is a plausibility nudge only. Full validation (placed-in-service
-dates, asset classes, election detail) remains out of scope, unchanged from above.
 
 ## LIMITATION SEHI-MIXED-SOURCE — combined SEHI entry not attributed when both S-corp and independent SE income are present
 
@@ -519,16 +561,6 @@ disclosure alerting a larger filer that the limitation isn't applied. Recommende
 add a disclosure (mirroring the §1031/§1374 hand-off pattern) when an entity's revenue suggests
 it may exceed the threshold; a full worksheet is a larger scope decision. Owner decision; not
 scheduled.
-
-**Partial mitigation — Aug 12 2026 (Audit Synthesis, Phase 1):** the disclosure recommended
-above is now implemented, mirroring the §1374 (EXT-2) hand-off pattern. `CalculateTaxInner.jsx`
-(search "SEC163J") shows an advisory banner when an entity's gross receipts exceed
-`SEC163J_DISCLOSURE_TRIGGER_RATIO` (75%) of `SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX`
-($29,000,000, both in `constants.js`) — i.e. before the entity actually crosses the line, since
-the real §448(c) test averages three years and this app only sees the current one. The dollar
-figure is explicitly approximate and used only to decide when to show the banner; it is not,
-and does not become, a modeled §163(j) computation. A full worksheet remains out of scope,
-unchanged from above.
 
 ## PASSIVE-PARTNER — passive / limited partnership interests are not modeled
 

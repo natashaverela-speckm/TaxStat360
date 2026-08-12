@@ -92,6 +92,17 @@ Never add a credential or API key to `src/lib/constants.js`.
   the same checks in the test suite, which gates both the GitHub Actions deploy
   and (since M4) the Amplify build. A violation fails the build — the greps
   above are for local convenience, not the enforcement mechanism.
+- (Module F narrow fix, Aug 2026) `CalculateTaxInner.jsx`'s entity-mutation
+  handlers persist through two component-local helpers,
+  `persistEntitiesWorkingCopy()` and `persistCanonicalStep1()`, rather than
+  calling `writeStep1Entities()` / `writeStep1State()` + `writeDirtyFlag()`
+  inline at each call site. These are a thin layer ON TOP of the
+  `sessionState.js` contract, not an exception to it — they still call only
+  the sanctioned readers/writers below. See KNOWN_LIMITATIONS.md "OBS-10" for
+  what this did and did not consolidate (TaxReturn.jsx and AIAnalysis.jsx were
+  deliberately left untouched — their read/write shapes differ enough that a
+  single shared hook across all three was judged higher-risk than it was
+  worth).
 
 ---
 
