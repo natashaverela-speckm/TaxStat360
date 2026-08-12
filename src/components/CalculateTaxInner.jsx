@@ -127,6 +127,15 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
   // k1Distributions reconstructs the same total in the normal case where
   // officerSal <= netProfit); minTarget above stays a local presentation value.
   const reasonableComp = calcReasonableCompCore(officerSal, totalComp - officerSal)
+  // O-2 FIX (Audit Synthesis, Aug 2026): calcReasonableCompCore clamps its own k1 leg
+  // at $0 (Math.max(0, k1Distributions)), so when officerSal exceeds totalComp (the
+  // officerExceedsNetProfit edge case, see the entity-card logic below) the ratio
+  // itself is already correctly clamped to 100% — but the raw `totalComp` used for
+  // *display* below was not, so the parenthetical breakdown could show a denominator
+  // smaller than officerSal while the labeled percentage read 100% (e.g. "100% ...
+  // (80,000 of 30,000)"). Mirror the engine's own clamp for display so the percentage
+  // and the breakdown never contradict each other.
+  const totalCompDisplay = Math.max(totalComp, officerSal)
 
   // F-02: Watson revenue-ratio advisory — independent of total-comp ratio
   const revRatio = (grossRevenue > 0 && officerSal > 0) ? officerSal / grossRevenue : null
@@ -167,7 +176,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Officer Compensation May Be Too Low</div>
         <div style={{ color: '#78350F', lineHeight: 1.6 }}>
           Consider raising your W-2 salary to about <strong>{fmt(minTarget)}</strong>. Right now it's
-          {' '}{reasonableComp.ratioPct}% of your total officer take ({fmt(officerSal)} of {fmt(totalComp)});
+          {' '}{reasonableComp.ratioPct}% of your total officer take ({fmt(officerSal)} of {fmt(totalCompDisplay)});
           a common target is 35–45%. Paying a reasonable salary first, then taking the rest as
           distributions, is what keeps the S-Corp structure defensible.
           {watsonWarning && (
