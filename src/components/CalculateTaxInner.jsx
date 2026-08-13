@@ -28,7 +28,7 @@ import { fmt, formatTimestamp, formatRelativeTime } from '../utils/money.js'
 // PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
 // the engine's own code path, so Step 1's number cannot disagree with Step 2.
 import { selectTaxSummary } from '../utils/calcSelector.js'
-import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, entityLossNeedsBasisEntry, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
@@ -343,6 +343,66 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
             disabled={!name.trim()}
             style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: name.trim() ? B : '#94A3B8', color: '#fff', fontSize: 13, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'default' }}>
             Save with Name →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── C-10-BASIS help modal (Phase 1, Audit Synthesis, Aug 2026) ──────────────
+// Opened from the footer's "How do I find my basis?" link when Continue/Save is
+// blocked because a loss entity has no basis entered. Purely informational — no
+// input here; the actual Stock/Debt Basis fields live on each entity card, and
+// this modal's "Take me to the field" button reuses the same scroll+expand
+// mechanism the footer link itself uses.
+function BasisHelpModal({ onScrollToEntity, onClose }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-label="How to find your basis" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 28px', maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <h3 style={{ fontSize: 18, fontWeight: 800, color: N, margin: '0 0 8px' }}>Why we're asking for basis, and how to find it</h3>
+        <p style={{ fontSize: 13, color: SL, margin: '0 0 14px', lineHeight: 1.6 }}>
+          A loss from an S-Corp or partnership can only be deducted up to your <strong>basis</strong> in
+          that entity — the amount you have "at risk." Below your basis, the loss is suspended and
+          carries forward instead of reducing this year's tax (IRC §1366(d) for S-Corps, §704(d) for
+          partnerships). We ask before computing so you never get a final number without knowing
+          whether your full loss was actually usable this year.
+        </p>
+        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, color: N, fontSize: 13, marginBottom: 6 }}>If this is an S-Corp (Form 7203)</div>
+          <p style={{ fontSize: 12.5, color: SL, margin: 0, lineHeight: 1.6 }}>
+            Start with your stock basis at the beginning of the year (last year's ending basis, or your
+            original investment if this is year one), then add this year's capital contributions and
+            your share of income items. If you personally loaned money directly to the corporation, that
+            loan amount is separate <em>debt basis</em>. Form 7203 (filed with your 1040 if you're an
+            S-Corp shareholder) walks through this exact calculation — if your accountant prepared last
+            year's return, your ending basis should be on last year's Form 7203, Part I, Line 15.
+          </p>
+        </div>
+        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: N, fontSize: 13, marginBottom: 6 }}>If this is a Partnership / LLC</div>
+          <p style={{ fontSize: 12.5, color: SL, margin: 0, lineHeight: 1.6 }}>
+            "Outside basis" is what you personally have invested, plus your share of the partnership's
+            liabilities, plus your share of income — minus distributions and losses already taken. Your
+            partnership's Schedule K-1 sometimes includes a basis worksheet or "Item L" capital account
+            reconciliation; if not, your K-1 preparer (or your own prior-year return) is the best source.
+          </p>
+        </div>
+        <p style={{ fontSize: 12.5, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
+          Not sure? Enter <strong>$0</strong> in the Stock/Debt Basis field — that's a valid, honest
+          answer if you genuinely don't know or haven't tracked it, and it unblocks Continue. It simply
+          means the engine will (correctly, conservatively) suspend this year's loss until you have a
+          real figure. You can always come back and update it once you or your accountant confirm the
+          actual basis.
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
+            Close
+          </button>
+          <button
+            onClick={() => { onScrollToEntity(); onClose() }}
+            style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: B, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Take me to the field →
           </button>
         </div>
       </div>
@@ -2069,8 +2129,32 @@ export default function CalculateTaxInner() {
       if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
   }
+
+  // C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): owner-directed policy change.
+  // Previously, an S-corp/partnership entity with a current-year loss and no basis
+  // entered flowed through silently with the engine's conservative $0-basis default
+  // (assumeZeroBasisOnLoss=true, taxCalc.js) — correct math, but a user could reach
+  // a final number without ever being told their loss was suspended pending basis.
+  // Per owner decision (Aug 13 2026): BLOCK Continue/Save for any such entity until
+  // basis is entered (mirrors the existing unnamed-entity gate below), with a help
+  // modal explaining how to determine it. The engine's $0-basis default remains as
+  // defense-in-depth for any record that reaches calcTaxReturn() without going
+  // through this gate (a loaded/imported record, or a future API caller) — this is
+  // a UI-layer gate, not a change to the tax math itself. The predicate itself
+  // (entityLossNeedsBasisEntry) lives in entityPredicates.js so it's unit-testable
+  // in isolation from this component's heavier render tree.
+  const scrollToFirstEntityNeedingBasis = () => {
+    const idx = entities.findIndex(entityLossNeedsBasisEntry)
+    if (idx === -1) return
+    setExpandedIdx(idx)
+    setTimeout(() => {
+      const cards = document.querySelectorAll('[data-entity-card]')
+      if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
   const [showCompare,      setShowCompare]      = useState(false)
   const [showNameModal,    setShowNameModal]    = useState(false)
+  const [showBasisHelpModal, setShowBasisHelpModal] = useState(false)  // C-10-BASIS (Phase 1, Audit Synthesis)
   const [showEntityPicker, setShowEntityPicker] = useState(false)
   const [confirmRemoveIdx, setConfirmRemoveIdx] = useState(null)
   const [saveStatus,       setSaveStatus]       = useState('idle')
@@ -2589,7 +2673,9 @@ export default function CalculateTaxInner() {
   // "added" and allowed through to Step 2. Financials may legitimately be $0 (zero-income /
   // loss years are valid), so only a non-empty name is required here.
   const unnamedEntityCount = (Array.isArray(entities) ? entities : []).filter(e => !((e?.name ?? '').trim())).length
-  const footerDisabled = entities.length === 0 || unnamedEntityCount > 0
+  // C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): see entityLossNeedsBasisEntry above.
+  const entitiesNeedingBasisCount = (Array.isArray(entities) ? entities : []).filter(entityLossNeedsBasisEntry).length
+  const footerDisabled = entities.length === 0 || unnamedEntityCount > 0 || entitiesNeedingBasisCount > 0
 
   // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
   // The guard checks entities.length > 0 before calling persistStep1() and
@@ -2606,6 +2692,15 @@ export default function CalculateTaxInner() {
       setTimeout(() => setFooterError(null), 4000)
       return
     }
+    if (entitiesNeedingBasisCount > 0) {
+      setFooterError(
+        entitiesNeedingBasisCount === 1
+          ? 'Enter your stock/debt basis (or confirm $0) before continuing — this entity shows a loss.'
+          : 'Enter stock/debt basis (or confirm $0) for all loss entities before continuing.'
+      )
+      setTimeout(() => setFooterError(null), 5000)
+      return
+    }
     persistStep1()
     navigate('/tax-return')
   }
@@ -2619,6 +2714,15 @@ export default function CalculateTaxInner() {
     if (unnamedEntityCount > 0) {
       setFooterError(unnamedEntityCount === 1 ? 'Name your entity before saving.' : 'Name all entities before saving.')
       setTimeout(() => setFooterError(null), 4000)
+      return
+    }
+    if (entitiesNeedingBasisCount > 0) {
+      setFooterError(
+        entitiesNeedingBasisCount === 1
+          ? 'Enter your stock/debt basis (or confirm $0) before saving — this entity shows a loss.'
+          : 'Enter stock/debt basis (or confirm $0) for all loss entities before saving.'
+      )
+      setTimeout(() => setFooterError(null), 5000)
       return
     }
     setShowNameModal(true)
@@ -2930,6 +3034,28 @@ export default function CalculateTaxInner() {
                           {`\u00b7 name ${unnamedEntityCount === 1 ? 'it' : 'all entities'} to continue`}
                         </button>
                       )}
+                      {entitiesNeedingBasisCount > 0 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={scrollToFirstEntityNeedingBasis}
+                            style={{ marginLeft: 8, fontWeight: 700, color: '#B45309', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                          >
+                            {`\u00b7 enter basis to continue (${entitiesNeedingBasisCount} loss ${entitiesNeedingBasisCount === 1 ? 'entity' : 'entities'})`}
+                          </button>
+                          {/* C-10-BASIS: the modal itself is opt-in via this link, not
+                              auto-shown on every render — the inline blocking message
+                              above is always visible; this is the "how do I find it"
+                              deep-dive the owner asked for. */}
+                          <button
+                            type="button"
+                            onClick={() => setShowBasisHelpModal(true)}
+                            style={{ marginLeft: 8, fontWeight: 700, color: B, background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                          >
+                            How do I find my basis?
+                          </button>
+                        </>
+                      )}
                       {flowing !== 0 && (
                         <span style={{ marginLeft: 8, fontWeight: 700, color: flowing >= 0 ? N : R }}>
                           · {fmt(flowing)} flowing to your return{flowing < 0 ? ' (before Step-2 basis limits)' : ''}
@@ -2998,6 +3124,12 @@ export default function CalculateTaxInner() {
           defaultName={readActiveRecordName() || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           onConfirm={name => { handleSaveRecord(name); setShowNameModal(false) }}
           onSkip={() => { handleSaveRecord(null); setShowNameModal(false) }}
+        />
+      )}
+      {showBasisHelpModal && (
+        <BasisHelpModal
+          onScrollToEntity={scrollToFirstEntityNeedingBasis}
+          onClose={() => setShowBasisHelpModal(false)}
         />
       )}
       {confirmRemoveIdx !== null && (
