@@ -79,6 +79,20 @@ Real fix requires collecting which spouse earned each W-2/SE income source — a
 change, not scheduled. Owner decision: ship a "spouse's own W-2" input split, or accept the
 conservative default indefinitely.
 
+**Investigated for a fix, not attempted — Aug 12 2026 (Audit Synthesis, Phase 2, "B5").**
+Revisited as a candidate for this engagement's remaining schema-change batch (alongside B3/B4).
+Unlike B4's SEHI split — which only needed to split ONE field (the premium amount) because the
+two cap bases (`_scorpOfficerW2ForSEHI`, `_seEarnedForSEHI`) already existed separately in the
+engine — a real SE-MFJ fix needs spouse-level attribution of the underlying INCOME itself: which
+spouse earned each dollar of `w2Income` and which spouse owns each entity in Step 1. That
+attribution does not exist anywhere in the app's data model today, for any field, not just this
+one — it is a foundational gap (the same one PAL-MFS above is built around working within), not a
+contained field split. A partial fix scoped to just this one calculation — e.g. asking "how much
+of your combined W-2 was YOUR OWN" without also attributing entity ownership per spouse — would
+be inconsistent with how the rest of the return treats a joint filing and could produce a
+result that looks precise but is not, on a live SE-tax number. Deferred with this note rather
+than attempted; same treatment as the B6 QBI wage-cap allocation gap above. No code changed.
+
 ## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart
 
 **RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax; the lived-apart $12,500 allowance is shown as $0).
@@ -425,6 +439,13 @@ formally accept this as an out-of-scope entity type (former C-corps within 5 yea
 and strengthen the disclosure trigger to fire on any S-corp entity regardless of accumulated E&P
 (e.g., a "was this ever a C-corp?" checkbox, independent of the E&P figure).
 
+**Trigger gap closed — Aug 12 2026 (Audit Synthesis, Phase 2).** Implemented the exact fix this
+entry recommended: a "was this ever a C corporation (or did it acquire one)?" checkbox
+(`entity.wasFormerCCorp`) alongside the E&P/AAA fields, independent of the E&P dollar figure. The
+disclosure now fires on `accumulatedEP > 0 OR wasFormerCCorp === true`. This closes the disclosure
+gap for a fully-distributed former C-corp; it remains a disclosure only — BIG tax computation
+itself (items 1-4 above) is still not modeled and is unchanged in scope.
+
 ## LIMITATION 121-HOME-SALE — §121 principal residence exclusion not modeled
 
 **Added Aug 2026 (external accuracy audit, Finding 6).** Exposure direction: N/A — feature not
@@ -519,6 +540,55 @@ into `qbiBasis` (this was already true for `rentalQbiContribution`, `effectiveQB
 non-aggregated household with an unambiguous-SEHI S-corp plus another QBI-eligible entity, the
 SEHI haircut could be misallocated between entities even though the aggregate total deduction
 stays correct. Untested by the current suite; candidate for a future pass.
+
+**RESOLVED for split-entry filers — Aug 12 2026 (Audit Synthesis, Phase 2, "B4").** The schema
+and UI change flagged above as "not scheduled" (last paragraph of the original Aug 2026 entry)
+is now built: `selfEmpHealthInsScorp` and `selfEmpHealthInsOther` are two new optional fields
+(`src/utils/fieldManifest.js`), surfaced in `TaxReturn.jsx` as an inline split prompt that
+appears only when the return has both an S-corp with officer wages and independent SE-earned
+income present (`sehiMixedSourceUI`). When a filer fills these in, `sehiSplitEngaged` is true in
+`src/lib/taxCalc.js` and every downstream formula uses the EXACT entered split instead of the
+heuristic: each leg is capped independently against its OWN §162(l)(2)(A) earned-income base
+(S-corp officer wages / other-business SE earnings) rather than pooled against the combined
+`sehiLimit` — which is actually the more correct reading of §162(l), since the statute caps each
+plan's premium by the earned income of the trade/business under which THAT plan is established,
+not a shared pool across two unrelated businesses. The full S-corp-paid amount grosses up W-2
+wages unconditionally (no ambiguity to fall back on), and the QBI reduction (`scorpSEHIQbiReduction`)
+nets the S-corp-attributable deduction out of `nonSEk1ForQBI` unconditionally too. `sehiMixedSourceFallback`
+returns `false` once split fields are engaged, so the warning banner no longer fires for that record.
+
+**Still open — mixed-source filers who leave the split fields blank.** The split is opt-in: a
+filer who has both businesses but does not fill in the two new fields (both stay 0) still hits
+`sehiSplitEngaged === false`, and every formula falls back to the ORIGINAL Aug 2026 heuristic
+described above, unchanged — same conservative pooled-cap approximation, same
+`sehiMixedSourceFallback` banner, same QBI non-adjustment. This is a deliberate backward-compatible
+default (a blank/unmigrated field must not silently change a previously-calculated liability);
+it does mean the underlying ambiguity is only closed for filers who actively use the new fields,
+not automatically for everyone with a mixed-source return. Test coverage:
+`taxCalc-sehi-split.test.js` — per-leg capping (S-corp leg capped at officer wages independent of
+the other leg's cap; other leg capped at SE earnings independent of the S-corp leg), full
+wage-grossup on the entered S-corp amount even when it exceeds officer wages, QBI reduction using
+the split S-corp leg, and a "split fields left blank falls back exactly to pre-B4 behavior" pin
+test; prove-it-fails verified (reverted the `sehiSplitEngaged` branch, confirmed the split-specific
+tests fail while the legacy fallback tests still pass, restored).
+
+**Scoped for a fix, not attempted — Aug 12 2026 (Audit Synthesis, Phase 2).** Investigated as a
+candidate for this engagement's remaining QBI item. The gap is deeper than the paragraph above
+implies: correctly weighting the wage cap by each entity's fully-adjusted QBI contribution would
+require a PER-ENTITY breakdown of `rentalQbiContribution`, `effectiveQBILossCO`, the SEHI
+reduction, and `guaranteedPaymentsTotal` — but `rentalQbiContribution` specifically is computed as
+a single portfolio-level pool (`combinedRentalNet` / `rentalNetAfterCF` in `taxCalc.js`'s §469
+block), not per-property, because the passive-activity-loss allowance and the §469(c)(7)/§1.469-9(g)
+REP-aggregation election both operate at the portfolio level by statute. There is no existing
+per-entity decomposition to thread through — a correct fix means designing new allocation
+methodology (e.g., a defensible pro-rata attribution of the portfolio-level PAL result back to
+individual rentals) from scratch, not rewiring existing values. That is real design work
+warranting its own dedicated pass with new SPEC tests and independent review, not a rider on
+another engagement. Re-confirming the practical impact while deferring: this affects only the
+displayed PER-ENTITY split of the QBI deduction in a specific multi-entity, non-aggregated
+household; the AGGREGATE deduction total is unaffected either way (see the code's own
+`Σ allocated == scaledQbiComponent` invariant). No user's estimated tax liability changes because
+of this gap. Owner decision: schedule as its own future engagement, or accept indefinitely.
 
 ## LIMITATION 1245-ORDINARY-RECAPTURE — no dedicated field for §1245 ordinary depreciation recapture
 
