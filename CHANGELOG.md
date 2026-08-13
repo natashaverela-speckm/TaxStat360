@@ -12,6 +12,49 @@ record of work that predates this changelog.
 
 ---
 
+## Phase 4 housekeeping (Audit Synthesis) — August 12, 2026
+
+Roadmap-scoped cleanup items, no user-facing behavior change.
+
+### Changed
+- **`package.json` / `package-lock.json`** — Vite upgraded 6.4.3 → 7.3.6;
+  `@vitejs/plugin-react` upgraded to 5.2.0 (the 6.x line requires Vite 8 — installing
+  `@latest` silently jumps to a Vite-8-only build; pinned to the Vite-7-compatible line
+  instead). Verified in an isolated sandbox with a REAL `npm install` (not the symlinked
+  `node_modules` workaround used for iterative testing elsewhere in this engagement):
+  `npm run build` succeeds (852.58 kB main bundle, same warning profile as before),
+  `npm run dev` boots clean with no console warnings, and the full test suite passes
+  847/847 (64/64 files) — notably including `windowOpenNoopener.test.js`, which fails
+  under the symlinked-`node_modules` sandbox workaround (a known, previously-diagnosed
+  sandbox artifact, not a real bug) but passes clean under a real install, on both Vite
+  6 and Vite 7. Amplify's `preBuild` phase already runs `nvm install 22` (`amplify.yml`),
+  which satisfies Vite 7's Node 20.19+/22.12+ requirement with no build-pipeline change
+  needed. `engines.node` tightened from `>=20` to `>=20.19` to match.
+- **`src/lib/taxCalc.js`** — removed the dangling `hasMultiEntityTypes` computation
+  flagged in the Module E cleanup (Aug 2026) as "worth a future tidy-up": `_calcQBI`'s
+  `opts` destructure stopped reading this binding when the §1.199A-4 aggregation gate
+  switched to entity count, but the top-level computation and pass-through survived as
+  dead code (confirmed via `grep` — no other reference anywhere in the file, and ESLint
+  reports zero unused-binding warnings after removal). No behavior change; 845/845 tests
+  still pass.
+
+### Investigated, no code change
+- **WEB3FORMS key rotation** — already resolved by an earlier pass (see KNOWN_LIMITATIONS.md
+  `[historical] OBS-5`): the web3forms access key no longer ships in the client bundle, and
+  web3forms itself has been retired from the live submission path. What remains is pure
+  account/infra hygiene requiring owner action outside this codebase: rotate or deactivate
+  the key at web3forms.com, and delete the now-inert `WEB3FORMS_ACCESS_KEY` / `VITE_WEB3FORMS_KEY`
+  environment variables from the EC2 service and Amplify console respectively (see
+  `CLEANUP_RUNBOOK.md`).
+- **`VITE_GMAPS_KEY`** — confirmed fully dead: zero remaining `import.meta.env.VITE_GMAPS_KEY`
+  reads and zero `google.maps`/`maps.googleapis` references anywhere in `src/`. The
+  address-autocomplete feature that used it lived on a component deleted in an earlier
+  audit flow revision (`Onboarding.jsx` comment, line ~97). Nothing to remove in code —
+  the only remaining artifact is the unused `VITE_GMAPS_KEY` value in the Amplify console
+  env vars, an owner action (AWS console access required).
+
+---
+
 ## Cosmetic wording sweep (Round 5) — August 11, 2026
 
 Round 4's post-deploy regression review (fresh clone + full verification, no code regressions
