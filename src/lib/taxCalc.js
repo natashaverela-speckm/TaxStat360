@@ -827,7 +827,7 @@ function calcTaxReturn(input) {
     electQbiAggregation = false,   // F6: Reg. §1.199A-4 aggregation election (opt-in)
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss,
     // F10/P6-1: prior-year §1212(b) capital-loss carryforwards, character retained.
     // BALANCES, not flows — deliberately excluded from YTD_SCALE_ENGINE_FIELDS (fieldManifest.js) like all
@@ -1462,15 +1462,40 @@ function calcTaxReturn(input) {
   // NOTE: the §469(i) MAGI pre-estimates above still subtract the raw entry; the
   // cap cannot be computed before seTax exists. Direction of that residual is
   // conservative (lower allowance) and only bites when the entry exceeds the cap.
-  const sehiEntered          = ytdScale(selfEmpHealthIns)
   const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
     if (!e || !isSCorpEntity(e.type)) return s
     return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
   }, 0)
   const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
   const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
-  const selfEmpHealthDed     = Math.min(sehiEntered, sehiLimit)
-  const sehiClamped          = sehiEntered > selfEmpHealthDed
+  // B4 FIX (Aug 2026, schema batch): the split fields below let a taxpayer with BOTH an
+  // S-corp and independent SE income (sole prop / active partnership) tell TaxStat360
+  // exactly how much of their premium each business paid, instead of relying on the
+  // single combined `selfEmpHealthIns` figure the heuristic below has to guess about.
+  // `sehiSplitEngaged` is the signal that the split UI was used for THIS record; when
+  // false, every value below is computed identically to the pre-B4 code (byte-for-byte
+  // same formulas), so existing/legacy records are completely unaffected.
+  const sehiScorpEntered = ytdScale(selfEmpHealthInsScorp)
+  const sehiOtherEntered = ytdScale(selfEmpHealthInsOther)
+  const sehiSplitEngaged = sehiScorpEntered > 0 || sehiOtherEntered > 0
+  const sehiEntered          = sehiSplitEngaged
+    ? sehiScorpEntered + sehiOtherEntered
+    : ytdScale(selfEmpHealthIns)
+  // Per-leg caps: §162(l)(2)(A) limits EACH business's premium to THAT business's own
+  // earned income — an S-corp-paid premium is capped by the S-corp's own officer wages,
+  // and an independently-paid premium is capped by the OTHER business's own SE earnings.
+  // These are two separate statutory caps, not a shared pool — splitting the entry lets
+  // the engine apply them independently instead of pooling both legs against the combined
+  // `sehiLimit` (which the single-field heuristic below still does, since it cannot tell
+  // the legs apart).
+  const _sehiScorpLegDed = sehiSplitEngaged ? Math.min(sehiScorpEntered, _scorpOfficerW2ForSEHI) : 0
+  const _sehiOtherLegDed = sehiSplitEngaged ? Math.min(sehiOtherEntered, _seEarnedForSEHI) : 0
+  const selfEmpHealthDed     = sehiSplitEngaged
+    ? _sehiScorpLegDed + _sehiOtherLegDed
+    : Math.min(sehiEntered, sehiLimit)
+  const sehiClamped          = sehiSplitEngaged
+    ? (sehiScorpEntered > _sehiScorpLegDed || sehiOtherEntered > _sehiOtherLegDed)
+    : sehiEntered > selfEmpHealthDed
   // EXT-1 FIX (Aug 2026, external accuracy audit — Finding 1): §1372 / Rev. Rul. 91-26
   // require a >2% S-corp shareholder's health premium to be INCLUDED in Box 1 W-2 wages
   // before the offsetting Schedule 1, Line 17 deduction is taken. Previously
@@ -1489,25 +1514,32 @@ function calcTaxReturn(input) {
   // silently dropped that excess from AGI entirely (re-audit case: $80,000 officer wages,
   // $120,000 premium — AGI understated by $40,000; confirmed live in production).
   //
-  // This engine collects SEHI as a single combined figure (`selfEmpHealthIns`) rather than
-  // separate S-corp vs. sole-prop/partner fields, so it cannot always tell which dollars are
-  // S-corp-sourced when a taxpayer has BOTH an S-corp and independent SE-earned income
-  // (`_seEarnedForSEHI > 0`) in the same return. The full-premium gross-up below is applied
-  // only when the S-corp leg is the ENTIRE `sehiLimit` base (no sole-prop/partner earned
-  // income present) — i.e. no ambiguity about sourcing. When both legs are present, the
-  // engine cannot safely attribute the combined entry and falls back to the prior (partial,
-  // capped) behavior; see KNOWN_LIMITATIONS.md → SEHI-MIXED-SOURCE. FICA wages are untouched
-  // either way — S-corp SEHI is exempt from FICA/Medicare tax per Notice 2008-1, so
-  // `totalW2ForFICA` / `additionalMedicare` below deliberately keep reading the raw `w2`.
-  const sehiScorpWageGrossUp = (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0)
-    ? sehiEntered
-    : Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI)
+  // B4 (Aug 2026): when the split fields are engaged, the S-corp-paid amount is known
+  // exactly (`sehiScorpEntered`), so the full-premium gross-up applies unconditionally —
+  // no ambiguity to fall back on. When NOT engaged, this falls back to the original
+  // single-field heuristic below (unchanged): the full-premium gross-up applies only when
+  // the S-corp leg is the ENTIRE `sehiLimit` base (no independent SE-earned income
+  // present) — i.e. no ambiguity about sourcing. When both legs are present and the split
+  // was not used, the engine cannot safely attribute the combined entry and falls back to
+  // the prior (partial, capped) behavior; see KNOWN_LIMITATIONS.md → SEHI-MIXED-SOURCE.
+  // FICA wages are untouched either way — S-corp SEHI is exempt from FICA/Medicare tax per
+  // Notice 2008-1, so `totalW2ForFICA` / `additionalMedicare` below deliberately keep
+  // reading the raw `w2`.
+  const sehiScorpWageGrossUp = sehiSplitEngaged
+    ? sehiScorpEntered
+    : ((_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0)
+        ? sehiEntered
+        : Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI))
   // EXT-1 FOLLOW-UP (independent review, Aug 2026): surface WHEN the mixed-source fallback
   // above was actually used, so the UI can warn even in cases where `sehiClamped` is false
   // (i.e. the combined earned-income cap was generous enough that the deduction itself
   // wasn't limited, but the wage-grossup attribution between S-corp and sole-prop/partner
   // legs is still only approximate). See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE.
-  const sehiMixedSourceFallback = _scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0
+  // B4 (Aug 2026): false whenever the split fields are engaged — the attribution is exact,
+  // not a fallback, so the mixed-source warning banner no longer needs to fire.
+  const sehiMixedSourceFallback = sehiSplitEngaged
+    ? false
+    : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
   const hsaDed               = ytdScale(hsaDeduction)
   const studentLoanDed       = Math.min(ytdScale(studentLoanInt), 2500)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
@@ -1647,8 +1679,16 @@ function calcTaxReturn(input) {
   // documented under the same KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE entry. Deliberately
   // does NOT touch `nonSEk1` itself (used elsewhere for `scheduleEK1Income` display, which is
   // not itself reduced by the SEHI deduction) -- only this QBI-specific derived value.
-  const sehiUnambiguousForQBI = _scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0 && selfEmpHealthDed > 0
-  const scorpSEHIQbiReduction = sehiUnambiguousForQBI ? selfEmpHealthDed : 0
+  // B4 (Aug 2026): when the split fields are engaged, the S-corp-attributable deduction
+  // (`_sehiScorpLegDed`) is known exactly, so it is netted out of QBI unconditionally --
+  // no ambiguity gate needed. When not engaged, falls back to the original single-source
+  // condition below (unchanged).
+  const sehiUnambiguousForQBI = sehiSplitEngaged
+    ? _sehiScorpLegDed > 0
+    : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0 && selfEmpHealthDed > 0)
+  const scorpSEHIQbiReduction = sehiUnambiguousForQBI
+    ? (sehiSplitEngaged ? _sehiScorpLegDed : selfEmpHealthDed)
+    : 0
   const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
   const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
@@ -1936,6 +1976,8 @@ function calcTaxReturn(input) {
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     // AUDIT FIX result fields (Jul 2026):
     sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp, sehiMixedSourceFallback,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
+    // B4 (Aug 2026): split-leg detail, for the UI when the split fields were used.
+    sehiSplitEngaged, sehiScorpLegDed: _sehiScorpLegDed, sehiOtherLegDed: _sehiOtherLegDed,
     k1CharitableTotal,                                      // F-13 route to Schedule A
     distributionCapGainST, distributionCapGainLT,           // F-10 §1368 gain character
     niitIncludesSCorpStockGain: distributionCapGain > 0,    // F-15 §1411(c)(4) flag
