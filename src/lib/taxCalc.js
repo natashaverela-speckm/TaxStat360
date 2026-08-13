@@ -1797,9 +1797,14 @@ function calcTaxReturn(input) {
   const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
   const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
   const prefIncome = _netLTForPref + _qualDivEff + f4797PrefGain  // F10/P6-1: netted LT  // F-9 hotfix: include §1368(c)(2) E&P dividends
-  const hasMultiEntityTypes = entities.length > 1
-    && entities.some(e => e && SE_SUBJECT_TYPES.includes(e.type))
-    && entities.some(e => e && !SE_SUBJECT_TYPES.includes(e.type))
+  // Phase 4 housekeeping (Aug 2026): hasMultiEntityTypes REMOVED — Module E (Aug 2026)
+  // already deleted the destructured binding from `_calcQBI`'s `opts` (see the
+  // "Module E removed" comment on `electQbiAggregation` above), so computing this value
+  // here and passing it into the {..., hasMultiEntityTypes, ...} opts object below was a
+  // genuinely dead computation with no reader anywhere (JS silently drops unread object
+  // keys). CHANGELOG.md flagged this exact leftover as "worth a future tidy-up" when
+  // Module E shipped; this is that tidy-up. No behavior change — confirmed no other
+  // reference to `hasMultiEntityTypes` exists in this file.
   // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): entityQbiData drives the per-business
   // §199A(b)(2) wage/UBIA allocation inside _calcQBI (Reg. §1.199A-4: each business's wage
   // limit is applied separately unless aggregation is elected). It was passed the FULL
@@ -1838,7 +1843,7 @@ function calcTaxReturn(input) {
       })
     : qbiEligibleEntities
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status, taxYear, entityQbiData: qbiEligibleEntitiesForCalc, hasMultiEntityTypes,
+    status, taxYear, entityQbiData: qbiEligibleEntitiesForCalc,
     activeQbi: activeQbiForFloor, electQbiAggregation,
   })
   const qbi                      = _qbiResult.deduction
