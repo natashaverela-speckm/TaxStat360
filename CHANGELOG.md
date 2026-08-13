@@ -12,6 +12,109 @@ record of work that predates this changelog.
 
 ---
 
+## Phase 1 documentation + process sync (Audit Synthesis) — August 13, 2026
+
+Reconciliation pass: two disclosure items and a documentation item shipped to `master`
+without the CHANGELOG entry this repo's own convention requires, and this repo had no
+branch/PR workflow despite `.github/workflows/deploy.yml` already gating tests+build on
+every push. This entry backfills the missing history and closes the process gap.
+
+### Added (documentation backfill — code already live, not new in this pass)
+- **`KNOWN_LIMITATIONS.md`** — addenda to `163J-NOT-MODELED` and `DEP-UNVALIDATED`
+  confirming the disclosure UI described in each entry is now live in
+  `CalculateTaxInner.jsx` (`SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX` /
+  `SEC163J_DISCLOSURE_TRIGGER_RATIO` and `DEPRECIATION_WARNING_RATIO` /
+  `DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR`, both in `constants.js`). Also records an
+  independent re-verification of the §163(j)/§448(c) gross-receipts threshold against
+  Rev. Proc. 2025-32 §4.30 ($30M/$31M/$32M for 2024/2025/2026) — the existing $29M
+  constant is a deliberately conservative round-number floor that fires the warning
+  earlier than the true threshold would require, not later; no change made since the
+  under-approximation cannot cause a filer who should see the warning to miss it.
+- **`src/components/CalculateTaxInner.dep163j-warnings.test.jsx`** (new) — the §163(j)
+  and depreciation soft-warning disclosures had no test coverage before this pass. 6
+  tests: each warning renders above its trigger threshold and stays absent below it,
+  independently for both disclosures, plus a floor-value case for the depreciation
+  warning's minimum-receipts comparison base.
+
+### Added (new in this pass)
+- **`.github/PULL_REQUEST_TEMPLATE.md`** — checklist mirrors the verification bar
+  `deploy.yml` already enforces (tests, lint, build) plus the two checks CI cannot run
+  for you: a KNOWN_LIMITATIONS.md/CHANGELOG.md entry for any LIMITATION change, and
+  confirmation that a tax-figure change carries a SPEC/CHAR test with prove-it-fails
+  verification. Directly targets the failure mode behind three separate incidents this
+  year (Pass 1's wrong-path deploy + orphaned duplicates; Pass 3's missing-constants.js
+  broken build; Pass 5's stray CHANGELOG.textClipping file) — all three were "Add files
+  via upload" commits straight to `master` with no review step in between.
+- **`package.json`** — added a `prepare` script that copies
+  `scripts/pre-push-master-block.sh` into `.git/hooks/pre-push` on `npm install`
+  (already present as a manual-install script; was never wired up to run
+  automatically). Wrapped in a try/catch so it's a silent no-op in CI or any checkout
+  without a `.git` directory — it only matters for a real local clone, which is what
+  a branch/PR workflow requires in the first place.
+
+### Not in this repo (tracked, action required elsewhere)
+- **Branch protection** ("Require a pull request before merging" on `master`) is a
+  GitHub repository setting, not a file — cannot be set from a commit. Needs to be
+  turned on in Settings → Branches for the pre-push hook and PR template above to
+  actually gate anything, rather than just being available to whoever remembers to
+  use them.
+- **`WEB3FORMS_ACCESS_KEY` / `VITE_WEB3FORMS_KEY` / `VITE_GMAPS_KEY`** — confirmed dead
+  in code (see the Phase 4 housekeeping entry below); removing the values themselves
+  from the Amplify console env vars is an owner action outside this repo.
+
+### Verified, not changed
+- Full suite: 857/857 passing + 6 new (863/863). `npx eslint .`: 0 errors. `vite build`:
+  succeeds. No existing test's assertions or fixtures were touched.
+
+---
+
+## Phase 1 — C-10-BASIS: block Continue/Save until basis is entered (Audit Synthesis) — August 13, 2026
+
+Owner decision on the `C-10-BASIS` entry in `KNOWN_LIMITATIONS.md`: declined to ratify
+the existing silent $0-basis-suspends-the-loss default as permanent. Requested instead
+that Step 1 block the user from continuing until basis is entered (or explicitly
+confirmed at $0), with a pop-up explaining how to determine it.
+
+### Added
+- **`src/utils/entityPredicates.js`** — `isBasisLimitableEntityType(type)` (extracted
+  from an inline regex previously duplicated in `taxCalc.js`) and
+  `entityLossNeedsBasisEntry(entity)`: true when an entity is S-Corp/partnership, shows
+  a current-year loss via `getEntityK1Share()` (the engine's own resolver), and has no
+  stock basis / capital contribution / basis-restoring income item entered. Pure,
+  exported, unit-testable independent of the component tree.
+- **`src/components/CalculateTaxInner.jsx`** — Step 1's Continue-to-Step-2 and Save
+  actions are now blocked (mirrors the existing unnamed-entity gate) while any entity
+  satisfies `entityLossNeedsBasisEntry`, with a footer link ("enter basis to continue")
+  that expands and scrolls to the first such entity. A second link ("How do I find my
+  basis?") opens the new `BasisHelpModal` — a read-only explainer covering Form 7203
+  stock/debt basis for S-Corps and outside basis (§704(d)) for partnerships, and stating
+  plainly that entering $0 is a valid, honest answer if the user doesn't know their
+  basis (which itself satisfies the gate — it's a real basis entry, not a bypass).
+- **`src/utils/entityPredicates.test.js`** — 13 new tests for `entityLossNeedsBasisEntry`
+  and `isBasisLimitableEntityType`: entity-type gating, loss-sign boundary (exactly $0
+  is not a loss), all three basis-entry paths (stock basis incl. explicit $0, capital
+  contribution, basis-restoring income), and the null/undefined-entity case. Prove-it-
+  fails verified: temporarily changed the loss-sign check from `< 0` to `<= 0`, confirmed
+  the "$0 K-1 is not a loss" test failed, restored, confirmed green again.
+
+### Changed
+- **`src/lib/taxCalc.js`** — `isLimitable` (inside the basis-limitation entity map) now
+  calls the shared `isBasisLimitableEntityType()` instead of its own inline copy of the
+  same regex. No behavior change (identical pattern); removes one of the two duplicate
+  copies this predicate had before this pass.
+
+### Not changed
+- `assumeZeroBasisOnLoss=true` in `calcTaxReturn()` — the engine's own conservative
+  default is UNCHANGED and remains as defense-in-depth for any record that reaches the
+  engine without passing through the new UI gate (e.g. a loaded/imported record predating
+  this change). This pass is a UI policy change, not a tax-calculation change.
+
+### Verified
+- Full suite: 876/876 (prior) + 13 new = 889/889 passing. `npx eslint .`: 0 errors, 21
+  warnings (unchanged baseline). `vite build`: succeeds.
+
+---
+
 ## Phase 4 — 4797-NII and CTC-ACTC (Audit Synthesis) — August 12/13, 2026
 
 Two owner-approved roadmap items ("Both", per Phase 4 scoping): a refundable Additional

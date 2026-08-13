@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "prepare": "node -e \"try{const fs=require('fs');if(fs.existsSync('.git')){fs.mkdirSync('.git/hooks',{recursive:true});fs.copyFileSync('scripts/pre-push-master-block.sh','.git/hooks/pre-push');fs.chmodSync('.git/hooks/pre-push',0o755);console.log('[prepare] pre-push master-block hook installed');}}catch(e){}\"",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
