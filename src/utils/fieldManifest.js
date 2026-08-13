@@ -94,6 +94,17 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'socialSecurity',     kind: 'float',  def: 0 },
   { key: 'iraDistributions',   kind: 'float',  def: 0 },
   { key: 'selfEmpHealthIns',   kind: 'float',  def: 0 },
+  // B4 (SEHI split, Aug 2026): S-corp-leg and other-business-leg SEHI premium.
+  // The combined `selfEmpHealthIns` field above is kept for backward compatibility
+  // with existing saved records and remains the field used whenever a taxpayer has
+  // only ONE SEHI-eligible business (the common case — see SEHI-MIXED-SOURCE in
+  // KNOWN_LIMITATIONS.md). These two new fields are engaged only when a taxpayer has
+  // BOTH an S-corp and independent SE-earned income in the same return; taxCalc.js
+  // treats (selfEmpHealthInsScorp > 0 || selfEmpHealthInsOther > 0) as the signal that
+  // the split UI was used, and falls back to the legacy combined-field heuristic
+  // otherwise (byte-for-byte unchanged behavior for every non-split record).
+  { key: 'selfEmpHealthInsScorp',  kind: 'float',  def: 0 },
+  { key: 'selfEmpHealthInsOther',  kind: 'float',  def: 0 },
   { key: 'hsaDeduction',       kind: 'float',  def: 0 },
   { key: 'studentLoanInt',     kind: 'float',  def: 0 },
   { key: 'selfEmpRetirement',  kind: 'float',  def: 0 },
@@ -207,7 +218,7 @@ export const YTD_SCALE_ENGINE_FIELDS = [
   'w2', 'k1Total', 'rentalNet',
   'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
   'f4797Inc', 'taxableSS', 'iraIncome',
-  'selfEmpHealthIns', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
+  'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
   'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',   // A4-2
 ]
 // AUDIT A4-1 FIX (Jul 2026): `distributions` is a FLOW — YTD distributions must

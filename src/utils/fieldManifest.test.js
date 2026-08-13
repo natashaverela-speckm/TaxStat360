@@ -139,11 +139,14 @@ describe('manifest — §1212(b) carryforwards end-to-end (the first manifest-na
 
 describe('manifest — engine YTD lists (single-sourced, membership pinned)', () => {
   it('CHAR: flow list matches the A4-1/A4-2 verified set exactly', () => {
+    // B4 (Aug 2026): selfEmpHealthInsScorp/Other added — same flow treatment as the
+    // combined selfEmpHealthIns field they split (both are premium AMOUNTS, ratable
+    // over the YTD-projection window like every other flow in this list).
     expect(YTD_SCALE_ENGINE_FIELDS).toEqual([
       'w2', 'k1Total', 'rentalNet',
       'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
       'f4797Inc', 'taxableSS', 'iraIncome',
-      'selfEmpHealthIns', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
+      'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
       'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',
     ])
     expect(YTD_SCALE_ENTITY_FIELDS).toEqual(['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions'])
