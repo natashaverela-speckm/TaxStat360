@@ -460,6 +460,17 @@ export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reducti
 // year's table is somehow missing the field, so it can never silently drift.
 export const CTC_CREDIT_PER_CHILD_FALLBACK = 2000
 
+// ─── ADDITIONAL CHILD TAX CREDIT (REFUNDABLE) — IRC §24(h)(5) ────────────────
+// Phase 4 (Aug 2026) — LIMITATION CTC-ACTC. Up to `TAX_TABLES[year].ctc.actcMaxPerChild`
+// of an otherwise-unusable (nonrefundable-capped) CTC is refundable — IRC §24(h)(5)(B),
+// limited to 15% of earned income (§32(c)(2) definition) over the floor below.
+export const ACTC_RATE = 0.15                // §24(h)(5)(B)(ii)
+export const ACTC_EARNED_INCOME_FLOOR = 2500 // §24(h)(5)(B)(ii) — statutory, NOT inflation-adjusted
+// SAFETY FALLBACK ONLY — same pattern as CTC_CREDIT_PER_CHILD_FALLBACK above; the
+// authoritative per-year amount lives in TAX_TABLES[year].ctc.actcMaxPerChild. $1,700
+// confirmed unchanged across 2024-2026 (Rev. Proc. 2025-32 §4.05(2) for TY2026).
+export const ACTC_MAX_PER_CHILD_FALLBACK = 1700
+
 // ─── ALTERNATIVE MINIMUM TAX (AMT) — IRC §55(b)(1) ───────────────────────────
 // Two-rate structure on Alternative Minimum Taxable Income (AMTI) after exemption.
 // The dollar inflection threshold between AMT_RATE_LOW and AMT_RATE_HIGH is

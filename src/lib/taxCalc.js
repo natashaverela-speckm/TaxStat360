@@ -80,6 +80,10 @@ import {
   // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone §121 calculator.
   SEC121_EXCLUSION_SINGLE,
   SEC121_EXCLUSION_MFJ,
+  // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: refundable Additional Child Tax Credit.
+  ACTC_RATE,
+  ACTC_EARNED_INCOME_FLOOR,
+  ACTC_MAX_PER_CHILD_FALLBACK,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
@@ -105,7 +109,7 @@ const TAX_TABLES = {
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
     ebl: { single:305000, mfj:610000, mfs:305000, hoh:305000, qss:610000 },
-    ctc: { perChild: 2000 },
+    ctc: { perChild: 2000, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     retirement: {
       sepIraMax:        69000,
       solo401kDeferral: 23000,
@@ -148,7 +152,7 @@ const TAX_TABLES = {
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
     ebl: { single:313000, mfj:626000, mfs:313000, hoh:313000, qss:626000 },
-    ctc: { perChild: 2200 },
+    ctc: { perChild: 2200, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     retirement: {
       sepIraMax:        70000,
       solo401kDeferral: 23500,
@@ -202,7 +206,7 @@ const TAX_TABLES = {
     // missed the OBBBA §70601 statutory RESET — 2026 thresholds went DOWN.
     // Official: Rev. Proc. 2025-32 §4.31.
     ebl: { single:256000, mfj:512000, mfs:256000, hoh:256000, qss:512000 },
-    ctc: { perChild: 2200 },
+    ctc: { perChild: 2200, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     // AUDIT F-8 FIX (Jul 2026): prior values were pre-official projections. All figures
     // below transcribed from IRS Notice 2025-67 (Nov 2025).
     retirement: {
@@ -937,6 +941,13 @@ function calcTaxReturn(input) {
     // false so existing engine unit tests (which model losses without basis as fully
     // allowed) are unaffected; the live app (TaxReturn, CalculateTaxInner) passes true.
     assumeZeroBasisOnLoss = false,
+    // Phase 4 (Aug 2026) — LIMITATION 4797-NII: IRC §1411(c)(1)(A)(iii) / Treas. Reg.
+    // §1.1411-4(d)(4)(i) exclude gain on disposition of property held in an active
+    // (materially-participated, non-trading) trade or business from net investment
+    // income. Opt-in attestation, conservative default false (matches this app's
+    // general posture — an unmodeled fact defaults to the NII-inclusive, higher-tax
+    // treatment rather than assuming the exclusion applies).
+    f4797MateriallyParticipated = false,
   } = input
   const entities = _rawEntities.map(e => {
     if (!e) return e
@@ -1911,7 +1922,13 @@ function calcTaxReturn(input) {
     Math.round(Math.max(0, w2 + seEarningsSubject - addlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
   )
   const rentalNII  = rentalForNII
-  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, capitalGainNetIncluded + f4797NetGain) + rentalNII)
+  // Phase 4 (Aug 2026) — LIMITATION 4797-NII fix: IRC §1411(c)(1)(A)(iii) excludes gain
+  // on disposition of property held in an active trade/business the taxpayer materially
+  // participates in from NII. f4797NetGain feeds `nii` unconditionally unless the caller
+  // attests material participation, in which case it's excluded here (only from the NII
+  // base — the same f4797NetGain still flows into eblBizCapGain/AGI/preferential-rate
+  // calcs elsewhere, unaffected).
+  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain)) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || CTC_CREDIT_PER_CHILD_FALLBACK
@@ -1942,10 +1959,29 @@ function calcTaxReturn(input) {
   // distinctly from the canonical effectiveRate() display util (which divides by AGI)
   // to avoid the name collision flagged in audit D-5.
   const taxToEarnedRatio = grossIncome > 0 ? (totalTax / Math.max(1, w2 + Math.max(0, adjustedK1Total))) : 0
+  // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: the refundable Additional Child Tax Credit,
+  // IRC §24(h)(5). `childCredit` above is capped nonrefundably at tax liability; the
+  // portion of `ctcRaw` that couldn't be used there (`unusedCTC`) is refundable up to
+  // `actcMaxPerChild` per dependent, limited to ACTC_RATE (15%) of earned income over
+  // ACTC_EARNED_INCOME_FLOOR ($2,500, §24(h)(5)(B)(ii)). "Earned income" here uses the
+  // §32(c)(2) definition (same concept EITC uses): W-2 wages plus net self-employment
+  // earnings net of the deductible half of SE tax — the same earned-income shape already
+  // established for the SEHI cap base (`_seEarnedForSEHI`) elsewhere in this function,
+  // reused here for consistency rather than inventing a second earned-income formula.
+  // Unlike a nonrefundable credit, ACTC is NOT subtracted from `totalTax` (that would
+  // misrepresent liability itself) — it's treated like a payment/withholding, reducing
+  // `balance` directly, consistent with how Form 1040 places it on Line 28 (Payments),
+  // not among the Tax/Credits lines.
+  const unusedCTC          = Math.max(0, ctcRaw - childCredit)
+  const earnedIncomeForACTC = Math.max(0, w2) + Math.max(0, seNetIncome - halfSE)
+  const actcMaxPerChild    = getTable(taxYear).ctc?.actcMaxPerChild ?? ACTC_MAX_PER_CHILD_FALLBACK
+  const actcPerChildCap    = numDependents * actcMaxPerChild
+  const actcEarnedIncomeLimit = Math.round(ACTC_RATE * Math.max(0, earnedIncomeForACTC - ACTC_EARNED_INCOME_FLOOR))
+  const actc = Math.max(0, Math.min(unusedCTC, actcPerChildCap, actcEarnedIncomeLimit))
   const withheld      = nf(w2Withheld)
   const estimated     = nf(estPaid)
   const totalPayments = withheld + estimated
-  const balance       = totalTax - totalPayments
+  const balance       = totalTax - totalPayments - actc
   const priorYearTaxAmt     = Math.max(0, nf(priorYearTax))
   const priorYearAGIAmt     = Math.max(0, nf(priorYearAGI))
   const agiBoundary         = status === 'mfs' ? 75000 : 150000
@@ -2061,6 +2097,8 @@ function calcTaxReturn(input) {
     },
     niitAmount,
     numDependents, childCredit, ctcRaw, ctcReduction, ctcPerChild,
+    // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: refundable Additional Child Tax Credit.
+    actc, unusedCTC, earnedIncomeForACTC, actcMaxPerChild,
     amt,
     totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
