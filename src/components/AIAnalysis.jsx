@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation, calcReasonableCompCore } from '../lib/taxCalc.js'
+import { getStdDed, getMarginalRate, calcFederalTax, SALT_CAPS, getTable, QBI_THRESHOLDS, getNIITThreshold, getAddlMedicareThreshold, calc179Limitation, calcReasonableCompCore, calcSection121Exclusion } from '../lib/taxCalc.js'
 import {
   resolveQbiDeduction,
   taxableIncomeBeforeQBI,
@@ -25,6 +25,9 @@ import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, wri
 import { summarizeRecord } from '../utils/calcSelector.js'
 // PHASE 2.5 (M8 disposition): simulator inputs join the live-comma standard.
 import MoneyInput from './MoneyInput.jsx'
+// Phase 3 (Aug 2026) — §121 calculator citation tooltips (same component TaxReturn.jsx/
+// CalculateTaxInner.jsx use for InfoTip-style "?" citations).
+import InfoTip from './InfoTip.jsx'
 import { signOut } from '../utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O, SUCCESS_TEXT } from '../lib/theme'
 import { fmt, pct, nf, effectiveRate } from '../utils/money.js'
@@ -1890,6 +1893,134 @@ export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (
 // (3) A reconciliation line is shown below the scenario panels:
 //     "Scenario total: $X  │  vs. your current estimate: $Y  │  Diff: $Z"
 //     so users can compare the simulator output against their Step 2 estimate.
+// Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE, owner decision: add a lightweight,
+// standalone §121 principal-residence-sale calculator. Deliberately informational
+// only — it does NOT read from or write to the saved record, and does NOT feed
+// calcTaxReturn (same "doesn't affect your saved record" posture as the What-If
+// Simulator). All statutory math lives in calcSection121Exclusion (taxCalc.js) per
+// ARCHITECTURE.md §1 — this component is presentation-only.
+function Section121Modal({ onClose, rec }) {
+  const filing = (rec?.f1040?.filingStatus) || 'single'
+  // Soft cross-reference only (per the research note in KNOWN_LIMITATIONS.md): a
+  // Step-1 Real Estate/Schedule E entity doesn't tell us this SPECIFIC residence
+  // was ever rented — it's just a reasonable hint to pre-check the disclosure
+  // checkbox so a user with rental entities elsewhere doesn't miss it.
+  const hasRealEstateEntity = Array.isArray(rec?.entities) && rec.entities.some(e => e && isRealEstateEntity(e.type))
+
+  const [salePrice, setSalePrice] = useState('')
+  const [sellingExpenses, setSellingExpenses] = useState('')
+  const [adjustedBasis, setAdjustedBasis] = useState('')
+  const [meetsTest, setMeetsTest] = useState(false)
+  const [everRented, setEverRented] = useState(hasRealEstateEntity)
+
+  const result = calcSection121Exclusion({
+    status: filing,
+    salePrice, sellingExpenses, adjustedBasis,
+    meetsOwnershipAndUseTest: meetsTest,
+    everRentedOrBusinessUse: everRented,
+  })
+  const isMFJ = String(filing).toLowerCase() === 'mfj'
+  const maxExclusionLabel = isMFJ ? `${fmt(result.maxExclusion)} (married filing jointly)` : fmt(result.maxExclusion)
+  const hasInputs = nf(salePrice) > 0 || nf(adjustedBasis) > 0
+
+  const row = (label, value, bold) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #E2E8F0' }}>
+      <span style={{ fontSize: 13, color: bold ? N : SL, fontWeight: bold ? 700 : 400 }}>{label}</span>
+      <span style={{ fontSize: 13, color: bold ? N : '#0D1B3E', fontWeight: bold ? 800 : 600 }}>{value}</span>
+    </div>
+  )
+  const labelStyle = { display: 'block', fontSize: 12, fontWeight: 600, color: SL, marginBottom: 4 }
+  const inputStyle = { width: '100%', padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: 7, fontSize: 14, fontWeight: 600, color: '#0D1B3E', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ padding: '28px 32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: SL, letterSpacing: '1px', marginBottom: 4 }}>HOME SALE CALCULATOR</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: N, margin: 0 }}>§121 Principal Residence Exclusion</h2>
+          </div>
+          <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', height: 'fit-content' }}>✕ Close</button>
+        </div>
+
+        <div style={{ fontSize: 13, color: SL, marginBottom: 18, lineHeight: 1.6 }}>
+          Estimates the taxable gain, if any, on the sale of your primary residence under IRC §121.
+          This is a standalone planning estimate — it does not read your saved TaxStat360 data and
+          the result is not added to your projected federal liability. Not tax advice; confirm with
+          your preparer before filing.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Sale Price <InfoTip text="The gross sale price of the home, before subtracting selling expenses." /></label>
+            <MoneyInput id="s121-sale-price" ariaLabel="Sale Price" value={salePrice} onChange={setSalePrice} placeholder="0" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Selling Expenses <InfoTip text="Real estate commissions, legal fees, and other costs of the sale. These reduce the amount realized (Treas. Reg. §1.1001-1)." /></label>
+            <MoneyInput id="s121-selling-exp" ariaLabel="Selling Expenses" value={sellingExpenses} onChange={setSellingExpenses} placeholder="0" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Adjusted Basis <InfoTip text="Original purchase price plus qualifying capital improvements, minus any depreciation ever claimed on the home (e.g., a home-office or rental period)." wide /></label>
+            <MoneyInput id="s121-basis" ariaLabel="Adjusted Basis" value={adjustedBasis} onChange={setAdjustedBasis} placeholder="0" style={inputStyle} />
+          </div>
+        </div>
+
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: '#0D1B3E', marginBottom: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={meetsTest} onChange={e => setMeetsTest(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>I owned <em>and</em> used this home as my primary residence for at least 2 of the last 5 years (IRC §121(a)).</span>
+        </label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: '#0D1B3E', marginBottom: 18, cursor: 'pointer' }}>
+          <input type="checkbox" checked={everRented} onChange={e => setEverRented(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>This home was ever rented out or used for business (e.g., a home office deduction or a rental period).</span>
+        </label>
+
+        {hasInputs && (
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+            {row('Amount Realized (Sale Price − Selling Expenses)', fmt(result.amountRealized))}
+            {row('Gain (Amount Realized − Adjusted Basis)', fmt(result.gain))}
+            {result.nondeductibleLoss && (
+              <div style={{ fontSize: 12, color: SL, paddingTop: 6, lineHeight: 1.5 }}>
+                A loss on the sale of a personal residence is not deductible (IRC §165(c)) —
+                §121 is an exclusion of gain and has no effect either way.
+              </div>
+            )}
+            {result.eligible === false && (
+              <div style={{ fontSize: 12, color: '#78350F', paddingTop: 6, lineHeight: 1.5 }}>
+                Without meeting the ownership-and-use test, none of this gain qualifies for the
+                §121 exclusion — the full amount may be taxable (subject to any other applicable
+                rules). Confirm with your preparer.
+              </div>
+            )}
+            {result.eligible && (
+              <>
+                {row(`Excludable Gain (up to ${maxExclusionLabel})`, fmt(result.excludedGain))}
+                {row('Taxable Gain', fmt(result.taxableGain), true)}
+              </>
+            )}
+          </div>
+        )}
+
+        {result.eligible && result.nonqualifiedUseFlag && (
+          <div role="alert" style={{ fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 14, lineHeight: 1.6 }}>
+            ⚠ You indicated this home was ever rented or used for business. IRC §121(b)(5) requires
+            allocating the gain between qualified and nonqualified use periods since Jan 1, 2009 —
+            the excludable amount above does not account for that allocation and may overstate what
+            you can actually exclude. This calculator does not compute that split; work through the
+            exact allocation with your preparer.
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: SL, opacity: 0.8, lineHeight: 1.6, marginTop: 4 }}>
+          IRC §121(a)-(b); Treas. Reg. §1.121-1 et seq. The $250,000 / $500,000 exclusion amounts
+          are fixed statutory dollar figures — not inflation-adjusted. A married couple filing
+          jointly qualifies for the $500,000 ceiling only when both spouses meet the ownership-and-
+          use test; this tool does not separately verify that for each spouse.
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function SimulatorModal({ onClose, rec }) {
   const b = rec?.biz || {}, f = rec?.f1040 || {}
   const taxYear = parseInt(b.year) || CURRENT_TAX_YEAR
@@ -2239,7 +2370,7 @@ function NarrativeModal({ onClose }) {
 // - score < 50: button disabled, warning shown
 // - score 50–79: button enabled, pre-generation checklist shown (✓ / ⚠ per field)
 // - score ≥ 80: button enabled, no warning
-function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
+function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing, onSection121 }) {
   // AUDIT FIX (Jul 2026): useState previously sat BELOW the early return — a
   // rules-of-hooks violation (conditional hook call; hook order changes between
   // renders with/without rec). Hooks must run unconditionally before any return.
@@ -2279,13 +2410,17 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing }) {
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
     { icon: '📑', title: 'CPA Briefing', desc: 'An auto-generated planning summary of your tax position — entity structure, estimated federal liability, QBI, reasonable-compensation and SE-tax notes, and quarterly estimates — organized as discussion points for your CPA. A planning summary, not a tax return; not for filing.', btn: 'Generate Briefing', color: N, action: onBriefing, available: isEnterprise(), requiredPlan: 'enterprise' },
     { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: isEnterprise(), requiredPlan: 'enterprise' },
+    // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone, informational-only
+    // §121 calculator. `available: true` (no plan gate) — it doesn't touch the
+    // saved record or the engine, so there's no cost/reason to lock it.
+    { icon: '🏡', title: 'Home Sale Calculator (§121)', desc: 'Estimate the taxable gain on selling your primary residence — how much qualifies for the §121 exclusion ($250K single / $500K MFJ) and how much, if any, is taxable. A standalone estimate; not added to your projected liability.', btn: 'Open Calculator', color: N, action: onSection121, available: true },
   ]
 
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: N, margin: '0 0 4px' }}>Reports & Tools</h3>
-        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Four tools built for your CPA relationship and IRS preparedness.</p>
+        <p style={{ fontSize: 13, color: SL, margin: 0 }}>Five tools built for your CPA relationship and IRS preparedness.</p>
       </div>
       {/* UX AUDIT PASS5-F11 (Jul 2026): Aria's floating launcher is position:fixed,
           bottom:80, right:24 (see Aria.jsx) and spans roughly the rightmost 150px of
@@ -2400,6 +2535,8 @@ export default function AIAnalysis() {
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [showSimulator, setShowSimulator] = useState(false)
+  // Phase 3 (Aug 2026) — §121 calculator modal toggle.
+  const [showSection121, setShowSection121] = useState(false)
   const [showNarrative, setShowNarrative] = useState(false)
   const [showBriefing, setShowBriefing] = useState(false)
   const [gateError, setGateError] = useState('')
@@ -2656,6 +2793,7 @@ export default function AIAnalysis() {
               onSimulator={() => setShowSimulator(true)}
               onNarrative={() => openEnterpriseTool(POSITION_DOCS_AUTHORIZE, () => setShowNarrative(true))}
               onBriefing={() => openEnterpriseTool(CPA_BRIEFING_AUTHORIZE, () => setShowBriefing(true))}
+              onSection121={() => setShowSection121(true)}
             />
           )}
         </div>
@@ -2665,6 +2803,7 @@ export default function AIAnalysis() {
       {showSimulator && <SimulatorModal rec={rec} onClose={() => setShowSimulator(false)} />}
       {showNarrative && <NarrativeModal           onClose={() => setShowNarrative(false)} />}
       {showBriefing  && <BriefingModal  rec={rec} onClose={() => setShowBriefing(false)} />}
+      {showSection121 && <Section121Modal rec={rec} onClose={() => setShowSection121(false)} />}
     </div>
   )
 }
