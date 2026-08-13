@@ -33,6 +33,49 @@ export const isSCorpEntity = (t) => /s.?corp/i.test(t || '')
 /** C Corporation — 21% flat entity tax; no personal K-1 pass-through */
 export const isCCorpEntity = (t) => /c.?corp/i.test(t || '')
 
+/**
+ * S-Corp or partnership — the two entity types subject to the §1366(d) /
+ * §704(d) basis-loss-limitation mechanism (Form 7203 stock/debt basis for an
+ * S-corp shareholder; outside basis for a partner). Real estate and sole
+ * prop/SMLLC entities are NOT limitable this way — a sole prop's loss is
+ * simply the owner's, and a rental's loss is governed by §469 instead.
+ *
+ * C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): this is the single-source
+ * replacement for the `/s.?corp|partner/i` regex that previously existed as
+ * two separate inline copies (taxCalc.js's entitiesLimited map, and this
+ * predicate's own new call site in CalculateTaxInner.jsx's basis-block gate).
+ * See KNOWN_LIMITATIONS.md "C-10-BASIS" for the underlying tax mechanism.
+ */
+export const isBasisLimitableEntityType = (t) => /s.?corp|partner/i.test(t || '')
+
+/**
+ * True when an entity is subject to §1366(d)/§704(d) basis limitation, shows
+ * a current-year LOSS (via getEntityK1Share — the same resolver the engine
+ * itself uses), and has no basis entered yet (no stock basis, no current-year
+ * capital contribution, no basis-restoring income item). Mirrors the
+ * hasBasisInput presence-check that exists independently inside taxCalc.js's
+ * entitiesLimited map and inside CalculateTaxInner.jsx's EntityCard/scBasis —
+ * this is a lightweight, UI-facing gate (a boolean), not a re-derivation of
+ * any dollar figure, so it does not touch either of those calculation paths.
+ *
+ * C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): owner decision (Aug 13
+ * 2026) — Continue/Save on Step 1 is blocked while this returns true for any
+ * entity, with a help modal explaining how to determine basis. See
+ * KNOWN_LIMITATIONS.md "C-10-BASIS" for the full history and the engine-level
+ * conservative default this UI gate sits in front of.
+ */
+export function entityLossNeedsBasisEntry(e) {
+  if (!e || !isBasisLimitableEntityType(e.type)) return false
+  if (!(getEntityK1Share(e) < 0)) return false
+  const stockEntered = (
+    (e.stockBasis !== undefined && e.stockBasis !== null && e.stockBasis !== '' && e.stockBasis !== 0) ||
+    String(e.stockBasis) === '0'
+  )
+  const contrib = Math.max(0, parseFloat(e.capitalContributions) || 0)
+  const basisIncome = Math.max(0, parseFloat(e.basisIncomeItems) || 0)
+  return !(stockEntered || contrib > 0 || basisIncome > 0)
+}
+
 /** Any pass-through entity — income flows to the owner's personal return */
 export const isPassthroughEntity = (t) =>
   /partnership|llc|s.?corp|sole/i.test(t || '')

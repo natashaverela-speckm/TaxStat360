@@ -169,3 +169,69 @@ describe('officerSalaryScenarioApplies — What-If "+$20K Salary" chip visibilit
     expect(officerSalaryScenarioApplies('')).toBe(false)
   })
 })
+
+// ─── C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026) — entityLossNeedsBasisEntry ──
+import { entityLossNeedsBasisEntry, isBasisLimitableEntityType } from './entityPredicates.js'
+
+describe('isBasisLimitableEntityType', () => {
+  it('is true for S-Corp and Partnership variants', () => {
+    expect(isBasisLimitableEntityType('S Corporation')).toBe(true)
+    expect(isBasisLimitableEntityType('Partnership / LLC')).toBe(true)
+    expect(isBasisLimitableEntityType('Partnership / MMLLC — Active')).toBe(true)
+    expect(isBasisLimitableEntityType('Partnership / MMLLC — Passive')).toBe(true)
+  })
+
+  it('is false for Sole Prop, Real Estate, and C-Corp', () => {
+    expect(isBasisLimitableEntityType('Sole Proprietor / SMLLC')).toBe(false)
+    expect(isBasisLimitableEntityType('Real Estate (Schedule E)')).toBe(false)
+    expect(isBasisLimitableEntityType('C Corporation')).toBe(false)
+  })
+})
+
+describe('entityLossNeedsBasisEntry — C-10-BASIS Continue/Save gate', () => {
+  it('is false for a non-limitable entity type even with a loss and no basis', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'Sole Proprietor / SMLLC', k1: -15000 })).toBe(false)
+  })
+
+  it('is false for a limitable entity with no loss (positive K-1)', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: 15000 })).toBe(false)
+  })
+
+  it('is false for a limitable entity with exactly $0 K-1 (not a loss)', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: 0 })).toBe(false)
+  })
+
+  it('is true for an S-Corp loss with no basis fields entered at all', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000 })).toBe(true)
+  })
+
+  it('is true for a Partnership loss with no basis fields entered at all', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'Partnership / LLC', k1: -8000 })).toBe(true)
+  })
+
+  it('is false once stock basis is entered, even at $0 (an explicit answer)', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, stockBasis: 0 })).toBe(false)
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, stockBasis: '0' })).toBe(false)
+  })
+
+  it('is false once a positive stock basis is entered', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, stockBasis: '50000' })).toBe(false)
+  })
+
+  it('is false once a current-year capital contribution alone is entered (Finding 3 basis-increase path)', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, capitalContributions: '10000' })).toBe(false)
+  })
+
+  it('is false once a basis-restoring income item alone is entered', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, basisIncomeItems: '5000' })).toBe(false)
+  })
+
+  it('is true again if basis was entered but then cleared back to blank (not $0)', () => {
+    expect(entityLossNeedsBasisEntry({ type: 'S Corporation', k1: -20000, stockBasis: '' })).toBe(true)
+  })
+
+  it('handles a null/undefined entity safely', () => {
+    expect(entityLossNeedsBasisEntry(null)).toBe(false)
+    expect(entityLossNeedsBasisEntry(undefined)).toBe(false)
+  })
+})
