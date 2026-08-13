@@ -20,9 +20,9 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType } from '../utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
-import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS } from '../lib/constants.js'
+import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
@@ -239,6 +239,11 @@ export default function TaxReturn() {
   const [medicalAmt,        setMedicalAmt]       = useState(savedCtx.medicalAmt           || '')
   const [saltAmount,        setSaltAmount]       = useState(savedCtx.saltAmount           || '')
   const [selfEmpHealthIns,  setSelfEmpHealthIns] = useState(savedCtx.selfEmpHealthIns    || '')
+  // B4 (Aug 2026, SEHI split): only used/shown when the return has BOTH an S-corp and
+  // independent SE income (see sehiMixedSourceUI below) — see SEHI-MIXED-SOURCE in
+  // KNOWN_LIMITATIONS.md. The combined field above remains authoritative otherwise.
+  const [selfEmpHealthInsScorp, setSelfEmpHealthInsScorp] = useState(savedCtx.selfEmpHealthInsScorp || '')
+  const [selfEmpHealthInsOther, setSelfEmpHealthInsOther] = useState(savedCtx.selfEmpHealthInsOther || '')
   const [hsaDeduction,      setHsaDeduction]     = useState(savedCtx.hsaDeduction        || '')
   const [studentLoanInt,    setStudentLoanInt]   = useState(savedCtx.studentLoanInt      || '')
   const [selfEmpRetirement, setSelfEmpRetirement]= useState(savedCtx.selfEmpRetirement   || '')
@@ -254,6 +259,18 @@ export default function TaxReturn() {
   const [analyzeStatus, setAnalyzeStatus] = useState('idle')
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
+
+  // B4 (Aug 2026, SEHI split): show the S-corp/other-business split fields only when the
+  // return actually has BOTH an S-corp with officer wages AND independent SE-earned income
+  // (sole prop / active partnership) — the same ambiguity condition taxCalc.js gates on
+  // (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0). A slightly over-inclusive UI trigger
+  // here is safe (it just shows two optional fields with no engine effect until filled in);
+  // a slightly under-inclusive one would hide the fix from someone who needs it, so this
+  // checks entity PRESENCE (officer wages > 0 / an SE-subject entity exists) rather than
+  // reproducing taxCalc.js's exact post-adjustment earned-income figure.
+  const sehiMixedSourceUI = Array.isArray(entities)
+    && entities.some(e => e && isSCorpEntity(e.type) && ((nf(e.officerW2) || nf(e.pnl?.officerSalary)) > 0))
+    && entities.some(e => e && SE_SUBJECT_TYPES.includes(normalizeEntityType(e.type)))
 
   // FINDING 2 FIX: the panel's "Projected full-year income (K-1 + W-2)" previously
   // only annualized the K-1 + the user-entered W-2 field, omitting the officer salary
@@ -322,7 +339,12 @@ export default function TaxReturn() {
       capLossCarryforwardST: nf(capLossCarryST), capLossCarryforwardLT: nf(capLossCarryLT),  // §1212(b)
       divInc: nf(dividends) + ccorp.dividends, qualDiv: nf(qualDividends) + ccorp.dividends, f4797Inc: form4797Total,
       taxableSS: 0, iraIncome: 0,
-      selfEmpHealthIns: nf(selfEmpHealthIns), hsaDeduction: nf(hsaDeduction),
+      selfEmpHealthIns: nf(selfEmpHealthIns),
+      // B4 (Aug 2026): only meaningful when sehiMixedSourceUI's fields were actually
+      // filled in — taxCalc.js ignores both and falls back to the combined field above
+      // whenever they're both 0 (see sehiSplitEngaged in taxCalc.js).
+      selfEmpHealthInsScorp: nf(selfEmpHealthInsScorp), selfEmpHealthInsOther: nf(selfEmpHealthInsOther),
+      hsaDeduction: nf(hsaDeduction),
       studentLoanInt: nf(studentLoanInt), selfEmpRetirement: nf(selfEmpRetirement),
       nolCarryforward: nf(nolCarryforward), priorYearQBILoss: nf(priorYearQBILoss),
       saltAmount: nf(saltAmount), hasISO, isoBargainElement: nf(isoBargainElement),
@@ -358,7 +380,7 @@ export default function TaxReturn() {
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
@@ -425,7 +447,7 @@ export default function TaxReturn() {
       isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
       rentalAggregationElection,   // F6 (§1.469-9(g) election)
-      selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+      selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
       nolCarryforward, priorYearLosses: priorYearQBILoss,
       useItemized, itemizedAmt: itemizedAmtForEngine, saltAmount,
       mortgageInt, charitableContr, medicalAmt,
@@ -438,7 +460,7 @@ export default function TaxReturn() {
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
@@ -493,7 +515,7 @@ export default function TaxReturn() {
         isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
         rentalAggregationElection,   // F6 (§1.469-9(g) election)
-        selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+        selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
         useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
         priorYearTax, priorYearAGI,
@@ -522,7 +544,7 @@ export default function TaxReturn() {
     unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
-    selfEmpHealthIns, hsaDeduction, studentLoanInt, selfEmpRetirement,
+    selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
   ])
@@ -1367,6 +1389,35 @@ export default function TaxReturn() {
                   <InfoTip text={"Premiums for health, dental, and long-term care insurance for yourself and family. 100% deductible on Form 1040 Schedule 1 Line 17 if the plan is established in the business name.\n\nS-Corp shareholders (>2% ownership): Enter the premium amount paid. TaxStat360 automatically includes it in your S-Corp W-2 wages for income-tax purposes and applies the offsetting deduction (IRC §1372 / Rev. Rul. 91-26) — it does NOT add it to FICA/Medicare wages (Notice 2008-1). Capped at your W-2 wages from that S-Corp (IRC §162(l)(2)(A)), not your net self-employment income.\n\nSole proprietors and partners: Enter premiums paid directly. Capped at your net self-employment earned income from that business (IRC §162(l)(2)(A)).\n\n⚠ Double-count check: if your Step 1 business net income already reflects this premium as a corporate expense (common with a manually-entered P&L or a QuickBooks/Xero/Wave/FreshBooks sync), do NOT also enter it here — that would deduct it twice. Enter it here only if Step 1's net income does NOT already include it."} />
                 </label>
                 <Step2MoneyInput id="tr-health-ins" value={selfEmpHealthIns} onChange={setSelfEmpHealthIns} placeholder="0" nonNegative />
+                {/* B4 (Aug 2026): you have both an S-Corp and independent SE income in this
+                    return, so TaxStat360 can't tell from the combined figure above which
+                    business paid the premium. Fill in the split below to get an exact §1372
+                    wage inclusion and §162(l) cap for each business instead of the approximate
+                    fallback. Leave both at $0 to keep using the combined figure above (fallback
+                    behavior, unchanged). See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE. */}
+                {sehiMixedSourceUI && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6 }}>
+                    <div style={{ fontSize: 12, color: '#475569', marginBottom: 6, lineHeight: 1.5 }}>
+                      You have both an S-Corp and separate self-employment income in this return. If
+                      you know exactly which business paid the premium above, split it out here for a
+                      precise wage inclusion (optional — leave blank to use the combined figure above).
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 200px' }}>
+                        <label htmlFor="tr-health-ins-scorp" style={{ ...inputLbl, fontSize: 12 }}>
+                          ...paid by the S-Corp
+                        </label>
+                        <Step2MoneyInput id="tr-health-ins-scorp" value={selfEmpHealthInsScorp} onChange={setSelfEmpHealthInsScorp} placeholder="0" nonNegative />
+                      </div>
+                      <div style={{ flex: '1 1 200px' }}>
+                        <label htmlFor="tr-health-ins-other" style={{ ...inputLbl, fontSize: 12 }}>
+                          ...paid by the other business
+                        </label>
+                        <Step2MoneyInput id="tr-health-ins-other" value={selfEmpHealthInsOther} onChange={setSelfEmpHealthInsOther} placeholder="0" nonNegative />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* AUDIT F-7: §162(l)(5)(A) earned-income cap — engine now clamps; surface it.
                     EXT-3/EXT-1 (Aug 2026): banner text updated to describe the automatic wage
                     grossup (taxCalc.js "EXT-1") rather than an unenforced prerequisite. */}
@@ -1381,14 +1432,16 @@ export default function TaxReturn() {
                 )}
                 {/* EXT-1 FOLLOW-UP (independent review, Aug 2026): this can fire even when
                     sehiClamped is false — the deduction cap and the wage-attribution question
-                    are separate. See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE. */}
+                    are separate. See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE.
+                    B4 (Aug 2026): only fires when the split fields above were left blank —
+                    once filled in, sehiMixedSourceFallback is false (exact attribution known). */}
                 {result?.sehiMixedSourceFallback && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     ⚠ You have both an S-Corp and separate self-employment income (sole prop / partnership) in this
                     return. TaxStat360 can't tell how much of your {fmt(result.sehiEntered)} health insurance entry was
                     paid by the S-Corp vs. the other business, so the W-2 wage inclusion (IRC §1372) may be
-                    approximate. If all (or none) of this premium was S-Corp-paid, review the wage inclusion with your
-                    preparer.
+                    approximate. Use the split fields above to enter the exact amount paid by each business, or
+                    review the wage inclusion with your preparer.
                   </div>
                 )}
                 {result?.k1CharitableTotal > 0 && (

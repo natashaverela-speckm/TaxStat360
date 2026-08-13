@@ -1643,6 +1643,22 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         (§1368(b) treatment), next are taxable DIVIDENDS to the extent of E&P
                         (§1368(c)(2)), and any remainder returns to basis recovery. Leave both at
                         zero for a never-C S-corp (§1368(b) applies unchanged). */}
+                    {/* EXT-2 FOLLOW-UP (Phase 2, Audit Synthesis, Aug 2026): KNOWN_LIMITATIONS.md
+                        "BIG-1374" flagged a gap in the disclosure trigger below — it only fired
+                        when accumulated E&P > 0, so a former C-corp that fully distributed its E&P
+                        before electing S status (a real, if less common, fact pattern) got no §1374
+                        warning at all despite carrying the same 5-year built-in-gains exposure. This
+                        checkbox is a second, independent signal alongside accumulatedEP > 0 — either
+                        one now fires the disclosure below. It does not feed any calculation; §1374
+                        BIG tax itself remains unmodeled (disclosure only, per KNOWN_LIMITATIONS.md). */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!entity.wasFormerCCorp}
+                        onChange={ev => onUpdate(idx, { ...entity, wasFormerCCorp: ev.target.checked })}
+                      />
+                      This S-Corp was previously a C corporation (or acquired one), even if no C-corp E&amp;P remains today
+                    </label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 0.3 }}>
@@ -1675,23 +1691,28 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         or an AAA bypass, fits the plan — elections are not modeled here.
                       </div>
                     )}
-                    {/* EXT-2 (external accuracy audit, Aug 2026 — Finding 2): accumulated C-corp
-                        E&P is this card's only existing signal that the S-corp has C-corp history,
-                        which is also the fact pattern that can trigger §1374 built-in-gains tax on
-                        a disposition within the 5-year recognition period. Disclosure only — BIG
+                    {/* EXT-2 (external accuracy audit, Aug 2026 — Finding 2), widened by the
+                        EXT-2 FOLLOW-UP above (Phase 2, Aug 2026): originally, accumulated C-corp E&P
+                        was this card's ONLY signal that the S-corp has C-corp history — the same
+                        fact pattern that can trigger §1374 built-in-gains tax on a disposition within
+                        the 5-year recognition period. That missed a former C-corp with no E&P left at
+                        conversion (fully distributed before electing S status), which still carries
+                        the same exposure. The trigger now also fires on the explicit "was this ever a
+                        C corporation" checkbox, independent of the E&P figure. Disclosure only — BIG
                         tax itself (net unrealized built-in gain at conversion, asset-level
                         recognition tracking, corporate-level C_CORP_TAX_RATE tax) is NOT computed
                         anywhere in this engine; see KNOWN_LIMITATIONS.md "BIG-1374". Rate below is
                         interpolated from constants.js, per ARCHITECTURE.md §1 — never hard-code a
                         tax rate in JSX, including tooltip/disclosure text. */}
-                    {Math.max(0, parseFloat(String(entity.accumulatedEP || '').replace(/,/g, '')) || 0) > 0 && (
+                    {(Math.max(0, parseFloat(String(entity.accumulatedEP || '').replace(/,/g, '')) || 0) > 0 || !!entity.wasFormerCCorp) && (
                       <div role="alert" style={{ marginTop: 6, padding: '6px 9px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
-                        ⚠ §1374 Built-In Gains Tax — Not Calculated: entering accumulated E&amp;P means
-                        this S-Corp has C-corp history. If the S-election was made within the last 5
-                        years and this entity disposes of an asset with built-in gain from the C-corp
-                        period, a corporate-level {(C_CORP_TAX_RATE * 100).toFixed(0)}% BIG tax may apply (IRC §1374) — this
-                        tool does not compute it. Confirm the S-election date and any built-in-gain
-                        exposure with your CPA before relying on this estimate for a disposition year.
+                        ⚠ §1374 Built-In Gains Tax — Not Calculated: this S-Corp has C-corp history
+                        (either accumulated E&amp;P is entered above, or the checkbox above is checked).
+                        If the S-election was made within the last 5 years and this entity disposes of
+                        an asset with built-in gain from the C-corp period, a corporate-level {(C_CORP_TAX_RATE * 100).toFixed(0)}%
+                        BIG tax may apply (IRC §1374) — this tool does not compute it. Confirm the
+                        S-election date and any built-in-gain exposure with your CPA before relying on
+                        this estimate for a disposition year.
                       </div>
                     )}
                   </div>
