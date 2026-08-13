@@ -178,6 +178,10 @@ export default function TaxReturn() {
   const [capLossCarryST, setCapLossCarryST] = useState(savedCtx.capLossCarryforwardST || '')
   const [capLossCarryLT, setCapLossCarryLT] = useState(savedCtx.capLossCarryforwardLT || '')
   const [form4797,      setForm4797]      = useState(savedCtx.form4797       || '')
+  // Phase 4 (Aug 2026) — LIMITATION 4797-NII: attestation that the Form 4797 gain came
+  // from an active trade/business the taxpayer materially participates in (IRC
+  // §1411(c)(1)(A)(iii)), excluding it from NII. Conservative default false.
+  const [f4797MateriallyParticipated, setF4797MateriallyParticipated] = useState(!!savedCtx.f4797MateriallyParticipated)
   // F5 (§1231(c) lookback): prior-5-year nonrecaptured net §1231 losses
   const [nonrecap1231,  setNonrecap1231]  = useState(savedCtx.nonrecap1231   || '')
 
@@ -362,6 +366,7 @@ export default function TaxReturn() {
       repAggregationOverride,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
+      f4797MateriallyParticipated,   // Phase 4 (§1411(c)(1)(A)(iii) NII exclusion)
       w2Withheld: nf(w2Withheld), estPaid: nf(estPaid), ytdFactor,
       charitableContr: nf(charitableContr),                       // N-9 / N-9b / N-8 wiring
       estQ1: nf(estQ1), estQ2: nf(estQ2), estQ3: nf(estQ3), estQ4: nf(estQ4),  // 2210-lite
@@ -379,7 +384,7 @@ export default function TaxReturn() {
     estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
@@ -442,7 +447,7 @@ export default function TaxReturn() {
     writePersonalContext({
       filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
-      qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
+      qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, f4797MateriallyParticipated, nonrecap1231,
       capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
       isREP, isActiveParticipant,
       priorPassiveLossCarryforward: priorPAL,
@@ -457,7 +462,7 @@ export default function TaxReturn() {
     })
   }, [
     filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
-    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
+    stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -541,7 +546,7 @@ export default function TaxReturn() {
     taxYear, entities, sessionK1, filingStatus, dependents,
     w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends,
-    unrecap1250, collectibles, form4797, nonrecap1231, capLossCarryST, capLossCarryLT,
+    unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
@@ -1325,6 +1330,19 @@ export default function TaxReturn() {
                   <InfoTip text={'Enter your NET §1231 result for the year (from Form 4797, or the net §1231 gain/loss line of your partnership or S-corp K-1).\n\nA net §1231 GAIN is treated as long-term capital gain — taxed at 0/15/20%, not ordinary rates. Enter it as a positive number.\n\nA net §1231 LOSS is ordinary and reduces your ordinary income. Enter it as a negative number.\n\nDo NOT enter ordinary depreciation recapture here. §1245 recapture is ordinary income, and the depreciation portion of a real-property gain goes in the "Unrecaptured §1250 Gain — portion of the long-term gain above" field below.'} wide />
                 </label>
                 <Step2MoneyInput id="tr-form4797" value={form4797} onChange={setForm4797} placeholder="0" />
+                {/* Phase 4 (Aug 2026): only meaningful for a GAIN — a §1231 loss doesn't
+                    create NII exposure either way, so hide the attestation for losses/zero. */}
+                {(parseFloat(String(form4797).replace(/,/g,'')) || 0) > 0 && (
+                  <label htmlFor="tr-f4797-matpart" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                    <input
+                      id="tr-f4797-matpart"
+                      type="checkbox"
+                      checked={f4797MateriallyParticipated}
+                      onChange={ev => setF4797MateriallyParticipated(ev.target.checked)}
+                    />
+                    This gain is from an active business/rental I materially participate in (excludes it from Net Investment Income Tax)
+                  </label>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nonrecap1231" style={inputLbl}>
@@ -1924,6 +1942,10 @@ export default function TaxReturn() {
                 { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
+                // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: refundable, so it's placed
+                // alongside payments (both reduce balance the same way), not with the
+                // nonrefundable Child Tax Credit above (which reduces Total Tax itself).
+                { label: 'Additional Child Tax Credit (Refundable)', value: result.actc,              sign: -1, hide: !(result.actc > 0), accent: '#059669', note: 'IRC §24(h)(5) — the portion of your Child Tax Credit that exceeded your tax liability, refunded up to $' + (result.actcMaxPerChild || 1700).toLocaleString() + '/child' },
                 { label: '—', value: 0, divider: true },
                 // AUDIT F11 FIX: sign: -1 on the refund branch made the renderer print
                 // "Estimated Refund −$X" (a negative refund) while the summary header showed
