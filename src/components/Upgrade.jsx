@@ -272,7 +272,15 @@ export default function Upgrade() {
           {/* Billing toggle */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginTop:20}}>
             <span style={{fontSize:14,color:billing==='monthly'?N:SL,fontWeight:billing==='monthly'?700:400}}>Monthly</span>
+            {/* AUDIT FIX (fresh-eyes re-audit, Aug 2026): plain onClick div with no
+                role/aria-checked/keyboard handling -- same gap as the pricing-page
+                toggle in Landing.jsx, independently reimplemented here. */}
             <div onClick={()=>setBilling(b=>b==='monthly'?'annual':'monthly')}
+              onKeyDown={e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); setBilling(b=>b==='monthly'?'annual':'monthly') } }}
+              role="switch"
+              aria-checked={billing==='annual'}
+              aria-label="Toggle annual billing"
+              tabIndex={0}
               style={{width:44,height:24,background:billing==='annual'?B:'#CBD5E1',borderRadius:12,cursor:'pointer',position:'relative',transition:'background 0.2s'}}>
               <div style={{width:18,height:18,background:'#fff',borderRadius:'50%',position:'absolute',top:3,left:billing==='annual'?23:3,transition:'left 0.2s'}}/>
             </div>

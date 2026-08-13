@@ -92,7 +92,17 @@ function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = fa
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 12, ...outerStyle }}>
-      <div onClick={() => setOpen(o => !o)} style={{ padding: '13px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: open ? (accent || '#EFF6FF') : '#fff' }}>
+      {/* AUDIT FIX (fresh-eyes re-audit, Aug 2026): the toggle was a plain onClick div
+          with no role/tabIndex/keyboard handling, so keyboard-only and screen-reader
+          users could not open or close any section. */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        style={{ padding: '13px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: open ? (accent || '#EFF6FF') : '#fff' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* F5 FIX (UX audit): plain-language title leads; form/code reference is
               demoted to a small subtitle so the section is scannable by non-experts. */}

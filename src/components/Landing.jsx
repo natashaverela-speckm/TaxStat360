@@ -354,7 +354,18 @@ export default function Landing() {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 28 }}>
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 500 : 700, color: isAnnual ? '#64748b' : '#0D1B3E' }}>Monthly</span>
-          <div onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')} style={{ width: 50, height: 26, background: isAnnual ? B : '#CBD5E1', borderRadius: 13, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+          {/* AUDIT FIX (fresh-eyes re-audit, Aug 2026): plain onClick div with no
+              role/aria-checked/keyboard handling -- keyboard-only users could not
+              toggle Monthly/Annual billing. */}
+          <div
+            onClick={() => setBilling(isAnnual ? 'monthly' : 'annual')}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBilling(isAnnual ? 'monthly' : 'annual') } }}
+            role="switch"
+            aria-checked={isAnnual}
+            aria-label="Toggle annual billing"
+            tabIndex={0}
+            style={{ width: 50, height: 26, background: isAnnual ? B : '#CBD5E1', borderRadius: 13, cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+          >
             <div style={{ position: 'absolute', top: 3, left: isAnnual ? 27 : 3, width: 20, height: 20, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
           </div>
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 700 : 500, color: isAnnual ? '#0D1B3E' : '#64748b' }}>Annual</span>

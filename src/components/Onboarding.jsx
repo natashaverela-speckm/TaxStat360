@@ -261,11 +261,11 @@ try{
 const subRes=await apiFetch('/stripe/subscribe',{method:'POST',credentials:'include',body:{email,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
 if(!subRes||!subRes.ok){
 const subData=subRes?await subRes.json().catch(()=>({})):{}
-console.error('Subscribe setup failed at signup:',subRes&&subRes.status,subData)
+console.error('Subscribe setup failed at signup')  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): dropped raw status/subData from the console log -- may echo request/response context; the same detail still goes to the owner-alert email below, server-side, not the browser console
 writeSubscriptionIncomplete('1')
 try{await fetch(API+'/alerts/form-relay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:'TaxStat360 ALERT: subscription setup failed at signup',email,plan,billing,status:String(subRes&&subRes.status),detail:JSON.stringify(subData)})})}catch(_){/* M5/M7: fire-and-forget owner-alert email — its failure must never block a paying customer's signup */}
 }else{ removeSubscriptionIncomplete() }
-}catch(e){ console.error('Subscribe call failed at signup:',e); writeSubscriptionIncomplete('1'); try{await fetch(API+'/alerts/form-relay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){/* M5/M7: same fire-and-forget alert — never block signup */} }
+}catch(e){ /* AUDIT FIX (fresh-eyes re-audit, Aug 2026): dropped raw error object from the console log, same reasoning as above */ console.error('Subscribe call failed at signup'); writeSubscriptionIncomplete('1'); try{await fetch(API+'/alerts/form-relay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:'TaxStat360 ALERT: subscription setup failed at signup (network)',email,plan,billing,detail:String((e&&e.message)||e)})})}catch(_){/* M5/M7: same fire-and-forget alert — never block signup */} }
 writeUserName(name)
 writePendingEmail(email)
 try {

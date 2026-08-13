@@ -18,7 +18,8 @@ import {
 } from '../utils/entityLimits.js'
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
-import { ENTITY_TYPES, INTEGRATIONS, API_BASE_URL, CURRENT_TAX_YEAR, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, DEFAULT_OFFICER_SALARY_FRACTION, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
+// AUDIT FIX (fresh-eyes re-audit, Aug 2026): removed unused ENTITY_TYPES, CURRENT_TAX_YEAR, DEFAULT_OFFICER_SALARY_FRACTION imports (none referenced elsewhere in this file)
+import { INTEGRATIONS, API_BASE_URL, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from '../utils/integrations.js'

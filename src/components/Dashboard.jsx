@@ -67,7 +67,7 @@ import {
   FINANCIAL_LABELS,
   federalTaxHeadlineLabel,
 } from '../lib/constants.js'
-import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, ORANGE as O } from '../lib/theme.js'
+import { NAVY as N, BLUE as B, SLATE as SL, RED as R } from '../lib/theme.js'  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): removed unused GREEN/ORANGE imports
 import { fmt, effectiveRate } from '../utils/money.js'  // Module E (audit F-3): unused `pct` import removed
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
