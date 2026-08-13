@@ -277,6 +277,18 @@ export const NIIT_THRESHOLD_SINGLE = 200000 // IRC §1411(b)(3) — single, HOH,
 export const NIIT_THRESHOLD_HOH = 200000    // IRC §1411(b)(3) — head of household (grouped with single)
 export const NIIT_THRESHOLD_QSS = 250000    // IRC §1411(b)(1) — qualifying surviving spouse (grouped with joint return)
 
+// ─── §121 PRINCIPAL RESIDENCE SALE EXCLUSION ─────────────────────────────────
+// Phase 3 (Aug 2026, Audit Synthesis) — LIMITATION 121-HOME-SALE, owner decision:
+// add a lightweight, standalone entry point (a Reports & Tools calculator, not
+// wired into the core engine). Flat statutory dollar caps — NOT inflation-adjusted
+// — so these belong here (permanent constants), not TAX_TABLES[year], per
+// ARCHITECTURE.md §2. IRC §121(b)(1)-(2): $250,000 for any filer other than MFJ;
+// $500,000 for a married couple filing jointly IF both spouses meet the
+// two-year-use test (a nuance the calculator's disclosure text covers — this
+// constant is the ceiling, not an unconditional MFJ figure).
+export const SEC121_EXCLUSION_SINGLE = 250000  // IRC §121(b)(1)
+export const SEC121_EXCLUSION_MFJ = 500000     // IRC §121(b)(2)
+
 // ─── SELF-EMPLOYMENT TAX DEDUCTION — IRC §164(f) ─────────────────────────────
 // Above-the-line deduction equal to 50% of self-employment tax paid.
 // Reduces AGI; applied on Schedule 1, Line 15 of Form 1040.

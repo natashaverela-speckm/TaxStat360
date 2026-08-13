@@ -77,6 +77,9 @@ import {
   CAP_LOSS_ORDINARY_LIMIT,
   CAP_LOSS_ORDINARY_LIMIT_MFS,
   CTC_CREDIT_PER_CHILD_FALLBACK,
+  // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone §121 calculator.
+  SEC121_EXCLUSION_SINGLE,
+  SEC121_EXCLUSION_MFJ,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
@@ -402,6 +405,52 @@ function calcReasonableCompCore(officerSalary, k1Distributions) {
     message: triggered
       ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${ratioPct}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
       : '',
+  }
+}
+
+// ── §121 principal residence sale exclusion (Phase 3, Aug 2026) ───────────────
+// LIMITATION 121-HOME-SALE, owner decision: a lightweight, STANDALONE calculator
+// (Reports & Tools) — informational only, not wired into calcTaxReturn's engine
+// inputs or the saved record. Computes gain, the statutory exclusion (IRC
+// §121(b)(1)-(2)), and any taxable excess. Deliberately does NOT compute the
+// §121(b)(5) "nonqualified use" allocation for a residence with rental/business
+// history — that requires exact date-range tracking of qualified vs. nonqualified
+// use periods, out of scope for a lightweight tool. When `everRentedOrBusinessUse`
+// is true, the caller (the modal) shows a disclosure directing the user to a
+// preparer instead of silently applying the full exclusion, since the true
+// excludable amount may be smaller than what this function returns.
+function calcSection121Exclusion({
+  status,
+  salePrice,
+  sellingExpenses = 0,
+  adjustedBasis,
+  meetsOwnershipAndUseTest = false,
+  everRentedOrBusinessUse = false,
+}) {
+  const amountRealized = Math.max(0, nf(salePrice) - Math.max(0, nf(sellingExpenses)))
+  const gain = amountRealized - nf(adjustedBasis)
+  // Only MFJ gets the $500,000 ceiling, and even then only when both spouses meet
+  // the 2-of-5-year ownership-and-use test (IRC §121(b)(2)(A)) — a fact the caller
+  // attests to via meetsOwnershipAndUseTest; this function doesn't second-guess it.
+  const maxExclusion = String(status).toLowerCase() === 'mfj'
+    ? SEC121_EXCLUSION_MFJ
+    : SEC121_EXCLUSION_SINGLE
+  if (gain <= 0) {
+    // A loss on the sale of a personal residence is nondeductible (IRC §165(c)) —
+    // §121 is an exclusion of GAIN and has nothing to apply here either way.
+    return { amountRealized, gain, maxExclusion, eligible: null, excludedGain: 0, taxableGain: 0, nondeductibleLoss: gain < 0 }
+  }
+  if (!meetsOwnershipAndUseTest) {
+    return { amountRealized, gain, maxExclusion, eligible: false, excludedGain: 0, taxableGain: gain, nondeductibleLoss: false }
+  }
+  const excludedGain = Math.min(gain, maxExclusion)
+  const taxableGain = gain - excludedGain
+  return {
+    amountRealized, gain, maxExclusion, eligible: true, excludedGain, taxableGain,
+    nondeductibleLoss: false,
+    // Surfaced so the modal can show the nonqualified-use disclosure prominently
+    // whenever there's an actual taxable/excluded outcome to caveat.
+    nonqualifiedUseFlag: !!everRentedOrBusinessUse,
   }
 }
 
@@ -2194,4 +2243,7 @@ export {
   // D-10 (dead-code audit): reasonable-comp numeric rule — consumed by the engine
   // alert above and Dashboard's scenario card.
   calcReasonableCompCore,
+  // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone §121 calculator
+  // (AIAnalysis.jsx Reports & Tools). Single source of truth per ARCHITECTURE.md §1.
+  calcSection121Exclusion,
 }
