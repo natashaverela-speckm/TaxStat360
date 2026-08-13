@@ -12,6 +12,47 @@ record of work that predates this changelog.
 
 ---
 
+## Phase 4 — 4797-NII and CTC-ACTC (Audit Synthesis) — August 12/13, 2026
+
+Two owner-approved roadmap items ("Both", per Phase 4 scoping): a refundable Additional
+Child Tax Credit and an NII exclusion for materially-participated Form 4797 gains. Resolves
+the `LIMITATION CTC-ACTC` and `LIMITATION 4797-NII` entries in `KNOWN_LIMITATIONS.md` (see
+there for full statutory detail and exposure history).
+
+### Added
+- **`src/lib/taxCalc.js` / `src/lib/constants.js`** — refundable Additional Child Tax Credit
+  (IRC §24(h)(5)). New `actc` output: `Math.min(unusedCTC, numDependents * actcMaxPerChild,
+  15% of earned income over $2,500)`, where `unusedCTC` is the portion of the nonrefundable
+  Child Tax Credit that exceeded tax liability, and earned income uses the §32(c)(2)
+  definition (W-2 wages + net SE earnings, net of deductible SE tax) already established
+  elsewhere in the engine for the SEHI cap base. Placed on `balance` like a payment (Form
+  1040 Line 28), not subtracted from `totalTax`. New constants `ACTC_RATE` (0.15),
+  `ACTC_EARNED_INCOME_FLOOR` ($2,500, statutory, not inflation-adjusted), and
+  `ACTC_MAX_PER_CHILD_FALLBACK` ($1,700); the authoritative per-year cap lives in
+  `TAX_TABLES[year].ctc.actcMaxPerChild` (confirmed $1,700 unchanged for TY2024-2026, Rev.
+  Proc. 2025-32 §4.05(2)).
+- **`src/lib/taxCalc.js`** — Form 4797 material-participation NII exclusion (IRC
+  §1411(c)(1)(A)(iii) / Treas. Reg. §1.1411-4(d)(4)(i)). New opt-in attestation field
+  `f4797MateriallyParticipated` (boolean, default `false`); when set, the Form 4797 gain is
+  excluded from the `nii` calculation only — AGI, gross income, the preferential-rate gain
+  figure, and the §461(l) excess-business-loss offset are unaffected.
+- **`src/utils/fieldManifest.js`** — `f4797MateriallyParticipated` added to the session
+  field manifest (boolean, default `false`).
+- **`src/components/TaxReturn.jsx`** — checkbox "This gain is from an active business/rental
+  I materially participate in (excludes it from Net Investment Income Tax)," shown only when
+  the Form 4797 field holds a positive value (a §1231 loss has no NII exposure either way).
+  New breakdown row "Additional Child Tax Credit (Refundable)," shown only when `actc > 0`,
+  placed alongside the withholding/payments rows (not the nonrefundable Child Tax Credit row
+  above it, which reduces Total Tax rather than balance). The existing "Estimated Refund" UI
+  branch already handled negative balances correctly — no new refund-scenario screen needed.
+- **`src/lib/taxCalc-actc.test.js`** (new, 7 tests) and **`src/lib/taxCalc-4797-nii.test.js`**
+  (new, 5 tests) — SPEC/CHAR coverage for both features, independently hand-derived from
+  statute rather than the engine's own output. Both suites prove-it-fails verified (each
+  differentiating assertion confirmed to fail when its corresponding engine logic is broken,
+  with unrelated tests unaffected) before delivery. Full regression suite: 857/857 passing.
+
+---
+
 ## Phase 4 housekeeping (Audit Synthesis) — August 12, 2026
 
 Roadmap-scoped cleanup items, no user-facing behavior change.

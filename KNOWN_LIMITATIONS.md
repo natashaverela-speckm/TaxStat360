@@ -135,40 +135,56 @@ business-attributable gains, not the Schedule D result.
 
 ## LIMITATION CTC-ACTC — refundable Additional Child Tax Credit not modeled
 
-**Added Aug 2026 (fresh-eyes re-audit).** Exposure direction: CAN OVERSTATE the balance due
-for lower/moderate-income filers with dependents.
+**Added Aug 2026 (fresh-eyes re-audit). RESOLVED Aug 12/13 2026 (Phase 4, Audit Synthesis).**
+Original exposure direction: CAN OVERSTATE the balance due for lower/moderate-income filers
+with dependents.
 
-`childCredit` (`taxCalc.js`, search "ctcRaw") is treated as wholly nonrefundable: capped at
-`fedTax + additionalMedicare + niitAmount`. IRC Section 24(d)/(h)(5) makes up to $1,700/child
-(TY2026, Rev. Proc. 2025-32 Section 4.05(2)) refundable as the Additional Child Tax Credit,
-limited to 15% of earned income over $2,500 -- so a filer whose regular tax is fully absorbed
-by the nonrefundable credit can still receive a refund check for the rest. Separately, the
-Section 26(a)(1) nonrefundable-credit ceiling is technically "regular tax + Section 55 AMT"
-(chapter 1 taxes), not NIIT (chapter 2A) or Additional Medicare Tax (chapter 21) -- the engine's
-ceiling formula substitutes the latter two for AMT, though this rarely changes the answer in
-practice since NIIT-eligible income levels are usually well above where CTC still applies.
+`childCredit` (`taxCalc.js`, search "ctcRaw") was treated as wholly nonrefundable, capped at
+`fedTax + additionalMedicare + niitAmount`. IRC Section 24(d)/(h)(5) makes up to
+`TAX_TABLES[year].ctc.actcMaxPerChild` ($1,700/child, TY2024-2026, Rev. Proc. 2025-32 Section
+4.05(2)) refundable as the Additional Child Tax Credit, limited to 15% of earned income over
+$2,500.
 
-Modeling ACTC requires an "earned income" concept the app does not currently define
-(distinct from AGI/QBI figures already computed). Owner decision: add ACTC, or document the
-nonrefundable-only figure in the UI as a planning floor (the true refund is >= what's shown).
+**Fix:** a new `actc` figure is computed as
+`Math.min(unusedCTC, numDependents * actcMaxPerChild, Math.round(0.15 * Math.max(0, earnedIncomeForACTC - 2500)))`,
+where `unusedCTC = Math.max(0, ctcRaw - childCredit)` is the portion of the nonrefundable
+credit that couldn't be used against tax liability, and `earnedIncomeForACTC` uses the
+Section 32(c)(2) definition already established elsewhere in the engine for the SEHI cap base
+(W-2 wages + net self-employment earnings, net of the deductible half of SE tax). Unlike
+`childCredit`, `actc` is NOT subtracted from `totalTax` -- it is treated like a payment and
+reduces `balance` directly, matching Form 1040's placement on Line 28 (Payments) rather than
+among the Tax/Credits lines. New constants `ACTC_RATE` (0.15) and `ACTC_EARNED_INCOME_FLOOR`
+($2,500, statutory and NOT inflation-adjusted) live in `constants.js`; the per-year cap lives
+in `TAX_TABLES[year].ctc.actcMaxPerChild`. Covered by `taxCalc-actc.test.js` (7 SPEC/CHAR
+tests, independently hand-derived from the statute, prove-it-fails verified).
+
+The Section 26(a)(1) nonrefundable-credit-ceiling nuance noted in the original entry (technically
+"regular tax + Section 55 AMT," not NIIT/Additional Medicare Tax) was left as-is -- out of scope
+for this fix, unaffected by the ACTC addition, and still rarely material per the original note.
 
 ## LIMITATION 4797-NII — Form 4797 gain assumed to be investment income for NIIT
 
-**Added Aug 2026 (fresh-eyes re-audit).** Exposure direction: CAN OVERSTATE NIIT for a filer
-whose Section 4797 gain comes from selling property used in a trade or business they
-materially participate in.
+**Added Aug 2026 (fresh-eyes re-audit). RESOLVED Aug 12/13 2026 (Phase 4, Audit Synthesis).**
+Original exposure direction: CAN OVERSTATE NIIT for a filer whose Section 4797 gain comes from
+selling property used in a trade or business they materially participate in.
 
 IRC Section 1411(c)(1)(A)(iii) / Treas. Reg. Section 1.1411-4(d)(4)(i) exclude gain on
 disposition of property held in an active (materially-participated, non-trading) trade or
-business from net investment income. `nii` (`taxCalc.js`, search "f4797NetGain") includes the
-full `f4797Inc` figure unconditionally. The same input is correctly treated as BUSINESS gain
-80 lines earlier for the Section 461(l) excess-business-loss offset (`eblBizCapGain`) -- the
-app has no material-participation flag on Form 4797 gain to reconcile the two treatments
-consistently. A passive-activity Form 4797 gain genuinely IS NII, so this is a missing
-classification, not a plainly-wrong formula either way. Owner decision: add a "business asset,
-materially participated" checkbox for Section 4797 entries, or accept the conservative-for-NIIT
-default (matches this tool's general posture of erring toward overstating tax when a fact
-isn't collected).
+business from net investment income. `nii` (`taxCalc.js`) previously included the full
+`f4797Inc` figure unconditionally, while the same input was correctly treated as BUSINESS gain
+elsewhere for the Section 461(l) excess-business-loss offset (`eblBizCapGain`) -- there was no
+material-participation flag to reconcile the two treatments.
+
+**Fix:** a new opt-in attestation checkbox, "This gain is from an active business/rental I
+materially participate in (excludes it from Net Investment Income Tax)," appears in
+`TaxReturn.jsx` whenever the Form 4797 field holds a positive value (hidden for losses/zero,
+since a §1231 loss creates no NII exposure either way). The underlying field,
+`f4797MateriallyParticipated` (boolean, default `false` -- conservative, matches the app's
+general posture for unmodeled facts), is added to the field manifest and flows into
+`calcTaxReturn()`. When set, `f4797NetGain` is excluded from the `nii` calculation ONLY; AGI,
+gross income, the preferential-rate gain figure, and the Section 461(l) EBL offset are all
+unaffected -- this is a narrowly NII-scoped exclusion, not a change to how the gain is taxed
+elsewhere. Covered by `taxCalc-4797-nii.test.js` (5 SPEC/CHAR tests, prove-it-fails verified).
 
 ## LIMITATION SALT-MAGI — §164(b)(7) MAGI addbacks not modeled
 
