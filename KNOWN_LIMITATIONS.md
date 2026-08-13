@@ -446,7 +446,7 @@ disclosure now fires on `accumulatedEP > 0 OR wasFormerCCorp === true`. This clo
 gap for a fully-distributed former C-corp; it remains a disclosure only — BIG tax computation
 itself (items 1-4 above) is still not modeled and is unchanged in scope.
 
-## LIMITATION 121-HOME-SALE — §121 principal residence exclusion not modeled
+## LIMITATION 121-HOME-SALE — §121 principal residence exclusion — lightweight calculator added, not wired into the engine
 
 **Added Aug 2026 (external accuracy audit, Finding 6).** Exposure direction: N/A — feature not
 present, not a miscalculation of a feature that exists.
@@ -460,6 +460,29 @@ business owners", not a full 1040 replacement) and is not believed to require a 
 recorded here per the external audit's recommendation to make the scope boundary explicit and
 owner-ratified rather than implicit. Owner decision: confirm this boundary, or add a lightweight
 home-sale entry point alongside Schedule E.
+
+**Resolved (lightweight) — Aug 12 2026 (Phase 3, Audit Synthesis).** Owner decision: add a
+lightweight entry point. `calcSection121Exclusion()` (`src/lib/taxCalc.js`, single source of
+truth per ARCHITECTURE.md §1) computes amount realized, gain, the statutory §121(b)(1)-(2)
+exclusion ($250,000 / $500,000 via the new `SEC121_EXCLUSION_SINGLE` / `SEC121_EXCLUSION_MFJ`
+constants), and taxable excess, gated on a user-attested ownership-and-use-test checkbox.
+Surfaced as a new "Home Sale Calculator (§121)" tool in AIAnalysis.jsx's Reports & Tools tab
+(`Section121Modal`) — a fifth standalone tool alongside the What-If Simulator, same
+"doesn't touch your saved record or feed the tax engine" posture (confirmed: no
+`calcTaxReturn()` input references this calculator's output).
+
+**What this does NOT do, by design:** it does not compute the §121(b)(5) nonqualified-use
+allocation (gain must be pro-rated between qualified and nonqualified use periods since Jan 1,
+2009 for a residence ever rented or used for business) — that requires exact date-range tracking
+this lightweight tool doesn't collect. When the user checks "this home was ever rented or used
+for business," the modal shows a prominent disclosure that the computed excludable amount may
+overstate what's actually allowed and directs them to a preparer for the exact allocation. It
+also does not separately verify the ownership-and-use test per spouse for MFJ's $500,000 ceiling
+(IRC §121(b)(2)(A) requires both spouses to individually qualify) — a single attestation
+checkbox covers the household. 9 SPEC + 1 CHAR tests (`taxCalc-section121.test.js`), including a
+pin confirming the calculator's output never appears on `calcTaxReturn()`'s return object;
+prove-it-fails verified (broke the MFJ-vs-single cap branch, confirmed the 2 dedicated
+differentiating tests fail while the other 8 still pass, restored).
 
 ## LIMITATION DEP-UNVALIDATED — manual depreciation entry has no statutory cap check
 
@@ -612,6 +635,12 @@ different way), the disclosure now tells the user to add it as ordinary income o
 or confirm treatment with their preparer. A full fix requires a dedicated ordinary-recapture input
 that flows to Schedule 1 ordinary income without touching the rental's ongoing passive-income
 figure — a schema and engine change, not scheduled. Owner decision.
+
+**Ratified — Aug 12 2026 (Phase 3, Audit Synthesis).** Owner decision: keep disclosure-only.
+The current EXT-8 wording is accurate and low-risk (it correctly tells the user where NOT to
+put this figure and directs them to their preparer); a dedicated field is not worth the schema/
+engine change at this time. Revisit if users report this as a recurring pain point. No code
+changed.
 
 ## LIMITATION 163J-NOT-MODELED — §163(j) business interest expense limitation not modeled
 
