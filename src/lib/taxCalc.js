@@ -559,7 +559,7 @@ function calcNIIT(nii, agi, year, fs) {
 /** §55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
  *  Exemption and phase-out are inflation-adjusted annually — see TAX_TABLES[year].amt.
  *  §199A QBI deduction is NOT added back to AMTI per §199A(f)(2). */
-function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, unrecap1250 = 0, collectibles = 0, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
   // NOTE: the §199A QBI deduction is intentionally NOT added back to AMTI — it is allowed
   // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
   // (Callers may still pass a `qbi` field; it is intentionally not read here. Do not "fix"
@@ -597,9 +597,21 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const ordinaryAMT = ordinaryAMTI <= threshold
     ? ordinaryAMTI * AMT_RATE_LOW
     : threshold * AMT_RATE_LOW + (ordinaryAMTI - threshold) * AMT_RATE_HIGH
+  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): unrecap1250/collectibles were never
+  // passed into the AMT preferential-rate call, so calcPreferentialTax's own defaults
+  // (unrecap1250 = 0, collectibles = 0) silently zeroed them out here even though the
+  // exact same function correctly applies them a few hundred lines earlier for the
+  // REGULAR-tax computation. Form 6251 Part III mirrors the Schedule D Tax Worksheet
+  // rate structure for AMT purposes -- the §1(h)(1)(E) 25% unrecaptured-§1250 rate and
+  // §1(h)(4) 28% collectibles rate apply identically inside AMT, not just on the
+  // regular-tax side. Pass them straight through; calcPreferentialTax's own internal
+  // clamp (`Math.min(unrecap1250, ltcg)`) naturally re-scales them if _ltAMT was itself
+  // capped down by the AMT-base limitation above -- the same simplification already
+  // used for _ltAMT/_qdAMT (a hard cap, not a proportional split), consistent with how
+  // this function already treats the AMT preferential-income cap.
   const preferentialAMT = calcPreferentialTax(
     ordinaryAMTI,
-    { ltcg: _ltAMT, qualDiv: _qdAMT },
+    { ltcg: _ltAMT, qualDiv: _qdAMT, unrecap1250, collectibles },
     taxYear, status
   )
   const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
@@ -1928,7 +1940,16 @@ function calcTaxReturn(input) {
   // attests material participation, in which case it's excluded here (only from the NII
   // base — the same f4797NetGain still flows into eblBizCapGain/AGI/preferential-rate
   // calcs elsewhere, unaffected).
-  const nii        = Math.max(0, intInc + _divIncEff + Math.max(0, capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain)) + rentalNII)
+  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): the capital-gain/§4797 sub-total was
+  // floored at $0 BEFORE being added to interest/dividends/rents, so a §1211(b)-capped
+  // capital LOSS (as negative as -$3,000, or -$1,500 MFS) got zeroed out inside its own
+  // bucket instead of offsetting other NII sources. Form 8960 Line 5a (capital gain/loss,
+  // already §1211-limited) is summed with Lines 1-4/7 FIRST; only the final NII total is
+  // floored at zero (Form 8960 instructions, Line 13). Moved the floor to wrap the whole
+  // sum so a capital loss can reduce interest/dividend/rental NII the way the statute
+  // requires -- this is the only line that changed; the inner capitalGainNetIncluded +
+  // f4797 figure itself is unchanged.
+  const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain) + rentalNII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || CTC_CREDIT_PER_CHILD_FALLBACK
@@ -1951,7 +1972,13 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome: taxableAfterQBI, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
-    ltGain: _netLTForPref + f4797PrefGain, qualDiv: _qualDivEff, regularTax: fedTax, status, taxYear,
+    ltGain: _netLTForPref + f4797PrefGain, qualDiv: _qualDivEff,
+    // AUDIT FIX (fresh-eyes re-audit, Aug 2026): pass the same unrecap1250/collectibles
+    // slices used on the regular-tax side (see _unrecap1250Clamped/_collectiblesClamped
+    // above) so AMT taxes them at the correct flat 25%/28% rates instead of silently
+    // defaulting to 0 inside calcAMT/calcPreferentialTax.
+    unrecap1250: unrec1250, collectibles,
+    regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)

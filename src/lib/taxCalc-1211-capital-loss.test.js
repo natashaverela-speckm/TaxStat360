@@ -130,13 +130,26 @@ describe('Interactions — NIIT and YTD annualization', () => {
 
   // SPEC: §1411 / Form 8960 — the loss no longer drags MAGI below the NIIT
   // threshold. AGI = 250,000 + 20,000 − 3,000 = 267,000 (> 200,000 single);
-  // NII = 20,000 interest (the clamped loss cannot erase unrelated investment
-  // income); NIIT = 3.8% × min(20,000, 67,000) = 760. Pre-fix, AGI was 190,000
-  // and NIIT was $0.
-  it('SPEC: §1411 — clamped loss keeps MAGI honest; NIIT no longer evaporates', () => {
+  // MAGI excess = 267,000 − 200,000 = 67,000.
+  //
+  // UPDATED (fresh-eyes re-audit, Aug 2026): NII itself is 20,000 interest +
+  // the SAME −3,000 §1211(b)-capped loss, = 17,000 -- not 20,000. Form 8960
+  // Line 5a (capital gain/loss, already §1211-limited) is summed together with
+  // Lines 1-4/7 (interest, dividends, etc.) BEFORE any floor is applied; only
+  // the FINAL NII total is floored at zero (Form 8960 instructions, Line 13).
+  // The original version of this test asserted the opposite -- that "the
+  // clamped loss cannot erase unrelated investment income" -- which was itself
+  // the bug the fresh-eyes re-audit caught (the engine floored the capital-loss
+  // sub-total at $0 in its own bucket before adding interest/dividends, so a
+  // real, statute-permitted loss offset against other NII was silently
+  // dropped). NIIT = 3.8% × min(17,000, 67,000) = 646. Pre-1211-fix (Jul 2026),
+  // AGI was 190,000 and NIIT was $0; pre-THIS-fix (Aug 2026), NII was
+  // (incorrectly) 20,000 and NIIT was $760.
+  it('SPEC: §1411 — clamped loss keeps MAGI honest AND reduces NII from other sources', () => {
     const r = calcTaxReturn({ ...base, status: 'single', w2: 250000, intInc: 20000, ltGain: -80000 })
     expect(r.agi).toBe(267000)
-    expect(r.niitAmount).toBe(760)
+    expect(r.nii).toBe(17000)
+    expect(r.niitAmount).toBe(646)
   })
 
   // SPEC: A4-1/A4-2 round-trip discipline extended to losses — a June YTD loss
