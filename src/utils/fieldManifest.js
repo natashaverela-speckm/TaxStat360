@@ -119,6 +119,9 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'unrecap1250',        kind: 'float',  def: 0 },
   { key: 'collectiblesGain',   kind: 'float',  def: 0 },
   { key: 'nonrecap1231',       kind: 'float',  def: 0 },
+  // Phase 4 (Aug 2026) — LIMITATION 4797-NII: §1411(c)(1)(A)(iii) material-participation
+  // attestation for the Form 4797 gain (excludes it from Net Investment Income Tax).
+  { key: 'f4797MateriallyParticipated', kind: 'bool', def: false },
   { key: 'isActiveParticipant', kind: 'boolDefaultTrue', def: true },
   { key: 'rentalAggregationElection', kind: 'bool', def: false },  // F6 §1.469-9(g)
   { key: 'priorPassiveLossCarryforward', kind: 'float', def: 0 },
