@@ -85,7 +85,7 @@ import {
   ACTC_EARNED_INCOME_FLOOR,
   ACTC_MAX_PER_CHILD_FALLBACK,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
 // field manifest — the single home for every persisted/scaled field list.
 import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from '../utils/fieldManifest.js'
@@ -984,7 +984,10 @@ function calcTaxReturn(input) {
   const entitiesLimited = entities.map(e => {
     if (!e) return e
     const k1Gross = getEntityK1Share(e)
-    const isLimitable = /s.?corp|partner/i.test(e.type || '')
+    // C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): now the shared predicate
+    // (was an inline copy of the same regex; see isBasisLimitableEntityType's
+    // own doc comment in entityPredicates.js).
+    const isLimitable = isBasisLimitableEntityType(e.type)
     const isSCorpE    = /s.?corp/i.test(e.type || '')
 
     // ── Form 7203 basis-INCREASE items, applied FIRST (§1367(a)(1)) ──────────────
