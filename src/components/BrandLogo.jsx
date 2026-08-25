@@ -11,23 +11,27 @@ import { NAVY as N, BLUE as B } from '../lib/theme.js'
    so the mark can never drift out of sync again.
 
    Props:
-     size  - tile size in px (default 32). The icon and wordmark scale with it,
-             matching the site nav's proportions (18px icon, 15px wordmark at 32).
+     size   - tile size in px (default 32). The icon and wordmark scale with it,
+              matching the site nav's proportions (18px icon, 15px wordmark at 32).
+     onDark - when true, wordmark uses white (for navy footers / dark backgrounds).
+              Icon tile stays the same navy + 4-bar mark as the header.
 
    Usage:
      import BrandLogo from './BrandLogo'
      <BrandLogo />            // default 32px
      <BrandLogo size={28} />  // smaller, e.g. onboarding cards
+     <BrandLogo onDark />     // footer / dark surfaces
    If the logo needs to be clickable, wrap it where it's used:
      <div onClick={() => nav('/dashboard')} style={{ cursor: 'pointer' }}><BrandLogo /></div>
 */
-export default function BrandLogo({ size = 32 }) {
+export default function BrandLogo({ size = 32, onDark = false }) {
   const icon = Math.round(size * 0.5625)  // 32 -> 18, same icon size as the site nav
   const font = Math.round(size * 0.46875) // 32 -> 15, same wordmark size as the site nav
+  const wordColor = onDark ? '#fff' : N
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ width: size, height: size, background: N, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <svg width={icon} height={icon} viewBox="0 0 24 24" fill="none">
+        <svg width={icon} height={icon} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
           <rect x="2.5" y="13" width="4" height="8" rx="1" fill="#475569"/>
           <rect x="7.5" y="9" width="4" height="12" rx="1" fill="#94A3B8"/>
           <rect x="12.5" y="5" width="4" height="16" rx="1" fill="#E2E8F0"/>
@@ -35,7 +39,7 @@ export default function BrandLogo({ size = 32 }) {
         </svg>
       </div>
       <div style={{ display: 'inline-block', borderBottom: '2px solid ' + B, paddingBottom: 1 }}>
-        <span style={{ fontWeight: 800, fontSize: font, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
+        <span style={{ fontWeight: 800, fontSize: font, color: wordColor }}>TaxStat<span style={{ color: B }}>360</span></span>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } from '../lib/constants'
+import BrandLogo from './BrandLogo'
 
 // ─── SHARED SITE-WIDE FOOTER ──────────────────────────────────────────────────
 // Single source of truth for footer markup, links, the company NAP (Name / Address /
@@ -15,6 +16,9 @@ import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } f
 // wording are byte-identical on every page. The disclaimer text itself lives in
 // constants.js (DISCLAIMER_FULL) — see Pass 5 "Disclaimer wording varies" fix.
 //
+// Logo: BrandLogo (same mark as the site header / Nav) — do not reintroduce a
+// separate footer SVG; that was how the outdated 3-bar blue tile drifted.
+//
 // Usage: import Footer from './Footer'  then render  <Footer />
 // Do NOT reintroduce an inline <footer> on any page.
 //
@@ -23,24 +27,13 @@ import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } f
 // can be swapped to react-router <Link> to avoid full-page reloads. Left as <a> here
 // so this change is purely a consolidation with no behavioral/routing side effects.
 
-const B = '#2563EB'
-
 export default function Footer() {
   return (
     <footer style={{ background: '#0a1628', padding: '40px 32px', textAlign: 'center' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        {/* Logo lockup */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 28, height: 28, background: B, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-              <rect x="3" y="12" width="4" height="9" fill="white" rx="1" />
-              <rect x="10" y="7" width="4" height="14" fill="white" rx="1" />
-              <rect x="17" y="3" width="4" height="18" fill="white" rx="1" />
-            </svg>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>
-            TaxStat<span style={{ color: B }}>360</span>
-          </span>
+        {/* Same brand mark as header (BrandLogo); onDark for navy footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+          <BrandLogo size={28} onDark />
         </div>
 
         {/* Consistent link set, site-wide (About link included on every page) */}
