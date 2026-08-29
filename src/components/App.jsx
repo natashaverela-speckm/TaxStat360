@@ -30,6 +30,7 @@ import Article from './Article'
 import { getArticle } from '../lib/articles.js'
 import { NAVY as N, SLATE as SL } from '../lib/theme.js'
 import WelcomeTourScreen from './WelcomeTourScreen.jsx'
+import CarryforwardWizard from './CarryforwardWizard.jsx'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
@@ -635,6 +636,7 @@ export default function App() {
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/dashboard"     element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
         <Route path="/tax-return"    element={<AuthedWithTour><TaxReturn /></AuthedWithTour>} />
+        <Route path="/carryforward-wizard" element={<AuthedWithTour><CarryforwardWizard /></AuthedWithTour>} />
         <Route path="/ai-analysis"   element={<AuthedWithTour><AIAnalysis /></AuthedWithTour>} />
         <Route path="/settings"      element={<AuthedWithTour><Settings /></AuthedWithTour>} />
         <Route path="/admin"         element={<AuthedWithTour><Admin /></AuthedWithTour>} />

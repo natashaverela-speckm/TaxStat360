@@ -47,6 +47,7 @@
 
 import React, { useState, useEffect } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
+import CarryforwardDashboardPrompt from './CarryforwardDashboardPrompt.jsx'
 import { readDisclaimerSeen, writeDisclaimerSeen, readMfaEnabled, writeMfaEnabled, readUserName, readSubscriptionIncomplete, readDirtyFlag, writeDirtyFlag, readActiveRecordName } from '../utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from '../lib/taxCalc.js'
@@ -739,6 +740,7 @@ export default function Dashboard() {
         {/* Records header */}
         <SubscriptionIncompleteBanner />
         <FederalDisclosureBanner />
+        <CarryforwardDashboardPrompt />
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>

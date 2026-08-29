@@ -6,7 +6,7 @@
 //
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable, getSaltPhaseDownParams } from '../lib/taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
@@ -26,6 +26,7 @@ import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, f
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
+import CarryforwardGuideBanner from './CarryforwardGuideBanner.jsx'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // F16 FIX: MoneyInput gains a `nonNegative` prop.
@@ -149,6 +150,7 @@ function OBBBANotice() {
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function TaxReturn() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const { entities, k1Total: sessionK1 } = readStep1State()
   const savedCtx = readPersonalContext()
@@ -262,7 +264,7 @@ export default function TaxReturn() {
   const [studentLoanInt,    setStudentLoanInt]   = useState(savedCtx.studentLoanInt      || '')
   const [selfEmpRetirement, setSelfEmpRetirement]= useState(savedCtx.selfEmpRetirement   || '')
   const [nolCarryforward,   setNolCarryforward]  = useState(savedCtx.nolCarryforward     || '')
-  const [priorYearQBILoss,  setPriorYearQBILoss] = useState(savedCtx.priorYearLosses     || '')
+  const [priorYearQBILoss,  setPriorYearQBILoss] = useState(savedCtx.priorYearQBILoss || savedCtx.priorYearLosses || '')
   const [hasISO,            setHasISO]           = useState(!!(savedCtx.hasISO))
   const [isoBargainElement, setIsoBargainElement]= useState(savedCtx.isoBargainElement   || '')
   const [priorYearTax,      setPriorYearTax]     = useState(savedCtx.priorYearTax        || '')
@@ -271,6 +273,15 @@ export default function TaxReturn() {
   const [saveStatus,    setSaveStatus]    = useState('idle')
   const [saveError,     setSaveError]     = useState(null)
   const [analyzeStatus, setAnalyzeStatus] = useState('idle')
+
+  useEffect(() => {
+    if (searchParams.get('carryforwards') !== '1') return
+    const el = document.querySelector('[data-section="carryforwards"]')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const next = new URLSearchParams(searchParams)
+    next.delete('carryforwards')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const ytdFactor = ytdMode ? (12 / ytdMonth) : 1
 
@@ -1295,6 +1306,7 @@ export default function TaxReturn() {
                 </label>
                 <Step2MoneyInput id="tr-lt-gain" value={ltGain} onChange={setLtGain} placeholder="0" />
               </div>
+              <CarryforwardGuideBanner />
               <div style={inpWrap}>
                 <label htmlFor="tr-caploss-st" style={inputLbl}>
                   Capital Loss Carryforward — Short-Term
