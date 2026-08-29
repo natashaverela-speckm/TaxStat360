@@ -1,4 +1,8 @@
-import { isRealEstateEntity } from './entityPredicates.js'
+import {
+  hasSkippedCarryforwardFlowOffer as _hasSkippedCarryforwardFlowOffer,
+  markCarryforwardFlowOfferSkipped as _markCarryforwardFlowOfferSkipped,
+  CARRYFORWARD_FLOW_OFFER_SKIP_KEY as _CARRYFORWARD_FLOW_OFFER_SKIP_KEY,
+} from './sessionState.js'
 
 /** Per-user carryforward wizard completion flag — compute when the user is known. */
 export function carryforwardWizardKeyFor(email = '') {
@@ -7,6 +11,15 @@ export function carryforwardWizardKeyFor(email = '') {
 
 export function carryforwardPromptKeyFor(email = '') {
   return `ts360_carryforward_prompt_dismissed_v1_${String(email || '').trim().toLowerCase()}`
+}
+
+/** Re-export: sessionStorage lives only in sessionState.js (ARCHITECTURE §3). */
+export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = _CARRYFORWARD_FLOW_OFFER_SKIP_KEY
+export function hasSkippedCarryforwardFlowOffer() {
+  return _hasSkippedCarryforwardFlowOffer()
+}
+export function markCarryforwardFlowOfferSkipped() {
+  return _markCarryforwardFlowOfferSkipped()
 }
 
 // test seam: exported for tests only — not a production API.
@@ -30,7 +43,9 @@ export function markCarryforwardWizardComplete(email) {
 
 /** True when the carryforward wizard should be offered (Phase 6 prompt). */
 export function needsCarryforwardWizard(email) {
-  if (!email || hasCompletedCarryforwardWizard(email)) return false
+  // No email yet (local QA / edge session): still offer — completion persists once email exists.
+  if (!email) return true
+  if (hasCompletedCarryforwardWizard(email)) return false
   return true
 }
 
@@ -52,10 +67,12 @@ export function dismissCarryforwardDashboardPrompt(email) {
   }
 }
 
-/** One-time Dashboard prompt for rental users who have not finished the wizard. */
-export function shouldShowCarryforwardDashboardPrompt(email, entities = []) {
+/**
+ * Dashboard prompt for users who have not finished the wizard.
+ * Not rental-only — the guide covers PAL, capital-loss CO, NOL, QBI, safe harbor, etc.
+ */
+export function shouldShowCarryforwardDashboardPrompt(email, _entities = []) {
   if (!needsCarryforwardWizard(email)) return false
   if (hasDismissedCarryforwardDashboardPrompt(email)) return false
-  if (!Array.isArray(entities) || entities.length === 0) return false
-  return entities.some((e) => e && isRealEstateEntity(e.type))
+  return true
 }

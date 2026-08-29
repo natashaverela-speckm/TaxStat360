@@ -188,7 +188,7 @@ describe('isBasisLimitableEntityType', () => {
   })
 })
 
-describe('entityLossNeedsBasisEntry — C-10-BASIS Continue/Save gate', () => {
+describe('entityLossNeedsBasisEntry — C-10-BASIS soft warn (blank allowed)', () => {
   it('is false for a non-limitable entity type even with a loss and no basis', () => {
     expect(entityLossNeedsBasisEntry({ type: 'Sole Proprietor / SMLLC', k1: -15000 })).toBe(false)
   })

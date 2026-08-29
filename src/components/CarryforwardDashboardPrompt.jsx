@@ -43,8 +43,8 @@ export default function CarryforwardDashboardPrompt() {
       }}
     >
       <p style={{ margin: '0 0 10px' }}>
-        Have prior-year carryforwards from rental or passive activities? The carryforward guide
-        can help you enter them.
+        Have prior-year carryforwards (passive losses, capital losses, NOL, QBI)? The
+        carryforward guide can help you enter them.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
         <button

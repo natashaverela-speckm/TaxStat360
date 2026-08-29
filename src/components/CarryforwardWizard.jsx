@@ -120,9 +120,92 @@ function CarryforwardWizardFlow() {
         minHeight: '100vh',
         background: '#F8FAFC',
         fontFamily: 'Inter, system-ui, sans-serif',
-        padding: '40px 20px',
       }}
     >
+      <nav
+        style={{
+          background: '#fff',
+          borderBottom: '1px solid #E2E8F0',
+          padding: '0 20px',
+          height: 58,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          overflowX: 'auto',
+        }}
+      >
+        {[
+          { n: 1, label: 'Entities', current: false, done: true, onClick: () => navigate('/calculate-tax') },
+          { n: 2, label: 'Carryforwards', current: true, done: false },
+          { n: 3, label: 'Personal Return', current: false, done: false, onClick: () => navigate('/tax-return') },
+        ].map((s, i, arr) => (
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  background: s.done ? '#059669' : s.current ? B : '#E2E8F0',
+                  color: s.done || s.current ? '#fff' : '#94A3B8',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {s.done ? '✓' : s.n}
+              </div>
+              {s.onClick ? (
+                <button
+                  type="button"
+                  onClick={s.onClick}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontSize: 12,
+                    fontWeight: s.current ? 800 : 600,
+                    color: s.current ? N : SL,
+                    cursor: 'pointer',
+                    textDecoration: s.done ? 'underline' : 'none',
+                    textUnderlineOffset: 2,
+                  }}
+                >
+                  {s.label}
+                </button>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 800, color: N }}>{s.label}</span>
+              )}
+            </div>
+            {i < arr.length - 1 && <span style={{ color: '#CBD5E1' }}>›</span>}
+          </div>
+        ))}
+      </nav>
+
+      <div
+        style={{
+          background: N,
+          color: '#fff',
+          padding: '12px 20px',
+          textAlign: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+          lineHeight: 1.45,
+        }}
+      >
+        Step 2 of your calculation — prior-year carryforward guide
+        <span style={{ fontWeight: 500, opacity: 0.85 }}>
+          {' '}
+          · Skip anytime to continue your personal return
+        </span>
+      </div>
+
+      <div style={{ padding: '32px 20px 48px' }}>
       <div
         role="region"
         aria-label={`Carryforward guide, step ${stepIndex + 1} of ${STEP_COUNT}`}
@@ -320,7 +403,7 @@ function CarryforwardWizardFlow() {
               padding: '8px 0',
             }}
           >
-            Skip wizard
+            Skip to Personal Return
           </button>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {stepIndex > 0 && (
@@ -374,7 +457,7 @@ function CarryforwardWizardFlow() {
                   cursor: 'pointer',
                 }}
               >
-                Finish
+                Finish & continue to Personal Return →
               </button>
             ) : (
               <button
@@ -396,6 +479,7 @@ function CarryforwardWizardFlow() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
