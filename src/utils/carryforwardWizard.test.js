@@ -9,11 +9,15 @@ import {
   hasDismissedCarryforwardDashboardPrompt,
   dismissCarryforwardDashboardPrompt,
   shouldShowCarryforwardDashboardPrompt,
+  hasSkippedCarryforwardFlowOffer,
+  markCarryforwardFlowOfferSkipped,
+  CARRYFORWARD_FLOW_OFFER_SKIP_KEY,
 } from './carryforwardWizard.js'
 
 describe('carryforwardWizard', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   describe('carryforwardWizardKeyFor', () => {
@@ -29,8 +33,8 @@ describe('carryforwardWizard', () => {
   })
 
   describe('needsCarryforwardWizard', () => {
-    it('returns false when email is missing', () => {
-      expect(needsCarryforwardWizard('')).toBe(false)
+    it('returns true when email is missing (still offer the guide)', () => {
+      expect(needsCarryforwardWizard('')).toBe(true)
     })
 
     it('returns true for a user who has not completed the wizard', () => {
@@ -59,31 +63,43 @@ describe('carryforwardWizard', () => {
   })
 
   describe('shouldShowCarryforwardDashboardPrompt', () => {
-    const rentalEntities = [{ type: 'Rental Real Estate', pnl: {} }]
-
-    it('returns true for incomplete user with rental entity and no dismiss', () => {
-      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com', rentalEntities)).toBe(true)
+    it('returns true for incomplete user with no dismiss', () => {
+      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com')).toBe(true)
     })
 
     it('returns false after wizard is completed', () => {
       markCarryforwardWizardComplete('fresh@example.com')
-      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com', rentalEntities)).toBe(false)
+      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com')).toBe(false)
     })
 
     it('returns false after prompt is dismissed', () => {
       dismissCarryforwardDashboardPrompt('fresh@example.com')
       expect(hasDismissedCarryforwardDashboardPrompt('fresh@example.com')).toBe(true)
-      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com', rentalEntities)).toBe(false)
+      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com')).toBe(false)
     })
 
-    it('returns false without rental entities', () => {
-      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com', [])).toBe(false)
+    it('does not require rental entities', () => {
+      expect(shouldShowCarryforwardDashboardPrompt('fresh@example.com', [])).toBe(true)
+      expect(
+        shouldShowCarryforwardDashboardPrompt('fresh@example.com', [
+          { type: 'S Corporation' },
+        ]),
+      ).toBe(true)
     })
 
     it('uses separate dismiss keys per email', () => {
       dismissCarryforwardDashboardPrompt('user-a@example.com')
-      expect(shouldShowCarryforwardDashboardPrompt('user-a@example.com', rentalEntities)).toBe(false)
-      expect(shouldShowCarryforwardDashboardPrompt('user-b@example.com', rentalEntities)).toBe(true)
+      expect(shouldShowCarryforwardDashboardPrompt('user-a@example.com')).toBe(false)
+      expect(shouldShowCarryforwardDashboardPrompt('user-b@example.com')).toBe(true)
+    })
+  })
+
+  describe('carryforward flow offer skip (session)', () => {
+    it('starts unset and can be marked skipped', () => {
+      expect(hasSkippedCarryforwardFlowOffer()).toBe(false)
+      markCarryforwardFlowOfferSkipped()
+      expect(hasSkippedCarryforwardFlowOffer()).toBe(true)
+      expect(sessionStorage.getItem(CARRYFORWARD_FLOW_OFFER_SKIP_KEY)).toBe('1')
     })
   })
 })

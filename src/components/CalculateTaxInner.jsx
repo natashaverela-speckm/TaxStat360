@@ -6,7 +6,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { writeDirtyFlag } from '../utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft } from '../utils/sessionState.js'
+import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft, readEmail } from '../utils/sessionState.js'
+import { canAccessCarryforwardWizard } from '../lib/carryforwardWizardAccess.js'
+import {
+  needsCarryforwardWizard,
+  hasSkippedCarryforwardFlowOffer,
+  markCarryforwardFlowOfferSkipped,
+} from '../utils/carryforwardWizard.js'
 import { signOut } from '../utils/SignOut'
 import { nf } from '../utils/money.js'
 import LockedFeature, { isPro } from './LockedFeature'
@@ -351,11 +357,9 @@ function NameRecordModal({ defaultName, onConfirm, onSkip }) {
 }
 
 // ─── C-10-BASIS help modal (Phase 1, Audit Synthesis, Aug 2026) ──────────────
-// Opened from the footer's "How do I find my basis?" link when Continue/Save is
-// blocked because a loss entity has no basis entered. Purely informational — no
-// input here; the actual Stock/Debt Basis fields live on each entity card, and
-// this modal's "Take me to the field" button reuses the same scroll+expand
-// mechanism the footer link itself uses.
+// Opened from the footer's "How do I find my basis?" link when a loss entity has
+// no basis entered. Purely informational — blank is allowed (engine suspends
+// conservatively); this modal explains how to find a real figure.
 function BasisHelpModal({ onScrollToEntity, onClose }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="How to find your basis" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -389,11 +393,10 @@ function BasisHelpModal({ onScrollToEntity, onClose }) {
           </p>
         </div>
         <p style={{ fontSize: 12.5, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
-          Not sure? Enter <strong>$0</strong> in the Stock/Debt Basis field — that's a valid, honest
-          answer if you genuinely don't know or haven't tracked it, and it unblocks Continue. It simply
-          means the engine will (correctly, conservatively) suspend this year's loss until you have a
-          real figure. You can always come back and update it once you or your accountant confirm the
-          actual basis.
+          Not sure? You can leave the field blank or enter <strong>$0</strong> — both are valid if you
+          genuinely don&apos;t know or haven&apos;t tracked it. The engine will (correctly, conservatively)
+          suspend this year&apos;s loss until you have a real figure. You can always come back and update
+          it once you or your accountant confirm the actual basis.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 600, color: SL, cursor: 'pointer' }}>
@@ -2130,19 +2133,8 @@ export default function CalculateTaxInner() {
     }, 100)
   }
 
-  // C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): owner-directed policy change.
-  // Previously, an S-corp/partnership entity with a current-year loss and no basis
-  // entered flowed through silently with the engine's conservative $0-basis default
-  // (assumeZeroBasisOnLoss=true, taxCalc.js) — correct math, but a user could reach
-  // a final number without ever being told their loss was suspended pending basis.
-  // Per owner decision (Aug 13 2026): BLOCK Continue/Save for any such entity until
-  // basis is entered (mirrors the existing unnamed-entity gate below), with a help
-  // modal explaining how to determine it. The engine's $0-basis default remains as
-  // defense-in-depth for any record that reaches calcTaxReturn() without going
-  // through this gate (a loaded/imported record, or a future API caller) — this is
-  // a UI-layer gate, not a change to the tax math itself. The predicate itself
-  // (entityLossNeedsBasisEntry) lives in entityPredicates.js so it's unit-testable
-  // in isolation from this component's heavier render tree.
+  // C-10-BASIS: soft warn when a loss entity has no basis — blank is allowed
+  // (matches "leave blank if unsure"). Engine still assumes $0 basis / suspends.
   const scrollToFirstEntityNeedingBasis = () => {
     const idx = entities.findIndex(entityLossNeedsBasisEntry)
     if (idx === -1) return
@@ -2672,15 +2664,19 @@ export default function CalculateTaxInner() {
   // the moment a type is chosen (blank name, $0 financials) and was silently counted as
   // "added" and allowed through to Step 2. Financials may legitimately be $0 (zero-income /
   // loss years are valid), so only a non-empty name is required here.
+  // C-10-BASIS: blank stock/outside basis is allowed ("leave blank if unsure") — soft warn only.
   const unnamedEntityCount = (Array.isArray(entities) ? entities : []).filter(e => !((e?.name ?? '').trim())).length
-  // C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): see entityLossNeedsBasisEntry above.
   const entitiesNeedingBasisCount = (Array.isArray(entities) ? entities : []).filter(entityLossNeedsBasisEntry).length
-  const footerDisabled = entities.length === 0 || unnamedEntityCount > 0 || entitiesNeedingBasisCount > 0
+  const footerDisabled = entities.length === 0 || unnamedEntityCount > 0
 
-  // O2 FIX: handleContinueToStep2 always navigates to /tax-return.
-  // The guard checks entities.length > 0 before calling persistStep1() and
-  // navigate(). This prevents the new-account edge case where the footer's
-  // onClick resolved to /privacy due to a missing record ID in the route param.
+  // Pro users always see Carryforwards in the step chrome.
+  // Incomplete + not session-skipped → Continue lands on the guide next.
+  const hasCarryforwardAccess = canAccessCarryforwardWizard()
+  const offerCarryforwardNext =
+    hasCarryforwardAccess
+    && needsCarryforwardWizard(readEmail())
+    && !hasSkippedCarryforwardFlowOffer()
+
   const handleContinueToStep2 = () => {
     if (entities.length === 0) {
       setFooterError('Add at least one business entity to continue.')
@@ -2692,16 +2688,21 @@ export default function CalculateTaxInner() {
       setTimeout(() => setFooterError(null), 4000)
       return
     }
-    if (entitiesNeedingBasisCount > 0) {
-      setFooterError(
-        entitiesNeedingBasisCount === 1
-          ? 'Enter your stock/debt basis (or confirm $0) before continuing — this entity shows a loss.'
-          : 'Enter stock/debt basis (or confirm $0) for all loss entities before continuing.'
-      )
-      setTimeout(() => setFooterError(null), 5000)
+    persistStep1()
+    if (offerCarryforwardNext) {
+      navigate('/carryforward-wizard')
+      return
+    }
+    navigate('/tax-return')
+  }
+
+  const handleSkipCarryforwardToPersonal = () => {
+    if (entities.length === 0 || unnamedEntityCount > 0) {
+      handleContinueToStep2()
       return
     }
     persistStep1()
+    markCarryforwardFlowOfferSkipped()
     navigate('/tax-return')
   }
 
@@ -2714,15 +2715,6 @@ export default function CalculateTaxInner() {
     if (unnamedEntityCount > 0) {
       setFooterError(unnamedEntityCount === 1 ? 'Name your entity before saving.' : 'Name all entities before saving.')
       setTimeout(() => setFooterError(null), 4000)
-      return
-    }
-    if (entitiesNeedingBasisCount > 0) {
-      setFooterError(
-        entitiesNeedingBasisCount === 1
-          ? 'Enter your stock/debt basis (or confirm $0) before saving — this entity shows a loss.'
-          : 'Enter stock/debt basis (or confirm $0) for all loss entities before saving.'
-      )
-      setTimeout(() => setFooterError(null), 5000)
       return
     }
     setShowNameModal(true)
@@ -2753,12 +2745,20 @@ export default function CalculateTaxInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <svg width="30" height="30" viewBox="0 0 34 34" style={{ flexShrink: 0 }}><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {[
-              { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true,  isReachable: true  },
-              { n: 2, label: 'Personal Return', done: false,                isCurrent: false, isReachable: false },
-              { n: 3, label: STEP3_LABEL, done: false,             isCurrent: false, isReachable: false },
-            ].map((s, i) => (
-              <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {(hasCarryforwardAccess
+              ? [
+                  { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true },
+                  { n: 2, label: 'Carryforwards', done: !offerCarryforwardNext, isCurrent: false },
+                  { n: 3, label: 'Personal Return', done: false, isCurrent: false },
+                  { n: 4, label: STEP3_LABEL, done: false, isCurrent: false },
+                ]
+              : [
+                  { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true },
+                  { n: 2, label: 'Personal Return', done: false, isCurrent: false },
+                  { n: 3, label: STEP3_LABEL, done: false, isCurrent: false },
+                ]
+            ).map((s, i, arr) => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <div style={{
                     width: 22, height: 22, borderRadius: '50%',
@@ -2781,7 +2781,7 @@ export default function CalculateTaxInner() {
                     {s.label}
                   </span>
                 </div>
-                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
+                {i < arr.length - 1 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
               </div>
             ))}
           </div>
@@ -3041,12 +3041,8 @@ export default function CalculateTaxInner() {
                             onClick={scrollToFirstEntityNeedingBasis}
                             style={{ marginLeft: 8, fontWeight: 700, color: '#B45309', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
                           >
-                            {`\u00b7 enter basis to continue (${entitiesNeedingBasisCount} loss ${entitiesNeedingBasisCount === 1 ? 'entity' : 'entities'})`}
+                            {`\u00b7 basis not entered (${entitiesNeedingBasisCount} loss ${entitiesNeedingBasisCount === 1 ? 'entity' : 'entities'} — optional)`}
                           </button>
-                          {/* C-10-BASIS: the modal itself is opt-in via this link, not
-                              auto-shown on every render — the inline blocking message
-                              above is always visible; this is the "how do I find it"
-                              deep-dive the owner asked for. */}
                           <button
                             type="button"
                             onClick={() => setShowBasisHelpModal(true)}
@@ -3067,7 +3063,7 @@ export default function CalculateTaxInner() {
               : <span style={{ color: R, fontWeight: 600 }}>Add an entity to continue</span>
             }
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
               onClick={handleFooterSave}
               disabled={footerDisabled}
@@ -3082,14 +3078,31 @@ export default function CalculateTaxInner() {
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {/* F-11 UX FIX: dot indicator signals unsaved changes so users don't
-                  need to scroll to the bottom warning to know they need to save. */}
               {saveStatus !== 'saved' && !footerDisabled && (
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} aria-label="Unsaved changes" />
               )}
               {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save Progress'}
             </button>
-            {/* O2 FIX: onClick is now guarded and always navigates to /tax-return */}
+            {offerCarryforwardNext && !footerDisabled && (
+              <button
+                type="button"
+                onClick={handleSkipCarryforwardToPersonal}
+                style={{
+                  padding: '10px 12px',
+                  border: 'none',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  color: SL,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 2,
+                }}
+              >
+                Skip guide — personal return
+              </button>
+            )}
             <button
               onClick={handleContinueToStep2}
               disabled={footerDisabled}
@@ -3104,7 +3117,7 @@ export default function CalculateTaxInner() {
                 opacity: footerDisabled ? 0.6 : 1,
               }}
             >
-              Continue to Step 2 →
+              {offerCarryforwardNext ? 'Next: Carryforward Guide →' : 'Continue to Step 2 →'}
             </button>
           </div>
         </div>

@@ -121,9 +121,9 @@ describe('CarryforwardWizard', () => {
     expect(screen.getByText(/Guidance only/)).toBeTruthy()
   })
 
-  it('CHAR: Skip wizard navigates to tax return without persisting', () => {
+  it('CHAR: Skip to Personal Return navigates to tax return without persisting', () => {
     renderWizard()
-    fireEvent.click(screen.getByRole('button', { name: 'Skip wizard' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
     expect(navigate).toHaveBeenCalledWith('/tax-return')
     expect(writePersonalContext).not.toHaveBeenCalled()
     expect(writeDirtyFlag).not.toHaveBeenCalled()
@@ -155,7 +155,7 @@ describe('CarryforwardWizard', () => {
     }
     expect(screen.getByText('10 of 10')).toBeTruthy()
     expect(screen.getByText(GLOBAL_DISCLAIMER)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
     expect(writePersonalContext).toHaveBeenCalledWith({
       w2Income: 90000,
       priorPassiveLossCarryforward: 5000,
@@ -165,9 +165,9 @@ describe('CarryforwardWizard', () => {
     expect(navigate).toHaveBeenCalledWith('/tax-return?carryforwards=1')
   })
 
-  it('CHAR: Skip wizard does not mark wizard complete', () => {
+  it('CHAR: Skip to Personal Return does not mark wizard complete', () => {
     renderWizard()
-    fireEvent.click(screen.getByRole('button', { name: 'Skip wizard' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
     expect(markComplete).not.toHaveBeenCalled()
   })
 
@@ -204,7 +204,7 @@ describe('CarryforwardWizard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     }
     expect(screen.getByText(/Items to confirm with your preparer/i)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
     expect(navigate).toHaveBeenCalledWith('/tax-return?carryforwards=1')
   })
 

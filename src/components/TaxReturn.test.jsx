@@ -87,7 +87,7 @@ vi.mock('../utils/sessionState.js', () => ({
   syncRecordToServer: vi.fn(async r => r),
   readActiveRecordId: vi.fn(() => null),
   writeActiveRecord: vi.fn(),
-  readPlan: vi.fn(() => 'starter'),
+  readPlan: vi.fn(() => 'professional'),
   writePlan: vi.fn(),
   // D-3 (A) explicit sync: dirty flag + active-record name used by the
   // save-choice dialog and the beforeunload guard.
@@ -103,7 +103,20 @@ vi.mock('../utils/sessionState.js', () => ({
   readEmailConfirmedAck: vi.fn(() => false),
   writeEmailConfirmedAck: vi.fn(),
   clearEmailConfirmedAck: vi.fn(),
+  readEmail: vi.fn(() => 'test@example.com'),
 }))
+
+vi.mock('../lib/carryforwardWizardAccess.js', () => ({
+  canAccessCarryforwardWizard: () => true,
+}))
+
+vi.mock('../utils/carryforwardWizard.js', async () => {
+  const actual = await vi.importActual('../utils/carryforwardWizard.js')
+  return {
+    ...actual,
+    needsCarryforwardWizard: () => true,
+  }
+})
 
 vi.mock('./DismissibleNotice', () => ({
   default: ({ children }) => <div data-testid="dismissible-notice">{children}</div>,
@@ -679,5 +692,29 @@ describe('TaxReturn — Finding 2: K-1 summary panel honors k1DirectMode (displa
     // Old bug would have double-prorated the k1DirectMode entity to $79,200,
     // producing a wrong total of $99,200 ($79,200 + $20,000) instead of $152,000.
     expect(queryByText('$99,200')).toBeNull()
+  })
+})
+
+describe('TaxReturn — carryforward entry + top YTD confirm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    readPersonalContext.mockReturnValue({})
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0, isCoopPatron: false })
+  })
+
+  it('CHAR: shows sticky carryforward entry + prominent guide at top of personal return', () => {
+    const { container } = renderTaxReturn()
+    expect(container.querySelectorAll('[data-section="carryforwards-entry"]').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('button', { name: /Open Carryforward Guide/ })).toBeTruthy()
+    expect(screen.getByText('Carryforward guide')).toBeTruthy()
+  })
+
+  it('CHAR: top Enable YTD Mode shows confirm when income already present', () => {
+    readPersonalContext.mockReturnValue({ w2Income: '80000' })
+    renderTaxReturn()
+    fireEvent.click(screen.getByRole('button', { name: /Enable YTD Mode/ }))
+    expect(screen.getByText(/Treat your entered figures as partial-year data/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Yes, my figures are YTD only/ })).toBeTruthy()
   })
 })

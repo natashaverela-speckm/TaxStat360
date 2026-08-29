@@ -58,11 +58,10 @@ export const isBasisLimitableEntityType = (t) => /s.?corp|partner/i.test(t || ''
  * this is a lightweight, UI-facing gate (a boolean), not a re-derivation of
  * any dollar figure, so it does not touch either of those calculation paths.
  *
- * C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): owner decision (Aug 13
- * 2026) — Continue/Save on Step 1 is blocked while this returns true for any
- * entity, with a help modal explaining how to determine basis. See
- * KNOWN_LIMITATIONS.md "C-10-BASIS" for the full history and the engine-level
- * conservative default this UI gate sits in front of.
+ * C-10-BASIS (Phase 1, Audit Synthesis, Aug 2026): used for soft UI warnings
+ * (badges / footer hint). Blank is allowed — helper text says "leave blank if
+ * unsure"; the engine still applies its conservative $0-basis default. See
+ * KNOWN_LIMITATIONS.md "C-10-BASIS".
  */
 export function entityLossNeedsBasisEntry(e) {
   if (!e || !isBasisLimitableEntityType(e.type)) return false

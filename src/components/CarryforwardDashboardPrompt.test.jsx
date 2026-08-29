@@ -59,7 +59,7 @@ describe('CarryforwardDashboardPrompt', () => {
         <CarryforwardDashboardPrompt />
       </MemoryRouter>,
     )
-    expect(screen.getByText(/prior-year carryforwards from rental/i)).toBeTruthy()
+    expect(screen.getByText(/prior-year carryforwards \(passive losses/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /Start the carryforward guide/ })).toBeTruthy()
   })
 
@@ -70,7 +70,7 @@ describe('CarryforwardDashboardPrompt', () => {
         <CarryforwardDashboardPrompt />
       </MemoryRouter>,
     )
-    expect(screen.queryByText(/prior-year carryforwards from rental/i)).toBeNull()
+    expect(screen.queryByText(/prior-year carryforwards/i)).toBeNull()
   })
 
   it('CHAR: Start navigates to carryforward wizard', () => {
@@ -91,6 +91,6 @@ describe('CarryforwardDashboardPrompt', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
     expect(dismissPrompt).toHaveBeenCalledWith('user@example.com')
-    expect(screen.queryByText(/prior-year carryforwards from rental/i)).toBeNull()
+    expect(screen.queryByText(/prior-year carryforwards/i)).toBeNull()
   })
 })

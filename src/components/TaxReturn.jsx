@@ -13,7 +13,7 @@ import {
   readTaxYear, writeTaxYear,
   readStep1State, readUserRecords, syncRecordToServer,
   readActiveRecordId, writeActiveRecord, readActiveRecordName,
-  readDirtyFlag, writeDirtyFlag,
+  readDirtyFlag, writeDirtyFlag, readEmail,
 } from '../utils/sessionState.js'
 import { signOut } from '../utils/SignOut'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard — validated before every
@@ -27,6 +27,8 @@ import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
 import CarryforwardGuideBanner from './CarryforwardGuideBanner.jsx'
+import { canAccessCarryforwardWizard } from '../lib/carryforwardWizardAccess.js'
+import { needsCarryforwardWizard } from '../utils/carryforwardWizard.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // F16 FIX: MoneyInput gains a `nonNegative` prop.
@@ -763,6 +765,9 @@ export default function TaxReturn() {
 
   const inputLbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }
   const inpWrap  = { marginBottom: 14 }
+  // Pro users always see Carryforwards in the flow chrome (even after completing once).
+  const showCarryforwardInFlow = canAccessCarryforwardWizard()
+  const carryforwardIncomplete = needsCarryforwardWizard(readEmail())
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -773,17 +778,25 @@ export default function TaxReturn() {
           <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            {[
-              { n: 1, label: 'Entities', active: false, done: true  },
-              { n: 2, label: 'Personal Return', active: true,  done: false },
-              { n: 3, label: STEP3_LABEL, active: false, done: false },
-            ].map((s, i) => (
-              <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {(showCarryforwardInFlow
+              ? [
+                  { n: 1, label: 'Entities', active: false, done: true, go: '/calculate-tax' },
+                  { n: 2, label: 'Carryforwards', active: false, done: !carryforwardIncomplete, go: '/carryforward-wizard' },
+                  { n: 3, label: 'Personal Return', active: true, done: false },
+                  { n: 4, label: STEP3_LABEL, active: false, done: false, analyze: true },
+                ]
+              : [
+                  { n: 1, label: 'Entities', active: false, done: true, go: '/calculate-tax' },
+                  { n: 2, label: 'Personal Return', active: true, done: false },
+                  { n: 3, label: STEP3_LABEL, active: false, done: false, analyze: true },
+                ]
+            ).map((s, i, arr) => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : s.active ? B : '#E2E8F0', color: s.done || s.active ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {s.done ? '✓' : s.n}
                   </div>
-                  {s.n === 3 ? (
+                  {s.analyze ? (
                     <button
                       onClick={handleSaveAndAnalyze}
                       disabled={analyzeStatus === 'saving'}
@@ -797,18 +810,12 @@ export default function TaxReturn() {
                     >
                       {analyzeStatus === 'saving' ? 'Saving…' : 'AI Analysis'}
                     </button>
-                  ) : s.n === 1 ? (
-                    // AUDIT-4 FIX: step 1 ("Entities") previously rendered as a plain
-                    // <span> with the same visited/checkmark styling as a clickable
-                    // step, but had no onClick — clicking it silently did nothing.
-                    // Step 1 is marked done, so it's always safe to navigate back to;
-                    // wired to the same /calculate-tax route the existing "← Business"
-                    // button already uses elsewhere on this page.
+                  ) : s.go ? (
                     <button
-                      onClick={() => navigate('/calculate-tax')}
-                      title="Back to Business Entities"
+                      onClick={() => navigate(s.go)}
+                      title={s.label}
                       style={{
-                        fontSize: 11, fontWeight: 500, color: G,
+                        fontSize: 11, fontWeight: 500, color: s.done ? G : B,
                         background: 'none', border: 'none', cursor: 'pointer',
                         padding: 0, fontFamily: 'inherit', whiteSpace: 'nowrap',
                         textDecoration: 'underline', textUnderlineOffset: 2,
@@ -817,13 +824,10 @@ export default function TaxReturn() {
                       {s.label}
                     </button>
                   ) : (
-                    // AUDIT-4 FIX: step 2 ("Personal Return") is the current page —
-                    // intentionally non-interactive (clicking "you are here" has
-                    // nothing to navigate to). Left as plain text, same as before.
                     <span style={{ fontSize: 11, fontWeight: s.active ? 700 : 500, color: s.active ? N : s.done ? G : '#94A3B8', whiteSpace: 'nowrap' }}>{s.label}</span>
                   )}
                 </div>
-                {i < 2 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
+                {i < arr.length - 1 && <span style={{ color: '#CBD5E1', fontSize: 12 }}>›</span>}
               </div>
             ))}
           </div>
@@ -840,6 +844,53 @@ export default function TaxReturn() {
         </div>
       </nav>
 
+      {showCarryforwardInFlow && (
+        <div
+          data-section="carryforwards-entry"
+          style={{
+            position: 'sticky',
+            top: 58,
+            zIndex: 95,
+            background: N,
+            color: '#fff',
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+            boxShadow: '0 4px 14px rgba(13,27,62,0.25)',
+          }}
+        >
+          <div style={{ fontSize: 13, lineHeight: 1.45, maxWidth: 720 }}>
+            <strong style={{ fontWeight: 800 }}>
+              {carryforwardIncomplete ? 'Prior-year carryforwards' : 'Carryforward guide'}
+            </strong>
+            {' '}
+            {carryforwardIncomplete
+              ? '— open the guide for passive losses, capital-loss carryforwards, NOL, and QBI. It saves into this plan.'
+              : '— reopen anytime to review or update numbers saved into this plan.'}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/carryforward-wizard')}
+            style={{
+              flexShrink: 0,
+              padding: '10px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#fff',
+              color: N,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            {carryforwardIncomplete ? 'Open Carryforward Guide →' : 'Edit Carryforward Guide →'}
+          </button>
+        </div>
+      )}
+
       {/* F16 FIX (UX audit): on mobile the full liability panel stacks BELOW the entire
           form (single-column reflow), so the live tax number was off-screen while the
           user typed income at the top. This compact summary sticks just under the nav on
@@ -848,7 +899,7 @@ export default function TaxReturn() {
           place at the liability card below). */}
       {isMobile && hasResult && (
         <div style={{
-          position: 'sticky', top: 58, zIndex: 90,
+          position: 'sticky', top: showCarryforwardInFlow ? 118 : 58, zIndex: 90,
           background: N, color: '#fff',
           padding: '8px 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -908,36 +959,41 @@ export default function TaxReturn() {
               so it carries the same dismissible notice as the Dashboard. */}
           <FederalDisclosureBanner />
 
+          {/* Starter / incomplete: in-page card. Pro incomplete also gets the sticky bar above. */}
+          <CarryforwardGuideBanner variant="prominent" />
+
           {/* F-13 UX FIX: YTD toggle moved here — immediately after Tax Year/Filing Status,
               before entity K-1 summary. This is the most-used in-year planning feature
               and was previously buried mid-scroll. Compact inline version shown here;
               the full expanded detail card remains below in its original position. */}
           {!ytdMode && (
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: N }}>📅 Planning for the rest of the year?</span>
-                <div style={{ fontSize: 11, color: SL, marginTop: 1 }}>Enter YTD figures and we'll project your full-year liability.</div>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 16px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: N }}>📅 Planning for the rest of the year?</span>
+                  <div style={{ fontSize: 11, color: SL, marginTop: 1 }}>Enter YTD figures and we'll project your full-year liability.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // AUDIT-3B FIX: the compact "Enable YTD Mode →" button previously
+                    // called setYtdMode(true) directly, bypassing the confirmation gate
+                    // added to the toggle switch in AUDIT-3. This is the same dangerous
+                    // path — silently treating already-entered full-year figures as
+                    // partial-year data and doubling everything. Apply the same gate.
+                    const hasExistingIncome = nf(w2Income) > 0 ||
+                      entityList.some(e => getEntityPnlNet(e) !== 0)
+                    if (hasExistingIncome) {
+                      setYtdConfirmPending(true)
+                    } else {
+                      setYtdMode(true)
+                    }
+                  }}
+                  style={{ padding: '7px 14px', background: '#EFF6FF', color: B, border: '1px solid #BFDBFE', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  Enable YTD Mode →
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  // AUDIT-3B FIX: the compact "Enable YTD Mode →" button previously
-                  // called setYtdMode(true) directly, bypassing the confirmation gate
-                  // added to the toggle switch in AUDIT-3. This is the same dangerous
-                  // path — silently treating already-entered full-year figures as
-                  // partial-year data and doubling everything. Apply the same gate.
-                  const hasExistingIncome = nf(w2Income) > 0 ||
-                    entityList.some(e => getEntityPnlNet(e) !== 0)
-                  if (hasExistingIncome) {
-                    setYtdConfirmPending(true)
-                  } else {
-                    setYtdMode(true)
-                  }
-                }}
-                style={{ padding: '7px 14px', background: '#EFF6FF', color: B, border: '1px solid #BFDBFE', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-              >
-                Enable YTD Mode →
-              </button>
             </div>
           )}
 
@@ -1172,35 +1228,6 @@ export default function TaxReturn() {
               </div>
             </div>
 
-            {/* AUDIT-3 FIX: confirmation modal — shown only when enabling YTD mode
-                with existing income data already present. Explains exactly what
-                will happen (figures get treated as partial-year and multiplied)
-                before it happens, rather than after. */}
-            {ytdConfirmPending && (
-              <div role="alertdialog" aria-modal="true" style={{ marginTop: 12, background: '#FEF3C7', border: '1.5px solid #FCD34D', borderRadius: 8, padding: '12px 14px' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#78350F', marginBottom: 6 }}>
-                  ⚠ Treat your entered figures as partial-year data?
-                </div>
-                <div style={{ fontSize: 13, color: '#78350F', marginBottom: 10, lineHeight: 1.5 }}>
-                  You already have income entered (W-2 and/or business entity income). Enabling YTD Mode will treat those figures as income earned only through the month you select — not the full year — and multiply them up to project a full-year total. If the figures you entered are already full-year actuals, this will overstate your projected liability.
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => { setYtdMode(true); setYtdConfirmPending(false) }}
-                    style={{ padding: '6px 14px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Yes, my figures are YTD only
-                  </button>
-                  <button
-                    onClick={() => setYtdConfirmPending(false)}
-                    style={{ padding: '6px 14px', background: '#fff', color: '#78350F', border: '1px solid #FCD34D', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
             {ytdMode && (
               <div style={{ marginTop: 12, background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
@@ -1228,6 +1255,52 @@ export default function TaxReturn() {
               </div>
             )}
           </div>
+
+          {/* AUDIT-3 / top-button fix: one fixed confirm for both the compact top
+              "Enable YTD Mode" control and the mid-page toggle — previously the
+              confirm only lived inside the mid-page card, so the top button looked dead. */}
+          {ytdConfirmPending && (
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-label="Confirm YTD mode"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.45)',
+                zIndex: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              }}
+            >
+              <div style={{ background: '#fff', borderRadius: 14, padding: '22px 22px', maxWidth: 440, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.2)', border: '1.5px solid #FCD34D' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#78350F', marginBottom: 8 }}>
+                  ⚠ Treat your entered figures as partial-year data?
+                </div>
+                <div style={{ fontSize: 13, color: '#78350F', marginBottom: 14, lineHeight: 1.55 }}>
+                  You already have income entered (W-2 and/or business entity income). Enabling YTD Mode will treat those figures as income earned only through the month you select — not the full year — and multiply them up to project a full-year total. If the figures you entered are already full-year actuals, this will overstate your projected liability.
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setYtdMode(true); setYtdConfirmPending(false) }}
+                    style={{ padding: '9px 14px', background: '#D97706', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Yes, my figures are YTD only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setYtdConfirmPending(false)}
+                    style={{ padding: '9px 14px', background: '#fff', color: '#78350F', border: '1px solid #FCD34D', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Dependents + estimated payments */}
           <CollapsibleSection title="Dependents, Federal Withholding & Estimated Payments" defaultOpen>
