@@ -1,3 +1,9 @@
+import {
+  hasSkippedCarryforwardFlowOffer as _hasSkippedCarryforwardFlowOffer,
+  markCarryforwardFlowOfferSkipped as _markCarryforwardFlowOfferSkipped,
+  CARRYFORWARD_FLOW_OFFER_SKIP_KEY as _CARRYFORWARD_FLOW_OFFER_SKIP_KEY,
+} from './sessionState.js'
+
 /** Per-user carryforward wizard completion flag — compute when the user is known. */
 export function carryforwardWizardKeyFor(email = '') {
   return `ts360_carryforward_wizard_v1_${String(email || '').trim().toLowerCase()}`
@@ -7,23 +13,13 @@ export function carryforwardPromptKeyFor(email = '') {
   return `ts360_carryforward_prompt_dismissed_v1_${String(email || '').trim().toLowerCase()}`
 }
 
-/** Session-only: user skipped the Step 1 → Step 2 carryforward offer this tab. */
-export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = 'ts360_carryforward_flow_offer_skipped_v1'
-
+/** Re-export: sessionStorage lives only in sessionState.js (ARCHITECTURE §3). */
+export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = _CARRYFORWARD_FLOW_OFFER_SKIP_KEY
 export function hasSkippedCarryforwardFlowOffer() {
-  try {
-    return sessionStorage.getItem(CARRYFORWARD_FLOW_OFFER_SKIP_KEY) === '1'
-  } catch {
-    return false
-  }
+  return _hasSkippedCarryforwardFlowOffer()
 }
-
 export function markCarryforwardFlowOfferSkipped() {
-  try {
-    sessionStorage.setItem(CARRYFORWARD_FLOW_OFFER_SKIP_KEY, '1')
-  } catch (_) {
-    // ignore — offer may reappear this session
-  }
+  return _markCarryforwardFlowOfferSkipped()
 }
 
 // test seam: exported for tests only — not a production API.

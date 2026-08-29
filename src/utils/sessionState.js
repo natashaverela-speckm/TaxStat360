@@ -1036,3 +1036,23 @@ export function readStep1Draft() {
 export function clearStep1Draft() {
   try { localStorage.removeItem(STEP1_DRAFT_KEY) } catch { /* noop */ }
 }
+
+// ── Carryforward guide (session-scoped Step 1 → Step 2 offer skip) ────────────
+// Tab-only flag: after "Skip guide — personal return", don't re-offer this session.
+export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = 'ts360_carryforward_flow_offer_skipped_v1'
+
+export function hasSkippedCarryforwardFlowOffer() {
+  try {
+    return sessionStorage.getItem(CARRYFORWARD_FLOW_OFFER_SKIP_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markCarryforwardFlowOfferSkipped() {
+  try {
+    sessionStorage.setItem(CARRYFORWARD_FLOW_OFFER_SKIP_KEY, '1')
+  } catch (_) {
+    // private mode / blocked storage: offer may reappear this session
+  }
+}
