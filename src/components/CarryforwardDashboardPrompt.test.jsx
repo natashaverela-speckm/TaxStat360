@@ -18,16 +18,14 @@ vi.mock('../lib/carryforwardWizardAccess.js', () => ({
 vi.mock('../utils/sessionState.js', () => ({
   readEmail: (...args) => readEmail(...args),
   readStep1State: (...args) => readStep1State(...args),
+  hasSkippedCarryforwardFlowOffer: () => false,
+  markCarryforwardFlowOfferSkipped: () => {},
 }))
 
-vi.mock('../utils/carryforwardWizard.js', async () => {
-  const actual = await vi.importActual('../utils/carryforwardWizard.js')
-  return {
-    ...actual,
-    shouldShowCarryforwardDashboardPrompt: () => shouldShowPrompt,
-    dismissCarryforwardDashboardPrompt: (...args) => dismissPrompt(...args),
-  }
-})
+vi.mock('../utils/carryforwardWizard.js', () => ({
+  shouldShowCarryforwardDashboardPrompt: () => shouldShowPrompt,
+  dismissCarryforwardDashboardPrompt: (...args) => dismissPrompt(...args),
+}))
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
