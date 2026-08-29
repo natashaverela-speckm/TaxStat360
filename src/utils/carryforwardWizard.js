@@ -1,7 +1,6 @@
 import {
-  hasSkippedCarryforwardFlowOffer as _hasSkippedCarryforwardFlowOffer,
-  markCarryforwardFlowOfferSkipped as _markCarryforwardFlowOfferSkipped,
-  CARRYFORWARD_FLOW_OFFER_SKIP_KEY as _CARRYFORWARD_FLOW_OFFER_SKIP_KEY,
+  hasSkippedCarryforwardFlowOffer as readFlowOfferSkipped,
+  markCarryforwardFlowOfferSkipped as writeFlowOfferSkipped,
 } from './sessionState.js'
 
 /** Per-user carryforward wizard completion flag — compute when the user is known. */
@@ -13,13 +12,15 @@ export function carryforwardPromptKeyFor(email = '') {
   return `ts360_carryforward_prompt_dismissed_v1_${String(email || '').trim().toLowerCase()}`
 }
 
-/** Re-export: sessionStorage lives only in sessionState.js (ARCHITECTURE §3). */
-export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = _CARRYFORWARD_FLOW_OFFER_SKIP_KEY
+/** Same key as sessionState — kept here for tests; storage access is only in sessionState. */
+export const CARRYFORWARD_FLOW_OFFER_SKIP_KEY = 'ts360_carryforward_flow_offer_skipped_v1'
+
 export function hasSkippedCarryforwardFlowOffer() {
-  return _hasSkippedCarryforwardFlowOffer()
+  return readFlowOfferSkipped()
 }
+
 export function markCarryforwardFlowOfferSkipped() {
-  return _markCarryforwardFlowOfferSkipped()
+  return writeFlowOfferSkipped()
 }
 
 // test seam: exported for tests only — not a production API.
