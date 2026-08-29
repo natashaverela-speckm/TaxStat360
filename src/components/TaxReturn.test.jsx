@@ -104,6 +104,10 @@ vi.mock('../utils/sessionState.js', () => ({
   writeEmailConfirmedAck: vi.fn(),
   clearEmailConfirmedAck: vi.fn(),
   readEmail: vi.fn(() => 'test@example.com'),
+  // Required when carryforwardWizard is importActual'd (ARCHITECTURE §3 re-exports)
+  CARRYFORWARD_FLOW_OFFER_SKIP_KEY: 'ts360_carryforward_flow_offer_skipped_v1',
+  hasSkippedCarryforwardFlowOffer: vi.fn(() => false),
+  markCarryforwardFlowOfferSkipped: vi.fn(),
 }))
 
 vi.mock('../lib/carryforwardWizardAccess.js', () => ({

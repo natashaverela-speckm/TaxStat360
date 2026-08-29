@@ -26,6 +26,9 @@ vi.mock('../utils/sessionState.js', () => ({
   writePersonalContext: (...args) => writePersonalContext(...args),
   writeDirtyFlag: (...args) => writeDirtyFlag(...args),
   readEmail: (...args) => readEmail(...args),
+  CARRYFORWARD_FLOW_OFFER_SKIP_KEY: 'ts360_carryforward_flow_offer_skipped_v1',
+  hasSkippedCarryforwardFlowOffer: () => false,
+  markCarryforwardFlowOfferSkipped: () => {},
 }))
 
 vi.mock('../utils/carryforwardWizard.js', async () => {
