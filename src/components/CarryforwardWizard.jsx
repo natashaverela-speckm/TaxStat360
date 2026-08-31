@@ -10,6 +10,11 @@ import {
   loadWizardValuesFromContext,
   saveWizardValuesToContext,
 } from '../lib/carryforwardWizardPersistence.js'
+import { extractTax1040Carryforward } from '../lib/carryforwardExtractClient.js'
+import {
+  applyExtractFieldsToWizardValues,
+  assertTaxExtractNotRetained,
+} from '../lib/carryforwardExtractMap.js'
 import {
   evaluateCarryforwardStepSanity,
   collectCarryforwardWarnings,
@@ -75,6 +80,9 @@ function CarryforwardWizardFlow() {
   const [stepIndex, setStepIndex] = useState(0)
   const [values, setValues] = useState(() => loadWizardValuesFromContext())
   const [inputError, setInputError] = useState('')
+  const [extractBusy, setExtractBusy] = useState(false)
+  const [extractNotice, setExtractNotice] = useState(null) // { kind, text }
+  const fileInputRef = useRef(null)
 
   const step = CARRYFORWARD_WIZARD_STEPS[stepIndex]
   const isLast = stepIndex === STEP_COUNT - 1
@@ -112,6 +120,39 @@ function CarryforwardWizardFlow() {
     const email = readEmail()
     if (email) markCarryforwardWizardComplete(email)
     navigate('/tax-return?carryforwards=1')
+  }
+
+  const handlePrefillFromPdf = async (fileList) => {
+    const file = fileList && fileList[0]
+    if (!file) return
+    setExtractBusy(true)
+    setExtractNotice(null)
+    const res = await extractTax1040Carryforward(file)
+    setExtractBusy(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (!res.ok) {
+      setExtractNotice({ kind: 'error', text: res.error || 'Extract failed.' })
+      return
+    }
+    if (!assertTaxExtractNotRetained(res.result?.evidence)) {
+      setExtractNotice({
+        kind: 'error',
+        text: 'Extract refused — tax documents must not be stored in Evidence. Enter values manually.',
+      })
+      return
+    }
+    const mapped = applyExtractFieldsToWizardValues(res.result?.fields, values)
+    setValues(mapped.values)
+    const warn = Array.isArray(res.result?.warnings) ? res.result.warnings : []
+    const n = mapped.appliedKeys.length
+    setExtractNotice({
+      kind: 'ok',
+      text:
+        n > 0
+          ? `Prefilled ${n} field${n === 1 ? '' : 's'} from your PDF — review every step before Finish. Nothing is saved until you click Finish.`
+          : 'No amounts detected — walk the steps and enter values manually.',
+      warnings: warn,
+    })
   }
 
   return (
@@ -219,6 +260,74 @@ function CarryforwardWizardFlow() {
           boxShadow: '0 4px 24px rgba(13,27,62,0.06)',
         }}
       >
+        {stepIndex === 0 && (
+          <div
+            style={{
+              marginBottom: 20,
+              padding: '14px 14px',
+              background: '#F0F9FF',
+              border: '1px solid #BAE6FD',
+              borderRadius: 10,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 800, color: N, marginBottom: 6 }}>
+              Prefill from prior-year PDF (optional)
+            </div>
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: SL, lineHeight: 1.55 }}>
+              Upload last year’s Form 1040 / schedules. We draft carryforward amounts for you to
+              review — nothing is saved until you click Finish. Tax PDFs are not kept in RepsRecord
+              Evidence.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+              style={{ display: 'none' }}
+              onChange={(e) => handlePrefillFromPdf(e.target.files)}
+            />
+            <button
+              type="button"
+              disabled={extractBusy}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: extractBusy ? '#94A3B8' : B,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '9px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: extractBusy ? 'wait' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {extractBusy ? 'Reading PDF…' : 'Upload PDF / image'}
+            </button>
+            {extractNotice && (
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: extractNotice.kind === 'error' ? '#991B1B' : '#0F766E',
+                  background: extractNotice.kind === 'error' ? '#FEF2F2' : '#ECFDF5',
+                  border: `1px solid ${extractNotice.kind === 'error' ? '#FECACA' : '#A7F3D0'}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                }}
+              >
+                {extractNotice.text}
+                {Array.isArray(extractNotice.warnings) && extractNotice.warnings.length > 0 && (
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    {extractNotice.warnings.slice(0, 4).map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <span style={srOnlyStyle}>
           Step {stepIndex + 1} of {STEP_COUNT}: {step.label}
         </span>
