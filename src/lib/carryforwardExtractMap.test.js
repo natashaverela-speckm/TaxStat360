@@ -10,9 +10,11 @@ import {
 import { getCarryforwardWizardFieldKeys } from './carryforwardWizardConfig.js'
 
 describe('TAX_1040 field keys align with wizard', () => {
-  it('every extract key is a wizard fieldKey', () => {
+  it('every extract key is a wizard fieldKey or maps to one', () => {
     const wizard = new Set(getCarryforwardWizardFieldKeys())
+    const aliases = new Set(['priorSuspendedLoss'])
     for (const k of TAX_1040_EXTRACT_FIELD_KEYS) {
+      if (aliases.has(k)) continue
       expect(wizard.has(k)).toBe(true)
     }
   })
@@ -34,7 +36,16 @@ describe('applyExtractFieldsToWizardValues', () => {
     expect(values.priorYearAGI).toBe('142000')
     expect(values.nolCarryforward).toBeUndefined()
     expect(appliedKeys).toContain('priorPassiveLossCarryforward')
+    expect(appliedKeys).not.toContain('priorSuspendedLoss')
     expect(appliedKeys).not.toContain('nolCarryforward')
+  })
+
+  it('maps priorSuspendedLoss extract field into the single PAL wizard field', () => {
+    const { values, appliedKeys } = applyExtractFieldsToWizardValues({
+      priorSuspendedLoss: 3200,
+    })
+    expect(values.priorPassiveLossCarryforward).toBe('3200')
+    expect(appliedKeys).toEqual(['priorPassiveLossCarryforward'])
   })
 
   it('merges onto existing wizard values (HITL — does not wipe untouched)', () => {

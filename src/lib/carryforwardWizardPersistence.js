@@ -17,6 +17,12 @@ function contextValueForField(ctx, fieldKey) {
   if (fieldKey === 'priorYearQBILoss') {
     return ctx.priorYearQBILoss ?? ctx.priorYearLosses
   }
+  // Legacy wizard step 2 wrote Form 8582 PAL to priorSuspendedLoss — treat as alias.
+  if (fieldKey === 'priorPassiveLossCarryforward') {
+    const pal = ctx.priorPassiveLossCarryforward
+    if (pal !== '' && pal != null && nf(pal) !== 0) return pal
+    return ctx.priorSuspendedLoss
+  }
   return ctx[fieldKey]
 }
 

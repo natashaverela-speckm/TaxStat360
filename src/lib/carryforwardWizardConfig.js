@@ -27,29 +27,20 @@ export const CARRYFORWARD_SANITY_KEYS = ['nonNegative', 'warnAbove']
  * @property {string} explainer — what this is and why it matters
  * @property {string} [fieldKey] — F1040_FIELD_MANIFEST key; omit when informational
  * @property {true} [informational]
+ * @property {string} [guidanceNote] — guidance-only panel copy (informational steps)
  * @property {{ nonNegative?: true, warnAbove?: number }} [sanity]
  */
 
 /** @type {CarryforwardWizardStep[]} */
 export const CARRYFORWARD_WIZARD_STEPS = [
   {
-    id: 'passive-activity-loss',
-    label: 'Passive activity loss carryforward',
+    id: 'prior-unallowed-passive-loss',
+    label: 'Prior-year unallowed passive loss carryforward',
     helperText:
-      "Look at Form 8582, line 3 of last year's return and enter the suspended passive loss carryforward here.",
+      "Find it in the 'Unallowed Loss' column of last year's Form 8582 worksheets (Worksheet 5 or 6, or Part VII on newer forms). This is the suspended passive loss that carries onto Form 8582 lines 1c/2c (rental real estate) or 3c (other passive activities).",
     explainer:
       'Passive activity losses from rental real estate or other passive activities may be suspended under IRC §469 until you have passive income or meet an exception (for example, Real Estate Professional status under §469(c)(7)). The suspended amount carries forward and affects how much prior loss can offset current-year income in your planning estimate.',
     fieldKey: 'priorPassiveLossCarryforward',
-    sanity: { nonNegative: true, warnAbove: 1_000_000 },
-  },
-  {
-    id: 'prior-unallowed-losses',
-    label: 'Prior-year unallowed losses',
-    helperText:
-      "Check the Form 8582 worksheets attached to last year's return for unallowed losses not yet released.",
-    explainer:
-      'Unallowed losses from prior years that remain suspended on the Form 8582 worksheets carry into the current planning year until released by passive income or a qualifying exception. Enter the total amount still suspended per your prior-year return.',
-    fieldKey: 'priorSuspendedLoss',
     sanity: { nonNegative: true, warnAbove: 1_000_000 },
   },
   {
@@ -76,7 +67,7 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'nol-carryforward',
     label: 'NOL carryforward',
     helperText:
-      "Enter the total NOL carryforward from last year's return (Form 1040 / NOL schedule or attachment).",
+      "Look at the NOL Carryover Schedule (an informal statement/worksheet at the back of last year's return, often titled 'NOL Carryover Schedule' or 'Statement of Net Operating Loss Carryforward'). Any NOL used last year appears on Schedule 1, Part II, Line 22 (labeled 'NOL'); the remaining unused balance is what you carry forward.",
     explainer:
       "Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically.",
     fieldKey: 'nolCarryforward',
@@ -86,10 +77,12 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'at-risk-carryforward',
     label: 'At-risk carryforwards',
     helperText:
-      "Review Form 6198 from last year's return for amounts still at risk or suspended due to the at-risk rules.",
+      "Review Form 6198 from last year's return for amounts still at risk or suspended due to the at-risk rules. For each activity on last year's Form 6198, subtract Line 21 (deductible loss) from Line 11 (current-year loss) — the leftover is that activity's at-risk carryforward.",
     explainer:
-      'The at-risk rules under IRC §465 limit deductible losses to the amount you have at risk in the activity. Amounts disallowed under these rules carry forward. TaxStat360 does not yet store a dedicated at-risk balance — use this step for guidance and enter related losses in the appropriate entity or passive-loss fields after confirming with your preparer.',
+      'The at-risk rules under IRC §465 limit deductible losses to the amount you have at risk in the activity. Amounts disallowed under these rules carry forward. TaxStat360 does not yet store a dedicated at-risk balance on the personal return — enter per-activity amounts on each entity screen after confirming with your preparer.',
     informational: true,
+    guidanceNote:
+      'Guidance only — there is no amount field on this step. For each activity on last year\'s Form 6198, subtract Line 21 (deductible loss) from Line 11 (current-year loss). Enter that carryforward on that activity\'s business, rental, or K-1 input screen in Step 1 (Entities).',
   },
   {
     id: 'qbi-carryforward',
@@ -109,6 +102,8 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     explainer:
       'Continuity of depreciation affects current-year deductions and potential recapture on disposition (for example, unrecaptured §1250 gain on real property). TaxStat360 does not yet store a dedicated depreciation-continuity balance — confirm accumulated depreciation and recapture exposure with your preparer before relying on sale or disposition projections.',
     informational: true,
+    guidanceNote:
+      'Guidance only — there is no amount field on this step. Review last year\'s Schedule E, Form 4562, and asset schedules with your preparer to confirm accumulated depreciation and recapture exposure. Enter current-year depreciation in each entity\'s Depreciation field (Step 1: Entities); for a sale or exchange, use that entity\'s disposition and recapture fields.',
   },
   {
     id: 'prior-year-tax',

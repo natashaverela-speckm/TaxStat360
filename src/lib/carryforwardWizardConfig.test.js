@@ -22,8 +22,8 @@ describe('carryforwardWizardConfig', () => {
     expect(CARRYFORWARD_WIZARD_MIN_PLAN).toBe('professional')
   })
 
-  it('CHAR: defines exactly 10 wizard steps per lean v1 spec', () => {
-    expect(CARRYFORWARD_WIZARD_STEPS).toHaveLength(10)
+  it('CHAR: defines exactly 9 wizard steps per lean v1 spec', () => {
+    expect(CARRYFORWARD_WIZARD_STEPS).toHaveLength(9)
   })
 
   it('CHAR: every step has a unique id', () => {
@@ -47,7 +47,7 @@ describe('carryforwardWizardConfig', () => {
     }
   })
 
-  it('CHAR: informational steps have no fieldKey', () => {
+  it('CHAR: informational steps have no fieldKey and a guidance note', () => {
     const informational = CARRYFORWARD_WIZARD_STEPS.filter((s) => s.informational)
     expect(informational).toHaveLength(2)
     expect(informational.map((s) => s.id).sort()).toEqual([
@@ -56,13 +56,15 @@ describe('carryforwardWizardConfig', () => {
     ])
     for (const step of informational) {
       expect(step.fieldKey, step.id).toBeUndefined()
+      expect(step.guidanceNote?.trim(), step.id).toBeTruthy()
+      expect(step.guidanceNote, step.id).toMatch(/Guidance only/)
     }
   })
 
   it('CHAR: data-entry field keys are unique across steps', () => {
     const keys = getCarryforwardWizardFieldKeys()
     expect(new Set(keys).size).toBe(keys.length)
-    expect(keys).toHaveLength(8)
+    expect(keys).toHaveLength(7)
   })
 
   it('CHAR: sanity objects only use allowed keys', () => {
