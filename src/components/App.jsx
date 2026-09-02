@@ -421,12 +421,14 @@ const ROUTE_TITLES = {
   '/privacy-policy':   'Privacy Policy | TaxStat360',
   '/terms':            'Terms of Service | TaxStat360',
   '/terms-of-service': 'Terms of Service | TaxStat360',
+  '/carryforward-wizard': 'Carryforward Wizard | TaxStat360',
 }
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 const NOINDEX_PREFIXES  = [
   '/dashboard','/calculate-tax','/calculator',
   '/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
+  '/carryforward-wizard',
 ]
 
 function setNoindex(shouldNoindex) {
