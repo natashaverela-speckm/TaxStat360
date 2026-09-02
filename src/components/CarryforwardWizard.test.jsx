@@ -77,7 +77,7 @@ describe('buildInitialWizardValues', () => {
   it('CHAR: initializes every data-entry field to empty string', () => {
     const values = buildInitialWizardValues()
     const keys = Object.keys(values)
-    expect(keys.length).toBe(8)
+    expect(keys.length).toBe(7)
     for (const key of keys) {
       expect(values[key]).toBe('')
     }
@@ -91,7 +91,7 @@ describe('CarryforwardWizard', () => {
     expect(screen.getByRole('heading', { name: step1.label })).toBeTruthy()
     expect(screen.getByText(step1.helperText)).toBeTruthy()
     expect(screen.getByText(GLOBAL_DISCLAIMER)).toBeTruthy()
-    expect(screen.getByText('1 of 10')).toBeTruthy()
+    expect(screen.getByText('1 of 9')).toBeTruthy()
   })
 
   it('CHAR: Next advances to step 2; Back returns to step 1', () => {
@@ -113,7 +113,7 @@ describe('CarryforwardWizard', () => {
     expect(screen.getByLabelText(step1.label).value).toBe('14,000')
   })
 
-  it('CHAR: informational step has no amount input', () => {
+  it('CHAR: guidance-only step has no amount input or Amount label', () => {
     renderWizard()
     const atRiskIndex = CARRYFORWARD_WIZARD_STEPS.findIndex((s) => s.id === 'at-risk-carryforward')
     for (let i = 0; i < atRiskIndex; i++) {
@@ -121,7 +121,22 @@ describe('CarryforwardWizard', () => {
     }
     expect(screen.getByRole('heading', { name: 'At-risk carryforwards' })).toBeTruthy()
     expect(screen.queryByLabelText('At-risk carryforwards')).toBeNull()
-    expect(screen.getByText(/Guidance only/)).toBeTruthy()
+    expect(screen.queryByText(/^Amount$/i)).toBeNull()
+    expect(screen.getByText(/Guidance only — there is no amount field on this step/)).toBeTruthy()
+    expect(screen.getByText(/Step 1 \(Entities\)/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
+  })
+
+  it('CHAR: depreciation continuity step is guidance-only with no Amount label', () => {
+    renderWizard()
+    const depIndex = CARRYFORWARD_WIZARD_STEPS.findIndex((s) => s.id === 'depreciation-continuity')
+    for (let i = 0; i < depIndex; i++) {
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    expect(screen.getByRole('heading', { name: 'Depreciation continuity' })).toBeTruthy()
+    expect(screen.queryByText(/^Amount$/i)).toBeNull()
+    expect(screen.getByText(/Depreciation field \(Step 1: Entities\)/)).toBeTruthy()
+    expect(screen.getByText(/disposition and recapture fields/)).toBeTruthy()
   })
 
   it('CHAR: Skip to Personal Return navigates to tax return without persisting', () => {
@@ -156,7 +171,7 @@ describe('CarryforwardWizard', () => {
     for (let i = 0; i < CARRYFORWARD_WIZARD_STEPS.length - 1; i++) {
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     }
-    expect(screen.getByText('10 of 10')).toBeTruthy()
+    expect(screen.getByText('9 of 9')).toBeTruthy()
     expect(screen.getByText(GLOBAL_DISCLAIMER)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
     expect(writePersonalContext).toHaveBeenCalledWith({
@@ -215,7 +230,7 @@ describe('CarryforwardWizard', () => {
     wizardAccess = false
     renderWizard()
     expect(screen.getByRole('heading', { name: /Carryforward Guide — Professional Feature/ })).toBeTruthy()
-    expect(screen.queryByText('1 of 10')).toBeNull()
+    expect(screen.queryByText('1 of 9')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Upgrade to Professional/ }))
     expect(navigate).toHaveBeenCalledWith('/upgrade')
   })

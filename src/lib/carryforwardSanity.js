@@ -36,8 +36,7 @@ function evaluateCrossFieldRule(step, amount, allValues) {
   const agi = priorYearAgiFromValues(allValues)
 
   switch (step.id) {
-    case 'passive-activity-loss':
-    case 'prior-unallowed-losses':
+    case 'prior-unallowed-passive-loss':
       if (agi > 0 && amount > agi * 2) {
         return warn(
           `This amount exceeds twice your prior-year AGI (${fmt(agi)}). ${PREPARER_SUFFIX}`,

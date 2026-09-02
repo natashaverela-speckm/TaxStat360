@@ -47,6 +47,11 @@ describe('loadWizardValuesFromContext', () => {
     expect(values.priorYearQBILoss).toBe('1200')
   })
 
+  it('CHAR: prefills priorPassiveLossCarryforward from legacy priorSuspendedLoss context', () => {
+    const values = loadWizardValuesFromContext({ priorSuspendedLoss: 9000 })
+    expect(values.priorPassiveLossCarryforward).toBe('9000')
+  })
+
   it('CHAR: starts empty when context has no carryforward values', () => {
     const values = loadWizardValuesFromContext({})
     expect(values).toEqual(buildInitialWizardValues())

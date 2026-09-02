@@ -29,12 +29,26 @@ export function applyExtractFieldsToWizardValues(fields, baseValues = {}) {
   const src = fields && typeof fields === 'object' ? fields : {}
   const wizardKeys = new Set(getCarryforwardWizardFieldKeys())
 
+  // Extract stub/API may still send priorSuspendedLoss — merge into the single PAL field.
+  const normalized = { ...src }
+  if (
+    normalized.priorPassiveLossCarryforward == null &&
+    normalized.priorSuspendedLoss != null &&
+    normalized.priorSuspendedLoss !== ''
+  ) {
+    normalized.priorPassiveLossCarryforward = normalized.priorSuspendedLoss
+  }
+
   for (const key of TAX_1040_EXTRACT_FIELD_KEYS) {
+    if (key === 'priorSuspendedLoss') {
+      skippedKeys.push(key)
+      continue
+    }
     if (!wizardKeys.has(key)) {
       skippedKeys.push(key)
       continue
     }
-    const raw = src[key]
+    const raw = normalized[key]
     if (raw == null || raw === '') {
       skippedKeys.push(key)
       continue

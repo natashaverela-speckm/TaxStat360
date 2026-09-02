@@ -86,16 +86,17 @@ function CarryforwardWizardFlow() {
   const fileInputRef = useRef(null)
 
   const step = CARRYFORWARD_WIZARD_STEPS[stepIndex]
+  const isGuidanceOnly = Boolean(step.informational || !step.fieldKey)
   const isLast = stepIndex === STEP_COUNT - 1
   const showDisclaimer = stepIndex === 0 || isLast
 
   const stepSanity = useMemo(
     () => (
-      step.informational || !step.fieldKey
+      isGuidanceOnly
         ? { level: 'ok' }
         : evaluateCarryforwardStepSanity(step, values[step.fieldKey], values)
     ),
-    [step, values],
+    [isGuidanceOnly, step, values],
   )
 
   const allWarnings = useMemo(() => collectCarryforwardWarnings(values), [values])
@@ -392,7 +393,7 @@ function CarryforwardWizardFlow() {
           {step.explainer}
         </details>
 
-        {step.informational ? (
+        {isGuidanceOnly ? (
           <p
             style={{
               fontSize: 13,
@@ -405,8 +406,8 @@ function CarryforwardWizardFlow() {
               lineHeight: 1.6,
             }}
           >
-            Guidance only — TaxStat360 does not store a value for this item yet. Review with
-            your preparer and enter related amounts in the appropriate planning fields if needed.
+            {step.guidanceNote ||
+              'Guidance only — there is no amount field on this step. Review with your preparer before relying on this item in your plan.'}
           </p>
         ) : (
           <div style={{ marginBottom: 20 }}>
@@ -534,7 +535,7 @@ function CarryforwardWizardFlow() {
                 Back
               </button>
             )}
-            {!step.informational && (
+            {!isLast && (
               <button
                 type="button"
                 onClick={goNext}
@@ -549,7 +550,7 @@ function CarryforwardWizardFlow() {
                   cursor: 'pointer',
                 }}
               >
-                Skip this item
+                {isGuidanceOnly ? 'Continue' : 'Skip this item'}
               </button>
             )}
             {isLast ? (

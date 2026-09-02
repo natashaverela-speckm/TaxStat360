@@ -22,17 +22,17 @@ function assertPreparerCopy(message) {
 
 describe('evaluateCarryforwardStepSanity', () => {
   it('CHAR: blank value returns ok', () => {
-    const step = stepById('passive-activity-loss')
+    const step = stepById('prior-unallowed-passive-loss')
     expect(evaluateCarryforwardStepSanity(step, '', {})).toEqual({ level: 'ok' })
   })
 
   it('CHAR: zero returns ok', () => {
-    const step = stepById('passive-activity-loss')
+    const step = stepById('prior-unallowed-passive-loss')
     expect(evaluateCarryforwardStepSanity(step, '0', {})).toEqual({ level: 'ok' })
   })
 
   it('CHAR: huge PAL exceeds warnAbove', () => {
-    const step = stepById('passive-activity-loss')
+    const step = stepById('prior-unallowed-passive-loss')
     const result = evaluateCarryforwardStepSanity(step, '2000000', {})
     expect(result.level).toBe('warn')
     assertPreparerCopy(result.message)
@@ -40,7 +40,7 @@ describe('evaluateCarryforwardStepSanity', () => {
   })
 
   it('CHAR: PAL above 2x AGI triggers cross-field warn', () => {
-    const step = stepById('passive-activity-loss')
+    const step = stepById('prior-unallowed-passive-loss')
     const result = evaluateCarryforwardStepSanity(step, '300000', { priorYearAGI: '100000' })
     expect(result.level).toBe('warn')
     assertPreparerCopy(result.message)
@@ -48,7 +48,7 @@ describe('evaluateCarryforwardStepSanity', () => {
   })
 
   it('CHAR: PAL below 2x AGI and warnAbove returns ok', () => {
-    const step = stepById('passive-activity-loss')
+    const step = stepById('prior-unallowed-passive-loss')
     const result = evaluateCarryforwardStepSanity(step, '150000', { priorYearAGI: '100000' })
     expect(result.level).toBe('ok')
   })
@@ -95,8 +95,8 @@ describe('collectCarryforwardWarnings', () => {
 
 describe('carryforward sanity copy guard', () => {
   const triggerCases = [
-    { id: 'passive-activity-loss', value: '2000000', values: {} },
-    { id: 'passive-activity-loss', value: '300000', values: { priorYearAGI: '100000' } },
+    { id: 'prior-unallowed-passive-loss', value: '2000000', values: {} },
+    { id: 'prior-unallowed-passive-loss', value: '300000', values: { priorYearAGI: '100000' } },
     { id: 'nol-carryforward', value: '600000', values: { priorYearAGI: '100000' } },
     { id: 'qbi-carryforward', value: '200000', values: { priorYearAGI: '100000' } },
     { id: 'prior-year-tax', value: '200000', values: { priorYearAGI: '150000' } },
