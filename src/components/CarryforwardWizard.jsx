@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CARRYFORWARD_WIZARD_STEPS,
+  CARRYFORWARD_PDF_PREFILL_ENABLED,
   GLOBAL_DISCLAIMER,
   buildInitialWizardValues,
 } from '../lib/carryforwardWizardConfig.js'
@@ -260,7 +261,7 @@ function CarryforwardWizardFlow() {
           boxShadow: '0 4px 24px rgba(13,27,62,0.06)',
         }}
       >
-        {stepIndex === 0 && (
+        {stepIndex === 0 && CARRYFORWARD_PDF_PREFILL_ENABLED && (
           <div
             style={{
               marginBottom: 20,

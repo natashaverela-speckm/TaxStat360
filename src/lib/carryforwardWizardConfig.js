@@ -8,6 +8,12 @@ export const GLOBAL_DISCLAIMER =
 /** Phase 3 applies plan gate; constant ready for LockedFeature integration. */
 export const CARRYFORWARD_WIZARD_MIN_PLAN = 'professional'
 
+/**
+ * PDF prefill from prior-year Form 1040 — gated until pre-send SSN redaction is built
+ * and confirmed (agreed Phase 2 gate; tax-1040 extract stays stub-only until then).
+ */
+export const CARRYFORWARD_PDF_PREFILL_ENABLED = false
+
 /** Allowed keys inside step.sanity (Phase 5 consumes these). */
 export const CARRYFORWARD_SANITY_KEYS = ['nonNegative', 'warnAbove']
 
