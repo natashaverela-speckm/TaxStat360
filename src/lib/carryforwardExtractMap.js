@@ -1,6 +1,7 @@
 /**
  * Map shared extract-document tax-1040-carryforward fields → Carryforward Wizard values.
  * HITL: never writes session context — caller merges into wizard state for review.
+ * Persistence happens only on wizard Finish (Phase 4 contract).
  */
 import { getCarryforwardWizardFieldKeys } from './carryforwardWizardConfig.js'
 import { contextValueToWizardInput } from './carryforwardWizardPersistence.js'
@@ -16,6 +17,21 @@ export const TAX_1040_EXTRACT_FIELD_KEYS = [
   'priorYearTax',
   'priorYearAGI',
 ]
+
+/**
+ * Local API stub sample amounts when filename contains `fixture-tax-1040-smoke`
+ * (keep aligned with taxstat360-api `_TAX_FIXTURE_FIELDS`).
+ */
+export const TAX_1040_SMOKE_STUB_FIELDS = Object.freeze({
+  priorPassiveLossCarryforward: 12500,
+  priorSuspendedLoss: 3200,
+  capLossCarryforwardST: 1500,
+  capLossCarryforwardLT: 8000,
+  nolCarryforward: null,
+  priorYearQBILoss: 4500,
+  priorYearTax: 18750,
+  priorYearAGI: 142000,
+})
 
 /**
  * @param {Record<string, unknown>|null|undefined} fields — extract result.fields
@@ -74,4 +90,24 @@ export function assertTaxExtractNotRetained(evidence) {
   if (evidence.retained === true) return false
   if (evidence.path || evidence.bucket === 'Evidence') return false
   return evidence.deletedAfterProcessing === true || evidence.retained === false
+}
+
+/**
+ * HITL merge: retention check + field map. Does **not** write sessionStorage.
+ *
+ * @param {{ fields?: object, evidence?: object }|null|undefined} result — extract API body
+ * @param {Record<string, string>} [baseValues]
+ */
+export function mergeTax1040ExtractIntoWizard(result, baseValues = {}) {
+  if (!assertTaxExtractNotRetained(result?.evidence)) {
+    return {
+      ok: false,
+      reason: 'EVIDENCE_RETAINED',
+      values: { ...baseValues },
+      appliedKeys: [],
+      skippedKeys: [],
+    }
+  }
+  const mapped = applyExtractFieldsToWizardValues(result?.fields, baseValues)
+  return { ok: true, ...mapped }
 }

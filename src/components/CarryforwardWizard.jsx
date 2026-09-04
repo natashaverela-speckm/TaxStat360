@@ -13,13 +13,13 @@ import {
 } from '../lib/carryforwardWizardPersistence.js'
 import { extractTax1040Carryforward } from '../lib/carryforwardExtractClient.js'
 import {
-  applyExtractFieldsToWizardValues,
-  assertTaxExtractNotRetained,
+  mergeTax1040ExtractIntoWizard,
 } from '../lib/carryforwardExtractMap.js'
 import {
   evaluateCarryforwardStepSanity,
   collectCarryforwardWarnings,
 } from '../lib/carryforwardSanity.js'
+import { gateTax1040PdfUpload } from '../lib/pdfTextGate.js'
 import { readEmail } from '../utils/sessionState.js'
 import { markCarryforwardWizardComplete } from '../utils/carryforwardWizard.js'
 import MoneyInput from './MoneyInput.jsx'
@@ -129,32 +129,44 @@ function CarryforwardWizardFlow() {
     if (!file) return
     setExtractBusy(true)
     setExtractNotice(null)
-    const res = await extractTax1040Carryforward(file)
-    setExtractBusy(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!res.ok) {
-      setExtractNotice({ kind: 'error', text: res.error || 'Extract failed.' })
-      return
-    }
-    if (!assertTaxExtractNotRetained(res.result?.evidence)) {
+    try {
+      const gate = await gateTax1040PdfUpload(file)
+      if (!gate.ok) {
+        setExtractNotice({
+          kind: 'error',
+          text: gate.message,
+          code: gate.code,
+        })
+        return
+      }
+      const res = await extractTax1040Carryforward(file)
+      if (!res.ok) {
+        setExtractNotice({ kind: 'error', text: res.error || 'Extract failed.' })
+        return
+      }
+      const merged = mergeTax1040ExtractIntoWizard(res.result, values)
+      if (!merged.ok) {
+        setExtractNotice({
+          kind: 'error',
+          text: 'Extract refused — tax documents must not be stored in Evidence. Enter values manually.',
+        })
+        return
+      }
+      setValues(merged.values)
+      const warn = Array.isArray(res.result?.warnings) ? res.result.warnings : []
+      const n = merged.appliedKeys.length
       setExtractNotice({
-        kind: 'error',
-        text: 'Extract refused — tax documents must not be stored in Evidence. Enter values manually.',
+        kind: 'ok',
+        text:
+          n > 0
+            ? `Prefilled ${n} field${n === 1 ? '' : 's'} from your PDF — review every step before Finish. Nothing is saved until you click Finish.`
+            : 'No amounts detected — walk the steps and enter values manually.',
+        warnings: warn,
       })
-      return
+    } finally {
+      setExtractBusy(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    const mapped = applyExtractFieldsToWizardValues(res.result?.fields, values)
-    setValues(mapped.values)
-    const warn = Array.isArray(res.result?.warnings) ? res.result.warnings : []
-    const n = mapped.appliedKeys.length
-    setExtractNotice({
-      kind: 'ok',
-      text:
-        n > 0
-          ? `Prefilled ${n} field${n === 1 ? '' : 's'} from your PDF — review every step before Finish. Nothing is saved until you click Finish.`
-          : 'No amounts detected — walk the steps and enter values manually.',
-      warnings: warn,
-    })
   }
 
   return (
@@ -276,14 +288,15 @@ function CarryforwardWizardFlow() {
               Prefill from prior-year PDF (optional)
             </div>
             <p style={{ margin: '0 0 10px', fontSize: 12, color: SL, lineHeight: 1.55 }}>
-              Upload last year’s Form 1040 / schedules. We draft carryforward amounts for you to
-              review — nothing is saved until you click Finish. Tax PDFs are not kept in RepsRecord
-              Evidence.
+              Upload a <strong>text PDF</strong> of last year’s Form 1040 / schedules (selectable
+              text, not a scan). We draft carryforward amounts for you to review — nothing is saved
+              until you click Finish. Tax PDFs are not kept in RepsRecord Evidence. Scanned or
+              image-only PDFs are not supported yet.
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+              accept="application/pdf,.pdf"
               style={{ display: 'none' }}
               onChange={(e) => handlePrefillFromPdf(e.target.files)}
             />
@@ -303,7 +316,7 @@ function CarryforwardWizardFlow() {
                 fontFamily: 'inherit',
               }}
             >
-              {extractBusy ? 'Reading PDF…' : 'Upload PDF / image'}
+              {extractBusy ? 'Checking PDF…' : 'Upload text PDF'}
             </button>
             {extractNotice && (
               <div
