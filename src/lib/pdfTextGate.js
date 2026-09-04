@@ -4,6 +4,7 @@
  *
  * Pure gate decisions use ssnRedact.js. pdf.js is only used for text-layer extract.
  */
+import './promiseWithResolversPolyfill.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import {
