@@ -16,9 +16,23 @@ const writePersonalContext = vi.fn()
 const writeDirtyFlag = vi.fn()
 const readEmail = vi.fn(() => 'user@example.com')
 const markComplete = vi.fn()
+const gateTax1040PdfUpload = vi.fn()
+const extractTax1040Carryforward = vi.fn()
 
 vi.mock('../lib/carryforwardWizardAccess.js', () => ({
   canAccessCarryforwardWizard: () => wizardAccess,
+}))
+
+vi.mock('../lib/pdfTextGate.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    gateTax1040PdfUpload: (...args) => gateTax1040PdfUpload(...args),
+  }
+})
+
+vi.mock('../lib/carryforwardExtractClient.js', () => ({
+  extractTax1040Carryforward: (...args) => extractTax1040Carryforward(...args),
 }))
 
 vi.mock('../utils/sessionState.js', () => ({
@@ -53,6 +67,8 @@ beforeEach(() => {
   writePersonalContext.mockReset()
   writeDirtyFlag.mockReset()
   markComplete.mockReset()
+  gateTax1040PdfUpload.mockReset()
+  extractTax1040Carryforward.mockReset()
   readEmail.mockReturnValue('user@example.com')
   readPersonalContext.mockReturnValue({})
   wizardAccess = true
@@ -231,7 +247,200 @@ describe('CarryforwardWizard', () => {
     renderWizard()
     expect(screen.getByRole('heading', { name: /Carryforward Guide — Professional Feature/ })).toBeTruthy()
     expect(screen.queryByText('1 of 9')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Upload text PDF' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Upgrade to Professional/ }))
     expect(navigate).toHaveBeenCalledWith('/upgrade')
+  })
+
+  it('CHAR: upload card shows text-PDF copy when prefill enabled', () => {
+    renderWizard()
+    expect(screen.getByRole('button', { name: 'Upload text PDF' })).toBeTruthy()
+    expect(screen.getByText(/scanned or image-only PDFs are not supported yet/i)).toBeTruthy()
+    expect(document.querySelector('input[type="file"]')?.getAttribute('accept')).toBe(
+      'application/pdf,.pdf',
+    )
+  })
+
+  it('CHAR: image-only gate blocks extract call', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({
+      ok: false,
+      code: 'IMAGE_ONLY_PDF',
+      message: 'This looks like a scanned or image-only PDF. Text-PDF upload only for now.',
+    })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    expect(input).toBeTruthy()
+    const file = new File([new Uint8Array([1])], 'fixture-tax-1040-image-only.pdf', {
+      type: 'application/pdf',
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(gateTax1040PdfUpload).toHaveBeenCalled()
+    expect(extractTax1040Carryforward).not.toHaveBeenCalled()
+    expect(
+      screen.getByText('This looks like a scanned or image-only PDF. Text-PDF upload only for now.'),
+    ).toBeTruthy()
+  })
+
+  it('CHAR: SSN gate blocks extract call', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({
+      ok: false,
+      code: 'SSN_DETECTED',
+      message: 'This PDF still contains a Social Security number in its text. Nothing was uploaded.',
+    })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    const file = new File([new Uint8Array([1])], 'fixture-tax-1040-text-with-ssn.pdf', {
+      type: 'application/pdf',
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(extractTax1040Carryforward).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'This PDF still contains a Social Security number in its text. Nothing was uploaded.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('CHAR: clean gate allows extract and shows prefill notice', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({
+      ok: true,
+      text: 'clean',
+      alnum: 100,
+    })
+    extractTax1040Carryforward.mockResolvedValue({
+      ok: true,
+      result: {
+        fields: { priorPassiveLossCarryforward: 12500 },
+        warnings: [],
+        evidence: { retained: false, deletedAfterProcessing: true },
+      },
+    })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    const file = new File([new Uint8Array([1])], 'fixture-tax-1040-text-clean.pdf', {
+      type: 'application/pdf',
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(extractTax1040Carryforward).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Prefilled 1 field/i)).toBeTruthy()
+  })
+
+  it('CHAR: smoke extract prefills step-1 amount; Skip does not persist (Phase 4 HITL)', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({ ok: true, text: 'clean', alnum: 100 })
+    extractTax1040Carryforward.mockResolvedValue({
+      ok: true,
+      result: {
+        fields: {
+          priorPassiveLossCarryforward: 12500,
+          priorSuspendedLoss: 3200,
+          capLossCarryforwardST: 1500,
+          capLossCarryforwardLT: 8000,
+          nolCarryforward: null,
+          priorYearQBILoss: 4500,
+          priorYearTax: 18750,
+          priorYearAGI: 142000,
+        },
+        warnings: [],
+        evidence: { retained: false, deletedAfterProcessing: true, retention: 'delete-after-processing' },
+      },
+    })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    const file = new File([new Uint8Array([1])], 'fixture-tax-1040-smoke.pdf', {
+      type: 'application/pdf',
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(screen.getByText(/Prefilled 6 fields/i)).toBeTruthy()
+    expect(screen.getByLabelText(CARRYFORWARD_WIZARD_STEPS[0].label).value).toBe('12,500')
+    expect(writePersonalContext).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
+    expect(writePersonalContext).not.toHaveBeenCalled()
+    expect(writeDirtyFlag).not.toHaveBeenCalled()
+    expect(markComplete).not.toHaveBeenCalled()
+  })
+
+  it('CHAR: Finish after smoke prefill persists mapped fields (Phase 4 HITL)', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({ ok: true, text: 'clean', alnum: 100 })
+    extractTax1040Carryforward.mockResolvedValue({
+      ok: true,
+      result: {
+        fields: {
+          priorPassiveLossCarryforward: 12500,
+          priorYearAGI: 142000,
+          priorYearTax: 18750,
+        },
+        warnings: [],
+        evidence: { retained: false, deletedAfterProcessing: true },
+      },
+    })
+    readPersonalContext.mockReturnValue({ w2Income: 90000 })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    await act(async () => {
+      fireEvent.change(input, {
+        target: {
+          files: [
+            new File([new Uint8Array([1])], 'fixture-tax-1040-smoke.pdf', { type: 'application/pdf' }),
+          ],
+        },
+      })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(writePersonalContext).not.toHaveBeenCalled()
+
+    for (let i = 0; i < CARRYFORWARD_WIZARD_STEPS.length - 1; i++) {
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
+    expect(writePersonalContext).toHaveBeenCalledTimes(1)
+    const saved = writePersonalContext.mock.calls[0][0]
+    expect(saved.w2Income).toBe(90000)
+    expect(saved.priorPassiveLossCarryforward).toBe(12500)
+    expect(saved.priorYearAGI).toBe(142000)
+    expect(saved.priorYearTax).toBe(18750)
+    expect(writeDirtyFlag).toHaveBeenCalledWith(true)
+  })
+
+  it('CHAR: Evidence-retained extract is refused and does not prefill', async () => {
+    gateTax1040PdfUpload.mockResolvedValue({ ok: true, text: 'clean', alnum: 100 })
+    extractTax1040Carryforward.mockResolvedValue({
+      ok: true,
+      result: {
+        fields: { priorPassiveLossCarryforward: 12500 },
+        evidence: { retained: true, path: 'Evidence/x.pdf', bucket: 'Evidence' },
+      },
+    })
+    renderWizard()
+    const input = document.querySelector('input[type="file"]')
+    await act(async () => {
+      fireEvent.change(input, {
+        target: {
+          files: [new File([new Uint8Array([1])], 'x.pdf', { type: 'application/pdf' })],
+        },
+      })
+      await Promise.resolve()
+    })
+    await settle()
+    expect(screen.getByText(/must not be stored in Evidence/i)).toBeTruthy()
+    expect(screen.getByLabelText(CARRYFORWARD_WIZARD_STEPS[0].label).value).toBe('')
+    expect(writePersonalContext).not.toHaveBeenCalled()
   })
 })

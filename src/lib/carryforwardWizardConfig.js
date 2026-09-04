@@ -9,10 +9,16 @@ export const GLOBAL_DISCLAIMER =
 export const CARRYFORWARD_WIZARD_MIN_PLAN = 'professional'
 
 /**
- * PDF prefill from prior-year Form 1040 — gated until pre-send SSN redaction is built
- * and confirmed (agreed Phase 2 gate; tax-1040 extract stays stub-only until then).
+ * PDF prefill from prior-year Form 1040 (text PDF only).
+ * Phase 5: enabled by default after browser+server SSN/image gates.
+ * Rollback: set to `false`, or deploy with `VITE_CARRYFORWARD_PDF_PREFILL=false`.
+ * Live tax AI still requires ZDR confirmation (gates alone do not authorize live provider).
  */
-export const CARRYFORWARD_PDF_PREFILL_ENABLED = false
+const _pdfPrefillEnv = import.meta.env?.VITE_CARRYFORWARD_PDF_PREFILL
+export const CARRYFORWARD_PDF_PREFILL_ENABLED =
+  _pdfPrefillEnv == null || String(_pdfPrefillEnv).trim() === ''
+    ? true
+    : String(_pdfPrefillEnv).toLowerCase() !== 'false'
 
 /** Allowed keys inside step.sanity (Phase 5 consumes these). */
 export const CARRYFORWARD_SANITY_KEYS = ['nonNegative', 'warnAbove']

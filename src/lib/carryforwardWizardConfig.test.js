@@ -4,6 +4,7 @@ import {
   CARRYFORWARD_WIZARD_MIN_PLAN,
   CARRYFORWARD_WIZARD_STEPS,
   CARRYFORWARD_SANITY_KEYS,
+  CARRYFORWARD_PDF_PREFILL_ENABLED,
   getCarryforwardWizardFieldKeys,
 } from './carryforwardWizardConfig.js'
 import { F1040_FIELD_MANIFEST } from '../utils/fieldManifest.js'
@@ -20,6 +21,10 @@ describe('carryforwardWizardConfig', () => {
 
   it('CHAR: default min plan is professional (Phase 3 gate)', () => {
     expect(CARRYFORWARD_WIZARD_MIN_PLAN).toBe('professional')
+  })
+
+  it('CHAR: PDF prefill upload card enabled by default (Phase 5)', () => {
+    expect(CARRYFORWARD_PDF_PREFILL_ENABLED).toBe(true)
   })
 
   it('CHAR: defines exactly 9 wizard steps per lean v1 spec', () => {
