@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Generated at build/test time from pdfjs-dist (see scripts/copy-pdf-worker.mjs)
+public/pdf.worker.min.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
