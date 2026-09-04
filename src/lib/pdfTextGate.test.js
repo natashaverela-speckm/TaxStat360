@@ -82,15 +82,7 @@ describe('pdfTextGate (Phase 2)', () => {
     if (!res.ok) expect(res.code).toBe(GATE_CODES.PDF_UNREADABLE)
   })
 
-  it('CHAR: pdf.js extracts text from clean fixture and SSN from ssn fixture', async () => {
-    const { createRequire } = await import('node:module')
-    const { pathToFileURL } = await import('node:url')
-    const { GlobalWorkerOptions } = await import('pdfjs-dist')
-    const require = createRequire(import.meta.url)
-    GlobalWorkerOptions.workerSrc = pathToFileURL(
-      require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'),
-    ).href
-
+  it('CHAR: pdf.js extracts text from clean fixture and SSN from ssn fixture (no worker URL)', async () => {
     const cleanBuf = readFileSync(join(fixtureDir, 'fixture-tax-1040-text-clean.pdf'))
     const ssnBuf = readFileSync(join(fixtureDir, 'fixture-tax-1040-text-with-ssn.pdf'))
     const imageBuf = readFileSync(join(fixtureDir, 'fixture-tax-1040-image-only.pdf'))

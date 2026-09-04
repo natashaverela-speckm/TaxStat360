@@ -3,10 +3,13 @@
  * Option C (Phase 0): block SSN-bearing text PDFs; reject image-only / non-PDF.
  *
  * Pure gate decisions use ssnRedact.js. pdf.js is only used for text-layer extract.
+ *
+ * Runs pdf.js with disableWorker: true so we never fetch pdf.worker*.mjs.
+ * On Amplify/S3/CloudFront, missing/unknown .mjs URLs often SPA-fallback to
+ * index.html (MIME text/html), which breaks module workers in production.
  */
 import './promiseWithResolversPolyfill.js'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { getDocument } from 'pdfjs-dist'
 import {
   classifyTextLayer,
   countAlphanumeric,
@@ -31,17 +34,6 @@ export const GATE_MESSAGES = Object.freeze({
   [GATE_CODES.SSN_DETECTED]:
     'This PDF still contains a Social Security number in its text. Remove or mask the SSN on the return (or upload a redacted copy), then try again. Nothing was uploaded.',
 })
-
-let workerConfigured = false
-
-function ensurePdfWorker() {
-  if (workerConfigured) return
-  // Allow tests (or hosts) to set workerSrc first — don't overwrite.
-  if (!GlobalWorkerOptions.workerSrc) {
-    GlobalWorkerOptions.workerSrc = pdfWorkerSrc
-  }
-  workerConfigured = true
-}
 
 /**
  * @param {File | { name?: string, type?: string }} file
@@ -69,13 +61,15 @@ function toPdfBytes(data) {
  * @returns {Promise<string>}
  */
 export async function extractPdfTextLayer(data, deps = {}) {
-  ensurePdfWorker()
   const loader = deps.getDocument || getDocument
   const bytes = toPdfBytes(data)
   const loadingTask = loader({
     data: bytes,
     useSystemFonts: true,
     isEvalSupported: false,
+    // Main-thread parse — avoids a separate worker module request that CDNs
+    // often serve as index.html (SPA fallback) for .mjs assets.
+    disableWorker: true,
   })
   const pdf = await loadingTask.promise
   const parts = []
