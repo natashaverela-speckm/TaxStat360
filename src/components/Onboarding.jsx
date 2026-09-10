@@ -79,7 +79,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure } from '../lib/constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure, TERMS_VERSION, PRIVACY_VERSION, LEGAL_CONSENT_PREFIX, LEGAL_CONSENT_JOINER, LEGAL_CONSENT_SUFFIX } from '../lib/constants.js'
 import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
@@ -174,6 +174,11 @@ const [loading,setLoading]=useState(false)
 // AUDIT F-8: affirmative consent to the AUTO-RENEWAL terms specifically — separate from
 // the general "you agree to our Terms" line below. CA ARL / FTC negative-option rule.
 const [renewOk,setRenewOk]=useState(false)
+// AUDIT BLOCKER B5 (Sep 2026): affirmative assent to the Terms + Privacy Policy.
+// Separate from renewOk on purpose — see the long note at TERMS_VERSION in
+// constants.js. Both boxes start unchecked and both gate the submit button; a
+// pre-checked box is not assent and would defeat the point of the change.
+const [termsOk,setTermsOk]=useState(false)
 const [err,setErr]=useState('')
 const [stripeReady,setStripeReady]=useState(false)
 // UX AUDIT PASS5-F2 (Jul 2026): the two-circle "Account Info / Trial Setup"
@@ -289,6 +294,19 @@ e.preventDefault()
 if(pass!==conf){setErr('Passwords do not match.');return}
 if(pass.length<12){setErr('Password must be at least 12 characters.');return}
 if(!stripeReady){setErr('Card input still loading, please wait...');return}
+// B5: belt-and-braces guard. The button is already disabled until both boxes are
+// ticked, but a disabled attribute is a UI affordance, not a control — it can be
+// removed from the DOM in two seconds. The account must not be created without
+// both consents, so the same conditions are re-checked here, at the only place
+// that actually calls /auth/register.
+if(!renewOk){setErr('Please confirm you understand the automatic renewal terms before starting your trial.');return}
+if(!termsOk){setErr('Please read and agree to the Terms of Service and Privacy Policy before starting your trial.');return}
+// B5: the acceptance record. Captured at the moment of assent and sent with the
+// registration so the account carries evidence of WHICH documents were agreed to
+// and WHEN. Without this the clickwrap is still better than browsewrap, but the
+// company would be proving assent from the current live page rather than from the
+// user's own record — a much weaker position if the documents have since changed.
+const acceptedAt=new Date().toISOString()
 setLoading(true);setErr('')
 try{
 const si=await apiFetch('/stripe/setup-intent',{method:'POST',body:{},raw:true}).then(r=>r.json())
@@ -296,7 +314,12 @@ if(!si.client_secret)throw new Error('Payment init failed')
 const card=cardElRef.current||elemRef.current.getElement('card')
 const {setupIntent,error}=await stripeRef.current.confirmCardSetup(si.client_secret,{payment_method:{card,billing_details:{name,email}}})
 if(error)throw new Error(error.message)
-const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',body:{name,email,password:pass,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
+// B5: terms_* fields are ADDITIVE. If the /auth/register handler ignores unknown
+// keys (the usual case) nothing changes server-side and the only cost is four extra
+// fields on the wire; if it persists them, the account gains a durable assent record.
+// ⚠ If a signup ever fails with a 4xx complaining about unexpected fields, these four
+// keys are the first thing to remove — nothing else in the flow depends on them.
+const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',body:{name,email,password:pass,plan,billing,payment_method_id:setupIntent.payment_method,terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION,terms_accepted_at:acceptedAt,auto_renewal_accepted_at:acceptedAt},raw:true})
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
 if(data.access_token)writeToken(data.access_token)
@@ -419,6 +442,16 @@ autoComplete="new-password"
     account info — see Step 2 below. */}
 {step1Err && <div role="alert" style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{step1Err}</div>}
 <button type="button" onClick={handleContinueStep1} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12}}>Continue →</button>
+{/* B5: the agreements are reachable from Step 1 too. The binding assent is the
+    checkbox on Step 2 — this is notice, not consent — but a user should be able to
+    read what they will be asked to agree to BEFORE handing over a name, an email
+    and a password, not only after. Reasonable notice is the other half of assent. */}
+<p style={{textAlign:'center',fontSize:11,color:SL,margin:'0 0 10px',lineHeight:1.5}}>
+Before you finish you will be asked to agree to our{' '}
+<a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Terms of Service</a>
+{' '}and{' '}
+<a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>. You can read them now.
+</p>
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 </>)}
 
@@ -518,16 +551,53 @@ I understand my card will be charged automatically when the trial ends, and that
 {!stripeReady&&<p style={{fontSize:11,color:'#94a3b8',margin:'4px 0 0'}}>Loading secure card input...</p>}
 </div>
 
-{err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-<p style={{fontSize:11,color:'#64748b',textAlign:'center',margin:'0 0 10px',lineHeight:1.5}}>
-By creating an account you agree to our{' '}
-<a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Terms of Service</a>
-{' '}and{' '}
-<a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:B,textDecoration:'underline'}}>Privacy Policy</a>.
+{err&&<div role="alert" style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
+
+{/* ── AUDIT BLOCKER B5 (Sep 2026): CLICKWRAP ──────────────────────────────────
+WAS: a centred grey sentence — "By creating an account you agree to our Terms of
+Service and Privacy Policy." The user never touched it. That is browsewrap, and
+against a consumer it is the form courts decline to enforce (Nguyen v. Barnes &
+Noble, 9th Cir. 2014). Every protective clause in the Terms depended on it.
+
+NOW: an unchecked box the user must tick, links inside the label, with the
+arbitration provision and class action waiver called out by name rather than
+buried — conspicuous notice is half of what makes assent stick, and a user who
+is told plainly what they are agreeing to has a much harder time later saying
+they were not. The acceptance and its document versions are recorded in submit().
+
+Kept SEPARATE from the auto-renewal box above: §17602(a)(1) wants consent to the
+renewal terms specifically. Do not merge the two into one checkbox. */}
+<label htmlFor="signup-terms-consent" style={{display:'flex',alignItems:'flex-start',gap:8,marginBottom:12,padding:'11px 12px',border:`1px solid ${termsOk?'#CBD5E1':'#E2E8F0'}`,borderRadius:8,background:termsOk?'#F8FAFC':'#fff',cursor:'pointer'}}>
+<input
+  id="signup-terms-consent"
+  type="checkbox"
+  checked={termsOk}
+  onChange={e=>setTermsOk(e.target.checked)}
+  style={{marginTop:2,width:16,height:16,flexShrink:0,cursor:'pointer'}}
+/>
+<span style={{fontSize:12,color:N,fontWeight:500,lineHeight:1.5}}>
+{LEGAL_CONSENT_PREFIX}{' '}
+<a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{color:B,textDecoration:'underline',fontWeight:600}}>Terms of Service</a>
+{' '}{LEGAL_CONSENT_JOINER}{' '}
+<a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{color:B,textDecoration:'underline',fontWeight:600}}>Privacy Policy</a>
+{LEGAL_CONSENT_SUFFIX}
+</span>
+</label>
+
+{/* AUDIT F-8 + B5: the trial cannot be started until BOTH consents are given.
+    Disabled, not hidden — and the hint below names which box is still empty, because
+    a greyed-out button with no explanation is its own conversion bug (the user cannot
+    tell whether the form is broken or whether they missed something). */}
+<button type="submit" disabled={loading||!renewOk||!termsOk} style={{width:'100%',padding:'11px',background:(loading||!renewOk||!termsOk)?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:(loading||!renewOk||!termsOk)?'not-allowed':'pointer',marginBottom:(!renewOk||!termsOk)?6:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
+{(!renewOk||!termsOk)&&(
+<p style={{fontSize:11,color:SL,textAlign:'center',margin:'0 0 12px',lineHeight:1.5}}>
+{!renewOk&&!termsOk
+  ? 'Tick both boxes above to continue.'
+  : !renewOk
+    ? 'Tick the automatic renewal box above to continue.'
+    : 'Tick the Terms of Service box above to continue.'}
 </p>
-{/* AUDIT F-8: the trial cannot be started until the user has affirmatively consented to
-    the auto-renewal terms. Disabled, not hidden — the reason is visible above. */}
-<button type="submit" disabled={loading||!renewOk} style={{width:'100%',padding:'11px',background:(loading||!renewOk)?'#93c5fd':B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:(loading||!renewOk)?'not-allowed':'pointer',marginBottom:12}}>{loading?'Processing...':'Start Free Trial →'}</button>
+)}
 <p style={{textAlign:'center',fontSize:12,color:SL,margin:0}}>Have an account? <span onClick={()=>nav('/login')} style={{color:B,cursor:'pointer',fontWeight:600}}>Sign in</span> · <a href="/" style={{color:SL,textDecoration:'none'}}>← Back to home</a></p>
 
 <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:20,paddingTop:16,borderTop:'1px solid #E2E8F0',flexWrap:'wrap'}}>
