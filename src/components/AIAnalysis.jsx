@@ -555,7 +555,24 @@ function RiskScan({ rec }) {
   const deadlines = { get month(){ return nextDeadline.label } }
   const month = 'month'
 
-  const accurateQuarterly = (rec?.quarterly > 0) ? rec.quarterly : Math.round(roughTax / 4)
+  // AUDIT H2 (Sep 2026): this screen showed TWO different quarterly figures a few
+  // hundred pixels apart — the header tile read $23,031 while this finding recommended
+  // ~$15,130 on the same record. A user who followed the smaller number would underpay
+  // by $7,901 a quarter, and this is the screen where they decide what to actually send
+  // the IRS.
+  //
+  // Cause: the header used summarizeRecord()'s engine figure, while this finding looked
+  // ONLY at rec.quarterly — which is empty until the record is saved — and fell straight
+  // through to fedTax/4, a bracket-only number with no SE tax, NIIT, or safe harbor.
+  // _sum1 IS that same engine summary and was already in scope here.
+  //
+  // Order: live engine → saved record → rough fallback. The rough branch is the only
+  // one that may be labelled "income tax only"; see isRoughQuarterly below.
+  const _engineQuarterly = _sum1.ok ? nf(_sum1.quarterlyRecommended) : 0
+  const accurateQuarterly = _engineQuarterly > 0
+    ? _engineQuarterly
+    : (rec?.quarterly > 0 ? rec.quarterly : Math.round(roughTax / 4))
+  const isRoughQuarterly = !(_engineQuarterly > 0) && !(rec?.quarterly > 0)
 
   const findings = []
 
@@ -631,8 +648,10 @@ function RiskScan({ rec }) {
       // AUDIT N-6 FIX: when the saved record carries no engine-computed quarterly,
       // the fallback is a rough bracket-only estimate (no NIIT/SE/AMT). Label it as
       // such instead of presenting it with the same confidence as the engine figure.
-      action: (rec?.quarterly > 0)
-        ? `Estimated quarterly payment: ${fmt(accurateQuarterly)} (from your Step 2 calculation). Due dates: April 15, June 15, September 15, January 15.`
+      // AUDIT H2: label follows the SOURCE of the figure, not merely whether the record
+      // was saved. Only the true fallback may claim to be income-tax-only.
+      action: !isRoughQuarterly
+        ? `Estimated quarterly payment: ${fmt(accurateQuarterly)} — the same figure shown at the top of this page and in your Step 2 calculation. Due dates: April 15, June 15, September 15, January 15.`
         : `Rough quarterly estimate: ~${fmt(accurateQuarterly)} (income tax only — complete Step 2 for the exact figure including NIIT, SE, and safe-harbor amounts). Due dates: April 15, June 15, September 15, January 15.` })
   } else if (estPay > 0) {
     findings.push({ level: 'good', icon: '✅', title: 'Estimated Payments Recorded',
@@ -1079,11 +1098,30 @@ function TaxOptimization({ rec }) {
     })
   }
 
-  const homeOfficeHowTo = isSCorpOwner
-    ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). Do NOT use Schedule C — that form is for sole proprietors only. S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (TCJA §67(g)).'
-    : /partnership|mmllc/i.test(b.entityType || '')
-    ? 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Partners may deduct unreimbursed partnership expenses (UPE) directly on Schedule E Part II, or the partnership can reimburse through an accountable plan — which is deductible at the entity level and excluded from the partner\'s income.'
-    : 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. Claim on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).'
+  // AUDIT H5 (Sep 2026): this was a ternary on isSCorpOwner, which the caller sets true
+  // if ANY entity is an S-Corp. A filer with an S-Corp AND a Schedule C was therefore
+  // shown S-Corp accountable-plan guidance ending 'Do NOT use Schedule C' — while
+  // holding a Schedule C the instruction was actively wrong for. The method genuinely
+  // differs by entity, and a multi-entity owner needs BOTH, so describe each structure
+  // actually present instead of picking one and hiding the rest.
+  const _hoTypes = [
+    ...(Array.isArray(rec?.entities) ? rec.entities.map(e => e?.type) : []),
+    entityType,
+  ].filter(isRealType)
+  const _hoHasSCorp  = _hoTypes.some(isSCorpEntity) || isSCorpOwner
+  const _hoHasSchedC = _hoTypes.some(isScheduleCType)
+  const _hoHasPship  = _hoTypes.some(t => /partner|mmllc/i.test(t || '')) || /partnership|mmllc/i.test(b.entityType || '')
+  const _hoParts = [
+    _hoHasSCorp  ? 'For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (TCJA §67(g)).' : null,
+    _hoHasPship  ? "Partners may deduct unreimbursed partnership expenses (UPE) directly on Schedule E Part II, or the partnership can reimburse through an accountable plan — which is deductible at the entity level and excluded from the partner\\'s income." : null,
+    _hoHasSchedC ? 'Sole proprietors and single-member LLCs claim it on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).' : null,
+  ].filter(Boolean)
+  // Nothing resolved (unknown structure): fall back to the Schedule C wording, which is
+  // the most common case and the least likely to mislead.
+  const homeOfficeHowTo = 'The space must be used exclusively for business. Calculate your home office percentage (office sq ft ÷ total home sq ft) and apply to rent/mortgage interest, utilities, and insurance. '
+    + (_hoParts.length ? _hoParts.join(' ') : 'Sole proprietors and single-member LLCs claim it on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).')
+    + (_hoParts.length > 1 ? ' You hold more than one structure — each has its own method, so apply the one that matches the entity whose space you are claiming.' : '')
+
 
   // F6: only meaningful for an operating business — a directly-held rental
   // (Schedule E) has no home-office deduction path, so rental-only profiles

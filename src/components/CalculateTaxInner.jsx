@@ -25,6 +25,9 @@ import {
 import EntityCompareModal from './EntityCompareModal'
 import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
 // AUDIT FIX (fresh-eyes re-audit, Aug 2026): removed unused ENTITY_TYPES, CURRENT_TAX_YEAR, DEFAULT_OFFICER_SALARY_FRACTION imports (none referenced elsewhere in this file)
+// AUDIT H1 (Sep 2026): employer-side payroll tax on S-Corp officer salary is a
+// deductible entity expense and was never subtracted from K-1 income.
+import { calcEmployerFICA } from '../lib/taxCalc.js'
 import { INTEGRATIONS, API_BASE_URL, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
@@ -500,7 +503,7 @@ export function Step1EstimateCard({ entities }) {
   )
 }
 
-export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
+export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DEFAULT_TAX_YEAR }) {
   // BUG-A ROOT FIX: the live-bind useEffect below has a stale closure on `entity`
   // because `entity` is intentionally excluded from the dep array (including it would
   // create an update loop). Any field set on the entity via onUpdate OUTSIDE this
@@ -512,10 +515,16 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   useEffect(() => { entityRef.current = entity })   // sync ref on every render, no deps
   const pnl = entity.pnl || {}
   const [manRev,        setManRev]        = useState(String(nf(pnl.grossRevenue)                         || ''))
+  // AUDIT H1: totalExpenses now includes employerPayrollTax for S-Corps, so the
+  // inverse must subtract it too — otherwise reopening the panel would silently
+  // fold the payroll tax into Operating Expenses and then deduct it a second time
+  // on the next save. Persisted explicitly on the pnl rather than recomputed, so a
+  // record saved under one year's wage base decomposes exactly.
   const _reloadOpex = Math.max(0,
     nf(pnl.totalExpenses)
     - nf(entity.depreciation || pnl.depreciation)
     - nf(pnl.officerSalary || entity.officerW2)
+    - nf(pnl.employerPayrollTax)
     - nf(pnl.advertising)
     - nf(pnl.otherDeductions))
   const [manExp,        setManExp]        = useState(String(_reloadOpex || ''))
@@ -550,7 +559,17 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
   const isRE = isRealEstateEntity(entity.type)
   const effectiveSal = (isSCorp || isCCorp) ? sal : 0
 
-  const totalExpenses = ex + dep + effectiveSal + adv + oth
+  // AUDIT H1 (Sep 2026): the entity's EMPLOYER-side payroll tax on officer salary
+  // (6.2% SS to the wage base + 1.45% Medicare, IRC §3111) is a deductible expense of
+  // the S-Corp and was missing entirely — K-1 income was overstated by ~7.65% of
+  // salary, about $9,180 on a $120,000 salary.
+  //
+  // S-Corp ONLY. The C-Corp path must not add it here: calcCCorpCorporateLayer already
+  // subtracts employerFICA at the corporate layer, so including it in totalExpenses
+  // as well would deduct it twice.
+  const employerPayrollTax = isSCorp ? calcEmployerFICA(effectiveSal, taxYear) : 0
+
+  const totalExpenses = ex + dep + effectiveSal + employerPayrollTax + adv + oth
   const manNetProfit  = rv - totalExpenses
 
   const officerExceedsRevenue   = effectiveSal > rv && effectiveSal > 0 && rv > 0
@@ -577,6 +596,9 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           grossRevenue:    0,
           totalExpenses:   0,
           officerSalary:   0,
+          // AUDIT H1: K-1 Box 1 is already net of the entity's payroll tax, so direct
+          // mode must record zero here — never re-derive it from salary.
+          employerPayrollTax: 0,
           depreciation:    0,
           advertising:     0,
           otherDeductions: 0,
@@ -598,6 +620,9 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           grossRevenue:    rv,
           totalExpenses,
           officerSalary:   effectiveSal,
+          // AUDIT H1: persisted so the decompose above is exact and the figure is
+          // auditable in the saved record, rather than re-derived on each reload.
+          employerPayrollTax,
           depreciation:    dep,
           advertising:     adv,
           otherDeductions: oth,
@@ -639,6 +664,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           grossRevenue:    0,
           totalExpenses:   0,
           officerSalary:   0,
+          employerPayrollTax: 0,   // AUDIT H1: Box 1 is already net of it
           depreciation:    0,
           advertising:     0,
           otherDeductions: 0,
@@ -680,6 +706,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
         grossRevenue:    rv,
         totalExpenses,
         officerSalary:   effectiveSal,
+        employerPayrollTax,   // AUDIT H1 — see calcEmployerFICA() in taxCalc.js
         depreciation:    dep,
         advertising:     adv,
         otherDeductions: oth,
@@ -690,7 +717,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
       isManual: true,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rv, ex, dep, sal, adv, oth, effectiveSal, totalExpenses, useK1Direct, manK1Direct])
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, employerPayrollTax, totalExpenses, useK1Direct, manK1Direct])
 
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
@@ -914,10 +941,36 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: SL }}>{FINANCIAL_LABELS.totalExpenses}</span><span style={{ fontWeight: 600, color: N }}>- {fmt(totalExpenses)}</span>
           </div>
+          {/* AUDIT H1 (Sep 2026): the employer half of FICA on officer salary is a
+              deductible expense of the S-Corp (IRC §3111) and the app never subtracted
+              it — K-1 income was overstated by ~7.65% of salary. It is computed and
+              deducted automatically now, and shown here rather than folded silently
+              into Total Expenses, so the user can reconcile the change. */}
+          {employerPayrollTax > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, paddingLeft: 12, fontSize: 12 }}>
+              <span style={{ color: '#64748B' }}>incl. Employer Payroll Tax on officer salary (calculated)</span>
+              <span style={{ color: '#64748B' }}>{fmt(employerPayrollTax)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
             <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
           </div>
+        </div>
+      )}
+
+      {/* AUDIT H1: the double-count warning. Anyone who already put employer payroll
+          tax into Operating Expenses would now deduct it twice, and their number would
+          drop with no explanation. Say so at the point of entry — the Operating
+          Expenses tooltip says "payroll (non-owner)", which is exactly the reading
+          that leads to the mistake. */}
+      {employerPayrollTax > 0 && (
+        <div style={{ marginTop: 10, padding: '10px 14px', background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE', fontSize: 12, color: '#1E3A8A', lineHeight: 1.6 }}>
+          <strong>Employer payroll tax is calculated for you.</strong> TaxStat360 adds {fmt(employerPayrollTax)} of
+          employer-side FICA on your {fmt(effectiveSal)} officer salary — 6.2% Social Security up to the {taxYear} wage
+          base plus 1.45% Medicare (IRC §3111) — and deducts it from your K-1 income, because the S-Corp really does pay it.
+          {' '}<strong>Do not also enter it under Operating Expenses</strong>, or it will be deducted twice. Operating
+          Expenses should carry payroll and payroll taxes for your <em>non-owner</em> employees only.
         </div>
       )}
 
@@ -1042,7 +1095,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx }) {
 // Exported for testing (fresh-pass audit, Aug 2026), mirroring ManualEntryPanel
 // below — lets the Partnership §704(d) basis-badge regression test render this
 // card directly instead of the whole Step-1 page tree.
-export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand }) {
+export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portfolioAggregationElected, onRemove, colorAccent, isExpanded, onToggleExpand, taxYear = DEFAULT_TAX_YEAR }) {
   const [showManual, setShowManual] = useState(false)
   const [showQBI,    setShowQBI]    = useState(false)
   const [showBasis,  setShowBasis]  = useState(false)
@@ -1271,6 +1324,17 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
                   <span style={{ color: '#64748B' }}>incl. Officer Compensation</span>
                   <span style={{ color: '#64748B' }}>{fmt(sal)}</span>
+                </div>
+              )}
+              {/* AUDIT H1 (Sep 2026): show the employer-side payroll tax explicitly.
+                  It is a real deductible expense of the S-Corp that the app previously
+                  omitted, so surfacing it (a) makes the corrected K-1 reconcile for the
+                  user, and (b) is the visible half of the double-count warning shown in
+                  the manual-entry panel. Never deduct this silently. */}
+              {nf(pnl.employerPayrollTax) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
+                  <span style={{ color: '#64748B' }}>incl. Employer Payroll Tax (auto)</span>
+                  <span style={{ color: '#64748B' }}>{fmt(nf(pnl.employerPayrollTax))}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
@@ -2106,6 +2170,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
               onUpdate={onUpdate}
               onCancel={() => setShowManual(false)}
               idx={idx}
+              taxYear={taxYear}
             />
           )}
         </div>
@@ -2955,6 +3020,7 @@ export default function CalculateTaxInner() {
                 colorAccent={ENTITY_COLORS[idx % ENTITY_COLORS.length]}
                 isExpanded={expandedIdx === idx}
                 onToggleExpand={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                taxYear={taxYear}
               />
             </div>
           ))}
