@@ -21,6 +21,15 @@ import {
   POSITION_DOCS_LIMIT_NOTE,
   ROUTE_PERSONAL_ESTIMATE,
 } from './lib/complianceCopy.js'
+// B5 — the clickwrap label copy and the recorded document versions live in
+// constants.js, next to renewalDisclosure(), because they are consumer-facing
+// legal copy and must never be hand-written at a call site.
+import {
+  TERMS_VERSION,
+  PRIVACY_VERSION,
+  LEGAL_CONSENT_PREFIX,
+  LEGAL_CONSENT_SUFFIX,
+} from './lib/constants.js'
 
 const SRC = join(__dirname)
 
@@ -41,8 +50,28 @@ const read = (p) => readFileSync(p, 'utf8')
 
 // Strip comments — this file's own citations name the banned phrases, and so do
 // the explanatory comments left at each fix site. Only shipped copy is checked.
+//
+// ⚠ ORDER MATTERS — line comments are stripped FIRST. Found Sep 2026 while adding
+// the B5 guards below, and it had been silently defeating this whole file.
+//
+// A `//` line may legitimately contain the characters `/*`. Onboarding.jsx line 11
+// reads: "restrict key to taxstat360.com/* in GCP." With block comments stripped
+// first, that stray `/*` opened a comment that ran to the next real `*/` — 316
+// lines later, inside a catch block — deleting 18,752 characters of SHIPPED CODE
+// before any assertion ever saw it. That deleted region was the entire signup
+// flow: the plan selector, the auto-renewal disclosure, the consent boxes and the
+// registration call. In other words, the one file where a compliance regression
+// would matter most was the file these guards could not see. App.jsx line 471
+// ("/onboarding/*") had the same hole.
+//
+// Stripping line comments first removes the stray `/*` along with its line, and a
+// `//` sitting inside a genuine block comment is removed harmlessly because the
+// block goes next anyway. The `[^:]` guard keeps `https://` inside string
+// literals intact. There is a self-test for this immediately below.
 const stripComments = (code) =>
-  code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  code
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
 
 // complianceCopy.js is the sanctioned home for the replacement strings.
 const SOURCE_OF_TRUTH = 'lib/complianceCopy.js'
@@ -55,6 +84,48 @@ function offenders(pattern) {
   }
   return hits
 }
+
+// A guard on the guard. If stripComments() over-matches, every assertion in this
+// file starts passing for the wrong reason — silently, and exactly when it matters.
+describe('stripComments — the guard that protects the guards', () => {
+  it('does not swallow code after a `/*` that appears inside a line comment', () => {
+    const sample = [
+      '// restrict key to example.com/* in GCP.',
+      'const KEEP_ME = 1',
+      '/* a real block comment */',
+      'const ALSO_KEEP_ME = 2',
+    ].join('\n')
+    const out = stripComments(sample)
+    expect(out).toMatch(/KEEP_ME/)
+    expect(out).toMatch(/ALSO_KEEP_ME/)
+    expect(out).not.toMatch(/a real block comment/)
+  })
+
+  it('leaves URLs in string literals alone', () => {
+    expect(stripComments("const u = 'https://app.taxstat360.com'")).toMatch(/app\.taxstat360\.com/)
+  })
+
+  it('never deletes a top-level declaration from any scanned file', () => {
+    // A byte-ratio floor is the wrong instrument here — this codebase is heavily
+    // annotated and constants.js is legitimately ~80% comment. What actually
+    // characterises the bug is CODE disappearing, so assert on code directly:
+    // every top-level declaration in the raw file must survive the strip. That is
+    // exactly what failed before — `const [termsOk...` and the /auth/register call
+    // vanished while the file still looked plausibly sized.
+    const declRe = /^export\s+(?:const|function|class)\s+([A-Za-z_$][\w$]*)|^(?:const|function|class)\s+([A-Za-z_$][\w$]*)/gm
+    for (const f of files) {
+      const raw = read(f)
+      const stripped = stripComments(raw)
+      let m
+      declRe.lastIndex = 0
+      while ((m = declRe.exec(raw))) {
+        const name = m[1] || m[2]
+        expect.soft(stripped, `${rel(f)}: stripComments() deleted declaration "${name}"`)
+          .toContain(name)
+      }
+    }
+  })
+})
 
 describe('B4 — no claims to non-public IRS audit-selection knowledge', () => {
   // 31 C.F.R. §10.30(a)(1) (misleading claims; no implied IRS relationship) and
@@ -387,5 +458,116 @@ describe('H11 — the Terms carry the clauses a consumer agreement needs', () =>
     const head = t.slice(0, t.indexOf('1. Description of Service'))
     expect(head).toMatch(/individual arbitration/i)
     expect(head).toMatch(/opt out/i)
+  })
+})
+
+// ─── B5 — CLICKWRAP ASSENT AT SIGNUP ─────────────────────────────────────────
+// The signup page used to show the Terms and Privacy links as a passive sentence
+// above the submit button. Against a consumer that is browsewrap, and browsewrap
+// is the form courts decline to enforce (Nguyen v. Barnes & Noble, 763 F.3d 1171
+// (9th Cir. 2014)). Every protective clause in the rewritten Terms — arbitration,
+// class action waiver, warranty disclaimer, liability cap, indemnity — is only
+// worth what the assent record is worth.
+//
+// These tests read the Onboarding source rather than rendering it, for the same
+// reason the copy guards above do: the failure mode being defended against is
+// someone quietly deleting the checkbox to lift trial conversion, and a source
+// assertion catches that even if the component is refactored past the point where
+// a render test still finds the element.
+describe('B5 — signup requires affirmative assent to the Terms', () => {
+  const onboarding = () => stripComments(read(join(SRC, 'components/Onboarding.jsx')))
+
+  it('has a Terms consent checkbox that starts unchecked', () => {
+    const o = onboarding()
+    expect(o).toMatch(/const \[termsOk,\s*setTermsOk\]\s*=\s*useState\(false\)/)
+    expect(o).toMatch(/id="signup-terms-consent"/)
+    expect(o).toMatch(/type="checkbox"[\s\S]{0,120}checked=\{termsOk\}/)
+  })
+
+  it('never pre-checks either consent box', () => {
+    // A pre-ticked box is not assent — it is the defect Cal. Bus. & Prof. Code
+    // §17602 and the FTC negative-option rule exist to stop.
+    const o = onboarding()
+    expect(o).toMatch(/useState\(false\)[\s\S]{0,400}const \[termsOk/)
+    expect(o).not.toMatch(/useState\(true\)[\s\S]{0,40}(renewOk|termsOk)/)
+    expect(o).not.toMatch(/checked=\{true\}/)
+  })
+
+  it('gates the submit button on BOTH consents', () => {
+    const o = onboarding()
+    expect(o).toMatch(/disabled=\{loading\|\|!renewOk\|\|!termsOk\}/)
+  })
+
+  it('re-checks both consents inside submit(), not only via the disabled attribute', () => {
+    // `disabled` is a UI affordance, not a control. The account must not be
+    // creatable by removing an attribute in devtools.
+    const o = onboarding()
+    const body = o.slice(o.indexOf('async function submit'), o.indexOf('/auth/register'))
+    expect(body).toMatch(/if\(!renewOk\)\{setErr\(/)
+    expect(body).toMatch(/if\(!termsOk\)\{setErr\(/)
+  })
+
+  it('keeps the auto-renewal consent separate from the Terms consent', () => {
+    // §17602(a)(1) wants consent to the RENEWAL terms specifically. One merged
+    // "I agree to everything" box would re-create the defect.
+    const o = onboarding()
+    expect(o).toMatch(/checked=\{renewOk\}/)
+    expect(o).toMatch(/checked=\{termsOk\}/)
+    expect(o).not.toMatch(/checked=\{renewOk\s*&&\s*termsOk\}/)
+    expect(o).not.toMatch(/setRenewOk\(e\.target\.checked\)[\s\S]{0,80}setTermsOk\(e\.target\.checked\)/)
+  })
+
+  it('no longer relies on the passive browsewrap sentence', () => {
+    expect(onboarding()).not.toMatch(/By creating an account you agree to our/)
+  })
+
+  it('links both documents from inside the consent label', () => {
+    const o = onboarding()
+    const label = o.slice(o.indexOf('signup-terms-consent'), o.indexOf('type="submit"'))
+    expect(label).toMatch(/href="\/terms"/)
+    expect(label).toMatch(/href="\/privacy"/)
+  })
+
+  it('calls out arbitration and the class action waiver in the consent label', () => {
+    // Conspicuous notice is the other half of enforceable assent. A user told
+    // plainly what they are agreeing to has a far weaker unconscionability
+    // argument than one who had to find Section 11 on their own.
+    expect(LEGAL_CONSENT_SUFFIX).toMatch(/binding arbitration/i)
+    expect(LEGAL_CONSENT_SUFFIX).toMatch(/class action waiver/i)
+    expect(LEGAL_CONSENT_PREFIX).toMatch(/read and agree/i)
+  })
+
+  it('records which documents were accepted, and when', () => {
+    const o = onboarding()
+    expect(o).toMatch(/terms_version:\s*TERMS_VERSION/)
+    expect(o).toMatch(/privacy_version:\s*PRIVACY_VERSION/)
+    expect(o).toMatch(/terms_accepted_at:\s*acceptedAt/)
+    expect(o).toMatch(/const acceptedAt=new Date\(\)\.toISOString\(\)/)
+  })
+
+  it('pins the recorded versions to the dates the documents actually render', () => {
+    // If these drift, the account record names a document the user never saw.
+    const termsSrc = readFileSync(join(SRC, 'components/Terms.jsx'), 'utf8')
+    const privacySrc = readFileSync(join(SRC, 'components/Privacy.jsx'), 'utf8')
+    expect(TERMS_VERSION).toBe('2026-09-10')
+    expect(termsSrc).toMatch(/Last updated: September 10, 2026/)
+    expect(PRIVACY_VERSION).toBe('2026-07-13')
+    expect(privacySrc).toMatch(/Last updated: July 13, 2026/)
+  })
+
+  it('makes the agreements reachable from step 1, before any data is entered', () => {
+    const o = onboarding()
+    const stepOne = o.slice(o.indexOf('{step===1 &&'), o.indexOf('{step===2 &&'))
+    expect(stepOne).toMatch(/href="\/terms"/)
+    expect(stepOne).toMatch(/href="\/privacy"/)
+  })
+
+  it('tells the user which box is still empty', () => {
+    // A greyed-out button with no explanation is indistinguishable from a broken
+    // form, and this one sits at the end of a funnel that costs money to fill.
+    const o = onboarding()
+    expect(o).toMatch(/Tick both boxes above to continue/)
+    expect(o).toMatch(/Tick the automatic renewal box above to continue/)
+    expect(o).toMatch(/Tick the Terms of Service box above to continue/)
   })
 })

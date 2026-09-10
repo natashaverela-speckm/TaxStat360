@@ -35,8 +35,15 @@ const rel = (p) => p.slice(SRC.length + 1)
 
 // Strip line comments and block comments so prose mentioning an API name
 // doesn't false-positive. Crude but sufficient for these patterns.
+// ⚠ ORDER MATTERS — line comments are stripped FIRST. See the long note on the
+// identical helper in src/complianceCopy.test.js. Short version: a `//` line that
+// contains the characters `/*` (Onboarding.jsx line 11, App.jsx line 471) used to
+// open a phantom block comment that ran hundreds of lines and deleted shipped code
+// before any assertion saw it. Keep these two implementations in step.
 const stripComments = (code) =>
-  code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  code
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function violations(pattern, allowFiles) {
   const hits = []
