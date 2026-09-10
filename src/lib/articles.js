@@ -47,7 +47,9 @@ export const ARTICLES = [
     slug: 'scorp-salary-vs-distribution',
     title: 'S-Corp Salary vs. Distribution: How to Split Your Pay and Save on Taxes',
     metaDescription:
-      'Learn how S-Corp owners can legally reduce self-employment tax by splitting pay between officer salary and K-1 distributions — with real numbers, IRS rules, and what triggers audits.',
+      // AUDIT B4 (Sep 2026): '...and what triggers audits' removed. Audit-selection
+      // framing under an EA's byline is the §10.30(a)(1) problem flagged site-wide.
+      'Learn how S-Corp owners can legally reduce self-employment tax by splitting pay between officer salary and K-1 distributions — with real numbers, the governing IRS rules, and what makes a salary defensible.',
     category: 'S-Corporation',
     readMinutes: 8,
     publishedDate: '2026-04-10',
