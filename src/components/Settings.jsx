@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { API_BASE_URL } from '../lib/constants.js'
+import { API_BASE_URL, STRIPE_PORTAL_URL } from '../lib/constants.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from '../utils/SignOut'
 import { isPro } from './LockedFeature'
@@ -197,9 +197,17 @@ export default function Settings() {
     setLoading(false)
   }
 
-  const handleManageBilling = () => {
-    window.open('https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00', '_blank', 'noopener')
+  // AUDIT H9 (Sep 2026): one handler, two entry points. "Manage Billing" and
+  // "Cancel Subscription" go to the same Stripe portal — cancellation lives inside
+  // it — but the site promises "Cancel anytime in Settings" in at least six places
+  // and Settings offered no control with the word "cancel" on it. Under ROSCA
+  // §8403(3) and Cal. Bus. & Prof. Code §17602(c) a consumer who subscribed online
+  // must be able to cancel online without obstruction, and a cancellation path the
+  // user cannot FIND is obstruction in practice.
+  const openBillingPortal = () => {
+    window.open(STRIPE_PORTAL_URL, '_blank', 'noopener')
   }
+  const handleManageBilling = openBillingPortal
 
   const handleDataExport = () => {
     const exportData = {
@@ -405,7 +413,9 @@ export default function Settings() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
               <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime</div>
+              {/* AUDIT H9: "Cancel anytime" with no visible cancel control was a
+                  promise the page did not keep. Point at the control below. */}
+              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime below</div>
             </div>
             <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
           </div>
@@ -416,6 +426,38 @@ export default function Settings() {
             <button onClick={handleManageBilling} style={{flex:1,padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
               Manage Billing →
             </button>
+          </div>
+
+          {/* ── AUDIT H9 — CANCELLATION ────────────────────────────────────────
+              A named, visible cancel control. Deliberately NOT hidden behind
+              "Manage Billing", and deliberately carrying no retention offer or
+              are-you-sure interstitial: Cal. Bus. & Prof. Code §17602(c) targets
+              steps that "obstruct or delay" cancellation, and a discount screen the
+              user has to dismiss is the paradigm case. One click out to the portal.
+              The copy sets expectations honestly about the emailed code, because a
+              surprise step reads as a dark pattern even when it is just Stripe. */}
+          <div style={{marginTop:18,paddingTop:18,borderTop:'1px solid #F1F5F9'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
+              <div style={{flex:'1 1 300px'}}>
+                <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Cancel subscription</div>
+                <div style={{fontSize:13,color:SL,lineHeight:1.55}}>
+                  Cancel any time, online, with no phone call and no retention offer. You keep access
+                  until the end of the period you have already paid for. Completed billing periods are
+                  not refunded or pro-rated. Cancelling during a free trial means you are never charged.
+                  <br />
+                  <span style={{color:'#64748B'}}>
+                    Opens the Stripe billing portal in a new tab. Stripe will email a one-time sign-in
+                    code to <strong>{email}</strong> to confirm it is you, then you can cancel there.
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={openBillingPortal}
+                style={{flexShrink:0,padding:'9px 18px',background:'#fff',color:'#B91C1C',border:'1px solid #FECACA',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+              >
+                Cancel subscription →
+              </button>
+            </div>
           </div>
         </div>
 

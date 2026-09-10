@@ -9,11 +9,13 @@ import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from 
 import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 // AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
 import { FEATURE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
+import { STRIPE_PORTAL_URL } from '../lib/constants.js'
 
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
-// FTC Click-to-Cancel compliance: users can cancel here as easily as they signed up.
-const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
+// AUDIT H9 (Sep 2026): moved to constants.js. It was duplicated here and in
+// Settings.jsx, and it is the product's only cancellation path — see the note there
+// about verifying that cancellation is actually enabled in the portal configuration.
 
 const PLANS = {
   // D-06: derived from PLAN_PRICING (constants.js) — single price source.
