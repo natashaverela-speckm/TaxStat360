@@ -37,4 +37,94 @@ describe('Content-Security-Policy hardening (re-audit, M-7)', () => {
     const expectedHash = pixelLoaderHash(html)
     expect(yml).toContain(`'${expectedHash}'`)
   })
+
+  // ── AUDIT H12 (second launch audit, Sep 2026) — THE GUARD THIS FILE CLAIMED TO HAVE ──
+  //
+  // customHttp.yml carries a note ending "src/customHttp.csp.test.js now fails on any
+  // embedded newline." It did not. That note was written after the CSP was found missing
+  // from production entirely — extra indentation on the connect-src lines of a YAML
+  // folded block (>-) preserved 12 raw newlines, an HTTP header value cannot contain
+  // them, and CloudFront dropped the header silently. Every other header applied
+  // normally, and the unit test passed because it only read the file, never the value.
+  //
+  // So the file asserted protection that did not exist, which is worse than asserting
+  // nothing: it invites the next person to trust it. These are the missing assertions.
+  //
+  // The mechanic to remember: in a YAML folded scalar, a line indented MORE than the
+  // block's first line is kept literally AND its newline is preserved. Every
+  // continuation line of the CSP value must sit at the same indent.
+  describe('H12 — the folded CSP value must fold to a single line', () => {
+    // Parse the folded block by hand rather than adding a YAML dependency: read from the
+    // `value: >-` marker to the next key at the same or lower indent.
+    const foldedCspValue = () => {
+      const lines = yml.split('\n')
+      const at = lines.findIndex((l) => /^\s*-\s*key:\s*Content-Security-Policy\s*$/.test(l))
+      expect(at, 'Content-Security-Policy key not found in customHttp.yml').toBeGreaterThan(-1)
+      const valueLine = lines[at + 1]
+      expect(valueLine, 'CSP value must use a folded scalar').toMatch(/value:\s*>-\s*$/)
+      const body = []
+      let baseIndent = null
+      for (let i = at + 2; i < lines.length; i++) {
+        const line = lines[i]
+        if (line.trim() === '') break
+        const indent = line.length - line.trimStart().length
+        if (baseIndent === null) baseIndent = indent
+        // A line at or below the block's opening indent ends the block.
+        if (indent < baseIndent) break
+        if (/^\s*-\s*key:/.test(line)) break
+        body.push({ indent, text: line.trimStart() })
+      }
+      expect(body.length, 'CSP folded block appears empty').toBeGreaterThan(1)
+      return { body, baseIndent }
+    }
+
+    it('every continuation line sits at the SAME indent as the first', () => {
+      // This is the assertion that would have caught the production outage. A deeper
+      // indent on any line turns a folded space into a preserved newline.
+      const { body, baseIndent } = foldedCspValue()
+      const offenders = body.filter((l) => l.indent !== baseIndent)
+        .map((l) => `indent ${l.indent} (expected ${baseIndent}): ${l.text.slice(0, 60)}`)
+      expect(offenders, 'over-indented lines embed a literal newline in the header value').toEqual([])
+    })
+
+    it('the folded value contains no newline once assembled', () => {
+      const { body } = foldedCspValue()
+      const folded = body.map((l) => l.text).join(' ')
+      expect(folded).not.toMatch(/[\r\n]/)
+      // Sanity: it should still be a real policy, not an empty string that trivially passes.
+      expect(folded).toMatch(/^default-src/)
+      expect(folded.length).toBeGreaterThan(200)
+    })
+
+    it('carries every directive the policy is supposed to ship', () => {
+      const { body } = foldedCspValue()
+      const folded = body.map((l) => l.text).join(' ')
+      for (const d of [
+        'default-src', 'script-src', 'style-src', 'font-src', 'img-src',
+        'connect-src', 'frame-src', 'worker-src', 'object-src', 'base-uri',
+        'form-action', 'upgrade-insecure-requests',
+      ]) {
+        expect(folded, `missing directive: ${d}`).toContain(d)
+      }
+    })
+
+    it('no OTHER folded header value is over-indented either', () => {
+      // The same YAML trap applies to every `>-` block in this file, not just the CSP.
+      const lines = yml.split('\n')
+      const problems = []
+      for (let i = 0; i < lines.length; i++) {
+        if (!/value:\s*>-\s*$/.test(lines[i])) continue
+        let baseIndent = null
+        for (let j = i + 1; j < lines.length; j++) {
+          const line = lines[j]
+          if (line.trim() === '' || /^\s*-\s*key:/.test(line)) break
+          const indent = line.length - line.trimStart().length
+          if (baseIndent === null) { baseIndent = indent; continue }
+          if (indent < baseIndent) break
+          if (indent !== baseIndent) problems.push(`line ${j + 1}: ${line.trimStart().slice(0, 50)}`)
+        }
+      }
+      expect(problems).toEqual([])
+    })
+  })
 })

@@ -31,6 +31,7 @@ import {
   PRIVACY_VERSION,
   LEGAL_CONSENT_PREFIX,
   LEGAL_CONSENT_SUFFIX,
+  PLAN_ENTITY_LIMITS,
 } from './lib/constants.js'
 
 const SRC = join(__dirname)
@@ -709,6 +710,117 @@ describe('B4 — the expense-ratio finding cites published law, not audit select
     const a = aiAnalysis()
     expect(a).toMatch(/not a prediction of audit selection or probability/i)
     expect(a).toMatch(/proprietary scoring and methods not publicly disclosed/i)
+  })
+})
+
+// ─── H9 / H10 / H11 (second launch audit, Sep 2026) ──────────────────────────
+// Every one of these is a claim an earlier guard already banned — in a file or a
+// spelling the guard did not reach. That is the recurring failure mode in this
+// harness, so these assertions are written against the CLAIM and across the whole
+// shipped surface, index.html included.
+const indexHtml = () => readFileSync(join(SRC, '..', 'index.html'), 'utf8')
+
+describe('H9 — no retention prompt stands between the user and cancellation', () => {
+  // The original H9 guard banned exactly this pattern but was scoped to Settings.jsx.
+  // Upgrade.jsx is the same product, the same action and the same Stripe portal, and it
+  // carried "Are you sure? / Keep plan". It falsified Terms §4 ("without being routed
+  // through a retention offer") and the Settings copy ("no retention offer").
+  // Cal. Bus. & Prof. Code §17602(c); ROSCA 15 U.S.C. §8403(3).
+  const RETENTION = /\b(?:\d+%\s*off|special offer|before you go|stay with us|are you sure|keep (?:my )?plan)\b/i
+
+  for (const file of ['components/Settings.jsx', 'components/Upgrade.jsx']) {
+    it(`${file} has no retention interstitial`, () => {
+      expect(stripComments(read(join(SRC, file)))).not.toMatch(RETENTION)
+    })
+  }
+
+  it('Upgrade\'s Cancel Plan goes straight to the billing portal', () => {
+    const u = stripComments(read(join(SRC, 'components/Upgrade.jsx')))
+    expect(u).toMatch(/onClick=\{handleManageSubscription\}[\s\S]{0,400}Cancel Plan/)
+    expect(u).not.toMatch(/showCancelConfirm/)
+  })
+
+  it('the promises it used to falsify are still shipped', () => {
+    // JSX wraps long sentences, so these phrases carry newlines and indentation
+    // mid-string in the source. Collapse whitespace before matching.
+    const flat = (f) => stripComments(read(join(SRC, f))).replace(/\s+/g, ' ')
+    expect(flat('components/Terms.jsx')).toMatch(/without being routed through a retention offer/i)
+    expect(flat('components/Settings.jsx')).toMatch(/no retention offer/i)
+  })
+})
+
+describe('H10 — the upgrade table advertises nothing that does not exist', () => {
+  const PHANTOMS = ['Risk Tolerance Profiling', 'CPA Collaboration Portal', 'Dedicated onboarding']
+
+  for (const label of PHANTOMS) {
+    it(`"${label}" is not advertised anywhere`, () => {
+      expect(offenders(new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'))).toEqual([])
+    })
+  }
+
+  it('every Upgrade feature label also appears on the Landing page', () => {
+    // The structural guard. This is what would have caught these three — and the
+    // "multi-user" defect constants.js records from an earlier pass — before shipping.
+    const u = stripComments(read(join(SRC, 'components/Upgrade.jsx')))
+    const landing = stripComments(read(join(SRC, 'components/Landing.jsx')))
+    const labels = [...u.matchAll(/\{\s*label:\s*'([^']+)'/g)].map((m) => m[1])
+    expect(labels.length).toBeGreaterThan(5)
+    // Compare on the leading phrase: Landing sometimes renders a shorter form.
+    const missing = labels.filter((l) => {
+      const head = l.split(/\s*[—(]/)[0].trim()
+      return head.length > 6 && !landing.includes(head)
+    })
+    expect(missing, 'advertised on /upgrade but nowhere on the pricing page').toEqual([])
+  })
+})
+
+describe('H11 — the structured data agrees with the page', () => {
+  // index.html is served to Google as rich-result content and offenders() never walked
+  // it, so two claims the company had already documented as untrue survived there.
+  it('no "one click" cancellation claim', () => {
+    // constants.js records the F-8b fix: "untrue by either route... Misdescribing the
+    // cancellation mechanism is precisely what the FTC click-to-cancel rule polices."
+    expect(indexHtml()).not.toMatch(/one[-\s]click/i)
+  })
+
+  it('no "single business entity" plan claim', () => {
+    // PLAN_ENTITY_LIMITS gives Professional 3 businesses, not 1.
+    expect(indexHtml()).not.toMatch(/single business entity/i)
+  })
+
+  it('every JSON-LD answer has a byte-identical counterpart on the Landing page', () => {
+    // The general form of both defects: structured data drifting from the page it
+    // is supposed to describe.
+    const landing = read(join(SRC, 'components/Landing.jsx'))
+    const answers = [...indexHtml().matchAll(/"acceptedAnswer":\s*\{[^}]*?"text":\s*"((?:[^"\\]|\\.)*)"/g)]
+      .map((m) => m[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').trim())
+    expect(answers.length).toBeGreaterThan(3)
+    const flatLanding = landing.replace(/\s+/g, ' ')
+    const orphans = answers.filter((a) => {
+      // Answers Landing builds by template interpolation have no literal counterpart in
+      // its source; those are pinned to their underlying constant instead (below).
+      if (/^Entity capacity depends on your plan/.test(a)) return false
+      const head = a.slice(0, 60).replace(/\s+/g, ' ')
+      return !flatLanding.includes(head)
+    })
+    expect(orphans, 'JSON-LD answers with no matching on-page text').toEqual([])
+  })
+
+  it('the entity-capacity answer matches PLAN_ENTITY_LIMITS, not a hand-typed number', () => {
+    // This is the claim that drifted: the JSON-LD said Starter and Professional both
+    // cover "a single business entity" while Professional actually covers 3. Pinning it
+    // to the constant is stronger than pinning it to Landing's source text, because the
+    // constant is what actually gates the product.
+    const html = indexHtml()
+    const answer = (html.match(/"text":\s*"(Entity capacity depends on your plan[^"]*)"/) || [])[1]
+    expect(answer, 'entity-capacity answer missing from index.html').toBeTruthy()
+    expect(answer).toContain(`Starter covers ${PLAN_ENTITY_LIMITS.starter.business} business`)
+    expect(answer).toContain(`up to ${PLAN_ENTITY_LIMITS.starter.realEstate} rental properties`)
+    expect(answer).toContain(`Professional covers up to ${PLAN_ENTITY_LIMITS.professional.business} businesses`)
+  })
+
+  it('the trial answer names the real cancellation path', () => {
+    expect(indexHtml()).toMatch(/Cancel anytime in Settings before day 7/)
   })
 })
 
