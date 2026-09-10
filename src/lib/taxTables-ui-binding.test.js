@@ -52,3 +52,89 @@ describe('UI must bind to the tables, not hardcode the figures', () => {
     expect(src).toMatch(/getTable\(taxYear\)\?\.hsa/)
   })
 })
+
+// ─── AUDIT H3 / H4 (Sep 2026) ────────────────────────────────────────────────
+// Two more year-keyed figures were being rendered from hardcoded JSX rather than
+// from TAX_TABLES, and both were stale in production:
+//   H3 — the mileage card and Aria both stated 72.5¢ as "the" 2026 rate. 2026 is a
+//        SPLIT-RATE year: Announcement 2026-11 modified Notice 2026-10 and raised the
+//        business rate to 76¢ from July 1 — the first midyear change since 2022. The
+//        app was a full quarter stale on the most common deduction question there is.
+//   H4 — the §179 card hardcoded "$2.5M in 2025 / $4M", the 2025 figures, and showed
+//        them even when the user had selected 2026 — while the ENGINE
+//        (calc179Limitation) correctly used the 2026 table. Card and math disagreed.
+
+describe('AUDIT H3 — 2026 standard mileage rate is split across two periods', () => {
+  it('the table carries both periods with their governing IRS guidance', () => {
+    const periods = getTable(2026).mileageRatePeriods
+    expect(Array.isArray(periods)).toBe(true)
+    expect(periods).toHaveLength(2)
+
+    expect(periods[0].rate).toBe(0.725)
+    expect(periods[0].to).toBe('2026-06-30')
+    expect(periods[0].cite).toMatch(/Notice 2026-10/)
+
+    expect(periods[1].rate).toBe(0.76)
+    expect(periods[1].from).toBe('2026-07-01')
+    expect(periods[1].cite).toMatch(/Announcement 2026-11/)
+  })
+
+  it('mileageRate is the CURRENT (later-period) rate, so single-rate callers stay right', () => {
+    const t = getTable(2026)
+    expect(t.mileageRate).toBe(0.76)
+    expect(t.mileageRate).toBe(t.mileageRatePeriods[t.mileageRatePeriods.length - 1].rate)
+  })
+
+  it('periods are contiguous and cover the whole year', () => {
+    const p = getTable(2026).mileageRatePeriods
+    expect(p[0].from).toBe('2026-01-01')
+    expect(p[p.length - 1].to).toBe('2026-12-31')
+    // No gap: the second period starts the day after the first ends.
+    expect(new Date(p[1].from) - new Date(p[0].to)).toBe(86400000)
+  })
+
+  it('single-rate years still work and are unchanged', () => {
+    expect(getTable(2025).mileageRate).toBe(0.70)
+    expect(getTable(2024).mileageRate).toBe(0.67)
+    expect(getTable(2025).mileageRatePeriods).toBeUndefined()
+  })
+
+  it('AIAnalysis renders every period instead of asserting one rate', () => {
+    const src = read('../components/AIAnalysis.jsx')
+    expect(src).toMatch(/mileageRatePeriods/)
+    // The finding must render the computed sentence, not a hardcoded single rate.
+    // (The one-rate wording still exists as the ternary's fallback for single-rate
+    // years like 2025 — that branch is correct and must stay.)
+    expect(src).toMatch(/detail: `No vehicle or mileage deduction is recorded\.[^`]*\$\{_mileRateSentence\}/)
+    expect(src).toMatch(/① Standard Mileage Rate — multiply business miles by the IRS rate \(\$\{_mileRateShort\}\)/)
+  })
+
+  it('Aria states both 2026 rates, not just January’s', () => {
+    const src = read('../components/Aria.jsx')
+    const guard = src.slice(src.indexOf('rx: /mileage/i'))
+    expect(guard).toMatch(/72\.5/)
+    expect(guard).toMatch(/76 cents/)
+    expect(guard).toMatch(/Announcement 2026-11/)
+  })
+})
+
+describe('AUDIT H4 — §179 figures come from the table the engine uses', () => {
+  it('2026 §179: $2,560,000 cap, $4,090,000 phase-out (Rev. Proc. 2025-32)', () => {
+    expect(getTable(2026).sec179.cap).toBe(2560000)
+    expect(getTable(2026).sec179.phaseOutStart).toBe(4090000)
+  })
+
+  it('the opportunity card no longer hardcodes the 2025 figures', () => {
+    const src = read('../components/AIAnalysis.jsx')
+    expect(src).not.toMatch(/up to \$2\.5M in 2025/)
+    expect(src).not.toMatch(/phase-out begins above \$4M/)
+  })
+
+  it('the card binds to getTable(year).sec179', () => {
+    const src = read('../components/AIAnalysis.jsx')
+    const card = src.slice(src.indexOf('§179 Equipment Deduction'))
+    expect(src).toMatch(/getTable\(year\)\?\.sec179/)
+    expect(card.slice(0, 1200)).toMatch(/_sec179Cap/)
+    expect(card.slice(0, 1200)).toMatch(/_sec179PhaseOut/)
+  })
+})

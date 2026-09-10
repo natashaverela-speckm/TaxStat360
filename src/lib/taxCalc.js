@@ -221,7 +221,18 @@ const TAX_TABLES = {
     // AUDIT F-8 FIX: HSA limits by year (previously hardcoded 2025 figures in the
     // AIAnalysis strategy card). 2026 per Rev. Proc. 2025-19.
     hsa: { selfOnly: 4400, family: 8750 },
-    mileageRate: 0.725,
+    // AUDIT H3 (Sep 2026): 2026 has TWO business mileage rates. Notice 2026-10 set
+    // 72.5¢ from Jan 1; Announcement 2026-11 raised it to 76¢ from Jul 1 — the first
+    // midyear adjustment since 2022. The app shipped only 72.5¢ and was a full quarter
+    // stale. `mileageRate` is the CURRENT (later-period) rate so existing callers stay
+    // correct for the back half of the year; `mileageRatePeriods` carries both so the
+    // UI can state them properly. A split year is normal, not exceptional — keep this
+    // shape and add periods rather than overwriting the single rate.
+    mileageRate: 0.76,
+    mileageRatePeriods: [
+      { rate: 0.725, from: '2026-01-01', to: '2026-06-30', label: 'Jan 1 – Jun 30, 2026', cite: 'Notice 2026-10' },
+      { rate: 0.76,  from: '2026-07-01', to: '2026-12-31', label: 'Jul 1 – Dec 31, 2026', cite: 'Announcement 2026-11' },
+    ],
     amt: {
       exemption:    { single:90100,  mfj:140200, mfs:70100,  hoh:90100,  qss:140200 },
       phaseoutStart:{ single:500000, mfj:1000000,mfs:500000, hoh:500000, qss:1000000 },
