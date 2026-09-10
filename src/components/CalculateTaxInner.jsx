@@ -28,6 +28,9 @@ import { apiFetch, apiGet, apiPost } from '../utils/apiClient.js'
 // AUDIT H1 (Sep 2026): employer-side payroll tax on S-Corp officer salary is a
 // deductible entity expense and was never subtracted from K-1 income.
 import { calcEmployerFICA } from '../lib/taxCalc.js'
+// AUDIT (Sep 2026): provider P&L responses are interpreted by a pure, tested
+// function — a failed sync used to be written into the record as a successful one.
+import { interpretProviderPnL } from '../lib/integrationPnL.js'
 import { INTEGRATIONS, API_BASE_URL, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
@@ -2593,38 +2596,40 @@ export default function CalculateTaxInner() {
   async function fetchEntityPnL(idx, pid, isManualSync = false) {
     try {
       const url = `/integrations/${pid}/data?year=${encodeURIComponent(taxYear)}`
-      const d = await apiFetch(url, { raw: true }).then(r => r.json())
-      if (d && !d.error) {
-        const empty =
-          d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)
-        if (empty) {
-          writeIntegrationField(pid, 'failed', 'true')
-          bumpIntegrationUi()
-          setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year, Sync now, or enter figures manually.`)
-          setTimeout(() => setFooterError(null), 10000)
-        } else {
-          // AUDIT H1 NOTE (Sep 2026): the synced path deliberately does NOT add
-          // employerPayrollTax. It takes net_profit straight from the accounting
-          // system, whose books already carry employer payroll tax as an expense —
-          // computing it again here would deduct it twice. Manual entry is the
-          // opposite case: the user types gross receipts and expense categories, so
-          // the app must compute it (see calcEmployerFICA in ManualEntryPanel).
-          //
-          // ⚠ The hazard is CONVERSION: opening the manual panel on a provider P&L
-          // decomposes provider expenses into Operating Expenses, which may already
-          // include the owner's payroll tax — and the panel then adds it again.
-          // employerPayrollTax is written explicitly below so the decompose can tell
-          // the two shapes apart, and the panel warns at the point of entry.
-          const pnl = {
-            grossRevenue:  d.revenue,
-            totalExpenses: d.expenses,
-            netProfit:     d.net_profit,
-            officerSalary: d.officer_salary || 0,
-            // Provider books already include it; recorded as 0 so the manual decompose
-            // does not silently re-derive a second deduction from officerSalary.
-            employerPayrollTax: 0,
-            categories:    d.categories || {}
+      // ── AUDIT (Sep 2026): A FAILED SYNC WAS BEING RECORDED AS A SUCCESSFUL ONE ──
+      // The interpretation of this response now lives in lib/integrationPnL.js as a
+      // pure function, so the decision can be unit-tested against the real code
+      // rather than a copy of it. Read the long note at the top of that module for
+      // what was wrong, how it fabricated financial data, and the live evidence.
+      const res = await apiFetch(url, { raw: true })
+      const body = await res.json().catch(() => null)
+      const verdict = interpretProviderPnL({
+        ok: res.ok, status: res.status, body, provider: pid, taxYear,
+      })
+
+      if (verdict.kind === 'error' || verdict.kind === 'empty') {
+        // Either way the user's existing figures are left exactly as they were, no
+        // syncedAt is stamped, and the tile shows the provider as failed.
+        writeIntegrationField(pid, 'failed', 'true')
+        bumpIntegrationUi()
+        setFooterError(verdict.message)
+        setTimeout(() => setFooterError(null), 12000)
+        return
+      }
+
+      {
+        {
+          // The figures are usable. `warning` is non-null when they are internally
+          // inconsistent or implausible — the sync still applies (the user's books
+          // are the authority, and a genuine loss year is real), but the arithmetic
+          // is put in front of them before it drives a tax estimate.
+          if (verdict.warning) {
+            setFooterError(verdict.warning)
+            setTimeout(() => setFooterError(null), 20000)
           }
+
+          const pnl = verdict.pnl
+          const syncedRevenue = pnl.grossRevenue
           // F23 FIX: write sync timestamp
           const syncedAt = new Date().toISOString()
           writeIntegrationField(pid, 'syncedAt', syncedAt)
@@ -2638,7 +2643,7 @@ export default function CalculateTaxInner() {
             // F23 FIX: compute diff for manual re-syncs
             if (isManualSync && updated[idx]) {
               const prevRev = nf(updated[idx]?.pnl?.grossRevenue)
-              const newRev  = d.revenue
+              const newRev  = syncedRevenue
               if (prevRev !== newRev && prevRev > 0) {
                 const diff = newRev - prevRev
                 const sign = diff >= 0 ? '+' : ''
@@ -2665,15 +2670,6 @@ export default function CalculateTaxInner() {
             return updated
           })
         }
-      } else if (d?.error) {
-        writeIntegrationField(pid, 'failed', 'true')
-        bumpIntegrationUi()
-        const detail = d.status ? ` (HTTP ${d.status})` : ''
-        setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} sync failed${detail} — try Sync now or reconnect.`)
-        setTimeout(() => setFooterError(null), 10000)
-      } else if (isManualSync) {
-        writeIntegrationField(pid, 'failed', 'true')
-        bumpIntegrationUi()
       }
     } catch (ex) {
       console.error('fetchEntityPnL error:', ex)

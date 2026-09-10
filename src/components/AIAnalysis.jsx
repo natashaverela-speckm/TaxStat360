@@ -17,6 +17,7 @@ import {
   computeRetirementContributionRoom,
   computePassiveLossAllowance,
   qbiThresholdsFor,
+  recEntityRevenue,
 } from '../lib/aiAnalysisTaxMath.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './DismissibleNotice'
@@ -42,7 +43,12 @@ import {
   POSITION_DOCS_AUTHORIZE,
 } from '../utils/enterpriseGates.js'
 // AUDIT B2 (Sep 2026): canonical route lives in complianceCopy.js.
-import { ROUTE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
+import {
+  ROUTE_PERSONAL_ESTIMATE,
+  EXPENSE_RATIO_TITLE_SUFFIX,
+  EXPENSE_RATIO_DETAIL,
+  EXPENSE_RATIO_ACTION,
+} from '../lib/complianceCopy.js'
 import {
   CURRENT_TAX_YEAR,
   SEP_IRA_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
@@ -104,12 +110,9 @@ function Logo() {
 // was entered. These helpers give every Step-3 consumer the SAME entity-aware
 // view: prefer the biz summary when it carries a real value, otherwise fall back
 // to the entities, so the whole tab reflects the full session/record consistently.
-function recEntityRevenue(rec) {
-  const fromBiz = nf(rec?.biz?.grossRevenue)
-  if (fromBiz > 0) return fromBiz
-  const ents = Array.isArray(rec?.entities) ? rec.entities : []
-  return ents.reduce((s, e) => s + (nf(e?.pnl?.grossRevenue)), 0)
-}
+// AUDIT (Sep 2026): recEntityRevenue moved to lib/aiAnalysisTaxMath.js so the
+// aggregation can be unit-tested without mounting this component. See the long
+// note there for what was wrong and why it suppressed the §179 card.
 
 function recEntityType(rec) {
   const fromBiz = rec?.biz?.entityType
@@ -488,7 +491,12 @@ function RiskScan({ rec }) {
   const [showReviewed, setShowReviewed] = useState(false)
   if (!rec) return <NoData tab="risk" />
   const b = rec.biz || {}, f = rec.f1040 || {}
-  const revenue = nf(b.grossRevenue)
+  // AUDIT (Sep 2026): was nf(b.grossRevenue) — the PRIMARY entity's revenue, not the
+  // record's. Two findings below are gated on it (the depreciation prompt at
+  // revenue > 50,000 and the C-Corp finding), so a multi-entity filer whose revenue
+  // was spread across entities silently failed both gates. Use the same entity-aware
+  // total every other Step-3 surface uses.
+  const revenue = recEntityRevenue(rec)
   const officerSal = nf(b.officerSalary)
   const k1 = nf(rec.k1Income)
   const w2 = getTotalW2(rec)
@@ -804,9 +812,14 @@ function RiskScan({ rec }) {
     findings.push({
       level: 'high',
       icon: '🚨',
-      title: `Expenses Exceed Gross Receipts by ${_ratio - 100}% — Common IRS Scrutiny Pattern`,
-      detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross receipts (${fmt(_totEntRev)}). Expenses substantially exceeding gross receipts place the return in an IRS examination profile for S-Corps and Schedule C filers. The IRS DIF scoring system flags returns where expenses substantially exceed gross receipts in the taxpayer's industry. Every deduction must be substantiated with receipts, contracts, and documented business purpose if audited.`,
-      action: `Before filing: (1) Verify all deductions are ordinary and necessary under IRC §162. (2) Ensure receipts and written business purpose exist for each expense category. (3) Review high-ratio categories (vehicle, travel, home office, meals) individually. (4) Confirm no personal expenses were included. (5) If expenses exceed gross receipts by >50%, discuss with your CPA before filing.`,
+      // AUDIT B4 (Sep 2026): this finding used to assert that the IRS DIF scoring
+      // system flags this ratio — a claim about non-public audit-selection
+      // methodology that contradicted this very panel's disclaimer three cards
+      // below. See the long note at EXPENSE_RATIO_DETAIL in complianceCopy.js.
+      // The copy is owner-approved and CI-guarded; do not hand-write it here.
+      title: `Expenses Exceed Gross Receipts by ${_ratio - 100}% — ${EXPENSE_RATIO_TITLE_SUFFIX}`,
+      detail: `Total entity expenses (${fmt(_totEntExp)}) are ${_ratio}% of gross receipts (${fmt(_totEntRev)}). ${EXPENSE_RATIO_DETAIL}`,
+      action: EXPENSE_RATIO_ACTION,
     })
   }
 
