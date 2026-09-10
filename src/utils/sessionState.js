@@ -569,6 +569,52 @@ export function clearAllSessionState() {
   try { sessionStorage.clear() } catch { /* noop: sign-out must not fail on storage errors */ }
 }
 
+// ─── AUDIT H3 — SESSION OWNERSHIP (second launch audit, Sep 2026) ────────────
+// sessionStorage holds the working tax data: ts360_f1040 (the whole personal 1040
+// profile), the Step-1 entity P&L, and ts360_biz_ein. None of it was scoped to an
+// account, and CalculateTaxInner rehydrates from it on mount without checking who
+// it belongs to — unlike readStep1Draft() above, which correctly refuses to surface
+// another user's draft.
+//
+// The primary fix is in SignOut.signOut(), which now calls clearAllSessionState().
+// This is the second line of defence, for the paths a sign-out does not cover: a
+// browser that restores a tab's session store, a user who closes the laptop instead
+// of signing out, or a future regression that quietly drops that call again.
+//
+// Stamp the owner at sign-in; if the tab's working set belongs to someone else,
+// wipe it before any of it can be read.
+const SESSION_OWNER_KEY = 'ts360_session_owner'
+
+const _normEmail = (e) => String(e || '').trim().toLowerCase()
+
+export function readSessionOwner() {
+  try { return sessionStorage.getItem(SESSION_OWNER_KEY) } catch { return null }
+}
+
+export function writeSessionOwner(email) {
+  try { sessionStorage.setItem(SESSION_OWNER_KEY, _normEmail(email)) } catch { /* noop */ }
+}
+
+/**
+ * Called at sign-in. If this tab's session working set was left behind by a
+ * different account, clear it before the app reads any of it.
+ *
+ * @param {string} email the account signing in
+ * @returns {boolean} true when a foreign working set was found and cleared
+ */
+export function claimSessionForUser(email) {
+  const next = _normEmail(email)
+  if (!next) return false
+  const prev = readSessionOwner()
+  if (prev && prev !== next) {
+    clearAllSessionState()
+    writeSessionOwner(next)
+    return true
+  }
+  writeSessionOwner(next)
+  return false
+}
+
 // ─── 2FA nudge helpers ────────────────────────────────────────────────────────
 // Dashboard.jsx previously read/wrote ts360_2fa_nudge_dismissed directly (audit
 // R-05). These two helpers centralise the key so a rename requires one edit.

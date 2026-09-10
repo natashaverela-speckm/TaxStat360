@@ -66,6 +66,32 @@ const AUTH_KEYS = [
 
 export function signOut(nav) {
   AUTH_KEYS.forEach(k => localStorage.removeItem(k))
+  // ── AUDIT H3 (second launch audit, Sep 2026): SIGN-OUT LEFT TAXPAYER DATA IN THE TAB ──
+  //
+  // This function cleared localStorage only. clearAllSessionState() was imported at the
+  // top of this file but had exactly one caller — wipeAccountLocalData() below, which
+  // runs on account DELETION. So a normal sign-out left sessionStorage entirely intact:
+  //
+  //   ts360_f1040          the whole personal 1040 profile — W-2 income and withholding,
+  //                        capital gains, dividends, SALT, ISO bargain element,
+  //                        dependents, estimated payments
+  //   ts360_entities_raw   per-entity P&L
+  //   ts360_step1_entities  "
+  //   ts360_biz_ein        the EIN, with the business name and address alongside it
+  //
+  // And the leak was not passive. CalculateTaxInner rehydrates from those keys on mount
+  // with no account scoping — unlike the localStorage draft, which correctly refuses to
+  // cross accounts. So: user A signs out on a shared machine, user B signs in in the same
+  // tab, and B's Tax Tracker opens pre-populated with A's entity financials and A's 1040
+  // figures. If B then saves, A's numbers are written into B's server-side record.
+  //
+  // A family computer or an office machine is enough. No technical skill required.
+  //
+  // Note what this does NOT clear: the ts360_records_* buckets in localStorage stay, by
+  // deliberate design — signing out is not meant to destroy saved scenarios. That is a
+  // separate, known exposure (audit item on unencrypted records surviving sign-out) and
+  // is not what this line addresses.
+  clearAllSessionState()
   nav('/')
 }
 
