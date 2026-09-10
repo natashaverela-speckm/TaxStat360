@@ -66,7 +66,13 @@ customHeaders:
       # so CloudFront dropped the header entirely. The site served NO CSP in
       # production while every other header here was applied normally, and the
       # unit test passed because it only read this file, never the live response.
-      # src/customHttp.csp.test.js now fails on any embedded newline.
+      # src/customHttp.csp.test.js asserts this: it parses the folded block, fails
+      # if ANY continuation line is indented differently from the first, checks the
+      # assembled value carries no newline and still lists all 12 directives, and
+      # applies the same indent check to every other `>-` block in this file.
+      # (Audit H12, Sep 2026: that guard was described here before it existed. It
+      # was written and verified by re-introducing the original over-indentation and
+      # confirming the suite goes red — a guard that only passes proves nothing.)
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
