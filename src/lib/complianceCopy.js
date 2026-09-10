@@ -180,3 +180,48 @@ export function isPixelAllowedPath(pathname) {
   if (PIXEL_ALLOWED_PATHS.includes(path)) return true
   return PIXEL_ALLOWED_PREFIXES.some((p) => path.startsWith(p))
 }
+
+// ─── B4 (cont.) — THE EXPENSE-RATIO RISK FINDING ─────────────────────────────
+// AUDIT (Sep 2026). The Audit Risk Scan's expense-ratio finding read:
+//
+//   "Expenses substantially exceeding gross receipts place the return in an IRS
+//    examination profile for S-Corps and Schedule C filers. The IRS DIF scoring
+//    system flags returns where expenses substantially exceed gross receipts in
+//    the taxpayer's industry."
+//
+// Two problems, and the second is the serious one.
+//
+// First, the panel's own footer — three cards below — tells the user that these
+// indicators "are not a prediction of audit selection or probability" and that
+// "the IRS uses proprietary scoring and methods not publicly disclosed." The
+// finding asserted exactly the knowledge the disclaimer denies having. A document
+// that contradicts itself does not get the benefit of whichever half is favourable;
+// a reader is entitled to rely on the specific claim over the general disclaimer.
+//
+// Second, and independently: DIF weightings are not public. Publication 556 tells
+// taxpayers that a DIF score exists and rates "the potential for change, based on
+// past IRS experience with similar returns" — it does not say what the formula
+// looks at, and neither does anything else the Service publishes. So a statement
+// that DIF flags a particular RATIO is either sourced from non-public tax
+// administration information or it is invented. From an Enrolled Agent and former
+// Revenue Agent, the first reading implicates IRC §6103 and the post-employment
+// conduct rules; the second is a misleading representation under 31 C.F.R.
+// §10.30(a)(1). There is no third reading, and no version of this sentence that is
+// worth the exposure.
+//
+// The replacement below is strictly better for the user, which is the point: it
+// drops the guess about how the return will be SELECTED and states the exposure
+// that actually exists once a return is examined — the substantiation burden and
+// the §183 limitation. Those are published, citable, and actionable.
+//
+// ⚠ Do NOT reintroduce DIF, UDIF, or any claim about what the IRS selects for
+// examination. The CI guards in complianceCopy.test.js will fail the build.
+
+export const EXPENSE_RATIO_TITLE_SUFFIX = 'Substantiation and §183 Exposure'
+
+// The component prepends the taxpayer's own figures; this is the legal explanation.
+export const EXPENSE_RATIO_DETAIL =
+  'Deductions exceeding gross receipts are not improper in themselves — new businesses and capital-heavy years produce real losses. What the ratio does is put weight on substantiation. Under IRC §162 a deduction must be ordinary and necessary, and under IRC §6001 and Treas. Reg. §1.6001-1(a) you must keep records sufficient to establish it, with the burden of proof on the taxpayer. Travel, meals, gifts, and listed property carry the stricter rule of IRC §274(d), which requires the amount, time, place, and business purpose to be documented and does not permit estimation. Where an activity reports losses year after year, IRC §183 can limit deductions to the income the activity produces unless it is engaged in for profit; §183(d) presumes a profit motive where the activity is profitable in 3 of 5 consecutive tax years (2 of 7 for horse activities). This is an assessment of how thoroughly the position would need to be documented, not a prediction of examination — the IRS does not publish its return-selection criteria.'
+
+export const EXPENSE_RATIO_ACTION =
+  'Before filing: (1) Confirm every deduction is ordinary and necessary under IRC §162 and traceable to a business purpose. (2) Check that contemporaneous records exist for each category — the §274(d) categories (travel, meals, gifts, vehicles and other listed property) need amount, date, place, and business purpose, and cannot be reconstructed by estimate after the fact. (3) Review the largest categories individually against the books. (4) Confirm no personal expense was included, and that capital expenditures were capitalized under IRC §263(a) rather than deducted currently. (5) If the activity has reported losses in several consecutive years, work through the nine profit-motive factors in Treas. Reg. §1.183-2(b) with your CPA or Enrolled Agent before filing.'

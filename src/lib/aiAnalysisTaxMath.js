@@ -448,3 +448,36 @@ export function computePassiveLossAllowance({ agi, filing, reNetShare }) {
 export function qbiThresholdsFor(year) {
   return QBI_THRESHOLDS[year] || QBI_THRESHOLDS[CURRENT_TAX_YEAR]
 }
+
+// ─── RECORD-LEVEL REVENUE ────────────────────────────────────────────────────
+// AUDIT (Sep 2026). This lived in AIAnalysis.jsx and read:
+//
+//   const fromBiz = nf(rec?.biz?.grossRevenue)
+//   if (fromBiz > 0) return fromBiz
+//   ...otherwise sum the entities
+//
+// The bug is that rec.biz is not a total. AIAnalysis.getRecord() builds it from
+// the ONE "primary" entity it selects for the simulator — preferring a non-rental
+// entity that has gross revenue. So on any multi-entity record the helper returned
+// a single entity's revenue while every caller treated it as the record's.
+//
+// The damage was suppressed guidance rather than a wrong number on screen, which
+// is why it survived: the §179 equipment card is gated on revenue > 30,000, so an
+// owner running three entities at 15,000 each — 45,000 in total, comfortably over
+// the gate — was simply never told about a deduction they qualified for. The
+// completeness meter, the "missing gross receipts" prompt, the depreciation
+// finding in the Risk Scan and the CPA-export checklist all read the same helper,
+// so one entity's figure stood in for the whole record across Step 3.
+//
+// Now: when a record has entities, the entities ARE the record — sum all of them.
+// rec.biz remains the fallback for a legacy single-business record saved before
+// the entities array existed, and for a record whose entities carry no revenue.
+//
+// @param {object} rec  a saved or live record
+// @returns {number} total gross receipts across the record
+export function recEntityRevenue(rec) {
+  const ents = Array.isArray(rec?.entities) ? rec.entities : []
+  const fromEntities = ents.reduce((s, e) => s + nf(e?.pnl?.grossRevenue), 0)
+  if (fromEntities > 0) return fromEntities
+  return nf(rec?.biz?.grossRevenue)
+}
