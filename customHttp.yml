@@ -58,6 +58,15 @@ customHeaders:
       #   Content-Security-Policy-Report-Only
       # Check the browser console for any violations, fix them, then switch
       # back to the enforcing header name below.
+      # ⚠ INDENTATION IS LOAD-BEARING (found live, Sep 2026): every line of this
+      # folded block (>-) must sit at the SAME indent. In YAML, a line indented
+      # MORE than the block's first line is kept literally and its newline is
+      # PRESERVED. The connect-src URLs used to be extra-indented, so this value
+      # carried 12 raw newlines — and an HTTP header value cannot contain them,
+      # so CloudFront dropped the header entirely. The site served NO CSP in
+      # production while every other header here was applied normally, and the
+      # unit test passed because it only read this file, never the live response.
+      # src/customHttp.csp.test.js now fails on any embedded newline.
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
@@ -66,17 +75,17 @@ customHeaders:
           font-src 'self' https://fonts.gstatic.com;
           img-src 'self' data: https: blob:;
           connect-src 'self'
-            https://app.taxstat360.com
-            wss://app.taxstat360.com
-            https://api.stripe.com
-            https://quickbooks.api.intuit.com
-            https://api.xero.com
-            https://api.wave.com
-            https://api.freshbooks.com
-            https://api.web3forms.com
-            https://taxstat360.us4.list-manage.com
-            https://www.facebook.com
-            https://connect.facebook.net;
+          https://app.taxstat360.com
+          wss://app.taxstat360.com
+          https://api.stripe.com
+          https://quickbooks.api.intuit.com
+          https://api.xero.com
+          https://api.wave.com
+          https://api.freshbooks.com
+          https://api.web3forms.com
+          https://taxstat360.us4.list-manage.com
+          https://www.facebook.com
+          https://connect.facebook.net;
           frame-src https://js.stripe.com https://hooks.stripe.com https://player.vimeo.com;
           worker-src 'self' blob:;
           object-src 'none';
