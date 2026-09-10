@@ -20,6 +20,8 @@ import {
   FEATURE_POSITION_DOCS_SHORT,
   POSITION_DOCS_LIMIT_NOTE,
   ROUTE_PERSONAL_ESTIMATE,
+  EXPENSE_RATIO_DETAIL,
+  EXPENSE_RATIO_ACTION,
 } from './lib/complianceCopy.js'
 // B5 — the clickwrap label copy and the recorded document versions live in
 // constants.js, next to renewalDisclosure(), because they are consumer-facing
@@ -141,6 +143,17 @@ describe('B4 — no claims to non-public IRS audit-selection knowledge', () => {
     /what examiners look for/i,
     /where the real exposure sits/i,
     /spent years inside the IRS/i,
+    // Added Sep 2026 after the Audit Risk Scan was found asserting that the DIF
+    // system flags a particular expense-to-receipts ratio — three cards above its
+    // own disclaimer that IRS scoring methods "are not publicly disclosed."
+    // Publication 556 confirms a DIF score EXISTS; nothing published says what it
+    // weighs. Claiming to know is either §6103 information or invention.
+    /DIF scor/i,
+    /\bUDIF\b/,
+    /discriminant (inventory )?function/i,
+    /examination profile/i,
+    /flags returns where/i,
+    /the IRS (targets|selects|flags) returns/i,
   ]
   for (const rx of BANNED) {
     it(`no shipped copy matches ${rx}`, () => {
@@ -569,5 +582,112 @@ describe('B5 — signup requires affirmative assent to the Terms', () => {
     expect(o).toMatch(/Tick both boxes above to continue/)
     expect(o).toMatch(/Tick the automatic renewal box above to continue/)
     expect(o).toMatch(/Tick the Terms of Service box above to continue/)
+  })
+})
+
+// ─── B4 (cont.) — THE EXPENSE-RATIO FINDING ──────────────────────────────────
+// The replacement copy has to do two things the old copy did not: stay inside
+// published sources, and agree with the disclaimer rendered in the same panel.
+describe('B4 — the expense-ratio finding cites published law, not audit selection', () => {
+  const aiAnalysis = () => stripComments(read(join(SRC, 'components/AIAnalysis.jsx')))
+
+  it('grounds the finding in the substantiation rules', () => {
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/IRC §162/)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/IRC §6001/)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/Treas\. Reg\. §1\.6001-1\(a\)/)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/IRC §274\(d\)/)
+  })
+
+  it('explains the §183 limitation and its statutory presumption', () => {
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/IRC §183/)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/3 of 5 consecutive tax years/)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/2 of 7 for horse activities/)
+  })
+
+  it('says plainly that it is not predicting examination', () => {
+    // This sentence is what reconciles the finding with the panel disclaimer.
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/not a prediction of examination/i)
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/does not publish its return-selection criteria/i)
+  })
+
+  it('does not claim a loss is improper in itself', () => {
+    // A real business can and does run at a loss. Saying otherwise would be both
+    // wrong and alarming to exactly the early-stage owner this product serves.
+    expect(EXPENSE_RATIO_DETAIL).toMatch(/not improper in themselves/i)
+  })
+
+  it('gives an action list that is actually actionable', () => {
+    expect(EXPENSE_RATIO_ACTION).toMatch(/§263\(a\)/)
+    expect(EXPENSE_RATIO_ACTION).toMatch(/Treas\. Reg\. §1\.183-2\(b\)/)
+    expect(EXPENSE_RATIO_ACTION).toMatch(/cannot be reconstructed by estimate/i)
+  })
+
+  it('the component renders the sanctioned copy instead of its own', () => {
+    const a = aiAnalysis()
+    expect(a).toMatch(/EXPENSE_RATIO_TITLE_SUFFIX/)
+    expect(a).toMatch(/\$\{EXPENSE_RATIO_DETAIL\}/)
+    expect(a).toMatch(/action: EXPENSE_RATIO_ACTION/)
+  })
+
+  it('the old assertions are gone from shipped copy', () => {
+    const a = aiAnalysis()
+    expect(a).not.toMatch(/DIF scoring system/)
+    expect(a).not.toMatch(/place the return in an IRS examination profile/)
+    expect(a).not.toMatch(/Common IRS Scrutiny Pattern/)
+  })
+
+  it('the panel disclaimer that the finding must agree with is still rendered', () => {
+    const a = aiAnalysis()
+    expect(a).toMatch(/not a prediction of audit selection or probability/i)
+    expect(a).toMatch(/proprietary scoring and methods not publicly disclosed/i)
+  })
+})
+
+// ─── SYNCED P&L — A FAILED SYNC MUST NOT LOOK LIKE A SUCCESSFUL ONE ──────────
+// The behaviour itself is covered by lib/integrationPnL.test.js, which exercises
+// the real decision function. What is guarded HERE is the wiring: that the
+// component still delegates to it and has not drifted back to deciding success
+// from the response body. That drift is what produced the original defect.
+describe('integration sync — the component delegates to the tested interpreter', () => {
+  const calc = () => stripComments(read(join(SRC, 'components/CalculateTaxInner.jsx')))
+  const syncFn = () => {
+    const c = calc()
+    const start = c.indexOf('async function fetchEntityPnL')
+    return c.slice(start, c.indexOf('const handleManualSync', start))
+  }
+
+  it('passes the HTTP status to the interpreter, not just the body', () => {
+    const s = syncFn()
+    expect(s).toMatch(/const res = await apiFetch\(url, \{ raw: true \}\)/)
+    expect(s).toMatch(/ok: res\.ok, status: res\.status, body/)
+  })
+
+  it('no longer decides success from the body alone', () => {
+    // `if (d && !d.error)` is the exact test that let a FastAPI {detail} error
+    // through as a P&L. It must never come back.
+    const s = syncFn()
+    expect(s).not.toMatch(/if \(d && !d\.error\)/)
+    expect(s).not.toMatch(/\.then\(r => r\.json\(\)\)/)
+  })
+
+  it('leaves the user figures untouched and stamps no syncedAt on failure', () => {
+    const s = syncFn()
+    const failure = s.slice(s.indexOf("verdict.kind === 'error'"), s.indexOf('const pnl ='))
+    expect(failure).toMatch(/writeIntegrationField\(pid, 'failed', 'true'\)/)
+    expect(failure).toMatch(/return/)
+    expect(failure).not.toMatch(/syncedAt/)
+  })
+
+  it('takes the P&L from the interpreter rather than rebuilding it inline', () => {
+    const s = syncFn()
+    expect(s).toMatch(/const pnl = verdict\.pnl/)
+    expect(s).not.toMatch(/grossRevenue:\s*d\.revenue/)
+  })
+
+  it('surfaces the interpreter warning without blocking the sync', () => {
+    const s = syncFn()
+    expect(s).toMatch(/if \(verdict\.warning\)/)
+    const afterWarning = s.slice(s.indexOf('verdict.warning'))
+    expect(afterWarning).toMatch(/const pnl = verdict\.pnl/)
   })
 })
