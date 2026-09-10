@@ -188,23 +188,74 @@ const [step,setStep]=useState(1)
 const [step1Err,setStep1Err]=useState('')
 const stripeRef=useRef(null)
 const elemRef=useRef(null)
-const cardRef=useRef(null)
+const cardElRef=useRef(null) // Stripe Card Element instance
+const cardRef=useRef(null) // DOM mount node (only present on step 2)
+const [stripeLoaded,setStripeLoaded]=useState(false)
 // D-06: derived from PLAN_PRICING (constants.js) — single price source.
 const MONTHLY_PRICES=Object.fromEntries(Object.entries(PLAN_PRICING).map(([k,v])=>[k,fmtPlanPrice(v.monthly)]))
 const ANNUAL_PRICES={starter:'$66',professional:'$124',enterprise:'$249'}
 const planPrice=billing==='annual' ? ANNUAL_PRICES[plan] : MONTHLY_PRICES[plan]
 const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' · Annual' : '')
 
+// Load Stripe.js + create the Card Element once. Do NOT mount here — the
+// card DOM (cardRef) only exists when step === 2 (PASS5-F2). Mounting on
+// first paint left stripeReady false forever and spun "Loading secure card…".
 useEffect(()=>{
-const s=document.createElement('script');s.src='https://js.stripe.com/v3/'
-s.onload=()=>{
-const sk=window.Stripe(PK);stripeRef.current=sk
-const els=sk.elements();elemRef.current=els
-const card=els.create('card',{style:{base:{fontSize:'16px',color:'#0D1B3E',fontFamily:'Inter,sans-serif',lineHeight:'24px','::placeholder':{color:'#94a3b8'}}}})
-setTimeout(()=>{if(cardRef.current){card.mount(cardRef.current);setStripeReady(true)}},200)
-}
-document.head.appendChild(s)
+  let cancelled=false
+  if(!PK){
+    setErr('Payment form is temporarily unavailable. Please refresh or contact support.')
+    return
+  }
+  function initStripe(){
+    if(cancelled||!window.Stripe||stripeRef.current)return
+    try{
+      const sk=window.Stripe(PK)
+      stripeRef.current=sk
+      const els=sk.elements()
+      elemRef.current=els
+      cardElRef.current=els.create('card',{style:{base:{fontSize:'16px',color:'#0D1B3E',fontFamily:'Inter,sans-serif',lineHeight:'24px','::placeholder':{color:'#94a3b8'}}}})
+      setStripeLoaded(true)
+    }catch{
+      if(!cancelled)setErr('Could not load card input. Please refresh and try again.')
+    }
+  }
+  if(window.Stripe){
+    initStripe()
+  }else{
+    let s=document.querySelector('script[data-ts360-stripe="1"]')
+    if(!s){
+      s=document.createElement('script')
+      s.src='https://js.stripe.com/v3/'
+      s.async=true
+      s.dataset.ts360Stripe='1'
+      document.head.appendChild(s)
+    }
+    s.addEventListener('load',initStripe)
+  }
+  return()=>{cancelled=true}
 },[])
+
+// Mount the Card Element when Step 2's mount node is in the DOM.
+useEffect(()=>{
+  if(step!==2||!stripeLoaded||!cardElRef.current)return
+  let cancelled=false
+  setStripeReady(false)
+  const t=window.setTimeout(()=>{
+    if(cancelled||!cardRef.current||!cardElRef.current)return
+    try{
+      cardElRef.current.mount(cardRef.current)
+      if(!cancelled)setStripeReady(true)
+    }catch(e){
+      const msg=String((e&&e.message)||e)
+      if(/mounted/i.test(msg)){
+        if(!cancelled)setStripeReady(true)
+      }else if(!cancelled){
+        setErr('Could not load card input. Please refresh and try again.')
+      }
+    }
+  },0)
+  return()=>{cancelled=true;window.clearTimeout(t)}
+},[step,stripeLoaded])
 
 // O5 FIX: validate password match on blur of the confirm field — before the
 // user scrolls to the card section. Error is shown inline, not just on submit.
@@ -242,7 +293,7 @@ setLoading(true);setErr('')
 try{
 const si=await apiFetch('/stripe/setup-intent',{method:'POST',body:{},raw:true}).then(r=>r.json())
 if(!si.client_secret)throw new Error('Payment init failed')
-const card=elemRef.current.getElement('card')
+const card=cardElRef.current||elemRef.current.getElement('card')
 const {setupIntent,error}=await stripeRef.current.confirmCardSetup(si.client_secret,{payment_method:{card,billing_details:{name,email}}})
 if(error)throw new Error(error.message)
 const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',body:{name,email,password:pass,plan,billing,payment_method_id:setupIntent.payment_method},raw:true})
