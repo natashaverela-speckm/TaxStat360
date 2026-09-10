@@ -795,7 +795,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
         <div>
           <label style={lbl}>
             {isRE ? 'Rental Operating Expenses (excl. depreciation, advertising)' : FINANCIAL_LABELS.operatingExpensesField}
-            <InfoTip label={isRE ? 'Rental operating expenses' : 'Operating expenses'} text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, payroll (non-owner), etc. Exclude officer compensation, depreciation, and advertising — those have their own fields below.'} />
+            <InfoTip label={isRE ? 'Rental operating expenses' : 'Operating expenses'} text={isRE ? 'Recurring rental expenses: repairs, maintenance, property management, insurance, property tax, utilities, HOA dues, etc. (Schedule E). Exclude depreciation and advertising — those have their own fields below.' : 'Recurring business expenses: rent, utilities, software, insurance, professional fees, and payroll for your NON-OWNER employees — including the employer payroll taxes on their wages. Exclude officer compensation, the employer payroll tax on that officer salary (TaxStat360 calculates and deducts that for you), depreciation, and advertising — those are handled separately.'} />
           </label>
           <Step1MoneyInput value={manExp} onChange={setManExp} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? 'Rental operating expenses' : 'Operating expenses'} />
         </div>
@@ -1387,8 +1387,15 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                 // recomputed if the user reopened Edit Financials.
                 const keepsOfficer = isSCorpEntity(newType) || isCCorpEntity(newType)
                 const prevOfficer = nf(entity.pnl?.officerSalary ?? entity.officerW2)
-                if (!keepsOfficer && prevOfficer > 0 && entity.pnl) {
-                  const newTotalExpenses = Math.max(0, nf(entity.pnl.totalExpenses) - prevOfficer)
+                // AUDIT H1 FOLLOW-UP (Sep 2026): totalExpenses now also carries
+                // employerPayrollTax for S-Corps. Backing out only the salary here left
+                // the employer FICA stranded in totalExpenses forever — a sole prop
+                // converted from an S-Corp would keep deducting a payroll tax it does
+                // not pay, understating income with nothing on screen to explain it.
+                // Employer FICA follows the salary out; only S/C-Corps have either.
+                const prevEmployerFICA = nf(entity.pnl?.employerPayrollTax)
+                if (!keepsOfficer && (prevOfficer > 0 || prevEmployerFICA > 0) && entity.pnl) {
+                  const newTotalExpenses = Math.max(0, nf(entity.pnl.totalExpenses) - prevOfficer - prevEmployerFICA)
                   onUpdate(idx, {
                     ...entity,
                     type: newType,
@@ -1396,6 +1403,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     pnl: {
                       ...entity.pnl,
                       officerSalary: 0,
+                      employerPayrollTax: 0,
                       totalExpenses: newTotalExpenses,
                       netProfit: nf(entity.pnl.grossRevenue) - newTotalExpenses,
                     },
@@ -2595,11 +2603,26 @@ export default function CalculateTaxInner() {
           setFooterError(`${pid.charAt(0).toUpperCase() + pid.slice(1)} connected but returned no P&L for ${taxYear}. Try another tax year, Sync now, or enter figures manually.`)
           setTimeout(() => setFooterError(null), 10000)
         } else {
+          // AUDIT H1 NOTE (Sep 2026): the synced path deliberately does NOT add
+          // employerPayrollTax. It takes net_profit straight from the accounting
+          // system, whose books already carry employer payroll tax as an expense —
+          // computing it again here would deduct it twice. Manual entry is the
+          // opposite case: the user types gross receipts and expense categories, so
+          // the app must compute it (see calcEmployerFICA in ManualEntryPanel).
+          //
+          // ⚠ The hazard is CONVERSION: opening the manual panel on a provider P&L
+          // decomposes provider expenses into Operating Expenses, which may already
+          // include the owner's payroll tax — and the panel then adds it again.
+          // employerPayrollTax is written explicitly below so the decompose can tell
+          // the two shapes apart, and the panel warns at the point of entry.
           const pnl = {
             grossRevenue:  d.revenue,
             totalExpenses: d.expenses,
             netProfit:     d.net_profit,
             officerSalary: d.officer_salary || 0,
+            // Provider books already include it; recorded as 0 so the manual decompose
+            // does not silently re-derive a second deduction from officerSalary.
+            employerPayrollTax: 0,
             categories:    d.categories || {}
           }
           // F23 FIX: write sync timestamp

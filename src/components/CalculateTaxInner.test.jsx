@@ -344,3 +344,102 @@ describe('Phase 3.1 — Step1EstimateBadge: the live provisional estimate is the
     expect(container.textContent).toContain(fmt(withEnt.totalTax))
   })
 })
+
+// ─── AUDIT H1 (Sep 2026) ─────────────────────────────────────────────────────
+// Employer-side FICA on S-Corp officer salary (IRC §3111) is a deductible expense
+// of the entity and was subtracted nowhere. It is now computed and folded into
+// totalExpenses — which means every OTHER place that takes totalExpenses apart has
+// to know about it. These pin the two that do.
+describe('AUDIT H1 — employer payroll tax in the manual P&L', () => {
+  it('deducts employer FICA from S-Corp net profit and records it on the pnl', () => {
+    const onUpdate = vi.fn()
+    const entity = { type: 'S Corporation', own: '100', pnl: {}, isManual: true }
+    const { container } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} taxYear={2026} />,
+    )
+    const inputs = container.querySelectorAll('input')
+    // Gross Receipts, Operating Expenses, Depreciation, Officer Compensation ...
+    fireEvent.change(inputs[0], { target: { value: '500000' } })
+    fireEvent.change(inputs[1], { target: { value: '200000' } })
+
+    const officer = Array.from(container.querySelectorAll('input'))
+      .find((el) => /officer/i.test(el.getAttribute('aria-label') || el.getAttribute('placeholder') || ''))
+    fireEvent.change(officer, { target: { value: '40000' } })
+
+    const [, payload] = lastUpdate(onUpdate)
+    // Assert unconditionally — a guarded assertion can pass by never running.
+    expect(officer, 'officer compensation input').toBeTruthy()
+    expect(payload.pnl.officerSalary).toBe(40000)
+    // 6.2% + 1.45% of $40,000, under the 2026 wage base.
+    expect(payload.pnl.employerPayrollTax).toBe(3060)
+    // Net is reduced by the payroll tax as well as the salary.
+    expect(payload.pnl.netProfit).toBe(500000 - 200000 - 40000 - 3060)
+    expect(payload.pnl.totalExpenses).toBe(200000 + 40000 + 3060)
+  })
+
+  it('a sole proprietor has no officer salary and no employer FICA', () => {
+    const onUpdate = vi.fn()
+    const entity = { type: 'Sole Proprietor / SMLLC', own: '100', pnl: {}, isManual: true }
+    const { container } = render(
+      <ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} taxYear={2026} />,
+    )
+    const inputs = container.querySelectorAll('input')
+    fireEvent.change(inputs[0], { target: { value: '300000' } })
+    const [, payload] = lastUpdate(onUpdate)
+    expect(nfSafe(payload?.pnl?.employerPayrollTax)).toBe(0)
+    expect(payload?.pnl?.netProfit).toBe(300000)
+  })
+
+  it('reopening the panel does not fold the payroll tax back into Operating Expenses', () => {
+    // The decompose is the inverse of totalExpenses. If it forgets employerPayrollTax,
+    // reopening inflates Operating Expenses by that amount and the next save deducts
+    // it a second time — a silent, compounding understatement.
+    const onUpdate = vi.fn()
+    const entity = {
+      type: 'S Corporation', own: '100', isManual: true,
+      pnl: {
+        grossRevenue: 500000, totalExpenses: 243060, officerSalary: 40000,
+        employerPayrollTax: 3060, depreciation: 0, advertising: 0, otherDeductions: 0,
+        netProfit: 256940,
+      },
+    }
+    render(<ManualEntryPanel entity={entity} idx={0} onUpdate={onUpdate} onCancel={() => {}} taxYear={2026} />)
+    const [, payload] = lastUpdate(onUpdate)
+    // Operating Expenses must come back as 200,000 — not 203,060.
+    expect(payload.pnl.totalExpenses).toBe(243060)
+    expect(payload.pnl.netProfit).toBe(256940)
+  })
+})
+
+describe('AUDIT H1 follow-up — switching entity type releases the payroll tax', () => {
+  it('S-Corp to Sole Prop backs out BOTH the salary and its employer FICA', () => {
+    // Regression found while verifying the deploy: the type-change handler backed out
+    // only the salary, stranding employer FICA in totalExpenses forever. A converted
+    // sole proprietor would keep deducting a payroll tax they do not pay.
+    const onUpdate = vi.fn()
+    const entity = {
+      type: 'S Corporation', own: '100', isManual: true, officerW2: 40000,
+      pnl: {
+        grossRevenue: 500000, totalExpenses: 243060, officerSalary: 40000,
+        employerPayrollTax: 3060, netProfit: 256940,
+      },
+    }
+    const { container } = render(
+      <EntityCard entity={entity} idx={0} onUpdate={onUpdate} onRemove={() => {}}
+        isExpanded onToggleExpand={() => {}} taxYear={2026} />,
+    )
+    const select = Array.from(container.querySelectorAll('select'))
+      .find((el) => Array.from(el.options).some((o) => /Sole Proprietor/.test(o.value)))
+    expect(select, 'entity type select').toBeTruthy()
+    fireEvent.change(select, { target: { value: 'Sole Proprietor / SMLLC' } })
+
+    const [, payload] = lastUpdate(onUpdate)
+    expect(payload.pnl.officerSalary).toBe(0)
+    expect(payload.pnl.employerPayrollTax).toBe(0)
+    // 243,060 - 40,000 salary - 3,060 payroll tax
+    expect(payload.pnl.totalExpenses).toBe(200000)
+    expect(payload.pnl.netProfit).toBe(300000)
+  })
+})
+
+function nfSafe(v) { const n = Number(v); return Number.isFinite(n) ? n : 0 }
