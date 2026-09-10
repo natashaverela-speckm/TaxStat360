@@ -19,6 +19,10 @@ import {
   qbiThresholdsFor,
   recEntityRevenue,
 } from '../lib/aiAnalysisTaxMath.js'
+// AUDIT C2 (Sep 2026): the worksheet content lives in its own module so it can be
+// unit-tested without mounting this component — the old letters were static strings
+// precisely because nothing here was reachable from a test.
+import { buildPositionWorksheets } from '../lib/positionWorksheets.js'
 import LockedFeature, { isPro, isEnterprise } from './LockedFeature'
 import DismissibleNotice from './DismissibleNotice'
 import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, writeRiskDismissal, readRiskDismissals, removeRiskDismissal, readUserRecords, readActiveRecordId } from '../utils/sessionState.js'
@@ -2368,7 +2372,46 @@ function SimulatorModal({ onClose, rec }) {
   )
 }
 
-function NarrativeModal({ onClose }) {
+// ── AUDIT C2 (second launch audit, Sep 2026) — THIS FEATURE USED TO WRITE TO THE IRS ──
+//
+// It shipped three static letters. Each opened "Dear IRS Representative," announced that
+// it "responds to your inquiry", and closed "Respectfully submitted," under a heading
+// reading "IRS Response Templates" with the subtitle "Review and edit before sending"
+// and a footnote about "submitting to the IRS". Copy-to-Clipboard and Print sat beneath.
+//
+// Three separate problems, and the first is the one that ends the argument:
+//
+//  1. 31 C.F.R. §10.2(a)(4) defines practice before the IRS to include "corresponding and
+//     communicating with the Internal Revenue Service on behalf of a taxpayer." Drafting a
+//     taxpayer's reply to an IRS inquiry and telling them to send it is that. An earlier
+//     audit identified this and moved the LABEL instead of changing the feature; the CI
+//     guard that was supposed to prevent it greps for /notice[-\s]?response/i, and the
+//     heading said "IRS Response Templates", so the guard passed over it.
+//
+//  2. Terms.jsx §2 and the pricing page both state, as fact, that "TaxStat360 does not
+//     draft correspondence to the IRS, does not prepare responses to IRS notices." Those
+//     sentences were written on the assumption that this feature was already conservative.
+//     They were false while these letters shipped — a §5 deception exhibit inside the
+//     company's own contract.
+//
+//  3. The letters asserted facts the software cannot know: "The taxpayer performed more
+//     than 750 hours of services", "The taxpayer is at risk for the full amount of the
+//     loss under IRC §465." They were STATIC — no connection to the user's record at all,
+//     which is why this component was the only modal on this screen that never received
+//     `rec`. They were also hardcoded to "tax year 2025" while the app had moved to 2026.
+//     Meanwhile the Risk Scan in this same file warns that REP status alongside outside
+//     W-2 income is a high-risk position — so the product argued both sides.
+//
+// WHAT IT IS NOW: a substantiation worksheet the taxpayer and their own CPA or EA work
+// through BEFORE filing. It states the position, cites the authority, lists the records
+// that have to exist, and turns every former assertion into a question keyed to figures
+// the user actually entered. It is addressed to nobody. It cannot be sent.
+//
+// ⚠ Do not reintroduce salutations, sign-offs, second-person address to the Service, or
+// any instruction to send, submit, mail or file this. src/complianceCopy.test.js fails the
+// build on those, and the guards there now match the CLAIM rather than one spelling of it.
+
+function NarrativeModal({ rec, onClose }) {
   const [selected, setSelected] = useState(0)
   const [copied, setCopied] = useState(false)
   if (!isEnterprise()) {
@@ -2385,26 +2428,33 @@ function NarrativeModal({ onClose }) {
       </Modal>
     )
   }
-  const narratives = [
-    { title: 'Real Estate Professional Status', tag: 'REP · IRC §469(c)(7)', color: P, text: `Dear IRS Representative,\n\nThis letter responds to your inquiry regarding the taxpayer's Real Estate Professional (REP) classification under IRC Section 469(c)(7) for tax year 2025.\n\nThe taxpayer qualifies as a Real Estate Professional based on the following:\n\n1. MORE THAN 50% OF PERSONAL SERVICES\nThe taxpayer performed more than 50% of all personal services in real property trades or businesses in which they materially participated.\n\n2. MORE THAN 750 HOURS\nThe taxpayer performed more than 750 hours of services during the year satisfying the statutory threshold under IRC §469(c)(7)(B).\n\n3. MATERIAL PARTICIPATION\nThe taxpayer materially participated in each rental activity meeting the 500-hour test under Treas. Reg. §1.469-5T(a)(1).\n\nAs a result, rental real estate losses are treated as non-passive and are fully deductible pursuant to IRC §469(c)(7)(A).\n\nRespectfully submitted,` },
-    { title: 'S-Corp Reasonable Compensation', tag: 'Officer Compensation · Rev. Rul. 74-44', color: R, text: `Dear IRS Representative,\n\nThis letter addresses your inquiry regarding officer compensation paid through the taxpayer's S-Corporation for tax year 2025.\n\nThe officer compensation represents reasonable compensation based on:\n\n1. INDUSTRY BENCHMARKS — Compensation was determined by reference to comparable salaries consistent with Rev. Rul. 74-44.\n\n2. DUTIES AND RESPONSIBILITIES — The officer-shareholder performs substantial services including business development, client management, and financial oversight.\n\n3. CORPORATE PROFITABILITY — The compensation represents a reasonable percentage of gross receipts consistent with industry norms.\n\nThe S-Corporation maintains complete payroll records and W-2 forms.\n\nRespectfully submitted,` },
-    { title: 'K-1 Loss Deductibility', tag: 'Schedule E · IRC §1366(d)', color: '#0891b2', text: `Dear IRS Representative,\n\nThis letter responds to your inquiry regarding Schedule E losses reported from the taxpayer's S-Corporation K-1 for tax year 2025.\n\nThe K-1 losses are fully deductible for the following reasons:\n\n1. SHAREHOLDER BASIS — The taxpayer maintains sufficient stock basis under IRC §1366(d). Form 7203 is attached.\n\n2. AT-RISK RULES — The taxpayer is at risk for the full amount of the loss under IRC §465.\n\n3. MATERIAL PARTICIPATION — The taxpayer satisfies material participation standards under Treas. Reg. §1.469-5T.\n\nComplete corporate returns (Form 1120-S) and K-1 schedules are available upon request.\n\nRespectfully submitted,` },
-  ]
+  const _colors = [P, R, '#0891b2']
+  const narratives = buildPositionWorksheets(rec).map((n, i) => ({ ...n, color: _colors[i] || P }))
   const current = narratives[selected]
   const handleCopy = () => { navigator.clipboard.writeText(current.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }
   return (
     <Modal onClose={onClose}>
       <div style={{ padding: '28px 32px' }}>
-        <DismissibleNotice storageKey="tx360.positionDocBanner.dismissed">
-          This document organizes your records and the positions taken on your return.
-          It is not legal or tax representation. For an actual audit response, engage
-          a CPA, EA, or tax attorney authorized to practice before the IRS.
-        </DismissibleNotice>
+        {/* AUDIT C2: this notice is NOT dismissible. It was a DismissibleNotice, which
+            meant the one statement bounding what this feature is could be permanently
+            hidden by the user — and under the FTC net-impression standard a disclosure
+            the reader can switch off does not cure a heading they cannot. */}
+        <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '12px 14px', marginBottom: 18 }}>
+          <p style={{ fontSize: 12, color: '#92400E', margin: '0 0 6px', lineHeight: 1.55, fontWeight: 600 }}>
+            This worksheet is for you and your CPA or Enrolled Agent. Do not send it to the IRS.
+          </p>
+          <p style={{ fontSize: 12, color: '#92400E', margin: 0, lineHeight: 1.55 }}>
+            It organizes the support for positions reflected in your estimate — it is not
+            correspondence, not a filing, and not a determination that you qualify for
+            anything. Only a person authorized under 31 C.F.R. §10.3 holding a valid Form 2848
+            may correspond with the IRS on your behalf.
+          </p>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: P, letterSpacing: '1px', marginBottom: 4 }}>POSITION DOCUMENTATION</div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>IRS Response Templates</h2>
-            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>Review and edit before sending — not a substitute for legal advice</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>Position Substantiation Worksheet</h2>
+            <div style={{ fontSize: 13, color: SL, marginTop: 4 }}>What each position requires you to be able to show — work through it with your practitioner</div>
           </div>
           <button onClick={onClose} style={{ padding: '8px 14px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✕ Close</button>
         </div>
@@ -2419,7 +2469,10 @@ function NarrativeModal({ onClose }) {
           <button onClick={handleCopy} style={{ flex: 1, padding: '11px', background: copied ? G : P, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{copied ? '✓ Copied!' : '📋 Copy to Clipboard'}</button>
           <button onClick={() => window.print()} style={{ flex: 1, padding: '11px', background: '#F1F5F9', color: SL, border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>🖨 Print</button>
         </div>
-        <div style={{ fontSize: 11, color: SL, textAlign: 'center' }}>⚠️ Templates only — review with a licensed tax attorney before submitting to the IRS.</div>
+        <div style={{ fontSize: 11, color: SL, textAlign: 'center', lineHeight: 1.6 }}>
+          Blank lines are for you to complete. Nothing here has been verified against your records,
+          and a position is supported by the documents behind it, not by this worksheet.
+        </div>
       </div>
     </Modal>
   )
@@ -2482,7 +2535,11 @@ function ReportsTab({ rec, onReport, onSimulator, onNarrative, onBriefing, onSec
     },
     { icon: '🎯', title: 'What-If Tax Simulator', desc: 'Model a financial decision before making it. Try different salary levels, add a deduction, or max a retirement account — see the estimated dollar impact on your projected tax.', btn: 'Open Simulator', color: N, action: onSimulator, available: true },
     { icon: '📑', title: 'CPA Briefing', desc: 'An auto-generated planning summary of your tax position — entity structure, estimated federal liability, QBI, reasonable-compensation and SE-tax notes, and quarterly estimates — organized as discussion points for your CPA. A planning summary, not a tax return; not for filing.', btn: 'Generate Briefing', color: N, action: onBriefing, available: isEnterprise(), requiredPlan: 'enterprise' },
-    { icon: '🛡️', title: 'Position Documentation', desc: 'Generates a written summary of the positions taken on your return with supporting documentation references. Useful for your CPA, your records, or as starting material for a professional response. Not a substitute for representation by a CPA, EA, or tax attorney.', btn: 'View Templates', color: N, action: onNarrative, available: isEnterprise(), requiredPlan: 'enterprise' },
+    // AUDIT C2: was "…positions taken on your return… or as starting material for a
+    // professional response", with the button "View Templates". Both framed the output as
+    // correspondence. "Positions taken on your return" also overstates what this app sees
+    // — it models an estimate; it does not know what you filed.
+    { icon: '🛡️', title: 'Position Documentation', desc: 'Builds a substantiation worksheet for the positions reflected in your estimate: the authority behind each one, the records you need to be able to produce, and the figures you entered. For you and your CPA or Enrolled Agent — not correspondence, and not a substitute for representation.', btn: 'Open Worksheet', color: N, action: onNarrative, available: isEnterprise(), requiredPlan: 'enterprise' },
     // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone, informational-only
     // §121 calculator. `available: true` (no plan gate) — it doesn't touch the
     // saved record or the engine, so there's no cost/reason to lock it.
@@ -2874,7 +2931,7 @@ export default function AIAnalysis() {
 
       {showReport    && <ReportModal    rec={rec} onClose={() => setShowReport(false)} />}
       {showSimulator && <SimulatorModal rec={rec} onClose={() => setShowSimulator(false)} />}
-      {showNarrative && <NarrativeModal           onClose={() => setShowNarrative(false)} />}
+      {showNarrative && <NarrativeModal rec={rec} onClose={() => setShowNarrative(false)} />}
       {showBriefing  && <BriefingModal  rec={rec} onClose={() => setShowBriefing(false)} />}
       {showSection121 && <Section121Modal rec={rec} onClose={() => setShowSection121(false)} />}
     </div>
