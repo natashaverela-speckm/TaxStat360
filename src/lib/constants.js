@@ -743,6 +743,25 @@ export const COMPANY_LEGAL_NAME = 'TaxStat360 LLC'
 export const COMPANY_ADDRESS = '3065 Daniels Road, Winter Garden, FL 34787'
 export const SUPPORT_EMAIL = 'support@taxstat360.com'
 
+// ─── BILLING PORTAL ───────────────────────────────────────────────────────────
+// AUDIT H9 (Sep 2026): the Stripe portal URL was duplicated in Settings.jsx and
+// Upgrade.jsx. It is the ONLY cancellation path the product has, and the site
+// promises "Cancel anytime in Settings" in at least six places, so it must not be
+// possible for the two copies to drift.
+//
+// ⚠ This is a Stripe "login link": the customer enters their email and Stripe mails
+// them a one-time code. That is acceptable under ROSCA §8403(3) and Cal. Bus. & Prof.
+// Code §17602(c) — it is online, in the same medium they signed up in — but ONLY if
+// "Cancel subscriptions" is enabled in the Stripe Customer Portal configuration.
+// If that switch is off, the portal shows invoices and payment methods and no
+// cancellation, and the promise on the marketing site is unfulfillable.
+// Verify at: Stripe Dashboard → Settings → Billing → Customer portal → Cancellations.
+//
+// The durable fix is a server endpoint that mints a portal session for the signed-in
+// customer (stripe.billingPortal.sessions.create), removing the email round-trip
+// entirely. Until that exists, this link is the path and the UI says so plainly.
+export const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
+
 // ─── CANONICAL DISCLAIMER — single source of truth ───────────────────────────
 // Audit fix (Pass 5, "Disclaimer wording varies"): the site carried at least three
 // disclaimer strings — the Landing/About footer (full), the Privacy/Terms footer
