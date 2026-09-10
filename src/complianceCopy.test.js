@@ -265,3 +265,127 @@ describe('H10 — the device export is not presented as a CCPA response', () => 
     expect(s).toMatch(/respond within 45 days/)
   })
 })
+
+// ─── AUDIT H9 / H11 (Sep 2026) ───────────────────────────────────────────────
+describe('H9 — cancellation is findable, online, and unobstructed', () => {
+  // ROSCA 15 U.S.C. §8403(3) requires "simple mechanisms" to stop recurring
+  // charges. Cal. Bus. & Prof. Code §17602(c) requires that a consumer who
+  // enrolled online can cancel online, in the same medium, without steps that
+  // obstruct or delay. Settings promised "Cancel anytime" and offered only
+  // "Upgrade Plan" and "Manage Billing" — a path the user cannot find is
+  // obstruction in practice.
+  it('Settings renders a control that says cancel', () => {
+    const s = read(join(SRC, 'components/Settings.jsx'))
+    expect(s).toMatch(/Cancel subscription/)
+    expect(s).toMatch(/openBillingPortal/)
+  })
+
+  it('the cancel path carries no retention interstitial', () => {
+    // A "wait, here's 50% off" screen the user must dismiss is the paradigm
+    // case §17602(c) targets. If one is ever added, this fails.
+    const s = stripComments(read(join(SRC, 'components/Settings.jsx')))
+    const block = s.slice(s.indexOf('Cancel subscription')).slice(0, 2000)
+    // Our own copy promises "without being routed through a retention offer",
+    // so match only an OFFER being made, not the sentence disclaiming one.
+    expect(block).not.toMatch(/\b(?:\d+%\s*off|special offer|before you go|stay with us|are you sure)\b/i)
+    expect(block).toMatch(/no phone call and no retention offer/i)
+  })
+
+  it('the portal URL has ONE definition', () => {
+    // It was duplicated in Settings.jsx and Upgrade.jsx, and it is the only
+    // cancellation path the product has.
+    // constants.js is the sanctioned home; nowhere else may hardcode it.
+    expect(offenders(/https:\/\/billing\.stripe\.com\/p\/login\//).filter(f => f !== 'lib/constants.js')).toEqual([])
+    const c = readFileSync(join(SRC, 'lib/constants.js'), 'utf8')
+    expect(c).toMatch(/export const STRIPE_PORTAL_URL/)
+  })
+
+  it('the copy tells the user about the emailed sign-in code', () => {
+    // A surprise step reads as a dark pattern even when it is just Stripe.
+    const s = read(join(SRC, 'components/Settings.jsx'))
+    expect(s).toMatch(/one-time sign-in\s*\n?\s*code/)
+  })
+})
+
+describe('H11 — the Terms carry the clauses a consumer agreement needs', () => {
+  // Comments stripped: the section below quotes the removed wording in order to
+  // explain why it was removed, exactly as the blocker guards above do.
+  const terms = () => stripComments(read(join(SRC, 'components/Terms.jsx')))
+
+  it('has an express class action waiver', () => {
+    // Stolt-Nielsen v. AnimalFeeds, 559 U.S. 662 (2010): silence probably does
+    // not authorize class arbitration — but an auto-renewing consumer
+    // subscription is the most class-attractive structure there is.
+    const t = terms()
+    expect(t).toMatch(/Class action waiver/i)
+    expect(t).toMatch(/not as a plaintiff or class member/i)
+  })
+
+  it('designates AAA CONSUMER rules, not Commercial', () => {
+    const t = terms()
+    expect(t).toMatch(/Consumer Arbitration Rules/)
+    expect(t).not.toMatch(/Commercial Arbitration Rules/)
+  })
+
+  it('gives the consumer an opt-out, small claims, and a nearby forum', () => {
+    const t = terms()
+    expect(t).toMatch(/within 30 days of first accepting these Terms/i)
+    expect(t).toMatch(/small-claims court/i)
+    expect(t).toMatch(/never required to travel to Florida/i)
+  })
+
+  it('disclaims merchantability by name (Fla. Stat. §672.316(2))', () => {
+    // The exclusion must MENTION merchantability and be conspicuous, or the
+    // implied warranty is not excluded at all.
+    const t = terms()
+    expect(t).toMatch(/merchantability/i)
+    expect(t).toMatch(/fitness for a particular purpose/i)
+    expect(t).toMatch(/non-infringement/i)
+  })
+
+  it('has indemnification in both directions', () => {
+    const t = terms()
+    expect(t).toMatch(/indemnify, and hold harmless TaxStat360/i)
+    expect(t).toMatch(/hold you harmless/i)
+  })
+
+  it('has a survival clause naming the sections that must outlive termination', () => {
+    // Tax harm is latent; without this the cap and disclaimers arguably die
+    // with the account.
+    expect(terms()).toMatch(/survive any termination or expiration/i)
+  })
+
+  it('caps liability from the EVENT, not from the claim, with a floor', () => {
+    const t = terms()
+    expect(t).toMatch(/preceding the event giving rise to the claim/i)
+    expect(t).toMatch(/one hundred United States dollars/i)
+    expect(t).toMatch(/failed of its essential purpose/i)
+  })
+
+  it('permits amendment, and does not let silence change renewal terms', () => {
+    const t = terms()
+    expect(t).toMatch(/30 days.{0,20}notice/i)
+    expect(t).toMatch(/requires your affirmative consent/i)
+  })
+
+  it('has severability, entire agreement, and E-SIGN consent', () => {
+    const t = terms()
+    expect(t).toMatch(/Severability/i)
+    expect(t).toMatch(/Entire agreement/i)
+    expect(t).toMatch(/E-SIGN Act, 15 U\.S\.C\. §7001\(c\)/)
+  })
+
+  it('no longer claims the signup page shows the charge before the card field', () => {
+    // AUDIT B5: that was a factual claim about our own flow. Until the signup
+    // consent block ships, the Terms must not assert it — otherwise the contract
+    // carries the violation and supplies evidence of it.
+    expect(terms()).not.toMatch(/shown on the signup page before you enter\s*\n?\s*any payment information/)
+  })
+
+  it('surfaces the arbitration provision at the top, not only in section 11', () => {
+    const t = terms()
+    const head = t.slice(0, t.indexOf('1. Description of Service'))
+    expect(head).toMatch(/individual arbitration/i)
+    expect(head).toMatch(/opt out/i)
+  })
+})
