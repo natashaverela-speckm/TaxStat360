@@ -183,3 +183,85 @@ describe('B4 — the IRS non-endorsement statement ships on every page', () => {
     expect(offenders(/<footer[\s>]/)).toEqual(['components/Footer.jsx'])
   })
 })
+
+// ─── AUDIT HIGH FINDINGS — BATCH A (Sep 2026) ────────────────────────────────
+// Same rationale as the blocker guards above: these phrases were removed for cited
+// reasons and are exactly the kind of line that comes back in the next copy pass.
+
+describe('H6 — the product is on-demand, not real-time', () => {
+  // The FAQ states plainly: "Your numbers reflect the data from your last sync."
+  // Marketing that says "every single day" / "real-time" / "updated as your income
+  // and expenses change" describes continuous auto-sync, which does not exist.
+  // Under the FTC net-impression standard a truthful disclosure buried in a
+  // collapsed accordion does not cure a contradicting headline.
+  it('no shipped copy claims the estimate updates every single day', () => {
+    expect(offenders(/every single day/i)).toEqual([])
+  })
+
+  it('no shipped copy calls the platform real-time', () => {
+    expect(offenders(/real-time|realtime/i)).toEqual([])
+  })
+
+  it('the FAQ still discloses that figures reflect the last sync', () => {
+    const landing = read(join(SRC, 'components/Landing.jsx'))
+    expect(landing).toMatch(/reflect the data from your last sync/i)
+  })
+})
+
+describe('H7 — no social proof from a product without customers', () => {
+  // FTC Act §5 + the 1984 Substantiation Policy Statement: a reasonable basis must
+  // exist WHEN THE CLAIM IS MADE. "Join business owners who [achieve Y]" asserts a
+  // body of existing users obtaining that result. Fla. Stat. §501.204(2) imports the
+  // §5 standard into FDUTPA, and §501.2105 fee-shifts — so this is a private claim.
+  it('the CTA does not imply an existing customer base', () => {
+    expect(offenders(/Join business owners who/i)).toEqual([])
+  })
+
+  it('no unsubstantiated efficacy claim that the product lowers tax', () => {
+    // The product calculates; it does not reduce anything, and it is federal-only.
+    expect(offenders(/keep more of what they earn/i)).toEqual([])
+  })
+})
+
+describe('H8 — security is described honestly, not guaranteed', () => {
+  // Cf. In re Zoom Video Communications (FTC 2020): "bank-level" / encryption claims
+  // that outran the implementation were charged as deceptive. "Absolutely" is an
+  // unqualified guarantee no system supports.
+  it('the security FAQ does not open with an absolute guarantee', () => {
+    const landing = read(join(SRC, 'components/Landing.jsx'))
+    const faq = landing.slice(landing.indexOf('Is my financial data secure?'))
+    expect(faq.slice(0, 400)).not.toMatch(/a: 'Absolutely\./)
+  })
+
+  it('the security answer states what is actually deployed', () => {
+    const landing = read(join(SRC, 'components/Landing.jsx'))
+    expect(landing).toMatch(/AES-256 at rest and TLS 1\.2\+ in transit/)
+    expect(landing).toMatch(/No system can guarantee absolute security/)
+  })
+
+  it('the FAQPage JSON-LD mirrors the on-page answer', () => {
+    // A stale structured-data copy republishes the claim to search engines and
+    // creates a rich-result mismatch. These two must move together.
+    const html = readFileSync(join(SRC, '..', 'index.html'), 'utf8')
+    expect(html).not.toMatch(/"text": "Absolutely\./)
+    expect(html).toMatch(/No system can guarantee absolute security/)
+  })
+})
+
+describe('H10 — the device export is not presented as a CCPA response', () => {
+  // exportAllDeviceData() reads localStorage only. A right of access under CCPA
+  // reaches what the BUSINESS holds server-side, so offering a browser dump as the
+  // statutory response is itself a compliance problem.
+  it('Settings does not describe the local export as a CCPA request', () => {
+    const s = read(join(SRC, 'components/Settings.jsx'))
+    const block = s.slice(s.indexOf('handleDataExport'))
+    expect(s).not.toMatch(/You can request this at any time under CCPA/)
+    expect(block).toBeTruthy()
+  })
+
+  it('Settings points to a real channel for access and deletion requests', () => {
+    const s = read(join(SRC, 'components/Settings.jsx'))
+    expect(s).toMatch(/support@taxstat360\.com\?subject=Privacy%20request/)
+    expect(s).toMatch(/respond within 45 days/)
+  })
+})
