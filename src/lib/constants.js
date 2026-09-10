@@ -762,6 +762,48 @@ export const SUPPORT_EMAIL = 'support@taxstat360.com'
 // entirely. Until that exists, this link is the path and the UI says so plainly.
 export const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfeA0Wx9jOejK00'
 
+// ─── B5: CLICKWRAP ASSENT TO THE TERMS ───────────────────────────────────────
+// AUDIT BLOCKER B5 (Sep 2026). The signup page carried the Terms and Privacy links
+// only as a passive sentence above the submit button — "By creating an account you
+// agree to our Terms of Service and Privacy Policy." That is BROWSEWRAP: the user
+// takes no action directed at the agreement, so there is no record that they ever
+// saw it, let alone assented.
+//
+// Why this is a launch blocker and not a nicety: courts routinely refuse to enforce
+// browsewrap against consumers precisely because assent cannot be shown. See Nguyen
+// v. Barnes & Noble, 763 F.3d 1171 (9th Cir. 2014) (conspicuous footer link, no
+// affirmative action — unenforceable); Berkson v. Gogo LLC, 97 F. Supp. 3d 359
+// (E.D.N.Y. 2015) (same, surveying the doctrine); Specht v. Netscape, 306 F.3d 17
+// (2d Cir. 2002) (assent requires reasonable notice plus a manifestation of it).
+// Clickwrap — a separate, unchecked box the user must tick, with the links inside
+// the label — is the form that is consistently enforced.
+//
+// Everything in the rewritten Terms that PROTECTS the company rides on this:
+// the arbitration provision, the class action waiver, the warranty disclaimer,
+// the liability cap, and the indemnity are only worth what the assent record is
+// worth. Shipping the Terms rewrite without clickwrap would have produced a
+// well-drafted agreement that a consumer could credibly argue they never entered.
+//
+// The auto-renewal box (renewOk) is DELIBERATELY SEPARATE and stays separate.
+// Cal. Bus. & Prof. Code §17602(a)(1) requires consent to the automatic renewal
+// terms specifically; bundling it into a general "I agree to everything" checkbox
+// is the exact defect the statute targets. Two boxes, two consents. Do not merge.
+//
+// Versions are recorded with the acceptance so the company can later show WHICH
+// document the user agreed to. Bump these whenever the corresponding document
+// changes materially — the string must match the "Last updated" line rendered in
+// Terms.jsx / Privacy.jsx, because that is the copy a court would be shown.
+export const TERMS_VERSION = '2026-09-10'
+export const PRIVACY_VERSION = '2026-07-13'
+
+// Clickwrap label text. Kept here, next to renewalDisclosure(), because this is
+// consumer-facing legal copy and it must never be hand-written at a call site.
+// The links themselves are rendered by the component inside this label.
+export const LEGAL_CONSENT_PREFIX = 'I have read and agree to the'
+export const LEGAL_CONSENT_JOINER = 'and'
+export const LEGAL_CONSENT_SUFFIX =
+  ', including the binding arbitration provision and class action waiver in Section 11 of the Terms.'
+
 // ─── CANONICAL DISCLAIMER — single source of truth ───────────────────────────
 // Audit fix (Pass 5, "Disclaimer wording varies"): the site carried at least three
 // disclaimer strings — the Landing/About footer (full), the Privacy/Terms footer
