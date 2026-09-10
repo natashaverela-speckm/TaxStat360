@@ -32,6 +32,8 @@ import { NAVY as N, SLATE as SL } from '../lib/theme.js'
 import WelcomeTourScreen from './WelcomeTourScreen.jsx'
 import CarryforwardWizard from './CarryforwardWizard.jsx'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
+// AUDIT B6 (Sep 2026): route allowlist for the Meta pixel. See complianceCopy.js.
+import { isPixelAllowedPath } from '../lib/complianceCopy.js'
 
 // ─── OAuth Callback Handler ───────────────────────────────────────────────────
 // M1: Provider allowlist prevents arbitrary localStorage key pollution.
@@ -409,7 +411,10 @@ const ROUTE_TITLES = {
   '/dashboard':        'Dashboard | TaxStat360',
   '/calculate-tax':    'Tax Tracker | TaxStat360',
   '/calculator':       'Tax Tracker | TaxStat360',
-  '/tax-return':       'Personal Return | TaxStat360',
+  // AUDIT B2 (Sep 2026): "Personal Return" / /tax-return asserted return
+  // preparation — the one thing the whole legal architecture disclaims. Renamed
+  // to an estimate; /tax-return kept below as a permanent redirect.
+  '/personal-estimate': 'Personal Tax Estimate | TaxStat360',
   '/ai-analysis':      'AI Analysis & Reporting | TaxStat360',
   '/settings':         'Account Settings | TaxStat360',
   '/admin':            'Admin | TaxStat360',
@@ -426,7 +431,7 @@ const ROUTE_TITLES = {
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 const NOINDEX_PREFIXES  = [
   '/dashboard','/calculate-tax','/calculator',
-  '/tax-return','/ai-analysis','/settings','/admin',
+  '/personal-estimate','/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
   '/carryforward-wizard',
 ]
@@ -535,7 +540,19 @@ function CookieBanner() {
     writeCookieConsent(choice)
     // Consent-gated Meta Pixel (defined in index.html): load it ONLY on Accept.
     // "Essential only" (choice === 'declined') deliberately never loads it.
-    if (choice === 'accepted' && typeof window !== 'undefined' && typeof window.__ts360LoadPixel === 'function') {
+    //
+    // AUDIT B6 (Sep 2026): consent alone is not enough. The banner also appears
+    // on /signup, /login, /terms and /privacy, so an Accept there would have
+    // loaded the pixel onto a page that collects name, email and password —
+    // exactly what the Privacy Policy says never happens. Gate on the route too.
+    // (__ts360LoadPixel re-checks the path itself; this is the outer guard so
+    // the intent is visible at the call site.)
+    if (
+      choice === 'accepted' &&
+      typeof window !== 'undefined' &&
+      typeof window.__ts360LoadPixel === 'function' &&
+      isPixelAllowedPath(window.location.pathname)
+    ) {
       window.__ts360LoadPixel()
     }
     setVisible(false)
@@ -582,6 +599,33 @@ function CookieBanner() {
   )
 }
 
+// ─── Meta Pixel route gate ────────────────────────────────────────────────────
+// AUDIT B6 (Sep 2026). index.html gates the FIRST page load; this gates client-side
+// navigation, which is most of the traffic in an SPA.
+//
+// Two cases it handles:
+//   1. Visitor lands on /signup or /login (pixel correctly NOT loaded), accepts
+//      cookies there, then navigates to the marketing site. Attribution still
+//      works — the pixel loads when they reach an allowed route, not before.
+//   2. Visitor accepts on the home page and then signs in. The pixel is already
+//      loaded and fbq cannot be unloaded, so no PageView is fired for app routes
+//      and autoConfig is off (index.html) to stop Automatic Advanced Matching
+//      from scraping in-app forms.
+//
+// It never fires an event for a disallowed path, so the Privacy Policy's "it never
+// runs inside the signed-in application" is true for every route this app serves.
+function PixelRouteGate() {
+  const location = useLocation()
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (typeof window.__ts360LoadPixel !== 'function') return
+    if (readCookieConsent() !== 'accepted') return
+    if (!isPixelAllowedPath(location.pathname)) return
+    window.__ts360LoadPixel()
+  }, [location.pathname])
+  return null
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -597,6 +641,7 @@ export default function App() {
         Skip to main content
       </a>
       <RouteTitle />
+      <PixelRouteGate />
       <CookieBanner />
       <Routes>
         {/* Public */}
@@ -637,7 +682,11 @@ export default function App() {
         <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/dashboard"     element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
-        <Route path="/tax-return"    element={<AuthedWithTour><TaxReturn /></AuthedWithTour>} />
+        {/* AUDIT B2: canonical route is /personal-estimate. /tax-return is kept
+            as a permanent redirect so bookmarks, stale nav calls, and in-flight
+            sessions never dead-end. Do NOT reintroduce /tax-return as a live route. */}
+        <Route path="/personal-estimate" element={<AuthedWithTour><TaxReturn /></AuthedWithTour>} />
+        <Route path="/tax-return"    element={<Navigate to="/personal-estimate" replace />} />
         <Route path="/carryforward-wizard" element={<AuthedWithTour><CarryforwardWizard /></AuthedWithTour>} />
         <Route path="/ai-analysis"   element={<AuthedWithTour><AIAnalysis /></AuthedWithTour>} />
         <Route path="/settings"      element={<AuthedWithTour><Settings /></AuthedWithTour>} />

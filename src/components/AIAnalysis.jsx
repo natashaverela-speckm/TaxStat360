@@ -41,6 +41,8 @@ import {
   CPA_BRIEFING_AUTHORIZE,
   POSITION_DOCS_AUTHORIZE,
 } from '../utils/enterpriseGates.js'
+// AUDIT B2 (Sep 2026): canonical route lives in complianceCopy.js.
+import { ROUTE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
 import {
   CURRENT_TAX_YEAR,
   SEP_IRA_RATE, SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
@@ -2698,7 +2700,7 @@ export default function AIAnalysis() {
                       // Step-1 fields live in the Tax Tracker; Step-2 fields in
                       // the Personal Return. Mapping mirrors missingFields().
                       const step2 = /W-2|est\. payments/i.test(item)
-                      const path = step2 ? '/tax-return' : '/calculate-tax'
+                      const path = step2 ? ROUTE_PERSONAL_ESTIMATE : '/calculate-tax'
                       return (
                         <button
                           key={item}

@@ -5,6 +5,16 @@ import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
 import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS } from '../lib/constants'
+// AUDIT B2/B3/B4/B7 (Sep 2026) — compliance-reviewed marketing copy.
+import {
+  CREDENTIAL_HEADLINE as CREDENTIAL,
+  CREDENTIAL_SHORT,
+  CREDENTIAL_BODY,
+  FEATURE_PERSONAL_ESTIMATE,
+  FEATURE_POSITION_DOCS,
+  FEATURE_POSITION_DOCS_SHORT,
+  POSITION_DOCS_LIMIT_NOTE,
+} from '../lib/complianceCopy.js'
 import './Landing.css'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
@@ -41,13 +51,15 @@ const EYEBROW = {
 // the whole point of centralizing was to stop these strings drifting between
 // Landing, About, Nav, Terms, and ResourcesHub.
 
-// #1 FIX: Credential claim now reflects the founder's actual, substantiated credential —
-// a seasoned tax strategist who is an Enrolled Agent and a former IRS Revenue Agent.
-// This replaces the prior unsubstantiated plural framing ("a dedicated team of former
-// IRS agents", "built by former IRS Revenue Agents"). CREDENTIAL is the full statement;
-// CREDENTIAL_SHORT is the compact form used in the small hero trust-badge pill.
-const CREDENTIAL       = 'Built by a Seasoned Tax Strategist, Enrolled Agent and Former IRS Revenue Agent'
-const CREDENTIAL_SHORT = 'Enrolled Agent & Former IRS Revenue Agent'
+// #1 FIX: Credential claim reflects the founder's actual, substantiated credential —
+// an Enrolled Agent and a former IRS Revenue Agent. This replaced the prior
+// unsubstantiated plural framing ("a dedicated team of former IRS agents").
+//
+// AUDIT B3/B4 (Sep 2026): the credential COPY now lives in complianceCopy.js. It was
+// rewritten from "her expertise is in the output" to "she designed the methodology;
+// the platform applies published rules" — the former contradicts Terms §2 ("NOT a
+// ... enrolled agent") and cannot be cured by a disclaimer. Do not re-inline these
+// strings here; read the citations in complianceCopy.js before changing them.
 
 // #7 FIX: The site navigation was extracted into a shared <Nav> component
 // (src/Nav.jsx) so Landing, About, Privacy, Terms, and Resources all render the
@@ -173,8 +185,14 @@ export default function Landing() {
         </div>
         {/* #1 FIX: singular, substantiated credential replaces "Dedicated Team of Former IRS Agents". */}
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>{CREDENTIAL}</h2>
+        {/* AUDIT B3/B4: copy comes from complianceCopy.js. The prior text claimed
+            knowledge of "exactly what triggers audits" (non-public audit-selection
+            methodology, §10.30(a)(1)) and said the founder's experience "is built
+            into" the calculations (contradicts Terms §2). Both removed. Also dropped
+            "audit scenario analysis" — it was advertised here but appears in no
+            pricing tier, which is an unsubstantiated feature claim under FTC §5. */}
         <p style={{ fontSize: 13, color: '#475569', maxWidth: 680, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          TaxStat360 was built by a seasoned tax strategist &mdash; an Enrolled Agent and former IRS Revenue Agent &mdash; who spent years inside the IRS understanding exactly what triggers audits and how to stay compliant. That firsthand experience is built into the platform&apos;s automated tax calculations, AI-powered risk alerts, and audit scenario analysis &mdash; purpose-built for business owners.
+          {CREDENTIAL_BODY}
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => nav('/signup')} style={{ background: N, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
@@ -385,7 +403,8 @@ export default function Landing() {
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
                 'Schedule C (sole props & SMLLCs)',
                 'Quarterly estimated payments',
-                'Personal tax return (W-2 + entity income)',
+                // AUDIT B2: was 'Personal tax return (W-2 + entity income)'.
+                FEATURE_PERSONAL_ESTIMATE,
                 '1 accounting software integration',
               ],
             },
@@ -414,15 +433,19 @@ export default function Landing() {
               name: 'Enterprise', price: fmtPlanPrice(PLAN_PRICING.enterprise.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.enterprise.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.enterprise.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.enterprise.annualSavings),
               highlight: false,
               desc: 'Built for owners running multiple businesses or entities.',
-              // #7 FIX: reworded "IRS response templates" to make clear these are planning /
-              // documentation aids, not IRS representation. Keeps the tool on the planning side
-              // of its own "not a tax preparation or filing service" disclaimer.
+              // AUDIT B7 (Sep 2026): "IRS Notice-Response Templates" is gone. Drafting a
+              // taxpayer-specific communication to the IRS is practice before the IRS
+              // under 31 C.F.R. §10.2(a)(4), and "(documentation — not representation)"
+              // was a label rather than a functional limit. The SHIPPED feature
+              // (AIAnalysis.jsx "Position Documentation") never drafted correspondence —
+              // this brings the marketing down to what the product actually does.
+              // The explicit limit renders under the card; see POSITION_DOCS_LIMIT_NOTE.
               features: [
                 _entityLimitLabel('enterprise'),
                 'Everything in Professional plus:',
                 'Multi-entity consolidated tax view',
                 'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
-                'Tax Position Documentation & IRS Notice-Response Templates (documentation — not representation)',
+                FEATURE_POSITION_DOCS,
               ],
             },
           ].map((p, i) => (
@@ -467,6 +490,18 @@ export default function Landing() {
           ))}
         </div>
 
+        {/* AUDIT B7 (Sep 2026): explicit, unmissable limit on the Enterprise
+            documentation feature. It renders in the pricing section — where the
+            purchase decision is made — not only in the Terms. 31 C.F.R. §10.2(a)(4)
+            / §10.3. Do not move this into a tooltip or an accordion. */}
+        <p style={{
+          marginTop: 24, fontSize: 12, color: '#92400E', lineHeight: 1.6,
+          background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10,
+          padding: '12px 20px', maxWidth: 680, margin: '24px auto 0', textAlign: 'left',
+        }}>
+          <strong>About the {FEATURE_POSITION_DOCS_SHORT}:</strong> {POSITION_DOCS_LIMIT_NOTE}
+        </p>
+
         <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime in Settings</p>
         <p style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1' }}>
           Cancel before day 7 for no charge. No refunds on completed billing periods. Manage or cancel anytime via your account settings.
@@ -503,7 +538,8 @@ export default function Landing() {
                   ['K-1 income (S-Corps, partnerships, Multi-Member LLCs)', true, true, true],
                   ['Schedule C (sole props & SMLLCs)',       true,  true,  true],
                   ['Quarterly estimated payments',           true,  true,  true],
-                  ['Personal tax return (W-2 + entity income)', true, true, true],
+                  // AUDIT B2: label must match the pricing card exactly.
+                  [FEATURE_PERSONAL_ESTIMATE,                true,  true,  true],
                   ['Multi-entity consolidated tax view',     false, false, true],
                 ]},
                 { group: 'AI & Analysis', rows: [
@@ -521,8 +557,10 @@ export default function Landing() {
                 { group: 'CPA Tools', rows: [
                   ['One-Click CPA Export Pack',              false, true,  true],
                   ['Auto-Generated CPA Briefing',           false, false, true],
-                  // #7 FIX: reworded to match the pricing card (documentation, not representation).
-                  ['Tax Position Documentation & IRS Notice-Response Templates', false, false, true],
+                  // AUDIT B7: the old label carried no qualifier here at all, while the
+                  // tier card had one — the comparison table is where a buyer actually
+                  // reads. Same string as the card now; the limit note renders below.
+                  [FEATURE_POSITION_DOCS_SHORT,            false, false, true],
                 ]},
                 { group: 'Support', rows: [
                   ['Priority support',                       false, true,  true],

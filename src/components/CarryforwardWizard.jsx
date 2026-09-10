@@ -25,6 +25,8 @@ import { markCarryforwardWizardComplete } from '../utils/carryforwardWizard.js'
 import MoneyInput from './MoneyInput.jsx'
 import CarryforwardWizardUpgrade from './CarryforwardWizardUpgrade.jsx'
 import { NAVY as N, BLUE as B, SLATE as SL, RED as R } from '../lib/theme.js'
+// AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
+import { ROUTE_PERSONAL_ESTIMATE, STEP_LABEL_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
 
 const STEP_COUNT = CARRYFORWARD_WIZARD_STEPS.length
 
@@ -116,12 +118,12 @@ function CarryforwardWizardFlow() {
 
   const goNext = () => setStepIndex((i) => Math.min(i + 1, STEP_COUNT - 1))
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0))
-  const handleSkipWizard = () => navigate('/tax-return')
+  const handleSkipWizard = () => navigate(ROUTE_PERSONAL_ESTIMATE)
   const handleFinish = () => {
     saveWizardValuesToContext(values)
     const email = readEmail()
     if (email) markCarryforwardWizardComplete(email)
-    navigate('/tax-return?carryforwards=1')
+    navigate(ROUTE_PERSONAL_ESTIMATE + '?carryforwards=1')
   }
 
   const handlePrefillFromPdf = async (fileList) => {
@@ -195,7 +197,7 @@ function CarryforwardWizardFlow() {
         {[
           { n: 1, label: 'Entities', current: false, done: true, onClick: () => navigate('/calculate-tax') },
           { n: 2, label: 'Carryforwards', current: true, done: false },
-          { n: 3, label: 'Personal Return', current: false, done: false, onClick: () => navigate('/tax-return') },
+          { n: 3, label: STEP_LABEL_PERSONAL_ESTIMATE, current: false, done: false, onClick: () => navigate(ROUTE_PERSONAL_ESTIMATE) },
         ].map((s, i, arr) => (
           <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -256,7 +258,7 @@ function CarryforwardWizardFlow() {
         Step 2 of your calculation — prior-year carryforward guide
         <span style={{ fontWeight: 500, opacity: 0.85 }}>
           {' '}
-          · Skip anytime to continue your personal return
+          · Skip anytime to continue your personal estimate
         </span>
       </div>
 
@@ -527,7 +529,7 @@ function CarryforwardWizardFlow() {
               padding: '8px 0',
             }}
           >
-            Skip to Personal Return
+            Skip to Personal Estimate
           </button>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {stepIndex > 0 && (
@@ -581,7 +583,7 @@ function CarryforwardWizardFlow() {
                   cursor: 'pointer',
                 }}
               >
-                Finish & continue to Personal Return →
+                Finish & continue to Personal Estimate →
               </button>
             ) : (
               <button

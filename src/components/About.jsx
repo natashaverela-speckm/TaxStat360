@@ -4,6 +4,14 @@ import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
 import { CTA_LABEL, CTA_COPY_SHORT, DISCLAIMER_FULL } from '../lib/constants'
+// AUDIT B3/B4 (Sep 2026) — compliance-reviewed credential copy. See complianceCopy.js
+// for the rule citations behind each string; do not re-inline them here.
+import {
+  ABOUT_HERO_BODY,
+  ABOUT_EXPERTISE_INTRO,
+  ABOUT_EXPERTISE_HEADING,
+  ABOUT_CARD_EXAMINATION,
+} from '../lib/complianceCopy.js'
 
 // CONSISTENCY PASS (Jul 9 2026): palette from src/theme.js — the CC-M01
 // migration finished; local hex constants retired. Aliased so usage sites
@@ -42,8 +50,13 @@ const EYEBROW = {
 const FOUNDER_EXPERTISE = [
   {
     icon: 'institution',
-    title: 'IRS Examination Insight',
-    desc: 'Built around how the IRS examines businesses, partnerships, and corporations — what examiners look for, how returns are selected for audit, and where the real exposure sits.',
+    // AUDIT B4 (Sep 2026): was "what examiners look for, how returns are selected
+    // for audit, and where the real exposure sits." Audit-selection methodology is
+    // non-public. Claiming to know it is either a disclosure problem or a false
+    // claim under 31 C.F.R. §10.30(a)(1) — there is no third reading that helps.
+    // Reframed onto PUBLISHED authority, which is both true and still credible.
+    title: 'Published Examination Standards',
+    desc: ABOUT_CARD_EXAMINATION,
   },
   {
     icon: 'chartBar',
@@ -102,8 +115,14 @@ export default function About() {
         <h1 style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.15, margin: '0 auto 24px', maxWidth: 740, color: N }}>
           Built by a Former IRS Revenue Agent.<br />Designed for Business Owners.
         </h1>
+        {/* AUDIT B3/B4: removed "spent years inside the IRS understanding exactly
+            what triggers audits and how returns are scrutinized" and "encoded into
+            every calculation." The first claims non-public audit-selection knowledge;
+            the second represents the output as the practitioner's own professional
+            judgment, which directly contradicts Terms §2. Copy now describes
+            provenance (who designed the methodology) rather than authorship of advice. */}
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 640, margin: '0 auto', lineHeight: 1.8 }}>
-          TaxStat360 was built by a seasoned tax strategist — an Enrolled Agent and former IRS Revenue Agent — who spent years inside the IRS understanding exactly what triggers audits and how returns are scrutinized. That firsthand experience is encoded into every calculation: what the IRS looks for, where the real exposure sits, and where legal tax-reduction strategies deliver the most impact.
+          {ABOUT_HERO_BODY}
         </p>
       </section>
 
@@ -111,12 +130,15 @@ export default function About() {
       <section style={{ padding: '72px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
           <p style={EYEBROW}>The Expertise Behind It</p>
-          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>One Background. Built Into Every Calculation.</h2>
-          {/* #1 FIX: intro explicitly attributes this to the single founder and her IRS
-              career, so the three cards below read as one person's areas of expertise —
-              not as a multi-person team. */}
+          {/* AUDIT B3: heading was "One Background. Built Into Every Calculation." —
+              the "built into every calculation" framing is the exact claim that
+              contradicts Terms §2's "NOT a ... enrolled agent." */}
+          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>{ABOUT_EXPERTISE_HEADING}</h2>
+          {/* #1 FIX (retained): intro attributes this to the single founder, so the three
+              cards below read as one person's areas of expertise — not a multi-person team.
+              AUDIT B3: reworded from "All three are built directly into the product." */}
           <p style={{ fontSize: 14, color: '#475569', maxWidth: 620, margin: '0 auto 52px', lineHeight: 1.7 }}>
-            TaxStat360 is built on one person's career: an Enrolled Agent and former IRS Revenue Agent whose work spans the full arc of business tax — how the IRS examines returns, how compliance actually works across entity types, and how proactive planning legally lowers what you owe. All three are built directly into the product.
+            {ABOUT_EXPERTISE_INTRO}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(272px, 1fr))', gap: 24 }}>
             {FOUNDER_EXPERTISE.map((r, i) => (

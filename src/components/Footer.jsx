@@ -1,4 +1,5 @@
 import { DISCLAIMER_FULL, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, SUPPORT_EMAIL } from '../lib/constants'
+import { NON_ENDORSEMENT } from '../lib/complianceCopy.js'
 import BrandLogo from './BrandLogo'
 
 // ─── SHARED SITE-WIDE FOOTER ──────────────────────────────────────────────────
@@ -47,6 +48,15 @@ export default function Footer() {
 
         {/* Canonical disclaimer — single source of truth in constants.js */}
         <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>{DISCLAIMER_FULL}</p>
+
+        {/* AUDIT B4 (Sep 2026): standing IRS non-endorsement statement.
+            31 C.F.R. §10.30(a)(1) and 31 U.S.C. §333. The site leads with a former
+            Revenue Agent credential under the headline "See What You're On Track to
+            Owe the IRS" and previously carried no non-endorsement line anywhere.
+            This footer is shared by every page, which is the point — the statement
+            has to travel with the credential.
+            ⚠ Do not remove, shorten, or move this below the copyright line. */}
+        <p style={{ color: '#64748b', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>{NON_ENDORSEMENT}</p>
 
         {/* NAP — present on every page for local-SEO consistency */}
         <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px' }}>

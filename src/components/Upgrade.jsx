@@ -7,6 +7,8 @@ import BrandLogo from './BrandLogo'
 import { apiFetch } from '../utils/apiClient.js'
 import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from '../lib/constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
+// AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
+import { FEATURE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
 
 
 // Stripe billing portal — handles cancellations, downgrades, and payment updates.
@@ -33,7 +35,9 @@ const FEATURES = [
   { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
   { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
   { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
-  { label:'Personal tax return (W-2 + entity income)',                 starter:true,  professional:true,  enterprise:true  },
+    // AUDIT B2 (Sep 2026): was 'Personal tax return (W-2 + entity income)'.
+  // Must stay byte-identical to the Landing pricing card and comparison table.
+  { label:FEATURE_PERSONAL_ESTIMATE,                                    starter:true,  professional:true,  enterprise:true  },
   { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
   // ── Professional additions ────────────────────────────────────────────────
   // TERMINOLOGY FIX 5.1b: "Risk Alert Engine" did not match the in-app tab label "Audit Risk Scan."

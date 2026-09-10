@@ -278,7 +278,9 @@ const MAX_HISTORY_TURNS = 20
 
 // Aria is mounted globally (its own root in main.jsx, outside the Router), so it
 // would otherwise appear on every page — including the public marketing pages.
-const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
+// AUDIT B2: canonical route is /personal-estimate; /tax-return retained so a
+// user who lands on the legacy URL mid-redirect still gets the assistant.
+const ARIA_APP_ROUTES = ['/dashboard', '/calculate-tax', '/calculator', '/personal-estimate', '/tax-return', '/ai-analysis', '/settings', '/upgrade']
 function ariaAllowed() {
   try { if (!readLoggedIn()) return false } catch { return false }
   const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/'

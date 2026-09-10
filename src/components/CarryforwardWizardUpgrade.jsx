@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { NAVY as N, BLUE as B } from '../lib/theme.js'
+// AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
+import { ROUTE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
 
 /** Shown when a Starter user opens /carryforward-wizard directly. */
 export default function CarryforwardWizardUpgrade() {
@@ -59,7 +61,7 @@ export default function CarryforwardWizardUpgrade() {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/tax-return')}
+          onClick={() => navigate(ROUTE_PERSONAL_ESTIMATE)}
           style={{
             background: 'none',
             border: 'none',
@@ -69,7 +71,7 @@ export default function CarryforwardWizardUpgrade() {
             marginTop: 12,
           }}
         >
-          ← Back to Personal Return
+          ← Back to Personal Estimate
         </button>
       </div>
     </div>

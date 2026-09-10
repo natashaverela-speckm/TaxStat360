@@ -40,6 +40,8 @@ import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstate
 import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
+// AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
+import { ROUTE_PERSONAL_ESTIMATE, STEP_LABEL_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
 
 // ─── Color palette ──────────────────────────────────────────────────────────
 const ENTITY_COLORS = [B, '#7C3AED', '#0891B2', '#D97706', '#059669', '#DC2626']
@@ -2693,7 +2695,7 @@ export default function CalculateTaxInner() {
       navigate('/carryforward-wizard')
       return
     }
-    navigate('/tax-return')
+    navigate(ROUTE_PERSONAL_ESTIMATE)
   }
 
   const handleSkipCarryforwardToPersonal = () => {
@@ -2703,7 +2705,7 @@ export default function CalculateTaxInner() {
     }
     persistStep1()
     markCarryforwardFlowOfferSkipped()
-    navigate('/tax-return')
+    navigate(ROUTE_PERSONAL_ESTIMATE)
   }
 
   const handleFooterSave = () => {
@@ -2749,12 +2751,12 @@ export default function CalculateTaxInner() {
               ? [
                   { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true },
                   { n: 2, label: 'Carryforwards', done: !offerCarryforwardNext, isCurrent: false },
-                  { n: 3, label: 'Personal Return', done: false, isCurrent: false },
+                  { n: 3, label: STEP_LABEL_PERSONAL_ESTIMATE, done: false, isCurrent: false },
                   { n: 4, label: STEP3_LABEL, done: false, isCurrent: false },
                 ]
               : [
                   { n: 1, label: 'Entities', done: entities.length > 0, isCurrent: true },
-                  { n: 2, label: 'Personal Return', done: false, isCurrent: false },
+                  { n: 2, label: STEP_LABEL_PERSONAL_ESTIMATE, done: false, isCurrent: false },
                   { n: 3, label: STEP3_LABEL, done: false, isCurrent: false },
                 ]
             ).map((s, i, arr) => (
@@ -3100,7 +3102,7 @@ export default function CalculateTaxInner() {
                   textUnderlineOffset: 2,
                 }}
               >
-                Skip guide — personal return
+                Skip guide — personal estimate
               </button>
             )}
             <button

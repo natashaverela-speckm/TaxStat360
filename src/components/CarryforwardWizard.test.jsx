@@ -155,10 +155,10 @@ describe('CarryforwardWizard', () => {
     expect(screen.getByText(/disposition and recapture fields/)).toBeTruthy()
   })
 
-  it('CHAR: Skip to Personal Return navigates to tax return without persisting', () => {
+  it('CHAR: Skip to Personal Estimate navigates to tax return without persisting', () => {
     renderWizard()
-    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
-    expect(navigate).toHaveBeenCalledWith('/tax-return')
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Estimate' }))
+    expect(navigate).toHaveBeenCalledWith('/personal-estimate')
     expect(writePersonalContext).not.toHaveBeenCalled()
     expect(writeDirtyFlag).not.toHaveBeenCalled()
   })
@@ -189,19 +189,19 @@ describe('CarryforwardWizard', () => {
     }
     expect(screen.getByText('9 of 9')).toBeTruthy()
     expect(screen.getByText(GLOBAL_DISCLAIMER)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Estimate/ }))
     expect(writePersonalContext).toHaveBeenCalledWith({
       w2Income: 90000,
       priorPassiveLossCarryforward: 5000,
     })
     expect(writeDirtyFlag).toHaveBeenCalledWith(true)
     expect(markComplete).toHaveBeenCalledWith('user@example.com')
-    expect(navigate).toHaveBeenCalledWith('/tax-return?carryforwards=1')
+    expect(navigate).toHaveBeenCalledWith('/personal-estimate?carryforwards=1')
   })
 
-  it('CHAR: Skip to Personal Return does not mark wizard complete', () => {
+  it('CHAR: Skip to Personal Estimate does not mark wizard complete', () => {
     renderWizard()
-    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Estimate' }))
     expect(markComplete).not.toHaveBeenCalled()
   })
 
@@ -238,8 +238,8 @@ describe('CarryforwardWizard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     }
     expect(screen.getByText(/Items to confirm with your preparer/i)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
-    expect(navigate).toHaveBeenCalledWith('/tax-return?carryforwards=1')
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Estimate/ }))
+    expect(navigate).toHaveBeenCalledWith('/personal-estimate?carryforwards=1')
   })
 
   it('CHAR: starter plan sees upgrade screen instead of wizard steps', () => {
@@ -370,7 +370,7 @@ describe('CarryforwardWizard', () => {
     expect(screen.getByLabelText(CARRYFORWARD_WIZARD_STEPS[0].label).value).toBe('12,500')
     expect(writePersonalContext).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Return' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to Personal Estimate' }))
     expect(writePersonalContext).not.toHaveBeenCalled()
     expect(writeDirtyFlag).not.toHaveBeenCalled()
     expect(markComplete).not.toHaveBeenCalled()
@@ -409,7 +409,7 @@ describe('CarryforwardWizard', () => {
     for (let i = 0; i < CARRYFORWARD_WIZARD_STEPS.length - 1; i++) {
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     }
-    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Return/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Finish & continue to Personal Estimate/ }))
     expect(writePersonalContext).toHaveBeenCalledTimes(1)
     const saved = writePersonalContext.mock.calls[0][0]
     expect(saved.w2Income).toBe(90000)
