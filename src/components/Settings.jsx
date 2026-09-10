@@ -652,9 +652,14 @@ export default function Settings() {
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Privacy & Data</div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:20}}>
             <div>
-              <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Download my data</div>
+              {/* AUDIT H10 (Sep 2026): this exports localStorage only (see exportAllDeviceData
+                  in utils/sessionState.js) but was presented as satisfying a CCPA right of
+                  access, which reaches the data the BUSINESS holds server-side. Offering a
+                  device dump as the statutory response is itself a compliance problem, so the
+                  copy now says exactly what this is and points to the real request channel. */}
+              <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:4}}>Export this device&rsquo;s data</div>
               <div style={{fontSize:13,color:SL,lineHeight:1.5}}>
-                Export a copy of all your TaxStat360 data stored on this device — tax records, session history, and account metadata — as a JSON file. You can request this at any time under CCPA and similar privacy laws.
+                Download the TaxStat360 data saved in this browser — tax records, session history, and account metadata — as a JSON file. This is a convenience export of local data, not a formal privacy request: to request everything we hold about you, or to ask us to delete it, email <a href="mailto:support@taxstat360.com?subject=Privacy%20request" style={{color:'#2563EB'}}>support@taxstat360.com</a> and we will respond within 45 days.
               </div>
             </div>
             <button

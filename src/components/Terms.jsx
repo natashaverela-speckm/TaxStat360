@@ -36,7 +36,10 @@ export default function Terms() {
         </div>
 
         <Section title="1. Description of Service">
-          <p>TaxStat360 is a real-time tax liability planning and estimation platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts. TaxStat360 provides visibility and planning only — it is not a tax preparation or filing service.</p>
+          {/* AUDIT H6 (Sep 2026): "real-time" is inaccurate — synced figures reflect the last
+              sync and move only on refresh, as the FAQ itself states. The Terms should not
+              assert a capability the product does not have. */}
+          <p>TaxStat360 is an on-demand tax liability planning and estimation platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated tax liability, generate quarterly payment recommendations, and surface AI-powered risk alerts. TaxStat360 provides visibility and planning only — it is not a tax preparation or filing service.</p>
         </Section>
 
         <Section title="2. Not Professional Tax Advice — Estimation Tool Only">

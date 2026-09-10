@@ -134,7 +134,7 @@ export default function Landing() {
           See What You&apos;re On Track to Owe the IRS&nbsp;&mdash;<br />Right Now, Not in April.
         </h1>
         <p style={{ fontSize: 15, color: '#475569', maxWidth: 620, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 shows you your estimated federal tax liability every single day, so you can make moves while there&apos;s still time to make them.
+          Most S-Corp owners and self-employed business owners write massive checks to the IRS every April&nbsp;&mdash; and had no idea it was coming. TaxStat360 recalculates your estimated federal tax liability the moment you sync, any day of the year &mdash; so you can make moves while there&apos;s still time to make them.
         </p>
         {/* UX-1.2: IRS credential trust badge — moved into hero for immediate credibility.
             #1 FIX: now states the founder's substantiated credential (EA + former IRS Revenue Agent). */}
@@ -299,7 +299,9 @@ export default function Landing() {
             { n: '02', title: 'Enter your personal info',
               desc: 'Filing status, any W-2 income, dependents. For K-1 entities we auto-apply your ownership percentage and flow income to your 1040.' },
             { n: '03', title: 'See your estimated federal tax liability',
-              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and your entity income allocation update instantly as you enter numbers. Sync your accounting software anytime with one click to pull the latest data.' },
+              // AUDIT H6 (Sep 2026): 'update instantly as you enter numbers' is true of manual
+              // entry and false of synced data, which only moves on refresh. Say which is which.
+              desc: 'Complete estimated federal tax liability, quarterly payments, §199A QBI Deduction (calculated), and your entity income allocation recalculate instantly as you type. Connected accounting software updates on demand — sync with one click, any day of the year, to pull your latest figures.' },
           ].map((s, i) => (
             <div key={i} style={{ textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid ' + N, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 15, fontWeight: 700, color: N }}>{s.n}</div>
@@ -340,7 +342,12 @@ export default function Landing() {
               // None of that is advertising or resale, but it also isn't "never shared with
               // third parties" — reworded to match Privacy.jsx's precision so the two pages
               // can't be read as contradicting each other.
-              a: 'Absolutely. TaxStat360 uses bank-level 256-bit encryption and read-only API connections to your accounting software. We never have access to move or modify your money. Your financial data is never sold and is never shared with third parties for advertising or marketing purposes. It is shared only with the service providers that power the product itself — payment processing, secure cloud hosting, your connected accounting software, and our AI processor for AI-powered features — exactly as detailed in our Privacy Policy.' },
+              // AUDIT H8 (Sep 2026): was "Absolutely." — an unqualified guarantee of security.
+              // No system supports that word and it becomes exhibit A in any post-breach
+              // action (cf. In re Zoom Video Communications, FTC 2020, where "bank-level"
+              // claims that outran the implementation were charged as deceptive). Also
+              // replaced the marketing term "bank-level" with what is actually deployed.
+              a: 'We take it seriously. TaxStat360 encrypts your data with AES-256 at rest and TLS 1.2+ in transit, and connects to your accounting software using read-only OAuth tokens. We never have access to move or modify your money. No system can guarantee absolute security, and any company that tells you otherwise is overselling. Your financial data is never sold and is never shared with third parties for advertising or marketing purposes. It is shared only with the service providers that power the product itself — payment processing, secure cloud hosting, your connected accounting software, and our AI processor for AI-powered features — exactly as detailed in our Privacy Policy.' },
             { q: 'What is the 7-day free trial?',
               a: 'You get full access to all features on your selected plan for 7 days, completely free. You will not be charged until your 7-day trial ends. Cancel anytime in Settings before day 7 and you will never be billed. A payment method is required to activate your trial.' },
             { q: 'How current is the data I see?',
@@ -603,7 +610,15 @@ export default function Landing() {
       {/* ─── BOTTOM CTA ───────────────────────────────────────────────────────── */}
       <section style={{ padding: '36px 24px', background: N, textAlign: 'center' }}>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 16 }}>Stop Discovering Your Tax Bill at Year-End</h2>
-        <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>Join business owners who manage tax liability proactively every month and keep more of what they earn.</p>
+        {/* AUDIT H7 (Sep 2026): was "Join business owners who ... keep more of what they earn."
+            Two FTC §5 problems in one sentence: "Join [X] who [achieve Y]" is a social-proof
+            claim about existing customers a pre-launch product does not have (the
+            substantiation file is empty by definition), and "keep more of what they earn"
+            is an efficacy claim — the product calculates, it does not reduce anything, and
+            it covers federal tax only. Florida's FDUTPA (Fla. Stat. §501.204(2)) imports the
+            §5 standard and fee-shifts under §501.2105, so this is a private claim, not just
+            a regulator risk. Replaced with a capability claim, which is true and still sells. */}
+        <p style={{ fontSize: 15, color: '#93b4d4', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>See your estimated federal tax liability update as your numbers change &mdash; so you can plan with your tax professional while the year is still open. Federal estimates only.</p>
         <button onClick={() => nav('/signup')} style={{ background: '#fff', color: N, border: 'none', borderRadius: 10, padding: '18px 40px', fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 16 }}>{CTA_LABEL}</button>
         <p style={{ color: '#64748b', fontSize: 13 }}>{CTA_COPY_SHORT}</p>
       </section>

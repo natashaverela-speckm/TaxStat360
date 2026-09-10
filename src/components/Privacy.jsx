@@ -41,7 +41,9 @@ export default function Privacy() {
         </Section>
 
         <Section title="2. How We Use Your Information">
-          <p style={{ marginBottom: 8 }}>- Calculate your real-time estimated tax liability</p>
+          {/* AUDIT H6 (Sep 2026): "real-time" removed here too — the Privacy Policy
+              describes what the product does, and it is on-demand, not continuous. */}
+          <p style={{ marginBottom: 8 }}>- Calculate your estimated federal tax liability from the figures you enter or sync</p>
           <p style={{ marginBottom: 8 }}>- Generate quarterly estimated payment recommendations</p>
           <p style={{ marginBottom: 8 }}>- Provide AI-powered risk alerts and tax optimization suggestions</p>
           <p style={{ marginBottom: 8 }}>- Send transactional emails (account verification, password reset)</p>

@@ -73,8 +73,11 @@ const FOUNDER_EXPERTISE = [
 const APPROACH = [
   {
     icon: 'target',
-    heading: 'Real-Time Clarity',
-    text: 'Most business owners only learn their federal tax liability in April. We give you that number every day of the year — updated as your income and expenses change — so you can act on it while there is still time.',
+    // AUDIT H6 (Sep 2026): the product is last-sync-based and refreshes on demand,
+    // as the FAQ itself says. "Every day of the year, updated as your income and
+    // expenses change" describes continuous auto-sync, which does not exist.
+    heading: 'Clarity On Demand',
+    text: 'Most business owners only learn their federal tax liability in April. TaxStat360 gives you that number any day of the year — sync your accounting software with one click and the estimate recalculates immediately — so you can act on it while there is still time.',
   },
   {
     icon: 'shield',
@@ -84,7 +87,7 @@ const APPROACH = [
   {
     icon: 'partners',
     heading: 'CPA-Compatible, Not CPA-Replacing',
-    text: 'TaxStat360 is built to make your relationship with your CPA more productive — not to replace it. Our CPA export tools and a dashboard you can share with your advisor give you both the same real-time visibility.',
+    text: 'TaxStat360 is built to make your relationship with your CPA more productive — not to replace it. Our CPA export tools and a dashboard you can share with your advisor give you both the same up-to-date picture.',
   },
 ]
 
@@ -164,7 +167,7 @@ export default function About() {
             S-Corp salary-to-distribution ratios set incorrectly. §199A QBI deductions missed. Quarterly payments underfunded. Depreciation strategies overlooked. Passive loss rules misapplied. These aren't exotic maneuvers — they're legal planning tools every business owner should be using, month by month, not once a year.
           </p>
           <p style={{ fontSize: 15, color: '#fff', fontWeight: 700, lineHeight: 1.8 }}>
-            TaxStat360 exists so that every business owner has the same real-time tax visibility their CPA does — and can make strategic moves before the year is over.
+            TaxStat360 exists so that every business owner can get the kind of year-round tax visibility that has traditionally required a professional engagement — and make strategic moves before the year is over.
           </p>
         </div>
       </section>

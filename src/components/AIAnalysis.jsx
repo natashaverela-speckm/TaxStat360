@@ -797,12 +797,24 @@ function RiskScan({ rec }) {
   if (_totRevForVehicle > 15000 && _mileageDeduction === 0 && _vehicleExpenses === 0 && dep === 0) {
     const _stdMileRate = getTable(year)?.mileageRate ?? (year >= 2025 ? 0.70 : 0.67)
     const _stdMileCents = (_stdMileRate * 100).toFixed(1).replace(/\.0$/, '')
+    // AUDIT H3 (Sep 2026): a tax year can carry MORE THAN ONE mileage rate. 2026 does
+    // — 72.5¢ from Jan 1 (Notice 2026-10), 76¢ from Jul 1 (Announcement 2026-11).
+    // Stating a single rate for a split year is wrong for half the year's miles, so
+    // render every period when the table defines them.
+    const _milePeriods = getTable(year)?.mileageRatePeriods
+    const _centsOf = (r) => (r * 100).toFixed(1).replace(/\.0$/, '')
+    const _mileRateSentence = Array.isArray(_milePeriods) && _milePeriods.length > 1
+      ? `The IRS standard mileage rate changed mid-year in ${year}: ${_milePeriods.map(p => `${_centsOf(p.rate)}¢ per business mile for ${p.label} (${p.cite})`).join(', and ')}. Split your log by date and apply each rate to the miles driven in that period.`
+      : `The IRS standard mileage rate for ${year} is ${_stdMileCents}¢ per business mile.`
+    const _mileRateShort = Array.isArray(_milePeriods) && _milePeriods.length > 1
+      ? _milePeriods.map(p => `${_centsOf(p.rate)}¢ for ${p.label}`).join(' / ')
+      : `${_stdMileCents}¢/mile for ${year}`
     findings.push({
       level: 'info',
       icon: '🚗',
       title: 'Vehicle / Mileage Deduction — Review Before Filing',
-      detail: `No vehicle or mileage deduction is recorded. If you drive for business purposes — client visits, supply runs, business banking, attending professional education, or travel between job sites — you may be entitled to a vehicle deduction. The IRS standard mileage rate for ${year} is ${_stdMileCents}¢ per business mile. Personal commuting (home ↔ regular office) is never deductible.`,
-      action: `Two methods to choose from (must select one method per vehicle and generally stick with it):\n\n① Standard Mileage Rate — multiply business miles by the IRS rate (${_stdMileCents}¢/mile for ${year}). Simple. Requires a mileage log.\n\n② Actual Expense Method — deduct actual costs (gas, insurance, registration, repairs, depreciation) × business-use percentage. Can yield a larger deduction for high-cost or high-depreciation vehicles.\n\nRequirements: maintain a contemporaneous mileage log showing date, destination, business purpose, and miles for each trip. Apps like MileIQ, Everlance, or a simple spreadsheet work. The IRS requires contemporaneous records — reconstructed logs are regularly disallowed on audit.`,
+      detail: `No vehicle or mileage deduction is recorded. If you drive for business purposes — client visits, supply runs, business banking, attending professional education, or travel between job sites — you may be entitled to a vehicle deduction. ${_mileRateSentence} Personal commuting (home ↔ regular office) is never deductible.`,
+      action: `Two methods to choose from (must select one method per vehicle and generally stick with it):\n\n① Standard Mileage Rate — multiply business miles by the IRS rate (${_mileRateShort}). Simple. Requires a mileage log.\n\n② Actual Expense Method — deduct actual costs (gas, insurance, registration, repairs, depreciation) × business-use percentage. Can yield a larger deduction for high-cost or high-depreciation vehicles.\n\nRequirements: maintain a contemporaneous mileage log showing date, destination, business purpose, and miles for each trip. Apps like MileIQ, Everlance, or a simple spreadsheet work. The IRS requires contemporaneous records — reconstructed logs are regularly disallowed on audit.`,
     })
   }
 
@@ -1051,10 +1063,18 @@ function TaxOptimization({ rec }) {
   }
 
   if (revenue > 30000 && dep === 0) {
+    const _s179 = getTable(year)?.sec179 || {}
+    const _fmtM = (n) => n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.?0+$/, '')}M` : fmt(n)
+    const _sec179Cap = _s179.cap ? _fmtM(_s179.cap) : 'the annual limit'
+    const _sec179PhaseOut = _s179.phaseOutStart ? _fmtM(_s179.phaseOutStart) : 'the phase-out threshold'
     opportunities.push({
       icon: '🏗️', title: '§179 Equipment Deduction', priority: 'medium',
       saving: null,
-      detail: '§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to $2.5M in 2025 under the One Big Beautiful Bill Act; phase-out begins above $4M of qualifying purchases). Bonus depreciation is 100% for property placed in service after January 19, 2025.',
+      // AUDIT H4 (Sep 2026): these figures were hardcoded to 2025 ($2.5M / $4M) and
+      // rendered even when the user had selected 2026 — while the ENGINE
+      // (calc179Limitation) was correctly using the 2026 table. The card and the
+      // math disagreed. Read the same year-keyed table the engine reads.
+      detail: `§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to ${_sec179Cap} for ${year} under the One Big Beautiful Bill Act; the deduction phases out dollar-for-dollar once qualifying purchases exceed ${_sec179PhaseOut}). Bonus depreciation is 100% for property placed in service after January 19, 2025.`,
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }

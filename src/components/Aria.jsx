@@ -74,8 +74,12 @@ const VERIFIED_FACT_GUARDS = [
     fact: '2026 (Rev. Proc. 2025-32): standard deduction $16,100 single/MFS, $32,200 MFJ, $24,150 HOH. MFJ brackets end at 24,800 (10%), 100,800 (12%), 211,400 (22%), 403,550 (24%), 512,450 (32%), 768,700 (35%), then 37%. Single brackets end at 12,400 / 50,400 / 105,700 / 201,775 / 256,225 / 640,600, then 37%.' },
   { rx: /social security|se tax|self.?employment tax|medicare/i,
     fact: '2026: Social Security wage base $184,500. SE tax 15.3% on 92.35% of net earnings up to the base, then 2.9% Medicare with no cap. Additional Medicare Tax 0.9% on wages plus SE earnings above $200,000 single / $250,000 MFJ / $125,000 MFS (statutory, not indexed).' },
+  // AUDIT H3 (Sep 2026): 2026 is a SPLIT-RATE year and this guard stated only the
+  // January figure, so Aria was a full quarter stale on the most common deduction
+  // question a business owner asks. Announcement 2026-11 modified Notice 2026-10 —
+  // the first midyear mileage adjustment since 2022.
   { rx: /mileage/i,
-    fact: '2026 IRS standard mileage rate (Notice 2026-10): 72.5 cents per business mile.' },
+    fact: '2026 IRS standard mileage rate — TWO rates apply this year. 72.5 cents per business mile for miles driven January 1 through June 30, 2026 (Notice 2026-10), and 76 cents per business mile from July 1 through December 31, 2026 (Announcement 2026-11, the first midyear adjustment since 2022). Business miles must be split by date and each period multiplied by its own rate. Personal commuting is never deductible, and a contemporaneous mileage log is required.' },
 ]
 
 function verifiedFactsFor(question) {
