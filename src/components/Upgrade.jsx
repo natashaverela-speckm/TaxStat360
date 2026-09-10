@@ -55,9 +55,27 @@ const FEATURES = [
   // ── Enterprise additions ──────────────────────────────────────────────────
   { label:'Multi-entity consolidated tax view',                         starter:false, professional:false, enterprise:true  },
   { label:'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)', starter:false, professional:false, enterprise:true  },
-  { label:'Risk Tolerance Profiling',                                   starter:false, professional:false, enterprise:true  },
-  { label:'CPA Collaboration Portal',                                   starter:false, professional:false, enterprise:true  },
-  { label:'Dedicated onboarding & setup call',                          starter:false, professional:false, enterprise:true  },
+  // ── AUDIT H10 (second launch audit, Sep 2026): THREE FEATURES THAT DO NOT EXIST ──
+  //
+  // Removed from this table:
+  //     Risk Tolerance Profiling
+  //     CPA Collaboration Portal
+  //     Dedicated onboarding & setup call
+  //
+  // A full-repo search found each of those strings in this file and NOWHERE else — no
+  // component, no route, no gate, no handler, no backend call — and none of them appeared
+  // on the Landing pricing card or its comparison table either, despite the comment at
+  // the top of this file claiming the two mirror each other exactly.
+  //
+  // This is the identical defect constants.js already records and fixed once: "'multi-user'
+  // was advertised HERE and nowhere else in the product... A $299/mo customer who
+  // subscribed for team access had a clean refund claim." FTC Act §5 substantiation
+  // requires a reasonable basis to exist BEFORE the claim is made, and these were being
+  // made to someone looking at a $299/mo price.
+  //
+  // ⚠ If any of these ships one day, it goes back in the SAME commit as its
+  // implementation and its Landing-page row — never ahead of them. There is now a CI
+  // guard asserting this table is a subset of the Landing comparison table.
 ]
 
 function LOGO() {
@@ -80,7 +98,6 @@ export default function Upgrade() {
   const [success, setSuccess] = useState(false)
   const [showCard, setShowCard] = useState(false)
   // FIX (FTC): cancel confirmation state
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   const stripeRef = useRef(null)
   const cardRef = useRef(null)
@@ -231,33 +248,30 @@ export default function Upgrade() {
               >
                 Manage Billing →
               </button>
-              {/* FIX (FTC): Cancel Plan button — prominent, no extra friction, direct path.
-                  FTC requires cancellation be as simple as sign-up. One click here opens
-                  Stripe's cancel flow in the billing portal. */}
-              {!showCancelConfirm ? (
-                <button
-                  onClick={() => setShowCancelConfirm(true)}
-                  style={{padding:'9px 18px',background:'#FEF2F2',color:'#DC2626',border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
-                >
-                  Cancel Plan
-                </button>
-              ) : (
-                <div style={{display:'flex',alignItems:'center',gap:8,background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:8,padding:'6px 12px'}}>
-                  <span style={{fontSize:13,color:'#DC2626',fontWeight:500}}>Are you sure?</span>
-                  <button
-                    onClick={handleManageSubscription}
-                    style={{padding:'5px 12px',background:'#DC2626',color:'#fff',border:'none',borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer'}}
-                  >
-                    Yes, cancel
-                  </button>
-                  <button
-                    onClick={() => setShowCancelConfirm(false)}
-                    style={{padding:'5px 10px',background:'transparent',color:SL,border:'none',borderRadius:6,fontWeight:600,fontSize:12,cursor:'pointer'}}
-                  >
-                    Keep plan
-                  </button>
-                </div>
-              )}
+              {/* ── AUDIT H9 (second launch audit, Sep 2026): RETENTION INTERSTITIAL REMOVED ──
+                  This used to set showCancelConfirm and render "Are you sure?" with a
+                  "Keep plan" button standing between the user and cancellation. Whatever
+                  it was called internally, a button placed there to talk someone out of
+                  leaving is a retention prompt.
+
+                  It falsified two shipped promises:
+                    Terms.jsx §4  — cancel "without being routed through a retention offer"
+                    Settings.jsx  — "with no phone call and no retention offer"
+                  and ran against Cal. Bus. & Prof. Code §17602(c) (steps that obstruct or
+                  delay cancellation) and ROSCA 15 U.S.C. §8403(3).
+
+                  The H9 guard written in an earlier audit bans exactly this pattern —
+                  including the literal "are you sure" — but was scoped to Settings.jsx.
+                  Same product, same action, same Stripe portal, different file. The guard
+                  now runs over both.
+
+                  Cancel Plan goes straight to the billing portal, matching Settings. */}
+              <button
+                onClick={handleManageSubscription}
+                style={{padding:'9px 18px',background:'#FEF2F2',color:'#DC2626',border:'1.5px solid #FCA5A5',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}
+              >
+                Cancel Plan
+              </button>
             </div>
           </div>
         )}

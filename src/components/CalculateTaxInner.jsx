@@ -2459,10 +2459,36 @@ export default function CalculateTaxInner() {
     })
   }, [persistEntitiesWorkingCopy])
 
+  // ── AUDIT H7 (second launch audit, Sep 2026): REMOVING THE LAST ENTITY DID NOTHING ──
+  //
+  // This used to be a bare setEntities(...filter...) with no storage write, relying on
+  // the persist effect further down to catch the change. That effect is guarded on
+  // `entities.length > 0`, so removing the LAST entity was the one case it never caught.
+  //
+  // The guard is correct and must stay: `entities` starts as [] and hydrates from
+  // storage in a mount effect, so an unguarded persist would fire with [] on first
+  // render and wipe the stored entities BEFORE hydration — a far worse bug than this
+  // one. The fix belongs here, at the point where the removal is actually known.
+  //
+  // What the user saw: they confirm a modal reading "This will remove the entity and all
+  // its data from Step 1. This cannot be undone", the card disappears, and the screen
+  // says "Add an entity to continue" — while Step 2 still taxes the entity's K-1, AI
+  // Analysis still analyses it, and returning to the Tax Tracker brings it back. The
+  // device-local draft held it too, so it survived a browser restart. It self-healed
+  // only if the user happened to add another entity.
+  //
+  // persistStep1() is deliberately not reused here: it closes over the PREVIOUS
+  // `entities` value, which is exactly the stale array we are removing from.
   const removeEntity = useCallback((idx) => {
-    setEntities(prev => prev.filter((_, i) => i !== idx))
+    const next = entities.filter((_, i) => i !== idx)
+    setEntities(next)
+    persistCanonicalStep1(next)
+    writeTaxYear(taxYear)
+    // Mirror the removal into the device-local draft as well, or the entity returns
+    // after a browser restart even though session storage is correct.
+    writeStep1Draft(next, taxYear)
     setExpandedIdx(null)
-  }, [])
+  }, [entities, taxYear, persistCanonicalStep1])
 
   const handleIntegrationDisconnect = useCallback((pid) => {
     // OBS-2 (Batch 6, Jul 2026) / audit P0-#1: there is no longer a token in either
