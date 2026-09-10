@@ -207,6 +207,75 @@ describe('B7 — no IRS notice-response drafting is advertised', () => {
   })
 })
 
+// ─── C2 — THE PRODUCT MUST NOT WRITE TO THE IRS ──────────────────────────────
+// The B7 guard above pinned one SPELLING of the claim ("notice response"). The
+// shipped feature said "IRS Response Templates" and generated three letters that
+// opened "Dear IRS Representative," and closed "Respectfully submitted," — so the
+// guard passed while the Terms' statement that TaxStat360 "does not draft
+// correspondence to the IRS" was false. These guards match the CLAIM.
+describe('C2 — no shipped feature drafts correspondence to the IRS', () => {
+  const BANNED = [
+    /Dear IRS/i,
+    /IRS Response Template/i,
+    /Respectfully submitted/i,
+    /before (sending|submitting) to the IRS/i,
+    /responds to your inquiry/i,
+    /addresses your inquiry/i,
+    /audit[-\s]?response letter/i,
+  ]
+  for (const rx of BANNED) {
+    it(`no shipped copy matches ${rx}`, () => {
+      expect(offenders(rx)).toEqual([])
+    })
+  }
+
+  it('the feature is framed as a worksheet, not as correspondence', () => {
+    const ai = stripComments(read(join(SRC, 'components/AIAnalysis.jsx')))
+    expect(ai).toMatch(/Position Substantiation Worksheet/)
+    expect(ai).toMatch(/Do not send it to the IRS/)
+    expect(ai).toMatch(/31 C\.F\.R\. §10\.3 holding a valid Form 2848/)
+    expect(ai).not.toMatch(/View Templates/)
+  })
+
+  it('its limiting notice cannot be dismissed', () => {
+    // A disclosure the reader can permanently switch off does not cure a heading
+    // they cannot (FTC net impression; Removatron, 884 F.2d 1489).
+    const ai = stripComments(read(join(SRC, 'components/AIAnalysis.jsx')))
+    const start = ai.indexOf('function NarrativeModal')
+    const modal = ai.slice(start, ai.indexOf('function ', start + 20))
+    expect(start).toBeGreaterThan(-1)
+    expect(modal).not.toMatch(/DismissibleNotice/)
+    expect(modal).toMatch(/Do not send it to the IRS/)
+  })
+
+  it('the worksheet is keyed to the user record rather than static text', () => {
+    // The old letters asserted facts the software cannot know ("The taxpayer
+    // performed more than 750 hours"). They were static because this modal was the
+    // only one on the screen that never received `rec`. The content generator now
+    // lives in lib/positionWorksheets.js so it can be unit-tested on its own; the
+    // component's job is only to pass the record in.
+    const ai = stripComments(read(join(SRC, 'components/AIAnalysis.jsx')))
+    expect(ai).toMatch(/function NarrativeModal\(\{ rec, onClose \}\)/)
+    expect(ai).toMatch(/<NarrativeModal rec=\{rec\}/)
+    expect(ai).toMatch(/buildPositionWorksheets\(rec\)/)
+    const lib = stripComments(read(join(SRC, 'lib/positionWorksheets.js')))
+    expect(lib).toMatch(/export function buildPositionWorksheets\(rec\)/)
+  })
+
+  it('no tax year is hardcoded into the worksheet text', () => {
+    // The letters were pinned to "tax year 2025" while the app had moved to 2026.
+    const lib = stripComments(read(join(SRC, 'lib/positionWorksheets.js')))
+    expect(lib).not.toMatch(/tax year 20\d\d/i)
+    expect(lib).toMatch(/const year = parseInt\(b\.year\)/)
+  })
+
+  it('the Terms statement it used to falsify is now true, and still shipped', () => {
+    const termsSrc = stripComments(read(join(SRC, 'components/Terms.jsx')))
+    expect(termsSrc).toMatch(/does not draft correspondence to the IRS/)
+    expect(POSITION_DOCS_LIMIT_NOTE).toMatch(/does not draft correspondence to the IRS/)
+  })
+})
+
 describe('B2 — the product estimates liability; it does not prepare returns', () => {
   // Treas. Reg. §301.7216-1(b)(2)(i)(B). The footer disclaimer's "not a tax
   // preparation or filing service" is contradicted by a feature named "Personal
