@@ -104,3 +104,108 @@ describe('MoneyInput — live formatting', () => {
     expect(getByLabelText('money').value).toBe('0')
   })
 })
+
+// ─── AUDIT H4 (second launch audit, Sep 2026) — THE DECIMAL POINT WAS EATEN ───
+// handleChange stripped with /[^0-9]/g, which removed the '.' along with the '$'
+// and the commas, then re-formatted the surviving digits as a whole number. Any
+// pasted figure carrying cents was silently multiplied by 100, with no validation
+// and no correction at blur. The trigger is completely ordinary — copy-pasting
+// gross receipts out of QuickBooks, Xero or Excel, all of which include cents.
+//
+// The first block is the defect itself. The rest fence the new behaviour so the
+// whole-dollar display contract and the caret handling are not collateral damage.
+describe('H4 — pasted cents are no longer multiplied by 100', () => {
+  const cases = [
+    ['$1,234,567.89', '1,234,567.89', '1234567.89', '1,234,568'],
+    ['487,334.57',    '487,334.57',   '487334.57',  '487,335'],
+    ['7,642.48',      '7,642.48',     '7642.48',    '7,642'],
+    ['1234.50',       '1,234.50',     '1234.50',    '1,235'],
+  ]
+  for (const [pasted, display, rawEmitted, afterBlur] of cases) {
+    it(`paste "${pasted}" → ${display}, blurs to ${afterBlur}`, async () => {
+      const { getByLabelText, getByTestId } = render(<Harness />)
+      const input = getByLabelText('money')
+      act(() => type(input, pasted))
+      await settle()
+      expect(input.value).toBe(display)
+      expect(getByTestId('raw-money').textContent).toBe(rawEmitted)
+      // Blur rounds to whole dollars, the way parseMoney() does.
+      act(() => { fireEvent.blur(input) })
+      await settle()
+      expect(input.value).toBe(afterBlur)
+    })
+  }
+
+  it('the specific figure that surfaced this is no longer 48,733,457', async () => {
+    const { getByLabelText } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '487,334.57'))
+    await settle()
+    expect(input.value).not.toBe('48,733,457')
+  })
+})
+
+describe('H4 — typing cents behaves', () => {
+  it('accepts a decimal point mid-entry and keeps it', async () => {
+    const { getByLabelText, getByTestId } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '1500.'))
+    await settle()
+    expect(input.value).toBe('1,500.')
+    act(() => type(input, '1500.7'))
+    await settle()
+    expect(input.value).toBe('1,500.7')
+    expect(getByTestId('raw-money').textContent).toBe('1500.7')
+  })
+
+  it('caps cents at two places', async () => {
+    const { getByLabelText, getByTestId } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '99.98765'))
+    await settle()
+    expect(input.value).toBe('99.98')
+    expect(getByTestId('raw-money').textContent).toBe('99.98')
+  })
+
+  it('keeps only the first decimal point', async () => {
+    const { getByLabelText } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '1.2.3'))
+    await settle()
+    expect(input.value).toBe('1.23')
+  })
+
+  it('handles a negative with cents', async () => {
+    const { getByLabelText, getByTestId } = render(<Harness label="neg" />)
+    const input = getByLabelText('neg')
+    act(() => type(input, '-8,000.49'))
+    await settle()
+    expect(getByTestId('raw-neg').textContent).toBe('-8000.49')
+    act(() => { fireEvent.blur(input) })
+    await settle()
+    expect(input.value).toBe('-8,000')
+  })
+
+  it('a lone decimal point clears at blur instead of erroring', async () => {
+    const { getByLabelText, getByTestId } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '.'))
+    await settle()
+    act(() => { fireEvent.blur(input) })
+    await settle()
+    expect(input.value).toBe('')
+    expect(getByTestId('raw-money').textContent).toBe('')
+  })
+
+  it('whole-dollar entry is completely unchanged', async () => {
+    const { getByLabelText, getByTestId } = render(<Harness />)
+    const input = getByLabelText('money')
+    act(() => type(input, '250000'))
+    await settle()
+    expect(input.value).toBe('250,000')
+    expect(getByTestId('raw-money').textContent).toBe('250000')
+    act(() => { fireEvent.blur(input) })
+    await settle()
+    expect(input.value).toBe('250,000')
+  })
+})

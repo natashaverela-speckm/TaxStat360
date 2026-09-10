@@ -191,7 +191,20 @@ function RequireAuth({ children }) {
       if (active) setVerifyState({ email: s.email || email, verified: !!s.verified })
     })
     return () => { active = false }
-  }, [sessionOk])
+    // AUDIT H8 (second launch audit, Sep 2026): `serverAuth` was missing here, and the
+    // effect reads it on its first line. serverAuth starts at 'pending' and only becomes
+    // 'ok' once /auth/me resolves; sessionOk is a stable `true` for a signed-in user. So
+    // this ran exactly once — on mount, while serverAuth was still 'pending' — took the
+    // early return, and never ran again. fetchVerificationStatus was therefore never
+    // called for anyone, verifyState kept its initial { email: '', verified: true }, and
+    // EmailVerificationBanner bailed at its own `if (!email) return null`.
+    //
+    // The visible consequence: after signup a user saw the one-time "check your inbox"
+    // copy on /verify-email and then no verification prompt anywhere in the app, ever.
+    // The banner's "Resend" and "Update it" actions were unreachable, so anyone who
+    // typo'd their email at signup had no in-app way to correct it. The sibling effect
+    // above lists serverAuth correctly, and eslint had been warning about this one.
+  }, [sessionOk, serverAuth])
 
   useEffect(() => {
     if (!sessionOk) return

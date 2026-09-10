@@ -17,7 +17,10 @@
 //     requestAnimationFrame, so editing mid-number never teleports the cursor
 //     (the bug class that got the original M8 attempt parked).
 //   • onChange always receives the RAW string (digits, optional leading
-//     minus) — never commas — so nf()/parseFloat consumers are unaffected.
+//     minus, optional decimal point and up to two cents) — never commas — so
+//     nf()/parseFloat consumers are unaffected.
+//   • Cents may be TYPED or PASTED (audit H4) and are rounded to whole dollars
+//     at blur, matching parseMoney(). Display stays whole-dollar throughout.
 //   • allowNegative (default true) permits a leading minus; false strips it
 //     (the Step-1 audit-F9 semantics for fields where negatives are invalid).
 //   • Blur normalizes the display and emits the canonical numeric string.
@@ -59,15 +62,46 @@ export default function MoneyInput({
     const prevVal = input.value
     const prevCommasBefore = (prevVal.slice(0, cursorPos).match(/,/g) || []).length
 
+    // ── AUDIT H4 (second launch audit, Sep 2026): THE DECIMAL POINT WAS BEING EATEN ──
+    //
+    // This used to strip with /[^0-9]/g, which removed the '.' along with the '$' and
+    // the commas, and then re-formatted the surviving digits as a whole number. Pasting
+    // a figure with cents therefore multiplied it by 100, silently:
+    //
+    //     "$1,234,567.89"  ->  123,456,789
+    //     "487,334.57"     ->   48,733,457
+    //     "7,642.48"       ->      764,248
+    //
+    // There was no validation and no correction at blur, so the user's entire tax
+    // estimate was built on a 100x revenue figure with nothing on screen to suggest it.
+    // The trigger is completely ordinary: copy-pasting gross receipts or expenses out of
+    // QuickBooks, Xero or Excel, all of which carry cents by default. parseMoney() has
+    // always handled decimals correctly — the corruption happened entirely in here.
+    //
+    // Now: one decimal point survives while typing, cents are capped at two places, and
+    // blur rounds to whole dollars (below) the same way parseMoney() does. The display
+    // contract is unchanged — money renders in whole dollars — and onChange still emits a
+    // raw, comma-free string, now possibly carrying a fractional part that nf() parses
+    // and parseMoney() rounds.
     const allowNeg = !nonNegative && allowNegative !== false
-    const stripped = allowNeg
-      ? input.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, '')
-      : input.value.replace(/[^0-9]/g, '')
-    const isNeg = stripped.startsWith('-')
-    const digits = stripped.replace(/^-/, '')
-    const n = parseInt(digits, 10)
-    const formatted = stripped === '' ? '' : stripped === '-' ? '-' :
-      (isNeg ? '-' : '') + (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : digits)
+    let cleaned = input.value.replace(allowNeg ? /[^0-9.-]/g : /[^0-9.]/g, '')
+    if (allowNeg) cleaned = cleaned.replace(/(?!^)-/g, '')
+    // Keep only the FIRST decimal point — "1.2.3" is a typo, not two numbers.
+    const dot = cleaned.indexOf('.')
+    if (dot !== -1) cleaned = cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '')
+    const isNeg = cleaned.startsWith('-')
+    const body = cleaned.replace(/^-/, '')
+    const dotAt = body.indexOf('.')
+    const intPart = dotAt === -1 ? body : body.slice(0, dotAt)
+    // undefined means "no decimal point typed"; '' means "typed a dot, no cents yet".
+    const decPart = dotAt === -1 ? undefined : body.slice(dotAt + 1, dotAt + 3)
+    const stripped = (isNeg ? '-' : '') + intPart + (decPart === undefined ? '' : '.' + decPart)
+    const n = parseInt(intPart, 10)
+    const groupedInt = intPart === ''
+      ? ''
+      : (Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : intPart)
+    const formatted = cleaned === '' ? '' : cleaned === '-' ? '-' :
+      (isNeg ? '-' : '') + groupedInt + (decPart === undefined ? '' : '.' + decPart)
 
     setRaw(formatted)
     onChange(stripped)
@@ -88,11 +122,15 @@ export default function MoneyInput({
     let n = parseFloat(String(raw).replace(/,/g, ''))
     if (!Number.isFinite(n) && raw === '' && coerceEmptyBlurToZero) n = 0
     if (Number.isFinite(n)) {
-      const safeN = nonNegative ? Math.max(0, n) : n
+      // AUDIT H4: round to whole dollars here rather than only in the display. Before
+      // this, a value entered with cents showed as "1,235" while onChange had emitted
+      // "1234.57" — the field and its own value disagreed. parseMoney() rounds the same
+      // way, so this is the canonical figure, not a new convention.
+      const safeN = Math.round(nonNegative ? Math.max(0, n) : n)
       setRaw(safeN.toLocaleString('en-US', { maximumFractionDigits: 0 }))
       onChange(String(safeN))
       if (onError) onError('')
-    } else if (raw === '-' || raw === '') {
+    } else if (raw === '-' || raw === '' || raw === '.') {
       setRaw('')
       onChange('')
     } else {

@@ -83,7 +83,7 @@ import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING
 import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
-import { readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
+import { claimSessionForUser, readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
 import { isValidSession } from '../utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
@@ -323,6 +323,9 @@ const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',b
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
 if(data.access_token)writeToken(data.access_token)
+// AUDIT H3: a brand-new account must not inherit whatever the previous user left in
+// this tab's session store. Same reasoning as finishLogin below.
+claimSessionForUser(email)
 writeEmail(email)
 removeEmailVerified()
 writeLoggedIn('1')
@@ -768,6 +771,13 @@ function trustThisDevice(emailAddr) {
 }
 
 async function finishLogin(data,actualEmail){
+// AUDIT H3 (Sep 2026): claim this tab's session working set for the account signing in.
+// sessionStorage carries the personal 1040 profile, the entity P&L and the EIN, and
+// CalculateTaxInner rehydrates from it on mount without checking whose it is. signOut()
+// now clears it, but a tab restored by the browser — or a laptop closed rather than
+// signed out of — never goes through signOut. If the working set belongs to someone
+// else, it is wiped here before a single field of it can be read.
+claimSessionForUser(actualEmail)
 if(data.access_token) writeToken(data.access_token)
 writeEmail(actualEmail)
 writeLoggedIn('1')
