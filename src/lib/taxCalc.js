@@ -2042,7 +2042,9 @@ function calcTaxReturn(input) {
   const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
   const ctcReduction         = Math.ceil(ctcExcess / CTC_PHASEOUT_STEP) * CTC_PHASEOUT_REDUCTION_PER_STEP
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
-  const childCredit          = Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
+  // AUDIT H1 (second launch audit, Sep 2026): childCredit is computed BELOW calcAMT now —
+  // its ceiling depends on `amt`, which did not exist yet at this point in the file. See
+  // the note at its new home just after the calcAMT call.
   // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the comment above ("AMT: §68 is
   // disregarded for AMTI ... calcAMT below receives the pre-limitation figure") describes the
   // correct rule (IRC §56(b)(1)(F): "Section 68 shall not apply") but the code passed
@@ -2066,6 +2068,39 @@ function calcTaxReturn(input) {
     regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
   })
+  // ── AUDIT H1 (second launch audit, Sep 2026): THE CTC CEILING WAS THE WRONG TAX ──
+  //
+  // This read:
+  //     Math.min(ctcRaw, Math.max(0, fedTax + additionalMedicare + niitAmount))
+  //
+  // Two errors, running in OPPOSITE directions, so they do not reliably cancel:
+  //
+  //  1. NIIT and Additional Medicare Tax were IN the ceiling. IRC §26(a)(1) limits the
+  //     nonrefundable personal credits to "regular tax liability", and §26(b)(1) defines
+  //     that as the tax imposed by CHAPTER 1. §1411 NIIT is chapter 2A; §1401(b)(2) and
+  //     §3101(b)(2) Additional Medicare Tax are chapters 2 and 21. None of them is
+  //     regular tax liability, so none of them may be offset by the child tax credit.
+  //     Including them UNDERSTATES tax.
+  //
+  //  2. AMT was OUT of it. §26(a)(2) expressly adds "the tax imposed by section 55(a)"
+  //     to the ceiling. Omitting it OVERSTATES tax for anyone in AMT.
+  //
+  // This is exactly Schedule 8812's Credit Limit Worksheet A, which starts from Form 1040
+  // line 18 — line 16 (regular tax) plus Schedule 2 PART I (AMT and excess APTC) — and
+  // deliberately excludes Schedule 2 Part II, where NIIT (line 12), Additional Medicare
+  // Tax (line 11) and SE tax (line 4) live.
+  //
+  // Demonstrated on the shipped engine. MFJ, TY2026, two dependents, $300,000 of interest
+  // income, $288,000 itemized (so AGI 300,000, taxable 12,000):
+  //     fedTax 1,200 · amt 0 · niit 1,900 · additionalMedicare 0 · ctcRaw 4,400
+  //     before: ceiling 3,100 -> childCredit 3,100 -> totalTax        0
+  //     after : ceiling 1,200 -> childCredit 1,200 -> totalTax    1,900
+  // The entire NIIT was being wiped out by the child tax credit. ACTC is 0 on both
+  // treatments here (no earned income), so nothing offsets the understatement, and
+  // `balance`, `quarterlyRecommended` and the §6654 safe harbour all inherited it.
+  //
+  // seTax was correctly absent before and stays absent — chapter 2, same reasoning.
+  const childCredit   = Math.min(ctcRaw, Math.max(0, fedTax + amt))
   const totalTax      = Math.max(0, fedTax + seTax + additionalMedicare + niitAmount + amt - childCredit)
   // Ratio of total tax to *earned* income (W-2 + positive pass-through). Named
   // distinctly from the canonical effectiveRate() display util (which divides by AGI)
