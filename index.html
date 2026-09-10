@@ -20,15 +20,50 @@
     <!-- Meta (Facebook) domain verification -->
     <meta name="facebook-domain-verification" content="3gj2ohbly09khyqohas08sb07l4yw6" />
 
-    <!-- Meta Pixel Code (consent-gated — audit: was firing unconditionally, which
-         contradicted the Privacy Policy and ignored the cookie banner's choice).
-         Facebook's script is NOT loaded and NO event fires until the visitor accepts
-         cookies. __ts360LoadPixel runs here only if consent was granted on a prior
-         visit; the cookie banner's Accept handler (App.jsx) calls it on first grant.
-         Choosing "Essential only" never loads it. -->
+    <!-- Meta Pixel Code — TWO independent gates. Both must pass.
+         ============================================================
+         GATE 1 (consent): Facebook's script is NOT loaded and NO event fires
+         until the visitor clicks Accept on the cookie banner. __ts360LoadPixel
+         runs at page load only if consent was granted on a prior visit; the
+         banner's Accept handler (App.jsx) calls it on first grant. Choosing
+         "Essential only" never loads it.
+
+         GATE 2 (route allowlist) — AUDIT B6, Sep 2026:
+         The Privacy Policy represents that the pixel "never runs inside the
+         signed-in application." Gate 1 alone did not make that true: once a
+         visitor accepted cookies, the pixel followed them into the app, onto
+         /signup, and onto /terms and /privacy. /signup collects FULL NAME and
+         EMAIL, and Meta's Automatic Advanced Matching scrapes form fields,
+         hashes them, and transmits them WITHOUT any developer code — the exact
+         2023 H&R Block / TaxAct / TaxSlayer fact pattern that produced §7216
+         criminal referrals.
+
+         __ts360PixelAllowed is an ALLOWLIST: a new route is excluded by default
+         and must be added deliberately. It is duplicated (small, deliberate) from
+         src/lib/complianceCopy.js — isPixelAllowedPath() — because this script
+         runs before the bundle loads. src/pixelConsent.test.js pins the two
+         copies together; if you change one, change both.
+
+         Also: fbq('set','autoConfig',false,PIXEL_ID) is issued BEFORE init. That
+         disables Meta's automatic configuration for this pixel, which is what
+         turns off Automatic Advanced Matching and automatic button/form event
+         collection client-side. Belt and braces — ALSO turn Advanced Matching
+         off in Events Manager; this flag alone is not a substitute. -->
     <script>
+      window.__ts360PixelAllowed = function (pathname) {
+        var ALLOW = ['/', '/about', '/how-it-works', '/features', '/pricing', '/faq', '/contact', '/resources'];
+        var PREFIX = ['/resources/'];
+        var p = String(pathname == null ? '' : pathname).replace(/\/+$/, '') || '/';
+        if (ALLOW.indexOf(p) !== -1) return true;
+        for (var i = 0; i < PREFIX.length; i++) { if (p.indexOf(PREFIX[i]) === 0) return true; }
+        return false;
+      };
       window.__ts360LoadPixel = function () {
         if (window.__ts360PixelLoaded) return;
+        // GATE 2: never load outside the public marketing pages.
+        try {
+          if (!window.__ts360PixelAllowed(window.location.pathname)) return;
+        } catch (e) { return; }
         window.__ts360PixelLoaded = true;
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -38,6 +73,7 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('set', 'autoConfig', false, '1318925679665526');
         fbq('init', '1318925679665526');
         fbq('track', 'PageView');
       };

@@ -61,7 +61,7 @@ customHeaders:
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
-          script-src 'self' 'sha256-JDkn9a3LuxhlkDKGUUjQEh+1Lr1h4eNAZJnyw9ARJmU=' https://js.stripe.com https://connect.facebook.net;
+          script-src 'self' 'sha256-+Ls5J8NpLnwIUxzK4UCD1XQL3KuCQA5AeIFOO5iGoLk=' https://js.stripe.com https://connect.facebook.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' https://fonts.gstatic.com;
           img-src 'self' data: https: blob:;
