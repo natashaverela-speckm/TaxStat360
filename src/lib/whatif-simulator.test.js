@@ -7,9 +7,15 @@
 
 import { describe, it, expect } from 'vitest'
 import { computeSimulatorScenario, buildSimulatorBase } from './aiAnalysisTaxMath.js'
-import { calcTaxReturn } from './taxCalc.js'
+import { calcTaxReturn, calcEmployerFICA } from './taxCalc.js'
 import { CURRENT_TAX_YEAR } from './constants.js'
 
+// AUDIT H1 (Sep 2026): the S-Corp's EMPLOYER-side FICA on officer salary (IRC §3111)
+// is a deductible expense of the entity and was subtracted nowhere — the simulator
+// mirrored the Tax Tracker's bug, so a "what if I change my salary" scenario understated
+// the true cost of every extra dollar of salary. These expectations are CORRECTED, not
+// loosened: netBizIncome is now $4,590 lower on the $60,000 baseline salary. Derived
+// rather than hardcoded so the figure follows the year's Social Security wage base.
 const ctx = {
   base: {
     grossRevenue: 300000, cogs: 40000, operatingExpenses: 60000,
@@ -22,9 +28,17 @@ const ctx = {
   taxYear: CURRENT_TAX_YEAR,
 }
 
+// Employer FICA on the baseline officer salary, from the same helper the app uses.
+const EMPLOYER_FICA = calcEmployerFICA(ctx.base.officerSalary, CURRENT_TAX_YEAR)
+// Net business income after the H1 correction. Was 125000.
+const BASE_NET_BIZ = 125000 - EMPLOYER_FICA
+
 function directEngine(overrides = {}) {
   const b = { ...ctx.base, ...overrides }
-  const netBiz = b.grossRevenue - b.cogs - b.operatingExpenses - b.officerSalary - b.depreciation - b.advertising - b.otherDeductions
+  // The invariant is "the simulator IS the engine", so this hand-built comparison must
+  // deduct employer FICA exactly as computeSimulatorScenario now does.
+  const empFICA = calcEmployerFICA(b.officerSalary, ctx.taxYear)
+  const netBiz = b.grossRevenue - b.cogs - b.operatingExpenses - b.officerSalary - empFICA - b.depreciation - b.advertising - b.otherDeductions
   const k1 = Math.round(netBiz * ctx.ownerPctVal)
   return calcTaxReturn({
     taxYear: ctx.taxYear, status: ctx.filing, dependents: 0,
@@ -56,15 +70,15 @@ describe('computeSimulatorScenario — the simulator IS the engine', () => {
     const sim = computeSimulatorScenario(ctx, { advertising: 30000 })
     const eng = directEngine({ advertising: ctx.base.advertising + 30000 })
     expect(sim.totalTax).toBe(eng.totalTax)
-    expect(sim.netBizIncome).toBe(125000 - 30000)
+    expect(sim.netBizIncome).toBe(BASE_NET_BIZ - 30000)
   })
 
   it('CHAR: baseline is no longer $0 — the SIM-1 failure mode is gone', () => {
     const sim = computeSimulatorScenario(ctx, {})
     expect(sim.totalTax).toBeGreaterThan(0)
     expect(Number.isFinite(sim.k1)).toBe(true)
-    expect(sim.netBizIncome).toBe(125000)
-    expect(sim.k1).toBe(125000)
+    expect(sim.netBizIncome).toBe(BASE_NET_BIZ)
+    expect(sim.k1).toBe(BASE_NET_BIZ)
   })
 
   it('CHAR: a deductible-expense increase reduces total tax (savings direction)', () => {
@@ -81,7 +95,69 @@ describe('computeSimulatorScenario — the simulator IS the engine', () => {
 
   it('CHAR: 50% ownership halves the K-1 share before the engine runs', () => {
     const sim = computeSimulatorScenario({ ...ctx, ownerPctVal: 0.5 }, {})
-    expect(sim.k1).toBe(Math.round(125000 * 0.5))
+    expect(sim.k1).toBe(Math.round(BASE_NET_BIZ * 0.5))
+  })
+
+  // ── AUDIT H1 ───────────────────────────────────────────────────────────────
+  it('H1: employer-side FICA is deducted from S-Corp net business income', () => {
+    const sim = computeSimulatorScenario(ctx, {})
+    expect(sim.employerPayrollTax).toBe(EMPLOYER_FICA)
+    expect(sim.employerPayrollTax).toBeGreaterThan(0)
+    // 6.2% SS (under the wage base at $60K) + 1.45% Medicare = 7.65% of salary.
+    expect(sim.employerPayrollTax).toBe(Math.round(ctx.base.officerSalary * 0.0765))
+    expect(sim.netBizIncome).toBe(125000 - sim.employerPayrollTax)
+  })
+
+  it('H1: raising officer salary raises the payroll tax that comes out of K-1', () => {
+    const base = computeSimulatorScenario(ctx, {})
+    const more = computeSimulatorScenario(ctx, { officerSalary: 40000 })   // $60K -> $100K
+    expect(more.employerPayrollTax).toBeGreaterThan(base.employerPayrollTax)
+    expect(more.employerPayrollTax).toBe(calcEmployerFICA(100000, CURRENT_TAX_YEAR))
+    // Each extra dollar of salary costs the entity the dollar AND its employer FICA.
+    expect(base.netBizIncome - more.netBizIncome)
+      .toBe(40000 + (more.employerPayrollTax - base.employerPayrollTax))
+  })
+
+  it('H1: the Social Security half stops at the wage base; Medicare does not', () => {
+    const { ssWageBase } = { ssWageBase: 184500 }   // 2026, Rev. Proc. / SSA
+    const atBase  = calcEmployerFICA(ssWageBase, 2026)
+    const overBy  = calcEmployerFICA(ssWageBase + 50000, 2026)
+    // Above the base only the 1.45% Medicare side keeps accruing.
+    expect(overBy - atBase).toBe(Math.round(50000 * 0.0145))
+  })
+
+  it('H1: a sole proprietor has no officer salary and no employer FICA', () => {
+    const sp = computeSimulatorScenario({ ...ctx, entityType: 'Sole Proprietor / SMLLC' }, {})
+    expect(sp.employerPayrollTax).toBe(0)
+  })
+
+  // The pre-launch audit's Scenario B, re-run end to end. Every figure below was
+  // computed BY HAND from Rev. Proc. 2025-32 and the 2026 Form 1040-ES before being
+  // compared to the engine, and the engine matched to the dollar. Before H1 this same
+  // scenario produced $61,134 — $1,071 too much, exactly 35% (the marginal rate) of
+  // the $3,060 of employer FICA that was never deducted.
+  it('H1 SPEC: audit Scenario B — S-Corp $500K receipts / $200K opex / $40K salary, single, 2026', () => {
+    const sim = computeSimulatorScenario({
+      base: {
+        grossRevenue: 500000, cogs: 0, operatingExpenses: 200000, officerSalary: 40000,
+        depreciation: 0, advertising: 0, otherDeductions: 0, w2Income: 0, estPaid: 0,
+      },
+      entityType: 'S Corp', ownerPctVal: 1, filing: 'single', taxYear: 2026,
+    }, {})
+
+    expect(sim.employerPayrollTax).toBe(3060)      // 7.65% of $40,000, under the wage base
+    expect(sim.netBizIncome).toBe(256940)          // 500,000 - 200,000 - 40,000 - 3,060
+    expect(sim.k1).toBe(256940)
+    expect(sim.w2).toBe(40000)
+    expect(sim.agi).toBe(296940)
+    // Taxable income before QBI ($280,840) exceeds the 2026 single phase-in top
+    // ($276,750), so §199A(b)(2)(B) applies in full: 50% of W-2 wages = $20,000,
+    // which is less than 20% of QBI ($51,388).
+    expect(sim.qbi).toBe(20000)
+    expect(sim.taxableInc).toBe(260840)
+    // $260,840 lands in the 35% bracket (starts $256,225): 58,448 + 35% x 4,615.
+    expect(sim.fedTax).toBe(60063)
+    expect(sim.totalTax).toBe(60063)               // no SE tax on S-Corp K-1
   })
 
   it('CHAR: display fields the modal renders are all present and finite', () => {

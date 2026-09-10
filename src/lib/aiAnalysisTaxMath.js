@@ -11,6 +11,7 @@ import {
   calcQBI,
   calcTaxReturn,
   calcCCorpCorporateLayer,
+  calcEmployerFICA,   // AUDIT H1 (Sep 2026)
   getStdDed,
   getNIITThreshold,
   getAddlMedicareThreshold,
@@ -18,7 +19,7 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, getEntityK1Share } from '../utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
 import {
   CURRENT_TAX_YEAR,
@@ -189,11 +190,20 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
   const adv   = v('advertising')
   const other = v('otherDeductions')
   const w2Own = v('w2Income')
-  const netBizIncome = rev - cogs - opex - sal - dep - adv - other
   const ownerPctVal  = Number.isFinite(ctx.ownerPctVal) ? ctx.ownerPctVal : 1
   const taxYear      = parseInt(ctx.taxYear) || CURRENT_TAX_YEAR
   const status       = ctx.filing || 'single'
   const isCC         = isCCorpEntity(ctx.entityType)
+
+  // AUDIT H1 (Sep 2026): the simulator mirrored the Tax Tracker's P&L — and mirrored
+  // its bug. Employer-side FICA on officer salary (IRC §3111) is a deductible expense
+  // of the S-Corp and was subtracted nowhere, so a "what if I change my salary"
+  // scenario understated the true cost of every extra dollar of salary. The C-Corp
+  // branch below is unaffected: calcCCorpCorporateLayer already deducts employerFICA
+  // at the corporate layer, and adding it here as well would double-count.
+  const employerPayrollTax = (!isCC && isSCorpEntity(ctx.entityType)) ? calcEmployerFICA(sal, taxYear) : 0
+
+  const netBizIncome = rev - cogs - opex - sal - employerPayrollTax - dep - adv - other
   const k1           = isCC ? 0 : Math.round(netBizIncome * ownerPctVal)
 
   // Mirrors Dashboard.calcDashboard's baseInput shape (zeros for fields the
@@ -219,11 +229,11 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
   validateCalcInputs(engineInput, 'WhatIfSimulator')
 
   if (isCC) {
-    const layer = calcCCorpCorporateLayer({ netProfit: netBizIncome + sal, officerSalary: sal, taxYear })
+    const layer = calcCCorpCorporateLayer({ netProfit: netBizIncome + sal, officerSalary: sal, taxYear })  // employerPayrollTax is 0 on this branch by construction
     const r = calcTaxReturn({ ...engineInput, divInc: layer.dividends, qualDiv: layer.dividends })
     const totalTax = r.totalTax + layer.corpTax
     return {
-      rev, opex, sal, dep, adv, other, netBizIncome, k1: 0,
+      rev, opex, sal, dep, adv, other, netBizIncome, k1: 0, employerPayrollTax,
       w2: engineInput.w2, qbi: 0, agi: r.agi, seTax: 0,
       taxableInc: r.taxableAfterQBI, fedTax: r.fedTax + layer.corpTax,
       totalTax, quarterly: r.quarterlyRecommended,
@@ -232,7 +242,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
 
   const r = calcTaxReturn(engineInput)
   return {
-    rev, opex, sal, dep, adv, other, netBizIncome, k1,
+    rev, opex, sal, dep, adv, other, netBizIncome, k1, employerPayrollTax,
     w2: engineInput.w2, qbi: r.qbi, agi: r.agi, seTax: r.seTax,
     taxableInc: r.taxableAfterQBI, fedTax: r.fedTax,
     totalTax: r.totalTax, quarterly: r.quarterlyRecommended,
@@ -293,11 +303,31 @@ export function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
 // (explicit e.k1, else owner-share of net profit via the shared helper); the
 // aggregate is clamped to ≥ 0 by selfEmployedRetirementBase, so losses in one
 // entity correctly offset SE income in another rather than being floored per row.
+/**
+ * AUDIT H5 (Sep 2026): types for which a §1402(a)(13) limited-partner election can
+ * even exist. Partnerships and multi-member LLCs only — never a sole proprietor or
+ * single-member LLC, whose net earnings are SE income by definition, and never a
+ * corporation. Written as an explicit sole-prop exclusion because the canonical label
+ * for a sole prop ends in "Single-Member LLC", which any bare /llc/ test will match.
+ */
+export function isLimitedPartnerEligibleType(t) {
+  const type = t || ''
+  if (isScheduleCType(type)) return false
+  if (isSCorpEntity(type) || isCCorpEntity(type) || isRealEstateEntity(type)) return false
+  return /partner|mmllc|multi.?member/i.test(type)
+}
+
 export function seEligibleK1FromEntities(entities) {
   return (Array.isArray(entities) ? entities : []).reduce((sum, e) => {
     if (!e) return sum
     if (isSCorpEntity(e.type) || isCCorpEntity(e.type) || isRealEstateEntity(e.type)) return sum
-    if (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) return sum  // §1402(a)(13)
+    // AUDIT H5 (Sep 2026): this was /partner|mmllc|llc/i — and the bare `llc`
+    // alternative also matches the CANONICAL sole-proprietor label,
+    // 'Sole Proprietor / Single-Member LLC'. A sole prop carrying a stray
+    // limitedPartner flag therefore had its entire Schedule C profit dropped from
+    // the retirement base, silently. §1402(a)(13) is a PARTNERSHIP provision; it has
+    // no application to a sole proprietor, whose net earnings are always SE income.
+    if (e.limitedPartner && isLimitedPartnerEligibleType(e.type)) return sum  // §1402(a)(13)
     // FINDING-2 FIX (independent audit, Aug 2026): use the shared getEntityK1Share()
     // resolver so a k1DirectMode entity's already-allocated Box 1 isn't re-scaled by
     // Ownership % a second time here — this SEP-IRA/Solo-401(k) base calc was a
@@ -312,7 +342,7 @@ export function seEligibleK1FromEntities(entities) {
  *  silently dropping the card. */
 export function hasLimitedPartnerInterest(entities) {
   return (Array.isArray(entities) ? entities : []).some(e =>
-    e && e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
+    e && e.limitedPartner && isLimitedPartnerEligibleType(e.type) && !isSCorpEntity(e.type))
 }
 
 /**
@@ -330,17 +360,50 @@ export function hasLimitedPartnerInterest(entities) {
  * @param {number}  p.year                tax year (selects §415(c) limits)
  */
 export function computeRetirementContributionRoom({ isSCorpOwner, totalOfficerSalary, seEligibleK1, seTax, year }) {
-  const sepBase = isSCorpOwner
-    ? totalOfficerSalary
-    : selfEmployedRetirementBase(seEligibleK1, year, seTax)
-  const sepRate = isSCorpOwner ? SEP_IRA_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
+  // AUDIT H5 (Sep 2026): this branched EITHER/OR on isSCorpOwner, and the caller set
+  // isSCorpOwner true if ANY entity was an S-Corp. An owner with an S-Corp AND a
+  // Schedule C therefore had 100% of the Schedule C's self-employment earnings dropped
+  // from the base — silently. In the audit's own scenario a $300,000 sole proprietor
+  // was told the allowable contribution was $0, roughly $56,000 of deduction and about
+  // $19,600 of tax, reported as nothing.
+  //
+  // Both bases are real and they coexist: the S-Corp side is 25% of W-2 officer
+  // compensation (IRC §415(c)(3) compensation), the self-employed side is the effective
+  // 20% of net earnings after the ½-SE-tax reduction. Compute each, then sum.
+  const sCorpBase = isSCorpOwner ? Math.max(0, nf(totalOfficerSalary)) : 0
+  const seBase    = selfEmployedRetirementBase(seEligibleK1, year, seTax)
+
+  const sCorpEmployer = Math.round(sCorpBase * SEP_IRA_RATE)
+  const seEmployer    = Math.round(seBase * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)
+
   const sepIraMax = getTable(year).retirement.sepIraMax
-  const maxSEP = Math.min(sepIraMax, Math.round(sepBase * sepRate))
+  // §415(c) is applied ONCE here rather than per source. Separate plans for genuinely
+  // unrelated employers can allow more, but §414(b)/(c)/(m) controlled-group and
+  // affiliated-service-group aggregation frequently collapses them back to one limit —
+  // a facts-and-circumstances question this tool cannot resolve. Capping at a single
+  // limit is the conservative direction, and hasBothBases below tells the UI to say so.
+  const maxSEP = Math.min(sepIraMax, sCorpEmployer + seEmployer)
+
   const solo401kDeferral = getTable(year).retirement.solo401kDeferral
   const solo401kMax = getTable(year)?.retirement?.solo401kMax ?? sepIraMax
-  const maxSolo401kEmployer = Math.round(sepBase * (isSCorpOwner ? SOLO_401K_EMPLOYER_RATE : SEP_IRA_SOLE_PROP_EFFECTIVE_RATE))
+  const maxSolo401kEmployer = Math.round(sCorpBase * SOLO_401K_EMPLOYER_RATE)
+                            + Math.round(seBase * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE)
   const maxSolo401k = Math.min(solo401kMax, maxSolo401kEmployer + solo401kDeferral)
-  return { sepBase, sepRate, sepIraMax, maxSEP, solo401kDeferral, solo401kMax, maxSolo401kEmployer, maxSolo401k }
+
+  // sepBase/sepRate are retained for callers that display them. With a single source the
+  // rate is the exact statutory constant; only a genuinely mixed base yields a blend, and
+  // deriving it from rounded dollar amounts there is fine because it is display-only.
+  const sepBase = sCorpBase + seBase
+  const sepRate = seBase <= 0 ? SEP_IRA_RATE
+    : sCorpBase <= 0 ? SEP_IRA_SOLE_PROP_EFFECTIVE_RATE
+    : (sCorpEmployer + seEmployer) / sepBase
+  const hasBothBases = sCorpBase > 0 && seBase > 0
+
+  return {
+    sepBase, sepRate, sepIraMax, maxSEP, solo401kDeferral, solo401kMax,
+    maxSolo401kEmployer, maxSolo401k,
+    sCorpBase, seBase, sCorpEmployer, seEmployer, hasBothBases,
+  }
 }
 
 

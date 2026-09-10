@@ -15,6 +15,7 @@ import {
   seEligibleK1FromEntities,
   hasLimitedPartnerInterest,
   computeRetirementContributionRoom,
+  isLimitedPartnerEligibleType,   // AUDIT H5
 } from './aiAnalysisTaxMath.js'
 
 describe('selfEmployedRetirementBase (§164(f) net-of-half-SE-tax base)', () => {
@@ -110,5 +111,111 @@ describe('computeRetirementContributionRoom', () => {
     })
     expect(r.maxSEP).toBe(70000)                 // min(70000, 250000)
     expect(r.maxSolo401k).toBe(70000)            // min(solo401kMax 70000, 250000+23500)
+  })
+})
+
+// ─── AUDIT H5 (Sep 2026) ─────────────────────────────────────────────────────
+// The Tax Savings card told a $300,000 sole proprietor their allowable retirement
+// contribution was $0 — roughly $56,000 of deduction and about $19,600 of tax,
+// reported as nothing. Three separate defects, each pinned below.
+describe('AUDIT H5 — retirement contribution base', () => {
+  const YEAR = 2026
+
+  it('H5-a: an S-Corp owner who ALSO has a Schedule C keeps both bases', () => {
+    // The caller sets isSCorpOwner true if ANY entity is an S-Corp, and the old
+    // either/or branch then discarded 100% of the self-employment earnings.
+    const both = computeRetirementContributionRoom({
+      isSCorpOwner: true,
+      totalOfficerSalary: 80000,
+      seEligibleK1: 100000,
+      seTax: 0,
+      year: YEAR,
+    })
+    expect(both.hasBothBases).toBe(true)
+    expect(both.sCorpBase).toBe(80000)
+    expect(both.seBase).toBeGreaterThan(0)
+    // 25% of officer salary, plus the effective 20% of net SE earnings.
+    expect(both.sCorpEmployer).toBe(20000)
+    expect(both.seEmployer).toBeGreaterThan(0)
+    expect(both.maxSEP).toBe(both.sCorpEmployer + both.seEmployer)
+
+    // The Schedule C side must actually add room, not be silently dropped.
+    const sCorpOnly = computeRetirementContributionRoom({
+      isSCorpOwner: true, totalOfficerSalary: 80000, seEligibleK1: 0, seTax: 0, year: YEAR,
+    })
+    expect(both.maxSEP).toBeGreaterThan(sCorpOnly.maxSEP)
+  })
+
+  it('H5-b: the audit scenario — a $300K sole proprietor is not told $0', () => {
+    // Net earnings base = 300,000 - half of SE tax; ~20% of that is the SEP room.
+    const r = computeRetirementContributionRoom({
+      isSCorpOwner: false,
+      totalOfficerSalary: 0,
+      seEligibleK1: 300000,
+      seTax: 30912,          // 2026 SE tax on $300K net profit (SS capped at the wage base)
+      year: YEAR,
+    })
+    expect(r.maxSEP).toBeGreaterThan(50000)
+    expect(r.seBase).toBeCloseTo(300000 - 30912 / 2, 0)
+    expect(r.sepRate).toBeCloseTo(0.20, 10)   // exact constant, not a blend
+    expect(r.sCorpBase).toBe(0)
+    expect(r.hasBothBases).toBe(false)
+  })
+
+  it('H5-c: §415(c) still caps the combined figure', () => {
+    const r = computeRetirementContributionRoom({
+      isSCorpOwner: true,
+      totalOfficerSalary: 400000,
+      seEligibleK1: 400000,
+      seTax: 0,
+      year: YEAR,
+    })
+    expect(r.maxSEP).toBe(r.sepIraMax)
+    expect(r.maxSolo401k).toBeLessThanOrEqual(r.solo401kMax)
+  })
+
+  it('H5-d: a single-source base still reports the exact statutory rate', () => {
+    const sc = computeRetirementContributionRoom({
+      isSCorpOwner: true, totalOfficerSalary: 120000, seEligibleK1: 0, seTax: 0, year: YEAR,
+    })
+    expect(sc.sepRate).toBe(0.25)
+    expect(sc.maxSEP).toBe(30000)
+  })
+})
+
+describe('AUDIT H5 — limited-partner exclusion must not catch sole proprietors', () => {
+  it('the canonical sole-prop label is not treated as a limited partnership', () => {
+    // 'Sole Proprietor / Single-Member LLC' contains "LLC", and the old test was
+    // /partner|mmllc|llc/i — so a sole prop with a stray limitedPartner flag had its
+    // entire Schedule C profit dropped from the retirement base. §1402(a)(13) is a
+    // partnership provision and has no application to a sole proprietor.
+    expect(isLimitedPartnerEligibleType('Sole Proprietor / Single-Member LLC')).toBe(false)
+    expect(isLimitedPartnerEligibleType('Sole Proprietor / SMLLC')).toBe(false)
+    expect(isLimitedPartnerEligibleType('SMLLC')).toBe(false)
+  })
+
+  it('genuine partnership types still qualify', () => {
+    expect(isLimitedPartnerEligibleType('Partnership / LLC')).toBe(true)
+    expect(isLimitedPartnerEligibleType('Partnership / MMLLC — Passive')).toBe(true)
+  })
+
+  it('corporations and rentals never qualify', () => {
+    expect(isLimitedPartnerEligibleType('S Corp')).toBe(false)
+    expect(isLimitedPartnerEligibleType('C Corp')).toBe(false)
+    expect(isLimitedPartnerEligibleType('Real Estate (Schedule E)')).toBe(false)
+  })
+
+  it('a flagged sole prop keeps its SE-eligible profit', () => {
+    const kept = seEligibleK1FromEntities([
+      { type: 'Sole Proprietor / Single-Member LLC', limitedPartner: true, k1: 300000, own: 100 },
+    ])
+    expect(kept).toBe(300000)
+  })
+
+  it('a genuine limited partner is still excluded under §1402(a)(13)', () => {
+    const dropped = seEligibleK1FromEntities([
+      { type: 'Partnership / LLC', limitedPartner: true, k1: 300000, own: 100 },
+    ])
+    expect(dropped).toBe(0)
   })
 })

@@ -2210,6 +2210,35 @@ function calcFICAOnWages(salary, taxYear) {
   return Math.round(ssBoth + medBoth)
 }
 
+/**
+ * EMPLOYER-side payroll tax on a W-2 salary — IRC §3111(a) 6.2% Social Security up to
+ * the year's wage base, plus §3111(b) 1.45% Medicare with no cap.
+ *
+ * AUDIT H1 (Sep 2026). This is a deductible expense OF THE ENTITY, and the S-Corp path
+ * never subtracted it: K-1 ordinary business income was computed as
+ * `receipts − opex − depreciation − officerSalary − advertising − other`, with no
+ * employer payroll tax anywhere. On a $120,000 officer salary that overstated K-1
+ * income by $9,180 and, at a 32% marginal rate, overstated tax by roughly $2,900.
+ *
+ * The arithmetic already existed — calcCCorpCorporateLayer had it inline for the
+ * C-Corp layer — so the C-Corp path was right and the S-Corp path was wrong for the
+ * same salary. Extracted here so there is ONE definition and the two can no longer
+ * disagree.
+ *
+ * NOTE this is the EMPLOYER half only. calcFICAOnWages() above returns BOTH halves and
+ * is used for the S-Corp-vs-sole-prop savings comparison; do not substitute one for the
+ * other. The employee half is withheld from the salary and is not an entity expense.
+ *
+ * @param {number} salary   W-2 wages subject to FICA.
+ * @param {number} taxYear  Selects the year's Social Security wage base.
+ * @returns {number}        Rounded employer-side FICA.
+ */
+export function calcEmployerFICA(salary, taxYear) {
+  const ssWageBase = getTable(taxYear).ssWageBase
+  const s = Math.max(0, nf(salary))
+  return Math.round(Math.min(s, ssWageBase) * FICA_SS_RATE + s * FICA_MEDICARE_RATE)
+}
+
 // ── C-Corporation corporate layer (shared single source of truth) ────────────────────
 // The entity-level computation, used by BOTH the standalone estimate (calcCCorpReturn)
 // and the multi-entity Tax Tracker, where a C-Corp composes with other entities. Returns
@@ -2225,8 +2254,7 @@ function calcFICAOnWages(salary, taxYear) {
 // @param {number} [input.taxYear]        Tax year (selects the SS wage base).
 // @returns {{ officerSalary, employerFICA, profitBeforeTax, corpTax, dividends }}
 function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
-  const ssWageBase = getTable(taxYear).ssWageBase
-  const np         = Math.max(0, Math.round(nf(netProfit)))
+  const np = Math.max(0, Math.round(nf(netProfit)))
 
   // Default salary mirrors the comparison engine; always capped at available profit.
   const defaultSalary = Math.round(np * DEFAULT_OFFICER_SALARY_FRACTION)
@@ -2234,9 +2262,9 @@ function calcCCorpCorporateLayer({ netProfit, officerSalary, taxYear } = {}) {
 
   // Employer-side payroll tax (deductible to the corporation): 6.2% SS up to the wage
   // base + 1.45% Medicare (no cap).
-  const employerFICA = Math.round(
-    Math.min(salary, ssWageBase) * FICA_SS_RATE + salary * FICA_MEDICARE_RATE
-  )
+  // AUDIT H1 (Sep 2026): was inline here; extracted to calcEmployerFICA() so the S-Corp
+  // path uses the identical arithmetic. Behavior unchanged — same formula, same rounding.
+  const employerFICA = calcEmployerFICA(salary, taxYear)
   const profitBeforeTax = Math.max(0, np - salary - employerFICA)
   const corpTax         = Math.round(profitBeforeTax * C_CORP_TAX_RATE)
   const dividends       = Math.max(0, profitBeforeTax - corpTax)
