@@ -720,6 +720,26 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
   const scaledQbiComponent = adjQBI * QBI_DEDUCTION_RATE
   const activeQbiForFloor  = activeQbi !== undefined ? activeQbi : adjQBI
+  // AUDIT C1 (Sep 2026): once the SSTB exclusion has consumed the whole base there is no
+  // qualified business income left, and that is a different statement from "the 20% cap
+  // is what binds." §199A(d)(3) says a phased-out SSTB is not a qualified trade or
+  // business at all. The distinction is user-facing: Aria renders limitApplied 'qbi' as
+  // "the full 20% of qualified business income (no limit binds)", which would be an
+  // absurd thing to tell someone whose deduction is zero. 'none' renders as "not
+  // applicable (no qualifying business income)", which is correct.
+  //
+  // Before C1 this case never reached here — calcTaxReturn pre-scaled the basis, so
+  // qbiIncome arrived as 0 and the guard at the top of this function caught it. Now that
+  // the base arrives unscaled (which is what makes the arithmetic right), the same
+  // condition has to be recognised after the haircut instead of before it.
+  if (adjQBI <= 0) {
+    return _applyMinQBI(
+      withMeta({ deduction: 0, limitApplied: 'none', caps: { qbi: 0, wage: null, income: 0 } }),
+      activeQbiForFloor,
+      taxYear,
+      taxableBeforeQBI
+    )
+  }
   const totalWages = entityQbiData.reduce((s, e) => {
     const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
@@ -1723,8 +1743,52 @@ function calcTaxReturn(input) {
     // instructions, 2021-present); only the separately-stated §179 nets out
     // (Treas. Reg. §1.199A-3(b)(1)(ii)(A)).
     const k1      = k1Gross - nf(e.box11_12)
-    const scale   = e.box17V_sstb ? sstbApplicablePct : 1
-    return sum + k1 * scale
+    // AUDIT C1 (second launch audit, Sep 2026) — THE SSTB HAIRCUT WAS APPLIED TWICE.
+    //
+    // This line used to be `return sum + k1 * (e.box17V_sstb ? sstbApplicablePct : 1)`.
+    // The scaled total flowed into qbiBasis and qbiBasis was handed to calcQBI — which
+    // then computed the SSTB reduction AGAIN, from the GROSS K-1 share (see _calcQBI's
+    // `sstbEntityQBI` / `adjQBI`). Subtracting the same haircut twice drove the
+    // deduction to zero, and where other businesses were present it consumed their QBI
+    // too before clamping at zero.
+    //
+    // Demonstrated on the shipped engine, both comparisons at an identical
+    // taxable-income-before-QBI:
+    //   • Single, one SSTB S-Corp (K-1 255,350 / wages 200,000, mid phase-in):
+    //     deduction 0 where it should be 25,535 — tax overstated by $8,171.
+    //   • MFJ, a fully-phased-out SSTB (K-1 400,000) alongside an UNRELATED non-SSTB
+    //     S-Corp (K-1 200,000 / wages 150,000): deduction 0 where it should be 40,000 —
+    //     tax overstated by $14,000. qbiBasis was 200,000 of purely non-SSTB income and
+    //     400,000 of gross SSTB K-1 was subtracted from it. Removing the legitimate
+    //     entity from the return RAISED the deduction, which is the tell.
+    //
+    // Only the non-SE path was affected: a Schedule C SSTB reaches the basis through
+    // seK1AfterAdjustments, which never carried this scale, so sole props were always
+    // single-counted. That asymmetry is why the defect survived — and it is why the fix
+    // is to remove the scale HERE rather than to change _calcQBI, which is correct for
+    // an unscaled base (pinned by taxCalc.test.js:241-280).
+    //
+    // ⚠ Do NOT re-add a scale to this reduce. The applicable-percentage reduction of
+    // QBI, W-2 wages and UBIA is applied ONCE, inside _calcQBI, per Treas. Reg.
+    // §1.199A-1(d)(2)(ii)-(iii). The two places that legitimately need the post-haircut
+    // figure — the QBI loss carryforward and the §199A(i) floor gate — get it from
+    // sstbNonSEQbiReduction below.
+    //
+    // Unscaling also corrects scheduleEK1Income (line ~2068), which reports Schedule E
+    // K-1 income for display: that figure is not reduced because a business is an SSTB.
+    return sum + k1
+  }, 0)
+  // The amount the line above used to remove. Kept as its own quantity so the two
+  // consumers that genuinely need a post-SSTB figure can subtract it explicitly,
+  // instead of every consumer silently inheriting a haircut it may not want.
+  // Mirrors the same entity filter as nonSEk1.
+  const sstbNonSEQbiReduction = entitiesLimited.reduce((sum, e) => {
+    if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
+    if (isRealEstateEntity(e?.type)) return sum
+    if (isCCorpEntity(e?.type)) return sum
+    if (!e.box17V_sstb) return sum
+    const k1 = getEntityK1Share(e) - nf(e.box11_12)
+    return sum + k1 * (1 - sstbApplicablePct)
   }, 0)
   // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. Section 1.199A-3(b)(1)(vi)
   // (and the Form 8995/8995-A instructions) require QBI to be reduced by the deductible
@@ -1890,7 +1954,14 @@ function calcTaxReturn(input) {
   const qbiWageDataMissing       = _qbiResult.wageDataMissing || false
   const qbiAggregationApplied    = _qbiResult.aggregationApplied
   const qbiAggregationDisclosure = _qbiResult.aggregationDisclosure
-  const qbiCarryforward          = qbiBasis < 0 ? Math.abs(qbiBasis) : 0
+  // AUDIT C1: the carryforward is one of the two consumers that legitimately wants the
+  // POST-SSTB figure. §199A(d)(3) excludes a phased-out SSTB from being qualified income
+  // at all, so a fully-phased-out SSTB loss must not carry forward as a QBI loss; a
+  // partially-phased-out one carries forward only its applicable-percentage share. Before
+  // C1 that came for free because qbiBasis was pre-scaled — which was also the bug. Now
+  // it is stated explicitly.
+  const qbiBasisAfterSstb        = qbiBasis - sstbNonSEQbiReduction
+  const qbiCarryforward          = qbiBasisAfterSstb < 0 ? Math.abs(qbiBasisAfterSstb) : 0
   // F-9 HOTFIX (post-deploy regression, Jul 2026): totalPrefIncome carves preferential
   // income out of the ordinary base. It was still built from the RAW qualDiv input, so
   // §1368(c)(2) E&P dividends were taxed at ordinary rates AND again at 15% by
