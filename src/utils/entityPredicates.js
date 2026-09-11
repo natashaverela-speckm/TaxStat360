@@ -242,7 +242,7 @@ export function getEntityK1Share(e) {
 export function ownPct(v) {
   const n = parseFloat(v)
   return Number.isFinite(n) ? n : 100
-
+}
 
 /**
  * The owner's share of a C-Corp corporate layer.
