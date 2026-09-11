@@ -713,6 +713,129 @@ describe('B4 — the expense-ratio finding cites published law, not audit select
   })
 })
 
+// ─── M5 / M6 / M10 / M12 (second launch audit, Sep 2026) ─────────────────────
+// One root cause behind all four: a single promise hand-written in three or four
+// places, with at least one copy false. These guards are therefore written against
+// the PROMISE — no surface may state it in its own words — rather than against the
+// particular wrong wording each finding happened to catch.
+
+describe('M6 — cancellation is described by the path that exists', () => {
+  it('the §17602 renewal disclosure names the real route', async () => {
+    const { renewalDisclosure } = await import('./lib/constants.js')
+    const { CANCEL_PATH } = await import('./lib/complianceCopy.js')
+    const sentence = renewalDisclosure('professional', 'monthly')
+    expect(sentence).toContain(CANCEL_PATH)
+    // The wrong path sat inside the affirmative-consent disclosure, where an
+    // inaccurate route is a defective disclosure rather than a typo.
+    expect(sentence).not.toMatch(/Settings\s*→\s*Billing/)
+  })
+
+  it('no shipped copy names a Settings sub-page that does not exist', () => {
+    // Settings renders exactly one relevant heading ("Subscription") and one control
+    // under it ("Cancel subscription"). Anything else is drift.
+    expect(offenders(/Settings\s*(?:→|&rarr;)\s*Billing\b/)).toEqual([])
+  })
+
+  it('the heading and control the path names are really there', () => {
+    // If someone renames the UI, this fails before the copy silently goes stale.
+    const settings = stripComments(read(join(SRC, 'components/Settings.jsx')))
+    expect(settings).toMatch(/>Subscription</)
+    expect(settings).toMatch(/Cancel subscription/)
+  })
+})
+
+describe('M5 — account deletion is described the same way everywhere', () => {
+  it('Terms and the delete dialog render the one statement', async () => {
+    const { ACCOUNT_DELETION_STATEMENT } = await import('./lib/complianceCopy.js')
+    expect(ACCOUNT_DELETION_STATEMENT.length).toBeGreaterThan(80)
+    for (const f of ['components/Terms.jsx', 'components/Settings.jsx']) {
+      // Assert it is RENDERED, not merely imported: matching the file anywhere would
+      // still pass if someone kept the import and stopped using it.
+      const code = stripComments(read(join(SRC, f)))
+        .split('\n').filter((l) => !/^\s*import\b/.test(l)).join('\n')
+      expect(code, `${f} must render the statement, not just import it`)
+        .toMatch(/\{ACCOUNT_DELETION_STATEMENT\}/)
+    }
+  })
+
+  it('nothing promises a recovery window', () => {
+    // Terms said "after the 30-day period we cannot recover it", which tells the reader
+    // it CAN be recovered before then — a promise that may not be keepable, and the
+    // direct opposite of the dialog's "cannot be undone".
+    expect(offenders(/after the 30-day period we cannot recover/i)).toEqual([])
+    expect(offenders(/retained for 30 days before permanent deletion/i)).toEqual([])
+  })
+
+  it('the two other deletion clocks are untouched — they are different things', () => {
+    // Privacy §5: how fast an EMAILED deletion request is processed.
+    expect(stripComments(read(join(SRC, 'components/Privacy.jsx'))))
+      .toMatch(/process deletion requests within 30 days/)
+    // Settings: the CCPA §1798.130(a)(2) statutory window to RESPOND to a request.
+    expect(stripComments(read(join(SRC, 'components/Settings.jsx'))))
+      .toMatch(/respond within 45 days/)
+  })
+})
+
+describe('M10 — the trial disclosure is never hand-written', () => {
+  it('no component writes its own "no charge" line', () => {
+    // Article.jsx hand-wrote "No charge for 7 days · Cancel anytime", dropping "Card
+    // required" — the one element the FTC negative-option rule and Cal. B&P §17602(a)
+    // require before the click — from a page that is an ad-landing surface.
+    const hits = []
+    for (const f of files) {
+      if (rel(f) === SOURCE_OF_TRUTH || rel(f) === 'lib/constants.js') continue
+      const code = stripComments(read(f))
+      // A literal trial line in JSX text, rather than the imported constant.
+      if (/No charge (?:for|during)[^{<]*?(?:·|&middot;)/.test(code)) hits.push(rel(f))
+    }
+    expect(hits, 'hardcoded trial disclosure copy').toEqual([])
+  })
+
+  it('every surface that shows the trial line imports it', async () => {
+    const { CTA_COPY_SHORT } = await import('./lib/constants.js')
+    expect(CTA_COPY_SHORT).toContain('Card required')
+    for (const f of ['components/Article.jsx', 'components/Landing.jsx',
+                     'components/About.jsx', 'components/ResourcesHub.jsx']) {
+      expect(stripComments(read(join(SRC, f))), `${f} must use the constant`)
+        .toMatch(/CTA_COPY_SHORT/)
+    }
+  })
+
+  it('the card-required element cannot be softened away', () => {
+    expect(offenders(/card for verification only/i)).toEqual([])
+  })
+})
+
+describe('M12 — one encryption claim, and it is the one that is true', () => {
+  it('"bank-level" appears nowhere in shipped copy', () => {
+    // In re Zoom Video Communications (FTC 2020): "bank-level" claims that outran the
+    // implementation were charged as deceptive. The first audit removed it from Landing
+    // and pinned only that string, so it survived in the Privacy Policy.
+    expect(offenders(/bank[- ]level/i)).toEqual([])
+  })
+
+  it('no surface claims TLS 1.3 specifically', () => {
+    // "TLS 1.2+" is true whether the negotiated minimum is 1.2 or 1.3; a bare "TLS 1.3"
+    // is false the moment a 1.2 connection is accepted, which is the CloudFront default.
+    expect(offenders(/TLS\s*1\.3/)).toEqual([])
+  })
+
+  it('Privacy renders the shared statement', async () => {
+    const { ENCRYPTION_STATEMENT } = await import('./lib/complianceCopy.js')
+    expect(ENCRYPTION_STATEMENT).toContain('TLS 1.2+')
+    expect(ENCRYPTION_STATEMENT).toContain('AES-256')
+    expect(stripComments(read(join(SRC, 'components/Privacy.jsx')))).toMatch(/ENCRYPTION_STATEMENT/)
+  })
+
+  it('the Landing FAQ and the JSON-LD still agree with it', () => {
+    // These two were already correct; the guard keeps all three in step.
+    const landing = stripComments(read(join(SRC, 'components/Landing.jsx')))
+    expect(landing).toMatch(/AES-256 at rest and TLS 1\.2\+ in transit/)
+    expect(readFileSync(join(SRC, '..', 'index.html'), 'utf8'))
+      .toMatch(/AES-256 at rest and TLS 1\.2\+ in transit/)
+  })
+})
+
 // ─── H9 / H10 / H11 (second launch audit, Sep 2026) ──────────────────────────
 // Every one of these is a claim an earlier guard already banned — in a file or a
 // spelling the guard did not reach. That is the recurring failure mode in this
