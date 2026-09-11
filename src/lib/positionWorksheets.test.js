@@ -161,3 +161,31 @@ describe('C2 — the substance is right', () => {
     }
   })
 })
+
+// FRESH-EYES F-11 / F-12 (11 Sep 2026)
+describe('F-11 — a $0 officer salary is reported as $0, not masked by a legacy field', () => {
+  it('SPEC: S-Corp entities at $0 salary produce compRatio 0%, even if biz.officerSalary is set', () => {
+    const rec = {
+      biz: { officerSalary: 80000 },   // legacy single-business field, stale
+      entities: [{ name: 'Zero Co', type: 'S Corporation', pnl: { officerSalary: 0, netProfit: 200000, grossRevenue: 300000, totalExpenses: 100000 } }],
+      f1040: {},
+    }
+    const comp = buildPositionWorksheets(rec).find(x => /Reasonable Compensation/.test(x.title))
+    expect(comp.text).not.toContain('$80,000')
+    expect(comp.text).toMatch(/\$0\b/)
+  })
+  it('legacy record with NO entities still falls back to biz.officerSalary', () => {
+    const comp = buildPositionWorksheets({ biz: { officerSalary: 80000, netProfit: 100000, entityType: 'S Corporation' }, f1040: {} })
+      .find(x => /Reasonable Compensation/.test(x.title))
+    expect(comp.text).toContain('$80,000')
+  })
+})
+
+describe('F-12 — the REP worksheet states the per-spouse rule', () => {
+  it('SPEC: §469(c)(7)(B) flush language — one spouse must satisfy both tests alone', () => {
+    const rep = buildPositionWorksheets(REC).find(x => /Real Estate Professional/.test(x.title))
+    expect(rep.text).toMatch(/ONE spouse must satisfy BOTH tests/i)
+    expect(rep.text).toMatch(/cannot be\s+combined between spouses/i)
+    expect(rep.text).toMatch(/§469\(h\)\(5\)/)
+  })
+})

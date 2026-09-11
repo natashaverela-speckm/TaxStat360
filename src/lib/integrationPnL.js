@@ -96,6 +96,15 @@ export function interpretProviderPnL({ ok, status, body, provider, taxYear }) {
       message: `${label} returned a P&L that could not be read for ${taxYear}. Your figures were left unchanged. Try Sync now, or enter figures manually.`,
     }
   }
+  // FRESH-EYES F-4 (11 Sep 2026): net_profit is OPTIONAL (derived below when absent)
+  // but if it IS present it must be a real number. A numeric string such as "60000"
+  // used to pass straight through to the entity as a string.
+  if (d.net_profit != null && !isNum(d.net_profit)) {
+    return {
+      kind: 'error',
+      message: `${label} returned a net profit that could not be read for ${taxYear}. Your figures were left unchanged. Try Sync now, or enter figures manually.`,
+    }
+  }
 
   // 3. A genuinely empty year.
   if (d.revenue === 0 && d.expenses === 0 && (d.net_profit === 0 || d.net_profit == null)) {
@@ -134,7 +143,14 @@ export function interpretProviderPnL({ ok, status, body, provider, taxYear }) {
     pnl: {
       grossRevenue: revenue,
       totalExpenses: expenses,
-      netProfit: d.net_profit,
+      // FRESH-EYES F-4 (11 Sep 2026): this read `netProfit: d.net_profit`. reportedNet
+      // above already falls back to revenue − expenses when the provider omits the
+      // field — and was then discarded, so a provider that returned {revenue, expenses}
+      // passed every check, raised no warning, and handed netProfit: undefined to the
+      // caller with a fresh syncedAt. That is the exact defect this module was written
+      // to stop. The test named "derives net_profit when the provider omits it" never
+      // asserted the field.
+      netProfit: reportedNet,
       officerSalary: nf(d.officer_salary),
       // AUDIT H1 NOTE (Sep 2026): the synced path deliberately does NOT add
       // employerPayrollTax. net_profit comes straight from the accounting system,

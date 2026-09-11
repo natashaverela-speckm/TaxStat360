@@ -134,8 +134,8 @@ describe('C1 — the defect cannot be reintroduced silently', () => {
 
   it('the post-SSTB figure is computed once, separately, and used only where it belongs', () => {
     const s = src()
-    expect(s).toMatch(/const sstbNonSEQbiReduction = entitiesLimited\.reduce/)
-    expect(s).toMatch(/const qbiBasisAfterSstb\s+= qbiBasis - sstbNonSEQbiReduction/)
+    expect(s).toMatch(/const sstbQbiReduction = entitiesLimited\.reduce/)  // F-5: renamed, now covers SE entities too
+    expect(s).toMatch(/const qbiBasisAfterSstb\s+= qbiBasis - sstbQbiReduction/)
     expect(s).toMatch(/qbiCarryforward\s+= qbiBasisAfterSstb < 0/)
     // The basis handed to calcQBI must be the UNSCALED one.
     expect(s).toMatch(/calcQBI\(qbiBasis, taxableBeforeQBI, prefIncome/)

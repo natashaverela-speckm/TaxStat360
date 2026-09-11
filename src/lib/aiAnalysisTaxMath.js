@@ -481,3 +481,36 @@ export function recEntityRevenue(rec) {
   if (fromEntities > 0) return fromEntities
   return nf(rec?.biz?.grossRevenue)
 }
+
+// FRESH-EYES F-10 (11 Sep 2026): the aggregate above fixed one defect and created its
+// mirror. recEntityRevenue sums EVERY entity — rental LLCs and C-Corps included — and the
+// §179 equipment prompt and the "no depreciation recorded" finding were gated on it. So
+// a filer whose receipts were mostly gross rents now cleared a $30,000 gate and was
+// prompted toward an election that §179(d)(1) conditions on property used in the ACTIVE
+// conduct of a trade or business — which ordinary §212 rental activity does not supply.
+// A C-Corp's revenue is likewise not the individual's: its §179 election is the
+// corporation's, on Form 1120, and never reaches the owner's return. The old bug
+// suppressed guidance; this one could surface it wrongly, toward a deduction the
+// taxpayer cannot take.
+//
+// This helper counts only the entities whose §179 and depreciation flow to the owner's
+// 1040 — sole props, partnerships, S-Corps. recEntityRevenue stays as the record-wide
+// total for the completeness meter and the "missing gross receipts" prompt, where the
+// whole record is the right denominator.
+//
+// @param {object} rec  a saved or live record
+// @returns {number} gross receipts across pass-through operating entities only
+export function recOperatingRevenue(rec) {
+  const ents = Array.isArray(rec?.entities) ? rec.entities : []
+  const isRental = (t) => /real.?estate|schedule.?e|rental/i.test(t || '')
+  const isCCorp  = (t) => /c.?corp/i.test(t || '')
+  const fromEntities = ents.reduce((s, e) => {
+    if (!e || isRental(e.type) || isCCorp(e.type)) return s
+    return s + nf(e?.pnl?.grossRevenue)
+  }, 0)
+  if (ents.length > 0) return fromEntities
+  // Legacy single-business record: rec.biz is the one entity, typed by biz.entityType.
+  const t = rec?.biz?.entityType
+  if (isRental(t) || isCCorp(t)) return 0
+  return nf(rec?.biz?.grossRevenue)
+}

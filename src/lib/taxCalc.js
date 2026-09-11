@@ -712,10 +712,19 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const excessOverThreshold = taxableBeforeQBI - threshold
   const phasePercent        = Math.min(1, excessOverThreshold / phaseInRange)
   const sstbApplicablePct   = Math.max(0, 1 - phasePercent)
+  // FRESH-EYES F-5 (11 Sep 2026): this reducer floored each SSTB share at zero, so a
+  // phased-out SSTB running a LOSS was excluded from the haircut and its loss kept
+  // reducing the taxpayer's other qualified business income. Treas. Reg.
+  // §1.199A-1(d)(2)(iii)(A) applies the applicable percentage to the SSTB's QBI whatever
+  // its sign, and above the phase-out range none of the SSTB's items — income OR loss —
+  // are taken into account. Demonstrated: clean S-Corp +200,000 with a fully phased-out
+  // SSTB S-Corp −100,000 gave adjQBI 100,000 (deduction 20,000) where the SSTB should
+  // have been ignored entirely (adjQBI 200,000, deduction 40,000 before the wage limit).
+  // The carryforward path (qbiBasisAfterSstb in calcTaxReturn) already handled the sign
+  // correctly; the deduction path did not.
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
-    const k1Income = getEntityK1Share(e)
-    return s + Math.max(0, k1Income)
+    return s + getEntityK1Share(e)
   }, 0)
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
   const scaledQbiComponent = adjQBI * QBI_DEDUCTION_RATE
@@ -1772,7 +1781,7 @@ function calcTaxReturn(input) {
     // QBI, W-2 wages and UBIA is applied ONCE, inside _calcQBI, per Treas. Reg.
     // §1.199A-1(d)(2)(ii)-(iii). The two places that legitimately need the post-haircut
     // figure — the QBI loss carryforward and the §199A(i) floor gate — get it from
-    // sstbNonSEQbiReduction below.
+    // sstbQbiReduction below (renamed by F-5, 11 Sep 2026).
     //
     // Unscaling also corrects scheduleEK1Income (line ~2068), which reports Schedule E
     // K-1 income for display: that figure is not reduced because a business is an SSTB.
@@ -1781,13 +1790,21 @@ function calcTaxReturn(input) {
   // The amount the line above used to remove. Kept as its own quantity so the two
   // consumers that genuinely need a post-SSTB figure can subtract it explicitly,
   // instead of every consumer silently inheriting a haircut it may not want.
-  // Mirrors the same entity filter as nonSEk1.
-  const sstbNonSEQbiReduction = entitiesLimited.reduce((sum, e) => {
-    if (!e || SE_SUBJECT_TYPES.includes(e?.type)) return sum
-    if (isRealEstateEntity(e?.type)) return sum
+  //
+  // FRESH-EYES F-5 (11 Sep 2026): this was `sstbNonSEQbiReduction` and skipped
+  // SE_SUBJECT_TYPES, so §199A(d)(3)'s exclusion of a phased-out SSTB from the loss
+  // carryforward applied to an S-Corp SSTB and NOT to the same business run as a sole
+  // proprietorship. The statute does not turn on entity type. Now covers every SSTB
+  // that contributes to qbiBasis. For SE-subject entities the share is taken gross,
+  // matching seNetIncomeAggregate (see KNOWN LIMITATION SE-179 above — do not net
+  // box11_12 here for SE entities while it is not netted there).
+  const sstbQbiReduction = entitiesLimited.reduce((sum, e) => {
+    if (!e || isRealEstateEntity(e?.type)) return sum
     if (isCCorpEntity(e?.type)) return sum
     if (!e.box17V_sstb) return sum
-    const k1 = getEntityK1Share(e) - nf(e.box11_12)
+    const k1 = SE_SUBJECT_TYPES.includes(e?.type)
+      ? getEntityK1Share(e)
+      : getEntityK1Share(e) - nf(e.box11_12)
     return sum + k1 * (1 - sstbApplicablePct)
   }, 0)
   // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. Section 1.199A-3(b)(1)(vi)
@@ -1797,7 +1814,35 @@ function calcTaxReturn(input) {
   // or business -- this line subtracted the first two but omitted selfEmpRetirementDed
   // entirely, so a SEP-IRA/Solo 401(k) contribution reduced AGI but never reduced the QBI
   // base, overstating the QBI deduction by 20% of the full contribution amount.
-  const seK1AfterAdjustments = Math.max(0, seNetIncome - halfSE - selfEmpHealthDed - selfEmpRetirementDed)
+  // ── FRESH-EYES F-5 (11 Sep 2026): A SCHEDULE C LOSS NEVER REACHED THE §199A COMPUTATION ──
+  //
+  // This read `Math.max(0, seNetIncome - halfSE - selfEmpHealthDed - selfEmpRetirementDed)`.
+  // seNetIncome is itself floored at zero (line ~1495) — correctly, for SE TAX: there is no
+  // negative SE tax. But the QBI base was derived from that floored figure, so a net loss
+  // across the SE-subject businesses was silently dropped from §199A entirely. Two errors:
+  //
+  //   1. §199A(c)(2) — a QBI loss from one trade or business must be NETTED against the
+  //      QBI of the taxpayer's other businesses in the same year (Treas. Reg.
+  //      §1.199A-1(d)(2)(iii)(A)). Demonstrated: S-Corp +200,000 alongside a Schedule C
+  //      −50,000 produced qbiBasis 200,000, not 150,000. Where the QBI component binds, that
+  //      overstates the deduction by 20% of the loss.
+  //   2. §199A(c)(2), second sentence — a net QBI loss carries to the succeeding year and
+  //      reduces that year's QBI. A −100,000 loss in an S-Corp produced qbiCarryforward
+  //      100,000; the identical loss on Schedule C produced 0. Same subsection, two
+  //      answers by entity type; next year's deduction is then overstated.
+  //
+  // When the SE aggregate is negative, halfSE / SEHI / retirement are all zero (each is
+  // gated on positive SE earnings), so the loss passes through undiminished. Guaranteed
+  // payments are inside seNetIncomeAggregate for §1402 purposes and are removed from the
+  // QBI base below (`- guaranteedPaymentsTotal`), which is correct in both signs:
+  // −100,000 share + 60,000 GP → −40,000 here, minus 60,000 GP → −100,000 QBI loss.
+  //
+  // SE TAX IS UNCHANGED. seNetIncome, halfSE and everything on Schedule SE still use the
+  // floored figure. Only the §199A base sees the loss.
+  const _seQbiAggregate = seNetIncomeAggregate + guaranteedPaymentsTotal
+  const seK1AfterAdjustments = _seQbiAggregate >= 0
+    ? Math.max(0, seNetIncome - halfSE - selfEmpHealthDed - selfEmpRetirementDed)
+    : _seQbiAggregate
   const k1FallbackForQBI = entitiesLimited.length === 0 ? adjustedK1Total : 0
   // rentalQbiContribution is computed in the §469 rental block above (legacy or
   // per-property branch) — do not redeclare here.
@@ -1960,7 +2005,7 @@ function calcTaxReturn(input) {
   // partially-phased-out one carries forward only its applicable-percentage share. Before
   // C1 that came for free because qbiBasis was pre-scaled — which was also the bug. Now
   // it is stated explicitly.
-  const qbiBasisAfterSstb        = qbiBasis - sstbNonSEQbiReduction
+  const qbiBasisAfterSstb        = qbiBasis - sstbQbiReduction
   const qbiCarryforward          = qbiBasisAfterSstb < 0 ? Math.abs(qbiBasisAfterSstb) : 0
   // F-9 HOTFIX (post-deploy regression, Jul 2026): totalPrefIncome carves preferential
   // income out of the ordinary base. It was still built from the RAW qualDiv input, so

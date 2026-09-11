@@ -185,6 +185,30 @@ describe('reconciliation — the three figures must come from one report', () =>
     const v = call({ body: { revenue: 1000, expenses: 400 } })
     expect(v.kind).toBe('ok')
     expect(v.warning).toBeNull()
+    // FRESH-EYES F-4 (11 Sep 2026): the assertion this test was missing. The code
+    // returned `netProfit: d.net_profit` — undefined — while this test checked only
+    // kind and warning, so the module built to stop undefined net profit shipped it.
+    expect(v.pnl.netProfit).toBe(600)
+    expect(typeof v.pnl.netProfit).toBe('number')
+  })
+
+  it('F-4: a numeric-string net_profit is rejected, not passed through as a string', () => {
+    const v = call({ body: { revenue: 1000, expenses: 400, net_profit: '600' } })
+    expect(v.kind).toBe('error')
+    expect(v.message).toMatch(/net profit that could not be read/)
+  })
+
+  it('F-4: netProfit in the payload is always a finite number', () => {
+    for (const body of [
+      { revenue: 1000, expenses: 400 },
+      { revenue: 1000, expenses: 400, net_profit: 600 },
+      { revenue: 1000, expenses: 400, net_profit: null },
+      { revenue: 0, expenses: 8000, net_profit: -8000 },
+    ]) {
+      const v = call({ body })
+      expect(v.kind).toBe('ok')
+      expect(Number.isFinite(v.pnl.netProfit)).toBe(true)
+    }
   })
 })
 

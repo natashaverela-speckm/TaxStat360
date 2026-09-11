@@ -110,7 +110,13 @@ export const STEP3_LABEL = 'AI Analysis & Reporting'
 // What-If Simulator: pricing said "What-If Tax Scenario Simulator"; tab label said
 // "Tax Optimization"; tab desc said "What-If Tax Simulator"
 //   → canonical: FEATURE_WHATIF_SIMULATOR (used in tab label AND pricing copy)
-export const FEATURE_AUDIT_RISK_SCAN   = 'Audit Risk Scan'
+// FRESH-EYES F-7 (11 Sep 2026, owner decision): renamed from 'Audit Risk Scan'. Everything
+// the feature computes is a substantiation question — is the position documented, can it
+// be supported — not a prediction of examination. 31 C.F.R. §10.37(a)(2)(vi) bars a
+// practitioner's written advice from taking audit likelihood into account, and the
+// panel's own disclaimer says it is 'not a prediction of audit selection.' The identifier
+// is kept so the 20+ import sites do not change; only the label does.
+export const FEATURE_AUDIT_RISK_SCAN   = 'Substantiation Check'
 export const FEATURE_WHATIF_SIMULATOR  = 'Tax Savings Opportunities'
 // ─── FINANCIAL LINE LABELS — single source of truth (audit Categories B/C/D/F) —
 // Same rationale as STEP3_LABEL above: these P&L / summary labels were inline// literals in CalculateTaxInner, AIAnalysis, Dashboard, and TaxReturn and drifted
@@ -733,6 +739,30 @@ export function renewalDisclosure(plan, billing, from = new Date()) {
     cadence + ', automatically, until you cancel. Cancel any time in ' + CANCEL_PATH + '.'
 }
 
+/**
+ * FRESH-EYES F-17 (11 Sep 2026): the affirmative disclosure for a PLAN CHANGE by an
+ * existing subscriber, shown above the card field on the Upgrade page. Upgrade.jsx took a
+ * card and created a new recurring obligation with none of the §17602(a)(1) disclosure
+ * signup carries, and no consent checkbox — the M10 defect ("a claim with no route",
+ * '🔒 Secured by Stripe · Cancel anytime') surviving in the one file the M10 guard did not
+ * list. renewalDisclosure() above is the wrong sentence here: it describes a trial that an
+ * existing subscriber does not get. What the API actually does (main.py /stripe/subscribe):
+ * a subscriber still in trial keeps the trial and the new price starts when it ends; an
+ * active subscriber is invoiced a prorated amount immediately (proration_behavior
+ * 'always_invoice') and the new price recurs from the next period.
+ */
+export function upgradeDisclosure(plan, billing) {
+  const p = PLAN_PRICING[plan] || PLAN_PRICING.starter
+  const isAnnual = billing === 'annual'
+  const amount = fmtPlanPrice(isAnnual ? p.annualTotal : p.monthly)
+  const cadence = isAnnual ? 'every 12 months' : 'every month'
+  const label = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'selected'
+  return 'You are changing your subscription to the ' + label + ' plan at ' + amount + ' ' + cadence +
+    '. If your free trial is still running, the new price starts when it ends. Otherwise your card is charged ' +
+    'a prorated amount today for the rest of your current billing period, and then ' + amount + ' ' + cadence +
+    ', automatically, until you cancel. Cancel any time in ' + CANCEL_PATH + '.'
+}
+
 
 // ─── COMPANY IDENTITY / NAP — footer + local SEO ─────────────────────────────
 // Single source of truth for the footer's name / address / contact line, consumed by
@@ -794,8 +824,14 @@ export const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfe
 // document the user agreed to. Bump these whenever the corresponding document
 // changes materially — the string must match the "Last updated" line rendered in
 // Terms.jsx / Privacy.jsx, because that is the copy a court would be shown.
-export const TERMS_VERSION = '2026-09-10'
-export const PRIVACY_VERSION = '2026-07-13'
+// FRESH-EYES F-9 (11 Sep 2026): both bumped. Terms.jsx §10 and Privacy.jsx §3 were
+// rewritten on 11 Sep (audit M5/M6/M12) and ACCOUNT_DELETION_STATEMENT again after that,
+// while these stayed at the 10 Sep / 13 Jul values — and the B5 test pinned the stale
+// literals, so the guard was enforcing the staleness. The test now derives the expected
+// value from the rendered 'Last updated' line, so the two cannot drift apart again.
+// App.jsx compares /auth/me's stored terms_version to this and re-prompts on mismatch.
+export const TERMS_VERSION = '2026-09-11'
+export const PRIVACY_VERSION = '2026-09-11'
 
 // Clickwrap label text. Kept here, next to renewalDisclosure(), because this is
 // consumer-facing legal copy and it must never be hand-written at a call site.

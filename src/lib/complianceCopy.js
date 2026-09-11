@@ -283,7 +283,13 @@ export const ACCOUNT_DELETION_STATEMENT =
   'delete your saved tax records, entities and personal information from our systems ' +
   'straight away, and your session ends at once. There is no recovery window and no ' +
   'way for us to restore a deleted account. We keep one compliance record of the ' +
-  'deletion itself — your email address, the date and time, and the originating IP.'
+  'deletion itself — your email address, the date and time, and the originating IP. ' +
+  // FRESH-EYES (11 Sep 2026): Terms §3 says a cancellation keeps access to the end of the
+  // paid period; deletion ends it now. Two documented behaviours for "cancel" — say which
+  // one this is, and point at the other.
+  'Deleting cancels immediately, not at the end of your billing period: any time you have ' +
+  'already paid for is forfeited and is not refunded. To keep access until your period ends, ' +
+  'use ' + CANCEL_PATH + ' instead.'
 
 export const ACCOUNT_DELETION_EXPORT_WARNING =
   'Export your data before deleting. Once it is gone we cannot get it back for you.'

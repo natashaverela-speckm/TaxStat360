@@ -64,7 +64,17 @@ export function buildPositionWorksheets(rec) {
   const year = parseInt(b.year) || r.taxYear || CURRENT_TAX_YEAR
   const ents = Array.isArray(r.entities) ? r.entities : []
   const sCorps = ents.filter(e => isSCorpEntity(e?.type))
-  const officerSalary = sCorps.reduce((s, e) => s + nf(e?.pnl?.officerSalary), 0) || nf(b.officerSalary)
+  // FRESH-EYES F-11 (11 Sep 2026): this read `sCorps.reduce(...) || nf(b.officerSalary)`.
+  // When every S-Corp carried $0 officer salary the sum was 0 — falsy — so `||` substituted
+  // the legacy single-business field. A record migrated from the old shape with
+  // b.officerSalary = 80,000 then produced a healthy compRatio on the worksheet built to
+  // substantiate that exact position, while the Substantiation Check, reading the entities
+  // directly, flagged 'No Officer Compensation'. Two screens, opposite answers, one record.
+  // Zero is the answer here, and it is the answer that matters. Fall back to b.officerSalary
+  // ONLY when there are no S-Corp entities at all (legacy record).
+  const officerSalary = sCorps.length > 0
+    ? sCorps.reduce((s, e) => s + nf(e?.pnl?.officerSalary), 0)
+    : nf(b.officerSalary)
   const sCorpProfit = sCorps.reduce((s, e) => s + Math.max(0, getEntityNetProfit(e)), 0)
   const compRatio = (officerSalary + sCorpProfit) > 0
     ? Math.round((officerSalary / (officerSalary + sCorpProfit)) * 100)
@@ -98,6 +108,12 @@ export function buildPositionWorksheets(rec) {
         `  ${w2 > 0 ? known('W-2 income from all sources', fmt(w2)) : known('W-2 income from all sources', '$0')}`,
         ``,
         `WHAT §469(c)(7)(B) REQUIRES YOU TO ESTABLISH`,
+        `  On a joint return, ONE spouse must satisfy BOTH tests below alone. Hours cannot be`,
+        `  combined between spouses for the >50% test or the 750-hour test (§469(c)(7)(B),`,
+        `  flush language). Both spouses' participation DOES count toward material`,
+        `  participation in each activity (§469(h)(5)). Answer the hour questions for the`,
+        `  spouse claiming the status.`,
+        ``,
         `  1. More than 50% of ALL personal services you performed in ${year}, in any trade`,
         `     or business, were performed in real property trades or businesses in which`,
         `     you materially participated.`,
@@ -143,7 +159,9 @@ export function buildPositionWorksheets(rec) {
         ``,
         `WHAT YOUR RECORD CURRENTLY SHOWS`,
         `  ${entityNames ? known('S-Corp entities', entityNames) : unknown('S-Corp entities')}`,
-        `  ${officerSalary > 0 ? known('Officer compensation entered', fmt(officerSalary)) : unknown('Officer compensation entered')}`,
+        // F-11: with S-Corp entities on the record, $0 is a FIGURE (the one that matters most
+        // on this worksheet), not a blank. Only a record with no S-Corp at all is 'not entered'.
+        `  ${officerSalary > 0 || sCorps.length > 0 ? known('Officer compensation entered', fmt(officerSalary)) : unknown('Officer compensation entered')}`,
         `  ${sCorpProfit > 0 ? known('S-Corp net profit after that salary', fmt(sCorpProfit)) : unknown('S-Corp net profit after that salary')}`,
         `  ${compRatio !== null ? known('Salary as a share of total compensation', compRatio + '%') : unknown('Salary as a share of total compensation')}`,
         ``,

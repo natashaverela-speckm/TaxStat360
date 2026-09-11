@@ -107,3 +107,37 @@ function nfLike(v) {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
 }
+
+// FRESH-EYES F-10 (11 Sep 2026): the aggregate fixed one defect and created its mirror —
+// rentals and C-Corps were summed into the §179 gate. See recOperatingRevenue.
+import { recOperatingRevenue } from './aiAnalysisTaxMath.js'
+
+describe('recOperatingRevenue — excludes entities whose §179 does not reach the 1040', () => {
+  const rec = {
+    entities: [
+      { type: 'Sole Proprietor / Single-Member LLC', pnl: { grossRevenue: 15000 } },
+      { type: 'S Corporation',                       pnl: { grossRevenue: 15000 } },
+      { type: 'Real Estate / Schedule E',            pnl: { grossRevenue: 120000 } },
+      { type: 'C Corporation',                       pnl: { grossRevenue: 500000 } },
+    ],
+  }
+
+  it('SPEC: §179(d)(1) — gross rents and C-Corp receipts are not operating revenue', () => {
+    expect(recOperatingRevenue(rec)).toBe(30000)
+    expect(recEntityRevenue(rec)).toBe(650000)   // the record-wide total is still available
+  })
+
+  it('a rental-only record does not clear the §179 gate', () => {
+    expect(recOperatingRevenue({ entities: [{ type: 'Real Estate / Schedule E', pnl: { grossRevenue: 90000 } }] })).toBe(0)
+  })
+
+  it('legacy single-business record: respects biz.entityType', () => {
+    expect(recOperatingRevenue({ biz: { entityType: 'S Corporation', grossRevenue: 80000 } })).toBe(80000)
+    expect(recOperatingRevenue({ biz: { entityType: 'Real Estate / Schedule E', grossRevenue: 80000 } })).toBe(0)
+    expect(recOperatingRevenue({ biz: { entityType: 'C Corporation', grossRevenue: 80000 } })).toBe(0)
+  })
+
+  it('an entities array that is present but all-rental returns 0, not the biz fallback', () => {
+    expect(recOperatingRevenue({ entities: [{ type: 'Real Estate / Schedule E', pnl: { grossRevenue: 90000 } }], biz: { entityType: 'S Corporation', grossRevenue: 80000 } })).toBe(0)
+  })
+})
