@@ -39,3 +39,40 @@ jobs:
         run: |
           aws s3 sync dist/ s3://taxstat360-deploy-1775348133433/ --delete --cache-control "no-cache, no-store, must-revalidate"
           aws cloudfront create-invalidation --distribution-id EJQTM04C80LWI --paths "/*"
+
+      # ── AUDIT H13 (second launch audit, Sep 2026) ──────────────────────────
+      #
+      # This step checks the PRODUCTION response, because that is the only check
+      # that catches a missing header regardless of cause. September's outage was
+      # invisible to every test in this repo: they all read customHttp.yml, and none
+      # read what CloudFront actually served.
+      #
+      # ⚠ READ THIS BEFORE TRUSTING A GREEN RESULT HERE.
+      #
+      # customHttp.yml is an AMPLIFY HOSTING file. This job syncs dist/ to S3 and
+      # invalidates CloudFront distribution EJQTM04C80LWI, where that file has no
+      # effect: a plain S3-origin distribution serves these headers only if a
+      # response-headers policy replicates them, and no such policy exists in this
+      # repo. Meanwhile the live site is currently served by the Amplify pipeline.
+      #
+      # So there are two cases, and WHICH ONE APPLIES IS NOT KNOWN FROM THIS REPO:
+      #   * If EJQTM04C80LWI serves www.taxstat360.com, this step fails after an S3
+      #     deploy — correctly, loudly, and that is the outage being caught.
+      #   * If it serves a different origin, this step passes by reading the
+      #     Amplify-served site and tells you NOTHING about what this job deployed.
+      #     A green tick here would then be reassurance you have not earned.
+      # That ambiguity is the finding. Two pipelines, two header configurations, and
+      # today's safe outcome is an accident of which one last ran.
+      #
+      # TO RESOLVE (owner decision, needs AWS access — not a repo change):
+      #   (a) retire this workflow if Amplify is the real deploy path, or
+      #   (b) attach a CloudFront response-headers policy to EJQTM04C80LWI that
+      #       mirrors customHttp.yml, and keep the two in step.
+      # Set SITE_URL below to whatever this pipeline actually serves, once known.
+      #
+      - name: Verify live security headers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          echo "Waiting for the CloudFront invalidation to propagate..."
+          sleep 60
+          node scripts/assertLiveHeaders.mjs
