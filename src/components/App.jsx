@@ -169,7 +169,11 @@ function RequireAuth({ children }) {
       .then((data) => {
         if (!active) return
         if (data?.plan) writePlan(normalizePlanId(data.plan))
-        setAcceptedTerms(String(data?.terms_version || ''))
+        // F-9: only gate when the API reports the field at all. An older API that has no
+        // notion of Terms versions omits the key entirely; treating that as 'never
+        // accepted' would lock every user behind a screen whose accept button 404s.
+        // Empty string (key present, no record) still gates — that is the F-8 case.
+        setAcceptedTerms(data && Object.prototype.hasOwnProperty.call(data, 'terms_version') ? String(data.terms_version || '') : null)
         setServerAuth('ok')
         setPlanChecked(n => n + 1)
       })
