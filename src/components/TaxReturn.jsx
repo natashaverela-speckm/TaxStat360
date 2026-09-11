@@ -1582,7 +1582,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
                   Student Loan Interest
-                  <InfoTip text="Up to $2,500 deductible above-the-line. Phases out at $75,000–$90,000 (single) / $155,000–$185,000 (MFJ) for 2025. Cannot be claimed MFS." />
+                  <InfoTip text="Up to $2,500 deductible above-the-line (IRC §221). Phases out over MAGI $85,000–$100,000 (single, HOH, QSS) / $170,000–$200,000 (MFJ) for 2025; $175,000–$205,000 MFJ for 2026 (Rev. Proc. 2024-40 §3.30, 2025-32 §4.29). The phase-out is applied automatically. Cannot be claimed if married filing separately." />
                 </label>
                 <Step2MoneyInput id="tr-student-loan" value={studentLoanInt} onChange={setStudentLoanInt} placeholder="0" nonNegative />
               </div>
