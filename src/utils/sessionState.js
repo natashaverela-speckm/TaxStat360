@@ -982,13 +982,44 @@ export function clearTrustedDevice() {
   try { localStorage.removeItem('ts360_trusted_device') } catch (_e) { /* noop */ }
 }
 
+// ── AUDIT M1 (second launch audit, Sep 2026): THE EXPORT WROTE LIVE CREDENTIALS ──
+//
+// exportAllDeviceData() sweeps localStorage BY PREFIX, so "everything starting with
+// ts360_" included `ts360_token` (the live session bearer token) and
+// `ts360_trusted_device` (the record that skips 2FA — see H6). The downloaded file
+// describes itself as "session preferences and account metadata", so a user who
+// attaches it to a support email, a CPA, or an accountant has handed over a working
+// credential plus the MFA-bypass record, believing they sent preferences.
+//
+// Why this is a PATTERN and not the two-key denylist the finding suggested:
+//
+//   1. Provider OAuth tokens. ts360_quickbooks_token, ts360_xero_token,
+//      ts360_xero_refresh, ts360_wave_token and ts360_freshbooks_token are no longer
+//      WRITTEN — provider tokens moved server-side — but a returning user's browser
+//      can still hold values written before that migration, and a prefix sweep
+//      happily exports them. A two-key denylist misses every one.
+//   2. The next credential key. A prefix sweep opts every future key IN by default.
+//      The safe default for an export is the opposite: anything that looks like a
+//      credential is out unless someone deliberately says otherwise.
+//
+// Verified against the full ts360_* key inventory: this pattern excludes the 11 keys
+// below and no tax, entity, profile or preference key. There is a CI guard asserting
+// exactly that, so a new credential key cannot quietly join the export.
+const EXPORT_DENY = /(?:^|_)(?:token|secret|refresh|session|credential|password|auth)(?:_|$)|trusted_device|logged_in/i
+
+export function isExportableKey(key) {
+  if (!key) return false
+  if (!(key.startsWith('ts360_') || key === 'plan' || key === 'userName')) return false
+  return !EXPORT_DENY.test(key)
+}
+
 // Full on-device data bundle for the Settings 'export my data' feature.
 export function exportAllDeviceData() {
   const data = {}
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (key && (key.startsWith('ts360_') || key === 'plan' || key === 'userName')) {
+      if (isExportableKey(key)) {
         try { data[key] = JSON.parse(localStorage.getItem(key)) }
         catch (_e) { data[key] = localStorage.getItem(key) }
       }
