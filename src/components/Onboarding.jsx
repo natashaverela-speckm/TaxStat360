@@ -83,7 +83,7 @@ import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING
 import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
-import { claimSessionForUser, readTrustedDevice, writeTrustedDevice, clearTrustedDevice, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
+import { claimSessionForUser, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
 import { isValidSession } from '../utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
@@ -742,33 +742,37 @@ loginAttemptAllowed.current=true
 // dismissal and delays the path to their tax position.
 const isReturningUser = !!(readDisclaimerSeen() || readSessionStart())
 
-// UX F-02: "Remember this device for 30 days" — bypass 2FA challenge on trusted devices.
-const TRUST_DAYS = 30
-const [rememberDevice, setRememberDevice] = useState(false)
+// ── AUDIT H6 (second launch audit, Sep 2026): CLIENT-SIDE MFA BYPASS REMOVED ──
+//
+// "Trust this device for 30 days" skipped the 2FA challenge on a decision that never
+// reached the server. No device token was minted, stored server-side or transmitted.
+// The "fingerprint" was btoa(userAgent | screen.width | screen.height) — three
+// publicly observable values — and the expiry was a client-writable integer. The whole
+// record was forgeable with one localStorage.setItem.
+//
+// The finding said severity depended on a backend fact: whether /auth/login returns a
+// usable session alongside mfa_required: true. It does not need to be answered to know
+// this code is wrong, because BOTH answers point the same way:
+//
+//   • If the backend DOES return a session before the challenge, then writing one
+//     storage key defeats 2FA for anyone holding the password, and 2FA on this product
+//     is decorative.
+//   • If the backend correctly withholds it, the bypass still called finishLogin(),
+//     which sets ts360_logged_in='1' and navigates into the app regardless of whether
+//     data.access_token was present — so the user is "logged in" client-side with no
+//     credential. A broken session, not a safe one.
+//
+// So the bypass is removed rather than repaired. mfa_required now always presents the
+// challenge. The checkbox is removed with it: leaving a control that no longer does what
+// its label says is the same defect class as H10's phantom features.
+//
+// Device trust can come back when it is what it should have been from the start — a
+// server-issued, server-verified secret, with the trust decision made by the backend
+// during the challenge. That is a backend change, not a client one.
+//
+// Existing records are purged below: they are forged-credential-shaped artifacts with
+// no remaining purpose, and M1 excludes the key from the data export.
 
-function getDeviceFingerprint() {
-  try { return btoa([navigator.userAgent, screen.width, screen.height].join('|')).slice(0, 40) } catch { return 'unknown' }
-}
-
-function isTrustedDevice(emailAddr) {
-  try {
-    const stored = readTrustedDevice()
-    if (!stored || stored.email !== emailAddr) return false
-    if (stored.fingerprint !== getDeviceFingerprint()) return false
-    if (Date.now() > stored.expires) { clearTrustedDevice(); return false }
-    return true
-  } catch { return false }
-}
-
-function trustThisDevice(emailAddr) {
-  try {
-    writeTrustedDevice({
-      email: emailAddr,
-      fingerprint: getDeviceFingerprint(),
-      expires: Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000,
-    })
-  } catch {/* M5/M7: device-trust persistence is a convenience — login still succeeds; 2FA asks again next time */}
-}
 
 async function finishLogin(data,actualEmail){
 // AUDIT H3 (Sep 2026): claim this tab's session working set for the account signing in.
@@ -810,11 +814,8 @@ if(!res.ok){
   throw new Error(isCreds ? 'Incorrect email or password' : (detail || 'Login failed'))
 }
 if(data.mfa_required){
-// UX F-02: skip MFA challenge if this device is trusted and not expired
-if(isTrustedDevice(actualEmail)){
-await finishLogin(data,actualEmail)
-return
-}
+// AUDIT H6: the trusted-device bypass that stood here is gone. mfa_required means the
+// challenge is presented — there is no client-side path around it.
 setMfaStep(true)
 setLoginToken(data.login_token||'')
 setPendingEmail(data.email||actualEmail)
@@ -835,7 +836,6 @@ if(!code){setErr('Enter your 6-digit code or a backup code.');setLoading(false);
 const res=await apiFetch('/auth/mfa/challenge',{method:'POST',credentials:'include',body:{email:pendingEmail,login_token:loginToken,code},raw:true})
 const data=await res.json()
 if(!res.ok)throw new Error(data.detail||'Invalid authentication code')
-if(rememberDevice) trustThisDevice(pendingEmail)
 await finishLogin(data,pendingEmail)
 }catch(e){setErr(e.message)}
 finally{setLoading(false)}
@@ -868,10 +868,6 @@ placeholder="6-digit code or backup code"
 style={{width:'100%',padding:'10px 12px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:15,marginBottom:12,boxSizing:'border-box',letterSpacing:'0.08em'}}
 />
 {err&&<div style={{background:'#FEF2F2',color:'#DC2626',padding:'8px 12px',borderRadius:7,fontSize:12,marginBottom:10}}>{err}</div>}
-<label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:SL,marginBottom:12,cursor:'pointer'}}>
-<input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}} />
-Trust this device for {TRUST_DAYS} days — skip 2FA on this browser
-</label>
 <button type="submit" disabled={loading||mfaCode.length<6} style={{width:'100%',padding:'11px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:15,cursor:loading||mfaCode.length<6?'not-allowed':'pointer',opacity:loading||mfaCode.length<6?0.5:1,transition:'opacity 0.15s',marginBottom:10}}>{loading?'Verifying...':'Verify →'}</button>
 <button type="button" onClick={()=>{setMfaStep(false);setMfaCode('');setLoginToken('');setErr('')}} style={{width:'100%',padding:'10px',background:'#fff',color:SL,border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer'}}>← Back to sign in</button>
 </form>

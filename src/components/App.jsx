@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent } from '../utils/sessionState.js'
+import { writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, purgeLegacyDeviceTrust } from '../utils/sessionState.js'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
@@ -42,6 +42,10 @@ const OAUTH_PROVIDERS = new Set(['quickbooks', 'xero', 'wave', 'freshbooks'])
 
 function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
+  // AUDIT H6 (Sep 2026): clear any device-trust record left by the old client-side
+  // 2FA bypass. One-shot, idempotent, and independent of session state.
+  useEffect(() => { purgeLegacyDeviceTrust() }, [])
+
   useEffect(() => {
     const p = provider.toLowerCase()
     if (!OAUTH_PROVIDERS.has(p)) {
@@ -63,10 +67,33 @@ function OAuthCallback() {
 }
 
 // ─── Auth Keys ────────────────────────────────────────────────────────────────
-// SEC-04: Session token migrated to httpOnly cookie (set by login Lambda).
-// localStorage no longer stores the raw token — only non-sensitive metadata.
-// ts360_logged_in is a lightweight hint; the real auth is the httpOnly cookie
-// which the browser sends automatically on every credentialed request.
+// SEC-04 / AUDIT H5 (second launch audit, Sep 2026) — COMMENT CORRECTED.
+//
+// This block used to assert: "localStorage no longer stores the raw token — only
+// non-sensitive metadata." That was false. sessionState.js:writeToken() puts the raw
+// bearer token in localStorage under ts360_token, both auth paths call it
+// (Onboarding.jsx:325 and :785), and apiClient.js attaches it as an Authorization
+// header on every request to our API. A comment asserting a fix the code does not
+// implement is worse than no comment: it is what stops the next reader from looking.
+//
+// WHAT IS ACTUALLY TRUE TODAY — both credentials exist:
+//   • The httpOnly cookie IS a working credential. Verified against production on
+//     10 Sep 2026: GET /auth/me, /records, /integrations/status and /auth/mfa/status
+//     each returned 200 with credentials:'include' and NO Authorization header.
+//   • The bearer token in localStorage is ALSO accepted, is readable by any script
+//     that runs on the page, and has no refresh or rotation anywhere in the codebase.
+//     Its only lifetime control is the client-side sliding window below.
+//
+// WHY THE TOKEN IS STILL HERE: removing it is the right end state, but Upgrade.jsx:170
+// sets the Authorization header by hand on POST /stripe/subscribe — the payment path —
+// and that endpoint cannot be exercised from a test without creating a real
+// subscription. B2's own note records that this path has already produced silent
+// revenue loss once. So the removal waits on one backend check: confirm
+// /stripe/subscribe (and the other POST routes) authenticate on the cookie alone, then
+// delete writeToken/readToken, the header in apiClient.js:86-89, and the hand-set
+// header in Upgrade.jsx. Until then this comment describes the real state.
+//
+// M1 (Sep 2026) already stops the token leaving via the data export.
 // D-11 (dead-code & duplication audit): AUTH_KEYS / SESSION_MAX_AGE_MS /
 // isValidSession() moved verbatim to utils/sessionAuth.js — the single
 // definition of session validity, now shared with Onboarding.
