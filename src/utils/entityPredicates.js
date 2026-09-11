@@ -242,6 +242,40 @@ export function getEntityK1Share(e) {
 export function ownPct(v) {
   const n = parseFloat(v)
   return Number.isFinite(n) ? n : 100
+
+
+/**
+ * The owner's share of a C-Corp corporate layer.
+ *
+ * C-CORP AUDIT (11 Sep 2026): the Tax Tracker, the Dashboard and the What-If Simulator
+ * each rebuilt calcCCorpCorporateLayer() from the entity's P&L and then folded the WHOLE
+ * result into the owner's 1040 — every dollar of dividends and every dollar of the
+ * corporation's tax — regardless of the Ownership % on the entity card. The card said
+ * "Your share (50% ownership) $100,000" while the return three screens later taxed the
+ * owner on 100% of the dividends: on the live site a 50% shareholder of a $300,000
+ * corporation was shown $78,610 of tax instead of $45,043.
+ *
+ * Dividends are paid per share (IRC §301(a) / §316 — a distribution to *this*
+ * shareholder is only their pro-rata part), so the owner's dividend income is
+ * share × the corporation's distribution. The corporate tax is the corporation's, but
+ * the figure the app adds to the owner's headline is their economic share of it, and
+ * that follows the same percentage. Officer salary is NOT scaled anywhere: the field is
+ * labelled "your W-2 wages from this entity" and flows to W-2 in full.
+ *
+ * getEntityK1Share() is the pass-through analogue of this function; the Compare Entity
+ * Structures modal was already using it and so already disagreed with the return.
+ *
+ * @param {{corpTax:number, dividends:number}} layer  from calcCCorpCorporateLayer()
+ * @param {*} own  the entity's Ownership % field (string or number; blank = 100)
+ * @returns {{ share:number, corpTax:number, dividends:number }}  share is 0–1
+ */
+export function ccorpOwnerShare(layer, own) {
+  const share = Math.min(1, Math.max(0, ownPct(own) / 100))
+  return {
+    share,
+    corpTax:   Math.round(nf(layer?.corpTax)   * share),
+    dividends: Math.round(nf(layer?.dividends) * share),
+  }
 }
 
 
