@@ -1152,9 +1152,24 @@ function calcTaxReturn(input) {
     for (const br of entityBasisResults) {
       if (br.stockBasis === undefined) continue
       if (!/s.?corp|partner/i.test(br.type || '')) continue
-      const basisAfterAlloc = br.suspended > 0
-        ? Math.max(0, (br.totalBasis || br.stockBasis) - Math.abs(br.k1Allowed))
-        : Math.max(0, br.stockBasis + Math.max(0, br.k1Allowed))
+      // S-CORP BASIS AUDIT (11 Sep 2026): a §1366(d)(2) carryover is "treated as incurred by
+      // the corporation in the succeeding taxable year", so it is limited to the basis left
+      // AFTER that year's ordering under Reg. §1.1367-1(f) — income up, distributions down,
+      // then losses. The previous income-year branch measured `stockBasis + income` and so
+      // ignored both the year's distributions and a fully-allowed current-year loss:
+      //   • stock basis 40,000, current loss 30,000 (allowed in full), carryover 50,000 —
+      //     released 40,000 against 10,000 of remaining basis (live site: AGI 80,000, not
+      //     110,000; tax understated 6,600);
+      //   • stock basis 50,000, income 20,000, distributions 60,000, carryover 40,000 —
+      //     released 40,000 against 10,000.
+      // totalBasis is already stock-after-distributions + debt (income included), so the
+      // basis left for the carryover is that less whatever the current-year loss consumed.
+      // When current and carried losses together exceed basis, Reg. §1.1366-2(a)(5)
+      // allocates the allowed amount pro rata between them; the TOTAL allowed is the same
+      // either way, and the app reports the two carryforwards separately, so the current
+      // loss is applied first here and the carryover takes what remains.
+      const currentLossUsed = Math.max(0, -(br.k1Allowed || 0))
+      const basisAfterAlloc = Math.max(0, nf(br.totalBasis) - currentLossUsed)
       const releasable = Math.min(_priorSuspended, basisAfterAlloc)
       priorSuspendedLossApplied += releasable
       break
