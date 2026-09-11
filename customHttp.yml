@@ -100,6 +100,14 @@ customHeaders:
       # (Audit H12, Sep 2026: that guard was described here before it existed. It
       # was written and verified by re-introducing the original over-indentation and
       # confirming the suite goes red — a guard that only passes proves nothing.)
+      # FRESH-EYES F-16 (11 Sep 2026): connect.facebook.net removed from connect-src. That
+      # host SERVES the pixel script (script-src, kept); it is not an event destination.
+      # www.facebook.com stays in img-src and connect-src because the pixel beacon goes
+      # there — and be clear about what that means: the pixel endpoint accepts arbitrary
+      # query data, so it remains a usable exfiltration sink for an injected script. M8
+      # narrowed `https:` to one host, which is real hardening, but it is not closure.
+      # Closing it means gating the pixel behind consent at the policy level or dropping
+      # it. Recorded here so the residual is a decision, not an oversight.
       - key: Content-Security-Policy
         value: >-
           default-src 'self';
@@ -112,8 +120,7 @@ customHeaders:
           wss://app.taxstat360.com
           https://api.stripe.com
           https://taxstat360.us4.list-manage.com
-          https://www.facebook.com
-          https://connect.facebook.net;
+          https://www.facebook.com;
           frame-src https://js.stripe.com https://hooks.stripe.com https://player.vimeo.com;
           worker-src 'self' blob:;
           frame-ancestors 'none';
