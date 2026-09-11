@@ -213,7 +213,11 @@ export default function Settings() {
     const exportData = {
       exportedAt: new Date().toISOString(),
       exportedBy: email,
-      notice: 'This file contains all TaxStat360 data stored on this device for your account. Tax records, session preferences, and account metadata are included.',
+      // AUDIT M1 (Sep 2026): the notice now says what is deliberately LEFT OUT. The
+      // old wording ("session preferences and account metadata") described a file
+      // that contained a live session token and the 2FA-skip record, which is
+      // precisely why someone would forward it without thinking twice.
+      notice: 'This file contains your TaxStat360 data stored on this device: tax records, entities, and account preferences. Security credentials — your session token and any saved device-trust record — are deliberately excluded, so this file cannot be used to sign in as you.',
       data: {}
     }
     exportData.data = exportAllDeviceData()
