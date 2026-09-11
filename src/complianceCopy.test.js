@@ -353,7 +353,11 @@ describe('H6 — the product is on-demand, not real-time', () => {
   })
 
   it('no shipped copy calls the platform real-time', () => {
-    expect(offenders(/real-time|realtime/i)).toEqual([])
+    // AUDIT M3 (Sep 2026): this matched "real-time" and "realtime" but NOT "real time"
+    // with a space, so three instances survived — including the worst one, which
+    // attached it to CONNECTING YOUR ACCOUNTING SOFTWARE, the precise claim the Landing
+    // FAQ contradicts ("Your numbers reflect the data from your last sync").
+    expect(offenders(/real[\s-]?time/i)).toEqual([])
   })
 
   it('the FAQ still discloses that figures reflect the last sync', () => {
@@ -710,6 +714,114 @@ describe('B4 — the expense-ratio finding cites published law, not audit select
     const a = aiAnalysis()
     expect(a).toMatch(/not a prediction of audit selection or probability/i)
     expect(a).toMatch(/proprietary scoring and methods not publicly disclosed/i)
+  })
+})
+
+// ─── M3 / M4 / M9 / M11 (second launch audit, Sep 2026) ──────────────────────
+// Every one of these survived a guard that already banned the claim — in a spelling
+// the regex did not reach. The pattern is now explicit in each assertion: match the
+// CLAIM, and enumerate the phrasings, rather than pinning the one string that was
+// found first.
+
+describe('M3 — nothing claims continuous updating', () => {
+  it('no shipped copy ties live updating to a transaction or a sync', () => {
+    // "updated with every transaction" is more specific AND more false than the phrase
+    // the guard did ban: transactions trigger nothing, because sync is on demand.
+    expect(offenders(/with every transaction/i)).toEqual([])
+    expect(offenders(/continuous(?:ly)? (?:sync|updat)/i)).toEqual([])
+    // NARROWED after this guard flagged an accurate sentence: "As your income changes
+    // through the year, UPDATE YOUR FIGURES and the recommendation recalculates" is
+    // correct — it is user-initiated, and it is the behaviour we want described. Ban the
+    // automatic reading only.
+    expect(offenders(/updated? as your income/i)).toEqual([])
+    expect(offenders(/as your income comes in/i)).toEqual([])
+  })
+
+  it('the FAQ that these contradicted is still shipped', () => {
+    // If this sentence ever goes, the guards above lose their reason to exist.
+    expect(stripComments(read(join(SRC, 'components/Landing.jsx'))))
+      .toMatch(/reflect the data from your last sync/i)
+  })
+})
+
+describe('M4 — no claims to non-public audit-selection knowledge, in any phrasing', () => {
+  // The B4 guard bans /the IRS (targets|selects|flags) returns/i — it requires the word
+  // "returns", so "The IRS flags S-Corps with..." walked past it. Same for the noun
+  // phrase "audit triggers" (the verb forms were banned), "red flags", and "how the IRS
+  // examines returns". 31 C.F.R. §10.30(a)(1); audit selection methodology is not public.
+  const BANNED = [
+    /\baudit triggers?\b/i,
+    /\bred flags?\b/i,
+    /the IRS flags\b/i,
+    /how the IRS examines/i,
+    /what the IRS looks for/i,
+    /IRS (?:targets|selects|flags) (?:S-?Corps|businesses|taxpayers|filers)/i,
+  ]
+  for (const rx of BANNED) {
+    it(`no shipped copy matches ${rx}`, () => {
+      expect(offenders(rx)).toEqual([])
+    })
+  }
+
+  it('the substance those passages carried is still there', () => {
+    // The fix was to reframe from selection to STANDARD, not to delete the guidance —
+    // the published citations are the legitimate, checkable part and must survive.
+    const a = read(join(SRC, 'lib/articles.js'))
+    expect(a).toMatch(/FS-2008-25/)
+    expect(a).toMatch(/reasonable compensation/i)
+  })
+})
+
+describe('M9 — no endorsement or social proof without an endorser', () => {
+  // 16 C.F.R. §255.2 requires substantiation to exist WHEN THE CLAIM IS MADE. A product
+  // with no customers cannot assert that a class of professionals approves of it.
+  const BANNED = [
+    /Join business owners who/i,          // the original B-series guard
+    // NARROWED: a bare /many CPAs/i flagged "Many CPAs use a 35/65 or 40/60 split as a
+    // starting benchmark" — a truthful statement about professional practice, not an
+    // endorsement of this product. The claim to ban is CPAs approving TaxStat360.
+    /many CPAs (?:like|love|recommend|trust|prefer|endorse)/i,
+    /CPAs (?:like|love|recommend|trust|endorse) (?:it|this|TaxStat360)/i,
+    /which is why (?:many|most) (?:CPAs|accountants|professionals)/i,
+    /successful business owners (?:use|rely)/i,
+    /(?:thousands|hundreds) of (?:users|business owners|customers)/i,
+    /trusted by \d/i,
+  ]
+  for (const rx of BANNED) {
+    it(`no shipped copy matches ${rx}`, () => {
+      expect(offenders(rx)).toEqual([])
+    })
+  }
+})
+
+describe('M11 — the affiliate connection is disclosed before the click', () => {
+  const hub = () => read(join(SRC, 'components/ResourcesHub.jsx'))
+
+  it('a section-level disclosure sits above the partner cards', () => {
+    expect(hub()).toMatch(/Advertising disclosure/i)
+  })
+
+  it('the card discloses the connection ABOVE its link, not below it', () => {
+    // This is the actual finding: the text existed, but sat below the click target in
+    // 11px #94A3B8. §255.5 wants it where the consumer sees it BEFORE acting.
+    const h = hub()
+    const disclosure = h.indexOf('Affiliate partner.')
+    const link = h.indexOf('Visit Engineered Tax Services')
+    expect(disclosure).toBeGreaterThan(-1)
+    expect(link).toBeGreaterThan(-1)
+    expect(disclosure, 'disclosure must precede the link').toBeLessThan(link)
+  })
+
+  it('it is not rendered in the fine-print grey it used to be', () => {
+    const h = hub()
+    const at = h.indexOf('Affiliate partner.')
+    const span = h.slice(Math.max(0, at - 260), at)
+    expect(span).not.toMatch(/fontSize: 11\b/)
+    expect(span).not.toMatch(/#94A3B8/)
+  })
+
+  it('rel="sponsored" is still on the affiliate link', () => {
+    expect(hub()).toMatch(/rel="sponsored noopener noreferrer"/)
   })
 })
 
