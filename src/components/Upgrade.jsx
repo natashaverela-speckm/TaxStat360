@@ -101,7 +101,16 @@ export default function Upgrade() {
 
   const stripeRef = useRef(null)
   const cardRef = useRef(null)
-  const mountedRef = useRef(false)
+  const cardNodeRef = useRef(null)
+  // AUDIT M7 (second launch audit, Sep 2026): readiness is STATE, not a bare ref,
+  // because the button's enabled-ness has to re-render off it. mountedRef could not do
+  // that — which is precisely how an unmounted card left an enabled, dead button.
+  const [stripeLoaded, setStripeLoaded] = useState(false)
+  const [stripeReady, setStripeReady] = useState(false)
+  // AUDIT M7: distinguishes 'not ready yet' from 'will never be ready'. Without it a
+  // missing key or a failed SDK shows "Loading secure card input..." indefinitely,
+  // which is a different lie from the one this finding started with.
+  const [stripeFailed, setStripeFailed] = useState(false)
 
   useEffect(() => {
     const raw  = readPlan() || 'starter'
@@ -109,47 +118,109 @@ export default function Upgrade() {
     const em = readEmail() || ''
     setCurrentPlan(plan)
     setEmail(em)
-    if (!window.Stripe) {
-      const s = document.createElement('script')
-      s.src = 'https://js.stripe.com/v3/'
-      document.head.appendChild(s)
-    }
   }, [])
+
+  // AUDIT M7: "UPGRADE NOW" COULD BE AN ENABLED NO-OP.
+  //
+  // The old code appended the Stripe script with NO load listener, then mountCard() ran
+  // on a bare setTimeout(200) and returned SILENTLY when window.Stripe or the mount node
+  // was not there yet. handleUpgrade() then bailed silently too. So on a slow connection
+  // — or any time the user picked a plan within ~250ms of first paint — the card never
+  // mounted, the button stayed ENABLED, and clicking it did nothing. No error, no
+  // spinner, no console message, and nothing a server log would show. This is the path
+  // every entity-cap gate funnels into.
+  //
+  // Onboarding.jsx already solved this (a load listener, a readiness flag, a disabled
+  // control, a visible loading note). That pattern is mirrored here rather than
+  // reinvented, including its tagged-script reuse so the SDK is never appended twice.
+  //
+  // Three failure modes are now distinguishable instead of identical:
+  //   publishable key missing -> payment unavailable, contact support
+  //   SDK still loading       -> button disabled + "Loading secure card input..."
+  //   SDK failed to load      -> explicit "could not load card input" error
+  useEffect(() => {
+    let cancelled = false
+    const PK = import.meta.env.VITE_STRIPE_PK
+    if (!PK) {
+      setErr('Payment form is temporarily unavailable. Please refresh or contact support.')
+      setStripeFailed(true)
+      return
+    }
+    function initStripe() {
+      if (cancelled || !window.Stripe || stripeRef.current) return
+      try {
+        const sk = window.Stripe(PK)
+        stripeRef.current = sk
+        const els = sk.elements()
+        cardRef.current = els.create('card', {
+          style: { base: { fontSize:'15px', color:N, fontFamily:'Inter,sans-serif', '::placeholder':{ color:'#94A3B8' } } }
+        })
+        setStripeLoaded(true)
+      } catch {
+        if (!cancelled) { setErr('Could not load card input. Please refresh and try again.'); setStripeFailed(true) }
+      }
+    }
+    if (window.Stripe) {
+      initStripe()
+    } else {
+      let sc = document.querySelector('script[data-ts360-stripe="1"]')
+      if (!sc) {
+        sc = document.createElement('script')
+        sc.src = 'https://js.stripe.com/v3/'
+        sc.async = true
+        sc.dataset.ts360Stripe = '1'
+        document.head.appendChild(sc)
+      }
+      sc.addEventListener('load', initStripe)
+      sc.addEventListener('error', () => {
+        if (!cancelled) { setErr('Could not load card input. Please refresh and try again.'); setStripeFailed(true) }
+      })
+    }
+    return () => { cancelled = true }
+  }, [])
+
+  // Mount the Card Element once its node is actually in the DOM (it exists only while
+  // showCard is true), and report readiness so the button can gate on it.
+  useEffect(() => {
+    if (!showCard || !stripeLoaded || !cardRef.current) return
+    let cancelled = false
+    setStripeReady(false)
+    const t = window.setTimeout(() => {
+      if (cancelled || !cardNodeRef.current || !cardRef.current) return
+      try {
+        cardRef.current.mount(cardNodeRef.current)
+        if (!cancelled) setStripeReady(true)
+      } catch (e) {
+        const msg = String((e && e.message) || e)
+        // Re-mounting an already-mounted element throws; that state is still ready.
+        if (/mounted/i.test(msg)) { if (!cancelled) setStripeReady(true) }
+        else if (!cancelled) { setErr('Could not load card input. Please refresh and try again.'); setStripeFailed(true) }
+      }
+    }, 0)
+    return () => { cancelled = true; window.clearTimeout(t) }
+  }, [showCard, stripeLoaded])
 
   const planOrder = ['starter','professional','enterprise']
   const isUpgrade = (plan) => planOrder.indexOf(plan) > planOrder.indexOf(currentPlan)
   const isDowngrade = (plan) => planOrder.indexOf(plan) < planOrder.indexOf(currentPlan)
   const isPaid = currentPlan !== 'starter'
 
-  const mountCard = () => {
-    if (mountedRef.current) return
-    setTimeout(() => {
-      if (!window.Stripe || !document.getElementById('card-element')) return
-      // SEC-01 FIX: Stripe live key moved to environment variable.
-      // Was: window.Stripe('pk_live_51TJmYh...' ) — hardcoded in source.
-      // Now: reads from VITE_STRIPE_PK env var so dev builds use test key.
-      const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PK)
-      stripeRef.current = stripe
-      const elements = stripe.elements()
-      const card = elements.create('card', {
-        style: { base: { fontSize:'15px', color:N, fontFamily:'Inter,sans-serif', '::placeholder':{ color:'#94A3B8' } } }
-      })
-      card.mount('#card-element')
-      cardRef.current = card
-      mountedRef.current = true
-    }, 200)
-  }
-
   const handleSelectPlan = (plan) => {
     if (!isUpgrade(plan)) return
     setSelectedPlan(plan)
     setShowCard(true)
     setErr('')
-    setTimeout(mountCard, 50)
+    // AUDIT M7: no setTimeout(mountCard, 50) race — the mount effect fires when the
+    // node exists, and the button stays disabled until it reports ready.
   }
 
   const handleUpgrade = async () => {
-    if (!selectedPlan || !stripeRef.current || !cardRef.current) return
+    // AUDIT M7: this used to `return` silently, which is what made the button a no-op.
+    if (!selectedPlan) return
+    if (!stripeReady || !stripeRef.current || !cardRef.current) {
+      setErr('Card input is still loading \u2014 give it a moment and try again.')
+      return
+    }
     setLoading(true)
     setErr('')
     try {
@@ -386,6 +457,13 @@ export default function Upgrade() {
         </div>
 
         {/* Card input for upgrades */}
+        {/* AUDIT M7: a setup failure detected on mount (missing key, SDK refused to
+            load) used to have nowhere to render — the error element lived inside the
+            card block, which only exists after a plan is chosen. Surface it here too,
+            so the user is told before they pick a plan rather than after. */}
+        {stripeFailed && err && !showCard && (
+          <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',maxWidth:520,margin:'0 auto 16px'}}>{err}</div>
+        )}
         {showCard && selectedPlan && (
           <div style={{background:'#fff',border:`2px solid ${B}`,borderRadius:14,padding:28,maxWidth:520,margin:'0 auto'}}>
             <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:4}}>
@@ -396,14 +474,17 @@ export default function Upgrade() {
             </div>
             <div style={{marginBottom:16}}>
               <label style={{fontSize:12,fontWeight:600,color:SL,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:8}}>Card Details</label>
-              <div id="card-element" style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:8,background:'#FAFAFA'}}/>
+              <div id="card-element" ref={cardNodeRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:8,background:'#FAFAFA'}}/>
+              {!stripeReady && !stripeFailed && <p style={{fontSize:11,color:'#94A3B8',margin:'6px 0 0'}}>Loading secure card input...</p>}
             </div>
             {err && <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',marginBottom:14}}>{err}</div>}
-            <button onClick={handleUpgrade} disabled={loading} style={{
-              width:'100%',padding:'13px',background:loading?'#94A3B8':B,color:'#fff',
-              border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:loading?'not-allowed':'pointer'
+            {/* AUDIT M7: disabled until the card element reports ready, so the control
+                can no longer look clickable while it is inert. */}
+            <button onClick={handleUpgrade} disabled={loading || !stripeReady} style={{
+              width:'100%',padding:'13px',background:(loading || !stripeReady)?'#94A3B8':B,color:'#fff',
+              border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:(loading || !stripeReady)?'not-allowed':'pointer'
             }}>
-              {loading ? 'Processing...' : `Upgrade Now — $${PLANS[selectedPlan]?.price[billing]}/mo`}
+              {loading ? 'Processing...' : stripeFailed ? 'Payment unavailable' : !stripeReady ? 'Loading secure card input...' : `Upgrade Now — $${PLANS[selectedPlan]?.price[billing]}/mo`}
             </button>
             <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>🔒 Secured by Stripe · Cancel anytime</div>
           </div>
