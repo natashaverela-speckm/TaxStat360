@@ -2136,6 +2136,42 @@ function SimulatorModal({ onClose, rec }) {
   })
   const [activeScenario, setActiveScenario] = useState(null)
 
+  // ── FRESH-EYES S-4 (11 Sep 2026): reasonable-comp guardrail ────────────────
+  // Every other officer-salary surface in the app warns when salary is low
+  // relative to distributions: Step 1 (ReasonableCompIndicator), the Dashboard
+  // card, EntityCompareModal's slider (rcRisk), and the Risk Scan. The What-If
+  // Simulator did not — and it is the one surface where a user can DRIVE salary
+  // DOWN and watch the number fall. The presets only ever raise salary
+  // (`salary: { officerSalary: 20000 }`), so the downward path existed solely
+  // through the unguarded custom-delta field, which accepts a negative because
+  // its MoneyInput has no allowNegative={false}. The result rendered in a green
+  // "YOU SAVE" tile with no §1.162-7 caveat anywhere in the modal.
+  //
+  // That is the most examinable position the product can display, shown at the
+  // moment the user is deciding to take it. The fix deliberately fires on ANY
+  // downward move for an S-Corp rather than only below the ratio threshold: the
+  // threshold is a practitioner heuristic (see the note over
+  // calcReasonableCompCore), so it cannot be the thing that decides whether a
+  // user sees the standard at all. Where the post-change ratio is computable we
+  // show the canonical engine message; otherwise a shorter caution.
+  //
+  // The ratio below is a GUARDRAIL, not a tax figure — it mirrors applyPreset's
+  // own netProfit formula and is never written to the record or displayed as a
+  // calculated result.
+  const simSalaryCut = isSCorpEntity(entity) && (nf(delta.officerSalary) || 0) < 0
+  const simRcAlert = (() => {
+    if (!simSalaryCut) return null
+    const newSal = Math.max(0, nf(base.officerSalary) + (nf(delta.officerSalary) || 0))
+    const newNetProfit =
+      (nf(base.grossRevenue) + (nf(delta.grossRevenue) || 0))
+      - nf(base.cogs)
+      - (nf(base.operatingExpenses) + (nf(delta.operatingExpenses) || 0))
+      - newSal
+    const newK1 = Math.max(0, newNetProfit * ownerPctVal)
+    const core = calcReasonableCompCore(newSal, newK1)
+    return { newSal, core }
+  })()
+
   // F15 FIX: 'baseline' preset resets all deltas and clears the active scenario
   const applyPreset = (id) => {
     if (id === 'baseline') {
@@ -2282,6 +2318,18 @@ function SimulatorModal({ onClose, rec }) {
             </div>
           </div>
         )}
+        {/* FRESH-EYES S-4 (11 Sep 2026): rendered BEFORE the results block, so the
+            standard is on screen above the savings figure rather than below it.
+            role="alert" matches the simError treatment directly beneath. */}
+        {simRcAlert && (
+          <div role="alert" style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:10,padding:'14px 16px',marginBottom:14,fontSize:13,color:'#7F1D1D',lineHeight:1.6}}>
+            <strong>You are modeling a reduction in S-Corp officer compensation.</strong>{' '}
+            {simRcAlert.core.applicable && simRcAlert.core.triggered
+              ? simRcAlert.core.message
+              : `Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Lowering officer salary while distributions continue is the position the IRS most often recharacterizes as wages (Rev. Rul. 74-44), with back payroll tax, penalties and interest. Any saving shown below assumes the reduced salary is defensible for the work actually performed.`}
+            {' '}<em>This is an informational flag, not a determination, and nothing here is saved to your record.</em>
+          </div>
+        )}
         {/* M2 (audit F-05) / SIM-1: visible failure state — never render NaN rows or a
             fake "$0 savings" when the calculation guard has rejected the inputs. */}
         {activeScenario && simError && (
@@ -2375,7 +2423,17 @@ function SimulatorModal({ onClose, rec }) {
           </div>
         )}
         <div style={{fontSize:11,color:'#64748B',textAlign:'center',marginTop:8}}>
-          Uses {taxYear} federal brackets · {filing.toUpperCase()} · {fmt(stdDed)} std deduction · Does not include state tax, FICA, or AMT · Consult a licensed tax professional before implementing.
+          {/* FRESH-EYES S-4b (11 Sep 2026): this said "Does not include state tax,
+              FICA, or AMT" — wrong on two of the three, and wrong in the direction
+              that UNDERSTATES the product. CALC-1 routed the simulator through
+              calcTaxReturn, so the scenario already includes employer FICA
+              (whatif-simulator.test.js H1 pins it), SE tax, NIIT, Additional
+              Medicare Tax, AMT, §1366(d) basis limits and §461(l). A user reading
+              the old line would discount a savings figure that had in fact already
+              accounted for the payroll cost of the salary change — the single most
+              important term in an officer-compensation scenario. State and local
+              tax remains the real exclusion. */}
+          Uses {taxYear} federal brackets · {filing.toUpperCase()} · {fmt(stdDed)} std deduction · Includes SE tax, employer FICA, NIIT, Additional Medicare Tax and AMT · Excludes state and local tax · Consult a licensed tax professional before implementing.
         </div>
       </div>
     </Modal>

@@ -226,7 +226,19 @@ export default function Landing() {
               desc: 'Self-employment tax, §199A QBI deduction, and estimated quarterly payments, recalculated every time you sync or update your figures.' },
             { icon: 'home', label: 'Schedule E',
               title: 'Real Estate Investors',
-              desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.' },
+              // FRESH-EYES C-1 (11 Sep 2026): this card said "depreciation schedule
+              // ... all factored in". The engine computes no schedule — no MACRS
+              // tables, no recovery periods, no conventions, no §168(k) bonus
+              // percentage. Depreciation is a single lump sum the user types, which
+              // the app's OWN tooltip states plainly ("TaxStat360 uses this figure as
+              // entered and does not calculate bonus depreciation for you",
+              // CalculateTaxInner.jsx). Marketing was promising something the
+              // product's own help text disclaims one screen later — and the
+              // Resources hub carries a commissioned cost-segregation referral, so a
+              // customer could buy an accelerated-depreciation study on our link and
+              // then find the app won't model it. Copy now matches the tooltip, and
+              // leads with §469, which the engine genuinely does compute.
+              desc: 'Rental income, §469 passive-loss limits and carryforwards, and the depreciation figure you enter are all factored in. Schedule E flows directly into your personal tax calculation.' },
             { icon: 'briefcase', label: 'Combined',
               title: 'W-2 Plus Business Owner',
               desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
@@ -328,7 +340,23 @@ export default function Landing() {
               // explaining the year-selection mechanic or who controls it.
               // UX-08 FIX: Added explicit "federal tax only — state taxes are not included"
               // statement so users understand the scope of what is calculated.
-              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional.' },
+              a: 'TaxStat360 uses IRS-published tax rates, brackets, and rules for the tax year you select — choose your applicable year from the year dropdown in the Tax Tracker (Step 2 of the calculator) and all calculations update automatically to reflect the correct IRS rates for that year. Our calculations cover federal tax only (state taxes are not included) and encompass: federal income tax, self-employment tax, the §199A QBI deduction, estimated quarterly payments (with safe harbor), K-1 passthrough income, the 3.8% Net Investment Income Tax (NIIT), the 0.9% Additional Medicare Tax, and Alternative Minimum Tax (AMT). Results are designed for accurate planning estimates. For your actual filed return, always review with a tax professional. See "What does TaxStat360 not calculate?" below for the modeling boundaries we deliberately leave to your preparer.' },
+            // FRESH-EYES C-2 (11 Sep 2026): the engine's modeling boundaries were
+            // documented thoroughly — KNOWN_LIMITATIONS.md runs to 799 lines with an
+            // exposure direction and an owner ratification on every entry — but none
+            // of it was user-facing anywhere on the public site. The accuracy answer
+            // above listed eight things the engine DOES cover and, past "federal
+            // only", nothing it does not. A user whose number differs from their
+            // preparer's had no way to find out why without opening a support ticket.
+            //
+            // This is deliberately a separate FAQ item rather than more text bolted
+            // onto the accuracy answer: it is a question people actually ask, it is
+            // addressable on its own, and it can be linked to from support replies.
+            // The items chosen are the ones that MOVE A USER'S NUMBER, not the full
+            // internal list. Keep this in sync with the FAQPage JSON-LD in
+            // index.html — complianceCopy.test.js asserts the two are byte-identical.
+            { q: 'What does TaxStat360 not calculate?',
+              a: 'TaxStat360 is a planning estimate, and some things are deliberately left to your preparer — each can make our figure differ from theirs. It does not calculate state, local, or foreign tax. It uses the depreciation figure you enter rather than building a depreciation schedule, so §179, MACRS, and §168(k) bonus depreciation are taken as you or your accountant computed them. It does not apply the §163(j) business-interest limitation. It takes HSA and SEP or Solo 401(k) contributions as entered without capping them at the annual limits. It does not ask your age, so the senior deduction is not applied, and it does not model the deductions for tips, overtime, or car-loan interest. For C-Corporations it assumes the full annual profit is distributed, and it does not model the accumulated-earnings tax (§531) or the personal-holding-company tax (§541). Several of these are flagged inside the app at the field they affect.' },
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',

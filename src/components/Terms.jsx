@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ACCOUNT_DELETION_STATEMENT, ACCOUNT_DELETION_EXPORT_WARNING } from '../lib/complianceCopy.js'
+import { ACCOUNT_DELETION_STATEMENT, ACCOUNT_DELETION_EXPORT_WARNING, NO_MODEL_TRAINING_STATEMENT } from '../lib/complianceCopy.js'
 import Nav from './Nav'
 import Footer from './Footer'
 
@@ -201,7 +201,12 @@ export default function Terms() {
               Privacy Policy previously said what happens to already-synced data, which
               is a question their app reviews ask directly. */}
           <p style={{ marginBottom: 10 }}>If you disconnect an accounting integration, we delete the financial data synced from that platform within 30 days, except where we are required to retain it by law.</p>
-          <p>You retain ownership of all financial data you provide to TaxStat360. We do not claim any rights to your data. We do not use your financial data, tax figures, or AI assistant conversations to train, fine-tune, or evaluate any machine learning model, ours or a third party&rsquo;s.</p>
+          {/* FRESH-EYES P-3 (11 Sep 2026): this sentence was the only home of the
+              no-training promise; the Privacy Policy's "improve our platform"
+              bullet pulled the other way. Both documents now render the shared
+              NO_MODEL_TRAINING_STATEMENT constant. Text is byte-identical to what
+              shipped here before — this is a de-duplication, not a wording change. */}
+          <p>You retain ownership of all financial data you provide to TaxStat360. We do not claim any rights to your data. {NO_MODEL_TRAINING_STATEMENT}</p>
         </Section>
 
         {/* AUDIT H11 — new section. The prior document disclaimed warranties only as to

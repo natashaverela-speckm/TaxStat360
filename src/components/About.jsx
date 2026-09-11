@@ -82,7 +82,15 @@ const APPROACH = [
   {
     icon: 'shield',
     heading: 'Compliance-First Design',
-    text: 'Every calculation is built on IRS-published tax rates and rules, updated for the tax year you select. TaxStat360 is designed around exactly where the IRS draws those lines — to help keep you on the right side of them.',
+    // FRESH-EYES C-3 (11 Sep 2026): "to help keep you on the right side of them"
+    // promised an outcome — under a heading that says "Compliance-First", on a
+    // site whose Terms §7 disclaims in capitals any warranty that a calculation is
+    // accurate or complete. Every other disclosure on this site is carefully
+    // bounded (the §10.3 / Form 2848 representation line, the non-endorsement
+    // footer); this was the one line that drifted. Reworded to promise visibility,
+    // which is what the product actually delivers, rather than an outcome no
+    // estimation tool can guarantee.
+    text: 'Every calculation is built on IRS-published tax rates and rules, updated for the tax year you select. TaxStat360 is designed around exactly where the IRS draws those lines — so you can see where your figures fall relative to them, and take that picture to your tax professional.',
   },
   {
     icon: 'partners',

@@ -1,5 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { ENCRYPTION_STATEMENT } from '../lib/complianceCopy.js'
+import {
+  ENCRYPTION_STATEMENT,
+  ACCOUNT_DELETION_STATEMENT,
+  ACCOUNT_DELETION_EXPORT_WARNING,
+  NO_MODEL_TRAINING_STATEMENT,
+} from '../lib/complianceCopy.js'
 import Nav from './Nav'
 import Footer from './Footer'
 
@@ -48,7 +53,15 @@ export default function Privacy() {
           <p style={{ marginBottom: 8 }}>- Generate quarterly estimated payment recommendations</p>
           <p style={{ marginBottom: 8 }}>- Provide AI-powered risk alerts and tax optimization suggestions</p>
           <p style={{ marginBottom: 8 }}>- Send transactional emails (account verification, password reset)</p>
-          <p>- Improve our platform features and performance</p>
+          {/* FRESH-EYES P-3 (11 Sep 2026): this list item read "Improve our
+              platform features and performance" — broad enough to be read as
+              permitting the model training that Terms §6 expressly forbids.
+              Narrowed to what the platform actually does (aggregate, non-
+              identifying diagnostics), with the §6 promise restated below from
+              the shared constant so the two documents cannot diverge. */}
+          <p style={{ marginBottom: 8 }}>- Diagnose errors and monitor performance using aggregate, non-identifying usage data</p>
+          <p style={{ marginBottom: 8 }}><strong>{NO_MODEL_TRAINING_STATEMENT}</strong></p>
+          <p>We do not sell your personal information, and we do not use your financial data to build advertising audiences.</p>
         </Section>
 
         <Section title="3. Data Security">
@@ -58,7 +71,14 @@ export default function Privacy() {
               and TLS 1.3 contradicted the "TLS 1.2+" in Landing and the index.html
               JSON-LD. Both now render the single statement in complianceCopy.js. */}
           <p style={{ marginBottom: 10 }}>{ENCRYPTION_STATEMENT}</p>
-          <p>Your financial and account data is stored on AWS infrastructure in the United States and is never sold, and is never shared with third parties for advertising. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
+          {/* FRESH-EYES P-2 (11 Sep 2026): read literally the old sentence was
+              accurate — it only ever disclaimed sharing FOR ADVERTISING. Read the
+              way people actually read a policy, under a heading that says "Data
+              Security", it said tax figures never leave us, and Section 4 then
+              discloses that calculation inputs are transmitted to an outside API.
+              The service-provider carve-out is now stated in the same sentence
+              rather than left to be discovered three sections later. */}
+          <p>Your financial and account data is stored on AWS infrastructure in the United States. It is <strong>never sold</strong> and <strong>never shared for advertising</strong>. It is disclosed only to the service providers we use to operate the platform &mdash; each listed by name in &ldquo;Third-Party Services&rdquo; below, and each receiving only what that service needs to do its job. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
         </Section>
 
         {/* #6 FINAL (Anthropic, external API processor):
@@ -77,8 +97,22 @@ export default function Privacy() {
           <p>AI output is provided for planning purposes only and is not professional tax advice.</p>
         </Section>
 
+        {/* FRESH-EYES P-1/P-6 (11 Sep 2026): this section said only "We process
+            deletion requests within 30 days", which described a different system
+            from Terms §10 ("immediate and permanent ... no recovery window") —
+            two binding documents, same Last-updated date, contradicting each
+            other on the one operation a user cannot undo. The in-app deletion now
+            renders the SAME constant Terms §10 and Settings render, so the three
+            can never drift again; the 30-day window is kept for emailed requests,
+            which is the manual path it actually describes. P-6 mirrors the
+            integration-deletion commitment that previously lived only in Terms §6,
+            where a user looking for a retention promise would never find it. */}
         <Section title="5. Data Retention">
-          <p>We retain your data for as long as your account is active. Request deletion at any time by emailing <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a>. We process deletion requests within 30 days.</p>
+          <p style={{ marginBottom: 10 }}>We retain your data for as long as your account is active.</p>
+          <p style={{ marginBottom: 10 }}>{ACCOUNT_DELETION_STATEMENT}</p>
+          <p style={{ marginBottom: 10 }}><strong>{ACCOUNT_DELETION_EXPORT_WARNING}</strong></p>
+          <p style={{ marginBottom: 10 }}>If you would rather not use the in-app control, you can ask us to delete your account by emailing <a href="mailto:support@taxstat360.com" style={{ color: B }}>support@taxstat360.com</a>. We process deletion requests within 30 days of receiving them. The in-app deletion described above is immediate and is not subject to that window.</p>
+          <p>If you disconnect an accounting integration but keep your account, we delete the financial data synced from that platform within 30 days, except where we are required to retain it by law.</p>
         </Section>
 
         <Section title="6. Third-Party Services">
