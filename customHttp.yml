@@ -121,3 +121,25 @@ customHeaders:
           base-uri 'self';
           form-action 'self' https://app.taxstat360.com https://taxstat360.us4.list-manage.com;
           upgrade-insecure-requests;
+
+  # ── AUDIT H13 (second launch audit, Sep 2026): CONSOLIDATED FROM amplify.yml ──
+  #
+  # These three cache rules used to live in a SECOND customHeaders block in
+  # amplify.yml, which also redefined the '**/*' pattern with
+  # X-Frame-Options: SAMEORIGIN — directly contradicting the DENY above — and with
+  # no CSP and no HSTS at all. Two files defining headers for the same pattern is
+  # how a security header set silently becomes whichever file the platform happens
+  # to prefer. Everything now lives here; amplify.yml no longer sets headers.
+  - pattern: '/index.html'
+    headers:
+      - key: Cache-Control
+        value: 'no-cache, no-store, must-revalidate'
+      - key: Pragma
+        value: 'no-cache'
+      - key: Expires
+        value: '0'
+
+  - pattern: '/assets/**'
+    headers:
+      - key: Cache-Control
+        value: 'public, max-age=31536000, immutable'

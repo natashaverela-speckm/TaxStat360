@@ -20,22 +20,14 @@ frontend:
     baseDirectory: dist
     files:
       - '**/*'
-  customHeaders:
-    - pattern: '**/*'
-      headers:
-        - key: 'X-Frame-Options'
-          value: 'SAMEORIGIN'
-        - key: 'X-Content-Type-Options'
-          value: 'nosniff'
-    - pattern: '/index.html'
-      headers:
-        - key: 'Cache-Control'
-          value: 'no-cache, no-store, must-revalidate'
-        - key: 'Pragma'
-          value: 'no-cache'
-        - key: 'Expires'
-          value: '0'
-    - pattern: '/assets/**'
-      headers:
-        - key: 'Cache-Control'
-          value: 'public, max-age=31536000, immutable'
+  # ── AUDIT H13 (second launch audit, Sep 2026): customHeaders REMOVED ──
+  #
+  # This file used to define a second customHeaders block on the same '**/*'
+  # pattern as customHttp.yml, with X-Frame-Options: SAMEORIGIN (contradicting
+  # customHttp.yml's DENY), no CSP and no HSTS. Which one applied was decided by
+  # the platform, not by anyone here — the production site happened to serve the
+  # customHttp.yml set, which is the safe outcome, arrived at by luck.
+  #
+  # customHttp.yml is now the ONLY place headers are defined, cache rules
+  # included. Do not reintroduce a customHeaders block here; a CI guard
+  # (src/customHttp.csp.test.js) fails the build if one appears.
