@@ -40,7 +40,7 @@
 // the entity comparison stays correct as TAX_TABLES adds future years.
 // Audit fix: added calcCCorpCorporateLayer and calcFICAOnWages so the compare
 // engine delegates to the shared implementations rather than inlining them.
-import { calcTaxReturn, calcCCorpCorporateLayer, calcFICAOnWages } from './taxCalc.js'
+import { calcTaxReturn, calcCCorpCorporateLayer, calcFICAOnWages, calcEmployerFICA } from './taxCalc.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. The single calcTaxReturn() call
 // in this module routes its input through guarded() below. A CalcInputError propagates
 // to the caller — EntityCompareModal already catches any throw from
@@ -178,7 +178,36 @@ function compareEntityScenarios(input) {
   // ── S Corp scenario ────────────────────────────────────────────────────────
   // Officer salary is W-2 income; remaining profit is K-1 distribution (no SE tax).
   // Employment tax on the salary is computed by calcFICAOnWages (both sides, IRC §3101/§3111).
-  const scK1      = Math.max(0, np - salary)
+  // ── AUDIT M2 (second launch audit, Sep 2026): EMPLOYER FICA WAS NOT DEDUCTED ──
+  //
+  // This read `Math.max(0, np - salary)`. The employer half of payroll tax is a
+  // deductible business expense (IRC §162; §164(f) is the SE-tax analogue), so it
+  // reduces the profit that passes through on the K-1 — exactly as it does in the
+  // C-Corp branch thirty lines below, where calcCCorpCorporateLayer computes
+  // `profitBeforeTax = np - salary - employerFICA`.
+  //
+  // The two branches therefore treated the SAME cost differently, and the comparison
+  // this engine exists to produce was biased by the difference: S-Corp K-1 too high ->
+  // S-Corp tax too high -> C-Corp looks better than it is. That is a bias in the
+  // entity-structure RECOMMENDATION, not merely a display number.
+  //
+  // On $300,000 profit with a $120,000 salary the overstatement is $9,180
+  // (6.2% x 120,000 + 1.45% x 120,000), and the Compare screen disagreed with the
+  // Tax Tracker by that amount of K-1 for the same facts.
+  //
+  // Root cause worth recording: the first audit's H1 fix extracted this arithmetic
+  // into calcEmployerFICA() and threaded it through the Tax Tracker, the What-If
+  // Simulator and the C-Corp layer. calcCCorpCorporateLayer's own comment says the
+  // extraction was made "so the S-Corp path uses the identical arithmetic" — and then
+  // this S-Corp path was never switched over. The helper existed; the call site was
+  // missed.
+  //
+  // scFICA below is unchanged and is NOT a double count: the owner-operator still bears
+  // both halves in cash (added to scTax), while the employer half is simultaneously
+  // deductible to the entity (subtracted here). Both treatments are correct and they
+  // describe different things.
+  const scEmployerFICA = calcEmployerFICA(salary, taxYear)
+  const scK1      = Math.max(0, np - salary - scEmployerFICA)
   const scEntity  = {
     type: 'S Corporation',
     netProfit: np,
