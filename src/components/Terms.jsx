@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { ACCOUNT_DELETION_STATEMENT, ACCOUNT_DELETION_EXPORT_WARNING } from '../lib/complianceCopy.js'
 import Nav from './Nav'
 import Footer from './Footer'
 
@@ -247,8 +248,16 @@ export default function Terms() {
         </Section>
 
         <Section title="10. Termination">
-          <p style={{ marginBottom: 10 }}>You may cancel your account at any time. We reserve the right to suspend or terminate accounts that violate these terms. Upon termination, your data will be retained for 30 days before permanent deletion.</p>
-          <p><strong>Export your data before cancelling.</strong> After the 30-day period we cannot recover it.</p>
+          {/* AUDIT M5 (second launch audit, Sep 2026): this said data was "retained for
+              30 days before permanent deletion" and that "after the 30-day period we
+              cannot recover it" — which tells the reader it CAN be recovered before
+              then, while the in-app delete dialog said the opposite ("cannot be
+              undone"). Same action, two promises. Both now render the single statement
+              in complianceCopy.js, which is accurate under either backend behaviour and
+              stops promising a recovery window that may not exist. */}
+          <p style={{ marginBottom: 10 }}>You may cancel your account at any time. We reserve the right to suspend or terminate accounts that violate these terms.</p>
+          <p style={{ marginBottom: 10 }}>{ACCOUNT_DELETION_STATEMENT}</p>
+          <p><strong>{ACCOUNT_DELETION_EXPORT_WARNING}</strong></p>
         </Section>
 
         {/* AUDIT H11 — this was two sentences buried at the end of a section titled

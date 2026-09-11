@@ -16,6 +16,7 @@
 // <Nav> is position:fixed (height 64), so the page wrapper adds paddingTop:64.
 
 import { useEffect } from 'react'
+import { CTA_COPY_SHORT } from '../lib/constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ARTICLES, getArticle } from '../lib/articles.js'
@@ -171,8 +172,16 @@ export default function Article() {
           }}>
             Start Your Free 7-Day Trial →
           </a>
+          {/* AUDIT M10 (second launch audit, Sep 2026): this was hand-written as
+              "No charge for 7 days · Cancel anytime" — dropping "Card required", the
+              one element the FTC negative-option rule and Cal. B&P §17602(a) require
+              before the click, and shortening "Cancel anytime in Settings" to a claim
+              with no route in it. constants.js:822-829 explicitly warns against
+              softening this copy. Every other surface (Landing ×2, About,
+              ResourcesHub) imports the constant; this was the only one that did not,
+              and every article page is an ad-landing surface. */}
           <p style={{ fontSize: 12, color: '#6B7AA3', marginTop: 12 }}>
-            No charge for 7 days · Cancel anytime
+            {CTA_COPY_SHORT}
           </p>
         </div>
 

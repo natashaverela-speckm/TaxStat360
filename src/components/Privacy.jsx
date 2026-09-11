@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { ENCRYPTION_STATEMENT } from '../lib/complianceCopy.js'
 import Nav from './Nav'
 import Footer from './Footer'
 
@@ -51,7 +52,12 @@ export default function Privacy() {
         </Section>
 
         <Section title="3. Data Security">
-          <p style={{ marginBottom: 10 }}>We use bank-level 256-bit AES encryption for all data at rest and TLS 1.3 in transit. All accounting connections use read-only OAuth tokens.</p>
+          {/* AUDIT M12 (second launch audit, Sep 2026): said "bank-level 256-bit AES"
+              and "TLS 1.3". The first audit removed "bank-level" from the Landing FAQ
+              (In re Zoom, FTC 2020) but pinned only that string, so it survived here;
+              and TLS 1.3 contradicted the "TLS 1.2+" in Landing and the index.html
+              JSON-LD. Both now render the single statement in complianceCopy.js. */}
+          <p style={{ marginBottom: 10 }}>{ENCRYPTION_STATEMENT}</p>
           <p>Your financial and account data is stored on AWS infrastructure in the United States and is never sold, and is never shared with third parties for advertising. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
         </Section>
 

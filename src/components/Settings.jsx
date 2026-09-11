@@ -5,6 +5,7 @@ import { signOut, wipeAccountLocalData } from '../utils/SignOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
+import { ACCOUNT_DELETION_STATEMENT } from '../lib/complianceCopy.js'
 import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan, exportAllDeviceData } from '../utils/sessionState.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { deleteOwnAccount } from '../utils/serverApi.js'
@@ -755,7 +756,7 @@ export default function Settings() {
               <div onClick={e => e.stopPropagation()} style={{background:'#fff',borderRadius:14,maxWidth:440,width:'100%',padding:'26px 24px',boxShadow:'0 20px 50px rgba(0,0,0,0.25)'}}>
                 <div style={{fontSize:17,fontWeight:700,color:'#DC2626',marginBottom:10}}>Delete your account?</div>
                 <div style={{fontSize:13.5,color:SL,lineHeight:1.55,marginBottom:8}}>
-                  This permanently deletes your account, cancels your subscription, and erases all of your saved tax records and personal information. <strong>This cannot be undone.</strong>
+                  {ACCOUNT_DELETION_STATEMENT}
                 </div>
                 <div style={{fontSize:13,color:N,marginBottom:8}}>Type <strong>DELETE</strong> to confirm:</div>
                 <input
