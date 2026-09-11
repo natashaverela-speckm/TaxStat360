@@ -1,4 +1,5 @@
 // src/constants.js
+import { CANCEL_PATH } from './complianceCopy.js'
 // Single source of truth for PERMANENT constants across TaxStat360.
 //
 // ── Architecture rule ──────────────────────────────────────────────────────────
@@ -729,7 +730,7 @@ export function renewalDisclosure(plan, billing, from = new Date()) {
   const cadence = isAnnual ? 'every 12 months' : 'every month'
   return 'Your ' + TRIAL_DAYS + '-day free trial ends on ' + trialEndLabel(from) +
     '. On that date your card will be charged ' + amount + ', and then ' + amount + ' ' +
-    cadence + ', automatically, until you cancel. Cancel any time in Settings \u2192 Billing.'
+    cadence + ', automatically, until you cancel. Cancel any time in ' + CANCEL_PATH + '.'
 }
 
 

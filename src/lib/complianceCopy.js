@@ -225,3 +225,69 @@ export const EXPENSE_RATIO_DETAIL =
 
 export const EXPENSE_RATIO_ACTION =
   'Before filing: (1) Confirm every deduction is ordinary and necessary under IRC §162 and traceable to a business purpose. (2) Check that contemporaneous records exist for each category — the §274(d) categories (travel, meals, gifts, vehicles and other listed property) need amount, date, place, and business purpose, and cannot be reconstructed by estimate after the fact. (3) Review the largest categories individually against the books. (4) Confirm no personal expense was included, and that capital expenditures were capitalized under IRC §263(a) rather than deducted currently. (5) If the activity has reported losses in several consecutive years, work through the nine profit-motive factors in Treas. Reg. §1.183-2(b) with your CPA or Enrolled Agent before filing.'
+
+// ─── M5 / M6 / M12 (second launch audit, Sep 2026) ───────────────────────────
+//
+// Three findings, one root cause: a single promise hand-written in three or four
+// places, with at least one copy false. The same cause as B2/B3/B4 above, which is
+// why the remedy is the same — one string here, imported everywhere, guarded in CI.
+
+// ── M6 — WHERE CANCELLATION ACTUALLY LIVES ───────────────────────────────────
+// The mandated renewal disclosure (constants.js renewalDisclosure) said "Cancel any
+// time in Settings → Billing". Settings has no Billing section: the heading is
+// SUBSCRIPTION and the control under it reads "Cancel subscription". Terms §4 already
+// named the path correctly, so the product shipped three names for one route — and the
+// wrong one sat inside the Cal. Bus. & Prof. Code §17602(a)(1) affirmative-consent
+// disclosure, the one place a wrong path is not a typo but a defective disclosure.
+//
+// Verified against Settings.jsx: heading "Subscription" (:416), control
+// "Cancel subscription" (:446, :462).
+export const CANCEL_PATH = 'Settings → Subscription → Cancel subscription'
+
+// ── M5 — WHAT ACCOUNT DELETION DOES ──────────────────────────────────────────
+// Four documents carried three different deletion promises, two of them opposed:
+//   Terms §10      "retained for 30 days before permanent deletion" + "after the
+//                   30-day period we cannot recover it" — which implies that BEFORE
+//                   30 days it CAN be recovered.
+//   Settings modal "permanently deletes ... erases all ... This cannot be undone."
+// Both describe the same action (DELETE /account). Both cannot be true.
+//
+// ⚠ OWNER ACTION OUTSTANDING (asked and answered 11 Sep 2026: backend behaviour not
+// currently known). The wording below was chosen to be accurate under BOTH possible
+// implementations — immediate hard delete, or soft delete purged within 30 days:
+//   • "immediately and permanently ends your access" — true either way.
+//   • "We cannot restore a deleted account" — a statement about what we WILL do,
+//     which is within the operator's control regardless of what the store does.
+//   • "residual copies ... purged within 30 days" — true of a hard delete (nothing
+//     to purge, so vacuously within 30 days) and of a soft delete on a 30-day cycle.
+// What it deliberately no longer says is that the data is RECOVERABLE during those
+// 30 days — a promise that may not be keepable, and the one Terms §10 was making.
+//
+// Once the backend behaviour is confirmed, tighten this to the specific truth; a
+// statement true under two possibilities is weaker than one true under the actual one.
+// Privacy §5's separate "we process deletion requests within 30 days" (for emailed
+// requests) and Settings' "respond within 45 days" (CCPA §1798.130(a)(2) statutory
+// response window) are different clocks and are both correct — left alone.
+export const ACCOUNT_DELETION_STATEMENT =
+  'Deleting your account immediately and permanently ends your access, cancels your ' +
+  'subscription, and removes your saved tax records and personal information from the ' +
+  'product. We cannot restore a deleted account. Any residual copies, including backups, ' +
+  'are purged within 30 days.'
+
+export const ACCOUNT_DELETION_EXPORT_WARNING =
+  'Export your data before deleting. We cannot recover it for you afterwards.'
+
+// ── M12 — ENCRYPTION IN TRANSIT AND AT REST ──────────────────────────────────
+// The first audit removed the marketing term "bank-level" from the Landing FAQ, citing
+// In re Zoom Video Communications (FTC 2020), where "bank-level" claims that outran the
+// implementation were charged as deceptive — but it pinned only that one string. The
+// Privacy Policy still said "bank-level", and said TLS 1.3 where Landing and the
+// index.html JSON-LD both say TLS 1.2+.
+//
+// "TLS 1.2+" is the version to standardise on, and not as a hedge: it is true whether
+// the minimum negotiated version is 1.2 or 1.3, whereas a bare "TLS 1.3" is false the
+// moment a 1.2 connection is accepted — which is the default on CloudFront's standard
+// security policies. The weaker-sounding claim is the one that is certainly accurate.
+export const ENCRYPTION_STATEMENT =
+  'We encrypt your data with AES-256 at rest and TLS 1.2+ in transit. All accounting ' +
+  'connections use read-only OAuth tokens.'
