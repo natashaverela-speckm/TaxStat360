@@ -156,8 +156,9 @@ export default function ResourcesHub() {
           maxWidth: 560, lineHeight: 1.6,
         }}>
           Practical guides to S-Corp strategy, §199A QBI deductions, estimated taxes,
-          and real estate investing — grounded in how the IRS examines returns
-          and how the tax code rewards proactive planning.
+          and real estate investing — grounded in the published standards, the
+          regulations, and the case law, and in how the tax code rewards proactive
+          planning.
         </p>
       </div>
 
@@ -204,7 +205,21 @@ export default function ResourcesHub() {
       {/* Tools & Partners — RepsRecord (companion app) + Engineered Tax Services (affiliate partner) */}
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px 72px' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Recommended Tools & Partners</h2>
-        <p style={{ fontSize: 14, color: SL, margin: '0 0 20px' }}>Tools and partners we trust for real-estate and tax planning.</p>
+        <p style={{ fontSize: 14, color: SL, margin: '0 0 10px' }}>Tools and partners we trust for real-estate and tax planning.</p>
+        {/* AUDIT M11 (second launch audit, Sep 2026): the affiliate connection was
+            disclosed in 11px #94A3B8 as the LAST element inside the card's anchor —
+            below the click target, under a heading that says "we trust". 16 C.F.R.
+            §255.5 wants a material connection disclosed clearly and conspicuously and
+            close to the recommendation, which means BEFORE the reader acts on it, not
+            after. Sharpened here by the conflict posture the finding names: a
+            credentialed practitioner recommending a cost-segregation provider for a
+            commission. Now stated at section level above the cards, and again on the
+            card itself above its link. rel="sponsored" was already correct and stays. */}
+        <p style={{ fontSize: 13, color: N, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', margin: '0 0 20px', lineHeight: 1.5 }}>
+          <strong>Advertising disclosure.</strong> Cards marked <em>Partner</em> are referral
+          partnerships: TaxStat360 may earn a commission if you become a client through the
+          link. It costs you nothing extra, and we only list firms we would use ourselves.
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
 
           {/* RepsRecord — TaxStat360's companion app */}
@@ -222,8 +237,13 @@ export default function ResourcesHub() {
             <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: SL, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '3px 8px' }}>Partner</span>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: N, margin: 0 }}>Engineered Tax Services</h3>
             <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>Engineering-based cost segregation studies that accelerate depreciation on commercial and rental property &mdash; front-loading deductions to reduce taxable income.</p>
+            {/* AUDIT M11: above the link, not below it, and at body size/contrast. */}
+            <span style={{ fontSize: 12.5, color: N, lineHeight: 1.5 }}>
+              <strong>Affiliate partner.</strong> TaxStat360 has a referral partnership with
+              Engineered Tax Services and may earn a commission if you become a client through
+              this link, at no additional cost to you.
+            </span>
             <span style={{ fontSize: 13, fontWeight: 700, color: B }}>Visit Engineered Tax Services &rarr;</span>
-            <span style={{ fontSize: 11, color: '#94A3B8' }}>Affiliate partner &mdash; TaxStat360 may earn a commission at no additional cost to you.</span>
           </a>
 
         </div>
@@ -239,7 +259,8 @@ export default function ResourcesHub() {
         </h2>
         <p style={{ fontSize: 14, color: SL, margin: '0 0 24px' }}>
           Connect your accounting software and see your estimated federal tax liability,
-          §199A QBI deduction, and S-Corp SE-tax savings updated in real time.
+          §199A QBI deduction, and S-Corp SE-tax savings recalculated each time you sync
+          or update your figures.
         </p>
         <a href="/signup" style={{
           display: 'inline-block', padding: '13px 32px',

@@ -369,7 +369,7 @@ function NoData({ tab = 'risk' }) {
       // TERMINOLOGY FIX 9.4: pricing page said "Audit Risk Indicators"; app tab said "Risk Scan".
       // Canonical name per constants.js FEATURE_AUDIT_RISK_SCAN = "Audit Risk Scan".
       title: FEATURE_AUDIT_RISK_SCAN,
-      desc: 'Flags officer compensation issues, audit triggers, penalty exposure, passive-loss violations, and entity-structure risks — personalized to your numbers.',
+      desc: 'Flags officer compensation issues, positions that are hard to substantiate, penalty exposure, passive-loss violations, and entity-structure risks — personalized to your numbers.',
     },
     optimize: {
       icon: '💡',
@@ -603,7 +603,7 @@ function RiskScan({ rec }) {
       const eComp = calcReasonableCompCore(eOfficerSal, eK1)
       if (eOfficerSal === 0 && eComp.applicable) {
         findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
-          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) flag zero salary as one of the top S-Corp audit triggers. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) treat zero salary as the least defensible S-Corp position. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0 && eComp.triggered) {
         findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Compensation May Be Too Low — ${entityName}`,
@@ -633,7 +633,7 @@ function RiskScan({ rec }) {
     const legacyComp = calcReasonableCompCore(ownerComp, k1)
     if (ownerComp === 0 && legacyComp.applicable) {
       findings.push({ level: 'high', icon: '🚨', title: 'No Officer Compensation — Audit Risk',
-        detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this is one of the most common S-Corp audit triggers.`,
+        detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this leaves the least defensible S-Corp position.`,
         action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of your total S-Corp compensation (salary + K-1 income). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (ownerComp > 0 && legacyComp.triggered) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Compensation May Be Too Low',
@@ -1168,7 +1168,7 @@ function TaxOptimization({ rec }) {
         icon: '💼', title: 'S-Corp Salary vs. Distribution Split', priority: 'high',
         saving: seTaxSaved,
         detail: `Your S-Corp structure means your share of the business's ordinary income reported on the K-1 is not subject to self-employment tax — only your W-2 officer wages are. That treatment applies to the K-1 income whether or not you distribute it; it is not a benefit of taking distributions. FICA is 15.3% on wages up to the Social Security wage base (${fmt(getTable(year).ssWageBase)} for ${year}) and 2.9% Medicare-only above it. Versus operating as a sole proprietor — who owes SE tax on all net earnings — this saves roughly ${fmt(seTaxSaved)} on your ${fmt(sCorpK1)} of K-1 income (the profit remaining after your officer wages).`,
-        howTo: `Estimated SE-tax savings vs. a sole proprietorship: ~${fmt(seTaxSaved)}. This figure already reflects the 92.35% net-earnings factor (IRC §1402(a)(12)) and the Social Security wage-base cap — because your W-2 wages count toward that ${fmt(getTable(year).ssWageBase)} cap, only the 2.9% Medicare portion applies to K-1 income once your wages use it up, so the savings is smaller for higher earners. The savings comes from the S-Corp structure, not from maximizing distributions — pay yourself reasonable W-2 compensation FIRST and keep documentation showing it is reasonable for your role. There is no IRS safe-harbor percentage; practitioners commonly use 35–45% of your total S-Corp compensation (salary + K-1 income) only as a rough starting point. Setting salary too low to enlarge the untaxed portion is the most common S-Corp audit trigger (Rev. Rul. 74-44).`
+        howTo: `Estimated SE-tax savings vs. a sole proprietorship: ~${fmt(seTaxSaved)}. This figure already reflects the 92.35% net-earnings factor (IRC §1402(a)(12)) and the Social Security wage-base cap — because your W-2 wages count toward that ${fmt(getTable(year).ssWageBase)} cap, only the 2.9% Medicare portion applies to K-1 income once your wages use it up, so the savings is smaller for higher earners. The savings comes from the S-Corp structure, not from maximizing distributions — pay yourself reasonable W-2 compensation FIRST and keep documentation showing it is reasonable for your role. There is no IRS safe-harbor percentage; practitioners commonly use 35–45% of your total S-Corp compensation (salary + K-1 income) only as a rough starting point. Setting salary too low to enlarge the untaxed portion is the position hardest to defend under Rev. Rul. 74-44.`
       })
     }
   }

@@ -166,7 +166,7 @@ export default function Landing() {
       <section style={{ background: N, padding: '28px 24px', textAlign: 'center' }}>
         <p style={{ ...EYEBROW, color: '#93b4d4' }}>Product Demo</p>
         <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>See Strategic Tax Planning in Action</h2>
-        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>Watch how successful business owners use year-round tax intelligence to make wealth-building decisions every month</p>
+        <p style={{ color: '#93b4d4', fontSize: 13, marginBottom: 16 }}>See how year-round tax intelligence supports planning decisions month to month</p>
         <div style={{ maxWidth: 900, margin: '0 auto', borderRadius: 12, overflow: 'hidden', position: 'relative', aspectRatio: '16/9' }}>
           <iframe
             src="https://player.vimeo.com/video/1185021252?autoplay=0&title=0&byline=0&portrait=0"
@@ -223,7 +223,7 @@ export default function Landing() {
               desc: "Each partner's distributive share calculated separately. K-1 flows directly into your personal tax calculation." },
             { icon: 'document', label: 'Schedule C',
               title: 'Sole Proprietors and SMLLCs',
-              desc: 'Self-employment tax, §199A QBI deduction, estimated quarterly payments all calculated and updated with every transaction.' },
+              desc: 'Self-employment tax, §199A QBI deduction, and estimated quarterly payments, recalculated every time you sync or update your figures.' },
             { icon: 'home', label: 'Schedule E',
               title: 'Real Estate Investors',
               desc: 'Rental income, depreciation schedule, and passive losses all factored in. Schedule E flows directly into your personal tax calculation.' },
@@ -320,7 +320,7 @@ export default function Landing() {
         <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'left' }}>
           {[
             { q: 'Do I need a CPA — and does TaxStat360 replace one?',
-              a: "You don't need a CPA to use TaxStat360 — it's built for business owners, not accountants. You connect your accounting software (or enter your numbers manually), answer a few questions about your filing situation, and the platform handles the calculations. But it isn't a replacement for your CPA, and we don't try to be one: TaxStat360 is a tax planning and estimation tool, not a tax filing service. Think of it as the same year-round visibility your CPA has, available to you 365 days a year. Many users share their TaxStat360 dashboard with their CPA to make that relationship more productive — which is why many CPAs like it too." },
+              a: "You don't need a CPA to use TaxStat360 — it's built for business owners, not accountants. You connect your accounting software (or enter your numbers manually), answer a few questions about your filing situation, and the platform handles the calculations. But it isn't a replacement for your CPA, and we don't try to be one: TaxStat360 is a tax planning and estimation tool, not a tax filing service. Think of it as the same year-round visibility your CPA has, available to you 365 days a year. You can share your TaxStat360 dashboard with your CPA to make that relationship more productive." },
             { q: 'How accurate are the tax calculations?',
               // UX-09 FIX: Added explicit mention of the tax year selector — users choose
               // their applicable year from a dropdown and all IRS rates/brackets update
