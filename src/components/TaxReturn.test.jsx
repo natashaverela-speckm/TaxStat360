@@ -416,6 +416,27 @@ describe('TaxReturn — C-Corp corporate layer folds into the engine input', () 
     )
   })
 
+  // C-CORP AUDIT (11 Sep 2026): a 50% shareholder was handed 100% of the dividends and
+  // 100% of the corporate tax. The entity card said "Your share (50%)"; the return did not.
+  it('folds only the owner\'s share of dividends and corporate tax for a part-owned C-Corp', () => {
+    calcCCorpCorporateLayer.mockReturnValue({
+      officerSalary: 50000, employerFICA: 7650, profitBeforeTax: 42350, corpTax: 8894, dividends: 33456,
+    })
+    readStep1State.mockReturnValue({
+      entities: [
+        { type: 'C Corporation', k1: 0, netProfit: 50000, own: 50, officerW2: 50000,
+          pnl: { officerSalary: 50000, netProfit: 50000 } },
+      ],
+      k1Total: 0,
+      isCoopPatron: false,
+    })
+    renderTaxReturn()
+    const args = calcTaxReturn.mock.calls[0][0]
+    expect(args.qualDiv).toBe(16728)   // 50% × 33,456
+    expect(args.divInc).toBe(16728)
+    expect(args.w2).toBe(50000)        // salary is the owner's own W-2 — never scaled
+  })
+
   it('does not invoke the corporate layer for non-C-Corp entities', () => {
     readStep1State.mockReturnValue({
       entities: [{ type: 'S Corporation', k1: 80000, netProfit: 80000, own: 100, pnl: { officerSalary: 60000 } }],
