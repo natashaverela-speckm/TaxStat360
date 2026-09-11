@@ -144,7 +144,10 @@ const TAX_TABLES = {
     brackets: {
       single: [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
       mfj:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-      mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[313200,.35],[Infinity,.37]],
+      // LIVE-SCENARIO AUDIT (11 Sep 2026): 35% bracket top was 313,200; Rev. Proc. 2024-40 §3.01
+      // Table 4 (MFS) is $375,800 — half of the joint $751,600. 313,200 matched no published
+      // figure and taxed MFS income between the two at 37% instead of 35% (up to $1,252).
+      mfs:    [[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[375800,.35],[Infinity,.37]],
       hoh:    [[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]],
       qss:    [[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
     },
@@ -165,7 +168,8 @@ const TAX_TABLES = {
     hsa: { selfOnly: 4300, family: 8550 },  // Rev. Proc. 2024-25
     mileageRate: 0.70,
     amt: {
-      exemption:    { single:88100,  mfj:137000, mfs:68650,  hoh:88100,  qss:137000 },
+      // LIVE-SCENARIO AUDIT (11 Sep 2026): MFS exemption was 68,650; Rev. Proc. 2024-40 §3.11 is $68,500.
+      exemption:    { single:88100,  mfj:137000, mfs:68500,  hoh:88100,  qss:137000 },
       phaseoutStart:{ single:626350, mfj:1252700,mfs:626350, hoh:626350, qss:1252700 },
       phaseoutRate: 0.25,
       bracket26_28: { single:239100, mfj:239100, mfs:119550, hoh:239100, qss:239100 },
@@ -1136,7 +1140,12 @@ function calcTaxReturn(input) {
   // (§1411(c)(1)(A)(i) — dividends are investment income regardless of participation).
   const sCorpEPDividends = entityBasisResults.reduce((s, r) => s + (r.epDividend || 0), 0)
   const _divIncEff  = nf(divInc)  + sCorpEPDividends
-  const _qualDivEff = nf(qualDiv) + sCorpEPDividends
+  // LIVE-SCENARIO AUDIT (11 Sep 2026): qualified dividends (1099-DIV box 1b) are a SUBSET of
+  // ordinary dividends (box 1a) — Form 1040 line 3a can never exceed line 3b. A user who
+  // filled only the Qualified box got the 15%/0% rate on income that was never added to AGI:
+  // $10,000 entered as qualified with $0 ordinary understated tax by $700 on the live site.
+  // Clamp to what was actually reported as dividend income.
+  const _qualDivEff = Math.min(nf(qualDiv), nf(divInc)) + sCorpEPDividends
   let priorSuspendedLossApplied = 0
   const _priorSuspended = Math.max(0, nf(priorSuspendedLoss))
   if (_priorSuspended > 0) {
