@@ -307,10 +307,12 @@ describe('calcAMT', () => {
   })
   it('CHAR: MFS halves the SALT cap', () => {
     // MFS cap = $40k / 2 = $20k → smaller AMTI than single $40k cap case
+    // LIVE-SCENARIO AUDIT (11 Sep 2026): was 39,987 against a 68,650 MFS exemption; the
+    // Rev. Proc. 2024-40 §3.11 figure is 68,500, which adds 150 × 28% = 42 of AMT.
     expect(baseAMT({
       taxableIncome: 200000, regularTax: 0, saltAmount: 100000,
       useItemized: true, itemized: 100000, status: 'mfs'
-    })).toBe(39987)
+    })).toBe(40029)
   })
   it('CHAR: ISO bargain element added to AMTI (never capped)', () => {
     expect(baseAMT({
