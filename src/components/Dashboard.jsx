@@ -70,7 +70,7 @@ import {
 } from '../lib/constants.js'
 import { NAVY as N, BLUE as B, SLATE as SL, RED as R } from '../lib/theme.js'  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): removed unused GREEN/ORANGE imports
 import { fmt, effectiveRate } from '../utils/money.js'  // Module E (audit F-3): unused `pct` import removed
-import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share } from '../utils/entityPredicates.js'
+import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 
@@ -146,8 +146,9 @@ export function calcDashboard(biz, f1040) {
     // comes from a synced pnl.netProfit — so reconstruct profit-before-salary either way.
     const cNetBeforeSal = Number.isFinite(_pnlNet) ? Math.round(_pnlNet) + sal : (gross - totalExp)
     const layer     = calcCCorpCorporateLayer({ netProfit: cNetBeforeSal, officerSalary: sal, taxYear: year })
-    const corpTax   = layer.corpTax
-    const dividends = layer.dividends
+    // C-CORP AUDIT (11 Sep 2026): the owner's share only — matches the Tax Tracker
+    // (TaxReturn.jsx) and the What-If Simulator. See ccorpOwnerShare().
+    const { corpTax, dividends } = ccorpOwnerShare(layer, biz.ownershipPct)
     const r = calcTaxReturn({ ...baseInput, entities: [], w2: w2 + sal, divInc: dividends, qualDiv: dividends, iraIncome: otherInc })
     const combinedTotal = r.totalTax + corpTax
     return {
