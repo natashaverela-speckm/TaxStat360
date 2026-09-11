@@ -1013,6 +1013,17 @@ export function isExportableKey(key) {
   return !EXPORT_DENY.test(key)
 }
 
+// ── AUDIT H6 (second launch audit, Sep 2026): PURGE STALE DEVICE-TRUST RECORDS ──
+//
+// The client-side "trust this device" bypass is gone (see Onboarding.jsx). Records
+// written by the old build are now inert, but they are credential-shaped artifacts
+// sitting in localStorage on every device that ever ticked the box, and they would
+// silently come back into force if anyone re-added a client-side trust check. Clear
+// them once, on startup. Safe to call repeatedly; never throws.
+export function purgeLegacyDeviceTrust() {
+  try { localStorage.removeItem('ts360_trusted_device') } catch (_e) { /* private mode: nothing to purge */ }
+}
+
 // Full on-device data bundle for the Settings 'export my data' feature.
 export function exportAllDeviceData() {
   const data = {}
