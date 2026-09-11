@@ -512,10 +512,17 @@ describe('calcTaxReturn ytdFactor scaling', () => {
     expect(q1.selfEmpRetirementDed).toBe(full.selfEmpRetirementDed)
   })
   it('CHAR: studentLoanInt is ytdScaled and then capped at $2,500', () => {
-    const r1 = calcTaxReturn({ ...BASE, studentLoanInt: 1000, ytdFactor: 2 })
+    // ACCURACY REVIEW (11 Sep 2026): BASE's $100,000 of wages sits at the top of the
+    // §221(b)(2) phase-out band ($85,000–$100,000 single, 2025), where the deduction is
+    // zero — this test used to pass only because the phase-out was missing. Run it below
+    // the band so it still checks the scaling and the cap (ytdFactor 2 annualizes the
+    // wages as well: $30,000 → $60,000 MAGI).
+    const r1 = calcTaxReturn({ ...BASE, w2: 30000, studentLoanInt: 1000, ytdFactor: 2 })
     expect(r1.studentLoanDed).toBe(2000)
-    const r2 = calcTaxReturn({ ...BASE, studentLoanInt: 1500, ytdFactor: 2 })
+    const r2 = calcTaxReturn({ ...BASE, w2: 30000, studentLoanInt: 1500, ytdFactor: 2 })
     expect(r2.studentLoanDed).toBe(2500)
+    // and at $100,000 MAGI (or more) the §221 deduction is fully phased out (Rev. Proc. 2024-40 §3.30)
+    expect(calcTaxReturn({ ...BASE, studentLoanInt: 1500, ytdFactor: 2 }).studentLoanDed).toBe(0)
   })
 })
 
