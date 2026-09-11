@@ -101,9 +101,9 @@ The S-Corp structure itself doesn't create the savings. The savings come from ha
       },
       {
         heading: 'What Gets You Audited',
-        body: `The IRS flags S-Corps with zero officer compensation or compensation dramatically below the S-Corp's gross receipts. The IRS's published guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
+        body: `Zero officer compensation, or compensation dramatically below the S-Corp's gross receipts, is the fact pattern the IRS's published guidance addresses most directly. That guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
 
-Three specific red flags: (1) officer salary of zero with substantial distributions, (2) officer salary declining as profits grow (the opposite of what a real employee would experience), and (3) officer compensation below minimum wage for the hours worked.
+Three fact patterns that are hard to defend under that standard: (1) officer salary of zero with substantial distributions, (2) officer salary declining as profits grow (the opposite of what a real employee would experience), and (3) officer compensation below minimum wage for the hours worked.
 
 The single best defense is contemporaneous documentation: a board resolution setting your salary, an employment agreement, and a written compensation analysis referencing industry data. A $50 BLS lookup today is worth thousands in avoided penalties later.`,
       },
@@ -111,7 +111,7 @@ The single best defense is contemporaneous documentation: a board resolution set
         heading: 'Running the Numbers Year-Round',
         body: `The right salary is not a one-time decision. As your S-Corp's revenue grows — or contracts — the appropriate salary level changes. An S-Corp that generated $120,000 last year but is on pace for $280,000 this year should revisit its officer compensation mid-year, before distributions have already been taken at an indefensible ratio.
 
-TaxStat360 flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in real time as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
+TaxStat360 flags when your officer salary falls below about 40% of total compensation — within the 35–45% range tax practitioners commonly cite — and displays the relevant case citations inline. That range is a screening heuristic, not an IRS rule: there is no published safe-harbor percentage, and reasonable compensation is always a facts-and-circumstances determination. The tax savings estimate updates in as you adjust the salary field, so you can find a defensible figure and see exactly what the FICA savings look like at that salary level.`,
       },
     ],
     relatedSlugs: ['scorp-reasonable-compensation', 'qbi-deduction-guide', 'quarterly-estimated-taxes'],
@@ -245,7 +245,7 @@ TaxStat360 calculates your recommended quarterly payment based on both safe harb
     slug: 'scorp-reasonable-compensation',
     title: 'S-Corp Reasonable Compensation: What the IRS Requires and How to Document It',
     metaDescription:
-      'IRS rules require S-Corp owner-employees to pay themselves reasonable compensation. Learn the legal standard, common mistakes, audit triggers, and how to document your salary to withstand scrutiny.',
+      'IRS rules require S-Corp owner-employees to pay themselves reasonable compensation. Learn the legal standard, the common mistakes, and how to document your salary.',
     category: 'S-Corporation',
     readMinutes: 7,
     publishedDate: '2026-04-25',
@@ -381,7 +381,7 @@ Second, real estate syndications: limited partnership interests in real estate f
 
 Third, short-term rentals: rentals where the average customer stay is 7 days or less are not subject to §469's passive presumption — they're treated like a business. If you materially participate (which requires meeting one of seven IRS tests, typically 500+ hours or more than any other person), losses are active and deductible against any income. This is the tax treatment behind many high-income investors' interest in vacation rental platforms.
 
-TaxStat360 models the §469(i) phase-out and REP status in real time. Enter your AGI, rental income, and expenses, and check the appropriate box — the tool shows exactly how much of the loss is deductible under the special allowance, how much is suspended, and how REP status changes the picture.`,
+TaxStat360 models the §469(i) phase-out and REP status as you enter your figures. Enter your AGI, rental income, and expenses, and check the appropriate box — the tool shows exactly how much of the loss is deductible under the special allowance, how much is suspended, and how REP status changes the picture.`,
       },
     ],
     relatedSlugs: ['quarterly-estimated-taxes', 'scorp-salary-vs-distribution', 'qbi-deduction-guide'],
