@@ -44,8 +44,6 @@ function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
   // AUDIT H6 (Sep 2026): clear any device-trust record left by the old client-side
   // 2FA bypass. One-shot, idempotent, and independent of session state.
-  useEffect(() => { purgeLegacyDeviceTrust(); purgeLegacySessionToken() }, [])
-
   useEffect(() => {
     const p = provider.toLowerCase()
     if (!OAUTH_PROVIDERS.has(p)) {
@@ -661,6 +659,24 @@ function PixelRouteGate() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── AUDIT H5 / H6 — ONE-TIME PURGE OF RETIRED CREDENTIALS ─────────────────
+  //
+  // Clears two keys that older builds wrote and nothing writes any more:
+  //   ts360_token          — the raw session bearer token (H5). The httpOnly
+  //                          cookie is the credential; this copy was readable by
+  //                          any script on the page.
+  //   ts360_trusted_device — the forgeable client-side 2FA-skip record (H6).
+  //
+  // ⚠ PLACEMENT IS THE WHOLE POINT. This first shipped inside OAuthCallback(),
+  // which only mounts on the OAuth return route, so it never ran on an ordinary
+  // page load and the token stayed in every existing browser. Caught by checking
+  // localStorage on the live site rather than trusting the deploy. It belongs
+  // here, in the root component, which mounts on every route.
+  useEffect(() => {
+    purgeLegacySessionToken()
+    purgeLegacyDeviceTrust()
+  }, [])
+
   return (
     <BrowserRouter>
       {/* PHASE 3.3 (semantic pass): skip link — visually hidden until keyboard

@@ -70,9 +70,13 @@ describe('H6 — there is no client-side path around the MFA challenge', () => {
 })
 
 describe('H6 — records written by the old build are purged', () => {
-  it('App.jsx clears the legacy key on startup', () => {
+  it('App.jsx clears the legacy key on startup, from the ROOT component', () => {
+    // A bare toMatch here passed while the call sat in OAuthCallback(), which only
+    // mounts on the OAuth return route — so the purge never ran. Assert the location.
     const app = readFileSync(join(__dirname, 'App.jsx'), 'utf8')
-    expect(app).toMatch(/purgeLegacyDeviceTrust\(\)/)
+    const rootAt = app.indexOf('export default function App()')
+    expect(rootAt).toBeGreaterThan(-1)
+    expect(app.indexOf('purgeLegacyDeviceTrust()')).toBeGreaterThan(rootAt)
   })
 
   it('the purge removes the key and never throws', async () => {
