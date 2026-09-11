@@ -19,7 +19,7 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share } from '../utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
 import {
   CURRENT_TAX_YEAR,
@@ -230,12 +230,15 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
 
   if (isCC) {
     const layer = calcCCorpCorporateLayer({ netProfit: netBizIncome + sal, officerSalary: sal, taxYear })  // employerPayrollTax is 0 on this branch by construction
-    const r = calcTaxReturn({ ...engineInput, divInc: layer.dividends, qualDiv: layer.dividends })
-    const totalTax = r.totalTax + layer.corpTax
+    // C-CORP AUDIT (11 Sep 2026): the pass-through branch scales k1 by ownerPctVal; this
+    // branch folded 100% of the dividends and corporate tax in. Owner's share only now.
+    const mine = ccorpOwnerShare(layer, ownerPctVal * 100)
+    const r = calcTaxReturn({ ...engineInput, divInc: mine.dividends, qualDiv: mine.dividends })
+    const totalTax = r.totalTax + mine.corpTax
     return {
       rev, opex, sal, dep, adv, other, netBizIncome, k1: 0, employerPayrollTax,
       w2: engineInput.w2, qbi: 0, agi: r.agi, seTax: 0,
-      taxableInc: r.taxableAfterQBI, fedTax: r.fedTax + layer.corpTax,
+      taxableInc: r.taxableAfterQBI, fedTax: r.fedTax + mine.corpTax,
       totalTax, quarterly: r.quarterlyRecommended,
     }
   }
