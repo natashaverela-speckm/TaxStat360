@@ -47,8 +47,14 @@ function walk(dir, out = []) {
   return out
 }
 
-const files = walk(SRC)
-const rel = (p) => p.slice(SRC.length + 1)
+// FRESH-EYES F-20 (11 Sep 2026): index.html carries the meta description and the JSON-LD
+// (Organization, Product, FAQPage) — public copy that search engines quote — and it sat
+// outside every claim ban because walk() only reads src/. That is the structural reason
+// claims kept "surviving in unmatched phrasings": there was a whole file the matcher never
+// opened. It is now in the same list, subject to every guard below.
+const INDEX_HTML = join(SRC, '..', 'index.html')
+const files = [...walk(SRC), INDEX_HTML]
+const rel = (p) => p === INDEX_HTML ? 'index.html' : p.slice(SRC.length + 1)
 const read = (p) => readFileSync(p, 'utf8')
 
 // Strip comments — this file's own citations name the banned phrases, and so do
@@ -460,8 +466,20 @@ describe('H9 — cancellation is findable, online, and unobstructed', () => {
 
   it('the copy tells the user about the emailed sign-in code', () => {
     // A surprise step reads as a dark pattern even when it is just Stripe.
+    // FRESH-EYES F-18: the code is now the FALLBACK, not the path — the primary path is a
+    // portal session created for the signed-in customer. The copy still mentions it.
     const s = read(join(SRC, 'components/Settings.jsx'))
-    expect(s).toMatch(/one-time sign-in\s*\n?\s*code/)
+    expect(s).toMatch(/one-time code/)
+  })
+
+  it('F-18: Settings opens a portal SESSION for the signed-in customer, not the generic login link', () => {
+    // Signup is four fields; cancelling must not add an email round-trip signup never had
+    // (ROSCA §8403(3); Cal. B&P §17602(c)).
+    const s = stripComments(read(join(SRC, 'components/Settings.jsx')))
+    expect(s).toMatch(/apiFetch\(\s*['"]\/stripe\/portal['"]/)
+    // The login link survives only as the fallback inside the catch.
+    const fn = s.slice(s.indexOf('const openBillingPortal'), s.indexOf('const handleManageBilling'))
+    expect(fn.indexOf('/stripe/portal')).toBeLessThan(fn.indexOf('STRIPE_PORTAL_URL'))
   })
 })
 
@@ -632,14 +650,43 @@ describe('B5 — signup requires affirmative assent to the Terms', () => {
     expect(o).toMatch(/const acceptedAt=new Date\(\)\.toISOString\(\)/)
   })
 
-  it('pins the recorded versions to the dates the documents actually render', () => {
-    // If these drift, the account record names a document the user never saw.
+  // FRESH-EYES F-9 (11 Sep 2026): this used to assert two LITERALS — the constant AND the
+  // rendered date, each hardcoded here. When c12 rewrote Terms §10 and Privacy §3 on
+  // 11 Sep without bumping either, the test kept passing: it was pinning the stale pair
+  // to each other, not to reality. Now the expected value is DERIVED from the rendered
+  // "Last updated" line, so the constant cannot lag the document. The document date
+  // itself still has to be bumped by hand when the text changes materially — see the
+  // 'materially edited after' guard below for the mechanical check on that.
+  const renderedDateISO = (src) => {
+    const m = src.match(/Last updated:\s*([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})/)
+    expect(m, 'a "Last updated: Month D, YYYY" line must be rendered').toBeTruthy()
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
+    const mi = months.indexOf(m[1])
+    expect(mi, `unrecognised month ${m[1]}`).toBeGreaterThanOrEqual(0)
+    return `${m[3]}-${String(mi + 1).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`
+  }
+
+  it('F-9: TERMS_VERSION equals the date Terms.jsx actually renders', () => {
     const termsSrc = readFileSync(join(SRC, 'components/Terms.jsx'), 'utf8')
+    expect(TERMS_VERSION).toBe(renderedDateISO(termsSrc))
+  })
+
+  it('F-9: PRIVACY_VERSION equals the date Privacy.jsx actually renders', () => {
     const privacySrc = readFileSync(join(SRC, 'components/Privacy.jsx'), 'utf8')
-    expect(TERMS_VERSION).toBe('2026-09-10')
-    expect(termsSrc).toMatch(/Last updated: September 10, 2026/)
-    expect(PRIVACY_VERSION).toBe('2026-07-13')
-    expect(privacySrc).toMatch(/Last updated: July 13, 2026/)
+    expect(PRIVACY_VERSION).toBe(renderedDateISO(privacySrc))
+  })
+
+  it('F-9: a changed Terms version is re-prompted at session hydrate, not silently adopted', () => {
+    // Terms §13 promises notice of material change; §11(h) runs the arbitration opt-out
+    // from "first accepting these Terms". Neither means anything without a re-prompt.
+    const app = stripComments(read(join(SRC, 'components/App.jsx')))
+    expect(app).toMatch(/TermsReacceptGate/)
+    expect(app).toMatch(/terms_version/)
+    const gate = stripComments(read(join(SRC, 'components/TermsReacceptGate.jsx')))
+    expect(gate).toMatch(/\/auth\/accept-terms/)
+    expect(gate).toMatch(/TERMS_VERSION/)
+    expect(gate).toMatch(/type="checkbox"/)
+    expect(gate).toMatch(/LEGAL_CONSENT_PREFIX/)
   })
 
   it('makes the agreements reachable from step 1, before any data is entered', () => {
@@ -756,12 +803,26 @@ describe('M4 — no claims to non-public audit-selection knowledge, in any phras
     /how the IRS examines/i,
     /what the IRS looks for/i,
     /IRS (?:targets|selects|flags) (?:S-?Corps|businesses|taxpayers|filers)/i,
+    // FRESH-EYES F-7 (11 Sep 2026, owner decision): "audit risk" itself. The feature was
+    // "Audit Risk Scan" with findings titled "(Audit Risk)" and "High Audit Risk", rendered
+    // above a disclaimer saying the output is "not a prediction of audit selection or
+    // probability." 31 C.F.R. §10.37(a)(2)(vi) bars a practitioner's written advice from
+    // taking audit likelihood into account. Renamed to "Substantiation Check"; findings
+    // are graded on documentation, not on the odds of examination.
+    /\baudit[- ]risk\b/i,
+    /\brisk scan\b/i,
+    /\baudit profile\b/i,
   ]
   for (const rx of BANNED) {
     it(`no shipped copy matches ${rx}`, () => {
       expect(offenders(rx)).toEqual([])
     })
   }
+
+  it('F-7: the feature label is Substantiation Check', () => {
+    const c = read(join(SRC, 'lib/constants.js'))
+    expect(c).toMatch(/FEATURE_AUDIT_RISK_SCAN\s*=\s*'Substantiation Check'/)
+  })
 
   it('the substance those passages carried is still there', () => {
     // The fix was to reframe from selection to STANDARD, not to delete the guidance —
@@ -916,6 +977,32 @@ describe('M10 — the trial disclosure is never hand-written', () => {
   it('the card-required element cannot be softened away', () => {
     expect(offenders(/card for verification only/i)).toEqual([])
   })
+
+  // FRESH-EYES F-17 (11 Sep 2026): the Upgrade page took a card mid-subscription with no
+  // renewal disclosure and no consent, and its footer said "Cancel anytime" with no route —
+  // the M10 defect in the one file the guard above does not list.
+  it('F-17: any file that mounts a Stripe card element renders a renewal disclosure and a consent box', () => {
+    for (const f of files) {
+      const code = stripComments(read(f))
+      if (!/card-element/.test(code)) continue
+      expect(code, `${rel(f)} mounts a card element`).toMatch(/renewalDisclosure|upgradeDisclosure/)
+      expect(code, `${rel(f)} must gate on consent`).toMatch(/renewOk/)
+    }
+  })
+
+  it('F-17: "Cancel anytime" never appears without a route', () => {
+    // CANCEL_PATH is the single spelling of the route. A bare "Cancel anytime" is a claim
+    // with no way to act on it.
+    const hits = []
+    for (const f of files) {
+      if (rel(f) === SOURCE_OF_TRUTH || rel(f) === 'lib/constants.js') continue
+      const code = stripComments(read(f))
+      // Bare = immediately followed by a closing tag, a quote, or a `·` separator — i.e. the
+      // claim ends there. "Cancel anytime below" / "cancel any time before then" are fine.
+      if (/Cancel any ?time\s*(?:<\/|['"`]|·)/i.test(code)) hits.push(rel(f))
+    }
+    expect(hits).toEqual([])
+  })
 })
 
 describe('M12 — one encryption claim, and it is the one that is true', () => {
@@ -1035,8 +1122,13 @@ describe('H11 — the structured data agrees with the page', () => {
       // Answers Landing builds by template interpolation have no literal counterpart in
       // its source; those are pinned to their underlying constant instead (below).
       if (/^Entity capacity depends on your plan/.test(a)) return false
-      const head = a.slice(0, 60).replace(/\s+/g, ' ')
-      return !flatLanding.includes(head)
+      // FRESH-EYES F-20 (11 Sep 2026): this compared the first 60 characters. The JSON-LD
+      // answer for "Do I need a CPA" matched Landing for 500+ characters and then ended
+      // "— which is why many CPAs like it too" — the M9 endorsement claim (16 C.F.R.
+      // §255.2) that had been removed from Landing and survived here, in the copy search
+      // engines quote. Whole answer now; JSX entities and typographic quotes normalised.
+      const norm = (t) => t.replace(/\s+/g, ' ').replace(/&rsquo;|&#39;|’/g, "'").replace(/&ldquo;|&rdquo;|[“”]/g, '"').replace(/&mdash;/g, '—').trim()
+      return !norm(flatLanding).includes(norm(a))
     })
     expect(orphans, 'JSON-LD answers with no matching on-page text').toEqual([])
   })

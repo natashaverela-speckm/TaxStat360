@@ -137,3 +137,78 @@ describe('H13 — there is exactly ONE header source in the repo', () => {
     expect(DEFAULT_URL).toBe('https://www.taxstat360.com/')
   })
 })
+
+// ── FRESH-EYES F-15 (11 Sep 2026): the checker asserted directive NAMES, not values ──
+import { buildHeaderRules, readConfiguredCsp, parseCsp, cspInvariantProblems, CHECK_PATHS } from '../scripts/assertLiveHeaders.mjs'
+
+describe('F-15 — a permissive policy no longer passes', () => {
+  const C = GOOD['Content-Security-Policy']
+
+  it('a fully permissive policy with every directive NAME present fails', () => {
+    const wide = "default-src *; script-src *; style-src *; font-src *; img-src *; connect-src *; frame-src *; " +
+      "worker-src *; frame-ancestors *; object-src *; base-uri *; form-action *; upgrade-insecure-requests;"
+    const f = check({ 'Content-Security-Policy': wide })
+    expect(f).toHaveLength(1)
+    expect(f[0].problem).toMatch(/wildcard|must be exactly/)
+  })
+  it("img-src 'self' https://* — the regex evasion — fails", () => {
+    expect(check({ 'Content-Security-Policy': C.replace('https://www.facebook.com', 'https://*') }).some((x) => /wildcard/.test(x.problem))).toBe(true)
+  })
+  it('connect-src with a bare https: scheme fails', () => {
+    expect(check({ 'Content-Security-Policy': C.replace("connect-src 'self'", "connect-src 'self' https:") }).some((x) => /connect-src permits any https/.test(x.problem))).toBe(true)
+  })
+  it("object-src 'self' fails — it must be 'none'", () => {
+    expect(check({ 'Content-Security-Policy': C.replace("object-src 'none'", "object-src 'self'") }).some((x) => /object-src must be exactly/.test(x.problem))).toBe(true)
+  })
+  it("script-src 'unsafe-eval' fails", () => {
+    expect(check({ 'Content-Security-Policy': C.replace("script-src 'self'", "script-src 'self' 'unsafe-eval'") }).some((x) => /unsafe-eval/.test(x.problem))).toBe(true)
+  })
+  it('Referrer-Policy: unsafe-url fails', () => {
+    expect(check({ 'Referrer-Policy': 'unsafe-url' })[0].problem).toMatch(/leaks/)
+  })
+  it('Permissions-Policy that omits camera fails', () => {
+    expect(check({ 'Permissions-Policy': 'geolocation=(), microphone=()' })[0].problem).toMatch(/camera/)
+  })
+})
+
+describe('F-15 — the served policy must equal the configured one', () => {
+  const cfg = readConfiguredCsp(join(__dirname, '..', 'customHttp.yml'))
+  const rules = buildHeaderRules({ configuredCsp: cfg })
+  const lookupWith = (csp) => lookup({ ...GOOD, 'Content-Security-Policy': csp })
+
+  it('customHttp.yml is readable and assembles to a single line', () => {
+    expect(cfg).toBeTruthy()
+    expect(cfg).not.toMatch(/\n/)
+  })
+  it('the configured policy satisfies every invariant', () => {
+    expect(cspInvariantProblems(parseCsp(cfg))).toEqual([])
+  })
+  it('serving exactly the configured policy passes', () => {
+    expect(checkHeaders(lookupWith(cfg), rules)).toEqual([])
+  })
+  it('serving the configured policy plus one extra host fails, naming the host', () => {
+    const f = checkHeaders(lookupWith(cfg.replace("connect-src 'self'", "connect-src 'self' https://evil.example")), rules)
+    expect(f).toHaveLength(1)
+    expect(f[0].problem).toMatch(/evil\.example/)
+  })
+  it('serving a policy missing a configured host fails', () => {
+    const f = checkHeaders(lookupWith(cfg.replace(' https://api.stripe.com', '')), rules)
+    expect(f.some((x) => /api\.stripe\.com/.test(x.problem))).toBe(true)
+  })
+})
+
+describe('F-15 — the gate fails closed', () => {
+  it('fetches /index.html as well as /', () => {
+    expect(CHECK_PATHS).toContain('/')
+    expect(CHECK_PATHS).toContain('/index.html')
+  })
+  it('the workflow passes an explicit target instead of relying on the default', () => {
+    const wf = readFileSync(join(__dirname, '..', '.github/workflows/deploy.yml'), 'utf8')
+    expect(wf).toMatch(/SITE_URL/)
+  })
+  it('main() refuses to run with no target (exit 2, not a vacuous pass)', () => {
+    const src = readFileSync(join(__dirname, '..', 'scripts/assertLiveHeaders.mjs'), 'utf8')
+    expect(src).toMatch(/process\.exit\(2\)/)
+    expect(src).not.toMatch(/process\.env\.SITE_URL \|\| DEFAULT_URL/)
+  })
+})

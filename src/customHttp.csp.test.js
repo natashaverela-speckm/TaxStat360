@@ -93,6 +93,8 @@ describe('Content-Security-Policy hardening (re-audit, M-7)', () => {
       for (const dead of [
         'quickbooks.api.intuit.com', 'api.xero.com', 'api.wave.com',
         'api.freshbooks.com', 'api.web3forms.com',
+        // FRESH-EYES F-16: serves the pixel SCRIPT (script-src); never an event destination.
+        'connect.facebook.net',
       ]) {
         expect(directive, `${dead} has no remaining code path`).not.toContain(dead)
       }
