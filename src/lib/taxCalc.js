@@ -2295,17 +2295,39 @@ function calcTaxReturn(input) {
         : 'K-1 (Form 1065)',
     }
   }).filter(Boolean)
+  // FRESH-EYES S-4c (11 Sep 2026): this used `entities.find(...)` — the FIRST
+  // S-Corp only. Professional covers 3 businesses and Enterprise is unlimited and
+  // sells a "consolidated federal tax view", so an owner running two S-Corps could
+  // pay a defensible salary out of the first and take $0 salary against $400k of
+  // distributions out of the second, and no surface in the app would say a word:
+  // every consumer of reasonableCompAlert (Dashboard, topLevers, Risk Scan,
+  // CalculateTaxInner) reads this one object. The alert now evaluates EVERY S-Corp
+  // and reports the worst (lowest) ratio, which is the one a preparer would look at
+  // first. `entityName` and `triggeredCount` are additive — the triggered/ratio/
+  // message shape every existing consumer and test relies on is unchanged, and a
+  // single-S-Corp return produces byte-identical output to before.
   const reasonableCompAlert = (() => {
-    const scorp = entities.find(e => e && isSCorpEntity(e.type))
-    if (!scorp) return { triggered: false, ratio: 100, message: '' }
-    const sal = Math.max(0, parseFloat(scorp.pnl?.officerSalary ?? scorp.officerW2 ?? 0) || 0)
-    // (D-10: the old `if (sal < 0)` early-return here was unreachable — sal is
-    // clamped by Math.max(0, …) on the line above. Removed as dead code.)
-    const k1Val = Math.max(0, getEntityK1Share(scorp))
-    const core = calcReasonableCompCore(sal, k1Val)
-    if (!core.applicable) return { triggered: false, ratio: 100, message: '' }
+    const scorps = entities.filter(e => e && isSCorpEntity(e.type))
+    if (!scorps.length) return { triggered: false, ratio: 100, message: '', entityName: '', triggeredCount: 0 }
+    const scored = scorps.map((sc) => {
+      const sal = Math.max(0, parseFloat(sc.pnl?.officerSalary ?? sc.officerW2 ?? 0) || 0)
+      // (D-10: the old `if (sal < 0)` early-return here was unreachable — sal is
+      // clamped by Math.max(0, …) on the line above. Removed as dead code.)
+      const k1Val = Math.max(0, getEntityK1Share(sc))
+      return { name: sc.name || sc.id || 'Entity', core: calcReasonableCompCore(sal, k1Val) }
+    }).filter(s => s.core.applicable)
+    if (!scored.length) return { triggered: false, ratio: 100, message: '', entityName: '', triggeredCount: 0 }
+    // Worst ratio wins. Ties keep entity order, so a single-entity return is unchanged.
+    const worst = scored.reduce((a, b) => (b.core.ratio < a.core.ratio ? b : a))
+    const triggeredCount = scored.filter(s => s.core.triggered).length
     // OBS-7: message now comes from the core — one wording everywhere.
-    return { triggered: core.triggered, ratio: core.ratioPct, message: core.message }
+    return {
+      triggered: worst.core.triggered,
+      ratio: worst.core.ratioPct,
+      message: worst.core.message,
+      entityName: worst.core.triggered ? worst.name : '',
+      triggeredCount,
+    }
   })()
   return {
     calculatedAt: Date.now(),

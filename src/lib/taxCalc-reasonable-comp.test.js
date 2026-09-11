@@ -96,6 +96,95 @@ describe('engine reasonableCompAlert — unchanged behavior through the extracti
       entities: [{ type: 'Partnership / LLC', own: '100', pnl: { netProfit: '90000' } }],
       k1Total: 90000,
     })
-    expect(r.reasonableCompAlert).toEqual({ triggered: false, ratio: 100, message: '' })
+    // FRESH-EYES S-4c (11 Sep 2026): entityName/triggeredCount added by the
+    // multi-entity fix below. The three pre-existing keys are unchanged — this
+    // toEqual is widened to the new shape, not loosened to a partial match, so it
+    // still fails if triggered/ratio/message ever drift.
+    expect(r.reasonableCompAlert).toEqual({ triggered: false, ratio: 100, message: '', entityName: '', triggeredCount: 0 })
+  })
+})
+
+// ── FRESH-EYES S-4c (11 Sep 2026) — multi-entity reasonable comp ─────────────
+// The alert used entities.find(...) — the FIRST S-Corp only. Professional covers
+// 3 businesses and Enterprise is unlimited and sells a consolidated view, so a
+// second S-Corp taking $0 salary against six figures of distributions was
+// invisible to every surface in the app. These pin the worst-ratio selection.
+//
+// CHAR, not SPEC: the 40% threshold is a practitioner heuristic, not a statutory
+// figure (Treas. Reg. §1.162-7 is a facts-and-circumstances test with no
+// safe harbor), so these characterize the selection logic, not a tax result.
+describe('engine reasonableCompAlert — multiple S-Corps (S-4c)', () => {
+
+  const base = { taxYear: CURRENT_TAX_YEAR, status: 'single', w2: 0, k1Total: 0 }
+
+  it('CHAR: reports the WORST S-Corp, not the first — a compliant first entity no longer masks a $0-salary second', () => {
+    const r = calcTaxReturn({
+      ...base,
+      k1Total: 150000,
+      entities: [
+        // 60% salary share — comfortably above the heuristic, and listed first.
+        { type: 'S Corp', name: 'Alpha Consulting', own: '100', pnl: { officerSalary: '90000', netProfit: '60000' } },
+        // $0 salary against $90k of distributions — the position at issue.
+        { type: 'S Corp', name: 'Beta Holdings',    own: '100', pnl: { officerSalary: '0',     netProfit: '90000' } },
+      ],
+    })
+    expect(r.reasonableCompAlert.triggered).toBe(true)
+    expect(r.reasonableCompAlert.ratio).toBe(0)
+    expect(r.reasonableCompAlert.entityName).toBe('Beta Holdings')
+    expect(r.reasonableCompAlert.triggeredCount).toBe(1)
+    // Pre-fix this returned the FIRST entity: triggered false, ratio 60.
+  })
+
+  it('CHAR: counts every triggering S-Corp, and still names the worst', () => {
+    const r = calcTaxReturn({
+      ...base,
+      k1Total: 200000,
+      entities: [
+        { type: 'S Corp', name: 'One',   own: '100', pnl: { officerSalary: '30000', netProfit: '70000' } }, // 30%
+        { type: 'S Corp', name: 'Two',   own: '100', pnl: { officerSalary: '10000', netProfit: '90000' } }, // 10%
+        { type: 'S Corp', name: 'Three', own: '100', pnl: { officerSalary: '80000', netProfit: '40000' } }, // 66%
+      ],
+    })
+    expect(r.reasonableCompAlert.triggered).toBe(true)
+    expect(r.reasonableCompAlert.ratio).toBe(10)
+    expect(r.reasonableCompAlert.entityName).toBe('Two')
+    expect(r.reasonableCompAlert.triggeredCount).toBe(2)
+  })
+
+  it('CHAR: a single S-Corp return is byte-identical to the pre-fix output apart from the two additive keys', () => {
+    const entities = [{ type: 'S Corp', own: '100', pnl: { officerSalary: '25000', netProfit: '75000' } }]
+    const r = calcTaxReturn({ ...base, k1Total: 75000, entities })
+    expect(r.reasonableCompAlert.triggered).toBe(true)
+    expect(r.reasonableCompAlert.ratio).toBe(25)
+    expect(r.reasonableCompAlert.message).toContain('informational flag')
+    expect(r.reasonableCompAlert.triggeredCount).toBe(1)
+    // No name on the fixture → the 'Entity' fallback, never undefined.
+    expect(r.reasonableCompAlert.entityName).toBe('Entity')
+  })
+
+  it('CHAR: entityName is empty when nothing triggers, so no surface can print a name beside a clean result', () => {
+    const r = calcTaxReturn({
+      ...base,
+      k1Total: 60000,
+      entities: [
+        { type: 'S Corp', name: 'Alpha', own: '100', pnl: { officerSalary: '60000', netProfit: '40000' } },
+        { type: 'S Corp', name: 'Beta',  own: '100', pnl: { officerSalary: '50000', netProfit: '20000' } },
+      ],
+    })
+    expect(r.reasonableCompAlert.triggered).toBe(false)
+    expect(r.reasonableCompAlert.entityName).toBe('')
+    expect(r.reasonableCompAlert.triggeredCount).toBe(0)
+  })
+
+  it('CHAR: S-Corps below the $20k noise gate stay silent even in a multi-entity return', () => {
+    const r = calcTaxReturn({
+      ...base,
+      k1Total: 9000,
+      entities: [
+        { type: 'S Corp', name: 'Tiny One', own: '100', pnl: { officerSalary: '0', netProfit: '5000' } },
+        { type: 'S Corp', name: 'Tiny Two', own: '100', pnl: { officerSalary: '0', netProfit: '4000' } },
+      ],
+    })
+    expect(r.reasonableCompAlert).toEqual({ triggered: false, ratio: 100, message: '', entityName: '', triggeredCount: 0 })
   })
 })

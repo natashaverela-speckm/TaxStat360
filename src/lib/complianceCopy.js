@@ -308,3 +308,22 @@ export const ACCOUNT_DELETION_EXPORT_WARNING =
 export const ENCRYPTION_STATEMENT =
   'We encrypt your data with AES-256 at rest and TLS 1.2+ in transit. All accounting ' +
   'connections use read-only OAuth tokens.'
+
+// ── FRESH-EYES P-3 — NO MODEL TRAINING ───────────────────────────────────────
+// Terms §6 carried a specific, unusually strong promise: no training, no
+// fine-tuning, no evaluation, ours or a third party's. The Privacy Policy's
+// "How We Use Your Information" list meanwhile ended with "Improve our platform
+// features and performance" — the generic bucket every policy uses to cover
+// exactly the activity §6 had just ruled out. Nothing in the code contradicted
+// §6; the exposure was that the two documents, read together, let a reader argue
+// the broad clause swallowed the narrow one.
+//
+// The promise now lives here and is rendered in BOTH documents, so it cannot
+// drift the way "bank-level" and "TLS 1.3" drifted (see M12 above). Keep it a
+// single constant. If a feedback mechanism is ever added that forwards user
+// content to a model provider, this sentence is the first thing to revisit —
+// see the Anthropic caveat comment above Privacy §4.
+export const NO_MODEL_TRAINING_STATEMENT =
+  'We do not use your financial data, tax figures, or AI assistant conversations ' +
+  'to train, fine-tune, or evaluate any machine learning model, ours or a third ' +
+  'party’s.'
