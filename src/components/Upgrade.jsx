@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { readEmail, readPlan, readToken, writePlan, removeSubscriptionIncomplete } from '../utils/sessionState.js'
+import { readEmail, readPlan, writePlan, removeSubscriptionIncomplete } from '../utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut as sharedSignOut } from '../utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
@@ -238,11 +238,14 @@ export default function Upgrade() {
       // Previously the response was discarded — if the API returned 402/500, the user
       // saw "You're upgraded!" but no subscription was created, resulting in silent
       // revenue loss. Now we verify the subscription is active before celebrating.
-      const token = readToken()
+      // AUDIT H5 (Sep 2026): the hand-set Authorization header is gone. This was the
+      // one call site that could not be exercised from a test without creating a real
+      // subscription, so it was left in place until the backend could be read.
+      // app/main.py:1886 subscribe() -> _require_session_user -> _session_email, which
+      // verifies the cookie first. credentials:'include' below is what authenticates.
       const subRes = await apiFetch('/stripe/subscribe', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: { plan: selectedPlan, billing, payment_method_id: setupIntent.payment_method },
         raw: true,
       })

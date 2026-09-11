@@ -83,7 +83,7 @@ import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING
 import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
-import { claimSessionForUser, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writeToken, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
+import { claimSessionForUser, readBusinessInfo, writeLoggedIn, readSessionStart, writeSessionStart, readEmail, writeEmail, writePlan, readPlan, writeBilling, writeSubscriptionIncomplete, removeSubscriptionIncomplete, writeUserName, writeEmailVerified, removeEmailVerified, writePendingEmail, removeEmailConfirmedAck, readDisclaimerSeen, readPendingEmail, writeNewRegistration, readNewRegistration, clearNewRegistration } from '../utils/sessionState.js'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
 import { isValidSession } from '../utils/sessionAuth.js'
 // M7 (audit F-09): form endpoints centralized — see integrations.js for the rotation/security note.
@@ -322,7 +322,7 @@ if(error)throw new Error(error.message)
 const reg=await apiFetch('/auth/register',{method:'POST',credentials:'include',body:{name,email,password:pass,plan,billing,payment_method_id:setupIntent.payment_method,terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION,terms_accepted_at:acceptedAt,auto_renewal_accepted_at:acceptedAt},raw:true})
 const data=await reg.json()
 if(!reg.ok)throw new Error(data.detail||'Registration failed')
-if(data.access_token)writeToken(data.access_token)
+// AUDIT H5: access_token is no longer stored — the httpOnly cookie is the credential.
 // AUDIT H3: a brand-new account must not inherit whatever the previous user left in
 // this tab's session store. Same reasoning as finishLogin below.
 claimSessionForUser(email)
@@ -782,7 +782,7 @@ async function finishLogin(data,actualEmail){
 // signed out of — never goes through signOut. If the working set belongs to someone
 // else, it is wiped here before a single field of it can be read.
 claimSessionForUser(actualEmail)
-if(data.access_token) writeToken(data.access_token)
+// AUDIT H5: access_token is no longer stored — the httpOnly cookie is the credential.
 writeEmail(actualEmail)
 writeLoggedIn('1')
 writeSessionStart(String(Date.now()))

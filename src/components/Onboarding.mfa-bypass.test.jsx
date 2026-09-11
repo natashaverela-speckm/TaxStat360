@@ -96,35 +96,28 @@ describe('H6 — records written by the old build are purged', () => {
   })
 })
 
-describe('H5 — the SEC-04 comment no longer asserts a fix that does not exist', () => {
+describe('H5 — the SEC-04 comment is now true, and the token is gone', () => {
   const app = () => readFileSync(join(__dirname, 'App.jsx'), 'utf8')
 
-  it('the false claim is never made as a present-tense assertion', () => {
-    // The corrected comment quotes the old wording in order to explain it, so a bare
-    // absence check would fail for the right reason. Assert the FRAMING instead: every
-    // occurrence must sit inside the "used to assert" retraction.
+  it('the claim is no longer a retraction — it is simply accurate', () => {
+    // Interim state (Sep 10): the comment retracted itself, explaining that the token
+    // was still present because POST /stripe/subscribe could not be tested safely.
+    // The backend has since been read and the token removed, so the retraction is gone.
     const a = app()
-    const claim = 'localStorage no longer stores the raw token'
-    let from = 0, occurrences = 0
-    for (;;) {
-      const at = a.indexOf(claim, from)
-      if (at === -1) break
-      occurrences++
-      const preceding = a.slice(Math.max(0, at - 200), at)
-      expect(preceding, 'the claim appears without its retraction').toMatch(/used to assert/)
-      from = at + claim.length
-    }
-    expect(occurrences, 'expected the retraction to quote the old claim exactly once').toBe(1)
+    expect(a).toMatch(/NOW TRUE, AND ENFORCED/)
+    expect(a).not.toMatch(/COMMENT CORRECTED/)
+    expect(a).not.toMatch(/used to assert/)
   })
 
-  it('the comment states what is actually true, including why the token remains', () => {
-    const a = app()
-    expect(a).toMatch(/COMMENT CORRECTED/)
-    expect(a).toMatch(/stripe\/subscribe/)
+  it('it cites what settled it', () => {
+    expect(app()).toMatch(/_session_email/)
+    expect(app()).toMatch(/stripe\/subscribe/)
   })
 
-  it('the token is still excluded from the data export (M1)', async () => {
+  it('the token is excluded from the export AND no longer written at all', async () => {
     const { isExportableKey } = await import('../utils/sessionState.js')
     expect(isExportableKey('ts360_token')).toBe(false)
+    const s = readFileSync(join(__dirname, '..', 'utils', 'sessionState.js'), 'utf8')
+    expect(s).not.toMatch(/export function writeToken/)
   })
 })

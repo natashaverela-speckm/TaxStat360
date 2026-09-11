@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, purgeLegacyDeviceTrust } from '../utils/sessionState.js'
+import { writeSessionStart, readEmail, readLoginHistory, writeLoginHistory, readIdleTimeoutMins, readCookieConsent, writeCookieConsent, purgeLegacyDeviceTrust, purgeLegacySessionToken } from '../utils/sessionState.js'
 import Privacy from './Privacy'
 import Terms from './Terms'
 import About from './About'
@@ -44,7 +44,7 @@ function OAuthCallback() {
   const { provider = 'unknown' } = useParams()
   // AUDIT H6 (Sep 2026): clear any device-trust record left by the old client-side
   // 2FA bypass. One-shot, idempotent, and independent of session state.
-  useEffect(() => { purgeLegacyDeviceTrust() }, [])
+  useEffect(() => { purgeLegacyDeviceTrust(); purgeLegacySessionToken() }, [])
 
   useEffect(() => {
     const p = provider.toLowerCase()
@@ -67,33 +67,26 @@ function OAuthCallback() {
 }
 
 // ─── Auth Keys ────────────────────────────────────────────────────────────────
-// SEC-04 / AUDIT H5 (second launch audit, Sep 2026) — COMMENT CORRECTED.
+// SEC-04 / AUDIT H5 (second launch audit, Sep 2026) — NOW TRUE, AND ENFORCED.
 //
-// This block used to assert: "localStorage no longer stores the raw token — only
-// non-sensitive metadata." That was false. sessionState.js:writeToken() puts the raw
-// bearer token in localStorage under ts360_token, both auth paths call it
-// (Onboarding.jsx:325 and :785), and apiClient.js attaches it as an Authorization
-// header on every request to our API. A comment asserting a fix the code does not
-// implement is worse than no comment: it is what stops the next reader from looking.
+// This block once asserted "localStorage no longer stores the raw token" while
+// writeToken() did exactly that. The claim was corrected to describe reality, and the
+// token has now been removed, so the original sentence is finally accurate:
+// localStorage holds only non-sensitive metadata. ts360_logged_in is a lightweight
+// hint; the real auth is the httpOnly cookie the browser sends automatically.
 //
-// WHAT IS ACTUALLY TRUE TODAY — both credentials exist:
-//   • The httpOnly cookie IS a working credential. Verified against production on
-//     10 Sep 2026: GET /auth/me, /records, /integrations/status and /auth/mfa/status
-//     each returned 200 with credentials:'include' and NO Authorization header.
-//   • The bearer token in localStorage is ALSO accepted, is readable by any script
-//     that runs on the page, and has no refresh or rotation anywhere in the codebase.
-//     Its only lifetime control is the client-side sliding window below.
+// Settled by reading the backend (TaxStat360-api, app/main.py):
+//   _session_email (:544) verifies the COOKIE first and returns immediately; the
+//   Authorization header is only a fallback reached when the cookie fails.
+//   _require_session_user (:682) wraps it, and all 18 authenticated routes use it —
+//   including POST /stripe/subscribe (:1886), the one call site that could not be
+//   exercised from a test without creating a real subscription.
+// No route reads the Authorization header directly; every other `Bearer` in that file
+// is an OUTGOING call to Stripe, QuickBooks, Xero or OpenAI.
 //
-// WHY THE TOKEN IS STILL HERE: removing it is the right end state, but Upgrade.jsx:170
-// sets the Authorization header by hand on POST /stripe/subscribe — the payment path —
-// and that endpoint cannot be exercised from a test without creating a real
-// subscription. B2's own note records that this path has already produced silent
-// revenue loss once. So the removal waits on one backend check: confirm
-// /stripe/subscribe (and the other POST routes) authenticate on the cookie alone, then
-// delete writeToken/readToken, the header in apiClient.js:86-89, and the hand-set
-// header in Upgrade.jsx. Until then this comment describes the real state.
-//
-// M1 (Sep 2026) already stops the token leaving via the data export.
+// Removed: writeToken/readToken, the header in apiClient.js, the hand-set header in
+// Upgrade.jsx, and both storage sites in Onboarding.jsx. Tokens already sitting in
+// users' browsers are purged on startup (purgeLegacySessionToken).
 // D-11 (dead-code & duplication audit): AUTH_KEYS / SESSION_MAX_AGE_MS /
 // isValidSession() moved verbatim to utils/sessionAuth.js — the single
 // definition of session validity, now shared with Onboarding.
