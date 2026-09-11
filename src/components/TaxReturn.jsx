@@ -20,7 +20,7 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare } from '../utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
@@ -340,11 +340,17 @@ export default function TaxReturn() {
       // BEFORE salary (it deducts salary + employer FICA itself).
       const netBeforeSalary = nf(e.pnl?.netProfit) + salary
       const layer = calcCCorpCorporateLayer({ netProfit: netBeforeSalary, officerSalary: salary, taxYear })
-      acc.corpTax   += layer.corpTax
-      acc.dividends += layer.dividends
-      acc.count     += 1
+      // C-CORP AUDIT (11 Sep 2026): only the owner's share of the dividends and of the
+      // corporate tax reaches this return — see ccorpOwnerShare(). Previously 100% of both
+      // were folded in whatever the entity's Ownership % said.
+      const mine = ccorpOwnerShare(layer, e.own)
+      acc.corpTax        += mine.corpTax
+      acc.dividends      += mine.dividends
+      acc.corpTaxEntity  += layer.corpTax
+      acc.partial         = acc.partial || mine.share < 1
+      acc.count          += 1
       return acc
-    }, { corpTax: 0, dividends: 0, count: 0 })
+    }, { corpTax: 0, dividends: 0, corpTaxEntity: 0, partial: false, count: 0 })
   }, [entities, taxYear])
 
   const calcInput = useMemo(() => {
@@ -1873,15 +1879,18 @@ export default function TaxReturn() {
               <div style={{ fontWeight: 700, marginBottom: 6, color: '#1D4ED8' }}>🏢 C-Corporation — double taxation applies</div>
               <div>
                 Your C-Corp&apos;s profit (after officer salary and employer payroll tax) is taxed at the corporate level at a flat 21%
-                {result.ccorpCorpTax > 0 ? <> (<strong>{fmt(result.ccorpCorpTax)}</strong>)</> : null}, and the remaining after-tax profit
+                {ccorp.partial && ccorp.corpTaxEntity > 0 ? <> (<strong>{fmt(ccorp.corpTaxEntity)}</strong> for the corporation; your ownership share is <strong>{fmt(result.ccorpCorpTax)}</strong>)</>
+                  : result.ccorpCorpTax > 0 ? <> (<strong>{fmt(result.ccorpCorpTax)}</strong>)</> : null}, and
+                {ccorp.partial ? ' your share of' : ''} the remaining after-tax profit
                 {result.ccorpDividends > 0 ? <> (<strong>{fmt(result.ccorpDividends)}</strong>)</> : null} is treated as fully distributed and taxed
                 <strong> again</strong> as qualified dividends on your personal return. Officer salary is already included in W-2 wages above.
                 C-Corp distributions are not qualified business income, so no §199A (QBI) deduction applies to them.
               </div>
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #BFDBFE', fontSize: 11.5, color: '#475569' }}>
-                Planning estimate only. Assumes a single owner-employee and full annual distribution of after-tax profit (no retained-earnings
-                strategy), a flat 21% with no graduated/AMT/accumulated-earnings or personal-holding-company layers, and federal tax only.
-                Not a substitute for a prepared Form 1120 — have a tax professional validate before relying on these figures.
+                Planning estimate only. Assumes full annual distribution of after-tax profit pro rata to ownership (no retained-earnings
+                strategy), a flat 21% with no accumulated-earnings (§531) or personal-holding-company (§541) layers, no corporate NOL if salary
+                exceeds profit, and federal tax only. The corporation pays its own estimates under §6655 (Form 1120-W) — the 21% is not part of
+                your quarterly figure. Not a substitute for a prepared Form 1120 — have a tax professional validate before relying on these figures.
               </div>
             </div>
           )}
@@ -1927,7 +1936,8 @@ export default function TaxReturn() {
                   const showSplit = officerSalary > 0 && result.totalW2ForFICA > 0
                   if (showSplit) {
                     return [
-                      { label: 'W-2 Wages — S-Corp officer salary (Step 1)', value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 — do not re-enter in Step 2' },
+                      // C-CORP AUDIT (11 Sep 2026): the label said "S-Corp" even when the salary came from a C-Corp.
+                      { label: `W-2 Wages — ${ccorp.count > 0 && !(Array.isArray(entities) ? entities : []).some(e => e && isSCorpEntity(e.type)) ? 'C-Corp' : 'S-Corp'} officer salary (Step 1)`, value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 — do not re-enter in Step 2' },
                       { label: 'W-2 Wages — Other employer (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
                     ]
                   }
