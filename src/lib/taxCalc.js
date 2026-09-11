@@ -322,6 +322,32 @@ function getSaltPhaseDownParams(taxYear, status) {
  *  diverge. Both engine branches and the strategy card now call this helper.
  *  The MAGI argument is the caller's pre-rental-AGI proxy, consistent with the
  *  engine's simplified §469(i)(3)(F) model. */
+// ── §221 education-loan interest: $2,500 cap and the MAGI phase-out ─────────────────
+// ACCURACY REVIEW (11 Sep 2026, pre-launch): the deduction was capped at $2,500 and then
+// allowed in full at any income. §221(b)(2)(B) phases it out ratably over a $15,000
+// ($30,000 joint) band, and §221(e)(2) denies it to married-filing-separately. A single
+// filer with $150,000 of wages was getting the whole $2,500 (tax understated $600 at 24%).
+// Figures transcribed from the Revenue Procedures — Rev. Proc. 2023-34 §3.30 (2024),
+// 2024-40 §3.30 (2025), 2025-32 §4.29 (2026). "Joint" is a joint return only: a
+// qualifying surviving spouse uses the single band (Form 1040 worksheet). MAGI is AGI
+// before this deduction (and before the NOL — same pre-NOL proxy as the SALT phase-down).
+const STUDENT_LOAN_PHASEOUT = {
+  2024: { single: [80000, 95000],  mfj: [165000, 195000] },
+  2025: { single: [85000, 100000], mfj: [170000, 200000] },
+  2026: { single: [85000, 100000], mfj: [175000, 205000] },
+}
+function calcStudentLoanDeduction(interestPaid, magi, taxYear, status) {
+  if (status === 'mfs') return 0                                                   // §221(e)(2)
+  const cap = Math.min(Math.max(0, nf(interestPaid)), 2500)                         // §221(b)(1)
+  if (cap === 0) return 0
+  const t = STUDENT_LOAN_PHASEOUT[taxYear] || STUDENT_LOAN_PHASEOUT[CURRENT_TAX_YEAR]
+  const [start, end] = status === 'mfj' ? t.mfj : t.single
+  const m = nf(magi)
+  if (m <= start) return cap
+  if (m >= end)   return 0
+  return Math.round(cap * (1 - (m - start) / (end - start)))                        // §221(b)(2)(B)
+}
+
 function calc469iAllowance(magi, status, isActiveParticipant = true) {
   if (status === 'mfs' || !isActiveParticipant) return 0
   return Math.max(
@@ -1379,7 +1405,8 @@ function calcTaxReturn(input) {
     // ── LEGACY branch (unchanged) ─────────────────────────────────────────────
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
       const preRentalAGI = w2 + adjustedK1Total + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
-        - Math.min(ytdScale(studentLoanInt), 2500)
+        // ACCURACY REVIEW (11 Sep 2026): §469(i)(3)(F) computes this MAGI without regard
+        // to the §221 education-loan deduction, so it is no longer subtracted here.
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
         - ytdScale(selfEmpHealthIns)
@@ -1443,7 +1470,8 @@ function calcTaxReturn(input) {
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
       const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
-        - Math.min(ytdScale(studentLoanInt), 2500)
+        // ACCURACY REVIEW (11 Sep 2026): §469(i)(3)(F) computes this MAGI without regard
+        // to the §221 education-loan deduction, so it is no longer subtracted here.
         - ytdScale(hsaDeduction)
         - ytdScale(selfEmpRetirement)
         - ytdScale(selfEmpHealthIns)
@@ -1680,8 +1708,14 @@ function calcTaxReturn(input) {
     ? false
     : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
   const hsaDed               = ytdScale(hsaDeduction)
-  const studentLoanDed       = Math.min(ytdScale(studentLoanInt), 2500)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
+  // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).
+  // grossIncomeBeforeNOL is defined a few lines below; the pieces are summed here so the
+  // deduction can be settled before `adjustments` is fixed.
+  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
+    + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
+    - (halfSE + selfEmpHealthDed + hsaDed + selfEmpRetirementDed)
+  const studentLoanDed       = calcStudentLoanDeduction(ytdScale(studentLoanInt), _magiForStudentLoan, taxYear, status)
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
   // AUDIT F-13: surface total K-1 charitable so the UI can direct it to Schedule A.
   // Deliberately NOT auto-added to itemizedAmt (the user may already have included
@@ -2526,6 +2560,7 @@ export {
   // consumed by the AIAnalysis strategy layer) and the flow-through k1Total
   // aggregation rule (consumed by CalculateTaxInner's three persist paths).
   calc179Limitation,
+  calcStudentLoanDeduction,
   sumK1FlowThrough,
   // D-10 (dead-code audit): reasonable-comp numeric rule — consumed by the engine
   // alert above and Dashboard's scenario card.
