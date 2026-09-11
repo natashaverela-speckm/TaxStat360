@@ -105,6 +105,13 @@ describe('M7 — the button cannot be clickable while the card is unmounted', ()
 
     fireEvent.click(await screen.findByRole('button', { name: /Upgrade to Professional/i }))
 
+    // FRESH-EYES F-17 (11 Sep 2026): the button now also gates on the auto-renewal
+    // consent box (Cal. B&P §17602(a)(1)), mirroring Onboarding. Readiness alone is no
+    // longer enough — and must not be. Tick it, then the readiness assertion applies.
+    await waitFor(() => expect(document.getElementById('upgrade-renew-ok')).toBeTruthy())
+    expect(upgradeButton()).toBeDisabled()          // ready but unconsented → still disabled
+    fireEvent.click(document.getElementById('upgrade-renew-ok'))
+
     await waitFor(() => {
       const btn = upgradeButton()
       expect(btn).toBeTruthy()
@@ -161,7 +168,7 @@ describe('M7 — the source no longer contains the mechanisms that caused it', (
     expect(s).toMatch(/setErr\('Card input is still loading/)
   })
 
-  it('the button gates on readiness state', () => {
-    expect(src()).toMatch(/disabled=\{loading \|\| !stripeReady\}/)
+  it('the button gates on readiness state — and, since F-17, on consent', () => {
+    expect(src()).toMatch(/disabled=\{loading \|\| !stripeReady \|\| !renewOk\}/)
   })
 })
