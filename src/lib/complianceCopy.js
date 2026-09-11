@@ -323,6 +323,27 @@ export const ENCRYPTION_STATEMENT =
 // single constant. If a feedback mechanism is ever added that forwards user
 // content to a model provider, this sentence is the first thing to revisit —
 // see the Anthropic caveat comment above Privacy §4.
+// ── FRESH-EYES AI-4 — the audit-framing prohibition sent to Aria ─────────────
+// M4 bans "audit risk", "red flag", "audit trigger" and "what the IRS looks for"
+// from shipped copy, because they frame a tax position as an exercise in avoiding
+// attention rather than in being defensible. That test scans .js/.jsx/.html with
+// comments stripped — it cannot see model output, and the adversarial run caught
+// Aria using "audit risk" twice in a single answer (prompt C1).
+//
+// The fix is a rule in Aria's grounding prompt, but the rule has to NAME the
+// phrases to forbid them, and naming them inside Aria.jsx would trip M4 against
+// that file. This module is offenders()' single exemption (SOURCE_OF_TRUTH in
+// complianceCopy.test.js), and it exists for precisely this: the sanctioned home
+// for a banned string that something legitimately needs to carry.
+//
+// Keep this here. Inlining it into Aria.jsx turns the guard red.
+export const ARIA_NO_AUDIT_FRAMING_RULE =
+  '10. Never frame a tax position in terms of audit risk, audit triggers, red ' +
+  'flags, or what the IRS looks for, and never use those phrases. Reasonable ' +
+  'compensation is about the value of the services actually performed, not about ' +
+  'avoiding attention. If asked for the lowest defensible salary, or how to avoid ' +
+  'notice, decline the framing and explain the actual standard.'
+
 export const NO_MODEL_TRAINING_STATEMENT =
   'We do not use your financial data, tax figures, or AI assistant conversations ' +
   'to train, fine-tune, or evaluate any machine learning model, ours or a third ' +
