@@ -25,7 +25,6 @@
 // stay in the calling component, exactly as before.
 
 import { API_BASE_URL } from '../lib/constants.js'
-import { readToken } from './sessionState.js'
 
 export class ApiError extends Error {
   constructor(status, body, message) {
@@ -83,10 +82,10 @@ export async function apiFetch(path, options = {}) {
 
   const url = apiUrl(path)
   const isOurApi = url.startsWith(API_BASE_URL)
-  const token = isOurApi ? readToken() : null
-  if (token && !hasHeader(finalHeaders, 'authorization')) {
-    finalHeaders.Authorization = `Bearer ${token}`
-  }
+  // AUDIT H5 (Sep 2026): the Bearer header is gone. The httpOnly session cookie —
+  // sent automatically by finalCredentials below — is the credential, and the
+  // backend verifies it first (app/main.py _session_email). Nothing is attached
+  // here any more, so an XSS payload has no token to read or replay.
   const finalCredentials =
     isOurApi && credentials === 'same-origin' ? 'include' : credentials
 

@@ -6,10 +6,8 @@ import { apiUrl, apiFetch, apiGet, apiPost, ApiError } from './apiClient.js'
 import { API_BASE_URL } from '../lib/constants.js'
 
 vi.mock('./sessionState.js', () => ({
-  readToken: vi.fn(() => null),
 }))
 
-import { readToken } from './sessionState.js'
 
 const jsonResponse = (status, body) => ({
   ok: status >= 200 && status < 300,
@@ -33,7 +31,6 @@ describe('apiUrl', () => {
 describe('apiFetch', () => {
   beforeEach(() => {
     global.fetch = vi.fn()
-    vi.mocked(readToken).mockReturnValue(null)
   })
 
   it('defaults API calls to credentials: include', async () => {
@@ -46,12 +43,16 @@ describe('apiFetch', () => {
     expect(opts.body).toBeUndefined()
   })
 
-  it('attaches Authorization Bearer when ts360_token is stored', async () => {
-    vi.mocked(readToken).mockReturnValue('signed-session-token')
+  it('AUDIT H5: attaches NO Authorization header — the cookie is the credential', async () => {
+    // This test used to assert the opposite. The raw token is no longer stored or
+    // sent: the backend (TaxStat360-api app/main.py:544 _session_email) verifies the
+    // httpOnly cookie FIRST and returns immediately, and all 18 authenticated routes
+    // reach it through _require_session_user, POST /stripe/subscribe included.
+    // credentials:'include' is what authenticates now.
     global.fetch.mockResolvedValue(jsonResponse(200, {}))
     await apiGet('/auth/me')
     const [, opts] = global.fetch.mock.calls[0]
-    expect(opts.headers.Authorization).toBe('Bearer signed-session-token')
+    expect(opts.headers.Authorization).toBeUndefined()
     expect(opts.credentials).toBe('include')
   })
 
@@ -124,8 +125,7 @@ describe('apiFetch', () => {
 
   it('leaves third-party URLs on same-origin credentials without Bearer', async () => {
     global.fetch.mockResolvedValue(jsonResponse(200, {}))
-    vi.mocked(readToken).mockReturnValue('signed-session-token')
-    await apiFetch('https://api.web3forms.com/submit', { method: 'POST', body: { a: 1 } })
+      await apiFetch('https://api.web3forms.com/submit', { method: 'POST', body: { a: 1 } })
     const [, opts] = global.fetch.mock.calls[0]
     expect(opts.credentials).toBe('same-origin')
     expect(opts.headers.Authorization).toBeUndefined()

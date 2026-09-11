@@ -918,10 +918,29 @@ export function removeLoggedIn() { localStorage.removeItem('ts360_logged_in') }
 export function readSessionStart() { return localStorage.getItem('ts360_session_start') }
 export function writeSessionStart(val) { localStorage.setItem('ts360_session_start', val) }
 export function removeSessionStart() { localStorage.removeItem('ts360_session_start') }
-export function readToken() {
-  try { return localStorage.getItem('ts360_token') } catch { return null /* M5: unreadable storage → treated as signed out */ }
+// ── AUDIT H5 (second launch audit, Sep 2026): THE BEARER TOKEN IS GONE ──
+//
+// readToken/writeToken are removed. The raw session token is no longer stored in
+// localStorage, no longer attached to requests, and is purged from browsers that
+// still hold one (purgeLegacySessionToken below).
+//
+// The httpOnly cookie was always the real credential. Confirmed in the backend
+// (TaxStat360-api, app/main.py:544 _session_email): the cookie is verified FIRST
+// and returns immediately; the Authorization header is only a fallback reached
+// when the cookie fails. All 18 authenticated routes — /stripe/subscribe at
+// main.py:1886 included — go through _require_session_user -> _session_email, so
+// there is no route that needs the header. Independently confirmed live on 10 Sep
+// 2026: GET /auth/me, /records, /integrations/status and /auth/mfa/status each
+// returned 200 with credentials:'include' and no Authorization header.
+//
+// What this closes: a credential readable by any script that executes on the page,
+// with no refresh and no rotation anywhere in the codebase, whose only lifetime
+// control was the client-side sliding window. M1 had already stopped it leaving
+// via the data export and M8 had closed the img-src exfiltration channel; this
+// removes the thing those were protecting.
+export function purgeLegacySessionToken() {
+  try { localStorage.removeItem('ts360_token') } catch (_e) { /* private mode: nothing to purge */ }
 }
-export function writeToken(val) { localStorage.setItem('ts360_token', val) }
 export function readEmail() { return localStorage.getItem('ts360_email') }
 export function writeEmail(val) { localStorage.setItem('ts360_email', val) }
 export function readLoginHistory() { return localStorage.getItem('ts360_login_history') }
