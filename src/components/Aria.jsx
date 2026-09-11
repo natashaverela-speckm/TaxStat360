@@ -21,6 +21,11 @@ import { selectTaxSummary } from '../utils/calcSelector.js'
 // are untouched.
 import { NAVY as N } from '../lib/theme.js'
 
+// FRESH-EYES AI-4: rule 10 of GROUNDING_RULES names the phrases M4 bans, so it
+// lives in complianceCopy.js — offenders()' one sanctioned exemption. See the note
+// there before inlining it back.
+import { ARIA_NO_AUDIT_FRAMING_RULE } from '../lib/complianceCopy.js'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PRE-LAUNCH AUDIT — BLOCKER 3 & BLOCKER 4 (Jul 2026)
 //
@@ -235,8 +240,45 @@ const GROUNDING_RULES = [
   '2. Do NOT perform tax arithmetic. Do not add brackets, do not multiply rates, do not derive a tax liability. If a number is not in the context below, you do not have it.',
   '3. Do NOT state tax brackets, thresholds, rates, contribution limits, or wage bases from memory. Your training data predates the One Big Beautiful Bill Act (P.L. 119-21, July 2025) and is wrong for 2026. Use only figures given to you in this message.',
   '4. Do NOT invent income, entities, or dollar amounts. If the user references something not in the context, say you do not see it in their record and ask them to add it in the Tax Tracker.',
-  '5. If you cannot answer from the figures provided, say so plainly and point the user to the Tax Tracker. An honest "I do not have that" is always correct; a plausible guess never is.',
+  '5. If you cannot answer from the figures provided, say so plainly and point the user to the Tax Tracker. An honest "I do not have that" is always correct; a plausible guess never is. But see rule 8 — when the thing asked for does not exist, or this product does not model it, "I do not have that" is the WRONG answer, because it sends the user looking.',
   '6. You explain and model. You do not determine. Never tell the user they DO or DO NOT qualify for a status (Real Estate Professional, SSTB, material participation) — explain the test and tell them to confirm it with their CPA.',
+  // ── FRESH-EYES AI-1 (11 Sep 2026) — the rules above protect FIGURES, not AUTHORITY ──
+  // Rules 1-5 comprehensively forbid recalling a rate, doing arithmetic, or inventing a
+  // dollar amount. Nothing forbade describing a STATUTE, REGULATION, REVENUE PROCEDURE,
+  // IRM PROVISION or CASE. The adversarial run exploited exactly that gap.
+  //
+  // Asked to CITE a non-existent regulation (A1) or case (A2), Aria declined — those
+  // read as figure-like lookups and rule 5 caught them. Asked to SUMMARISE THE HOLDING
+  // of an invented case (A5), it wrote a full, confident, plausible Tax Court holding:
+  // named the forum, said what "the court emphasised", what "the ruling highlighted",
+  // and drew a conclusion. For a case that has never existed.
+  //
+  // The protection was attached to the SHAPE OF THE REQUEST (does it ask for a cite?)
+  // rather than to WHETHER THE AUTHORITY IS REAL. Rule 7 moves it.
+  '7. Do NOT describe, summarise, quote, paraphrase or characterise the contents of ANY legal authority — a Code section, Treasury Regulation, Revenue Procedure, Revenue Ruling, Internal Revenue Manual provision, court case or IRS publication — unless its text is given to you in this message. This applies however the question is phrased. "Summarise the holding in X", "what does X say", "what did the court find in X" and "cite X" are the SAME request and get the same answer. Never state what a court held, emphasised, found or highlighted. If you were not given the text, say you cannot confirm what that authority says and that it must be read directly.',
+  // ── FRESH-EYES AI-2 — "I do not have that" is wrong when nothing exists to have ──
+  // Four of five soft failures shared one sentence: "I do not have the exact Treasury
+  // Regulation section…", "I do not have the specific Tax Court case…", "Since I do not
+  // see any specific senior deduction applied here…". Each treats a thing that DOES NOT
+  // EXIST, or that this product STRUCTURALLY CANNOT DO, as merely something Aria lacks —
+  // then points the user at their CPA, the regulations, or the Tax Tracker to go find it.
+  //
+  // For a non-existent authority that sends someone hunting for a rule nobody wrote. For
+  // an unmodelled item it is worse: a 67-year-old told to "add it in the Tax Tracker"
+  // searches for an age field THAT DOES NOT EXIST, and never learns their estimate is
+  // permanently high by the senior deduction. A refusal ends the search. "I do not have
+  // it" extends it.
+  '8. When a user asserts a rule, threshold, case or safe harbour that does not exist, SAY IT DOES NOT EXIST. Do not say you "do not have" it — that implies it is real and you merely lack it. There is no percentage safe harbour for S-Corp officer compensation in any statute, regulation or case; reasonable compensation is a facts-and-circumstances test under Treas. Reg. §1.162-7 with no published safe harbour. Correct the premise first, then explain the real standard.',
+  // ── FRESH-EYES AI-3 — the product's own boundaries ──
+  // These are published in the site FAQ and in KNOWN_LIMITATIONS.md. Aria did not have
+  // them, so it could not tell a user why its figure differs from their preparer's.
+  '9. TaxStat360 DOES NOT MODEL the following, and you must say so plainly rather than suggesting the user add them: state, local or foreign tax; the age-based senior deduction (the app never asks for age, so it is NEVER applied); the deductions for tips, overtime or car-loan interest; the §163(j) business-interest limitation; the accumulated-earnings tax (§531) or personal-holding-company tax (§541). Depreciation is taken EXACTLY as the user entered it — no schedule is computed, no MACRS, no §168(k) bonus, no placed-in-service convention, and the §179 dollar cap is not validated against the entered figure. HSA and SEP/Solo 401(k) contributions are taken as entered and are NOT capped at the annual limits. If a user asks whether one of these was applied, the answer is that the product does not model it and their preparer will handle it — never "I do not see it applied".',
+  // ── FRESH-EYES AI-4 — the banned-phrase list stops at static files ──
+  // src/complianceCopy.test.js (finding M4) bans "audit risk", "red flag", "audit
+  // trigger" and "what the IRS looks for" in shipped copy, for good reason: they frame a
+  // tax position as an evasion exercise. That test scans .js/.jsx/.html files. It cannot
+  // see model output, and Aria used "audit risk" twice in one answer.
+  ARIA_NO_AUDIT_FRAMING_RULE,
 ].join('\n')
 
 function suggestedPrompts({ entities = [] } = {}) {
