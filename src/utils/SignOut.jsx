@@ -23,6 +23,7 @@
 // M4 (audit F-06): the session wipe routes through sessionState so the
 // ARCHITECTURE §3 contract holds; clear+swallow semantics unchanged.
 import { clearAllSessionState } from './sessionState.js'
+import { apiFetch } from './apiClient.js'
 
 const AUTH_KEYS = [
   // Core auth / session
@@ -64,7 +65,36 @@ const AUTH_KEYS = [
   'ts360_step1_draft',
 ]
 
+// ── FRESH-EYES F-1 (11 Sep 2026): SIGN-OUT CLEARED EVERYTHING EXCEPT THE CREDENTIAL ──
+//
+// After audit H5 (c16) removed the bearer token, the httpOnly session cookie became
+// the ONLY credential. JavaScript cannot delete an httpOnly cookie. So this function
+// was clearing the two things that had stopped being the credential (localStorage
+// token, sessionStorage working set) and leaving the one that was. The API session
+// stayed live after "Sign Out"; on a shared machine the next person at the browser
+// could hit /auth/me, /records and the integrations routes directly, or re-enter the
+// SPA by setting ts360_logged_in='1'. That is the H3 threat model reopened one layer
+// down from where H3 closed it.
+//
+// The server already had the endpoint — POST /auth/logout (app/main.py:1715) deletes
+// the cookie with the correct domain and path. Nothing called it.
+//
+// Ordering: fire the logout request FIRST (the cookie is still attached), then wipe
+// local state, then navigate. The request is not awaited — signOut() is called
+// synchronously from onClick handlers across six components and must stay that way —
+// and the local wipe runs regardless of whether the request succeeds, so a network
+// failure can never leave taxpayer data in the tab. keepalive is not available
+// through apiFetch; a client-side route change (nav) does not tear down in-flight
+// fetches the way a document unload does, so the request completes.
+function endServerSession() {
+  try {
+    apiFetch('/auth/logout', { method: 'POST', credentials: 'include', raw: true })
+      .catch(() => { /* F-1: local wipe below runs regardless; server session then expires on its own */ })
+  } catch (_e) { /* F-1: same — never let a logout failure block the local wipe */ }
+}
+
 export function signOut(nav) {
+  endServerSession()
   AUTH_KEYS.forEach(k => localStorage.removeItem(k))
   // ── AUDIT H3 (second launch audit, Sep 2026): SIGN-OUT LEFT TAXPAYER DATA IN THE TAB ──
   //

@@ -80,13 +80,35 @@ describe('H3 — a different account cannot inherit the tab working set', () => 
     expect(present()).toHaveLength(6)
   })
 
-  it('claims an unowned tab without destroying a first-run session', () => {
-    // No prior owner: a fresh tab, or one predating this key. Nothing to protect
-    // against, and wiping would throw away the user's own work.
-    seedUserA()
+  // FRESH-EYES F-2 (11 Sep 2026): this test used to assert the OPPOSITE — that an
+  // unstamped tab holding six taxpayer keys survives a sign-in. It pinned the bug.
+  // ts360_session_owner was introduced by H3 itself, so "no stamp" described every
+  // browser that used the app before H3 shipped; treating those as safe meant the
+  // guard skipped exactly the population that had the data.
+  it('F-2: an unowned tab that HOLDS taxpayer data is treated as foreign and wiped', () => {
+    seedUserA()                                   // no owner stamp — pre-H3 build
+    expect(claimSessionForUser('b@example.com')).toBe(true)
+    expect(present()).toEqual([])
+    expect(readSessionOwner()).toBe('b@example.com')
+  })
+
+  it('F-2: a genuinely fresh tab (no taxpayer keys) is claimed without a wipe', () => {
+    sessionStorage.setItem('ts360_first_run', '1')  // a non-taxpayer key may exist
     expect(claimSessionForUser('a@example.com')).toBe(false)
-    expect(present()).toHaveLength(6)
     expect(readSessionOwner()).toBe('a@example.com')
+    expect(sessionStorage.getItem('ts360_first_run')).toBe('1')
+  })
+
+  it('F-2: the guard names every taxpayer key that sessionState writes', () => {
+    // If a new taxpayer-data writer is added to sessionState.js, it must be listed
+    // in TAXPAYER_SESSION_KEYS or an unstamped tab carrying only that key slips past.
+    const src = readFileSync(new URL('./sessionState.js', import.meta.url), 'utf8')
+    const listStart = src.indexOf('const TAXPAYER_SESSION_KEYS = [')
+    const listBody  = src.slice(listStart, src.indexOf(']', listStart))
+    for (const k of ['ts360_f1040', 'ts360_entities', 'ts360_entities_raw',
+                     'ts360_step1_entities', 'ts360_k1', 'ts360_biz_ein', 'ts360_biz_name']) {
+      expect(listBody).toContain(`'${k}'`)
+    }
   })
 
   it('ignores an empty email rather than clearing the owner', () => {
@@ -115,6 +137,17 @@ describe('H3 — the wiring stays wired', () => {
     const fn = s.slice(s.indexOf('export function signOut'), s.indexOf('export function wipeAccountLocalData'))
     expect(fn).toMatch(/clearAllSessionState\(\)/)
     expect(fn).toMatch(/AUTH_KEYS\.forEach/)
+  })
+
+  it('F-1: signOut() ends the SERVER session — the httpOnly cookie is the credential', () => {
+    // After H5 removed the bearer token the cookie is the only credential, and
+    // JavaScript cannot delete an httpOnly cookie. Only POST /auth/logout can.
+    const s = src('./SignOut.jsx')
+    const fn = s.slice(s.indexOf('export function signOut'), s.indexOf('export function wipeAccountLocalData'))
+    expect(fn).toMatch(/endServerSession\(\)/)
+    expect(s).toMatch(/apiFetch\(\s*['"]\/auth\/logout['"]\s*,\s*\{[^}]*method:\s*['"]POST['"]/)
+    // The server call must be issued BEFORE the local wipe, while the cookie is still attached.
+    expect(fn.indexOf('endServerSession()')).toBeLessThan(fn.indexOf('AUTH_KEYS.forEach'))
   })
 
   it('both entry points claim the session for the account', () => {

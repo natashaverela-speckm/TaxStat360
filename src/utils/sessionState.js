@@ -595,18 +595,57 @@ export function writeSessionOwner(email) {
   try { sessionStorage.setItem(SESSION_OWNER_KEY, _normEmail(email)) } catch { /* noop */ }
 }
 
+// FRESH-EYES F-2 (11 Sep 2026): the keys that hold taxpayer data. If any of these is
+// present in a tab that carries NO owner stamp, the working set was written by a
+// build that predates ts360_session_owner — and that is every browser that used the
+// app before H3 shipped. Its owner is unknown, and unknown means foreign.
+const TAXPAYER_SESSION_KEYS = [
+  'ts360_f1040',
+  'ts360_entities',
+  'ts360_entities_raw',
+  'ts360_step1_entities',
+  'ts360_k1',
+  'ts360_biz_name',
+  'ts360_biz_ein',
+  'ts360_biz_address',
+  'ts360_active_record_id',
+]
+
+function _hasUnownedTaxpayerData() {
+  try {
+    return TAXPAYER_SESSION_KEYS.some((k) => sessionStorage.getItem(k) !== null)
+  } catch { return false }
+}
+
 /**
  * Called at sign-in. If this tab's session working set was left behind by a
  * different account, clear it before the app reads any of it.
  *
+ * FRESH-EYES F-2 (11 Sep 2026): the original guard wiped only when an owner stamp
+ * was present AND differed — `if (prev && prev !== next)`. ts360_session_owner was
+ * introduced by the same commit, so every tab that already held ts360_f1040,
+ * ts360_step1_entities and ts360_biz_ein from a pre-fix build had NO stamp, `prev`
+ * was null, the wipe was skipped, and user B's sign-in adopted user A's 1040 profile
+ * and EIN — the exact outcome H3 exists to prevent, for exactly the population that
+ * had the data. The test that pinned this ("claims an unowned tab without destroying
+ * a first-run session") seeded six taxpayer keys with no owner and asserted they
+ * survived.
+ *
+ * "First-run session" and "someone else's abandoned session" cannot be told apart
+ * by the absence of a key that never existed before today. Given what the keys hold,
+ * the safe reading of an unstamped working set is foreign. A genuinely fresh tab has
+ * none of the TAXPAYER_SESSION_KEYS and is unaffected; a first-run user loses
+ * nothing because a first-run user has entered nothing yet.
+ *
  * @param {string} email the account signing in
- * @returns {boolean} true when a foreign working set was found and cleared
+ * @returns {boolean} true when a foreign (or unowned) working set was found and cleared
  */
 export function claimSessionForUser(email) {
   const next = _normEmail(email)
   if (!next) return false
   const prev = readSessionOwner()
-  if (prev && prev !== next) {
+  const foreign = prev ? prev !== next : _hasUnownedTaxpayerData()
+  if (foreign) {
     clearAllSessionState()
     writeSessionOwner(next)
     return true
