@@ -1,4 +1,53 @@
-name: Build and Deploy to S3
+name: CI — tests and build
+
+# ── FRESH-EYES R-3 (11 Sep 2026): this workflow no longer deploys ────────────
+#
+# It used to be called "Build and Deploy to S3" and, on every push to master,
+# synced dist/ to s3://taxstat360-deploy-1775348133433 and invalidated CloudFront
+# distribution EJQTM04C80LWI. The H13 note this replaces set out the ambiguity —
+# two pipelines, two header configurations, and which one served production was
+# "not known from this repo". It has now been established from the AWS console:
+#
+#   www.taxstat360.com            -> AMPLIFY, branch master (Amplify-managed TLS,
+#                                    status Available). This is the live site.
+#   dqvm0qrewsa6n.cloudfront.net  -> EJQTM04C80LWI, the target of this workflow.
+#                                    No alternate domain names. Nothing in the
+#                                    product points at it: the app calls
+#                                    API_BASE_URL = https://app.taxstat360.com.
+#
+# So case (b) of the old note applied: this job deployed to an origin that is not
+# production, and the header check could only ever have gone green by reading a
+# site this job did not deploy. That is why SITE_URL was never set — setting it
+# would have bought a green tick and no information.
+#
+# Worse than useless, it was actively harmful. EJQTM04C80LWI carries NO response
+# headers policy on any of its three behaviours, so that second copy served no
+# CSP, no HSTS, no X-Frame-Options, no X-Content-Type-Options and no
+# Referrer-Policy — while proxying /auth/* and /integrations/* to the real
+# apigw-taxstat360 origin, so sign-in worked there. Standard logging is Off, so
+# nothing was recorded. Every push republished it, current with production.
+#
+# Amplify is the deploy path (amplify.yml runs `npm run test` in preBuild, so the
+# same gate still blocks a red suite from deploying). This workflow keeps the part
+# that was always worth having — tests and a build check on every push and PR, so
+# a commit still carries a pass/fail mark — and does nothing else.
+#
+# STILL OPEN, and NOT fixable from this repo (owner, AWS console):
+#   1. Disable EJQTM04C80LWI, confirm nothing breaks, then delete it and the
+#      bucket. Disable before deleting — it has a taxstat360.com certificate
+#      attached and its behaviours reference the live API.
+#   2. Rotate AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in this repo's secrets;
+#      they are no longer used here and should not keep working.
+#   3. Confirm app.taxstat360.com (the API origin the product actually calls)
+#      carries its own security headers. It is a different distribution and was
+#      never covered by customHttp.yml or by the check removed below.
+#
+# scripts/assertLiveHeaders.mjs is deliberately KEPT in the repo. It is the only
+# thing that reads what is actually served rather than what customHttp.yml says,
+# and September's outage was invisible to every other test here. Point it at a
+# real target and run it — by hand, or from a workflow that knows what it
+# deployed — rather than deleting the one check that would have caught that class
+# of failure.
 
 on:
   push:
@@ -8,7 +57,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,57 +71,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Run vitest test suite. Build/deploy will fail if any test fails — protects
-      # tax calculations and entity scenario logic from silent regressions.
+      # Run vitest test suite. Protects tax calculations and entity scenario
+      # logic from silent regressions. Amplify runs this same suite in preBuild,
+      # so a red result blocks the actual deploy as well as failing here.
       - name: Run tests
         run: npm run test
 
       - name: Build
         run: npm run build
-
-      - name: Deploy to S3
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-        run: |
-          aws s3 sync dist/ s3://taxstat360-deploy-1775348133433/ --delete --cache-control "no-cache, no-store, must-revalidate"
-          aws cloudfront create-invalidation --distribution-id EJQTM04C80LWI --paths "/*"
-
-      # ── AUDIT H13 (second launch audit, Sep 2026) ──────────────────────────
-      #
-      # This step checks the PRODUCTION response, because that is the only check
-      # that catches a missing header regardless of cause. September's outage was
-      # invisible to every test in this repo: they all read customHttp.yml, and none
-      # read what CloudFront actually served.
-      #
-      # ⚠ READ THIS BEFORE TRUSTING A GREEN RESULT HERE.
-      #
-      # customHttp.yml is an AMPLIFY HOSTING file. This job syncs dist/ to S3 and
-      # invalidates CloudFront distribution EJQTM04C80LWI, where that file has no
-      # effect: a plain S3-origin distribution serves these headers only if a
-      # response-headers policy replicates them, and no such policy exists in this
-      # repo. Meanwhile the live site is currently served by the Amplify pipeline.
-      #
-      # So there are two cases, and WHICH ONE APPLIES IS NOT KNOWN FROM THIS REPO:
-      #   * If EJQTM04C80LWI serves www.taxstat360.com, this step fails after an S3
-      #     deploy — correctly, loudly, and that is the outage being caught.
-      #   * If it serves a different origin, this step passes by reading the
-      #     Amplify-served site and tells you NOTHING about what this job deployed.
-      #     A green tick here would then be reassurance you have not earned.
-      # That ambiguity is the finding. Two pipelines, two header configurations, and
-      # today's safe outcome is an accident of which one last ran.
-      #
-      # TO RESOLVE (owner decision, needs AWS access — not a repo change):
-      #   (a) retire this workflow if Amplify is the real deploy path, or
-      #   (b) attach a CloudFront response-headers policy to EJQTM04C80LWI that
-      #       mirrors customHttp.yml, and keep the two in step.
-      # Set SITE_URL below to whatever this pipeline actually serves, once known.
-      #
-      - name: Verify live security headers
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: |
-          echo "Waiting for the CloudFront invalidation to propagate..."
-          sleep 60
-          node scripts/assertLiveHeaders.mjs
