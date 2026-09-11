@@ -164,4 +164,3 @@ describe('Deductions, credits and the rate schedules', () => {
     expect(r.safeHarborQuarterly).toBe(3026)
   })
 })
-—
