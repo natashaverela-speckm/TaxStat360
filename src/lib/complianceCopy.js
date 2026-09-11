@@ -252,30 +252,41 @@ export const CANCEL_PATH = 'Settings → Subscription → Cancel subscription'
 //   Settings modal "permanently deletes ... erases all ... This cannot be undone."
 // Both describe the same action (DELETE /account). Both cannot be true.
 //
-// ⚠ OWNER ACTION OUTSTANDING (asked and answered 11 Sep 2026: backend behaviour not
-// currently known). The wording below was chosen to be accurate under BOTH possible
-// implementations — immediate hard delete, or soft delete purged within 30 days:
-//   • "immediately and permanently ends your access" — true either way.
-//   • "We cannot restore a deleted account" — a statement about what we WILL do,
-//     which is within the operator's control regardless of what the store does.
-//   • "residual copies ... purged within 30 days" — true of a hard delete (nothing
-//     to purge, so vacuously within 30 days) and of a soft delete on a 30-day cycle.
-// What it deliberately no longer says is that the data is RECOVERABLE during those
-// 30 days — a promise that may not be keepable, and the one Terms §10 was making.
+// RESOLVED 11 Sep 2026 by reading the backend (TaxStat360-api, app/main.py). The
+// wording below now states the actual behaviour rather than the earlier version that
+// was drafted to be true under either implementation.
 //
-// Once the backend behaviour is confirmed, tighten this to the specific truth; a
-// statement true under two possibilities is weaker than one true under the actual one.
-// Privacy §5's separate "we process deletion requests within 30 days" (for emailed
-// requests) and Settings' "respond within 45 days" (CCPA §1798.130(a)(2) statutory
-// response window) are different clocks and are both correct — left alone.
+//   DELETE /account (:1821) -> _perform_account_deletion (:910), which:
+//     1. tears down the Stripe customer/subscription,
+//     2. hard-deletes every user record (_delete_all_user_records),
+//     3. hard-deletes the user row (_delete_user_record),
+//     4. writes an audit row: action, actor, target email, timestamp, IP, status.
+//   The endpoint then clears the session cookie immediately (:1827).
+//
+// There is NO soft-delete flag, no deleted_at column, no retention window and no
+// restore path anywhere in that file. So the Settings modal's "cannot be undone" was
+// TRUE, and Terms §10's 30-day recovery window was FALSE — the opposite of the
+// cautious guess a reader might have made.
+//
+// Deliberately NOT claimed here: anything about backups. Whether DynamoDB
+// point-in-time recovery is enabled is an AWS configuration fact, not visible in the
+// application code, and PITR can retain up to 35 days — so the earlier "residual
+// copies, including backups, are purged within 30 days" is removed rather than left
+// as an unverifiable promise. What IS disclosed is the audit row, because it is real,
+// it contains the email address, and it survives the deletion by design.
+//
+// Privacy §5's "we process deletion requests within 30 days" (for emailed requests)
+// and Settings' "respond within 45 days" (CCPA §1798.130(a)(2) statutory response
+// window) are different clocks and remain correct.
 export const ACCOUNT_DELETION_STATEMENT =
-  'Deleting your account immediately and permanently ends your access, cancels your ' +
-  'subscription, and removes your saved tax records and personal information from the ' +
-  'product. We cannot restore a deleted account. Any residual copies, including backups, ' +
-  'are purged within 30 days.'
+  'Deleting your account is immediate and permanent. We cancel your subscription and ' +
+  'delete your saved tax records, entities and personal information from our systems ' +
+  'straight away, and your session ends at once. There is no recovery window and no ' +
+  'way for us to restore a deleted account. We keep one compliance record of the ' +
+  'deletion itself — your email address, the date and time, and the originating IP.'
 
 export const ACCOUNT_DELETION_EXPORT_WARNING =
-  'Export your data before deleting. We cannot recover it for you afterwards.'
+  'Export your data before deleting. Once it is gone we cannot get it back for you.'
 
 // ── M12 — ENCRYPTION IN TRANSIT AND AT REST ──────────────────────────────────
 // The first audit removed the marketing term "bank-level" from the Landing FAQ, citing
