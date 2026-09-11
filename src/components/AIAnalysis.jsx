@@ -722,9 +722,14 @@ function RiskScan({ rec }) {
   }
 
   if (isCCorpEntity(b.entityType) && revenue > 0) {
+    // C-CORP AUDIT (11 Sep 2026): the card omitted NIIT on the dividends, presented the S
+    // election as cost-free (it is not: §1361 eligibility, §1374 built-in gains for five
+    // years, §1375 passive-income tax with C-Corp E&P), and never mentioned the one thing a
+    // C-Corp does better — retaining profit at 21% instead of paying out at up to 37% — or
+    // §1202 qualified small business stock. A planning app should show both sides.
     findings.push({ level: 'medium', icon: '💡', title: 'C-Corp Double Taxation',
-      detail: 'C-Corp profits are taxed at 21% at the entity level. Dividends distributed to you are then taxed again at qualified dividend rates (0–20%) on your personal return.',
-      action: 'Consider whether an S-Corp election would eliminate entity-level tax. An S-Corp with the same income passes profits directly to your personal return, avoiding the 21% corporate tax.' })
+      detail: 'C-Corp profits are taxed at a flat 21% at the entity level (IRC §11). Profit you take out as dividends is taxed again on your personal return at qualified-dividend rates (0/15/20%, §1(h)(11)) plus the 3.8% net investment income tax above $200,000 single / $250,000 joint (§1411). The estimate assumes every after-tax dollar is distributed.',
+      action: 'Two directions to weigh with your CPA. (1) If you distribute most of the profit each year, an S election (Form 2553) removes the 21% layer — but only if the corporation is eligible (§1361: no more than 100 shareholders, individuals or qualifying trusts, one class of stock, no nonresident-alien owners), and a converted C-Corp carries a five-year built-in-gains tax (§1374) and a passive-income tax while C-Corp earnings and profits remain (§1375). (2) If you reinvest most of the profit, a C-Corp can be cheaper: retained earnings are taxed once at 21% versus up to 37% on a pass-through, with the accumulated-earnings tax (§531) as the guardrail beyond reasonable business needs. Qualified small business stock (§1202) can also exclude gain on a sale of the shares if the corporation qualifies.' })
   }
 
   if (rentalIncome > 0 || isREP) {
