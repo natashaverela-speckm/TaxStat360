@@ -78,8 +78,28 @@ describe('H5 — nothing stores or sends the raw token', () => {
 })
 
 describe('H5 — tokens already in browsers are purged', () => {
-  it('App.jsx purges on startup', () => {
-    expect(read('components/App.jsx')).toMatch(/purgeLegacySessionToken\(\)/)
+  it('the purge runs from the ROOT component, so it fires on every route', () => {
+    // ⚠ This assertion used to be a bare toMatch(/purgeLegacySessionToken\(\)/), which
+    // passed while the call sat inside OAuthCallback() — a component that only mounts
+    // on the OAuth return route. The purge therefore never ran on an ordinary page
+    // load, and the token stayed in every existing browser. Found by reading
+    // localStorage on the live site, not by this test. Assert the LOCATION.
+    const app = read('components/App.jsx')
+    const rootAt = app.indexOf('export default function App()')
+    const callAt = app.indexOf('purgeLegacySessionToken()')
+    expect(rootAt, 'root App component not found').toBeGreaterThan(-1)
+    expect(callAt, 'purge call not found').toBeGreaterThan(-1)
+    expect(callAt, 'the purge must live inside the default-exported App component')
+      .toBeGreaterThan(rootAt)
+    // And it must be the only call site, so it cannot drift back into a subcomponent.
+    expect(app.split('purgeLegacySessionToken()').length - 1).toBe(1)
+  })
+
+  it('the device-trust purge (H6) rides along in the same place', () => {
+    // It was on the same misplaced line, so it never ran either.
+    const app = read('components/App.jsx')
+    const rootAt = app.indexOf('export default function App()')
+    expect(app.indexOf('purgeLegacyDeviceTrust()')).toBeGreaterThan(rootAt)
   })
 
   it('the purge removes the key and never throws', async () => {
