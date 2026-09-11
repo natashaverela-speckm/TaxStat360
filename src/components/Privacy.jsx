@@ -78,7 +78,10 @@ export default function Privacy() {
               discloses that calculation inputs are transmitted to an outside API.
               The service-provider carve-out is now stated in the same sentence
               rather than left to be discovered three sections later. */}
-          <p>Your financial and account data is stored on AWS infrastructure in the United States. It is <strong>never sold</strong> and <strong>never shared for advertising</strong>. It is disclosed only to the service providers we use to operate the platform &mdash; each listed by name in &ldquo;Third-Party Services&rdquo; below, and each receiving only what that service needs to do its job. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
+          {/* The phrase "never shared with third parties for advertising" is pinned
+              by src/pixelConsent.test.js:48 — it is the scoped promise that test
+              exists to defend after the Meta Pixel incident. Keep it verbatim. */}
+          <p>Your financial and account data is stored on AWS infrastructure in the United States. It is <strong>never sold</strong>, and it is <strong>never shared with third parties for advertising</strong>. It is disclosed only to the service providers we use to operate the platform &mdash; each listed by name in &ldquo;Third-Party Services&rdquo; below, and each receiving only what that service needs to do its job. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
         </Section>
 
         {/* #6 FINAL (Anthropic, external API processor):
