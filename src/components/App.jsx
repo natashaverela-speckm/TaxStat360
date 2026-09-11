@@ -18,6 +18,8 @@ import ResetPassword from './ResetPassword'
 import ForgotPassword from './ForgotPassword'
 import ErrorBoundary from './ErrorBoundary'
 import EmailVerificationBanner, { fetchVerificationStatus } from './EmailVerificationBanner'
+import TermsReacceptGate from './TermsReacceptGate'
+import { TERMS_VERSION } from '../lib/constants.js'
 import { apiGet, ApiError } from '../utils/apiClient.js'
 import { normalizePlanId } from './LockedFeature'
 import { writePlan } from '../utils/sessionState.js'
@@ -149,6 +151,11 @@ function RequireAuth({ children }) {
 
   const [serverAuth, setServerAuth] = useState(() => (sessionOk ? 'pending' : 'fail'))
   const [, setPlanChecked] = useState(0)
+  // FRESH-EYES F-9 (11 Sep 2026): the Terms version this account has on record, from
+  // /auth/me. null = not yet known; '' = no record (pre-F-8 account); otherwise the
+  // ISO date accepted. Compared to TERMS_VERSION below; on mismatch the
+  // TermsReacceptGate renders instead of the app.
+  const [acceptedTerms, setAcceptedTerms] = useState(null)
   const [verifyState, setVerifyState] = useState({ email: '', verified: true })
 
   useEffect(() => {
@@ -162,6 +169,7 @@ function RequireAuth({ children }) {
       .then((data) => {
         if (!active) return
         if (data?.plan) writePlan(normalizePlanId(data.plan))
+        setAcceptedTerms(String(data?.terms_version || ''))
         setServerAuth('ok')
         setPlanChecked(n => n + 1)
       })
@@ -281,6 +289,12 @@ function RequireAuth({ children }) {
     return <Navigate to="/login" state={{ from: location, sessionExpired: !sessionOk, sessionInvalid: serverAuth === 'fail' }} replace />
   }
   if (serverAuth === 'pending') return null
+  // FRESH-EYES F-9: a changed (or never-recorded) Terms version blocks every protected
+  // route until re-accepted. The gate posts to /auth/accept-terms and then flips this
+  // local value, so no second /auth/me round-trip is needed.
+  if (acceptedTerms !== null && acceptedTerms !== TERMS_VERSION) {
+    return <TermsReacceptGate acceptedVersion={acceptedTerms} onAccepted={() => setAcceptedTerms(TERMS_VERSION)} />
+  }
 
   return (
     <ErrorBoundary>
@@ -335,10 +349,10 @@ const SITE_ORIGIN = 'https://www.taxstat360.com'
 const SECTION_META = {
   features: {
     title: 'Features — TaxStat360 | S-Corp, LLC & Real Estate Tax Calculator',
-    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, multi-entity consolidation, and Audit Risk Scan.',
+    description: 'See every TaxStat360 feature: live K-1 and Schedule C tax calculation, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, multi-entity consolidation, and the Substantiation Check.',
     canonical: SITE_ORIGIN + '/features',
     ogTitle: 'TaxStat360 Features — Live Tax Calculator for Business Owners',
-    ogDescription: 'K-1 income, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, and Audit Risk Scan — all in one place.',
+    ogDescription: 'K-1 income, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, and the Substantiation Check — all in one place.',
   },
   pricing: {
     title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',

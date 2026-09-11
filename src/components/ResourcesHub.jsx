@@ -205,7 +205,7 @@ export default function ResourcesHub() {
       {/* Tools & Partners — RepsRecord (companion app) + Engineered Tax Services (affiliate partner) */}
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px 72px' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Recommended Tools & Partners</h2>
-        <p style={{ fontSize: 14, color: SL, margin: '0 0 10px' }}>Tools and partners we trust for real-estate and tax planning.</p>
+        <p style={{ fontSize: 14, color: SL, margin: '0 0 10px' }}>Tools and partners for real-estate and tax planning.</p>
         {/* AUDIT M11 (second launch audit, Sep 2026): the affiliate connection was
             disclosed in 11px #94A3B8 as the LAST element inside the card's anchor —
             below the click target, under a heading that says "we trust". 16 C.F.R.
@@ -216,9 +216,14 @@ export default function ResourcesHub() {
             commission. Now stated at section level above the cards, and again on the
             card itself above its link. rel="sponsored" was already correct and stays. */}
         <p style={{ fontSize: 13, color: N, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', margin: '0 0 20px', lineHeight: 1.5 }}>
-          <strong>Advertising disclosure.</strong> Cards marked <em>Partner</em> are referral
-          partnerships: TaxStat360 may earn a commission if you become a client through the
-          link. It costs you nothing extra, and we only list firms we would use ourselves.
+          {/* FRESH-EYES F-21 (11 Sep 2026): common ownership is a material connection under
+              16 C.F.R. §255.5 exactly as a commission is, and the RepsRecord card had none of
+              the section-level disclosure. "Firms we would use ourselves" was an endorsement
+              with nothing behind it (§255.1) on a page headed "partners we trust". */}
+          <strong>Advertising disclosure.</strong> The cards below are either our own products
+          (marked <em>Our App</em>) or referral partnerships (marked <em>Partner</em>): TaxStat360
+          may earn a commission if you become a client of a partner through the link. It
+          costs you nothing extra.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
 
@@ -228,6 +233,7 @@ export default function ResourcesHub() {
             <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: B, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '3px 8px' }}>Our App</span>
             <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}><span style={{ color: '#14233B' }}>REPS</span><span style={{ color: '#3AA896' }}>Record</span></h3>
             <p style={{ fontSize: 13, color: SL, margin: 0, lineHeight: 1.6 }}>Log and substantiate your Real Estate Professional Status (REPS) hours to support material-participation claims at tax time.</p>
+            <p style={{ fontSize: 11, color: SL, margin: 0, lineHeight: 1.5 }}>Our own product &mdash; built and owned by the same company as TaxStat360.</p>
             <span style={{ fontSize: 13, fontWeight: 700, color: B }}>Visit RepsRecord &rarr;</span>
           </a>
 

@@ -23,7 +23,7 @@
 //         pattern — fixes silent 0%-ownership-treated-as-100% bug.
 // UX-N02: Quarterly estimate in record card now includes safe harbor context.
 //
-// L-03 FIX: "S-CORP ALERT" badge changed to "⚠ AUDIT RISK — S-CORP" for clarity.
+// L-03 FIX: "S-CORP ALERT" badge changed to "⚠ NEEDS DOCUMENTATION — S-CORP" for clarity.
 // C-04 FIX: Alert card now uses red severity styling (#FEF2F2 / #FECACA / #991B1B)
 //           matching the same alert in CalculateTaxInner.jsx Step 1 entity card.
 //           Previously amber (#FEF3C7 / #FCD34D / #92400E) — inconsistent severity.
@@ -697,7 +697,7 @@ export default function Dashboard() {
           }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>⚠ AUDIT RISK — S-CORP</span>
+                <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>⚠ NEEDS DOCUMENTATION — S-CORP</span>
                 Reasonable Compensation Below Practitioner Guideline
               </div>
 

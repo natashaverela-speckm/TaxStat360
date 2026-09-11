@@ -5,7 +5,7 @@ export const ONBOARDING_STEPS = [
   { logo: true, title: 'Welcome to TaxStat360', body: 'Federal tax planning for S-Corp owners, real estate investors, and business operators. Enter your data and see your estimated liability update live.' },
   { emoji: '🏢', badge: 'Step 1 of 2 — Business Entities', title: 'Add Your Business Entities', body: 'Connect QuickBooks, Xero, Wave, or FreshBooks — or enter revenue and expenses manually. K-1 income flows automatically to your personal return.' },
   { emoji: '📋', badge: 'Step 2 of 2 — Personal Return', title: 'Complete Your Personal Return', body: 'Enter filing status, W-2 income, rental real estate, and deductions. Your federal tax liability, §199A QBI deduction, and quarterly estimated payments update live.' },
-  { emoji: '🤖', title: 'AI Risk & Tax Analysis', body: 'Save your calculation to unlock your AI risk scan — officer compensation audit flags, penalty risk, QBI limits, and tax-saving strategies tailored to your situation.' },
+  { emoji: '🤖', title: 'AI Tax Analysis', body: 'Save your calculation to unlock your Substantiation Check — officer compensation documentation, penalty exposure, QBI limits, and tax-saving strategies tailored to your situation.' },
   { emoji: '✅', title: "You're all set!", body: "Your Dashboard stores all your saved records. Load any record to update it, or start a new calculation anytime. Let's build your first one.", isFinal: true },
 ]
 

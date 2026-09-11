@@ -241,6 +241,8 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
   const hasFailed   = readIntegrationField(integ.id, 'failed') === 'true'
   const syncedAt    = readIntegrationField(integ.id, 'syncedAt')
   const syncedLabel = formatRelativeTime(syncedAt)
+  // FRESH-EYES F-14: a persisted reconciliation/plausibility warning from the last sync.
+  const reconcileWarning = isConnected ? (readIntegrationField(integ.id, 'reconcileWarning') || '') : ''
 
   return (
     <div style={{
@@ -279,6 +281,11 @@ function IntegrationTile({ integ, onConnect, onDisconnect, onSync, syncDiff }) {
           <div style={{ fontSize: 11, color: R, fontWeight: 600 }}>Connection failed — try again</div>
         ) : (
           <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Click to connect →</div>
+        )}
+        {reconcileWarning && (
+          <div role="alert" style={{ fontSize: 11, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 8px', marginTop: 4, lineHeight: 1.4 }}>
+            ⚠ {reconcileWarning}
+          </div>
         )}
         {/* F23 FIX: show revenue diff after a manual sync */}
         {isConnected && syncDiff && (
@@ -870,7 +877,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
               {FINANCIAL_LABELS.officerCompensationField}
               <InfoTip text={isCCorp
                 ? 'C-Corp owner-employees are paid a W-2 salary. The salary (and the employer-side payroll tax on it) is deductible to the corporation, reducing the profit subject to the 21% corporate tax. Reasonable-compensation rules still apply. The remaining after-tax corporate profit, when distributed, is taxed AGAIN as qualified dividends on your personal return — the classic C-Corp double taxation.'
-                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is the position hardest to defend if the return is examined.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• IRS audit risk (Rev. Rul. 74-44)\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
+                : 'S-Corp owners must pay themselves reasonable W-2 compensation for services rendered (Rev. Rul. 74-44). Too little salary is the position hardest to defend if the return is examined.\n\nA common starting point: 35–45% of your total S-Corp take (salary ÷ (salary + K-1 net income)). For example, if the S-Corp earns $200K net, a salary of $70K–$90K is a reasonable range — though the right number depends on industry, comparable wages, and time devoted.\n\nNote: "K-1 net income" here means ordinary business income (Box 1 of your K-1), not distributions. Distributions are cash drawn from the S-Corp and can differ from your share of net profit.\n\nPaying below-market salary:\n• Is the position hardest to substantiate under Rev. Rul. 74-44\n• Reduces your §199A W-2 wage limitation\n• Triggers the Reasonable Compensation Alert below\n\nFICA taxes (15.3% combined) apply to your W-2 salary — the K-1 business income that passes through is not subject to FICA or self-employment tax (whether or not it is distributed), which is the core S-Corp tax advantage.'} wide />
             </label>
             <Step1MoneyInput value={manOfficerSal} onChange={setManOfficerSal} placeholder="0" style={inp} allowNegative={false} ariaLabel="Officer salary (your W-2 wages from this entity)" />
             {/* AUDIT-1 FIX: reserve layout space for these conditional warnings so their
@@ -923,7 +930,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             {/* EXT-6 (fresh-eyes re-audit, Aug 2026 — Finding 5): tooltip previously named the
                 internal source file "AIAnalysis.jsx" in customer-facing copy. Reworded to
                 describe the feature, not the implementation file. */}
-            <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so our audit-risk analysis can flag if advertising is unusually high as a percentage of revenue (a common audit profile indicator)." />
+            <InfoTip label="Advertising and marketing" text="All advertising, marketing, and promotional expenses. Entered separately so the Substantiation Check can prompt you to document advertising that is unusually high as a percentage of revenue." />
           </label>
           <Step1MoneyInput value={manAdv} onChange={setManAdv} placeholder="0" style={inp} allowNegative={false} />
         </div>
@@ -1115,6 +1122,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
       removeIntegrationField(pid, 'connected')
       removeIntegrationField(pid, 'extra')
       removeIntegrationField(pid, 'syncedAt')
+      removeIntegrationField(pid, 'reconcileWarning')  // F-14
     }
     onUpdate(idx, { ...entity, connectedId: null, isManual: true, pnl: {}, officerW2: 0 })
     setShowManual(true)
@@ -2072,7 +2080,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                             <input type="checkbox" id={'repovr_' + idx} checked={false} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
                             <label htmlFor={'repovr_' + idx} style={{ fontSize: 13, color: '#7F1D1D', cursor: 'pointer', lineHeight: 1.4 }}>
-                              I understand the hours test is not met and I am electing to deduct this loss anyway. I have contemporaneous daily time logs and have confirmed this position with my CPA. (High audit risk.)
+                              I understand the hours test is not met and I am electing to deduct this loss anyway. I have contemporaneous daily time logs and have confirmed this position with my CPA. (This position is hard to substantiate.)
                             </label>
                           </div>
                         </div>
@@ -2083,7 +2091,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     if (hoursFail && override) {
                       return (
                         <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
-                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Deducting Against a Failed Hours Test — High Audit Risk</div>
+                          <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Deducting Against a Failed Hours Test — Hard to Substantiate</div>
                           <div style={{ color: '#78350F', lineHeight: 1.5, marginBottom: 8 }}>
                             You've elected to treat this {fmt(Math.abs(reNet))} loss as nonpassive even though your entered hours ({reHrs.toLocaleString()} real-property{totHrs > 0 ? `, ${pctRE}% of total` : ''}) do not meet the §469(c)(7)(B) test. The loss is included in your estimate, but REP status against significant outside W-2 income is one of the most frequently challenged positions — keep contemporaneous daily time logs and confirm with your CPA.
                           </div>
@@ -2498,6 +2506,7 @@ export default function CalculateTaxInner() {
     removeIntegrationField(pid, 'connected')
     removeIntegrationField(pid, 'extra')
     removeIntegrationField(pid, 'syncedAt')
+    removeIntegrationField(pid, 'reconcileWarning')  // F-14
     removeIntegrationField(pid, 'failed')
     setEntities(prev => {
       const next = prev.map(e =>
@@ -2649,9 +2658,17 @@ export default function CalculateTaxInner() {
           // inconsistent or implausible — the sync still applies (the user's books
           // are the authority, and a genuine loss year is real), but the arithmetic
           // is put in front of them before it drives a tax estimate.
+          // FRESH-EYES F-14 (11 Sep 2026): the toast below auto-clears after 20 seconds; the
+          // figures it warns about are written to the record and stamped syncedAt. Anyone who
+          // tabbed away never saw it, and the estimate downstream carried no mark. The warning
+          // now persists with the integration state and renders on the tile until the next
+          // clean sync replaces it.
           if (verdict.warning) {
+            writeIntegrationField(pid, 'reconcileWarning', verdict.warning)
             setFooterError(verdict.warning)
             setTimeout(() => setFooterError(null), 20000)
+          } else {
+            removeIntegrationField(pid, 'reconcileWarning')
           }
 
           const pnl = verdict.pnl

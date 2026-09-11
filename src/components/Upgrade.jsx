@@ -5,7 +5,8 @@ import { signOut as sharedSignOut } from '../utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from '../utils/apiClient.js'
-import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING } from '../lib/constants.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, upgradeDisclosure } from '../lib/constants.js'
+import { CANCEL_PATH } from '../lib/complianceCopy.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 // AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
 import { FEATURE_PERSONAL_ESTIMATE } from '../lib/complianceCopy.js'
@@ -93,6 +94,8 @@ export default function Upgrade() {
   const [currentPlan, setCurrentPlan] = useState('starter')
   const [email, setEmail] = useState('')
   const [selectedPlan, setSelectedPlan] = useState(null)
+  // FRESH-EYES F-17: affirmative consent to the new recurring charge (Cal. B&P §17602(a)(1)).
+  const [renewOk, setRenewOk] = useState(false)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [success, setSuccess] = useState(false)
@@ -217,6 +220,9 @@ export default function Upgrade() {
   const handleUpgrade = async () => {
     // AUDIT M7: this used to `return` silently, which is what made the button a no-op.
     if (!selectedPlan) return
+    // FRESH-EYES F-17: the button is disabled without consent; this is the belt to that
+    // brace, so a programmatic click cannot skip the affirmative step.
+    if (!renewOk) { setErr('Please confirm the charges and automatic renewal above.'); return }
     if (!stripeReady || !stripeRef.current || !cardRef.current) {
       setErr('Card input is still loading \u2014 give it a moment and try again.')
       return
@@ -472,9 +478,19 @@ export default function Upgrade() {
             <div style={{fontSize:16,fontWeight:700,color:N,marginBottom:4}}>
               Upgrade to {PLANS[selectedPlan]?.label} — ${PLANS[selectedPlan]?.price[billing]}/mo
             </div>
-            <div style={{fontSize:13,color:SL,marginBottom:20}}>
-              {billing==='annual'?'Billed annually':'Billed monthly'} · Cancel anytime · No hidden fees
+            <div style={{fontSize:13,color:SL,marginBottom:14}}>
+              {billing==='annual'?'Billed annually':'Billed monthly'} · No hidden fees
             </div>
+            {/* FRESH-EYES F-17 (11 Sep 2026): the auto-renewal disclosure and a separate consent,
+                mirroring Onboarding. This page creates a NEW recurring obligation and, for an
+                active subscriber, an immediate prorated charge; it carried neither. */}
+            <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 12px',fontSize:12,color:N,lineHeight:1.5,marginBottom:10}}>
+              {upgradeDisclosure(selectedPlan, billing)}
+            </div>
+            <label style={{display:'flex',gap:10,alignItems:'flex-start',cursor:'pointer',marginBottom:16}}>
+              <input id="upgrade-renew-ok" type="checkbox" checked={renewOk} onChange={e=>setRenewOk(e.target.checked)} style={{marginTop:2,width:16,height:16,flexShrink:0,cursor:'pointer'}}/>
+              <span style={{fontSize:12,color:N,fontWeight:500,lineHeight:1.5}}>I agree to the charges and automatic renewal described above.</span>
+            </label>
             <div style={{marginBottom:16}}>
               <label style={{fontSize:12,fontWeight:600,color:SL,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:8}}>Card Details</label>
               <div id="card-element" ref={cardNodeRef} style={{padding:'12px 14px',border:'1px solid #E2E8F0',borderRadius:8,background:'#FAFAFA'}}/>
@@ -483,13 +499,16 @@ export default function Upgrade() {
             {err && <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#DC2626',marginBottom:14}}>{err}</div>}
             {/* AUDIT M7: disabled until the card element reports ready, so the control
                 can no longer look clickable while it is inert. */}
-            <button onClick={handleUpgrade} disabled={loading || !stripeReady} style={{
-              width:'100%',padding:'13px',background:(loading || !stripeReady)?'#94A3B8':B,color:'#fff',
-              border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:(loading || !stripeReady)?'not-allowed':'pointer'
+            <button onClick={handleUpgrade} disabled={loading || !stripeReady || !renewOk} style={{
+              width:'100%',padding:'13px',background:(loading || !stripeReady || !renewOk)?'#94A3B8':B,color:'#fff',
+              border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:(loading || !stripeReady || !renewOk)?'not-allowed':'pointer'
             }}>
               {loading ? 'Processing...' : stripeFailed ? 'Payment unavailable' : !stripeReady ? 'Loading secure card input...' : `Upgrade Now — $${PLANS[selectedPlan]?.price[billing]}/mo`}
             </button>
-            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>🔒 Secured by Stripe · Cancel anytime</div>
+            {!renewOk && stripeReady && !loading && (
+              <p style={{fontSize:11,color:SL,textAlign:'center',margin:'6px 0 0',lineHeight:1.5}}>Tick the box above to enable the button.</p>
+            )}
+            <div style={{fontSize:12,color:SL,textAlign:'center',marginTop:10}}>🔒 Secured by Stripe · Cancel any time in {CANCEL_PATH}</div>
           </div>
         )}
       </div>

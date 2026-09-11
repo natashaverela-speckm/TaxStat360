@@ -463,7 +463,11 @@ export default function Aria() {
             <button onClick={send} disabled={loading} aria-label="Send message to Aria" style={{ background: N, border: 'none', borderRadius: '50%', width: 38, height: 38, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, opacity: loading ? 0.6 : 1 }}>→</button>
           </div>
           <div style={{ padding: '6px 14px 10px', fontSize: 11, color: '#64748B', textAlign: 'center', lineHeight: 1.4, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
-            Aria explains the figures in your record for planning purposes only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
+            {/* FRESH-EYES F-19 (11 Sep 2026): the AI-specific sentence. The line above said
+                'planning only'; nothing said the assistant can be wrong. It can, including
+                about citations, and the person reading a confident answer needs to hear that
+                HERE, not on /terms. Non-dismissible, same reasoning as the C2 worksheet notice. */}
+            Aria is an AI assistant and can be inaccurate or out of date — including citations to authority that do not exist. Its answers are not reviewed by a tax professional before you see them. Aria explains the figures in your record for planning purposes only — not personalized tax, legal, or financial advice. Verify with a licensed professional before filing.
           </div>
         </div>
       )}

@@ -104,7 +104,7 @@ export default function Terms() {
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 10, 2026</p>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 11, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Terms of Service</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>These Terms of Service govern your use of TaxStat360. By creating an account or using our platform, you agree to these terms. Please read them carefully.</p>
           <p style={{ color: '#B91C1C', fontSize: 14, lineHeight: 1.7, marginTop: 12, fontWeight: 600 }}>
@@ -118,11 +118,11 @@ export default function Terms() {
           {/* AUDIT H6 (Sep 2026): "real-time" is inaccurate — synced figures reflect the last
               sync and move only on refresh, as the FAQ itself states. The Terms should not
               assert a capability the product does not have. */}
-          <p>TaxStat360 is an on-demand tax liability planning and estimation platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated federal tax liability, generate quarterly payment recommendations, surface documentation and substantiation prompts, and export summaries for your tax professional. TaxStat360 provides visibility and planning only &mdash; it is not a tax preparation or filing service, and it does not calculate state, local, or foreign tax.</p>
+          <p>TaxStat360 is an on-demand tax liability planning and estimation platform designed for business owners, self-employed individuals, and multi-entity operators. We provide tools to calculate estimated federal tax liability, generate quarterly payment recommendations, surface documentation and substantiation prompts, answer questions about the figures in your record through an AI assistant (&ldquo;Aria&rdquo;), and export summaries for your tax professional. Aria and every other AI-generated output in the Service can be inaccurate, incomplete, or out of date, including citations to authority that do not exist; AI output is not reviewed by a tax professional before you see it, and you must verify every figure and citation before acting on it. TaxStat360 provides visibility and planning only &mdash; it is not a tax preparation or filing service, and it does not calculate state, local, or foreign tax.</p>
         </Section>
 
         <Section title="2. Not Professional Tax Advice — Estimation Tool Only">
-          <p style={{ marginBottom: 10, padding: '12px 16px', background: '#FEF2F2', borderLeft: '4px solid #DC2626', borderRadius: 6 }}><strong>⚠ Important Disclaimer:</strong> TaxStat360 is a tax estimation and planning tool only. It is NOT a licensed tax advisor, CPA, enrolled agent, or law firm. Nothing on this platform constitutes professional tax advice, legal advice, or financial advice of any kind, and no professional&ndash;client relationship of any kind is created by your use of it.</p>
+          <p style={{ marginBottom: 10, padding: '12px 16px', background: '#FEF2F2', borderLeft: '4px solid #DC2626', borderRadius: 6 }}><strong>⚠ Important Disclaimer:</strong> TaxStat360 is a tax estimation and planning tool only. It is software, not a CPA firm, law firm, or enrolled agent, and no one at TaxStat360 is acting as your tax practitioner when you use it. The professional credentials of TaxStat360&rsquo;s founder are described on our About page; they do not create a practitioner&ndash;client relationship with you, and no such relationship is created by your use of the platform. Nothing on this platform constitutes professional tax advice, legal advice, or financial advice of any kind.</p>
           <p style={{ marginBottom: 10 }}>All calculations provided by TaxStat360 are <strong>estimates for planning purposes only</strong> and may not reflect your actual tax liability. Results are based on the information you enter and IRS-published rates, which are subject to change, including mid-year.</p>
 
           {/* AUDIT H11: converted from a pure disclaimer into an affirmative

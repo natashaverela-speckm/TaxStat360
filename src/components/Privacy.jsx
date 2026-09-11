@@ -29,7 +29,7 @@ export default function Privacy() {
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: July 13, 2026</p>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 11, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Privacy Policy</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>TaxStat360 is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and protect your data.</p>
         </div>

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from '../utils/SignOut'
 import { isPro } from './LockedFeature'
 import BrandLogo from './BrandLogo'
-import { apiGet, apiPost, ApiError } from '../utils/apiClient.js'
+import { apiGet, apiPost, apiFetch, ApiError } from '../utils/apiClient.js'
 import { ACCOUNT_DELETION_STATEMENT } from '../lib/complianceCopy.js'
 import { readEmail, writeEmail, readSessionStart, readLoginHistory, readIdleTimeoutMins, writeIdleTimeoutMins, readMfaEnabled, writeMfaEnabled, readBilling, readPlan, exportAllDeviceData } from '../utils/sessionState.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
@@ -205,8 +205,27 @@ export default function Settings() {
   // §8403(3) and Cal. Bus. & Prof. Code §17602(c) a consumer who subscribed online
   // must be able to cancel online without obstruction, and a cancellation path the
   // user cannot FIND is obstruction in practice.
-  const openBillingPortal = () => {
-    window.open(STRIPE_PORTAL_URL, '_blank', 'noopener')
+  // FRESH-EYES F-18 (11 Sep 2026): open a portal SESSION for the signed-in customer
+  // (POST /stripe/portal) so the user lands in the portal already authenticated — no
+  // retyped email, no one-time code, no inbox round-trip. The generic login link stays
+  // as the fallback if the session cannot be created (no Stripe customer yet, network),
+  // so the cancellation path is never a dead end. The window is opened synchronously
+  // from the click so popup blockers allow it; the URL is filled in when it arrives.
+  const openBillingPortal = async () => {
+    const win = window.open('', '_blank', 'noopener')
+    try {
+      const r = await apiFetch('/stripe/portal', { method: 'POST', credentials: 'include', body: {} })
+      if (r?.url) {
+        if (win) win.location.href = r.url
+        else window.open(r.url, '_blank', 'noopener')
+        return
+      }
+      throw new Error('no portal url')
+    } catch (_e) {
+      // F-18: fall back to the portal's own login flow rather than leave the user with nothing.
+      if (win) win.location.href = STRIPE_PORTAL_URL
+      else window.open(STRIPE_PORTAL_URL, '_blank', 'noopener')
+    }
   }
   const handleManageBilling = openBillingPortal
 
@@ -451,8 +470,8 @@ export default function Settings() {
                   not refunded or pro-rated. Cancelling during a free trial means you are never charged.
                   <br />
                   <span style={{color:'#64748B'}}>
-                    Opens the Stripe billing portal in a new tab. Stripe will email a one-time sign-in
-                    code to <strong>{email}</strong> to confirm it is you, then you can cancel there.
+                    Opens your Stripe billing portal in a new tab, already signed in as <strong>{email}</strong>.
+                    Choose <em>Cancel subscription</em> there. (If the portal asks you to sign in, it will email a one-time code to that address.)
                   </span>
                 </div>
               </div>

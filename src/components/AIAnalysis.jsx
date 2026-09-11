@@ -18,6 +18,7 @@ import {
   computePassiveLossAllowance,
   qbiThresholdsFor,
   recEntityRevenue,
+  recOperatingRevenue,
 } from '../lib/aiAnalysisTaxMath.js'
 // AUDIT C2 (Sep 2026): the worksheet content lives in its own module so it can be
 // unit-tested without mounting this component — the old letters were static strings
@@ -602,7 +603,7 @@ function RiskScan({ rec }) {
       // presentation (copy, severity icon) stays local, per the OBS-7 pattern.
       const eComp = calcReasonableCompCore(eOfficerSal, eK1)
       if (eOfficerSal === 0 && eComp.applicable) {
-        findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '🚨', title: `No Officer Compensation — ${entityName} (Audit Risk)`,
+        findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '📋', title: `No Officer Compensation — ${entityName} (Needs Documentation)`,
           detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) treat zero salary as the least defensible S-Corp position. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0 && eComp.triggered) {
@@ -632,7 +633,7 @@ function RiskScan({ rec }) {
     // M1 (audit F-1, Aug 2026): see per-entity branch above — same consolidation.
     const legacyComp = calcReasonableCompCore(ownerComp, k1)
     if (ownerComp === 0 && legacyComp.applicable) {
-      findings.push({ level: 'high', icon: '🚨', title: 'No Officer Compensation — Audit Risk',
+      findings.push({ level: 'high', icon: '📋', title: 'No Officer Compensation — Needs Documentation',
         detail: `You have ${fmt(k1)} in K-1 income but no officer compensation recorded. The IRS requires S-Corp owner-operators to pay themselves a "reasonable" W-2 salary. Skipping this leaves the least defensible S-Corp position.`,
         action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of your total S-Corp compensation (salary + K-1 income). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (ownerComp > 0 && legacyComp.triggered) {
@@ -671,7 +672,9 @@ function RiskScan({ rec }) {
       action: null })
   }
 
-  if (revenue > 50000 && dep === 0) {
+  // FRESH-EYES F-10 (11 Sep 2026): gated on OPERATING revenue — rentals and C-Corps do not
+  // put a §179/MACRS deduction on this owner's 1040. See recOperatingRevenue.
+  if (recOperatingRevenue(rec) > 50000 && dep === 0) {
     findings.push({ level: 'medium', icon: '⚠️', title: 'No Depreciation Recorded',
       detail: 'Businesses with equipment, vehicles, computers, or property can deduct depreciation — often reducing taxable income significantly.',
       action: `If you own any business assets, enter depreciation under §179 (full first-year deduction) or MACRS. A $20,000 asset could reduce your tax by ${fmt(Math.round(20000 * _marginalRate))}+ at your ${pct(_marginalRate * 100)} marginal rate.` })
@@ -800,7 +803,7 @@ function RiskScan({ rec }) {
       findings.push({
         level: 'high',
         icon: '🚨',
-        title: `REP Status With ${fmt(_nonREW2)} in Outside Employment — High Audit Risk`,
+        title: `REP Status With ${fmt(_nonREW2)} in Outside Employment — Hard to Substantiate`,
         detail: `You have Real Estate Professional status selected alongside ${fmt(_nonREW2)} in W-2 income from non-real-estate employment. IRC §469(c)(7)(B) requires MORE THAN 50% of ALL personal services during the year to be in real property trades or businesses where you materially participate. With significant outside employment, you would need to document more real estate hours than all other work combined. The IRS actively targets this combination — it is one of the most frequently challenged positions in the pass-through entity / real estate space.`,
         action: `If you qualify: (1) Maintain contemporaneous daily time logs for ALL activities — not a year-end reconstruction. Logs must show date, property, activity, and hours. (2) You must exceed 750 hours in real property trades/businesses AND >50% of total working time must be in real estate. (3) A §1.469-9(g) aggregation election can simplify material participation tracking across multiple properties. If you cannot document the 50% test, uncheck REP — rental losses become passive and offset only passive income. Discuss documentation requirements with your CPA.`,
       })
@@ -1098,7 +1101,9 @@ function TaxOptimization({ rec }) {
     }
   }
 
-  if (revenue > 30000 && dep === 0) {
+  // FRESH-EYES F-10 (11 Sep 2026): §179(d)(1) requires property used in the active conduct
+  // of a trade or business. Gross rents and C-Corp receipts must not open this prompt.
+  if (recOperatingRevenue(rec) > 30000 && dep === 0) {
     const _s179 = getTable(year)?.sec179 || {}
     const _fmtM = (n) => n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.?0+$/, '')}M` : fmt(n)
     const _sec179Cap = _s179.cap ? _fmtM(_s179.cap) : 'the annual limit'
@@ -2717,10 +2722,10 @@ export default function AIAnalysis() {
           <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0D1B3E', margin: '0 0 10px' }}>AI Analysis & Reporting — Professional Feature</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
-            Audit Risk Scan, What-If Tax Simulator, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
+            Substantiation Check, What-If Tax Simulator, IRS Schedule Map, and CPA Export Pack are included on the <strong>Professional</strong> and <strong>Enterprise</strong> plans.
           </p>
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: '16px', marginBottom: 24, textAlign: 'left' }}>
-            {['🚨 Officer compensation & audit risk flags', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
+            {['📋 Officer compensation & documentation checks', '💡 Tax-saving strategy finder', '📋 IRS filing schedule map', '📄 One-click CPA export pack'].map(f => (
               <div key={f} style={{ fontSize: 13, color: '#374151', padding: '4px 0', display: 'flex', gap: 8 }}>{f}</div>
             ))}
           </div>
@@ -2855,7 +2860,7 @@ export default function AIAnalysis() {
 
         {/* UX AUDIT PASS5-F9 (Jul 2026): persistent liability summary — the estimate
             used to live only inside the What-If Simulator (Reports & Tools tab), so
-            switching to Audit Risk Scan or IRS Schedule Map lost the number entirely.
+            switching to the Substantiation Check or IRS Schedule Map lost the number entirely.
             This strip stays visible across every tab. Mirrors Dashboard.jsx's saved-
             record summary strip for visual/behavioral consistency. */}
         <div style={{
