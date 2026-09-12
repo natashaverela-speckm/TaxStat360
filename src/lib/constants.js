@@ -831,7 +831,7 @@ export const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfe
 // value from the rendered 'Last updated' line, so the two cannot drift apart again.
 // App.jsx compares /auth/me's stored terms_version to this and re-prompts on mismatch.
 export const TERMS_VERSION = '2026-09-11'
-export const PRIVACY_VERSION = '2026-09-11'
+export const PRIVACY_VERSION = '2026-09-12'
 
 // Clickwrap label text. Kept here, next to renewalDisclosure(), because this is
 // consumer-facing legal copy and it must never be hand-written at a call site.
