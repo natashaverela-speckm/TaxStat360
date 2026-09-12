@@ -52,6 +52,16 @@ The findings below are in what SURROUNDS the engine.
   losses) — all existing engine outputs added to `_SUMMARY_KEYS` — and grounding rule 11
   makes those lines the only permitted explanation of a figure.
 
+- **UX — Step 2 nav row collided / overflowed** (`TaxReturn.jsx`, `CalculateTaxInner.jsx`).
+  The four-step breadcrumb plus five buttons needed ~1,230px on one row, but `#root` is a
+  fixed 1,126px column, so "AI Analysis" ran into "← Business" and Settings sat behind
+  horizontal scroll at every width. "← Business" removed (duplicate of the Entities
+  breadcrumb link); hard gap between the groups; below 1,180px the AI button uses its
+  short label; below 960px inactive breadcrumb steps collapse to their numbered circles
+  (still buttons, names in title/aria-label) and Sign Out (also on Settings, already
+  omitted on mobile) is dropped. Verified by screenshot at 700/820/960/1000/1180/1440.
+  Step 1 nav given the same inter-group gap.
+
 ### Tests
 - `src/utils/calcSelector-taxyear-audit.test.js` (new, 9): SPEC figures for 2024/2025/
   2026 on the same return through the live selector and through `summarizeRecord`;
