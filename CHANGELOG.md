@@ -12,6 +12,60 @@ record of work that predates this changelog.
 
 ---
 
+## Launch check follow-ups (N-1, N-3, N-4, N-5, N-6) — September 12, 2026
+
+Independent re-check of the 11–12 Sep closing/closeout reports against the live site:
+13 hand-computed scenarios (2024–2026 tables, Single/MFS/MFJ, Sch C, part-owned
+C-Corp, S-Corp basis + §1366(d)(2) release, §221, CTC, NIIT, §199A phase-in, OBBBA
+SALT phase-down) all matched Step 2 to the dollar. Nothing in the engine changed.
+The findings below are in what SURROUNDS the engine.
+
+### Fixed
+- **N-1 — live-session summaries ignored the selected tax year** (`calcSelector.js`,
+  `CalculateTaxInner.jsx`). `selectTaxSummary()` took the year from
+  `readPersonalContext().taxYear`, but TaxReturn's auto-save never writes `taxYear` into
+  `ts360_f1040`, so that field was always `defaultTaxYear()` (2026). The year selectors
+  write `ts360_taxyear`. Every consumer of the façade — the Step-1 provisional card,
+  Aria's COMPUTED RETURN block, AIAnalysis gating — therefore computed on 2026 tables
+  while Step 2 (which reads `readTaxYear()` directly) computed on the selected year.
+  Verified live: 2024 selected → Step 2 $16,041, Step-1 card $15,370 (the 2026 figure).
+  The selector now reads `readTaxYear()`, and the Step-1 card/badge take `taxYear` as a
+  memo dependency so a year change recomputes. `summarizeRecord()` had the sibling
+  defect for saved records (year lives at `rec.taxYear` / `rec.biz.year`, not in
+  `f1040`); it now resolves the record-level year when `f1040.taxYear` is absent.
+- **N-4 — Tax Waterfall did not foot** (`TaxReturn.jsx`). A released §1366(d)(2)
+  carryover (`priorSuspendedLossApplied`), the HSA deduction and the §221 student-loan
+  deduction all reduced AGI with no row. Three rows added above AGI, hidden at $0.
+- **N-6 — Additional Medicare Tax rendered twice** (`TaxReturn.jsx`). The AUDIT N-3 row
+  and the C-10 row both drew; Total Tax was not double-counted but the waterfall read as
+  if it were. One row remains (C-10, which also shows $0 near the threshold); its note
+  now names the $125,000 MFS threshold instead of $200,000 for an MFS return.
+- **N-5 — qualified dividends above ordinary dividends vanished silently**
+  (`TaxReturn.jsx`). The L-1 clamp (line 3a ≤ 3b) is correct; a filer whose 1099-DIV is
+  all qualified and who fills only Box 1b now sees an inline warning at the field.
+- **N-3 — Aria explained a correct figure wrongly** (`Aria.jsx`, `calcSelector.js`).
+  Asked why an itemized deduction was $43,900 on $60,000 SALT + $20,000 mortgage
+  interest, Aria quoted the flat $40,400 cap and guessed at §68; the engine had applied
+  the §70120 phase-down (cap $23,900 at $560,000 MAGI). The COMPUTED RETURN block now
+  carries the limitation lines (deduction used, SALT entered/allowed/cap that bound,
+  charitable floor, §68 reduction, above-the-line adjustments, suspended and released
+  losses) — all existing engine outputs added to `_SUMMARY_KEYS` — and grounding rule 11
+  makes those lines the only permitted explanation of a figure.
+
+### Tests
+- `src/utils/calcSelector-taxyear-audit.test.js` (new, 9): SPEC figures for 2024/2025/
+  2026 on the same return through the live selector and through `summarizeRecord`;
+  the 2026 MFJ SALT phase-down case ($23,900) exposed through the summary keys.
+- `src/components/TaxReturn.test.jsx` (+5): released-loss row and note, HSA/§221 rows,
+  single Additional Medicare row, MFS threshold note, qualified-dividend warning.
+- Suite: 104 files, 1,545 tests passing; `vite build` clean.
+
+### Not changed (deliberate)
+- The backend `ARIA_SYSTEM` prompt (see closeout §4 — frontend rules reach the model).
+- Engine (`taxCalc.js`) and tables: verified, untouched.
+
+---
+
 ## Phase 1 documentation + process sync (Audit Synthesis) — August 13, 2026
 
 Reconciliation pass: two disclosure items and a documentation item shipped to `master`
