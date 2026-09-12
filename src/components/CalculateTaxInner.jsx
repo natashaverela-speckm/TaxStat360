@@ -439,11 +439,14 @@ function BasisHelpModal({ onScrollToEntity, onClose }) {
 // construction. Loss years get words instead of a bare $0 (the F15 principle:
 // never render a dash or zero where the honest label is "loss year").
 // Exported for direct testing (house pattern: ManualEntryPanel).
-export function Step1EstimateBadge({ entities }) {
+export function Step1EstimateBadge({ entities, taxYear }) {
   // entities is the reactive dependency: updateEntity writes the session
   // synchronously before render, so the selector always reads fresh state.
+  // LAUNCH CHECK N-1 (Sep 2026): taxYear is a dependency too — the year
+  // selector writes ts360_taxyear synchronously (writeTaxYear in the effect
+  // below), and the selector now reads it, so a year change must recompute.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const est = useMemo(() => selectTaxSummary(), [entities])
+  const est = useMemo(() => selectTaxSummary(), [entities, taxYear])
   // Empty is not a loss year: a blank form (all zeros) gets the neutral
   // pointer, not loss-year language — F15's principle applied both ways.
   const nothingEntered = est.ok && est.grossIncome === 0 && est.agi === 0 && est.totalTax === 0
@@ -480,9 +483,10 @@ export function Step1EstimateBadge({ entities }) {
 // from more than one place each) so the number can never drift from the
 // footer's or Step 2's. Rendered once, near the top of Step 1, instead of only
 // in the footer.
-export function Step1EstimateCard({ entities }) {
+export function Step1EstimateCard({ entities, taxYear }) {
+  // LAUNCH CHECK N-1 (Sep 2026): see Step1EstimateBadge — taxYear dependency.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const est = useMemo(() => selectTaxSummary(), [entities])
+  const est = useMemo(() => selectTaxSummary(), [entities, taxYear])
   if (entities.length === 0) return null
   const nothingEntered = est.ok && est.grossIncome === 0 && est.agi === 0 && est.totalTax === 0
   if (!est.ok || nothingEntered) {
@@ -2934,7 +2938,7 @@ export default function CalculateTaxInner() {
 
         {/* UX AUDIT PASS5-F8 (Jul 2026): promoted running estimate — see
             Step1EstimateCard above. */}
-        <Step1EstimateCard entities={entities} />
+        <Step1EstimateCard entities={entities} taxYear={taxYear} />
 
         {/* Tax year selector */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>

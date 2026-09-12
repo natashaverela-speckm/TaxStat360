@@ -743,3 +743,68 @@ describe('TaxReturn — carryforward entry + top YTD confirm', () => {
     expect(screen.getByRole('button', { name: /Yes, my figures are YTD only/ })).toBeTruthy()
   })
 })
+
+// ─── LAUNCH CHECK N-4 / N-6 (12 Sep 2026): waterfall rows that were missing or doubled ──
+//
+// N-4: a released §1366(d)(2) carryover and the HSA / student-loan deductions reduced
+// AGI with no row, so the waterfall did not foot (K-1 −$30,000 + W-2 $150,000 → AGI
+// $110,000 on the live site). N-6: the Additional Medicare Tax rendered twice (the
+// AUDIT N-3 row and the C-10 row) — not double-counted, but it read as if it were.
+// These tests pin the WIRING; the dollar figures are SPEC-tested in the engine suites.
+
+describe('TaxReturn — LAUNCH CHECK N-4: released suspended loss and above-the-line rows', () => {
+  it('renders the released-loss row with the remaining carryforward when the engine reports a release', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), agi: 110000, priorSuspendedLossApplied: 10000, priorSuspendedLossRemaining: 40000 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText('Prior-Year S-Corp Loss Released')).toBeTruthy()
+    expect(getByText(/§1366\(d\)\(2\) carryover deducted against basis restored this year .* \$40,000 still carries forward/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+
+  it('renders HSA and student-loan rows only when the engine deducted them', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    const { queryByText, unmount } = renderTaxReturn()
+    expect(queryByText('HSA Deduction (Form 8889)')).toBeNull()
+    expect(queryByText('Student Loan Interest (§221)')).toBeNull()
+    unmount()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), hsaDed: 4400, studentLoanDed: 1178 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText('HSA Deduction (Form 8889)')).toBeTruthy()
+    expect(getByText('Student Loan Interest (§221)')).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+describe('TaxReturn — LAUNCH CHECK N-6: one Additional Medicare row, filing-status-aware note', () => {
+  it('renders the Additional Medicare Tax exactly once', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), additionalMedicare: 3306, totalW2ForFICA: 400000 })
+    const { getAllByText } = renderTaxReturn()
+    expect(getAllByText(/Medicare Tax \(0\.9%/)).toHaveLength(1)
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+
+  it('names the $125,000 MFS threshold in the note for a married-filing-separately return', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ filingStatus: 'mfs' })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), additionalMedicare: 3306, totalW2ForFICA: 400000 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText(/above the \$125,000 MFS threshold/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readPersonalContext.mockReturnValue({})
+  })
+})
+
+describe('TaxReturn — LAUNCH CHECK N-5: qualified dividends above ordinary dividends warn inline', () => {
+  it('shows the warning only when Box 1b exceeds Box 1a', () => {
+    readPersonalContext.mockReturnValue({ dividends: 0, qualDividends: 10000 })
+    const { getByText, unmount } = renderTaxReturn()
+    expect(getByText(/Qualified dividends \(\$10,000\) exceed ordinary dividends \(\$0\)/)).toBeTruthy()
+    unmount()
+    readPersonalContext.mockReturnValue({ dividends: 10000, qualDividends: 10000 })
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText(/exceed ordinary dividends/)).toBeNull()
+    readPersonalContext.mockReturnValue({})
+  })
+})

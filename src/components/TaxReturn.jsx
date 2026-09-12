@@ -22,7 +22,7 @@ import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare } from '../utils/entityPredicates.js'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
-import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
+import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
@@ -1422,6 +1422,15 @@ export default function TaxReturn() {
                   <InfoTip text="Qualified dividends are taxed at long-term capital gains rates (0/15/20%). Must be a subset of ordinary dividends — cannot exceed total dividends entered above. From Form 1099-DIV Box 1b." />
                 </label>
                 <Step2MoneyInput id="tr-qual-div" value={qualDividends} onChange={setQualDividends} placeholder="0" nonNegative />
+                {/* LAUNCH CHECK N-5 (Sep 2026): the L-1 fix clamps qualified to ordinary
+                    (Form 1040 line 3a ≤ 3b), which is right — but a filer whose 1099-DIV is
+                    all qualified and who fills only this box now sees that income vanish with
+                    no signal. Say so where they typed it. */}
+                {nf(qualDividends) > nf(dividends) && (
+                  <div role="alert" style={{ marginTop: 6, fontSize: 12, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '6px 10px', lineHeight: 1.4 }}>
+                    ⚠ Qualified dividends ({fmt(nf(qualDividends))}) exceed ordinary dividends ({fmt(nf(dividends))}). Box 1b is always part of Box 1a, so only {fmt(nf(dividends))} is being counted as qualified. If all your dividends are qualified, enter {fmt(nf(qualDividends))} in Ordinary Dividends too.
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-form4797" style={inputLbl}>
@@ -1991,9 +2000,21 @@ export default function TaxReturn() {
                 //   income → above-the-line deductions → AGI → standard/itemized → taxable
                 // Keep it that way. If you add another above-the-line item, it goes HERE,
                 // above the AGI row — not below it.
+                // LAUNCH CHECK N-4 (Sep 2026): a prior-year §1366(d)(2) loss released against
+                // restored basis reduced AGI with no row — the waterfall did not foot
+                // (K-1 −$30,000 + W-2 $150,000 → AGI $110,000). The engine's
+                // priorSuspendedLossApplied is that release; scheduleEK1Income excludes it.
+                { label: 'Prior-Year S-Corp Loss Released', value: result.priorSuspendedLossApplied || 0, sign: -1,
+                  hide: !(result.priorSuspendedLossApplied > 0),
+                  note: `§1366(d)(2) carryover deducted against basis restored this year (Form 7203 Part III)${result.priorSuspendedLossRemaining > 0 ? ` — ${fmt(result.priorSuspendedLossRemaining)} still carries forward` : ''}` },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
+                // LAUNCH CHECK N-4 (Sep 2026): HSA and student-loan interest were deducted by
+                // the engine (hsaDed, studentLoanDed) but had no row, so AGI dropped silently.
+                { label: 'HSA Deduction (Form 8889)',   value: result.hsaDed || 0,                       sign: -1, hide: !(result.hsaDed > 0) },
+                { label: 'Student Loan Interest (§221)', value: result.studentLoanDed || 0,              sign: -1, hide: !(result.studentLoanDed > 0),
+                  note: (result.studentLoanDed > 0 && result.studentLoanDed < nf(studentLoanInt)) ? 'Less than the interest entered — the $2,500 cap and the §221(b)(2) MAGI phase-out applied' : undefined },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 // TERMINOLOGY FIX 2.4 / PASS 3 CORRECTION: Original fix used `useItemized` (checkbox
@@ -2025,7 +2046,10 @@ export default function TaxReturn() {
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
                 // AUDIT N-3 FIX: the 0.9% Additional Medicare Tax (§3101(b)(2)) was included
                 // in Total Tax but rendered no line — invisible to the user.
-                { label: 'Additional Medicare Tax (0.9%)', value: result.additionalMedicare,                sign: 1, hide: !result.additionalMedicare || result.additionalMedicare === 0, accent: '#94A3B8', note: 'IRC §3101(b)(2) — wages/SE earnings over $200K ($250K MFJ, $125K MFS)' },
+                // LAUNCH CHECK N-6 (Sep 2026): that fix and the C-10 row below both rendered,
+                // so the tax appeared twice (not double-counted in Total Tax, but it read as
+                // if it were). One row — the C-10 one, which also shows $0 near the
+                // threshold — carries the line now, with a filing-status-aware note.
                 { label: 'NIIT (Form 8960)',             value: result.niit?.amount || result.niitAmount || 0, sign: 1, hide: !(result.niit?.applies), accent: R },
                 // AUDIT F-15: annotation rendered below the waterfall when the NII base includes §1368(b)(2) stock gain
                 // C-10 FIX: Additional Medicare Tax (0.9% on wages/SE income above $200K single /
@@ -2038,7 +2062,7 @@ export default function TaxReturn() {
                   hide: (result.additionalMedicare || 0) === 0 && (result.totalW2ForFICA || 0) < ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE * 0.75, // show when within 75% of the threshold
                   accent: (result.additionalMedicare || 0) > 0 ? '#DC2626' : undefined,
                   note: (result.additionalMedicare || 0) > 0
-                    ? `0.9% on wages above $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} threshold (IRC §3101(b)(2))`
+                    ? `0.9% on wages/SE earnings above the $${(calcInput.status === 'mfj' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ : calcInput.status === 'mfs' ? ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS : ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE).toLocaleString()} ${calcInput.status === 'mfj' ? 'MFJ' : calcInput.status === 'mfs' ? 'MFS' : ''} threshold (IRC §3101(b)(2))`
                     : undefined
                 },
                 { label: 'AMT (Form 6251)',              value: result.amt,                               sign: 1, hide: result.amt === 0, accent: R },

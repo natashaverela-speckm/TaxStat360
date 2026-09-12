@@ -171,6 +171,42 @@ function buildComputedBlock(summary) {
   if (summary.qbiWageDataMissing) {
     lines.push('NOTE: this record reports $0 of W-2 wages and $0 of UBIA, so the §199A wage cap is $0.')
   }
+
+  // LAUNCH CHECK N-3 (Sep 2026): asked why an itemized deduction was $43,900 on
+  // $60,000 SALT + $20,000 mortgage interest, Aria said the 2026 cap is a flat
+  // $40,400, summed to $60,400, then guessed the gap came from §68 — while the
+  // engine had applied the §70120 phase-down (cap $23,900 at $560,000 MAGI) and
+  // said so in the field's own warning. The model cannot narrate a limitation it
+  // is not shown. Every line below is an engine output (calcSelector keys), so
+  // Aria reports the cap that BOUND, never a headline figure from memory.
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : null)
+  const stdDed = n(summary.stdDed), itemized = n(summary.itemized), deduction = n(summary.deduction)
+  if (deduction !== null) {
+    const itemizing = itemized !== null && stdDed !== null && deduction === itemized && itemized > stdDed
+    lines.push(itemizing
+      ? `Deduction used: ITEMIZED ${fmtUSD(deduction)} (standard deduction would be ${fmtUSD(stdDed)})`
+      : `Deduction used: STANDARD ${fmtUSD(deduction)}${itemized ? ` (itemized total after limits was only ${fmtUSD(itemized)})` : ''}`)
+  }
+  const saltEntered = n(summary.saltEntered), saltAllowed = n(summary.saltAllowed), saltCap = n(summary.saltCapApplied)
+  if (saltEntered > 0 && saltAllowed !== null && saltCap !== null) {
+    lines.push(`SALT: ${fmtUSD(saltEntered)} entered, ${fmtUSD(saltAllowed)} allowed — the §164(b) cap for this return after the OBBBA §70120 income phase-down is ${fmtUSD(saltCap)}${saltAllowed < saltEntered ? ` (${fmtUSD(saltEntered - saltAllowed)} disallowed)` : ''}`)
+  }
+  if (n(summary.charFloorDisallowed) > 0) lines.push(`Charitable contributions reduced by the 2026 §170(b)(1)(I) 0.5%-of-AGI floor: ${fmtUSD(n(summary.charFloorDisallowed))} disallowed`)
+  if (n(summary.itemizedLimitReduction) > 0) lines.push(`§68 itemized-deduction limitation (2/37 rule) reduced itemized deductions by ${fmtUSD(n(summary.itemizedLimitReduction))}`)
+  const adj = [
+    ['½ SE tax (§164(f))',                       summary.halfSE],
+    ['Self-employed health insurance (§162(l))', summary.selfEmpHealthDed],
+    ['HSA deduction',                            summary.hsaDed],
+    ['Student loan interest (§221, after phase-out)', summary.studentLoanDed],
+    ['Self-employed retirement (SEP / Solo 401(k))',  summary.selfEmpRetirementDed],
+  ].filter(([, v]) => n(v) > 0).map(([l, v]) => `${l} ${fmtUSD(n(v))}`)
+  if (adj.length) lines.push(`Above-the-line adjustments applied: ${adj.join('; ')}`)
+  if (n(summary.priorSuspendedLossApplied) > 0) {
+    lines.push(`Prior-year S-Corp suspended loss released this year (§1366(d)(2), limited to basis restored): ${fmtUSD(n(summary.priorSuspendedLossApplied))}${n(summary.priorSuspendedLossRemaining) > 0 ? `; ${fmtUSD(n(summary.priorSuspendedLossRemaining))} still carries forward` : ''}`)
+  }
+  if (n(summary.totalSuspendedLoss) > 0) {
+    lines.push(`Current-year S-Corp loss suspended for lack of basis (§1366(d)(1)): ${fmtUSD(n(summary.totalSuspendedLoss))}`)
+  }
   return lines.join('\n')
 }
 
@@ -279,6 +315,14 @@ const GROUNDING_RULES = [
   // tax position as an evasion exercise. That test scans .js/.jsx/.html files. It cannot
   // see model output, and Aria used "audit risk" twice in one answer.
   ARIA_NO_AUDIT_FRAMING_RULE,
+  // ── LAUNCH CHECK N-3 (12 Sep 2026) — a correct figure, explained wrongly ──
+  // Asked why the itemized deduction was $43,900, Aria quoted the headline 2026 SALT cap
+  // ($40,400), added mortgage interest to $60,400, and then guessed the shortfall came from
+  // "adjustments to your interest deduction" or §68. The engine had applied the §70120
+  // phase-down (cap $23,900 at $560,000 MAGI). The COMPUTED RETURN block now carries the
+  // limitation lines (deduction used, SALT cap that bound, adjustments, released loss);
+  // rule 11 makes those lines the ONLY permitted explanation of a figure.
+  '11. When the user asks WHY a figure is what it is, explain it ONLY from the limitation lines in the COMPUTED RETURN block (deduction used, the SALT cap that applied, the §199A limit that binds, adjustments applied, suspended or released losses). Quote those lines. If the block shows a cap or limit different from a headline figure you know, the block is right and your figure is not — do not reconcile the two by guessing at another provision. If no limitation line explains the figure, say the record does not show the reason and point the user to the Tax Waterfall in Step 2.',
 ].join('\n')
 
 function suggestedPrompts({ entities = [] } = {}) {
