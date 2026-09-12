@@ -768,6 +768,32 @@ export default function TaxReturn() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+  // LAUNCH CHECK UX (12 Sep 2026): the four-step breadcrumb (Entities ›
+  // Carryforwards › Personal Return › AI Analysis) and five nav buttons needed
+  // ~1,230px on one 58px row, but #root is a fixed 1,126px column (index.css),
+  // so the row NEVER fit: "space-between" with no gap let "AI Analysis" run
+  // into "← Business", and Settings sat behind horizontal scroll. Changes:
+  //   • "← Business" is gone — it duplicated the "Entities" breadcrumb link.
+  //   • the two groups get a hard gap and never shrink into each other.
+  //   • below 1,180px the AI button uses its short label; below 960px the
+  //     inactive breadcrumb steps collapse to their circles and Sign Out (also
+  //     on the Settings page, already omitted on mobile) is dropped.
+  const [isNarrowNav, setIsNarrowNav] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1180)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1179px)')
+    const handler = (e) => setIsNarrowNav(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  // Below ~960px even the compacted row overflows; Sign Out is also on the
+  // Settings page (and the mobile nav already omits it), so it goes next.
+  const [isTightNav, setIsTightNav] = useState(() => typeof window !== 'undefined' && window.innerWidth < 960)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 959px)')
+    const handler = (e) => setIsTightNav(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const inputLbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }
   const inpWrap  = { marginBottom: 14 }
@@ -779,8 +805,8 @@ export default function TaxReturn() {
     <div style={{ minHeight: '100vh', background: '#F8FAFC', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 24px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, overflowX: 'auto', minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: isNarrowNav ? '0 16px' : '0 24px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isNarrowNav ? 12 : 24, position: 'sticky', top: 0, zIndex: 100, overflowX: 'auto', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isNarrowNav ? 10 : 14, flexShrink: 0 }}>
           <svg width="30" height="30" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill={N}/><rect x="5" y="22" width="5" height="9" rx="1.5" fill="white" opacity="0.3"/><rect x="12" y="17" width="5" height="14" rx="1.5" fill="white" opacity="0.55"/><rect x="19" y="11" width="5" height="20" rx="1.5" fill="white" opacity="0.8"/><rect x="26" y="5" width="4" height="26" rx="1.5" fill="white"/></svg>
           <span style={{ fontWeight: 800, fontSize: 17, color: N }}>TaxStat<span style={{ color: B }}>360</span></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -799,10 +825,27 @@ export default function TaxReturn() {
             ).map((s, i, arr) => (
               <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {/* LAUNCH CHECK UX (12 Sep 2026): below ~960px (tablet portrait and
+                      narrow desktop windows) the four labelled steps plus the nav
+                      buttons cannot share one row. Inactive steps collapse to their
+                      numbered circle — still a button, name in title/aria-label — and
+                      only the current step keeps its label. */}
+                  {(isTightNav && !s.active && (s.go || s.analyze)) ? (
+                    <button
+                      onClick={s.analyze ? handleSaveAndAnalyze : () => navigate(s.go)}
+                      disabled={s.analyze && analyzeStatus === 'saving'}
+                      title={s.analyze ? 'Save and go to AI Analysis & Reporting' : s.label}
+                      aria-label={s.analyze ? 'AI Analysis' : s.label}
+                      style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : '#E2E8F0', color: s.done ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      {s.done ? '✓' : s.n}
+                    </button>
+                  ) : (
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? G : s.active ? B : '#E2E8F0', color: s.done || s.active ? '#fff' : '#94A3B8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {s.done ? '✓' : s.n}
                   </div>
-                  {s.analyze ? (
+                  )}
+                  {(isTightNav && !s.active) ? null : s.analyze ? (
                     <button
                       onClick={handleSaveAndAnalyze}
                       disabled={analyzeStatus === 'saving'}
@@ -838,15 +881,14 @@ export default function TaxReturn() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: isMobile ? 4 : 8 }}>
+        <div style={{ display: 'flex', gap: isMobile ? 4 : 6, flexShrink: 0, marginLeft: 'auto' }}>
           {/* UX AUDIT F17 (Jul 2026): emoji-only mobile nav (⊞ 🤖 ⚙) replaced with
               short text labels + ≥44px touch targets, matching Dashboard and
               AI Analysis. Full names stay in titles/aria-labels. */}
-          {!isMobile && <button onClick={() => navigate('/calculate-tax')} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>← Business</button>}
-          <button onClick={() => navigate('/dashboard')} aria-label="Dashboard" title="Dashboard" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>{isMobile ? 'Home' : 'Dashboard'}</button>
-          <button onClick={() => navigate('/ai-analysis')} aria-label="AI Analysis & Reporting" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600 }} title="AI Analysis & Reporting">{isMobile ? 'AI' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
-          {!isMobile && <button onClick={() => signOut(navigate)} style={{ padding: '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Sign Out</button>}
-          <button onClick={() => navigate('/settings')} aria-label="Settings" title="Settings" style={{ padding: isMobile ? '13px 10px' : '7px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600 }}>Settings</button>
+          <button onClick={() => navigate('/dashboard')} aria-label="Dashboard" title="Dashboard" style={{ padding: isMobile ? '13px 10px' : isNarrowNav ? '7px 9px' : '7px 11px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>{isMobile ? 'Home' : 'Dashboard'}</button>
+          <button onClick={() => navigate('/ai-analysis')} aria-label="AI Analysis & Reporting" style={{ padding: isMobile ? '13px 10px' : isNarrowNav ? '7px 9px' : '7px 11px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: isPro() ? SL : '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }} title="AI Analysis & Reporting">{isMobile ? 'AI' : isNarrowNav ? 'AI Analysis' : STEP3_LABEL}{!isPro() ? ' 🔒' : ''}</button>
+          {!isMobile && !isTightNav && <button onClick={() => signOut(navigate)} style={{ padding: isNarrowNav ? '7px 9px' : '7px 11px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Sign Out</button>}
+          <button onClick={() => navigate('/settings')} aria-label="Settings" title="Settings" style={{ padding: isMobile ? '13px 10px' : isNarrowNav ? '7px 9px' : '7px 11px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', fontSize: 12, cursor: 'pointer', color: SL, fontWeight: 600, whiteSpace: 'nowrap' }}>Settings</button>
         </div>
       </nav>
 
