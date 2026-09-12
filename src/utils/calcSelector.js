@@ -49,7 +49,7 @@
 import { calcTaxReturn, sumK1FlowThrough } from '../lib/taxCalc.js'
 import { safeCalc } from './calcGuard.js'
 import { toEngineContext } from '../components/EntityCompareModal.jsx'
-import { readPersonalContext, readStep1State, normalizeF1040 } from './sessionState.js'
+import { readPersonalContext, readStep1State, readTaxYear, normalizeF1040 } from './sessionState.js'
 import { nf } from './money.js'
 
 /** Fields the whole-return summary needs that the compare modal's translator
@@ -87,6 +87,18 @@ const _SUMMARY_KEYS = [
   'capLossCarryoverTotal', 'ebl', 'ficaSavings', 'reasonableCompAlert',
   'totalSuspendedLoss', 'quarterlyRecommended',
 
+  // LAUNCH CHECK N-3/N-4 (Sep 2026): the LIMITATIONS the engine applied, so
+  // Aria narrates the cap that actually bound instead of reciting a headline
+  // figure from memory (it explained a $23,900 phase-down SALT cap as a flat
+  // $40,400 and guessed at §68). Deduction basis, SALT cap detail, the released
+  // §1366(d)(2) carryover and the above-the-line adjustments are all engine
+  // outputs already; they were simply not on the read list.
+  'stdDed', 'itemized', 'deduction',
+  'saltEntered', 'saltAllowed', 'saltCapApplied', 'saltDisallowed',
+  'charFloorDisallowed', 'itemizedLimitReduction',
+  'halfSE', 'selfEmpHealthDed', 'hsaDed', 'studentLoanDed', 'selfEmpRetirementDed', 'adjustments',
+  'priorSuspendedLossApplied', 'priorSuspendedLossRemaining',
+
   // AUDIT BLOCKER 2 (Jul 2026): the §199A REASON CODES, not just the number.
   // AIAnalysis needs these to render its "why is my deduction reduced" copy. Before
   // this, it re-ran calcQBI to get them — and in doing so re-derived the DEDUCTION too,
@@ -117,6 +129,23 @@ function _summarize(engineInput) {
 }
 
 /**
+ * LAUNCH CHECK N-1 (Sep 2026): a saved record carries its tax year at the top
+ * level (rec.taxYear, mirrored as rec.biz.year — see CalculateTaxInner doSave
+ * and Dashboard loadRecord), not inside f1040. normalizeF1040 therefore filled
+ * taxYear with defaultTaxYear() for every record, so Dashboard cards and
+ * AIAnalysis summarized a 2025 record on 2026 tables. Prefer an explicit
+ * f1040.taxYear (tests and legacy records), then the record-level year.
+ */
+function _recordPersonalContext(rec) {
+  const f1040 = (rec && rec.f1040) || {}
+  const pc = normalizeF1040(f1040)
+  const explicit = parseInt(f1040.taxYear)
+  if (explicit) return pc
+  const recYear = parseInt(rec && (rec.taxYear || (rec.biz && rec.biz.year)))
+  return recYear ? { ...pc, taxYear: recYear } : pc
+}
+
+/**
  * Engine-true summary for a SAVED RECORD (the AIAnalysis / Dashboard-card
  * shape: { f1040, entities, ... }). The record's f1040 goes through the same
  * normalizeF1040 coercion the load path uses (shared field manifest), so a
@@ -128,7 +157,7 @@ function _summarize(engineInput) {
  * agree with the filed estimate, which is the contract.
  */
 export function summarizeRecord(rec) {
-  const pc = normalizeF1040((rec && rec.f1040) || {})
+  const pc = _recordPersonalContext(rec)
   // Phase 3.2 hardening: a malformed legacy record (entities not an array)
   // must yield { ok:false }, never a throw.
   const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
@@ -144,7 +173,16 @@ export function summarizeRecord(rec) {
  * Reads through the sessionState accessors only (ARCHITECTURE §3).
  */
 export function selectTaxSummary() {
-  const pc = readPersonalContext()
+  // LAUNCH CHECK N-1 (Sep 2026): the selected tax year lives in ts360_taxyear
+  // (written by the Step-1 and Step-2 year selectors and by Dashboard record
+  // load). TaxReturn's auto-save never writes taxYear into ts360_f1040, so
+  // readPersonalContext().taxYear was ALWAYS defaultTaxYear() — i.e. 2026 —
+  // and every live-session consumer of this façade (Step-1 provisional card,
+  // Aria's COMPUTED RETURN, AIAnalysis gating) computed on 2026 tables while
+  // Step 2 correctly computed on the year the user picked. Verified on the
+  // production site: 2024 selected → Step 2 $16,041, Step-1 card $15,370
+  // (the 2026 figure). readTaxYear() is the single source of truth.
+  const pc = { ...readPersonalContext(), taxYear: readTaxYear() }
   const step1 = readStep1State() || {}
   const entities = Array.isArray(step1.entities) ? step1.entities : []
   return _summarize({
@@ -156,7 +194,7 @@ export function selectTaxSummary() {
 /** Exposed for tests: the exact engine input a record summary is computed
  *  from, so invariant tests can prove summary === direct engine call. */
 export function buildRecordEngineInput(rec) {
-  const pc = normalizeF1040((rec && rec.f1040) || {})
+  const pc = _recordPersonalContext(rec)
   const entities = Array.isArray(rec && rec.entities) ? rec.entities : []
   return { ...toEngineContext(pc, entities, -1), ..._wholeReturnExtras(pc, entities) }
 }
