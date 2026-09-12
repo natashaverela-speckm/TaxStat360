@@ -34,7 +34,13 @@ export default function Privacy() {
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 11, 2026</p>
+          {/* FRESH-EYES AI-5 (12 Sep 2026): date advanced for the §4/§6 processor
+              correction below. complianceCopy.test.js asserts this rendered date
+              equals PRIVACY_VERSION in lib/complianceCopy.js — the two MUST change
+              together or the suite goes red. That pairing is deliberate: it stops a
+              policy edit shipping without a version bump, which is exactly the
+              failure this correction is cleaning up. */}
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 12, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Privacy Policy</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>TaxStat360 is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and protect your data.</p>
         </div>
@@ -84,20 +90,48 @@ export default function Privacy() {
           <p>Your financial and account data is stored on AWS infrastructure in the United States. It is <strong>never sold</strong>, and it is <strong>never shared with third parties for advertising</strong>. It is disclosed only to the service providers we use to operate the platform &mdash; each listed by name in &ldquo;Third-Party Services&rdquo; below, and each receiving only what that service needs to do its job. (Anonymous website-usage data collected by our marketing analytics is addressed separately in &ldquo;Cookies, Analytics &amp; Advertising&rdquo; below.)</p>
         </Section>
 
-        {/* #6 FINAL (Anthropic, external API processor):
-            TaxStat360 calls the Anthropic API under Anthropic's Commercial Terms
-            using the company's own API key. Per those terms and Anthropic's
-            published policy, inputs/outputs from the Anthropic API are NOT used
-            to train their models by default. The "does not use your data to
-            train its models" sentence below is therefore accurate.
-            CAVEAT: that default does NOT apply to data you voluntarily submit as
-            feedback (e.g. a thumbs up/down). If TaxStat360 ever forwards user
-            financial data to Anthropic through a feedback mechanism, revisit
+        {/* ── PROCESSOR — verified against the running backend, 12 Sep 2026 ──────
+            The AI features call the OpenAI API (api.openai.com/v1/chat/completions)
+            from the backend service, using the company's own API key. Under OpenAI's
+            API terms, data submitted through the API is not used to train their
+            models. The wording in §4 and §6 below reflects that.
+
+            THIS COMMENT PREVIOUSLY SAID ANTHROPIC — in detail, citing Anthropic's
+            Commercial Terms and reasoning carefully about why the §4 sentence was
+            accurate — and it was wrong. A case-insensitive search for "anthropic" or
+            "claude" across the entire backend application returns nothing; the only
+            AI call is to OpenAI. §4 and §6 named a processor that receives no data
+            while the processor that does receive customers' tax figures was named
+            nowhere in the policy.
+
+            The comment is the reason this survived. Someone documented the reasoning
+            well, the implementation moved underneath it, and every later reader found
+            a confident note citing a specific vendor's contract and had no cause to
+            doubt it. A well-argued comment about a fact that has drifted is worse than
+            no comment at all.
+
+            IF THE PROCESSOR CHANGES AGAIN: change §4, §6, this comment and
+            PRIVACY_VERSION in the same commit, and re-check the backend before
+            trusting any of the four. The no-training assurance is tied to a named
+            vendor's terms — if the vendor changes, that sentence is wrong too, not
+            merely out of date.
+
+            CAVEAT retained from the previous note, and it still applies: an API
+            provider's no-training default typically does NOT cover data a user
+            voluntarily submits as feedback (e.g. a thumbs up/down). If TaxStat360
+            ever forwards user financial data through a feedback mechanism, revisit
             this wording. */}
         <Section title="4. AI Features & Automated Processing">
           <p style={{ marginBottom: 10 }}>Some features &mdash; including Risk Alerts, the &ldquo;Why This Number?&rdquo; explanations, and the Ask Aria assistant &mdash; use automated AI to generate explanations and planning suggestions based on the figures you enter.</p>
-          <p style={{ marginBottom: 10 }}>To generate these results, the relevant calculation inputs are transmitted to Anthropic (the Claude API), our AI processor, solely to produce your output. Under Anthropic&rsquo;s commercial terms, your inputs and outputs are not used to train their models. This data is never sold and is never used for advertising.</p>
-          <p>AI output is provided for planning purposes only and is not professional tax advice.</p>
+          <p style={{ marginBottom: 10 }}>To generate these results, the relevant calculation inputs are transmitted to OpenAI, our AI processor, solely to produce your output. Under OpenAI&rsquo;s API terms, data submitted through the API is not used to train their models. This data is never sold and is never used for advertising.</p>
+          <p style={{ marginBottom: 10 }}>AI output is provided for planning purposes only and is not professional tax advice.</p>
+          {/* FRESH-EYES AI-5 (12 Sep 2026): the correction is stated on the page
+              rather than made silently. If counsel later advises notifying users,
+              the page already matches the notice; if they advise none is needed,
+              the cost was one sentence. A policy that quietly rewrites its own
+              history reads worst in the one situation where anyone compares
+              versions. Remove this line only on legal advice, not for tidiness. */}
+          <p style={{ fontSize: 13 }}><em>Corrected September 12, 2026: an earlier version of this section named a different AI processor in error.</em></p>
         </Section>
 
         {/* FRESH-EYES P-1/P-6 (11 Sep 2026): this section said only "We process
@@ -122,7 +156,9 @@ export default function Privacy() {
           <p style={{ marginBottom: 8 }}>- Stripe (payment processing)</p>
           <p style={{ marginBottom: 8 }}>- AWS (infrastructure and data storage)</p>
           <p style={{ marginBottom: 8 }}>- QuickBooks, Xero, Wave, FreshBooks (read-only accounting data)</p>
-          <p style={{ marginBottom: 8 }}>- Anthropic (Claude API &mdash; AI processing for explanations, risk alerts, and Ask Aria)</p>
+          {/* FRESH-EYES AI-5 (12 Sep 2026): was "Anthropic (Claude API — …)". See the
+              processor note above §4. Verified against the running backend. */}
+          <p style={{ marginBottom: 8 }}>- OpenAI (AI processing for explanations, risk alerts, and Ask Aria)</p>
           <p>- Meta / Facebook (advertising pixel on our marketing site &mdash; consent-gated; see &ldquo;Cookies, Analytics &amp; Advertising&rdquo;)</p>
         </Section>
 
