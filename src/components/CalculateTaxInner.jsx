@@ -2595,7 +2595,9 @@ export default function CalculateTaxInner() {
         depreciation:  String(nf(entities[0]?.pnl?.depreciation)    || ''),
         pnl:           entities[0]?.pnl || {},
       },
-      f1040: readPersonalContext(),
+      // THIRD PASS (14 Sep 2026): stamp the selected year — readPersonalContext() carried
+      // the manifest default until Step 2 rendered (see calcSelector._recordPersonalContext).
+      f1040: { ...readPersonalContext(), taxYear },
     }
 
     try {
@@ -3274,7 +3276,13 @@ export default function CalculateTaxInner() {
         entity={entities[0]}
         entities={entities}
         entityIdx={0}
-        personalContext={() => readPersonalContext()}
+        // THIRD PASS (14 Sep 2026, live check): the Step 2 writer never persisted `taxYear`
+        // into ts360_f1040, so readPersonalContext() always carried the manifest DEFAULT
+        // year (2026) and the comparison ran on next year's tables — a 2025 Schedule C
+        // $100,000 baseline showed $22,365 (2026 brackets/standard deduction) against
+        // $22,629 on Step 2. The app-wide year (ts360_taxyear, this component's state) is
+        // authoritative; TaxReturn.jsx now persists it as well.
+        personalContext={() => ({ ...readPersonalContext(), taxYear })}
       />
       {showNameModal && (
         <NameRecordModal

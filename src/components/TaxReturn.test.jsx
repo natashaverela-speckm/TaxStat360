@@ -129,7 +129,7 @@ vi.mock('./DismissibleNotice', () => ({
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 import TaxReturn from './TaxReturn'
 import { calcTaxReturn, calcCCorpCorporateLayer } from '../lib/taxCalc.js'
-import { readStep1State, readPersonalContext } from '../utils/sessionState.js'
+import { readStep1State, readPersonalContext, writePersonalContext } from '../utils/sessionState.js'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 function renderTaxReturn() {
@@ -930,5 +930,79 @@ describe('TaxReturn — second pass: taxable income shows the post-§68 figure; 
     const { queryByText } = renderTaxReturn()
     expect(queryByText('S-Corp distributions above basis (§1368(b)(2))')).toBeNull()
     calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+// ─── Third pass (14 Sep 2026, review finding 2): §170(p) non-itemizer charitable row ─────
+
+describe('TaxReturn — third pass: the §170(p) non-itemizer charitable deduction has a waterfall row', () => {
+  it('renders the row between the standard deduction and taxable income when the engine applied it, and hides it otherwise', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), agi: 180000, deduction: 32200, nonItemizerCharitable: 2000, taxableBeforeQBI: 145800 })
+    const { getByText, container, unmount } = renderTaxReturn()
+    expect(getByText('Charitable deduction for non-itemizers (§170(p))')).toBeTruthy()
+    const text = container.textContent
+    expect(text.indexOf('Charitable deduction for non-itemizers (§170(p))')).toBeGreaterThan(text.indexOf('Standard Deduction'))
+    expect(text.indexOf('Charitable deduction for non-itemizers (§170(p))')).toBeLessThan(text.indexOf('Taxable Income (before §199A)'))
+    unmount()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), nonItemizerCharitable: 0 })
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText('Charitable deduction for non-itemizers (§170(p))')).toBeNull()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+describe('TaxReturn — third pass: a refundable-credit refund is labelled a refund even with no payments entered', () => {
+  it('shows "Estimated Refund" (not "Est. Tax Liability") when the balance is negative and no withholding/estimates were entered', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), totalTax: 0, actc: 3400, balance: -3400 })
+    const { getAllByText, queryByText } = renderTaxReturn()
+    expect(getAllByText('Estimated Refund').length).toBeGreaterThan(0)
+    expect(queryByText('Est. Tax Liability')).toBeNull()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+describe('TaxReturn — third pass: the §1212(b) carryforward applied has a waterfall row (live T10 footing gap)', () => {
+  it('renders the applied carryforward between the raw gain rows and AGI, and hides it when none was entered', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ stGain: '10000', ltGain: '-4000', capLossCarryforwardST: '2000', capLossCarryforwardLT: '' })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), agi: 64000, capLossCarryoverTotal: 0 })
+    const { getByText, container, unmount } = renderTaxReturn()
+    expect(getByText('Capital Loss Carryforward Applied (§1212(b))')).toBeTruthy()
+    expect(getByText(/Prior-year capital loss carried into .*\$2,000 short-term \+ \$0 long-term/)).toBeTruthy()
+    const text = container.textContent
+    expect(text.indexOf('Capital Loss Carryforward Applied (§1212(b))')).toBeGreaterThan(text.indexOf('Capital Gains (ST)'))
+    expect(text.indexOf('Capital Loss Carryforward Applied (§1212(b))')).toBeLessThan(text.indexOf('Standard Deduction'))
+    unmount()
+    readPersonalContext.mockReturnValue({})
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText('Capital Loss Carryforward Applied (§1212(b))')).toBeNull()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+describe('TaxReturn — third pass: a net partnership / Schedule C loss has a waterfall row and the basis banner names §704(d) (live T8)', () => {
+  it('renders the allowed-loss row with the suspended note, and the banner cites §704(d) for a partnership', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readStep1State.mockReturnValue({ entities: [{ type: 'Partnership / LLC', own: 100, pnl: { netProfit: -30000 }, k1DirectMode: true }], k1Total: -30000 })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), scheduleCSEIncome: 0, seNetLossAllowed: -15000, totalSuspendedLoss: 15000, agi: 85000 })
+    const { getByText, container } = renderTaxReturn()
+    expect(getByText('Partnership / LLC Loss (K-1, allowed)')).toBeTruthy()
+    expect(getByText(/Net loss after the basis limitation — \$15,000 is suspended/)).toBeTruthy()
+    expect(container.textContent).toMatch(/§704\(d\) Basis Limit:/)
+    expect(container.textContent).not.toMatch(/§1366\(d\) Basis Limit:/)
+    expect(container.textContent).toMatch(/in partnership losses suspended/)
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0 })
+  })
+})
+
+describe('TaxReturn — third pass: the selected tax year is persisted with the personal context', () => {
+  it('writePersonalContext receives taxYear (the Compare Entity Structures modal read the manifest default before)', () => {
+    renderTaxReturn()
+    const calls = writePersonalContext.mock.calls
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls[calls.length - 1][0].taxYear).toBe(2025)
   })
 })

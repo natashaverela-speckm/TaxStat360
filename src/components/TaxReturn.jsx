@@ -480,6 +480,10 @@ export default function TaxReturn() {
     if (_dirtyMountRef.current) writeDirtyFlag(true)
     else _dirtyMountRef.current = true
     writePersonalContext({
+      // THIRD PASS (14 Sep 2026): persist the selected year — it was omitted, so the record
+      // silently carried the manifest default and the Compare Entity Structures modal
+      // computed on the wrong year's tables.
+      taxYear,
       filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, f4797MateriallyParticipated, nonrecap1231,
@@ -496,6 +500,7 @@ export default function TaxReturn() {
       priorSuspendedLoss,           // F-01
     })
   }, [
+    taxYear,
     filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
@@ -1438,7 +1443,7 @@ export default function TaxReturn() {
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
                     Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
-                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\n§199A: the portion released this year is QBI in this year if the loss arose in 2018 or later (Treas. Reg. §1.199A-3(b)(1)(iv)). This estimate does not net it automatically — enter the released amount in "Prior-Year QBI Loss Carryforward" below so the 20% deduction is reduced.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
                   </label>
                   <Step2MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
                 </div>
@@ -1933,9 +1938,13 @@ export default function TaxReturn() {
                 the figure equals total tax liability, not balance due (which is liability
                 minus payments). Show "Est. Tax Liability" until the user has entered
                 withholding or payments; switch to "Estimated Balance Due" once they have. */}
-                  {(nf(w2Withheld) > 0 || nf(estPaid) > 0)
-                    ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund')
-                    : 'Est. Tax Liability'
+                  {/* THIRD PASS (14 Sep 2026, live T4): with NO withholding or payments entered, a
+                      refundable credit (ACTC) drives the balance negative — and the label still
+                      read "Est. Tax Liability" over a green $3,400. A refund is a refund whether
+                      or not payments were entered; only the non-negative case depends on that. */}
+                  {result.balance < 0
+                    ? 'Estimated Refund'
+                    : (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability'
                   }
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: result.balance >= 0 ? '#FCA5A5' : '#86EFAC' }}>
@@ -2016,6 +2025,21 @@ export default function TaxReturn() {
                   note: (result.guaranteedPaymentsTotal || 0) > 0
                     ? `Includes ${fmt(result.guaranteedPaymentsTotal)} of guaranteed payments (K-1 Box 4, §707(c)) — self-employment income, excluded from the §199A QBI base`
                     : undefined },
+                // THIRD PASS (14 Sep 2026, live T8): a NET Schedule C / partnership loss had no row
+                // (scheduleCSEIncome is floored at 0 for Schedule SE), so W-2 $100,000 sat directly
+                // above AGI $85,000. Show the allowed loss — after §704(d)/§1366(d) basis limits —
+                // so the column foots.
+                { label: (() => {
+                    const list = Array.isArray(entities) ? entities : []
+                    const hasSchedC  = list.some(e => isScheduleCType(e?.type))
+                    const hasPartner = list.some(e => /partner|mmllc/i.test(e?.type || ''))
+                    if (hasSchedC && hasPartner) return 'Schedule C / Partnership Loss (allowed)'
+                    if (hasPartner) return 'Partnership / LLC Loss (K-1, allowed)'
+                    return 'Schedule C Loss'
+                  })(),                                 value: result.seNetLossAllowed || 0,               sign: 1, hide: !(result.seNetLossAllowed < 0),
+                  note: (result.totalSuspendedLoss || 0) > 0
+                    ? `Net loss after the basis limitation — ${fmt(result.totalSuspendedLoss)} is suspended (§704(d) / §1366(d)) and carries forward`
+                    : 'Net self-employment loss — no SE tax this year (§1402(a))' },
                 // AI-5 FIX: split W-2 into officer salary (Step 1) + other W-2 (Step 2) so
                 // the user can immediately spot a double-entry. Both are included in
                 // result.totalW2ForFICA (= w2Total in the engine); we derive officer salary
@@ -2053,12 +2077,20 @@ export default function TaxReturn() {
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
                 { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
+                // THIRD PASS (14 Sep 2026, live T10): the §1212(b) carryforward inputs DO have a UI
+                // now (tr-caploss-st / tr-caploss-lt, Phase 2 manifest) but the waterfall never
+                // showed them — W-2 60,000 + ST 10,000 − LT 4,000 printed above an AGI of 64,000,
+                // a silent $2,000 gap. Show the prior-year loss applied; together with the
+                // §1211(b) addback below (which is next year's carryover) the column foots.
+                { label: 'Capital Loss Carryforward Applied (§1212(b))', value: nf(capLossCarryST) + nf(capLossCarryLT), sign: -1,
+                  hide: !((nf(capLossCarryST) + nf(capLossCarryLT)) > 0),
+                  note: `Prior-year capital loss carried into ${taxYear}: ${fmt(nf(capLossCarryST))} short-term + ${fmt(nf(capLossCarryLT))} long-term, netted against this year's gains before the $${(filingStatus === 'mfs' ? CAP_LOSS_ORDINARY_LIMIT_MFS : CAP_LOSS_ORDINARY_LIMIT).toLocaleString()} §1211(b) limit` },
                 // R-1 (Pass-6 review, Jul 2026): §1211(b) reconciliation addback — same pattern
                 // as the §461(l) line below (F-FUNC-06): the raw entered loss rows above must
                 // visibly reconcile to AGI now that the engine (F10/P6-1) caps the deductible
-                // net capital loss. The addback equals result.capLossCarryoverTotal, which is
-                // exact while the §1212(b) carryforward INPUTS have no UI (they land with the
-                // Phase-2 field manifest). Limit figures imported from constants.js — never a
+                // net capital loss. The addback equals result.capLossCarryoverTotal (next year's
+                // carryover); the prior-year carryforward applied is its own row above (third
+                // pass, 14 Sep 2026). Limit figures imported from constants.js — never a
                 // literal (M1 rule).
                 { label: 'Capital Loss Limited (§1211(b))', value: result.capLossCarryoverTotal || 0, sign: 1,
                   hide: !(result.capLossCarryoverTotal > 0), accent: R,
@@ -2106,7 +2138,11 @@ export default function TaxReturn() {
                 // priorSuspendedLossApplied is that release; scheduleEK1Income excludes it.
                 { label: 'Prior-Year S-Corp Loss Released', value: result.priorSuspendedLossApplied || 0, sign: -1,
                   hide: !(result.priorSuspendedLossApplied > 0),
-                  note: `§1366(d)(2) carryover deducted against basis restored this year (Form 7203 Part III)${result.priorSuspendedLossRemaining > 0 ? ` — ${fmt(result.priorSuspendedLossRemaining)} still carries forward` : ''}` },
+                  // THIRD PASS (14 Sep 2026, live T7): say on the row that the released loss is NOT
+                  // netted out of QBI automatically (Reg. §1.199A-3(b)(1)(iv) — post-2017 losses
+                  // are QBI in the year allowed). $50,000 K-1 with a $20,000 release showed a
+                  // $10,000 §199A deduction where $6,000 applies if the loss arose after 2017.
+                  note: `§1366(d)(2) carryover deducted against basis restored this year (Form 7203 Part III)${result.priorSuspendedLossRemaining > 0 ? ` — ${fmt(result.priorSuspendedLossRemaining)} still carries forward` : ''}${nf(priorYearQBILoss) === 0 ? ' — not netted out of QBI: if the loss arose in 2018 or later, enter the released amount as a Prior-Year QBI Loss Carryforward (Reg. §1.199A-3(b)(1)(iv))' : ''}` },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
@@ -2133,6 +2169,15 @@ export default function TaxReturn() {
                 // result.itemized and result.stdDed are both returned by the engine (line 1093/1171).
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
+                // THIRD PASS (14 Sep 2026, review finding 2): the 2026+ §170(p) non-itemizer
+                // charitable deduction (OBBBA §70424 — $1,000 / $2,000 MFJ, Form 1040 line 12
+                // area) is applied by the engine in taxableBeforeNOL but had no row here, so for a
+                // 2026 standard-deduction filer with a cash gift the column did not foot (AGI −
+                // std ≠ taxable income by up to $2,000). The Step 1 note already mentions it; the
+                // waterfall now shows it.
+                { label: 'Charitable deduction for non-itemizers (§170(p))', value: result.nonItemizerCharitable || 0, sign: -1,
+                  hide: !(result.nonItemizerCharitable > 0),
+                  note: `Cash gifts to public charities, up to ${filingStatus === 'mfj' ? '$2,000' : '$1,000'} for 2026+ filers who take the standard deduction (IRC §170(p), OBBBA).` },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
                 // AUDIT F-6/B-1 (Jul 2026): this row used to HIDE itself when the deduction was
@@ -2204,7 +2249,9 @@ export default function TaxReturn() {
                 // the same figure as positive. The label already carries the direction —
                 // render the magnitude as positive in both branches; accent color (red/green)
                 // still distinguishes balance due from refund.
-                { label: (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? (result.balance >= 0 ? 'Estimated Balance Due' : 'Estimated Refund') : 'Est. Tax Liability', value: Math.abs(result.balance), sign: 1, bold: true, accent: result.balance >= 0 ? R : G },
+                // THIRD PASS (14 Sep 2026): same rule as the summary card — a negative balance is
+                // a refund even when no payments were entered (refundable ACTC, live T4).
+                { label: result.balance < 0 ? 'Estimated Refund' : (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability', value: Math.abs(result.balance), sign: 1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 const isSubtraction = row.sign < 0
@@ -2269,7 +2316,16 @@ export default function TaxReturn() {
 
               {result.totalSuspendedLoss > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12, color: '#991B1B' }}>
-                  <strong>⚠ §1366(d) Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in S-Corp losses suspended — not deductible this year. Carry forward to restore basis.
+                  {/* THIRD PASS (14 Sep 2026, live T8): the banner said "§1366(d) … S-Corp losses" for a
+                      PARTNERSHIP loss limited under §704(d). Name the rule by the entities present. */}
+                  {(() => {
+                    const list = Array.isArray(entities) ? entities : []
+                    const hasS = list.some(e => e && isSCorpEntity(e.type))
+                    const hasP = list.some(e => e && /partner|mmllc/i.test(e.type || ''))
+                    const cite = hasS && hasP ? '§1366(d) / §704(d)' : hasP ? '§704(d)' : '§1366(d)'
+                    const what = hasS && hasP ? 'pass-through' : hasP ? 'partnership' : 'S-Corp'
+                    return <><strong>⚠ {cite} Basis Limit:</strong> {fmt(result.totalSuspendedLoss)} in {what} losses suspended — not deductible this year. Carry forward to restore basis.</>
+                  })()}
                   {result.priorSuspendedLossApplied > 0 && <span style={{color:'#166534'}}> ✓ {fmt(result.priorSuspendedLossApplied)} of prior-year suspended loss released this year. Remaining carryforward: {fmt(result.priorSuspendedLossRemaining)}.</span>}
                 </div>
               )}

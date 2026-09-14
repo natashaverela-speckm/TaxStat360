@@ -90,3 +90,21 @@ describe('toEngineContext translation (AUDIT F2, second root cause)', () => {
     expect(raw.scenarios[0].totalTax).not.toBe(translated.scenarios[0].totalTax)
   })
 })
+
+// ─── Third pass (14 Sep 2026, live check): the comparison must run on the SELECTED year ──
+describe('toEngineContext — tax year (third pass, 14 Sep 2026)', () => {
+  it('SPEC: a 2025 Schedule C $100,000 single baseline compares at $22,629 (2025 tables), not $22,365 (2026 tables)', () => {
+    const schC = { type: 'Sole Proprietor / SMLLC', own: '100', pnl: { grossRevenue: 100000, totalExpenses: 0, officerSalary: 0, netProfit: 100000 } }
+    const ctx25 = toEngineContext({ filingStatus: 'single', taxYear: 2025 }, [schC], 0)
+    expect(ctx25.taxYear).toBe(2025)
+    const r25 = compareEntityScenarios({ personalContext: ctx25, entities: [schC], entityIdx: 0, netProfitShare: 100000, officerSalary: 30000 })
+    const sp25 = (r25.scenarios || r25).find ? (r25.scenarios || r25).find(s => /sole/i.test(s.label || s.type || s.name || '')) : null
+    // 2025: SE 14,130; AGI 92,935; TI before QBI 77,185; QBI capped at 20% × 77,185 = 15,437; TI 61,748; tax 8,499 → 22,629
+    const total25 = sp25 ? (sp25.totalTax ?? sp25.total) : null
+    expect(total25).toBe(22629)
+    const ctx26 = toEngineContext({ filingStatus: 'single', taxYear: 2026 }, [schC], 0)
+    const r26 = compareEntityScenarios({ personalContext: ctx26, entities: [schC], entityIdx: 0, netProfitShare: 100000, officerSalary: 30000 })
+    const sp26 = (r26.scenarios || r26).find(s => /sole/i.test(s.label || s.type || s.name || ''))
+    expect(sp26.totalTax ?? sp26.total).toBe(22365)
+  })
+})
