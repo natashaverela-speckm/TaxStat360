@@ -81,3 +81,50 @@ describe('Finding 2 -- end-to-end via calcTaxReturn (regression, live-tested fac
     expect(r.qbiCaps.qbi).toBeGreaterThan(79200 * 0.20)
   })
 })
+
+// ─── FOURTH READ R-4 (14 Sep 2026): synced entities always scale by Ownership % ────────
+//
+// An entity whose P&L was pulled from accounting software (connectedId set) holds the
+// ENTITY's books. If a stale `k1` override (loaded record) or `k1DirectMode: true` (manual
+// K-1 entry made before the sync) survives on that object, the resolver used to treat the
+// whole net as the owner's share. Verified live: a FreshBooks S-Corp at 50% ownership flowed
+// 100% of its −$481,660 loss into Step 2 ($441,660 suspended against $40,000 of basis
+// instead of $200,830). Both leftovers are ignored for a synced entity, and the sync path in
+// CalculateTaxInner strips them.
+
+describe('R-4 -- getEntityK1Share() ignores stale share shortcuts on a synced entity', () => {
+  const synced = (extra = {}) => ({
+    type: 'S Corporation', own: 50, connectedId: 'freshbooks', isManual: false,
+    pnl: { grossRevenue: 7642, totalExpenses: 489302, netProfit: -481660 },
+    ...extra,
+  })
+
+  it('SPEC: synced entity at 50% → half the net (§1366(a)(1): pro rata share)', () => {
+    expect(getEntityK1Share(synced())).toBe(-240830)
+  })
+
+  it('SPEC: a leftover k1DirectMode flag does not stop the scaling once the entity is synced', () => {
+    expect(getEntityK1Share(synced({ k1DirectMode: true }))).toBe(-240830)
+  })
+
+  it('SPEC: a leftover explicit k1 override is ignored once the entity is synced', () => {
+    expect(getEntityK1Share(synced({ k1: -481660 }))).toBe(-240830)
+  })
+
+  it('CHAR: manual K-1-direct entities keep the Finding-2 contract (Box 1 is already the share)', () => {
+    expect(getEntityK1Share({ type: 'Partnership / LLC', own: 60, k1DirectMode: true, pnl: { netProfit: 132000 } })).toBe(132000)
+    expect(getEntityK1Share({ type: 'Partnership / LLC', own: 60, k1: 132000, pnl: { netProfit: 220000 } })).toBe(132000)
+  })
+
+  it('SPEC: end-to-end — the §1366(d) limitation sees the owner\'s share, not the entity total', () => {
+    const r = calcTaxReturn({
+      taxYear: 2026, status: 'single', w2: 150000,
+      k1Total: sumK1FlowThrough([synced({ k1DirectMode: true, stockBasis: 40000 })]),
+      entities: [synced({ k1DirectMode: true, stockBasis: 40000 })],
+      assumeZeroBasisOnLoss: true,
+    })
+    // owner's share −240,830; basis 40,000 → 40,000 deducted, 200,830 suspended
+    expect(r.totalSuspendedLoss).toBe(200830)
+    expect(r.agi).toBe(110000)
+  })
+})
