@@ -79,6 +79,17 @@ Real fix requires collecting which spouse earned each W-2/SE income source — a
 change, not scheduled. Owner decision: ship a "spouse's own W-2" input split, or accept the
 conservative default indefinitely.
 
+**NARROWED — 14 Sep 2026 (fourth read, R-2). Owner decision: ship the input.** Step 2 now
+collects `w2OwnForSE` for MFJ — "of the W-2 wages above, the amount YOU earned (the spouse
+with the self-employment income)". The engine nets THAT amount (clamped to the household W-2
+total) against the SE wage base; the rest of the household W-2 is treated as the other
+spouse's. Blank/0 reproduces the conservative uncoordinated computation exactly, so every
+existing record and the dual-earner case are unchanged. What remains unmodeled is the
+opposite direction — attributing each Step-1 ENTITY to a spouse (two self-employed spouses
+each file their own Schedule SE; the engine still aggregates all SE income onto one). That
+residual is still conservative when the attributed W-2 is the higher earner's, and is now the
+documented boundary of this limitation.
+
 **Investigated for a fix, not attempted — Aug 12 2026 (Audit Synthesis, Phase 2, "B5").**
 Revisited as a candidate for this engagement's remaining schema-change batch (alongside B3/B4).
 Unlike B4's SEHI split — which only needed to split ONE field (the premium amount) because the

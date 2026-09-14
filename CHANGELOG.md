@@ -12,6 +12,50 @@ record of work that predates this changelog.
 
 ---
 
+## Fourth read — §469(i) MAGI and MFJ Schedule SE attribution (R-1, R-2) — September 14, 2026
+
+Independent re-check of the three pre-launch reports against the production bundle
+(`index-DNJ4rrLZ.js`): every 2024–2026 table constant matched the Revenue Procedures and
+14 of 16 hand-computed scenarios matched Step 2 to the dollar, including the paths the
+12 Sep launch check did not re-test (MFS AMT exemption, AMT/ISO, §1231(c), guaranteed
+payments, NOL 80%). The two that did not are fixed here; both sit in how the return is
+assembled, not in the rate tables.
+
+### Fixed
+- **R-1 — §469(i) modified AGI omitted guaranteed payments and the ½-SE deduction**
+  (`taxCalc.js`). Both §469 branches measured the $25,000 allowance phase-out on
+  W-2 + K-1 Box 1 (+ investment income − HSA/SEP/SEHI). §707(c) guaranteed payments are
+  ordinary gross income and nothing in §469(i)(3)(F) excludes them; the §164(f) deduction
+  is taken into account (Form 8582, line 7 instructions). Verified live: a general partner
+  with Box 1 $50,000 + GP $30,000 + W-2 $50,000 and a −$30,000 active rental was allowed
+  the full $25,000 (MAGI measured at $100,000) where $12,826 was available (true MAGI
+  $124,348) — tax understated $2,678. With the GP folded into Box 1 the same return was
+  allowed $10,000 (½-SE not subtracted) — tax overstated $622. The Schedule SE block is
+  hoisted above the §469 section and one `calc469iMagi()` helper now feeds both branches.
+- **R-2 — married-filing-jointly never coordinated SE tax with the W-2 wage base**
+  (`taxCalc.js`, `TaxReturn.jsx`, `fieldManifest.js`, `EntityCompareModal.jsx`,
+  `sessionState.js`). LIMITATION SE-MFJ-WAGEBASE refused to net any W-2 against the
+  §1402(b) wage base for a joint return because the household W-2 carried no spouse
+  attribution. New MFJ-only Step 2 field `w2OwnForSE` — "of the W-2 wages above, the
+  amount YOU earned (the spouse with the self-employment income)" — supplies it; the
+  engine nets that amount (clamped to the household total). Blank/0 reproduces the prior
+  conservative computation byte-for-byte, so existing records and dual-earner households
+  are unchanged. Verified live: MFJ W-2 $200,000 + $80,000 partnership SE income showed
+  $11,304 of SE tax; a single/HOH/QSS filer with identical inputs showed $2,143. The SE
+  Tax waterfall row now states which W-2 dollars were netted against the wage base.
+
+### Tests
+- `taxCalc-469-magi-audit.test.js` (new, SPEC): GP in MAGI, ½-SE in MAGI, Schedule C
+  ½-SE, both §469 branches, W-2-only regression (unchanged), YTD scaling.
+- `taxCalc-se-wage-base-mfj-attribution.test.js` (new, SPEC): attributed W-2
+  coordinates for MFJ and matches the single-filer figure; blank keeps the conservative
+  figure; clamp to household total; non-MFJ ignores the field; result fields.
+- `TaxReturn.test.jsx` (+4): MFJ field visibility, engine wiring, SE-row note.
+- `fieldManifest.test.js`: YTD flow list pin updated for `w2OwnForSE`.
+- Suite: 106 files / 1,566 tests passing (1,545 baseline + 21 new).
+
+---
+
 ## Launch check follow-ups (N-1, N-3, N-4, N-5, N-6) — September 12, 2026
 
 Independent re-check of the 11–12 Sep closing/closeout reports against the live site:
