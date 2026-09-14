@@ -161,6 +161,10 @@ export default function TaxReturn() {
   const [filingStatus, setFilingStatus] = useState(savedCtx.filingStatus || 'single')
   const [w2Income,     setW2Income]     = useState(savedCtx.w2Income      || '')
   const [w2Withheld,   setW2Withheld]   = useState(savedCtx.w2Withheld    || '')
+  // FOURTH READ R-2 (14 Sep 2026): MFJ only — the household W-2 dollars earned by the
+  // spouse whose SE income is taxed. Drives §1402(b) wage-base coordination on a joint
+  // return; blank keeps the conservative uncoordinated computation (SE-MFJ-WAGEBASE).
+  const [w2OwnForSE,   setW2OwnForSE]   = useState(savedCtx.w2OwnForSE    || '')
   const [estPaid,      setEstPaid]      = useState(savedCtx.estPaid        || '')
   // 2210-lite (Jul 2026): optional per-installment payment timing (§6654(d)(1)(A)).
   const [estQ1, setEstQ1] = useState(savedCtx.estQ1 || '')
@@ -366,6 +370,8 @@ export default function TaxReturn() {
     return {
       taxYear, status: filingStatus, dependents: nf(dependents),
       entities: entityList, w2: w2Total, k1Total: sessionK1 || 0,
+      // R-2: only meaningful for MFJ; the engine ignores it for every other status.
+      w2OwnForSE: filingStatus === 'mfj' ? nf(w2OwnForSE) : 0,
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
@@ -409,7 +415,7 @@ export default function TaxReturn() {
       useItemized, itemizedAmt: itemizedAmtForEngine, medicalExpenses: medicalForEngine,
     }
   }, [
-    taxYear, filingStatus, dependents, entities, w2Income, w2Withheld, estPaid,
+    taxYear, filingStatus, dependents, entities, w2Income, w2OwnForSE, w2Withheld, estPaid,
     estQ1, estQ2, estQ3, estQ4, charitableContr,
     sessionK1, isREP, isActiveParticipant, priorPAL, priorSuspendedLoss,
     rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride,
@@ -474,7 +480,7 @@ export default function TaxReturn() {
     if (_dirtyMountRef.current) writeDirtyFlag(true)
     else _dirtyMountRef.current = true
     writePersonalContext({
-      filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+      filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, f4797MateriallyParticipated, nonrecap1231,
       capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
@@ -490,7 +496,7 @@ export default function TaxReturn() {
       priorSuspendedLoss,           // F-01
     })
   }, [
-    filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+    filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
@@ -521,7 +527,7 @@ export default function TaxReturn() {
       taxYear,
       entities: Array.isArray(entities) ? entities : [],
       k1Income: sessionK1 || 0,
-      filingStatus, dependents, w2Income, w2Withheld, estPaid,
+      filingStatus, dependents, w2Income, w2OwnForSE, w2Withheld, estPaid,
       quarterly: result?.quarterlyRecommended || 0,
       totalTax:  result?.totalTax || 0,
       // FINDING 8 FIX: persist a boolean so the Dashboard can distinguish a
@@ -541,7 +547,7 @@ export default function TaxReturn() {
         pnl:               entities?.[0]?.pnl || {},
       },
       f1040: {
-        filingStatus, w2Income, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+        filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
         unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
@@ -573,7 +579,7 @@ export default function TaxReturn() {
     return record
   }, [
     taxYear, entities, sessionK1, filingStatus, dependents,
-    w2Income, w2Withheld, estPaid, ytdMode, ytdMonth,
+    w2Income, w2OwnForSE, w2Withheld, estPaid, ytdMode, ytdMonth,
     stGain, ltGain, interest, dividends, qualDividends,
     unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
@@ -1216,6 +1222,37 @@ export default function TaxReturn() {
                 />
               </div>
             </div>
+            {/* FOURTH READ R-2 (14 Sep 2026): on a joint return the engine cannot tell whose
+                W-2 is whose, so by default it does NOT net any W-2 against the SE wage base
+                (Schedule SE is filed per spouse — IRC §1402(b)). That is exact for a
+                dual-earner household and overstates SE tax for a single business owner who
+                also has a day job. This field lets that owner attribute their OWN wages.
+                Shown only for MFJ and only when the return actually has SE income. */}
+            {filingStatus === 'mfj' && (result?.seNetIncome > 0 || nf(w2OwnForSE) > 0) && (nf(w2Income) > 0 || officerW2ForYTD > 0) && (
+              <div style={{ marginTop: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={inpWrap}>
+                    <label htmlFor="tr-w2-own-for-se" style={inputLbl}>
+                      Of the W-2 wages above, the amount YOU earned (the spouse with the self-employment income)
+                      <InfoTip text={'Joint return only. Schedule SE is filed separately for each spouse (IRC §1402(b)), so only the self-employed spouse\'s OWN W-2 Social Security wages use up their Social Security wage base — a spouse\'s wages never do.\n\nEnter the part of the household W-2 total (other-employer wages plus any S-Corp officer salary shown above) that was earned by the spouse whose business income is taxed on Schedule SE. Leave blank if that spouse had no W-2 wages.\n\nLeft blank, TaxStat360 applies the FULL wage base to your self-employment earnings — correct for a dual-earner household, but it overstates SE tax by up to 12.4% of the wage base when the W-2 and the business belong to the same person.'} wide />
+                    </label>
+                    <Step2MoneyInput
+                      id="tr-w2-own-for-se"
+                      value={w2OwnForSE}
+                      onChange={setW2OwnForSE}
+                      placeholder="0"
+                      nonNegative
+                      onClick={e => e.stopPropagation()}
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#475569', alignSelf: 'end', paddingBottom: 6 }}>
+                    {nf(w2OwnForSE) > 0
+                      ? `Social Security wage base remaining for your SE earnings: ${fmt(result?.ssWageBaseRoom || 0)} of ${fmt(result?.ssWageBase || 0)}.`
+                      : `Blank — the full ${fmt(result?.ssWageBase || 0)} wage base is applied to the SE earnings (assumes the W-2 belongs to the other spouse).`}
+                  </div>
+                </div>
+              </div>
+            )}
             {/* AI-5 FIX: withholding notice — retained for non-S-Corp owners; S-Corp owners
                 see the blue breakdown box above which covers the same point more completely. */}
             {!entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
@@ -2084,7 +2121,17 @@ export default function TaxReturn() {
                 { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
                 { label: '—', value: 0, divider: true },
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
-                { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0 },
+                // FOURTH READ R-2 (14 Sep 2026): say which W-2 dollars were netted against the
+                // Social Security wage base, so an MFJ owner can see whether the attribution
+                // field above was honored (and a one-person return sees its own coordination).
+                { label: 'SE Tax',                      value: result.seTax,                             sign: 1, hide: result.seTax === 0,
+                  note: (result.seTax > 0 && (result.totalW2ForFICA || 0) > 0)
+                    ? (calcInput.status === 'mfj'
+                        ? ((result.seWageBaseW2 || 0) > 0
+                            ? `12.4% OASDI applied to the ${fmt(result.ssWageBaseRoom || 0)} of Social Security wage base left after your own ${fmt(result.seWageBaseW2)} of W-2 wages (IRC §1402(b))`
+                            : `Full ${fmt(result.ssWageBase || 0)} wage base applied — no W-2 attributed to the self-employed spouse (enter it in the W-2 section if the wages and the business are yours)`)
+                        : `12.4% OASDI applied to the ${fmt(result.ssWageBaseRoom || 0)} of Social Security wage base left after ${fmt(result.totalW2ForFICA)} of W-2 wages (IRC §1402(b))`)
+                    : undefined },
                 { label: 'Employee FICA (payroll)',      value: result.employeeFICA,                      sign: 1, hide: !result.employeeFICA || result.employeeFICA === 0, accent: '#94A3B8', note: 'Withheld via W-2 payroll — not in Balance Due' },
                 // AUDIT N-3 FIX: the 0.9% Additional Medicare Tax (§3101(b)(2)) was included
                 // in Total Tax but rendered no line — invisible to the user.

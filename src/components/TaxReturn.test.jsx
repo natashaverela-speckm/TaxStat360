@@ -808,3 +808,58 @@ describe('TaxReturn — LAUNCH CHECK N-5: qualified dividends above ordinary div
     readPersonalContext.mockReturnValue({})
   })
 })
+
+// ─── FOURTH READ R-2 (14 Sep 2026): MFJ Schedule SE attribution field ───────────────
+//
+// The engine cannot tell whose W-2 is whose on a joint return, so it does not net any W-2
+// against the SE wage base unless the self-employed spouse's own wages are attributed in
+// this field. These tests pin the WIRING (visibility, what reaches the engine, the SE row
+// note); the dollar figures are SPEC-tested in taxCalc-se-wage-base-mfj-attribution.test.js.
+
+describe('TaxReturn — R-2: "of the W-2 wages above, the amount YOU earned" (MFJ only)', () => {
+  const FIELD = /Of the W-2 wages above, the amount YOU earned/
+
+  it('renders for MFJ with W-2 and SE income, and passes w2OwnForSE to the engine', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ filingStatus: 'mfj', w2Income: '200000', w2OwnForSE: '150000' })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), seNetIncome: 80000, seTax: 5379, totalW2ForFICA: 200000, seWageBaseW2: 150000, ssWageBaseRoom: 26100, ssWageBase: 176100 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText(FIELD)).toBeTruthy()
+    const lastCall = calcTaxReturn.mock.calls[calcTaxReturn.mock.calls.length - 1][0]
+    expect(lastCall.w2OwnForSE).toBe(150000)
+    // SE Tax row names the wages actually netted against the wage base
+    expect(getByText(/left after your own \$150,000 of W-2 wages/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readPersonalContext.mockReturnValue({})
+  })
+
+  it('is hidden for a single filer, and a stale value never reaches the engine for non-MFJ', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ filingStatus: 'single', w2Income: '200000', w2OwnForSE: '150000' })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), seNetIncome: 80000, seTax: 2143, totalW2ForFICA: 200000 })
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText(FIELD)).toBeNull()
+    const lastCall = calcTaxReturn.mock.calls[calcTaxReturn.mock.calls.length - 1][0]
+    expect(lastCall.w2OwnForSE).toBe(0)
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readPersonalContext.mockReturnValue({})
+  })
+
+  it('is hidden for MFJ when the return has no SE income (nothing to coordinate)', () => {
+    readPersonalContext.mockReturnValue({ filingStatus: 'mfj', w2Income: '200000' })
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText(FIELD)).toBeNull()
+    readPersonalContext.mockReturnValue({})
+  })
+
+  it('MFJ with SE income and no attribution: SE row says the full wage base was applied', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ filingStatus: 'mfj', w2Income: '200000' })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), seNetIncome: 80000, seTax: 11304, totalW2ForFICA: 200000, seWageBaseW2: 0, ssWageBaseRoom: 176100, ssWageBase: 176100 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText(FIELD)).toBeTruthy()
+    expect(getByText(/Full \$176,100 wage base applied — no W-2 attributed/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readPersonalContext.mockReturnValue({})
+  })
+})

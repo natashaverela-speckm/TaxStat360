@@ -74,6 +74,7 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     status: p.filingStatus || 'single',
     dependents: nf(p.dependents),
     w2: nf(p.w2Income) + officerW2Others,
+    w2OwnForSE: nf(p.w2OwnForSE),   // R-2 (14 Sep 2026): MFJ Schedule SE attribution
     stGain: nf(p.stGain),
     ltGain: nf(p.ltGain ?? p.capitalGains),
     intInc: nf(p.interest),
