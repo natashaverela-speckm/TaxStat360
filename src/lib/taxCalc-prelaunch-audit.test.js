@@ -128,11 +128,26 @@ describe('Deductions, credits and the rate schedules', () => {
     expect(r.totalTax).toBe(90025)
   })
 
-  it('SPEC: unrecaptured §1250 at 25% and collectibles at 28% inside a 60,000 long-term gain — 25,749', () => {
-    // 13,449 ordinary + 30,000 × 15% + 20,000 × 25% + 10,000 × 28% = 25,749; all-ordinary backstop 27,467 does not bind.
+  it('SPEC: unrecaptured §1250 and collectibles inside a 60,000 long-term gain — Schedule D Tax Worksheet — 24,767', () => {
+    // Second pass (14 Sep 2026): the 25%/28% rates are CEILINGS. Worksheet, TI 144,250: L13 30,000 ·
+    // L14 114,250 · L18 84,250 · L20 114,250 · L21 114,250 (the 30,000 of §1250 + collectibles is
+    // taxed at 22%/24% inside it) · L30 30,000 → L31 4,500 · L39 = 20,000 − (60,000 + 114,250 −
+    // 144,250) = 0 → L40 0 · L42 0 → L43 0 · L44 tax(114,250) 20,267 · L45 24,767 · L46 27,467 ·
+    // L47 24,767. prefTax = 24,767 − tax(84,250) 13,449 = 11,318. (Flat-rate version: 25,749.)
     const r = calcTaxReturn({ ...b, w2: 100000, ltGain: 60000, unrecap1250: 20000, collectiblesGain: 10000 })
-    expect(r.prefTax).toBe(12300)
-    expect(r.totalTax).toBe(25749)
+    expect(r.prefTax).toBe(11318)
+    expect(r.totalTax).toBe(24767)
+  })
+
+  it('SPEC: fourth read S10 — single 2025, W-2 150,000, LTCG 80,000 of which 50,000 unrecaptured §1250 — 42,707', () => {
+    // Worksheet, TI 214,250: L13 30,000 · L14 184,250 · L18 134,250 · L19 197,300 · L20 184,250 ·
+    // L21 184,250 (the whole §1250 layer sits in the 24% bracket) · L30 30,000 → L31 4,500 ·
+    // L39 = 50,000 − (80,000 + 184,250 − 214,250) = 0 → L40 0 · L44 tax(184,250) 37,067 · L47 41,567.
+    // NIIT 3.8% × min(80,000, 230,000 − 200,000) = 1,140. Total 42,707 (site showed 43,207 before the fix).
+    const r = calcTaxReturn({ ...b, w2: 150000, ltGain: 80000, unrecap1250: 50000 })
+    expect(r.fedTax).toBe(41567)
+    expect(r.niitAmount ?? r.niit?.amount ?? r.niit).toBe(1140)
+    expect(r.totalTax).toBe(42707)
   })
 
   it('SPEC: SSTB in the phase-in band — single, taxable 234,250: applicable percentage 26.1%, QBI 7,830', () => {

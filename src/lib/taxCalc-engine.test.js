@@ -171,13 +171,14 @@ describe('calcPreferentialTax', () => {
     // High bracket: backstop does not bind → flat 28% = 2,800.
     expect(calcPreferentialTax(300000, { ltcg: 10000, collectibles: 10000 }, 2025, 'single')).toBe(2800)
   })
-  it('CHAR: all four preferential types combined', () => {
-    // AUDIT F-5 FIX — Sch D Tax Worksheet stacking:
-    // slices come OUT of ltcg: adjNCG = (10,000 − 4,000 − 2,000) + 5,000 qualDiv = 9,000 @15% = 1,350
-    // + unrecap1250 4,000 × 25% = 1,000  (§1(h)(1)(E))
-    // + collectibles 2,000 × 28% = 560   (§1(h)(4))
-    // = 2,910; backstop (all-ordinary on 15,000 above 100,000 = 3,533) does not bind.
-    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2910)
+  it('SPEC: all four preferential types combined — Schedule D Tax Worksheet (14 Sep 2026 second pass)', () => {
+    // Worksheet, 2025 single, TI 115,000: L10 15,000 · L11 6,000 · L13 (adj. net cap gain) 9,000 ·
+    // L14 106,000 · L16/L17 48,350 · L18 100,000 · L19 115,000 · L20 106,000 · L21 106,000 (taxed at
+    // ordinary rates — the 6,000 of §1250/collectibles gain is INSIDE it, so it is taxed at 22%/24%,
+    // not a flat 25%/28%) · L22 0 · L30 9,000 → L31 1,350 · L39 = 4,000 − (121,000 − 115,000) = 0 →
+    // L40 0 · L42 0 → L43 0 · L44 tax(106,000) 18,287 · L45 19,637 · L46 20,447 · L47 19,637.
+    // prefTax = 19,637 − tax(100,000) 16,914 = 2,723. (The July F-5 flat-rate version gave 2,910.)
+    expect(calcPreferentialTax(100000, { ltcg: 10000, qualDiv: 5000, unrecap1250: 4000, collectibles: 2000 }, 2025, 'single')).toBe(2723)
   })
   it('CHAR: MFJ has higher 0% threshold ($96,700)', () => {
     // Same case as single straddle but MFJ 0% top = $96,700 → all $20k LTCG fits in 0%

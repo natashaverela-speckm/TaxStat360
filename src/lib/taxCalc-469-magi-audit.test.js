@@ -80,7 +80,7 @@ describe('R-1 — §469(i)(3)(F) MAGI includes guaranteed payments and nets the 
     expect(r.agi).toBe(111522)
   })
 
-  it('SPEC: GP alone drives the phase-out — W-2 0, Box 1 0, GP 130,000, rental −30,000 → MAGI 130,000 − 9,185 = 120,815; allowance 14,593 (SPEC: §469(i)(3)(A))', () => {
+  it('SPEC: GP alone drives the phase-out — W-2 0, Box 1 0, GP 130,000, rental −30,000 → MAGI 130,000 − 9,184 = 120,816; allowance 14,592 (SPEC: §469(i)(3)(A))', () => {
     // SE: 130,000 × 0.9235 = 120,055 → × 15.3% = 18,368.42 → 18,368; ½ = 9,184
     // MAGI = 130,000 − 9,184 = 120,816 → allowance 25,000 − 0.5 × 20,816 = 14,592
     const r = calcTaxReturn({
@@ -123,11 +123,49 @@ describe('R-1 — §469(i)(3)(F) MAGI includes guaranteed payments and nets the 
     })
     const ytd = calcTaxReturn({
       ...base, w2: 25000, k1Total: 10000, ytdFactor: 2,
-      entities: [partner(25000, { guaranteedPayments: 30000 }), rental(-15000)],
+      entities: [partner(25000, { guaranteedPayments: 15000 }), rental(-15000)],
     })
-    // guaranteedPayments is not in YTD_SCALE_ENTITY_FIELDS (pre-existing boundary), so it
-    // is entered full-year in both; everything else halves and doubles back.
+    // Second pass (review finding 5): guaranteedPayments is now in YTD_SCALE_ENTITY_FIELDS,
+    // so a half-year GP entry annualizes like every other flow.
+    expect(ytd.guaranteedPaymentsTotal).toBe(30000)
     expect(ytd.palSuspendedRental).toBe(full.palSuspendedRental)
     expect(ytd.agi).toBe(full.agi)
+  })
+})
+
+// ─── Second pass (14 Sep 2026, fresh-eyes review findings 3 & 4): SEHI and the §1372 gross-up ──
+
+describe('R-1 second pass — the §469(i) MAGI uses the engine\'s final SEHI deduction and the wage gross-up', () => {
+  it('SPEC: the split SEHI fields and the single field give the same allowance (both are §162(l) deductions in AGI)', () => {
+    const a = calcTaxReturn({ ...base, w2: 50000, k1Total: 50000, entities: [partner(80000), rental(-30000)], selfEmpHealthIns: 20000 })
+    const b = calcTaxReturn({ ...base, w2: 50000, k1Total: 50000, entities: [partner(80000), rental(-30000)], selfEmpHealthInsOther: 20000 })
+    expect(a.selfEmpHealthDed).toBe(20000)
+    expect(b.selfEmpHealthDed).toBe(20000)
+    expect(a.palSuspendedRental).toBe(b.palSuspendedRental)
+    expect(a.totalTax).toBe(b.totalTax)
+    // MAGI = 50,000 + 80,000 − 5,652 − 20,000 = 104,348 → allowance 22,826 → suspended 7,174
+    expect(a.palSuspendedRental).toBe(7174)
+  })
+
+  it('SPEC: only the DEDUCTIBLE SEHI reduces MAGI — a premium above the §162(l) earned-income cap does not', () => {
+    // Sch C 30,000: SE earnings 27,705 → SE tax 4,239 → ½ 2,120; SEHI cap = 30,000 − 2,120 = 27,880
+    const r = calcTaxReturn({ ...base, w2: 120000, k1Total: 30000 - 30000, entities: [soleProp(30000), rental(-30000)], selfEmpHealthIns: 60000 })
+    expect(r.selfEmpHealthDed).toBe(27880)
+    // MAGI = 120,000 + 30,000 − 2,120 − 27,880 = 120,000 → allowance 15,000 → suspended 15,000
+    expect(r.palSuspendedRental).toBe(15000)
+  })
+
+  it('SPEC: an S-Corp-paid premium is grossed into wages (§1372 / Notice 2008-1) and that gross-up is in the §469(i) MAGI', () => {
+    // Officer W-2 100,000 (entered net of premium), K-1 30,000, SEHI 25,000 paid by the S-Corp.
+    // AGI = 100,000 + 25,000 gross-up + 30,000 − 25,000 SEHI = 130,000 before the rental → allowance 10,000.
+    const r = calcTaxReturn({
+      ...base, w2: 100000, k1Total: 30000 - 30000,
+      entities: [{ type: 'S Corporation', own: 100, k1: 30000, officerW2: 100000 }, rental(-30000)],
+      selfEmpHealthIns: 25000,
+    })
+    expect(r.sehiScorpWageGrossUp).toBe(25000)
+    expect(r.selfEmpHealthDed).toBe(25000)
+    expect(r.palSuspendedRental).toBe(20000)
+    expect(r.agi).toBe(120000)
   })
 })

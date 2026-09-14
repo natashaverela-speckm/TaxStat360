@@ -107,8 +107,23 @@ describe('R-4 -- getEntityK1Share() ignores stale share shortcuts on a synced en
     expect(getEntityK1Share(synced({ k1DirectMode: true }))).toBe(-240830)
   })
 
-  it('SPEC: a leftover explicit k1 override is ignored once the entity is synced', () => {
-    expect(getEntityK1Share(synced({ k1: -481660 }))).toBe(-240830)
+  it('SPEC: an explicit k1 on a synced entity is HONORED — it is the engine\'s own §1366(d) basis-limited figure (second pass, review finding 1)', () => {
+    expect(getEntityK1Share(synced({ k1: -40000 }))).toBe(-40000)
+  })
+
+  it('SPEC: end-to-end — a synced S-Corp loss with $0 basis is fully suspended and the QBI/SE bases see the LIMITED loss, exactly as an unsynced entity', () => {
+    const mk = (extra) => [
+      { type: 'S Corporation', own: 50, pnl: { netProfit: -481660 }, ...extra },
+      { type: 'Sole Proprietor / SMLLC', own: 100, pnl: { netProfit: 200000 } },
+    ]
+    const run = (extra) => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 0, assumeZeroBasisOnLoss: true,
+      k1Total: sumK1FlowThrough(mk(extra)), entities: mk(extra) })
+    const synced = run({ connectedId: 'freshbooks', isManual: false })
+    const manual = run({})
+    expect(synced.totalSuspendedLoss).toBe(240830)
+    expect(synced.totalTax).toBe(manual.totalTax)
+    expect(synced.qbiBasis).toBe(manual.qbiBasis)
+    expect(synced.seNetIncome).toBe(200000)
   })
 
   it('CHAR: manual K-1-direct entities keep the Finding-2 contract (Box 1 is already the share)', () => {

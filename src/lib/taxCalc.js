@@ -549,44 +549,115 @@ function calcFederalTax(ordinaryIncome, year, fs) {
 }
 // §1(h) IRC — preferential rates: LTCG / qualified dividends / §1250 / collectibles.
 // 0% §1(h)(1)(B) · 15% §1(h)(1)(C) · 20% §1(h)(1)(D) · §1250 max 25% §1(h)(6) · collectibles max 28% §1(h)(4).
-function calcPreferentialTax(ordinaryIncome, prefItems, year, fs) {
-  // AUDIT F-5 FIX (Jul 2026). Prior version stacked the §1250/collectibles slices at
-  // the ORDINARY floor and charged incremental ordinary-bracket tax capped at 25%/28%,
-  // which (a) let low ordinary brackets (10/12/22%) tax unrecaptured §1250 gain and
-  // (b) simultaneously removed the slice from the 15% bucket — understating tax
-  // (observed ≈$3,310 per $50,000 on audit facts). The Schedule D Tax Worksheet taxes
-  // the 25%-rate gain (§1(h)(1)(E)/(h)(6)) and 28%-rate gain (§1(h)(4)) at flat
-  // 25%/28% AFTER the 0/15/20 adjusted-net-capital-gain stack, with a final backstop:
-  // total preferential tax may never exceed all-ordinary treatment of the same income
-  // (protects low-bracket taxpayers, mirroring the worksheet's "smaller of" lines).
+function calcPreferentialTax(ordinaryIncome, prefItems, year, fs, opts = {}) {
+  // FOURTH READ, second pass (14 Sep 2026) — SCHEDULE D TAX WORKSHEET, LINE FOR LINE.
   //
-  // SEMANTICS (unchanged, now clamped + documented): unrecap1250 and collectibles are
-  // SLICES of the long-term gain already included in `ltcg` — they re-rate a portion
-  // of it, they do not add income. The UI label must say so (see TaxReturn.jsx).
+  // The AUDIT F-5 version (Jul 2026) taxed unrecaptured §1250 gain at a FLAT 25% and
+  // collectibles at a FLAT 28% after the 0/15/20 stack, with only an all-ordinary backstop.
+  // That is not what the worksheet does. Lines 35–40 tax the 25% gain at 25% only to the
+  // extent it is NOT already inside line 21 — and line 21 (the amount taxed at ordinary
+  // rates) is the LARGER of (a) taxable income less ALL long-term gain and qualified
+  // dividends, and (b) taxable income less the 0/15/20 gain, capped at the top of the 24%
+  // bracket (line 19). So §1250 and collectibles gain is taxed at the taxpayer's ORDINARY
+  // rate up to the top of the 24% bracket and at 25% / 28% only above it: the 25% and 28%
+  // are ceilings (§1(h)(1)(E), §1(h)(4) — "the lesser of"), not flat rates. Verified
+  // 14 Sep 2026 on the live site: single, W-2 $150,000, LTCG $80,000 of which $50,000
+  // §1250 — engine $42,067 of income tax, worksheet $41,567 (the whole §1250 layer sits in
+  // the 24% bracket, so line 39 is $0). A landlord in the 22% bracket was overcharged 3
+  // points on every dollar of depreciation recapture. The 0% band is likewise measured
+  // against line 14 (taxable income less only the 0/15/20 gain), so §1250/collectibles
+  // gain consumes 0%/15% room exactly as the worksheet stacks it.
+  //
+  // Returns the preferential-tax INCREMENT over calcFederalTax(ordinaryIncome), so the
+  // caller's `ordFedTax + prefTax` equals worksheet line 47.
+  //
+  // opts.amt: Form 6251 Part III mode. AMT has no rate below 26%, so its 25%/28% layers are
+  // taxed at flat 25%/28% (lines 33–36 of Part III) with the same all-AMT-rate backstop the
+  // pre-existing code applied; calcAMT passes amt:true and its behavior is unchanged.
+  //
+  // SEMANTICS (unchanged): unrecap1250 and collectibles are SLICES of the long-term gain
+  // already included in `ltcg` — they re-rate a portion of it, they do not add income.
   const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
   const [threshold0, threshold15] = getLTCGThresholds(year, fs)
   const ordFloor = Math.max(0, ordinaryIncome)
-  const _ltcgPos = Math.max(0, ltcg)
+  const _ltcgPos = Math.max(0, ltcg)                                   // line 7/9: net LT gain, floored
   const _u1250   = Math.min(Math.max(0, unrecap1250), _ltcgPos)
   const _coll    = Math.min(Math.max(0, collectibles), _ltcgPos - _u1250)
-  const adjNCG   = (_ltcgPos - _u1250 - _coll) + Math.max(0, qualDiv)  // 0/15/20 bucket
+  const _qd      = Math.max(0, qualDiv)
+  const adjNCG   = (_ltcgPos - _u1250 - _coll) + _qd                    // line 13: 0/15/20 bucket
   const totalPrefAll = adjNCG + _u1250 + _coll
   if (totalPrefAll <= 0) return 0
-  let tax = 0
-  if (adjNCG > 0) {
-    const zeroRoom    = Math.max(0, threshold0  - ordFloor)
-    const atZero      = Math.min(adjNCG, zeroRoom)
-    const fifteenRoom = Math.max(0, threshold15 - Math.max(ordFloor, threshold0))
-    const atFifteen   = Math.min(adjNCG - atZero, fifteenRoom)
-    const atTwenty    = adjNCG - atZero - atFifteen
-    tax += atFifteen * LTCG_RATE_MID
-    tax += atTwenty  * LTCG_RATE_HIGH
+
+  if (opts.amt) {
+    // Form 6251 Part III: 0/15/20 on the adjusted net capital gain stacked on the AMT
+    // ordinary base; 25% and 28% layers flat; never more than all-AMT-rate treatment.
+    let tax = 0
+    if (adjNCG > 0) {
+      const zeroRoom    = Math.max(0, threshold0  - ordFloor)
+      const atZero      = Math.min(adjNCG, zeroRoom)
+      const fifteenRoom = Math.max(0, threshold15 - Math.max(ordFloor, threshold0))
+      const atFifteen   = Math.min(adjNCG - atZero, fifteenRoom)
+      const atTwenty    = adjNCG - atZero - atFifteen
+      tax += atFifteen * LTCG_RATE_MID + atTwenty * LTCG_RATE_HIGH
+    }
+    tax += _u1250 * UNRECAPTURED_1250_MAX_RATE
+    tax += _coll  * COLLECTIBLES_MAX_RATE
+    const allOrdinary = calcFederalTax(ordFloor + totalPrefAll, year, fs) - calcFederalTax(ordFloor, year, fs)
+    return Math.round(Math.min(tax, allOrdinary))
   }
-  tax += _u1250 * UNRECAPTURED_1250_MAX_RATE   // flat 25%, §1(h)(1)(E)
-  tax += _coll  * COLLECTIBLES_MAX_RATE        // flat 28%, §1(h)(4)
-  // Worksheet backstop: never worse than all-ordinary treatment of the pref stack.
-  const allOrdinary = calcFederalTax(ordFloor + totalPrefAll, year, fs) - calcFederalTax(ordFloor, year, fs)
-  return Math.round(Math.min(tax, allOrdinary))
+
+  // ── Schedule D Tax Worksheet (Form 1040 instructions), line numbers as printed ──
+  const L1  = ordFloor + totalPrefAll                                   // taxable income
+  const L10 = _qd + _ltcgPos                                            // QD + net LT gain
+  const L11 = _u1250 + _coll                                            // 25% + 28% gain
+  const L12 = Math.min(_ltcgPos, L11)
+  const L13 = L10 - L12                                                 // adjusted net capital gain
+  const L14 = Math.max(0, L1 - L13)
+  const L16 = Math.min(L1, threshold0)
+  const L17 = Math.min(L14, L16)
+  const L18 = Math.max(0, L1 - L10)
+  // line 19: the top of the 24% bracket for this status (the §1(h)(1)(B)(i)/(h)(1)(E)
+  // breakpoint) — read from the bracket table so it tracks the year automatically.
+  const _brackets = getBrackets(year, fs)
+  const _top24 = (_brackets.find(([, r]) => r === 0.24) || [Infinity])[0]
+  const L19 = Math.min(L1, _top24)
+  const L20 = Math.min(L14, L19)
+  const L21 = Math.max(L18, L20)                                        // taxed at ordinary rates
+  const L22 = Math.max(0, L16 - L17)                                    // taxed at 0%
+  let L31 = 0, L34 = 0, L40 = 0, L43 = 0
+  if (L1 !== L16) {
+    const L23 = Math.min(L1, L13)
+    const L24 = L22
+    const L25 = Math.max(0, L23 - L24)
+    const L27 = Math.min(L1, threshold15)
+    const L28 = L21 + L22
+    const L29 = Math.max(0, L27 - L28)
+    const L30 = Math.min(L25, L29)
+    L31 = L30 * LTCG_RATE_MID                                           // 15%
+    const L32 = L24 + L30
+    if (L1 !== L32) {
+      const L33 = Math.max(0, L23 - L32)
+      L34 = L33 * LTCG_RATE_HIGH                                        // 20%
+      let L39 = 0
+      if (_u1250 > 0) {
+        const L35 = Math.min(_ltcgPos, _u1250)
+        const L36 = L10 + L21
+        const L38 = Math.max(0, L36 - L1)
+        L39 = Math.max(0, L35 - L38)
+        L40 = L39 * UNRECAPTURED_1250_MAX_RATE                          // 25% — only the part above line 21
+      }
+      if (_coll > 0) {
+        const L41 = L21 + L22 + L30 + L33 + L39
+        const L42 = Math.max(0, L1 - L41)
+        L43 = L42 * COLLECTIBLES_MAX_RATE                               // 28%
+      }
+    }
+  }
+  const L44 = calcFederalTax(L21, year, fs)
+  const L45 = L31 + L34 + L40 + L43 + L44
+  const L46 = calcFederalTax(L1, year, fs)
+  const L47 = Math.min(L45, L46)
+  return Math.round(L47 - calcFederalTax(ordFloor, year, fs))
 }
 /** §1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI − threshold).
  *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH — statutory, not inflation-adjusted.
@@ -653,7 +724,8 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const preferentialAMT = calcPreferentialTax(
     ordinaryAMTI,
     { ltcg: _ltAMT, qualDiv: _qdAMT, unrecap1250, collectibles },
-    taxYear, status
+    taxYear, status,
+    { amt: true }   // Form 6251 Part III: flat 25%/28% layers (no AMT rate below 26%)
   )
   const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
@@ -1443,6 +1515,120 @@ function calcTaxReturn(input) {
   const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
   const employeeFICA   = Math.round(empSS + empMedicare)
+  // ── FOURTH READ, second pass (14 Sep 2026, review findings 3 & 4): the §162(l) SEHI block
+  // and the §461(l) cap-gain lines were hoisted above the §469 section (verbatim) so the
+  // §469(i) MAGI can use the engine's FINAL SEHI deduction, the §1372 wage gross-up, and
+  // the §461(l) addback — all of which reach AGI — instead of the raw premium entry.
+  // AUDIT F-7 FIX: §162(l)(5)(A) — the self-employed health insurance deduction is
+  // limited to earned income from the trade or business under which the plan is
+  // established: S-corp shareholders → their W-2 officer wages from the S-corp
+  // (Notice 2008-1); Schedule C / SE pass-throughs → net SE earnings less ½ SE tax
+  // and SE retirement contributions (Pub. 535 worksheet). Previously uncapped
+  // (audit observed a $70,000 deduction allowed against $60,000 of wages).
+  // NOTE: the §469(i) MAGI pre-estimates above still subtract the raw entry; the
+  // cap cannot be computed before seTax exists. Direction of that residual is
+  // conservative (lower allowance) and only bites when the entry exceeds the cap.
+  const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
+    if (!e || !isSCorpEntity(e.type)) return s
+    return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
+  }, 0)
+  const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
+  const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
+  // B4 FIX (Aug 2026, schema batch): the split fields below let a taxpayer with BOTH an
+  // S-corp and independent SE income (sole prop / active partnership) tell TaxStat360
+  // exactly how much of their premium each business paid, instead of relying on the
+  // single combined `selfEmpHealthIns` figure the heuristic below has to guess about.
+  // `sehiSplitEngaged` is the signal that the split UI was used for THIS record; when
+  // false, every value below is computed identically to the pre-B4 code (byte-for-byte
+  // same formulas), so existing/legacy records are completely unaffected.
+  const sehiScorpEntered = ytdScale(selfEmpHealthInsScorp)
+  const sehiOtherEntered = ytdScale(selfEmpHealthInsOther)
+  const sehiSplitEngaged = sehiScorpEntered > 0 || sehiOtherEntered > 0
+  const sehiEntered          = sehiSplitEngaged
+    ? sehiScorpEntered + sehiOtherEntered
+    : ytdScale(selfEmpHealthIns)
+  // Per-leg caps: §162(l)(2)(A) limits EACH business's premium to THAT business's own
+  // earned income — an S-corp-paid premium is capped by the S-corp's own officer wages,
+  // and an independently-paid premium is capped by the OTHER business's own SE earnings.
+  // These are two separate statutory caps, not a shared pool — splitting the entry lets
+  // the engine apply them independently instead of pooling both legs against the combined
+  // `sehiLimit` (which the single-field heuristic below still does, since it cannot tell
+  // the legs apart).
+  const _sehiScorpLegDed = sehiSplitEngaged ? Math.min(sehiScorpEntered, _scorpOfficerW2ForSEHI) : 0
+  const _sehiOtherLegDed = sehiSplitEngaged ? Math.min(sehiOtherEntered, _seEarnedForSEHI) : 0
+  const selfEmpHealthDed     = sehiSplitEngaged
+    ? _sehiScorpLegDed + _sehiOtherLegDed
+    : Math.min(sehiEntered, sehiLimit)
+  const sehiClamped          = sehiSplitEngaged
+    ? (sehiScorpEntered > _sehiScorpLegDed || sehiOtherEntered > _sehiOtherLegDed)
+    : sehiEntered > selfEmpHealthDed
+  // EXT-1 FIX (Aug 2026, external accuracy audit — Finding 1): §1372 / Rev. Rul. 91-26
+  // require a >2% S-corp shareholder's health premium to be INCLUDED in Box 1 W-2 wages
+  // before the offsetting Schedule 1, Line 17 deduction is taken. Previously
+  // `selfEmpHealthDed` reduced AGI with NO corresponding wage inclusion anywhere in the
+  // engine: a $12,000 SEHI entry cut AGI (and tax) by the full $12,000 with no offsetting
+  // income for any user who (reasonably) entered their actual cash salary in Step 1 rather
+  // than manually pre-grossing it up.
+  //
+  // EXT-1 FOLLOW-UP FIX (Aug 2026, independent fresh-eyes re-audit — Finding 1 regression):
+  // the original EXT-1 fix above grossed wages up by the DEDUCTION amount (already capped
+  // at sehiLimit, then again at the officer W-2 base), not the FULL premium. That is wrong
+  // whenever premium exceeds the cap: Notice 2008-1 / Rev. Rul. 91-26 include the ENTIRE
+  // S-corp-paid premium in Box 1 wages regardless of the §162(l) deduction limitation — the
+  // wage inclusion and the deduction are NOT supposed to net to zero in that case; the
+  // excess premium is taxable wage income with no offsetting deduction. The prior formula
+  // silently dropped that excess from AGI entirely (re-audit case: $80,000 officer wages,
+  // $120,000 premium — AGI understated by $40,000; confirmed live in production).
+  //
+  // B4 (Aug 2026): when the split fields are engaged, the S-corp-paid amount is known
+  // exactly (`sehiScorpEntered`), so the full-premium gross-up applies unconditionally —
+  // no ambiguity to fall back on. When NOT engaged, this falls back to the original
+  // single-field heuristic below (unchanged): the full-premium gross-up applies only when
+  // the S-corp leg is the ENTIRE `sehiLimit` base (no independent SE-earned income
+  // present) — i.e. no ambiguity about sourcing. When both legs are present and the split
+  // was not used, the engine cannot safely attribute the combined entry and falls back to
+  // the prior (partial, capped) behavior; see KNOWN_LIMITATIONS.md → SEHI-MIXED-SOURCE.
+  // FICA wages are untouched either way — S-corp SEHI is exempt from FICA/Medicare tax per
+  // Notice 2008-1, so `totalW2ForFICA` / `additionalMedicare` below deliberately keep
+  // reading the raw `w2`.
+  const sehiScorpWageGrossUp = sehiSplitEngaged
+    ? sehiScorpEntered
+    : ((_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0)
+        ? sehiEntered
+        : Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI))
+  // EXT-1 FOLLOW-UP (independent review, Aug 2026): surface WHEN the mixed-source fallback
+  // above was actually used, so the UI can warn even in cases where `sehiClamped` is false
+  // (i.e. the combined earned-income cap was generous enough that the deduction itself
+  // wasn't limited, but the wage-grossup attribution between S-corp and sole-prop/partner
+  // legs is still only approximate). See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE.
+  // B4 (Aug 2026): false whenever the split fields are engaged — the attribution is exact,
+  // not a fallback, so the mixed-source warning banner no longer needs to fire.
+  const sehiMixedSourceFallback = sehiSplitEngaged
+    ? false
+    : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
+  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 512000 : 256000)  // A4-3: fallback = official 2026
+  // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
+  // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
+  // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
+  // — it only informs how much of the capital gain offsets business losses in the EBL netting.
+  const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
+  const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
+  // F10/P6-1 note: DELIBERATELY the raw (pre-§1211) figures — the §461(l) business-
+  // gain offset models gross business-attributable gains, not the Schedule D result.
+  const eblOverallCapGainNI   = _stGain + _ltGain + nf(f4797Inc)
+                              
+  const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
+  const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
+  // §461(l) excess business loss for a given nonpassive-rental figure. Called once with a
+  // preliminary rental figure for the §469(i) MAGI and once with the final one for AGI —
+  // the two coincide in every branch (legacy: REP is false whenever the allowance is
+  // measured, so the rental leg is 0; per-property: nonpassiveRentalNet is known first).
+  const calc461l = (_rentalForEBL) => {
+    const eblBiz     = adjustedK1Total + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+    const eblNetLoss = Math.max(0, -eblBiz)
+    const ebl        = Math.max(0, eblNetLoss - eblThreshold)
+    return { eblBiz, eblNetLoss, ebl }
+  }
   // §469(i)(3)(F) modified AGI — ONE definition for both §469 branches (R-1, 14 Sep 2026).
   // Included: W-2, pass-through income after basis limits, §707(c) guaranteed payments,
   // the nonpassive rental portion (per-property branch only), §1231/4797, the Schedule D
@@ -1450,16 +1636,18 @@ function calcTaxReturn(input) {
   // above-the-line deductions that DO count for this MAGI — §164(f) ½-SE, HSA, SEP/Solo
   // 401(k) and §162(l) SEHI. Excluded by statute (and therefore never subtracted here):
   // the §221 student-loan deduction, the §219 IRA deduction, taxable Social Security, and
-  // of course the passive loss itself. NOTE on SEHI: the engine's final §162(l) figure is
-  // computed later (it depends on halfSE); the entered premium is used here exactly as the
-  // pre-R-1 code did, so the only behavioral changes are the two items named above.
+  // of course the passive loss itself. Second pass (review findings 3 & 4): the SEHI leg is
+  // the engine's FINAL §162(l) deduction (split fields and the earned-income cap honored),
+  // the §1372 wage gross-up is added like every other AGI inclusion, and the §461(l)
+  // excess-business-loss addback is included because it, too, reaches AGI.
   const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
-    w2 + adjustedK1Total + guaranteedPaymentsTotal + _npRental
+    w2 + sehiScorpWageGrossUp + adjustedK1Total + guaranteedPaymentsTotal + _npRental
     + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
+    + calc461l(_npRental).ebl
     - halfSE
     - ytdScale(hsaDeduction)
     - ytdScale(selfEmpRetirement)
-    - ytdScale(selfEmpHealthIns)
+    - selfEmpHealthDed
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
@@ -1601,22 +1789,8 @@ function calcTaxReturn(input) {
     rentalForNII          = Math.max(0, passiveAllowed)
     rentalQbiContribution = nonpassiveRentalNet + Math.max(0, passiveAllowed)
   }
-  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 512000 : 256000)  // A4-3: fallback = official 2026
-  // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
-  // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
-  // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
-  // — it only informs how much of the capital gain offsets business losses in the EBL netting.
-  const extra1231BizGain      = Math.max(0, nf(bizCapGain1231))
-  const eblBizCapGain         = Math.max(0, nf(f4797Inc)) + extra1231BizGain
-  // F10/P6-1 note: DELIBERATELY the raw (pre-§1211) figures — the §461(l) business-
-  // gain offset models gross business-attributable gains, not the Schedule D result.
-  const eblOverallCapGainNI   = _stGain + _ltGain + nf(f4797Inc)
-                              
-  const eblAllowedBizCapGain  = Math.max(0, Math.min(eblBizCapGain, eblOverallCapGainNI))
-  const eblBizCapGainExcluded = eblBizCapGain - eblAllowedBizCapGain
-  const eblBiz       = adjustedK1Total + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + rentalForEBL
-  const eblNetLoss   = Math.max(0, -eblBiz)
-  const ebl          = Math.max(0, eblNetLoss - eblThreshold)
+  // §461(l) — same helper the §469(i) MAGI used above, now with the final nonpassive rental.
+  const { ebl } = calc461l(rentalForEBL)
   const unrec1250    = Math.max(0, nf(unrecap1250))
   const collectibles = Math.max(0, nf(collectiblesGain))
   // ─── KNOWN LIMITATION (SE-179) — see KNOWN_LIMITATIONS.md ─────────────────────
@@ -1659,96 +1833,9 @@ function calcTaxReturn(input) {
   // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
   const ficaSavings = scorpSeTaxSavings({
     k1Income: k1Distributions,
-    ficaSubjectWages: totalW2ForFICA,
+    ficaSubjectWages: seWageBaseW2,   // R-2 second pass: same wage-base attribution as seTax above
     ssWageBase,
   })
-  // AUDIT F-7 FIX: §162(l)(5)(A) — the self-employed health insurance deduction is
-  // limited to earned income from the trade or business under which the plan is
-  // established: S-corp shareholders → their W-2 officer wages from the S-corp
-  // (Notice 2008-1); Schedule C / SE pass-throughs → net SE earnings less ½ SE tax
-  // and SE retirement contributions (Pub. 535 worksheet). Previously uncapped
-  // (audit observed a $70,000 deduction allowed against $60,000 of wages).
-  // NOTE: the §469(i) MAGI pre-estimates above still subtract the raw entry; the
-  // cap cannot be computed before seTax exists. Direction of that residual is
-  // conservative (lower allowance) and only bites when the entry exceeds the cap.
-  const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
-    if (!e || !isSCorpEntity(e.type)) return s
-    return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
-  }, 0)
-  const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
-  const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
-  // B4 FIX (Aug 2026, schema batch): the split fields below let a taxpayer with BOTH an
-  // S-corp and independent SE income (sole prop / active partnership) tell TaxStat360
-  // exactly how much of their premium each business paid, instead of relying on the
-  // single combined `selfEmpHealthIns` figure the heuristic below has to guess about.
-  // `sehiSplitEngaged` is the signal that the split UI was used for THIS record; when
-  // false, every value below is computed identically to the pre-B4 code (byte-for-byte
-  // same formulas), so existing/legacy records are completely unaffected.
-  const sehiScorpEntered = ytdScale(selfEmpHealthInsScorp)
-  const sehiOtherEntered = ytdScale(selfEmpHealthInsOther)
-  const sehiSplitEngaged = sehiScorpEntered > 0 || sehiOtherEntered > 0
-  const sehiEntered          = sehiSplitEngaged
-    ? sehiScorpEntered + sehiOtherEntered
-    : ytdScale(selfEmpHealthIns)
-  // Per-leg caps: §162(l)(2)(A) limits EACH business's premium to THAT business's own
-  // earned income — an S-corp-paid premium is capped by the S-corp's own officer wages,
-  // and an independently-paid premium is capped by the OTHER business's own SE earnings.
-  // These are two separate statutory caps, not a shared pool — splitting the entry lets
-  // the engine apply them independently instead of pooling both legs against the combined
-  // `sehiLimit` (which the single-field heuristic below still does, since it cannot tell
-  // the legs apart).
-  const _sehiScorpLegDed = sehiSplitEngaged ? Math.min(sehiScorpEntered, _scorpOfficerW2ForSEHI) : 0
-  const _sehiOtherLegDed = sehiSplitEngaged ? Math.min(sehiOtherEntered, _seEarnedForSEHI) : 0
-  const selfEmpHealthDed     = sehiSplitEngaged
-    ? _sehiScorpLegDed + _sehiOtherLegDed
-    : Math.min(sehiEntered, sehiLimit)
-  const sehiClamped          = sehiSplitEngaged
-    ? (sehiScorpEntered > _sehiScorpLegDed || sehiOtherEntered > _sehiOtherLegDed)
-    : sehiEntered > selfEmpHealthDed
-  // EXT-1 FIX (Aug 2026, external accuracy audit — Finding 1): §1372 / Rev. Rul. 91-26
-  // require a >2% S-corp shareholder's health premium to be INCLUDED in Box 1 W-2 wages
-  // before the offsetting Schedule 1, Line 17 deduction is taken. Previously
-  // `selfEmpHealthDed` reduced AGI with NO corresponding wage inclusion anywhere in the
-  // engine: a $12,000 SEHI entry cut AGI (and tax) by the full $12,000 with no offsetting
-  // income for any user who (reasonably) entered their actual cash salary in Step 1 rather
-  // than manually pre-grossing it up.
-  //
-  // EXT-1 FOLLOW-UP FIX (Aug 2026, independent fresh-eyes re-audit — Finding 1 regression):
-  // the original EXT-1 fix above grossed wages up by the DEDUCTION amount (already capped
-  // at sehiLimit, then again at the officer W-2 base), not the FULL premium. That is wrong
-  // whenever premium exceeds the cap: Notice 2008-1 / Rev. Rul. 91-26 include the ENTIRE
-  // S-corp-paid premium in Box 1 wages regardless of the §162(l) deduction limitation — the
-  // wage inclusion and the deduction are NOT supposed to net to zero in that case; the
-  // excess premium is taxable wage income with no offsetting deduction. The prior formula
-  // silently dropped that excess from AGI entirely (re-audit case: $80,000 officer wages,
-  // $120,000 premium — AGI understated by $40,000; confirmed live in production).
-  //
-  // B4 (Aug 2026): when the split fields are engaged, the S-corp-paid amount is known
-  // exactly (`sehiScorpEntered`), so the full-premium gross-up applies unconditionally —
-  // no ambiguity to fall back on. When NOT engaged, this falls back to the original
-  // single-field heuristic below (unchanged): the full-premium gross-up applies only when
-  // the S-corp leg is the ENTIRE `sehiLimit` base (no independent SE-earned income
-  // present) — i.e. no ambiguity about sourcing. When both legs are present and the split
-  // was not used, the engine cannot safely attribute the combined entry and falls back to
-  // the prior (partial, capped) behavior; see KNOWN_LIMITATIONS.md → SEHI-MIXED-SOURCE.
-  // FICA wages are untouched either way — S-corp SEHI is exempt from FICA/Medicare tax per
-  // Notice 2008-1, so `totalW2ForFICA` / `additionalMedicare` below deliberately keep
-  // reading the raw `w2`.
-  const sehiScorpWageGrossUp = sehiSplitEngaged
-    ? sehiScorpEntered
-    : ((_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI === 0)
-        ? sehiEntered
-        : Math.min(selfEmpHealthDed, _scorpOfficerW2ForSEHI))
-  // EXT-1 FOLLOW-UP (independent review, Aug 2026): surface WHEN the mixed-source fallback
-  // above was actually used, so the UI can warn even in cases where `sehiClamped` is false
-  // (i.e. the combined earned-income cap was generous enough that the deduction itself
-  // wasn't limited, but the wage-grossup attribution between S-corp and sole-prop/partner
-  // legs is still only approximate). See KNOWN_LIMITATIONS.md -> SEHI-MIXED-SOURCE.
-  // B4 (Aug 2026): false whenever the split fields are engaged — the attribution is exact,
-  // not a fallback, so the mixed-source warning banner no longer needs to fire.
-  const sehiMixedSourceFallback = sehiSplitEngaged
-    ? false
-    : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
   const hsaDed               = ytdScale(hsaDeduction)
   const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
   // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).

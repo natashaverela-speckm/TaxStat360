@@ -106,10 +106,16 @@ describe('Phase 5 — AMT §1250/collectibles preferential-rate pass-through', (
     const base = { taxYear: 2026, status: 'single', dependents: 0, entities: [], w2: 60000, k1Total: 0, w2Withheld: 0, estPaid: 0 }
     const r0 = calcTaxReturn({ ...base, hasISO: true, isoBargainElement: 400000, ltGain: 300000, unrecap1250: 0 })
     const r1 = calcTaxReturn({ ...base, hasISO: true, isoBargainElement: 400000, ltGain: 300000, unrecap1250: 200000 })
-    expect(r1.fedTax - r0.fedTax).toBe(20000)
-    expect(r1.amt).toBe(120447)
+    // Second pass (14 Sep 2026): regular tax follows the Schedule D Tax Worksheet, so the
+    // §1250 layer is taxed at ORDINARY rates up to the top of the 24% bracket (L21 201,775)
+    // and at 25% only above it: r1 L47 = 15,000 (L31) + 10,531.25 (L40 on L39 42,125) +
+    // 41,024 (L44) = 66,555; r0 L47 = 44,167.5 + 5,020 = 49,188; delta 17,367 — not the
+    // flat-rate 20,000. The AMT side (Form 6251 Part III, flat 25% layer) is byte-for-byte
+    // unchanged: TMT moves by the same 10,000 it always did here, so the reported
+    // amt (= TMT − regular tax) is 130,447 → 123,080 and totalTax moves by 10,000.
+    expect(r1.fedTax - r0.fedTax).toBe(17367)
     expect(r0.amt).toBe(130447)
-    expect(r1.totalTax).toBe(195715)
-    expect(r0.totalTax).toBe(185715)
+    expect(r1.amt).toBe(123080)
+    expect(r1.totalTax).toBe(r0.totalTax + 10000)
   })
 })
