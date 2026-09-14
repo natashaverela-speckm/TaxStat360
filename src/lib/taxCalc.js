@@ -572,8 +572,12 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs, opts = {}) {
   // caller's `ordFedTax + prefTax` equals worksheet line 47.
   //
   // opts.amt: Form 6251 Part III mode. AMT has no rate below 26%, so its 25%/28% layers are
-  // taxed at flat 25%/28% (lines 33–36 of Part III) with the same all-AMT-rate backstop the
-  // pre-existing code applied; calcAMT passes amt:true and its behavior is unchanged.
+  // taxed at flat 25%/28% (lines 33–36 of Part III), capped by the pre-existing backstop —
+  // the increment of REGULAR ordinary tax (calcFederalTax) that the same dollars would
+  // produce, i.e. "never more than if the gain were all ordinary income". (Third-pass
+  // review, 14 Sep 2026: an earlier comment called this an "all-AMT-rate backstop"; the
+  // arithmetic uses the regular schedule and is unchanged since AUDIT F-5.) calcAMT passes
+  // amt:true and its behavior is unchanged.
   //
   // SEMANTICS (unchanged): unrecap1250 and collectibles are SLICES of the long-term gain
   // already included in `ltcg` — they re-rate a portion of it, they do not add income.
@@ -942,7 +946,13 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
 // flows scale; balances, actual payments, and discrete events deliberately do not.
 function _scaleNumeric(v, yf) {
   if (v === undefined || v === null || v === '') return v
-  const n = parseFloat(v)
+  // THIRD PASS (14 Sep 2026, review finding 3): parse through nf() like every other engine
+  // read. parseFloat("60,000") is 60, so a comma-formatted string that reached the scaler
+  // (a saved record's guaranteedPayments, for instance) annualized to $120 instead of
+  // $120,000; the unscaled path read the same string correctly through nf().
+  const s = typeof v === 'string' ? v.trim() : v
+  if (s === '') return v
+  const n = nf(s, NaN)
   return Number.isFinite(n) ? n * yf : v
 }
 function _annualizeIfYTD(input) {
@@ -1460,6 +1470,11 @@ function calcTaxReturn(input) {
   // -$40,000 / $0 SE tax, but the floor-after-addition version still taxed the full $60,000
   // GP as if the loss did not exist). Both must net together before the single floor applies.
   const seNetIncome = Math.max(0, seNetIncomeAggregate + guaranteedPaymentsTotal)
+  // THIRD PASS (14 Sep 2026, live T8): the floored figure is right for Schedule SE, but the
+  // waterfall reads scheduleCSEIncome (= seNetIncome) and so had NO row for a net Schedule
+  // C / partnership LOSS — W-2 100,000 printed straight above an AGI of 85,000. Expose the
+  // allowed net loss (after §704(d)/§1366(d) basis limits, before §469) for display.
+  const seNetLossAllowed = Math.min(0, seNetIncomeAggregate + guaranteedPaymentsTotal)
   const ssWageBase = getTable(taxYear).ssWageBase
   // FINDING-4 FIX (independent audit, Aug 2026): IRC §1402(b) / Form SE Part I
   // coordination worksheet. The 12.4% OASDI portion of SE tax applies only to the
@@ -1525,9 +1540,10 @@ function calcTaxReturn(input) {
   // (Notice 2008-1); Schedule C / SE pass-throughs → net SE earnings less ½ SE tax
   // and SE retirement contributions (Pub. 535 worksheet). Previously uncapped
   // (audit observed a $70,000 deduction allowed against $60,000 of wages).
-  // NOTE: the §469(i) MAGI pre-estimates above still subtract the raw entry; the
-  // cap cannot be computed before seTax exists. Direction of that residual is
-  // conservative (lower allowance) and only bites when the entry exceeds the cap.
+  // (Historical note, retired 14 Sep 2026: the §469(i) MAGI used to be estimated BEFORE this
+  // block existed and subtracted the raw premium entry. Since the second pass the §469
+  // section runs below and reads the capped `selfEmpHealthDed` computed here — see
+  // calc469iMagi — so there is no longer any residual from an entry above the cap.)
   const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
     if (!e || !isSCorpEntity(e.type)) return s
     return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
@@ -2538,6 +2554,7 @@ function calcTaxReturn(input) {
     entityRentalResults,
     scheduleEK1Income,
     scheduleCSEIncome,
+    seNetLossAllowed,   // third pass (14 Sep 2026): net SE-type loss for the waterfall (≤ 0)
     entityIncomeBreakdown,
     reasonableCompAlert,
     federalOnly: true,

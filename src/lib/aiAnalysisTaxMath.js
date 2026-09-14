@@ -220,10 +220,15 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     w2Withheld: 0, estPaid: nf(base.estPaid), ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
     w2: w2Own + sal,
-    // FOURTH READ R-2, second pass (14 Sep 2026): carry the MFJ attribution so the simulator
-    // agrees with Step 2. The officer salary is the owner's own W-2 by definition, so when the
-    // record attributes any W-2 to the self-employed spouse the salary is added to it.
-    w2OwnForSE: status === 'mfj' && nf(base.w2OwnForSE) > 0 ? nf(base.w2OwnForSE) + sal : 0,
+    // FOURTH READ R-2, third pass (14 Sep 2026): carry the MFJ attribution so the simulator
+    // agrees with Step 2. On Step 2 the attribution is entered against w2Total = personal W-2
+    // + officer W-2, so the record's `w2OwnForSE` ALREADY contains whatever officer salary the
+    // owner attributed to themself — adding `sal` again double-counted it (second-pass review
+    // finding 1). Only a CHANGE in salary moves the owner's own W-2, one-for-one, because the
+    // officer salary is the owner's by definition. The engine clamps the result to `w2`.
+    w2OwnForSE: status === 'mfj' && nf(base.w2OwnForSE) > 0
+      ? Math.max(0, nf(base.w2OwnForSE) + (sal - nf(base.officerSalary)))
+      : 0,
     // Finding 1 follow-up (Jul 2026 audit): carry the limited-partner attestation
     // into the reconstructed entity. Without it, normalizeEntityType defaults a
     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged

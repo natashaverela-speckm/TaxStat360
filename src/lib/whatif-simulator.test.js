@@ -197,6 +197,76 @@ describe('buildSimulatorBase — officer W-2 is not double-counted (audit re-rev
 })
 
 
+describe('simulator MFJ Schedule SE attribution (R-2, third pass 14 Sep 2026) — no double-count of officer salary', () => {
+  // Step 2 enters `w2OwnForSE` against w2Total = personal W-2 + officer W-2, so the saved
+  // attribution already carries the salary. Sole proprietor, MFJ, 2025: $80,000 net SE
+  // income, spouse-of-owner W-2 household total $200,000 all attributed to the owner.
+  const spCtx = {
+    base: {
+      grossRevenue: 120000, cogs: 0, operatingExpenses: 40000,
+      officerSalary: 0, depreciation: 0, advertising: 0, otherDeductions: 0,
+      w2Income: 200000, w2OwnForSE: 200000, estPaid: 0,
+    },
+    entityType: 'Sole Proprietor / SMLLC', ownerPctVal: 1, filing: 'mfj', taxYear: 2025,
+  }
+
+  it('SPEC: attribution reaches the engine — SE tax 2,143 (OASDI room 0), same as Step 2', () => {
+    const sim = computeSimulatorScenario(spCtx, {})
+    expect(sim.seTax).toBe(2143)
+    const eng = calcTaxReturn({ taxYear: 2025, status: 'mfj', w2: 200000, w2OwnForSE: 200000, k1Total: 80000,
+      entities: [{ type: 'Sole Proprietor / SMLLC', k1: 80000, own: 100 }] })
+    expect(sim.totalTax).toBe(eng.totalTax)
+  })
+
+  it('SPEC: blank attribution keeps the conservative uncoordinated figure — SE tax 11,304', () => {
+    const sim = computeSimulatorScenario({ ...spCtx, base: { ...spCtx.base, w2OwnForSE: 0 } }, {})
+    expect(sim.seTax).toBe(11304)
+  })
+
+  it('SPEC: a record whose attribution already includes the officer salary is NOT grossed up again (finding 1)', () => {
+    // Partnership (SE-subject) with a $50,000 "officer salary" line and $100,000 personal W-2;
+    // the owner attributed $150,000 = personal 100,000 + salary 50,000 on Step 2.
+    // Room = 176,100 − 150,000 = 26,100 → SE on 73,880 of earnings: 26,100 × 12.4% + 73,880 × 2.9% = 5,379.
+    // Before the fix the simulator passed 150,000 + 50,000 = 200,000 → room 0 → 2,143 (understated).
+    const ctxP = {
+      base: {
+        grossRevenue: 130000, cogs: 0, operatingExpenses: 0,
+        officerSalary: 50000, depreciation: 0, advertising: 0, otherDeductions: 0,
+        w2Income: 100000, w2OwnForSE: 150000, estPaid: 0,
+      },
+      entityType: 'Partnership / LLC', ownerPctVal: 1, filing: 'mfj', taxYear: 2025,
+    }
+    const sim = computeSimulatorScenario(ctxP, {})
+    expect(sim.k1).toBe(80000)
+    expect(sim.w2).toBe(150000)
+    expect(sim.seTax).toBe(5379)
+  })
+
+  it('SPEC: a salary CHANGE moves the owner\'s attributed W-2 one-for-one (salary is the owner\'s by definition)', () => {
+    const ctxP = {
+      base: {
+        grossRevenue: 130000, cogs: 0, operatingExpenses: 0,
+        officerSalary: 50000, depreciation: 0, advertising: 0, otherDeductions: 0,
+        w2Income: 100000, w2OwnForSE: 150000, estPaid: 0,
+      },
+      entityType: 'Partnership / LLC', ownerPctVal: 1, filing: 'mfj', taxYear: 2025,
+    }
+    // +$30,000 salary → attributed 180,000 → room 0 on the 176,100 base → Medicare only on the
+    // remaining SE earnings (50,000 × 0.9235 = 46,175 × 2.9% = 1,339).
+    const sim = computeSimulatorScenario(ctxP, { officerSalary: 30000 })
+    expect(sim.w2).toBe(180000)
+    expect(sim.k1).toBe(50000)
+    expect(sim.seTax).toBe(1339)
+  })
+
+  it('CHAR: non-MFJ statuses pass 0 regardless of the saved attribution', () => {
+    const sim = computeSimulatorScenario({ ...spCtx, filing: 'single' }, {})
+    // single coordinates on the whole W-2 anyway → 2,143
+    expect(sim.seTax).toBe(2143)
+  })
+})
+
+
 describe('simulator SE-awareness — Sole Prop totals reconcile (audit re-review #2, Jul 2026)', () => {
   // Sole proprietor: $200K receipts, $40K expenses -> $160K net SE income, single.
   // The simulator card/reconciliation now present TOTAL federal tax (income + SE), so

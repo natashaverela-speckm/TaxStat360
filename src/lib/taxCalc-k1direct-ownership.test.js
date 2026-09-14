@@ -143,3 +143,23 @@ describe('R-4 -- getEntityK1Share() ignores stale share shortcuts on a synced en
     expect(r.agi).toBe(110000)
   })
 })
+
+// ─── Third pass (14 Sep 2026, live T8): net SE-type loss exposed for the waterfall ─────
+describe('seNetLossAllowed — the net Schedule C / partnership loss after basis limits (display only)', () => {
+  it('SPEC: general partner −30,000 with §704(d) basis 10,000 + §752 5,000 → allowed −15,000, seNetIncome 0, AGI 85,000, tax 10,149', () => {
+    const r = calcTaxReturn({
+      taxYear: 2025, status: 'single', w2: 100000, k1Total: -30000,
+      entities: [{ type: 'Partnership / LLC', own: 100, k1: -30000, stockBasis: 10000, debtBasis: 5000, materiallyParticipates: true }],
+    })
+    expect(r.seNetIncome).toBe(0)
+    expect(r.seTax).toBe(0)
+    expect(r.seNetLossAllowed).toBe(-15000)
+    expect(r.totalSuspendedLoss).toBe(15000)
+    expect(r.agi).toBe(85000)
+    expect(r.totalTax).toBe(10149)
+  })
+  it('CHAR: positive SE income → seNetLossAllowed is 0', () => {
+    const r = calcTaxReturn({ taxYear: 2025, status: 'single', k1Total: 80000, entities: [{ type: 'Sole Proprietor / SMLLC', own: 100, k1: 80000 }] })
+    expect(r.seNetLossAllowed).toBe(0)
+  })
+})

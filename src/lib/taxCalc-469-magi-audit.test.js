@@ -131,6 +131,21 @@ describe('R-1 — §469(i)(3)(F) MAGI includes guaranteed payments and nets the 
     expect(ytd.palSuspendedRental).toBe(full.palSuspendedRental)
     expect(ytd.agi).toBe(full.agi)
   })
+
+  it('SPEC (third pass, review finding 3): a comma-formatted string survives YTD scaling — "15,000" GP at ytdFactor 2 annualizes to 30,000, not 30', () => {
+    const ytd = calcTaxReturn({
+      ...base, w2: '25,000', k1Total: 10000, ytdFactor: 2,
+      entities: [partner(25000, { guaranteedPayments: '15,000' }), rental(-15000)],
+    })
+    expect(ytd.guaranteedPaymentsTotal).toBe(30000)
+    expect(ytd.totalW2ForFICA).toBe(50000)
+    const full = calcTaxReturn({
+      ...base, w2: 50000, k1Total: 20000,
+      entities: [partner(50000, { guaranteedPayments: 30000 }), rental(-30000)],
+    })
+    expect(ytd.agi).toBe(full.agi)
+    expect(ytd.palSuspendedRental).toBe(full.palSuspendedRental)
+  })
 })
 
 // ─── Second pass (14 Sep 2026, fresh-eyes review findings 3 & 4): SEHI and the §1372 gross-up ──
