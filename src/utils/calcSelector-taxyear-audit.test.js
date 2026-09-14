@@ -72,8 +72,17 @@ describe('LAUNCH CHECK N-1 — summarizeRecord uses the record-level year', () =
     expect(Math.round(summarizeRecord(rec).fedTax)).toBe(15649)
   })
 
-  it('CHAR: an explicit f1040.taxYear still wins (existing tests and fixtures rely on it)', () => {
+  // THIRD PASS (14 Sep 2026): reversed. Step 1's doSave stores f1040 = readPersonalContext(),
+  // which carried the manifest DEFAULT year (never the selected one) until this pass — so an
+  // "explicit" f1040.taxYear was the unreliable one. The record-level year is written from
+  // component state and wins; f1040.taxYear is used only when the record has no year.
+  it('SPEC: the record-level year wins over a stale f1040.taxYear (a 2024 record whose f1040 says 2026 is summarized on 2024)', () => {
     const rec = { taxYear: 2024, f1040: { ...f1040, taxYear: 2026 }, entities: [] }
+    expect(Math.round(summarizeRecord(rec).fedTax)).toBe(16041)
+  })
+
+  it('CHAR: f1040.taxYear is still honoured when the record carries no year of its own (test fixtures)', () => {
+    const rec = { f1040: { ...f1040, taxYear: 2026 }, entities: [] }
     expect(Math.round(summarizeRecord(rec).fedTax)).toBe(15370)
   })
 })

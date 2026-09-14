@@ -136,13 +136,19 @@ function _summarize(engineInput) {
  * AIAnalysis summarized a 2025 record on 2026 tables. Prefer an explicit
  * f1040.taxYear (tests and legacy records), then the record-level year.
  */
+// THIRD PASS (14 Sep 2026): the record-level year now WINS over f1040.taxYear. Step 1's
+// save path stores `f1040: readPersonalContext()`, and until this pass the Step 2 writer
+// never persisted the selected year — so every ts360_f1040 (and therefore every f1040 saved
+// from Step 1) carried the manifest DEFAULT year, which N-1's "prefer explicit f1040.taxYear"
+// then trusted. rec.taxYear / rec.biz.year are written from component state and were always
+// right; f1040.taxYear is only consulted when the record has no year of its own.
 function _recordPersonalContext(rec) {
   const f1040 = (rec && rec.f1040) || {}
   const pc = normalizeF1040(f1040)
-  const explicit = parseInt(f1040.taxYear)
-  if (explicit) return pc
   const recYear = parseInt(rec && (rec.taxYear || (rec.biz && rec.biz.year)))
-  return recYear ? { ...pc, taxYear: recYear } : pc
+  if (recYear) return { ...pc, taxYear: recYear }
+  const explicit = parseInt(f1040.taxYear)
+  return explicit ? { ...pc, taxYear: explicit } : pc
 }
 
 /**
