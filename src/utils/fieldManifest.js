@@ -71,6 +71,12 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'dependents',         kind: 'int',    def: 0 },
   { key: 'w2Income',           kind: 'float',  def: 0 },
   { key: 'w2Withheld',         kind: 'float',  def: 0 },
+  // FOURTH READ R-2 (14 Sep 2026): MFJ only — the portion of the household W-2 total
+  // (other-employer wages + S-Corp officer salary) earned by the spouse whose SE income
+  // is taxed on Schedule SE. Drives §1402(b) wage-base coordination for a joint return;
+  // 0/blank keeps the conservative uncoordinated MFJ computation. A FLOW — annualized in
+  // YTD mode like w2 (see YTD_SCALE_ENGINE_FIELDS).
+  { key: 'w2OwnForSE',         kind: 'float',  def: 0 },
   { key: 'rentalIncome',       kind: 'float',  def: 0 },
   { key: 'rentalExpenses',     kind: 'float',  def: 0 },
   { key: 'capitalGains',       kind: 'float',  def: 0 },
@@ -218,7 +224,7 @@ export function normalizeF1040Fields(rec = {}) {
 // field names above — the session→engine vocabulary translation happens in
 // TaxReturn/EntityCompareModal. fieldManifest.test.js pins membership.
 export const YTD_SCALE_ENGINE_FIELDS = [
-  'w2', 'k1Total', 'rentalNet',
+  'w2', 'w2OwnForSE', 'k1Total', 'rentalNet',   // R-2: w2OwnForSE is a slice of w2 — scales with it
   'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
   'f4797Inc', 'taxableSS', 'iraIncome',
   'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',

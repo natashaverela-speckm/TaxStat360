@@ -240,6 +240,7 @@ export function writePersonalContext(input = {}) {
  *   taxYear: number,
  *   dependents: number,
  *   w2Income: number,
+ *   w2OwnForSE: number,
  *   w2Withheld: number,
  *   rentalIncome: number,
  *   rentalExpenses: number,
@@ -272,6 +273,7 @@ export function readPersonalContext() {
     taxYear: defaultTaxYear(),
     dependents: 0,
     w2Income: 0,
+    w2OwnForSE: 0,   // R-2 (14 Sep 2026): MFJ Schedule SE attribution
     w2Withheld: 0,
     rentalIncome: 0,
     rentalExpenses: 0,
