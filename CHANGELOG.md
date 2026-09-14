@@ -12,6 +12,66 @@ record of work that predates this changelog.
 
 ---
 
+## Fresh-eyes pass — Schedule D Tax Worksheet, §469 MAGI completeness, R-4 regression (F-1 to F-9) — September 14, 2026
+
+A blind checker hand-computed twelve new scenarios (2024–2026; single/HOH/MFJ/MFS; Sch C,
+S-Corp with SEHI and excess distributions, limited partner + GP, part-owned C-Corp,
+rental income, itemizer with §68, §1250, capital-loss carryovers); an adversarial reviewer
+read every diff from the 14 Sep fixes. Eleven of twelve scenarios matched Step 2 to the
+dollar (two after applying the app's documented SEHI conventions). One engine defect and
+one regression in the day's own work were found and are fixed here.
+
+### Fixed — engine
+- **F-1 — unrecaptured §1250 gain and collectibles taxed at FLAT 25% / 28%** (`taxCalc.js`
+  `calcPreferentialTax`). The July "AUDIT F-5" change replaced the Schedule D Tax Worksheet
+  stacking with flat rates plus an all-ordinary backstop. The worksheet (lines 19–21, 35–40)
+  taxes those gains at the taxpayer's ORDINARY rate up to the top of the 24% bracket and at
+  25% / 28% only above it — the rates are ceilings (§1(h)(1)(E), §1(h)(4)). Live: single,
+  W-2 $150,000, LTCG $80,000 incl. $50,000 §1250 → $42,067 of income tax where the worksheet
+  gives $41,567. A landlord in the 22% bracket was overcharged 3 points on every dollar of
+  depreciation recapture. Regular tax now follows the worksheet line for line; Form 6251
+  Part III (AMT) keeps the flat layers (no AMT rate below 26%). Three tests that pinned the
+  flat rate were re-derived from the worksheet.
+- **F-2 — R-4 regression: synced entities lost the §1366(d)/§704(d) basis limitation**
+  (`entityPredicates.js`). The first R-4 change made `getEntityK1Share()` ignore an explicit
+  `k1` on a synced entity — but that `k1` is how the engine's `entitiesLimited` hands the
+  basis-limited loss to every SE/QBI base. Reverted to honoring `k1` always; only a stale
+  `k1DirectMode` is ignored for a synced entity, and the sync path still strips both.
+- **F-3 — §469(i) MAGI completeness** (`taxCalc.js`). The SEHI and §461(l) blocks are hoisted
+  above the §469 section so the MAGI uses the engine's FINAL §162(l) deduction (split fields
+  and the earned-income cap honored — a $20,000 premium in the "other business" box used to
+  fall out of the MAGI entirely), the §1372 S-Corp wage gross-up, and the excess-business-loss
+  addback, all of which reach AGI.
+- **F-4 — guaranteed payments now annualize in YTD mode** (`fieldManifest.js`): the one
+  entity flow that was left unscaled.
+- **F-5 — MFJ attribution reaches the Dashboard tracker and the What-If simulator**
+  (`Dashboard.jsx`, `aiAnalysisTaxMath.js`), so they agree with Step 2 when `w2OwnForSE` is set;
+  the advisory `ficaSavings` uses the same wage-base attribution as the SE tax it is compared to.
+
+### Fixed — presentation
+- **F-6 — §68 row placement / final taxable income** (`TaxReturn.jsx`): the engine applies
+  the 2/37 addback after §199A and taxes `taxableIncome`; the waterfall showed the pre-§68
+  figure (live: $844,500 shown, tax computed on $847,500). Row moved, final line corrected.
+- **F-7 — §1368(b)(2) excess-distribution gain had no waterfall row** (`TaxReturn.jsx`).
+- **F-8 — compare-modal caption** for a synced entity carrying a stale direct-entry flag.
+
+### Verified live, no change
+- S1 2024 Sch C + LTCG + CTC $37,212 · S3 2025 MFJ dual-earner $17,349 · S4 2026 §199A
+  phase-in $66,360 · S5 §1368(b)(2) $14,689 · S6 MFS §1211/§1212 $37,382 · S7 2026 itemizer
+  with SALT floor, charitable floor, §68 $241,590 · S8 passive rental income + NIIT $49,763 ·
+  S9 2024 limited partner + GP $5,023 · S11 §221/HSA/SEP $19,208 · S12 40% C-Corp owner
+  $30,619 personal + $22,749 corporate share · S2 HOH S-Corp + SEHI $23,448 under the
+  documented gross-up and QBI conventions. S10 fixed above.
+
+### Tests
+- `taxCalc-prelaunch-audit.test.js`: §1250/collectibles case re-derived (24,767) + S10 SPEC.
+- `taxCalc-engine.test.js`, `taxCalc-amt-1250-collectibles.test.js`: worksheet-derived pins.
+- `taxCalc-469-magi-audit.test.js` (+3), `taxCalc-k1direct-ownership.test.js` (rewritten R-4
+  cases + end-to-end basis limitation), `TaxReturn.test.jsx` (+2), `fieldManifest.test.js`.
+- Suite: 106 files / 1,581 tests passing.
+
+---
+
 ## Fourth read, second pass — synced-entity ownership share and waterfall captions (R-4, R-6, R-7) — September 14, 2026
 
 ### Fixed
