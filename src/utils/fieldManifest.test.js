@@ -149,7 +149,7 @@ describe('manifest — engine YTD lists (single-sourced, membership pinned)', ()
       'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
       'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',
     ])
-    expect(YTD_SCALE_ENTITY_FIELDS).toEqual(['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions'])
+    expect(YTD_SCALE_ENTITY_FIELDS).toEqual(['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments'])
   })
 
   it('CHAR: deliberately-unscaled balances never leak into the flow list', () => {

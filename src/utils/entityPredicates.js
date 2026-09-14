@@ -220,17 +220,25 @@ export function getEntityPnlNetShare(e) {
  */
 export function getEntityK1Share(e) {
   if (!e) return 0
-  // FOURTH READ R-4 (14 Sep 2026): an entity whose P&L comes from accounting software
-  // (connectedId set) holds ENTITY-level books — the "already the owner's share" shortcuts
-  // below (an explicit k1 override, or k1DirectMode) can only be stale leftovers from a
-  // manual K-1 entry or a loaded record made before the sync, and honoring them ignores
-  // Ownership %. The sync path now strips them too; this is the defence in depth.
-  const synced = !!e.connectedId
-  if (e.k1 !== undefined && !synced) return nf(e.k1)
+  // An explicit k1 is ALWAYS honored: it is either the engine's own §1366(d)/§704(d)
+  // basis-limited figure (taxCalc.js entitiesLimited writes `{ ...e, k1: k1Allowed }` and
+  // every downstream SE/QBI base reads it back through this resolver) or a loaded record's
+  // already-allocated share. FOURTH READ R-4, second pass (14 Sep 2026): a first attempt
+  // also skipped k1 for synced entities and thereby undid the basis limitation for every
+  // accounting-software entity (fresh-eyes review finding 1: a synced −$481,660 S-Corp
+  // with $0 basis fed the UNLIMITED loss into the QBI base — $8,192 overstated). The
+  // stale-k1 case R-4 was aimed at (a loaded record's k1 surviving a later sync) is
+  // handled at the source: the sync path strips it.
+  if (e.k1 !== undefined) return nf(e.k1)
   // Built on getEntityNetProfit() (not getEntityPnlNet()) so this also supports
   // pre-pnl legacy records (top-level e.netProfit, no e.pnl object at all) — the
   // same dual-path data model getEntityNetProfit() already resolves (CC-M04 / OBS-3).
-  if (e.k1DirectMode && !synced) return getEntityNetProfit(e)
+  // FOURTH READ R-4 (14 Sep 2026): k1DirectMode ("Have a K-1? Enter Box 1 directly") means
+  // the entered figure is already the owner's share. An entity whose P&L comes from
+  // accounting software (connectedId set) holds ENTITY-level books, so a k1DirectMode flag
+  // left over from a manual entry made before the sync must not stop the Ownership %
+  // scaling. The sync path clears the flag; this is the defence in depth.
+  if (e.k1DirectMode && !e.connectedId) return getEntityNetProfit(e)
   return Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
 }
 

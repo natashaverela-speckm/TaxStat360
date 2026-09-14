@@ -235,4 +235,7 @@ export const YTD_SCALE_ENGINE_FIELDS = [
 // probe: half-year inputs produced gain $0 instead of $25,000). Balance-sheet
 // fields (stockBasis, debtBasis, beginningAAA, accumulatedEP, box17V_ubia,
 // qbiLossCarryforward) remain correctly UNscaled — they are point-in-time amounts.
-export const YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions']
+// FOURTH READ (14 Sep 2026, review finding 5): §707(c) guaranteed payments are a FLOW (SE
+// income, and since R-1 part of the §469(i) MAGI) and were the one entity flow left
+// unscaled — a half-year GP entry was treated as the full year.
+export const YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments']
