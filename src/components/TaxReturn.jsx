@@ -1537,7 +1537,7 @@ export default function TaxReturn() {
                 <label htmlFor="tr-nonrecap1231" style={inputLbl}>
                   {/* UX-H3 FIX: label shortened */}
                   Prior §1231 Losses (5 yrs)
-                  <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\\n\\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\\n\\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
+                  <InfoTip text={'§1231(c) 5-year lookback. Enter your net §1231 LOSSES from the prior five tax years that have not yet been recaptured (Form 4797, Line 8).\n\nA net §1231 GAIN this year is recharacterized as ORDINARY income — not long-term capital gain — to the extent of these prior losses (IRC §1231(c)(1)). Only the gain in excess of the prior losses keeps 0/15/20% capital-gain treatment.\n\nLeave blank (0) if you have no nonrecaptured §1231 losses in the prior five years. This field only affects a year with a net §1231 gain.'} wide />
                 </label>
                 <Step2MoneyInput id="tr-nonrecap1231" value={nonrecap1231} onChange={setNonrecap1231} placeholder="0" nonNegative />
                 {(result?.ordinary1231Recapture || 0) > 0 && (
@@ -2009,7 +2009,13 @@ export default function TaxReturn() {
                     if (hasSchedC && hasPartner) return 'Schedule C / Partnership Income'
                     if (hasPartner) return 'Partnership / LLC Income (K-1)'
                     return 'Schedule C Income'
-                  })(),                                 value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0) },
+                  })(),                                 value: result.scheduleCSEIncome || 0,              sign: 1, hide: !(result.scheduleCSEIncome > 0),
+                  // FOURTH READ R-7 (14 Sep 2026): §707(c) guaranteed payments are inside this figure
+                  // (they are SE income) — say so, since they are excluded from QBI and included in
+                  // the §469(i) MAGI, and a reader checking the SE Tax line needs the composition.
+                  note: (result.guaranteedPaymentsTotal || 0) > 0
+                    ? `Includes ${fmt(result.guaranteedPaymentsTotal)} of guaranteed payments (K-1 Box 4, §707(c)) — self-employment income, excluded from the §199A QBI base`
+                    : undefined },
                 // AI-5 FIX: split W-2 into officer salary (Step 1) + other W-2 (Step 2) so
                 // the user can immediately spot a double-entry. Both are included in
                 // result.totalW2ForFICA (= w2Total in the engine); we derive officer salary
@@ -2057,8 +2063,15 @@ export default function TaxReturn() {
                 { label: 'Capital Loss Limited (§1211(b))', value: result.capLossCarryoverTotal || 0, sign: 1,
                   hide: !(result.capLossCarryoverTotal > 0), accent: R,
                   note: `Net capital losses deduct against other income only up to $${(filingStatus === 'mfs' ? CAP_LOSS_ORDINARY_LIMIT_MFS : CAP_LOSS_ORDINARY_LIMIT).toLocaleString()}/yr — the disallowed ${fmt(result.capLossCarryoverTotal || 0)} carries forward to ${Number(taxYear) + 1}, keeping its short/long-term character (IRC §1211(b), §1212(b))` },
+                // FOURTH READ R-7 (14 Sep 2026): the caption said "taxed at long-term capital-gains
+                // rates" even when §1231(c) had recharacterized part of the gain as ordinary
+                // (the field-level note was right; the waterfall was not). Name the split.
                 { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
-                  note: nf(form4797) > 0 ? 'Net §1231 gain — taxed at long-term capital-gains rates' : 'Net §1231 loss — ordinary, reduces ordinary income' },
+                  note: nf(form4797) > 0
+                    ? ((result.ordinary1231Recapture || 0) > 0
+                        ? `${fmt(result.ordinary1231Recapture)} recharacterized as ORDINARY income under §1231(c) (nonrecaptured §1231 losses from the prior five years)${nf(form4797) - result.ordinary1231Recapture > 0 ? `; the remaining ${fmt(nf(form4797) - result.ordinary1231Recapture)} is long-term capital gain` : ''}`
+                        : 'Net §1231 gain — taxed at long-term capital-gains rates')
+                    : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
                 // F-FUNC-06: show the §461(l) excess-business-loss addback as an explicit inline
@@ -2094,6 +2107,15 @@ export default function TaxReturn() {
                 { label: 'HSA Deduction (Form 8889)',   value: result.hsaDed || 0,                       sign: -1, hide: !(result.hsaDed > 0) },
                 { label: 'Student Loan Interest (§221)', value: result.studentLoanDed || 0,              sign: -1, hide: !(result.studentLoanDed > 0),
                   note: (result.studentLoanDed > 0 && result.studentLoanDed < nf(studentLoanInt)) ? 'Less than the interest entered — the $2,500 cap and the §221(b)(2) MAGI phase-out applied' : undefined },
+                // FOURTH READ R-6 (14 Sep 2026): the §172 NOL deduction is an above-the-line item
+                // (Schedule 1, line 8a) and the engine's AGI already reflects it, but the row was
+                // printed BELOW AGI — so the column did not foot (AGI $27,470 − $15,750 − $46,878
+                // ≠ $11,720 on the live site). Same class as launch-check N-4; it now sits with
+                // the other above-the-line rows.
+                { label: 'NOL Deduction (§172)',        value: result.nolAllowed || 0,                   sign: -1, hide: !(result.nolAllowed > 0),
+                  note: (result.nolSurplus || 0) > 0
+                    ? `Limited to 80% of taxable income before the NOL (§172(a)(2)) — ${fmt(result.nolSurplus)} carries forward to ${Number(taxYear) + 1}`
+                    : 'Post-2017 NOL carryforward, within the 80% limit (§172(a)(2))' },
                 { label: '—', value: 0, divider: true },
                 { label: 'AGI',                         value: result.agi,                               sign: 1, bold: true },
                 // TERMINOLOGY FIX 2.4 / PASS 3 CORRECTION: Original fix used `useItemized` (checkbox
@@ -2104,7 +2126,6 @@ export default function TaxReturn() {
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
                 { label: '§68 Itemized Limitation (2/37)',  value: result.itemizedLimitReduction,            sign: 1, hide: !result.itemizedLimitReduction, accent: '#94A3B8', note: 'OBBBA §70111 — top-bracket itemizers: deduction benefit capped at 35¢/dollar', isAddback: true },
-                { label: 'NOL Applied',                 value: result.nolAllowed,                        sign: -1, hide: result.nolAllowed === 0 },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
                 // AUDIT F-6/B-1 (Jul 2026): this row used to HIDE itself when the deduction was

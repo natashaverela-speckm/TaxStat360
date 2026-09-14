@@ -863,3 +863,45 @@ describe('TaxReturn — R-2: "of the W-2 wages above, the amount YOU earned" (MF
     readPersonalContext.mockReturnValue({})
   })
 })
+
+// ─── FOURTH READ R-6 / R-7 (14 Sep 2026): waterfall footing and captions ────────────────
+
+describe('TaxReturn — R-6: the NOL deduction row sits above AGI so the column foots', () => {
+  it('renders "NOL Deduction (§172)" before "AGI" with the 80% cap note, and no post-AGI NOL row', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), agi: 27470, nolAllowed: 46878, nolSurplus: 53122 })
+    const { getByText, queryByText, container } = renderTaxReturn()
+    expect(getByText('NOL Deduction (§172)')).toBeTruthy()
+    expect(getByText(/Limited to 80% of taxable income before the NOL .* \$53,122 carries forward/)).toBeTruthy()
+    expect(queryByText('NOL Applied')).toBeNull()
+    const text = container.textContent
+    expect(text.indexOf('NOL Deduction (§172)')).toBeLessThan(text.indexOf('Standard Deduction'))
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
+
+describe('TaxReturn — R-7: §1231(c) recharacterization and guaranteed payments are named in the waterfall', () => {
+  it('§1231 caption names the ordinary slice when the engine recharacterized part of the gain', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readPersonalContext.mockReturnValue({ form4797: 50000 })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), ordinary1231Recapture: 20000 })
+    const { getByText, unmount } = renderTaxReturn()
+    expect(getByText(/\$20,000 recharacterized as ORDINARY income under §1231\(c\).*remaining \$30,000 is long-term capital gain/)).toBeTruthy()
+    unmount()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), ordinary1231Recapture: 0 })
+    const { getByText: g2 } = renderTaxReturn()
+    expect(g2('Net §1231 gain — taxed at long-term capital-gains rates')).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readPersonalContext.mockReturnValue({})
+  })
+
+  it('SE-income row says how much of it is guaranteed payments', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    readStep1State.mockReturnValue({ entities: [{ type: 'Partnership / LLC', own: 100, pnl: { netProfit: 50000 }, guaranteedPayments: 30000 }], k1Total: 50000 })
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), scheduleCSEIncome: 80000, guaranteedPaymentsTotal: 30000 })
+    const { getByText } = renderTaxReturn()
+    expect(getByText(/Includes \$30,000 of guaranteed payments \(K-1 Box 4, §707\(c\)\)/)).toBeTruthy()
+    calcTaxReturn.mockImplementation(defaultImpl)
+    readStep1State.mockReturnValue({ entities: [], k1Total: 0 })
+  })
+})

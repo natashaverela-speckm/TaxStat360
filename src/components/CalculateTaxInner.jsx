@@ -2704,7 +2704,17 @@ export default function CalculateTaxInner() {
             }
 
             if (updated[idx]) {
-              updated[idx] = { ...updated[idx], pnl, connectedId: pid, isManual: false, name: providerName }
+              // FOURTH READ R-4 (14 Sep 2026): a synced P&L is the ENTITY's books, so the owner's
+              // K-1 is Ownership % × net — never the whole figure. This spread used to keep whatever
+              // the card carried from before the sync: a `k1DirectMode: true` left by the "Have a
+              // K-1? Enter Box 1 directly" toggle, or an explicit `k1` override written by a loaded
+              // record, both of which getEntityK1Share() treats as "already the owner's share" and
+              // therefore never scales. Verified live: a FreshBooks S-Corp set to 50% flowed 100%
+              // of its −$481,660 loss into Step 2 ($441,660 suspended instead of $200,830).
+              // Strip both so the share resolver falls through to net × Ownership %.
+              const { k1: _staleK1, ...rest } = updated[idx]
+              void _staleK1
+              updated[idx] = { ...rest, k1DirectMode: false, pnl, connectedId: pid, isManual: false, name: providerName }
             } else {
               updated.push({
                 name: providerName,
