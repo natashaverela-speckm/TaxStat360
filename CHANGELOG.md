@@ -12,6 +12,73 @@ record of work that predates this changelog.
 
 ---
 
+## Third pass — simulator attribution, waterfall footing, compare-modal tax year (P-1 to P-12) — September 14, 2026
+
+A second blind checker hand-computed twelve NEW scenarios (T1–T12: YTD annualization, SSTB
+phase-in, §170(p), HOH with refundable ACTC, two S-Corps + suspended rental, REP aggregation,
+§1366(d) release, §704(d) partnership loss, 2024 MFS itemizer, capital-loss carryforward
+netting, 2026 Sch C with SEP/HSA/§6654, §1231 loss). All twelve reconciled to Step 2 to the
+dollar on the deployed bundle (T7 after the documented QBI-loss entry). A second adversarial
+reviewer read the day's diffs and returned seven findings; the live run surfaced five more
+presentation / wiring defects. No engine tax-arithmetic defect was found in this pass.
+
+### Fixed — engine (`taxCalc.js`)
+- **P-3 — `_scaleNumeric` parsed with `parseFloat`**: a comma-formatted string reaching the
+  YTD scaler ("15,000") annualized to $30 instead of $30,000. Now parses through `nf()`
+  like every other engine read. Test: `taxCalc-469-magi-audit.test.js`.
+- **P-8 — `seNetLossAllowed` exposed** (≤ 0): the net Schedule C / partnership loss after
+  §704(d)/§1366(d) basis limits, for the waterfall (display only; SE tax unchanged).
+  Test: `taxCalc-k1direct-ownership.test.js`.
+- Stale comments corrected: the §469(i) "pre-estimate" note (retired since the second pass)
+  and the AMT-mode backstop description (it is the regular-schedule "all ordinary" cap).
+
+### Fixed — What-If Simulator (`aiAnalysisTaxMath.js`)
+- **P-1 — MFJ Schedule SE attribution double-counted officer salary**: Step 2 enters
+  `w2OwnForSE` against personal W-2 + officer W-2, so the saved figure already carries the
+  salary; the simulator added it again (room understated → SE tax understated). Now only a
+  salary CHANGE moves the attribution, one-for-one. Tests: `whatif-simulator.test.js` (+5).
+
+### Fixed — Step 2 waterfall and labels (`TaxReturn.jsx`)
+- **P-2 — §170(p) non-itemizer charitable row** (2026+): AGI − standard deduction did not
+  foot to taxable income by up to $2,000 (live T3).
+- **P-5 — "Est. Tax Liability" over a refund**: with no payments entered and a refundable
+  ACTC, the summary card and the last waterfall row labelled a $3,400 refund as a liability
+  (live T4). A negative balance is now "Estimated Refund" regardless of payments entered.
+- **P-6 — §1212(b) carryforward applied row**: the prior-year capital-loss inputs existed
+  but never appeared in the waterfall (W-2 60,000 + ST 10,000 − LT 4,000 above AGI 64,000,
+  live T10).
+- **P-8 — net Schedule C / partnership LOSS row** (allowed, after basis limits): W-2 100,000
+  sat directly above AGI 85,000 (live T8). The basis banner now cites §704(d) for a
+  partnership instead of "§1366(d) … S-Corp losses".
+- **P-7 — §1366(d) release and §199A**: the released loss is not netted out of QBI
+  automatically; the released-loss row and the field tooltip now say so and point to the
+  Prior-Year QBI Loss Carryforward entry (Reg. §1.199A-3(b)(1)(iv)). Owner decision pending
+  on auto-netting (see report).
+- **P-9 — tax year persisted** in `writePersonalContext` (was omitted; the record carried
+  the manifest default year).
+
+### Fixed — Compare Entity Structures ran on the wrong year (`CalculateTaxInner.jsx`, `calcSelector.js`)
+- **P-9 — the modal's `personalContext` now carries the app-wide tax year**. Because the
+  Step 2 writer never persisted `taxYear`, `readPersonalContext().taxYear` was always the
+  manifest default (2026): a 2025 Schedule C $100,000 single baseline compared at $22,365
+  (2026 tables) against $22,629 on Step 2. Step 1's save path stamps the year too, and
+  `calcSelector._recordPersonalContext` now prefers the record-level year over
+  `f1040.taxYear` (the reverse of N-1, which trusted the unreliable field). Tests:
+  `EntityCompareModal.context.test.js`, `TaxReturn.test.jsx`, `calcSelector-taxyear-audit.test.js`.
+
+### API (`TaxStat360-api`)
+- **P-10 — Aria rule 7 carve-out** now names rules 8 AND 9 (rule 9 cites §163(j), §531,
+  §541, §168(k), §179). Test: `test_aria_system.py`.
+- **P-11 — `scripts/smoke_check.sh`**: `BASE_URL=` accepted (the usage line advertised
+  it); trailing slash stripped; one FAIL line when the edge is unreachable (was six); HSTS
+  max-age compared numerically (≥ 31536000, so a two-year value passes); a `000` curl
+  result (no HTTP answer) now FAILS instead of printing "ok".
+
+Suite: 106 files / 1,596 tests; lint 0 errors (28 pre-existing warnings); build clean.
+API: 152 passed / 7 skipped.
+
+---
+
 ## Fresh-eyes pass — Schedule D Tax Worksheet, §469 MAGI completeness, R-4 regression (F-1 to F-9) — September 14, 2026
 
 A blind checker hand-computed twelve new scenarios (2024–2026; single/HOH/MFJ/MFS; Sch C,
