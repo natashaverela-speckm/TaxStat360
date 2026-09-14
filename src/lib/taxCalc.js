@@ -959,6 +959,15 @@ function calcTaxReturn(input) {
     taxYear, status = 'single', dependents,
     entities: _rawEntities = [],
     w2 = 0, k1Total = 0, rentalNet = 0, rentalQbiEligible = false,   // ITEM 3 (A6): Step-2 direct-rental §199A opt-in
+    // FOURTH READ R-2 (14 Sep 2026) — MFJ spouse attribution for Schedule SE. `w2` is the
+    // household's combined W-2 figure (other-employer wages + every S-Corp officer salary).
+    // For a joint return this is the portion of that figure earned by the SAME individual
+    // whose net earnings from self-employment are taxed below — the only person whose W-2
+    // Social Security wages reduce the SE wage-base room (IRC §1402(b); Schedule SE is
+    // filed per spouse). Ignored for every other status (a one-person return coordinates
+    // on the whole `w2`). Default 0 keeps the conservative uncoordinated MFJ computation
+    // (LIMITATION SE-MFJ-WAGEBASE) for every existing record and untouched field.
+    w2OwnForSE = 0,
     electQbiAggregation = false,   // F6: Reg. §1.199A-4 aggregation election (opt-in)
     stGain = 0, ltGain = 0, intInc = 0, divInc = 0, qualDiv = 0,
     f4797Inc = 0, taxableSS = 0, iraIncome = 0,
@@ -1346,6 +1355,111 @@ function calcTaxReturn(input) {
   // Math.max(0, _ltGain) consumers over-carved the preferential bucket in mixed
   // ST-loss/LT-gain years — corrected as part of this fix).
   const _netLTForPref = Math.max(0, _netLT)
+  // ── FOURTH READ R-1 (14 Sep 2026): the Schedule SE block below was hoisted above the
+  // §469 section so that halfSE and guaranteedPaymentsTotal exist when the §469(i)
+  // modified AGI is measured. Nothing inside the block depends on the rental variables;
+  // it is moved verbatim (the ssWageBaseRoom change is the only edit — see R-2 inside).
+  // F4 (audit, Jul 2026): guaranteed payments (§707(c)) are ordinary income to the
+  // partner AND self-employment earnings — for GP made for SERVICES this is true even
+  // for a limited partner (§1402(a)(13) excludes the distributive share but NOT §707(c)
+  // service payments). They are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)), so this
+  // total is deliberately kept OUT of qbiBasis below. Partnership entities only.
+  const guaranteedPaymentsTotal = entities.reduce((sum, e) => {
+    if (!e || !/partnership|mmllc/i.test(e.type || '')) return sum
+    return sum + Math.max(0, nf(e.guaranteedPayments))
+  }, 0)
+  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. §1.1402(a)-2(c) requires
+  // net earnings from self-employment to be the AGGREGATE of net income AND LOSSES across all
+  // of an individual's trades/businesses -- a loss in one SE-subject business offsets a gain
+  // in another before any floor is applied. This reducer floored each entity at $0
+  // individually, so a second SE business running a loss was silently ignored instead of
+  // reducing the SE tax base (a $120,000 profit + a $40,000 loss taxed as if the loss did not
+  // exist: $16,955 of SE tax instead of the correct ~$11,304 on the true $80,000 net).
+  const seNetIncomeAggregate = entitiesLimited.reduce((sum, e) => {
+    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
+    return sum + getEntityK1Share(e)
+  }, 0)
+  // AUDIT FIX (independent verification pass, Aug 2026): guaranteed payments (IRC §707(c))
+  // are a component of the SAME net-earnings-from-self-employment figure under IRC §1402(a) --
+  // not a separate, floor-immune addend. The first version of this fix aggregated the
+  // distributive shares correctly but still added guaranteedPaymentsTotal AFTER the single
+  // Math.max(0, ...) floor, so a partnership loss could not offset that partner's own
+  // guaranteed payments either (e.g. -$100,000 distributive share + $60,000 GP = true NESE
+  // -$40,000 / $0 SE tax, but the floor-after-addition version still taxed the full $60,000
+  // GP as if the loss did not exist). Both must net together before the single floor applies.
+  const seNetIncome = Math.max(0, seNetIncomeAggregate + guaranteedPaymentsTotal)
+  const ssWageBase = getTable(taxYear).ssWageBase
+  // FINDING-4 FIX (independent audit, Aug 2026): IRC §1402(b) / Form SE Part I
+  // coordination worksheet. The 12.4% OASDI portion of SE tax applies only to the
+  // wage-base ROOM remaining after W-2 Social Security wages already taxed that year
+  // (including the taxpayer's own S-Corp officer salary) — not the full annual wage
+  // base. totalW2ForFICA / ssWageBaseRoom are hoisted above the SE tax computation;
+  // previously they were computed further down and consumed ONLY by the advisory
+  // ficaSavings estimate, never by the actual seTax liability, so a filer with W-2
+  // wages from their own S-Corp plus other SE income had SE tax overstated by
+  // (FICA_SS_RATE*2) on every dollar of wage-base room their W-2 wages had already
+  // consumed (e.g. $140,000 W-2 + $234,200 SE earnings on a 2025 return: uncoordinated
+  // ~$28.1k vs. correctly-coordinated ~$10.7k).
+  const totalW2ForFICA = Math.max(0, nf(w2))
+  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the Finding-4 coordination above is
+  // only valid when totalW2ForFICA and seNetIncome belong to the SAME individual -- true for
+  // single/HOH/QSS/MFS (each a one-person return) but NOT for MFJ, where `w2` is the COMBINED
+  // household wage figure (TaxReturn.jsx: w2Total = w2Income + officerW2Total -- one field, no
+  // spouse attribution anywhere in the entity/income model) while Schedule SE is filed
+  // SEPARATELY per spouse (IRC §1402(b); Schedule SE instructions: "If you and your spouse
+  // both have self-employment income, you must each file a separate Schedule SE"). Letting
+  // one spouse's W-2 consume the OTHER spouse's SE wage-base room understated SE tax by
+  // $13,741 on a $200k-W-2 + $120k-Sch-C MFJ household (TY2026) -- the OASDI portion was
+  // zeroed out entirely because the combined W-2 alone exceeded the wage base, even though
+  // the self-employed spouse's OWN W-2 was $0. Conservative-by-design fix (matching this
+  // codebase's established risk posture for every other unmodeled spouse-attribution gap --
+  // see PAL-MFS in KNOWN_LIMITATIONS.md): for MFJ, do not let the combined W-2 reduce SE
+  // wage-base room. This is exactly correct for the dual-earner case (confirmed above) and
+  // conservative -- overstates, never understates -- for a single business owner whose W-2
+  // and SE income are actually the same person filing jointly (the original Finding-4 case).
+  // See LIMITATION SE-MFJ-WAGEBASE in KNOWN_LIMITATIONS.md — narrowed by R-2 (14 Sep 2026)
+  // below: an MFJ caller that attributes the self-employed spouse's own W-2 (w2OwnForSE)
+  // now gets the coordination; only the UNATTRIBUTED default stays uncoordinated.
+  // Defensive lowercase compare (independent verification pass, Aug 2026): every other
+  // filing-status branch in this file assumes the UI's lowercase enum, but nowhere is that
+  // enforced -- given the size of the swing this branch controls (MFJ vs. everything else),
+  // normalize defensively rather than silently mis-route an unexpected-case status string.
+  // FOURTH READ R-2 (14 Sep 2026): the MFJ branch no longer refuses to coordinate — it
+  // coordinates on the W-2 wages the caller ATTRIBUTES to the self-employed spouse
+  // (w2OwnForSE, clamped to the household total). Blank/0 ⇒ the prior conservative
+  // computation, byte-for-byte (dual-earner households and every existing record are
+  // unchanged). A single business owner filing jointly who enters their own wages here
+  // gets the same §1402(b) coordination a single filer gets — verified live 14 Sep: MFJ
+  // W-2 $200,000 + $80,000 partnership SE income showed $11,304 of SE tax where the
+  // correctly-coordinated figure (and the QSS/HOH figure for identical inputs) is $2,143.
+  const w2OwnForSEClamped = Math.min(totalW2ForFICA, Math.max(0, nf(w2OwnForSE)))
+  const seWageBaseW2 = String(status).toLowerCase() === 'mfj' ? w2OwnForSEClamped : totalW2ForFICA
+  const ssWageBaseRoom = Math.max(0, ssWageBase - seWageBaseW2)
+  const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
+  const ssPortion         = Math.min(seEarningsSubject, ssWageBaseRoom) * (FICA_SS_RATE * 2)
+  const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
+  const seTax             = Math.round(ssPortion + medicarePortion)
+  const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
+  const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
+  const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
+  const employeeFICA   = Math.round(empSS + empMedicare)
+  // §469(i)(3)(F) modified AGI — ONE definition for both §469 branches (R-1, 14 Sep 2026).
+  // Included: W-2, pass-through income after basis limits, §707(c) guaranteed payments,
+  // the nonpassive rental portion (per-property branch only), §1231/4797, the Schedule D
+  // result, interest, dividends (incl. S-Corp E&P dividends), IRA distributions; less the
+  // above-the-line deductions that DO count for this MAGI — §164(f) ½-SE, HSA, SEP/Solo
+  // 401(k) and §162(l) SEHI. Excluded by statute (and therefore never subtracted here):
+  // the §221 student-loan deduction, the §219 IRA deduction, taxable Social Security, and
+  // of course the passive loss itself. NOTE on SEHI: the engine's final §162(l) figure is
+  // computed later (it depends on halfSE); the entered premium is used here exactly as the
+  // pre-R-1 code did, so the only behavioral changes are the two items named above.
+  const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
+    w2 + adjustedK1Total + guaranteedPaymentsTotal + _npRental
+    + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
+    - halfSE
+    - ytdScale(hsaDeduction)
+    - ytdScale(selfEmpRetirement)
+    - ytdScale(selfEmpHealthIns)
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
@@ -1404,12 +1518,17 @@ function calcTaxReturn(input) {
   if (!perPropertyRegimeActive) {
     // ── LEGACY branch (unchanged) ─────────────────────────────────────────────
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
-        // ACCURACY REVIEW (11 Sep 2026): §469(i)(3)(F) computes this MAGI without regard
-        // to the §221 education-loan deduction, so it is no longer subtracted here.
-        - ytdScale(hsaDeduction)
-        - ytdScale(selfEmpRetirement)
-        - ytdScale(selfEmpHealthIns)
+      // FOURTH READ R-1 (14 Sep 2026): §469(i)(3)(F) MAGI is AGI computed without regard to
+      // passive losses, taxable Social Security, the §219 IRA deduction, the §221 education-
+      // loan deduction and the §135/§137/§911 exclusions — and WITH everything else that
+      // reaches AGI. Two items that reach AGI were missing here: §707(c) guaranteed
+      // payments (ordinary gross income to the partner; verified live: the allowance phased
+      // out on W-2 + Box 1 alone, so a $30,000 GP left $25,000 allowed where $12,826 was —
+      // tax understated $2,678) and the §164(f) half-of-SE-tax deduction (Form 8582 line 7
+      // instructions take it into account; omitting it OVERstated MAGI by $5,652 on the same
+      // return). Both now flow through calc469iMagi() — the one definition shared by both
+      // §469 branches — so the two can never drift apart again.
+      const preRentalAGI = calc469iMagi({ nonpassiveRentalNet: 0 })
       // M1 (audit F-01): formula centralized in calc469iAllowance() — identical output
       // (MFS and non-active-participant both resolved to $0 under the prior inline form).
       const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
@@ -1469,12 +1588,9 @@ function calcTaxReturn(input) {
     // as computed against the combined pool — no per-property regime test exercises it.)
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
-      const preRentalAGI = w2 + adjustedK1Total + nonpassiveRentalNet + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
-        // ACCURACY REVIEW (11 Sep 2026): §469(i)(3)(F) computes this MAGI without regard
-        // to the §221 education-loan deduction, so it is no longer subtracted here.
-        - ytdScale(hsaDeduction)
-        - ytdScale(selfEmpRetirement)
-        - ytdScale(selfEmpHealthIns)
+      // FOURTH READ R-1 (14 Sep 2026): same MAGI definition as the legacy branch — the
+      // nonpassive rental portion is the only per-property difference. See calc469iMagi().
+      const preRentalAGI = calc469iMagi({ nonpassiveRentalNet })
       // M1 (audit F-01): same centralization as the single-pool branch above.
       const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
       passiveAllowed     = Math.max(passiveRentalNet, -specialAllowance)
@@ -1525,80 +1641,6 @@ function calcTaxReturn(input) {
   // separately stated). Pending an explicit tax-treatment decision; do not "fix" by
   // copying the nonSEk1 pattern.
   // ─────────────────────────────────────────────────────────────────────────────
-  // F4 (audit, Jul 2026): guaranteed payments (§707(c)) are ordinary income to the
-  // partner AND self-employment earnings — for GP made for SERVICES this is true even
-  // for a limited partner (§1402(a)(13) excludes the distributive share but NOT §707(c)
-  // service payments). They are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)), so this
-  // total is deliberately kept OUT of qbiBasis below. Partnership entities only.
-  const guaranteedPaymentsTotal = entities.reduce((sum, e) => {
-    if (!e || !/partnership|mmllc/i.test(e.type || '')) return sum
-    return sum + Math.max(0, nf(e.guaranteedPayments))
-  }, 0)
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): Treas. Reg. §1.1402(a)-2(c) requires
-  // net earnings from self-employment to be the AGGREGATE of net income AND LOSSES across all
-  // of an individual's trades/businesses -- a loss in one SE-subject business offsets a gain
-  // in another before any floor is applied. This reducer floored each entity at $0
-  // individually, so a second SE business running a loss was silently ignored instead of
-  // reducing the SE tax base (a $120,000 profit + a $40,000 loss taxed as if the loss did not
-  // exist: $16,955 of SE tax instead of the correct ~$11,304 on the true $80,000 net).
-  const seNetIncomeAggregate = entitiesLimited.reduce((sum, e) => {
-    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return sum
-    return sum + getEntityK1Share(e)
-  }, 0)
-  // AUDIT FIX (independent verification pass, Aug 2026): guaranteed payments (IRC §707(c))
-  // are a component of the SAME net-earnings-from-self-employment figure under IRC §1402(a) --
-  // not a separate, floor-immune addend. The first version of this fix aggregated the
-  // distributive shares correctly but still added guaranteedPaymentsTotal AFTER the single
-  // Math.max(0, ...) floor, so a partnership loss could not offset that partner's own
-  // guaranteed payments either (e.g. -$100,000 distributive share + $60,000 GP = true NESE
-  // -$40,000 / $0 SE tax, but the floor-after-addition version still taxed the full $60,000
-  // GP as if the loss did not exist). Both must net together before the single floor applies.
-  const seNetIncome = Math.max(0, seNetIncomeAggregate + guaranteedPaymentsTotal)
-  const ssWageBase = getTable(taxYear).ssWageBase
-  // FINDING-4 FIX (independent audit, Aug 2026): IRC §1402(b) / Form SE Part I
-  // coordination worksheet. The 12.4% OASDI portion of SE tax applies only to the
-  // wage-base ROOM remaining after W-2 Social Security wages already taxed that year
-  // (including the taxpayer's own S-Corp officer salary) — not the full annual wage
-  // base. totalW2ForFICA / ssWageBaseRoom are hoisted above the SE tax computation;
-  // previously they were computed further down and consumed ONLY by the advisory
-  // ficaSavings estimate, never by the actual seTax liability, so a filer with W-2
-  // wages from their own S-Corp plus other SE income had SE tax overstated by
-  // (FICA_SS_RATE*2) on every dollar of wage-base room their W-2 wages had already
-  // consumed (e.g. $140,000 W-2 + $234,200 SE earnings on a 2025 return: uncoordinated
-  // ~$28.1k vs. correctly-coordinated ~$10.7k).
-  const totalW2ForFICA = Math.max(0, nf(w2))
-  // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the Finding-4 coordination above is
-  // only valid when totalW2ForFICA and seNetIncome belong to the SAME individual -- true for
-  // single/HOH/QSS/MFS (each a one-person return) but NOT for MFJ, where `w2` is the COMBINED
-  // household wage figure (TaxReturn.jsx: w2Total = w2Income + officerW2Total -- one field, no
-  // spouse attribution anywhere in the entity/income model) while Schedule SE is filed
-  // SEPARATELY per spouse (IRC §1402(b); Schedule SE instructions: "If you and your spouse
-  // both have self-employment income, you must each file a separate Schedule SE"). Letting
-  // one spouse's W-2 consume the OTHER spouse's SE wage-base room understated SE tax by
-  // $13,741 on a $200k-W-2 + $120k-Sch-C MFJ household (TY2026) -- the OASDI portion was
-  // zeroed out entirely because the combined W-2 alone exceeded the wage base, even though
-  // the self-employed spouse's OWN W-2 was $0. Conservative-by-design fix (matching this
-  // codebase's established risk posture for every other unmodeled spouse-attribution gap --
-  // see PAL-MFS in KNOWN_LIMITATIONS.md): for MFJ, do not let the combined W-2 reduce SE
-  // wage-base room. This is exactly correct for the dual-earner case (confirmed above) and
-  // conservative -- overstates, never understates -- for a single business owner whose W-2
-  // and SE income are actually the same person filing jointly (the original Finding-4 case).
-  // See LIMITATION SE-MFJ-WAGEBASE in KNOWN_LIMITATIONS.md.
-  // Defensive lowercase compare (independent verification pass, Aug 2026): every other
-  // filing-status branch in this file assumes the UI's lowercase enum, but nowhere is that
-  // enforced -- given the size of the swing this branch controls (MFJ vs. everything else),
-  // normalize defensively rather than silently mis-route an unexpected-case status string.
-  const ssWageBaseRoom = String(status).toLowerCase() === 'mfj'
-    ? ssWageBase
-    : Math.max(0, ssWageBase - totalW2ForFICA)
-  const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
-  const ssPortion         = Math.min(seEarningsSubject, ssWageBaseRoom) * (FICA_SS_RATE * 2)
-  const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
-  const seTax             = Math.round(ssPortion + medicarePortion)
-  const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
-  const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
-  const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
-  const employeeFICA   = Math.round(empSS + empMedicare)
   // AUDIT FIX (independent verification pass, Aug 2026): same missing-C-Corp-guard class as
   // the nonSEk1 QBI fix above -- a C-Corp's book profit is never a personal K-1 distribution
   // (it reaches the owner only as a dividend after entity-level tax), but this reducer had no
@@ -2334,7 +2376,7 @@ function calcTaxReturn(input) {
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE, guaranteedPaymentsTotal,
     employeeFICA, totalW2ForFICA,
-    ficaSavings, ssWageBase, ssWageBaseRoom, k1Distributions,
+    ficaSavings, ssWageBase, ssWageBaseRoom, seWageBaseW2, w2OwnForSE: w2OwnForSEClamped, k1Distributions,   // R-2: W-2 actually netted against SE room
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     // AUDIT FIX result fields (Jul 2026):
     sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp, sehiMixedSourceFallback,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
