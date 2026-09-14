@@ -220,11 +220,17 @@ export function getEntityPnlNetShare(e) {
  */
 export function getEntityK1Share(e) {
   if (!e) return 0
-  if (e.k1 !== undefined) return nf(e.k1)
+  // FOURTH READ R-4 (14 Sep 2026): an entity whose P&L comes from accounting software
+  // (connectedId set) holds ENTITY-level books — the "already the owner's share" shortcuts
+  // below (an explicit k1 override, or k1DirectMode) can only be stale leftovers from a
+  // manual K-1 entry or a loaded record made before the sync, and honoring them ignores
+  // Ownership %. The sync path now strips them too; this is the defence in depth.
+  const synced = !!e.connectedId
+  if (e.k1 !== undefined && !synced) return nf(e.k1)
   // Built on getEntityNetProfit() (not getEntityPnlNet()) so this also supports
   // pre-pnl legacy records (top-level e.netProfit, no e.pnl object at all) — the
   // same dual-path data model getEntityNetProfit() already resolves (CC-M04 / OBS-3).
-  if (e.k1DirectMode) return getEntityNetProfit(e)
+  if (e.k1DirectMode && !synced) return getEntityNetProfit(e)
   return Math.round(getEntityNetProfit(e) * ownPct(e?.own) / 100)
 }
 
