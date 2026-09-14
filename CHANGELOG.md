@@ -12,6 +12,41 @@ record of work that predates this changelog.
 
 ---
 
+## Fourth read, second pass — synced-entity ownership share and waterfall captions (R-4, R-6, R-7) — September 14, 2026
+
+### Fixed
+- **R-4 — a synced entity ignored its Ownership %** (`CalculateTaxInner.jsx`,
+  `entityPredicates.js`). The accounting-software sync spread the previous entity object
+  and replaced only `pnl`, so a `k1DirectMode: true` left by the "Have a K-1? Enter Box 1
+  directly" toggle, or an explicit `k1` override written by a loaded record, survived the
+  sync — and `getEntityK1Share()` treats both as "already the owner's share" and never
+  scales. Verified live: a FreshBooks S-Corp at 50% flowed 100% of its −$481,660 loss into
+  Step 2 ($441,660 suspended against $40,000 of basis instead of $200,830). The sync path now
+  strips both, and the resolver ignores them whenever `connectedId` is set (defence in depth).
+  Manual K-1-direct entities keep the Finding-2 contract.
+- **R-6 — NOL row printed below AGI** (`TaxReturn.jsx`). The §172 deduction is inside the
+  engine's AGI (Schedule 1, line 8a) but rendered after the standard deduction, so the
+  column did not foot (AGI $27,470 − $15,750 − $46,878 ≠ $11,720). Now "NOL Deduction (§172)"
+  sits with the above-the-line rows, with the 80% cap and the carryforward in its note.
+- **R-7 — captions** (`TaxReturn.jsx`). The §1231 row said "taxed at long-term capital-gains
+  rates" even when §1231(c) recharacterized part of the gain as ordinary; it now names the
+  ordinary slice and the remaining LTCG. The SE-income row names the §707(c) guaranteed
+  payments it contains. The "Prior §1231 losses" tooltip rendered a literal `\n\n`.
+
+### Not changed — R-3 withdrawn
+- The fourth read questioned whether a Qualifying Surviving Spouse should get the joint
+  §199A threshold. The Form 8995 and 8995-A instructions say "$394,600 if married filing
+  jointly, and $197,300 for all other returns" — a QSS return is "all other". The engine's
+  existing fallback to the single threshold is correct; no change.
+
+### Tests
+- `taxCalc-k1direct-ownership.test.js` (+5): synced entity scales at 50% despite a leftover
+  `k1DirectMode` / `k1`; manual K-1-direct contract preserved; end-to-end §1366(d) on the share.
+- `TaxReturn.test.jsx` (+3): NOL row placement and note; §1231(c) caption; GP note.
+- Suite: 106 files / 1,574 tests passing.
+
+---
+
 ## Fourth read — §469(i) MAGI and MFJ Schedule SE attribution (R-1, R-2) — September 14, 2026
 
 Independent re-check of the three pre-launch reports against the production bundle
