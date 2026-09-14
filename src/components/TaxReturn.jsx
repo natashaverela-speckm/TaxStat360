@@ -2074,6 +2074,14 @@ export default function TaxReturn() {
                     : 'Net §1231 loss — ordinary, reduces ordinary income' },
                 { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
+                // FOURTH READ, second pass (14 Sep 2026): an S-Corp distribution in excess of stock
+                // basis is §1368(b)(2) capital gain that the engine puts in AGI, but it had no row —
+                // K-1 $40,000 + W-2 $60,000 showed AGI $120,000 with nothing explaining the $20,000.
+                { label: 'S-Corp distributions above basis (§1368(b)(2))', value: (result.distributionCapGainLT || 0) + (result.distributionCapGainST || 0), sign: 1,
+                  hide: !(((result.distributionCapGainLT || 0) + (result.distributionCapGainST || 0)) > 0), accent: '#2563EB',
+                  note: (result.distributionCapGainST || 0) > 0
+                    ? `Capital gain on Schedule D — ${fmt(result.distributionCapGainLT || 0)} long-term, ${fmt(result.distributionCapGainST || 0)} short-term (stock held one year or less)`
+                    : 'Long-term capital gain on Schedule D — not on the K-1; the distribution exceeded stock basis after this year\'s income' },
                 // F-FUNC-06: show the §461(l) excess-business-loss addback as an explicit inline
                 // line so the income components above visibly reconcile to AGI. When a business
                 // loss exceeds the §461(l) threshold, the disallowed amount is added back to
@@ -2125,7 +2133,6 @@ export default function TaxReturn() {
                 // result.itemized and result.stdDed are both returned by the engine (line 1093/1171).
                 // When itemized > stdDed the engine itemizes; otherwise it uses the standard deduction.
                 { label: (useItemized && result.itemized > result.stdDed) ? 'Itemized Deductions (Schedule A)' : 'Standard Deduction', value: result.deduction, sign: -1 },
-                { label: '§68 Itemized Limitation (2/37)',  value: result.itemizedLimitReduction,            sign: 1, hide: !result.itemizedLimitReduction, accent: '#94A3B8', note: 'OBBBA §70111 — top-bracket itemizers: deduction benefit capped at 35¢/dollar', isAddback: true },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
                 // AUDIT F-6/B-1 (Jul 2026): this row used to HIDE itself when the deduction was
@@ -2138,8 +2145,14 @@ export default function TaxReturn() {
                   note: result.qbiWageDataMissing
                     ? 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.'
                     : undefined },
+                // FOURTH READ, second pass (14 Sep 2026): the engine applies the §68 2/37 reduction
+                // AFTER the §199A deduction (taxableIncome = taxableAfterQBI + itemizedLimitReduction)
+                // and taxes that figure. The row used to sit above the pre-§199A line and the final
+                // line showed taxableAfterQBI, so the column read $3,000 low against the tax charged
+                // (verified live: TI shown $844,500, tax computed on $847,500).
+                { label: '§68 Itemized Limitation (2/37)',  value: result.itemizedLimitReduction,            sign: 1, hide: !result.itemizedLimitReduction, accent: '#94A3B8', note: 'OBBBA §70111 — top-bracket itemizers: deduction benefit capped at 35¢/dollar; added back here, after §199A, exactly as the engine applies it', isAddback: true },
                 { label: '—', value: 0, divider: true },
-                { label: 'Taxable Income (final)',      value: result.taxableAfterQBI,                   sign: 1, bold: true },
+                { label: 'Taxable Income (final)',      value: result.taxableIncome ?? result.taxableAfterQBI, sign: 1, bold: true },
                 { label: '—', value: 0, divider: true },
                 { label: 'Federal Income Tax',          value: result.fedTax,                            sign: 1 },
                 // FOURTH READ R-2 (14 Sep 2026): say which W-2 dollars were netted against the

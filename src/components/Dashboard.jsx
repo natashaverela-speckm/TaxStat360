@@ -129,6 +129,9 @@ export function calcDashboard(biz, f1040) {
     isREP: false, unrecap1250: 0, collectiblesGain: 0,
     w2Withheld: 0, estPaid: estPay, ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
+    // FOURTH READ R-2, second pass (14 Sep 2026): the MFJ Schedule SE attribution must reach
+    // every engine call, or this card disagrees with Step 2 by up to 12.4% of the wage base.
+    w2OwnForSE: fs === 'mfj' ? nf(f1040.w2OwnForSE) : 0,
   }
 
   // M2 (audit F-05): ARCHITECTURE §5 guard — both calcTaxReturn() calls below spread

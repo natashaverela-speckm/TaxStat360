@@ -381,7 +381,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
                   {' '}(
                   {entity.k1 !== undefined
                     ? `${fmt(getEntityK1Share(entity))} K-1 override`
-                    : entity.k1DirectMode
+                    : (entity.k1DirectMode && !entity.connectedId)   /* R-4: a synced entity ignores a stale direct-entry flag */
                       ? `${fmt(getEntityK1Share(entity))} K-1 (direct entry, Box 1)`
                       : `${fmt(entity.pnl.netProfit)} net × ${entity.own}%`}
                   {' + '}{fmt(officerSalaryShare)} officer salary)

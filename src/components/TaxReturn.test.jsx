@@ -905,3 +905,30 @@ describe('TaxReturn — R-7: §1231(c) recharacterization and guaranteed payment
     readStep1State.mockReturnValue({ entities: [], k1Total: 0 })
   })
 })
+
+// ─── Second pass (14 Sep 2026): §68 placement and the §1368(b)(2) row ───────────────────
+
+describe('TaxReturn — second pass: taxable income shows the post-§68 figure; excess distributions get a row', () => {
+  it('Taxable Income (final) is the engine\'s taxableIncome (after the §68 addback), and the §68 row sits after §199A', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), taxableBeforeQBI: 844500, taxableAfterQBI: 844500, taxableIncome: 847500, itemizedLimitReduction: 3000, itemized: 55500, stdDed: 32200, deduction: 55500 })
+    const { getByText, container } = renderTaxReturn()
+    expect(getByText('§68 Itemized Limitation (2/37)')).toBeTruthy()
+    const text = container.textContent
+    expect(text.indexOf('§68 Itemized Limitation (2/37)')).toBeGreaterThan(text.indexOf('Taxable Income (before §199A)'))
+    expect(text.indexOf('$847,500')).toBeGreaterThan(-1)
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+
+  it('renders the §1368(b)(2) excess-distribution row when the engine reports the gain', () => {
+    const defaultImpl = calcTaxReturn.getMockImplementation()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), distributionCapGainLT: 20000, distributionCapGainST: 0, agi: 120000 })
+    const { getByText, unmount } = renderTaxReturn()
+    expect(getByText('S-Corp distributions above basis (§1368(b)(2))')).toBeTruthy()
+    unmount()
+    calcTaxReturn.mockReturnValue({ ...defaultImpl(), distributionCapGainLT: 0, distributionCapGainST: 0 })
+    const { queryByText } = renderTaxReturn()
+    expect(queryByText('S-Corp distributions above basis (§1368(b)(2))')).toBeNull()
+    calcTaxReturn.mockImplementation(defaultImpl)
+  })
+})
