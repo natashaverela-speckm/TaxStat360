@@ -120,6 +120,20 @@ export const issuesK1Entity = (t) =>
  * fifth read (15 Sep 2026) so taxCalc.js and the UI can share ONE definition without an
  * import cycle; aiAnalysisTaxMath re-exports it for existing callers.
  */
+/**
+ * FIFTH READ follow-up (15 Sep 2026): is this entity's Box 1 share PASSIVE activity income to
+ * the taxpayer? True for (a) a Partnership / MMLLC routed to the "— Passive" variant (the
+ * limitedPartner attestation), and (b) an S-Corp whose shareholder attests they do NOT
+ * materially participate (`passiveShareholder`). Real-estate entities are excluded — their
+ * passive treatment is the §469 rental section. Drives NIIT (§1411(c)(2)(A)), §469(d)(1)
+ * netting against passive rental losses, and the §199A(i) "active" floor gate.
+ */
+export function isPassiveK1Entity(e) {
+  if (!e || isRealEstateEntity(e.type) || isCCorpEntity(e.type)) return false
+  if (isSCorpEntity(e.type)) return e.passiveShareholder === true
+  return /passive/i.test(normalizeEntityType(e.type) || '')
+}
+
 export function isLimitedPartnerEligibleType(t) {
   const type = t || ''
   if (isScheduleCType(type)) return false

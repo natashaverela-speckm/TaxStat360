@@ -66,6 +66,9 @@ function _wholeReturnExtras(pc, entities) {
     // Use the single canonical aggregation rule (sumK1FlowThrough) so the selector matches
     // the k1Total TaxReturn.jsx passes to the same engine (readStep1State().k1Total).
     k1Total: sumK1FlowThrough(entities),
+    // Follow-up (15 Sep 2026): remaining-installment timing — same "today" every other
+    // live surface passes, so the Dashboard record card's quarterly figure matches Step 2.
+    asOfDate: new Date().toISOString().slice(0, 10),
     charitableContr: nf(pc.charitableContr),                    // N-9 §170(p)/floor
     capLossCarryforwardST: nf(pc.capLossCarryforwardST),        // §1212(b) (Phase 2.1)
     capLossCarryforwardLT: nf(pc.capLossCarryforwardLT),
@@ -86,6 +89,8 @@ const _SUMMARY_KEYS = [
   'capitalGainNetIncluded', 'capLossCarryoverST', 'capLossCarryoverLT',
   'capLossCarryoverTotal', 'ebl', 'ficaSavings', 'reasonableCompAlert',
   'totalSuspendedLoss', 'quarterlyRecommended',
+  // Follow-up (15 Sep 2026): remaining-installment timing for the Dashboard card / Aria.
+  'installmentsRemaining', 'installmentsPassed', 'nextDueDate', 'balancePerInstallment', 'safeHarborQuarterly',
 
   // LAUNCH CHECK N-3/N-4 (Sep 2026): the LIMITATIONS the engine applied, so
   // Aria narrates the cap that actually bound instead of reciting a headline
