@@ -37,7 +37,7 @@ import InfoTip from './InfoTip.jsx'
 import { signOut } from '../utils/SignOut'
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE as P, ORANGE as O, SUCCESS_TEXT } from '../lib/theme'
 import { fmt, pct, nf, effectiveRate } from '../utils/money.js'
-import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityK1Share } from '../utils/entityPredicates'
+import { isPassthroughEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, isRealEstateEntity, issuesK1Entity, officerSalaryScenarioApplies, ownPct, getEntityNetProfit, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates'
 // M2 (audit F-05): the What-If Simulator's engine calls are now guarded; a rejected
 // input is caught below into a visible notice instead of NaN rows / "$0 savings".
 import { CalcInputError } from '../utils/calcGuard'
@@ -2121,9 +2121,13 @@ function SimulatorModal({ onClose, rec }) {
   // entities and thread it through so the simulator's SE tax — and the Max-SEP
   // preset — match every other surface instead of charging SE tax and offering a
   // SEP contribution on SE-exempt income.
-  const simIsPartnership = /partner|mmllc|llc/i.test(entity || '') && !isSCorpEntity(entity)
+  // FIFTH READ follow-up (15 Sep 2026): was /partner|mmllc|llc/i, which also matches the
+  // sole-prop label "Sole Proprietor / SMLLC" — a sole prop plus any entity carrying a
+  // stale limitedPartner flag made the simulator drop SE tax on Schedule C income. Shared
+  // predicate now (same one the engine, TaxReturn and CalculateTaxInner use).
+  const simIsPartnership = isLimitedPartnerEligibleType(entity)
   const simLimitedPartner = simIsPartnership && (rec?.entities || []).some(e =>
-    e && e.limitedPartner && /partner|mmllc|llc/i.test(e?.type || '') && !isSCorpEntity(e?.type))
+    e && e.limitedPartner && isLimitedPartnerEligibleType(e?.type))
 
   // F-SIM FIX (Jul 2026): base built via the shared, unit-tested helper. w2Income is
   // PERSONAL W-2 only — computeSimulatorScenario adds officer salary itself. Previously
