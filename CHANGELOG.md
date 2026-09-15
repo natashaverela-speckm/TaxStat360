@@ -84,6 +84,9 @@ all in the passive-activity / joint-return corners, plus copy issues.
   `aiAnalysisTaxMath.js`) and used by the engine's passive routing, the TaxReturn heading,
   and CalculateTaxInner's type-change handler, which now clears the flag when the new type
   cannot carry it. Tests: `utils/entityPredicates-limited-partner.test.js` (+5).
+- Same trap in the What-If Simulator (`AIAnalysis.jsx` SimulatorModal): the sole-prop label
+  matched `/llc/`, so a sole prop plus any entity with a stale flag simulated with NO SE tax.
+  Now uses `isLimitedPartnerEligibleType` for both the entity-type test and the flag scan.
 
 ### Documented
 - `KNOWN_LIMITATIONS.md`: SE-MFJ-WAGEBASE narrowed again; PASSIVE-PARTNER status updated
