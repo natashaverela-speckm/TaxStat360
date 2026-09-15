@@ -75,6 +75,16 @@ all in the passive-activity / joint-return corners, plus copy issues.
   $250k MFJ / $125k MFS / $200k otherwise; $200k is the withholding trigger.
 - `constants.js`: CTC threshold comments corrected (QSS uses the $200,000 amount).
 
+### Fixed — stale `limitedPartner` flag (follow-up, same day)
+- Re-typing a Partnership / LLC card to Sole Proprietor left the §1402(a)(13) attestation on
+  the record, and the SE-savings heading's `/partner|mmllc|llc/` test matched "SMLLC", so the
+  card said "S-Corp K-1 and limited-partner business income" for a sole prop (math was
+  unaffected — the engine's normalizeEntityType resolved the type correctly). Fixes:
+  `isLimitedPartnerEligibleType` moved to `utils/entityPredicates.js` (re-exported from
+  `aiAnalysisTaxMath.js`) and used by the engine's passive routing, the TaxReturn heading,
+  and CalculateTaxInner's type-change handler, which now clears the flag when the new type
+  cannot carry it. Tests: `utils/entityPredicates-limited-partner.test.js` (+5).
+
 ### Documented
 - `KNOWN_LIMITATIONS.md`: SE-MFJ-WAGEBASE narrowed again; PASSIVE-PARTNER status updated
   (items 1, 3 done; passive K-1 LOSS suspension remains open); new NIIT-SCORP-PASSIVE.
