@@ -90,6 +90,19 @@ each file their own Schedule SE; the engine still aggregates all SE income onto 
 residual is still conservative when the attributed W-2 is the higher earner's, and is now the
 documented boundary of this limitation.
 
+**NARROWED AGAIN — 15 Sep 2026 (fifth read, external calc audit F-3).** The R-2 input was
+shipped with the wrong DEFAULT for the app's core customer: an S-Corp owner whose officer
+salary flows from Step 1 (with the instruction "do not re-enter in Step 2") and who also has
+Schedule C / active-partnership income. Blank ⇒ full wage base ⇒ SE tax overstated by up to
+12.4% of the wage base, and the "SE tax savings vs. sole proprietorship" card disagreed between
+MFJ ($27,178) and Single ($15,629) on identical facts. Step 1 already records officer salary as
+"your W-2 wages from this entity", so `utils/w2OwnForSE.js` now resolves a blank entry to the
+owner's own S-Corp / C-Corp officer salary — at every engine call site (Step 2, Dashboard,
+What-If simulator, entity compare). Other-employer W-2 is never assumed; a typed amount always
+wins, which is how a household whose S-Corp belongs to the OTHER spouse opts out. Verified live:
+MFJ 2026, $100k officer W-2 + $100k Sch C now $13,156 SE tax (was $14,130). Residual boundary is
+unchanged: per-entity spouse attribution (two self-employed spouses) is still not modeled.
+
 **Investigated for a fix, not attempted — Aug 12 2026 (Audit Synthesis, Phase 2, "B5").**
 Revisited as a candidate for this engagement's remaining schema-change batch (alongside B3/B4).
 Unlike B4's SEHI split — which only needed to split ONE field (the premium amount) because the
@@ -743,22 +756,34 @@ The engine vocabulary already distinguishes a passive variant
 partner would correctly owe **no SE tax** (IRC §1402(a)(13)). The §199A(i) $400-minimum gate
 also now excludes passive-partner QBI (`_passiveK1Qbi` in `calcTaxReturn`).
 
-**Why it is not exposed in the UI:** the §469 passive-activity-loss machinery
-(`palAdjustedRental` / `passiveRentalNet` / `calc469iAllowance`) is **rental-scoped**. If the
-passive-partner type were made selectable today, a passive partnership *loss* would flow
-through as fully deductible against non-passive income instead of being suspended under §469 —
-a worse error than the one the type would fix. NIIT treatment of passive K-1 income would also
-need review.
+**Exposure since ITEM 4 (A6):** the "Limited partner" checkbox on a Partnership / LLC card
+routes the entity to the passive variant, so the type IS selectable. Status of the four
+requirements as of the fifth read (15 Sep 2026, external calc audit):
 
-**To support passive partners properly, all of the following are required:**
-1. Make the passive variant selectable in `ENTITY_TYPES` / the entity picker.
-2. Suspend passive K-1 losses under §469 (extend the PAL machinery beyond rentals) with
-   carryforward tracking.
-3. Confirm NIIT treatment — passive K-1 income IS net investment income (§1411).
-4. Keep the SE-tax exemption and the §199A(i) floor exclusion (both already in place).
+1. ~~Make the passive variant selectable~~ — done (limitedPartner attestation).
+2. **Suspend passive K-1 LOSSES under §469 — still NOT modeled.** A passive partnership *loss*
+   flows through as fully deductible against non-passive income instead of being suspended on
+   Form 8582. Understates tax in that fact pattern; disclosed in the checkbox InfoTip. The
+   fifth read deliberately floors the passive K-1 pool at $0 so a K-1 loss is not ALSO used to
+   shelter passive rental income or reduce NII (which would double-count it).
+3. ~~Confirm NIIT treatment~~ — **fixed (F-1).** Positive passive K-1 net (share − §179) is
+   net investment income (§1411(c)(1)(A)(ii), (c)(2)(A)); `passiveK1NII` in the engine output.
+   Also **fixed (F-2)**: that income absorbs passive rental losses before the §469(i)
+   allowance (§469(d)(1)); the absorbed slice is excluded from NII. Tests:
+   `taxCalc-fifth-read-passive-k1.test.js`.
+4. Keep the SE-tax exemption and the §199A(i) floor exclusion — unchanged, in place.
 
-Until then, a limited partner who does not materially participate is outside the tool's
-supported scope.
+## LIMITATION NIIT-SCORP-PASSIVE — every S-Corp K-1 is treated as nonpassive
+
+**Added 15 Sep 2026 (fifth read).** Exposure direction: understates tax for a passive
+shareholder. The UI has no material-participation attestation for S-Corp entities, so an
+S-Corp shareholder who does not materially participate (whose Box 1 share is passive activity
+income and therefore NII under §1411(c)(2)(A), and whose losses are §469-suspended) is
+computed as active: no NIIT on the share, losses fully deductible. The limited-partner
+checkbox is partnership-only by design. A per-S-Corp "I do not materially participate"
+attestation routed to the same passive pool (`passiveK1Net` in `calcTaxReturn`) would close
+the NIIT half; the loss half needs item 2 under PASSIVE-PARTNER above. Should be listed in the
+FAQ's "What does TaxStat360 not calculate?".
 
 
 ## AUTH-SESSION — login succeeds but /auth/me returns 401 (independent review, Jul 31 2026)

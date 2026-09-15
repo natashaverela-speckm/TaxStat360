@@ -12,6 +12,84 @@ record of work that predates this changelog.
 
 ---
 
+## Fifth read — external calculation audit (F-1 to F-5, copy) — September 15, 2026
+
+An independent reviewer (EA-led) read the deployed bundle's engine end to end, rebuilt a
+reference calculator from Rev. Proc. 2024-40 / 2025-32 and P.L. 119-21, and ran seven live
+scenarios (Sch C; S-Corp with officer comp; S-Corp + Sch C; §199A phase-in with per-entity
+wage limits; capital-gain stacking; NIIT on gains; AMT on an ISO exercise). All seven matched
+to the dollar and every 2024–2026 parameter checked out. Three substantive gaps were found,
+all in the passive-activity / joint-return corners, plus copy issues.
+
+### Fixed — engine (`taxCalc.js`)
+- **F-1 — NIIT omitted passive K-1 income.** A limited-partner / non-material-participation
+  LLC share (the `limitedPartner` attestation → `Partnership / MMLLC — Passive`) is income from
+  a passive trade or business and therefore NII — IRC §1411(c)(1)(A)(ii), §1411(c)(2)(A).
+  New `passiveK1Net` / `passiveK1Income` pool (share − §179; floored at $0) feeds the NII base
+  as `passiveK1NII`. Live repro: single 2026, $300k passive K-1, AGI $592k — no NIIT shown;
+  now $11,400. Direction: was UNDERstating.
+- **F-2 — passive K-1 income did not absorb passive rental losses before the §469(i)
+  allowance.** §469(d)(1) nets aggregate passive income against aggregate passive losses first
+  (Form 8582 Part I); the $25k allowance was applied to the rental loss alone. Both §469
+  branches now route through `applyPassiveNetting()`; the absorbed slice
+  (`passiveLossAbsorbedByK1`) is excluded from NII. Live repro: $20k passive K-1 + $30k
+  active-participation rental loss at $115k MAGI suspended $12,705; now $0 (AGI $85,410).
+- **F-4 — QSS treated as a joint return** for three "in the case of a joint return"
+  provisions: §24(h)(3) CTC phase-out ($200,000, not $400,000 — Schedule 8812 line 9),
+  §170(p) non-itemizer charitable ($1,000, not $2,000), §461(l)(3) EBL threshold (individual
+  amount in the 2024/2025/2026 tables). Brackets, standard deduction, AMT, LTCG, NIIT and
+  Additional Medicare for QSS were already correct and are unchanged.
+- **F-5 — §199A(i) $400 floor was applied BEFORE the (a)(2) 20%-of-taxable-income cap.**
+  The statute applies it to "the deduction allowed under subsection (a)", i.e. after the cap.
+  `calcQBI` re-applies the floor after the ceiling (still held to taxable income). Only bites
+  with taxable income under ~$2,000. `taxCalc.test.js` CHAR test updated to the SPEC result.
+- Engine output adds `passiveK1Income`, `passiveK1NII`, `passiveLossAbsorbedByK1`.
+- Tests: `taxCalc-fifth-read-passive-k1.test.js` (+19).
+
+### Fixed — MFJ Schedule SE attribution default (F-3)
+- The R-2 `w2OwnForSE` field defaulted to $0, so an S-Corp owner's officer salary (which flows
+  from Step 1 with "do not re-enter in Step 2") never consumed their own wage base when they
+  also had Schedule C / active-partnership income: SE tax overstated by up to 12.4% of the wage
+  base, and the "SE tax savings vs. sole proprietorship" card showed $27,178 (MFJ) vs. $15,629
+  (Single) on identical facts. New `utils/w2OwnForSE.js` (`resolveW2OwnForSE`,
+  `officerW2Total`): blank ⇒ the owner's own S-Corp / C-Corp officer salary; a typed amount
+  always wins (how a household whose S-Corp belongs to the other spouse opts out). Applied at
+  every engine call site: `TaxReturn.jsx`, `Dashboard.jsx`, `aiAnalysisTaxMath.js` (simulator
+  uses the SIMULATED salary), `EntityCompareModal.jsx` + `scenarioCompare.js` (the compared
+  entity's scenario salary is the owner's W-2). Field caption + InfoTip reworded. Live repro:
+  MFJ 2026, $100k officer W-2 + $100k Sch C → $13,156 SE tax (was $14,130); total $69,492.
+  Tests: `utils/w2OwnForSE.test.js` (+8).
+
+### Fixed — copy
+- `CalculateTaxInner.jsx`: reasonable-comp banner said a 63% salary was "within the 35–45%
+  range" — now says above/within correctly; bonus-depreciation InfoTip gave 40% as "the prior
+  rate" for everything on/before Jan 19 2025 (60% for 2024, 80% for 2023 — 2024 is a
+  selectable year); "2026 SSTB phase-out range (estimated)" → Rev. Proc. 2025-32 (final);
+  limited-partner InfoTip now states the NIIT and §469 netting treatment.
+- `TaxReturn.jsx`: dependents InfoTip said "$2,000–$2,200 (2025–2026)" — 2025 and 2026 are
+  both $2,200; $2,000 is 2024. Phase-out wording names QSS explicitly.
+- `articles.js` (§199A guide): K-1 charitable contributions do NOT reduce QBI (the article
+  contradicted the app's own — correct — Step 1 help); SSTB "cliff" wording replaced with the
+  ratable phase-in; the de minimis rule (Reg. §1.199A-5(c)(1)) described correctly — no
+  "allocation of the non-SSTB portion". (Salary article): Additional Medicare threshold is
+  $250k MFJ / $125k MFS / $200k otherwise; $200k is the withholding trigger.
+- `constants.js`: CTC threshold comments corrected (QSS uses the $200,000 amount).
+
+### Documented
+- `KNOWN_LIMITATIONS.md`: SE-MFJ-WAGEBASE narrowed again; PASSIVE-PARTNER status updated
+  (items 1, 3 done; passive K-1 LOSS suspension remains open); new NIIT-SCORP-PASSIVE.
+
+### Not changed (audit items left for owner decision)
+- "Recommended per quarter" is `max(balance/4, safe-harbor shortfall/4)` against all four due
+  dates regardless of today's date — consider remaining-installment logic and a separately
+  labeled safe-harbor minimum.
+- Two pinpoint citations the reviewer could not match: "Treas. Reg. §1.199A-3(b)(1)(ii)(A)"
+  for §179 (the deductions-attributable rule is usually cited as §1.199A-3(b)(1)(vi)) and
+  "IRS Notice 2026-11" (removed from the bonus-depreciation tip; the §168(k)(6) statutory
+  cite is used instead).
+
+---
+
 ## Third pass — simulator attribution, waterfall footing, compare-modal tax year (P-1 to P-12) — September 14, 2026
 
 A second blind checker hand-computed twelve NEW scenarios (T1–T12: YTD annualization, SSTB
