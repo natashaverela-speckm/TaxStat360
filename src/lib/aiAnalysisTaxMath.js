@@ -19,7 +19,7 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import {
@@ -329,12 +329,9 @@ export function selfEmployedRetirementBase(netSEincome, year, engineSeTax) {
  * corporation. Written as an explicit sole-prop exclusion because the canonical label
  * for a sole prop ends in "Single-Member LLC", which any bare /llc/ test will match.
  */
-export function isLimitedPartnerEligibleType(t) {
-  const type = t || ''
-  if (isScheduleCType(type)) return false
-  if (isSCorpEntity(type) || isCCorpEntity(type) || isRealEstateEntity(type)) return false
-  return /partner|mmllc|multi.?member/i.test(type)
-}
+// FIFTH READ (15 Sep 2026): definition moved to utils/entityPredicates.js (shared with
+// taxCalc.js and the UI). Re-exported here so existing imports keep working.
+export { isLimitedPartnerEligibleType }
 
 export function seEligibleK1FromEntities(entities) {
   return (Array.isArray(entities) ? entities : []).reduce((sum, e) => {

@@ -85,7 +85,7 @@ import {
   ACTC_EARNED_INCOME_FLOOR,
   ACTC_MAX_PER_CHILD_FALLBACK,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share } from '../utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
 // field manifest — the single home for every persisted/scaled field list.
 import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from '../utils/fieldManifest.js'
@@ -1143,7 +1143,11 @@ function calcTaxReturn(input) {
     // QBI on the K-1 still applies. Default (unchecked) = Active/general partner = SE-subject.
     // NOTE: §469 passive-loss suspension for a limited-partner K-1 LOSS is not modeled here
     // (rental-scoped today — see KNOWN_LIMITATIONS); positive shares are handled correctly.
-    const routed = (e.limitedPartner && /partner|mmllc|llc/i.test(e.type || '')) ? `${e.type} passive` : e.type
+    // FIFTH READ (15 Sep 2026): the bare /llc/ in the old regex also matched both sole-prop
+    // labels ("… / SMLLC", "… / Single-Member LLC"); normalizeEntityType happened to resolve
+    // those back to the sole-prop type, but the UI (TaxReturn's SE-savings heading) used the
+    // same regex without that safety net. One shared predicate now, everywhere.
+    const routed = (e.limitedPartner && isLimitedPartnerEligibleType(e.type)) ? `${e.type} passive` : e.type
     return { ...e, type: normalizeEntityType(routed) }
   })
   const ytdScale = (val) => Math.round(nf(val) * ytdFactor)
