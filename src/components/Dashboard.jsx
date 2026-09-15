@@ -71,6 +71,7 @@ import {
 import { NAVY as N, BLUE as B, SLATE as SL, RED as R } from '../lib/theme.js'  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): removed unused GREEN/ORANGE imports
 import { fmt, effectiveRate } from '../utils/money.js'  // Module E (audit F-3): unused `pct` import removed
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates.js'
+import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
 
@@ -131,7 +132,9 @@ export function calcDashboard(biz, f1040) {
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
     // FOURTH READ R-2, second pass (14 Sep 2026): the MFJ Schedule SE attribution must reach
     // every engine call, or this card disagrees with Step 2 by up to 12.4% of the wage base.
-    w2OwnForSE: fs === 'mfj' ? nf(f1040.w2OwnForSE) : 0,
+    // FIFTH READ F-3 (15 Sep 2026): same default as Step 2 — blank ⇒ the owner's own
+    // S-Corp / C-Corp officer salary is attributed to them (see utils/w2OwnForSE.js).
+    w2OwnForSE: resolveW2OwnForSE({ status: fs, entered: f1040.w2OwnForSE, officerW2: (isSC || isCCorp) ? sal : 0 }),
   }
 
   // M2 (audit F-05): ARCHITECTURE §5 guard — both calcTaxReturn() calls below spread

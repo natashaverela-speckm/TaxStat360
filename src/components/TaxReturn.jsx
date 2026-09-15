@@ -21,6 +21,7 @@ import { signOut } from '../utils/SignOut'
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare } from '../utils/entityPredicates.js'
+import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
@@ -371,7 +372,10 @@ export default function TaxReturn() {
       taxYear, status: filingStatus, dependents: nf(dependents),
       entities: entityList, w2: w2Total, k1Total: sessionK1 || 0,
       // R-2: only meaningful for MFJ; the engine ignores it for every other status.
-      w2OwnForSE: filingStatus === 'mfj' ? nf(w2OwnForSE) : 0,
+      // FIFTH READ F-3 (15 Sep 2026): blank ⇒ the owner's own Step-1 officer salary is
+      // attributed (it is "your W-2 wages from this entity" by the Step-1 data model);
+      // a typed amount always wins. See utils/w2OwnForSE.js.
+      w2OwnForSE: resolveW2OwnForSE({ status: filingStatus, entered: w2OwnForSE, officerW2: officerW2Total }),
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
@@ -1239,7 +1243,7 @@ export default function TaxReturn() {
                   <div style={inpWrap}>
                     <label htmlFor="tr-w2-own-for-se" style={inputLbl}>
                       Of the W-2 wages above, the amount YOU earned (the spouse with the self-employment income)
-                      <InfoTip text={'Joint return only. Schedule SE is filed separately for each spouse (IRC §1402(b)), so only the self-employed spouse\'s OWN W-2 Social Security wages use up their Social Security wage base — a spouse\'s wages never do.\n\nEnter the part of the household W-2 total (other-employer wages plus any S-Corp officer salary shown above) that was earned by the spouse whose business income is taxed on Schedule SE. Leave blank if that spouse had no W-2 wages.\n\nLeft blank, TaxStat360 applies the FULL wage base to your self-employment earnings — correct for a dual-earner household, but it overstates SE tax by up to 12.4% of the wage base when the W-2 and the business belong to the same person.'} wide />
+                      <InfoTip text={'Joint return only. Schedule SE is filed separately for each spouse (IRC §1402(b)), so only the self-employed spouse\'s OWN W-2 Social Security wages use up their Social Security wage base — a spouse\'s wages never do.\n\nEnter the part of the household W-2 total (other-employer wages plus any S-Corp officer salary shown above) that was earned by the spouse whose business income is taxed on Schedule SE. Leave blank if that spouse had no W-2 wages.\n\nLeft blank, TaxStat360 counts the S-Corp officer salary that flows from Step 1 as YOUR wages (Step 1 records it as your W-2 from your own entity) and applies the full wage base to any other-employer W-2 — i.e. it assumes a day-job W-2 may be your spouse\'s. If the S-Corp is your spouse\'s, or you also have your own day-job W-2, enter the exact amount you personally earned; a typed amount always replaces the default.'} wide />
                     </label>
                     <Step2MoneyInput
                       id="tr-w2-own-for-se"
@@ -1253,7 +1257,9 @@ export default function TaxReturn() {
                   <div style={{ fontSize: 11, color: '#475569', alignSelf: 'end', paddingBottom: 6 }}>
                     {nf(w2OwnForSE) > 0
                       ? `Social Security wage base remaining for your SE earnings: ${fmt(result?.ssWageBaseRoom || 0)} of ${fmt(result?.ssWageBase || 0)}.`
-                      : `Blank — the full ${fmt(result?.ssWageBase || 0)} wage base is applied to the SE earnings (assumes the W-2 belongs to the other spouse).`}
+                      : officerW2ForYTD > 0
+                        ? `Blank — your ${fmt(officerW2ForYTD)} S-Corp officer salary from Step 1 is counted as your own W-2 (wage base remaining: ${fmt(result?.ssWageBaseRoom || 0)} of ${fmt(result?.ssWageBase || 0)}). If that S-Corp belongs to your spouse, enter only the wages you personally earned.`
+                        : `Blank — the full ${fmt(result?.ssWageBase || 0)} wage base is applied to the SE earnings (assumes the W-2 belongs to the other spouse).`}
                   </div>
                 </div>
               </div>
@@ -1398,7 +1404,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label style={inputLbl}>
                   Qualifying Dependents
-                  <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,000–$2,200 CTC (2025–2026). The credit phases out above $400K (MFJ) or $200K (all others)." />
+                  <InfoTip text="Dependents qualifying for the Child Tax Credit (under 17 as of 12/31 of tax year). Each generates up to $2,200 of CTC for 2025 and 2026 (OBBBA; $2,000 for 2024). The credit phases out above $400K (married filing jointly) or $200K (all other filing statuses, including qualifying surviving spouse)." />
                 </label>
                 {/* AUDIT F8 FIX: min/max attributes only constrain the spinner arrows — typed
                     values ("10000") passed straight through to state and generated an

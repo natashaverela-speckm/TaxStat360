@@ -35,6 +35,7 @@ import { fmt, nf } from '../utils/money.js'
 import { CURRENT_TAX_YEAR, SCORP_REASONABLE_COMP_GUIDELINE_RANGE } from '../lib/constants.js'
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
 import { isSCorpEntity, isCCorpEntity, getEntityK1Share } from '../utils/entityPredicates'
+import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 
 // ─── AUDIT F2 FIX (second root cause) ────────────────────────────────────────
 // COMPARE-PC fixed personalContext arriving as a lazy getter, but a second gap
@@ -57,6 +58,9 @@ import { isSCorpEntity, isCCorpEntity, getEntityK1Share } from '../utils/entityP
 export function toEngineContext(pc, entities = [], entityIdx = 0) {
   const p = pc || {}
   const others = entities.filter((_, i) => i !== entityIdx)
+  const _this = entities[entityIdx]
+  const officerW2ThisEntity = (_this && (isSCorpEntity(_this.type) || isCCorpEntity(_this.type)))
+    ? (nf(_this.officerW2) || nf(_this.pnl?.officerSalary) || 0) : 0
   const officerW2Others = others.reduce((s, e) => {
     if (!e) return s
     const isCorp = isSCorpEntity(e.type) || isCCorpEntity(e.type)
@@ -74,7 +78,14 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     status: p.filingStatus || 'single',
     dependents: nf(p.dependents),
     w2: nf(p.w2Income) + officerW2Others,
-    w2OwnForSE: nf(p.w2OwnForSE),   // R-2 (14 Sep 2026): MFJ Schedule SE attribution
+    // R-2 (14 Sep 2026): MFJ Schedule SE attribution. FIFTH READ F-3 (15 Sep 2026): blank ⇒
+    // the OTHER entities' officer salary (this entity's own salary is applied per scenario by
+    // the engine and, for the S-Corp scenario, is the owner's own W-2 — scenarioCompare adds it).
+    // A typed Step-2 attribution covered the household total INCLUDING this entity's current
+    // salary, so that slice is removed here and re-added per scenario (engine clamps ≥ 0).
+    w2OwnForSE: nf(p.w2OwnForSE) > 0
+      ? Math.max(0, nf(p.w2OwnForSE) - officerW2ThisEntity)
+      : resolveW2OwnForSE({ status: p.filingStatus || 'single', entered: 0, officerW2: officerW2Others }),
     stGain: nf(p.stGain),
     ltGain: nf(p.ltGain ?? p.capitalGains),
     intInc: nf(p.interest),
