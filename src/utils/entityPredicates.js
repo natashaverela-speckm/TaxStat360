@@ -111,6 +111,23 @@ export const issuesK1Entity = (t) =>
   isSCorpEntity(t) || /partnership|mmllc|partner/i.test(t || '')
 
 /**
+ * Types for which a §1402(a)(13) limited-partner attestation can even exist:
+ * partnerships and multi-member LLCs only — never a sole proprietor / single-member LLC
+ * (whose net earnings are SE income by definition) and never a corporation or rental.
+ * Written as an explicit sole-prop exclusion because BOTH sole-prop labels end in "LLC"
+ * ("Sole Proprietor / SMLLC", "Sole Proprietor / Single-Member LLC"), so any bare /llc/
+ * test matches them. Moved here from aiAnalysisTaxMath.js (AUDIT H5, Sep 2026) on the
+ * fifth read (15 Sep 2026) so taxCalc.js and the UI can share ONE definition without an
+ * import cycle; aiAnalysisTaxMath re-exports it for existing callers.
+ */
+export function isLimitedPartnerEligibleType(t) {
+  const type = t || ''
+  if (isScheduleCType(type)) return false
+  if (isSCorpEntity(type) || isCCorpEntity(type) || isRealEstateEntity(type)) return false
+  return /partner|mmllc|multi.?member/i.test(type)
+}
+
+/**
  * Map any entity-type label (Step-1 UI values, legacy strings) to the canonical
  * ENTITY_TYPES string the tax engine keys on. The Step-1 dropdown emits friendly
  * labels ("Sole Proprietor / SMLLC", "Partnership / LLC") that do NOT match the
