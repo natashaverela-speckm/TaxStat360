@@ -88,6 +88,20 @@ all in the passive-activity / joint-return corners, plus copy issues.
   matched `/llc/`, so a sole prop plus any entity with a stale flag simulated with NO SE tax.
   Now uses `isLimitedPartnerEligibleType` for both the entity-type test and the flag scan.
 
+### Fixed — engine, §199A per-business allocation (full-pass follow-up, same day)
+- Above the phase-in ceiling with aggregation NOT elected, `_calcQBI` splits the pooled 20%
+  figure across businesses by their share of positive QBI and applies each business's own
+  wage/UBIA cap. The split used each SE-subject entity's GROSS share while the pooled figure
+  (`qbiBasis`) had already netted the ½-SE / SEHI / SEP deductions (Reg. §1.199A-3(b)(1)(vi)),
+  so a Schedule C or active partnership took too large a slice — and when it was then
+  wage-limited to $0, the S-Corp lost deduction it was entitled to on its own. Live: single
+  2026, S-Corp K-1 $192,350 ($100k wages) + Sch C $100k → QBI $37,604 shown; per business
+  $38,470 (tax overstated $208–$303 depending on bracket; conservative direction). Fix:
+  `calcTaxReturn` attaches `qbiShareAdjusted` (share × seK1AfterAdjustments / seNetIncome) to
+  SE-subject entities; `_calcQBI` prefers it when present. `taxCalc-qbi-aggregation.test.js`
+  CHAR ($78,320) promoted to SPEC ($80,000 — the S-Corp's own 20% × $400k). Tests: +3 in
+  `taxCalc-fifth-read-passive-k1.test.js`.
+
 ### Documented
 - `KNOWN_LIMITATIONS.md`: SE-MFJ-WAGEBASE narrowed again; PASSIVE-PARTNER status updated
   (items 1, 3 done; passive K-1 LOSS suspension remains open); new NIIT-SCORP-PASSIVE.
