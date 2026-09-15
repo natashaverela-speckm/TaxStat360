@@ -40,7 +40,7 @@ import { fmt, formatTimestamp, formatRelativeTime } from '../utils/money.js'
 // PHASE 3.1: the live provisional estimate rides the shared selector (2.2) —
 // the engine's own code path, so Step 1's number cannot disagree with Step 2.
 import { selectTaxSummary } from '../utils/calcSelector.js'
-import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, entityLossNeedsBasisEntry, getEntityPnlNet, getEntityK1Share } from '../utils/entityPredicates.js'
+import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, entityLossNeedsBasisEntry, getEntityPnlNet, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
@@ -1419,6 +1419,10 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                   onUpdate(idx, {
                     ...entity,
                     type: newType,
+                    // FIFTH READ (15 Sep 2026): a §1402(a)(13) attestation only exists for a
+                    // partnership / MMLLC — drop it when the type changes to anything else so
+                    // it cannot linger on a sole prop / corporation record.
+                    limitedPartner: isLimitedPartnerEligibleType(newType) ? !!entity.limitedPartner : false,
                     officerW2: 0,
                     pnl: {
                       ...entity.pnl,
@@ -1429,7 +1433,11 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     },
                   })
                 } else {
-                  onUpdate(idx, { ...entity, type: newType })
+                  onUpdate(idx, {
+                    ...entity,
+                    type: newType,
+                    limitedPartner: isLimitedPartnerEligibleType(newType) ? !!entity.limitedPartner : false,   // FIFTH READ: see above
+                  })
                 }
               }}
               style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: N, background: '#fff' }}

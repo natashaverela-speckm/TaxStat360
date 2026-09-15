@@ -20,7 +20,7 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
@@ -2379,9 +2379,11 @@ export default function TaxReturn() {
           {hasResult && result.ficaSavings > 0 && (() => {
             const seExemptFromSCorp = Array.isArray(entities)
               && entities.some(e => e && isSCorpEntity(e.type))
+            // FIFTH READ (15 Sep 2026): was /partner|mmllc|llc/i, which matches "Sole
+            // Proprietor / SMLLC" — a sole prop carrying a stale limitedPartner flag (from a
+            // type change) made this heading say "limited-partner" income. Shared predicate now.
             const seExemptFromLimitedPartner = Array.isArray(entities)
-              && entities.some(e => e && e.limitedPartner
-                && /partner|mmllc|llc/i.test(e.type || '') && !isSCorpEntity(e.type))
+              && entities.some(e => e && e.limitedPartner && isLimitedPartnerEligibleType(e.type))
             // Heading names the structure actually driving the exemption; never assert
             // "S-Corp" unless an S-corp is present.
             const structureLabel = seExemptFromSCorp && seExemptFromLimitedPartner
