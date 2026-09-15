@@ -916,7 +916,18 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   if (!aggregationApplied && entityQbiData.length > 1) {
     const perBiz = entityQbiData.map((e) => {
       const scale  = e.box17V_sstb ? sstbApplicablePct : 1
-      const rawQBI = getEntityK1Share(e) - nf(e.box11_12)
+      // FIFTH READ full pass (15 Sep 2026): an SE-subject business's QBI is its share NET of
+      // the §164(f) ½-SE, §162(l) SEHI and SEP/401(k) deductions attributable to it (Reg.
+      // §1.199A-3(b)(1)(vi)) — the same haircut the aggregate `qbiBasis` already takes. This
+      // map used the GROSS share, so a Schedule C's allocation slice was too large and an
+      // S-Corp's correspondingly too small; when the Schedule C was then wage-limited to $0,
+      // the S-Corp lost deduction it was entitled to on its own (single 2026, S-Corp K-1
+      // $192,350 with $100k wages + Sch C $100k: $37,604 shown vs. $38,470 per business).
+      // calcTaxReturn attaches `qbiShareAdjusted` for SE-subject entities; other callers
+      // (tests, aiAnalysisTaxMath) fall back to the gross figure as before.
+      const rawQBI = (e.qbiShareAdjusted !== undefined && e.qbiShareAdjusted !== null)
+        ? nf(e.qbiShareAdjusted)
+        : getEntityK1Share(e) - nf(e.box11_12)
       const qbiPos = Math.max(0, rawQBI) * scale
       const wages  = (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0) * scale
       const ubia   = (parseFloat(e.box17V_ubia) || 0) * scale
@@ -2253,8 +2264,18 @@ function calcTaxReturn(input) {
         return { ...e, box17V_wages: String(bumped) }
       })
     : qbiEligibleEntities
+  // FIFTH READ full pass (15 Sep 2026): give each SE-subject entity its proportional share
+  // of the aggregate SE adjustments (seNetIncome → seK1AfterAdjustments) so the per-business
+  // §199A(b)(2) allocation inside _calcQBI splits `qbiBasis` on the same adjusted figures the
+  // aggregate is built from. Non-SE entities are untouched. See the perBiz note in _calcQBI.
+  const _seAdjRatio = (seNetIncome > 0 && seK1AfterAdjustments >= 0) ? seK1AfterAdjustments / seNetIncome : 1
+  const qbiEligibleEntitiesForCalcAdj = qbiEligibleEntitiesForCalc.map(e => {
+    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return e
+    const share = getEntityK1Share(e) - nf(e.box11_12)
+    return share > 0 ? { ...e, qbiShareAdjusted: share * _seAdjRatio } : e
+  })
   const _qbiResult = calcQBI(qbiBasis, taxableBeforeQBI, prefIncome, {
-    status, taxYear, entityQbiData: qbiEligibleEntitiesForCalc,
+    status, taxYear, entityQbiData: qbiEligibleEntitiesForCalcAdj,
     activeQbi: activeQbiForFloor, electQbiAggregation,
   })
   const qbi                      = _qbiResult.deduction

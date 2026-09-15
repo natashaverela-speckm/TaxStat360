@@ -30,9 +30,14 @@ const def = calcTaxReturn({ ...base, k1Total: 800000, entities })
 const agg = calcTaxReturn({ ...base, k1Total: 800000, entities, electQbiAggregation: true })
 
 describe('F6 — §199A aggregation opt-in', () => {
-  it('CHAR: defaults to per-business (no election assumed)', () => {
+  // FIFTH READ full pass (15 Sep 2026): promoted CHAR → SPEC. The pinned $78,320 was the bug:
+  // the per-business split used the partnership's GROSS $400,000 share while the aggregate
+  // qbiBasis had already netted the active partner's ½-SE deduction, so the S-Corp's slice of
+  // the pooled 20% came out below its own 20% × $400,000. Per business (Reg. §1.199A-1(d)):
+  // S-Corp 20% × 400,000 = 80,000 ≤ 50% × 200,000 wages → 80,000; zero-wage partnership → 0.
+  it('SPEC: defaults to per-business (no election assumed) — S-Corp keeps its own 20%', () => {
     expect(def.qbiAggregationApplied).toBe(false)
-    expect(def.qbi).toBe(78320)   // S-corp QBI-bound; zero-wage partnership contributes $0
+    expect(def.qbi).toBe(80000)   // S-corp QBI-bound; zero-wage partnership contributes $0
   })
 
   it('CHAR: electing aggregation pools W-2 wages across entities', () => {

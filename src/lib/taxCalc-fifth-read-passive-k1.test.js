@@ -192,3 +192,32 @@ describe('FIFTH READ F-5 — §199A(i) $400 floor survives the 20%-of-taxable-in
     expect(r.deduction).toBe(160)
   })
 })
+
+describe('FIFTH READ full pass — per-business §199A allocation uses SE-adjusted QBI (Reg. §1.199A-3(b)(1)(vi))', () => {
+  // Live repro: single 2026 · S-Corp K-1 $192,350 with $100k officer wages · Schedule C
+  // $100,000 (no wages) · taxable income above the full phase-in. Per business: S-Corp
+  // 20% × 192,350 = 38,470 (≤ 50% × 100,000); Schedule C wage-limited to $0. Was $37,604.
+  const run = (extra = {}) => calcTaxReturn({
+    taxYear: 2026, status: 'single', dependents: 0, w2: 100000, k1Total: 292350,
+    entities: [scorp(192350, 100000), { type: 'Sole Proprietor / SMLLC', k1: 100000, own: 100, netProfit: 100000 }],
+    ...extra,
+  })
+  it('REPRO: QBI deduction is $38,470 (the S-Corp keeps its own 20%)', () => {
+    const r = run()
+    expect(r.seTax).toBe(13156)
+    expect(r.qbi).toBe(38470)
+    expect(r.qbiLimitApplied).toBe('wage')
+  })
+  it('CONTROL: below the threshold the allocation is irrelevant — 20% of the adjusted aggregate, unchanged', () => {
+    const r = calcTaxReturn({ taxYear: 2026, status: 'single', w2: 20000, k1Total: 50000,
+      entities: [scorp(30000, 20000), { type: 'Sole Proprietor / SMLLC', k1: 20000, own: 100, netProfit: 20000 }] })
+    // qbiBasis = 30,000 + (20,000 − ½ SE) ; 20% of that, no wage limit below threshold
+    expect(r.qbi).toBe(Math.round(0.2 * (30000 + 20000 - r.halfSE)))
+    expect(r.qbiLimitApplied).toBe('qbi')
+  })
+  it('CONTROL: with the Schedule C paying wages of its own, both businesses keep their 20%', () => {
+    const r = run({ entities: [scorp(192350, 100000), { type: 'Sole Proprietor / SMLLC', k1: 100000, own: 100, netProfit: 100000, box17V_wages: 60000 }] })
+    // Sch C adjusted QBI = 100,000 − 6,578 = 93,422 → 20% = 18,684 ≤ 30,000 wage cap
+    expect(r.qbi).toBe(38470 + Math.round(0.2 * (100000 - r.halfSE)))
+  })
+})
