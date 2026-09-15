@@ -148,6 +148,13 @@ function compareEntityScenarios(input) {
     return calcTaxReturn(guarded({
       ...personalContext,
       w2:     (personalContext.w2     || 0) + w2Boost,
+      // FIFTH READ F-3 (15 Sep 2026): the compared entity's own officer salary (w2Boost) is the
+      // owner's W-2 by construction, so on a joint return it consumes THEIR Schedule SE wage base
+      // exactly as Step 2 now attributes it. personalContext.w2OwnForSE already carries the other
+      // entities' officer salary (or the user's typed attribution) from toEngineContext.
+      w2OwnForSE: String(personalContext.status || '').toLowerCase() === 'mfj'
+        ? (personalContext.w2OwnForSE || 0) + w2Boost
+        : 0,
       qualDiv:(personalContext.qualDiv || 0) + qualDivBoost,
       divInc: (personalContext.divInc  || 0) + qualDivBoost,
       k1Total,

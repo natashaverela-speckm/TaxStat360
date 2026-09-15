@@ -21,6 +21,7 @@ import {
 } from './taxCalc.js'
 import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
+import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import {
   CURRENT_TAX_YEAR,
   FICA_SS_RATE, FICA_MEDICARE_RATE, SE_NET_EARNINGS_FACTOR,
@@ -226,9 +227,14 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     // owner attributed to themself — adding `sal` again double-counted it (second-pass review
     // finding 1). Only a CHANGE in salary moves the owner's own W-2, one-for-one, because the
     // officer salary is the owner's by definition. The engine clamps the result to `w2`.
+    // FIFTH READ F-3 (15 Sep 2026): when nothing was attributed on Step 2, Step 2 now
+    // attributes the owner's own officer salary by default — mirror that here with the
+    // SIMULATED salary (the officer salary is the owner's by definition), so the simulator
+    // and the Tracker keep agreeing. A typed attribution still moves one-for-one with the
+    // salary change, as before.
     w2OwnForSE: status === 'mfj' && nf(base.w2OwnForSE) > 0
       ? Math.max(0, nf(base.w2OwnForSE) + (sal - nf(base.officerSalary)))
-      : 0,
+      : resolveW2OwnForSE({ status, entered: 0, officerW2: (isCC || isSCorpEntity(ctx.entityType)) ? sal : 0 }),
     // Finding 1 follow-up (Jul 2026 audit): carry the limited-partner attestation
     // into the reconstructed entity. Without it, normalizeEntityType defaults a
     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged

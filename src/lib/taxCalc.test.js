@@ -30,10 +30,16 @@ describe('calcQBI §199A(i) OBBBA minimum deduction', () => {
     expect(r.limitApplied).toBe('qbi')
     expect(r.caps.min400).toBeUndefined()
   })
-  it('CHAR: TI cap binds over the $400 minimum: §199A(i) floor cannot exceed taxable income', () => {
+  // FIFTH READ F-5 (external calc audit, 15 Sep 2026): was a CHAR test pinning $60 — the
+  // 20%-of-TI cap applied AFTER the floor. §199A(i) reads "the deduction allowed under
+  // subsection (a) … shall be equal to the greater of (A) the amount of such deduction
+  // determined without regard to this subsection, or (B) $400" — subsection (a) includes
+  // the (a)(2) taxable-income cap, so the floor is applied last. It is still held to
+  // taxable income (a deduction cannot usefully exceed it): TI $300 ⇒ $300, not $60.
+  it('SPEC: §199A(i) floor survives the TI cap, held to taxable income (TI $300 ⇒ $300)', () => {
     const r = calcQBI(5000, 300, 0, { status: 'single', taxYear: 2026 })
-    expect(r.deduction).toBe(60)
-    expect(r.limitApplied).toBe('income')
+    expect(r.deduction).toBe(300)
+    expect(r.limitApplied).toBe('min400')
     expect(r.caps.min400).toBe(400)
   })
   it('CHAR: no QBI deduction when TI ≤ 0, even with active QBI ≥ $1,000 (floor cannot create a deduction below zero TI)', () => {

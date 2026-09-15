@@ -58,7 +58,7 @@ export const ARTICLES = [
     sections: [
       {
         heading: 'Why the Split Matters',
-        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first ${usd(_ssWageBase2026)} (2026), plus 2.9% for Medicare on all wages with no cap (and an additional 0.9% above $200,000). Every dollar you take as a K-1 distribution is not subject to FICA.
+        body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first ${usd(_ssWageBase2026)} (2026), plus 2.9% for Medicare on all wages with no cap (and the employee-only 0.9% Additional Medicare Tax once wages plus self-employment income exceed $200,000 — $250,000 on a joint return, $125,000 married filing separately; employers start withholding it at $200,000 regardless of filing status). Every dollar you take as a K-1 distribution is not subject to FICA.
 
 On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
 
@@ -140,7 +140,7 @@ The deduction is taken on Form 1040 and reduces taxable income without requiring
         heading: 'What Counts as Qualified Business Income',
         body: `QBI is the net amount of qualified items of income, gain, deduction, and loss from a qualified trade or business. For an S-Corp, this flows to you on Schedule K-1 as ordinary business income, adjusted for certain items.
 
-What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(ii)(A)), charitable contributions from the entity, and prior-year QBI losses. What does NOT count as QBI: capital gains, interest income, dividends, foreign income, and most importantly — the W-2 salary you pay yourself as an S-Corp officer.
+What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(ii)(A)) and prior-year QBI losses (§199A(c)(2)). Charitable contributions passed through on your K-1 do NOT reduce QBI or your Box 1 ordinary income — they go to Schedule A if you itemize (Form 8995 instructions). What does NOT count as QBI: capital gains, interest income, dividends, foreign income, and most importantly — the W-2 salary you pay yourself as an S-Corp officer.
 
 This last point is critical. If your S-Corp generates $300,000 of gross profit and you pay yourself a $70,000 officer salary, your K-1 ordinary income (and QBI basis) is $230,000 — not $300,000. The salary was already deducted at the entity level before the K-1 was issued.`,
       },
@@ -156,9 +156,9 @@ Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (includi
         heading: 'Specified Service Trades or Businesses (SSTB)',
         body: `If your business falls into the SSTB category — which includes law, health, consulting, financial services, accounting, and performing arts — the QBI deduction phases out entirely for taxpayers above the income ceiling.
 
-Above ${usd(_qbiCeil2026.single)} (Single) / ${usd(_qbiCeil2026.mfj)} (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. The phase-out is a cliff — not a gradual reduction once the ceiling is crossed.
+Above ${usd(_qbiCeil2026.single)} (Single) / ${usd(_qbiCeil2026.mfj)} (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. Inside the range the exclusion phases in ratably — at the midpoint, half of the SSTB's income, wages and UBIA still count — and only above the ceiling does the deduction reach $0 (§199A(d)(3)).
 
-Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses — where less than 10% of gross receipts come from SSTB services — may qualify for an allocation of the non-SSTB portion. The regulations are detailed; if your business is on the line, a CPA review of your revenue mix is worth doing before year-end.`,
+Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses: under the de minimis rule (Treas. Reg. §1.199A-5(c)(1)) a business with $25 million or less of gross receipts is NOT treated as an SSTB at all if less than 10% of its receipts come from specified services (5% above $25 million). Cross that line and the entire trade or business is an SSTB — there is no partial allocation unless the service line is a genuinely separate trade or business with its own books. If your revenue mix is near the threshold, a CPA review before year-end is worth doing.`,
       },
       {
         heading: 'Planning Strategies',

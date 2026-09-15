@@ -108,7 +108,7 @@ const TAX_TABLES = {
     ltcg:    { single:[47025,518900], mfj:[94050,583750], mfs:[47025,291850], hoh:[63000,551350], qss:[94050,583750] },
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
-    ebl: { single:305000, mfj:610000, mfs:305000, hoh:305000, qss:610000 },
+    ebl: { single:305000, mfj:610000, mfs:305000, hoh:305000, qss:305000 },   // FIFTH READ F-4: §461(l)(3)(A)(ii) doubles only "in the case of a joint return" — QSS is not one
     ctc: { perChild: 2000, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     retirement: {
       sepIraMax:        69000,
@@ -154,7 +154,7 @@ const TAX_TABLES = {
     ltcg:    { single:[48350,533400], mfj:[96700,600050], mfs:[48350,300000], hoh:[64750,566700], qss:[96700,600050] },
     niit:    { single:NIIT_THRESHOLD_SINGLE, mfj:NIIT_THRESHOLD_MFJ, mfs:NIIT_THRESHOLD_MFS, hoh:NIIT_THRESHOLD_HOH, qss:NIIT_THRESHOLD_QSS },
     addlMed: { single:ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, mfj:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, mfs:ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, hoh:ADDITIONAL_MEDICARE_TAX_THRESHOLD_HOH, qss:ADDITIONAL_MEDICARE_TAX_THRESHOLD_QSS },
-    ebl: { single:313000, mfj:626000, mfs:313000, hoh:313000, qss:626000 },
+    ebl: { single:313000, mfj:626000, mfs:313000, hoh:313000, qss:313000 },   // FIFTH READ F-4: QSS = individual amount (see 2024 note)
     ctc: { perChild: 2200, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     retirement: {
       sepIraMax:        70000,
@@ -209,7 +209,7 @@ const TAX_TABLES = {
     // AUDIT A4-3 FIX (Jul 2026): prior 320,000/640,000 was forward-indexation that
     // missed the OBBBA §70601 statutory RESET — 2026 thresholds went DOWN.
     // Official: Rev. Proc. 2025-32 §4.31.
-    ebl: { single:256000, mfj:512000, mfs:256000, hoh:256000, qss:512000 },
+    ebl: { single:256000, mfj:512000, mfs:256000, hoh:256000, qss:256000 },   // FIFTH READ F-4: QSS = individual amount (Rev. Proc. 2025-32: $256,000 / $512,000 joint)
     ctc: { perChild: 2200, actcMaxPerChild: 1700 },  // Phase 4: ACTC refundable cap, §24(h)(5)(B)
     // AUDIT F-8 FIX (Jul 2026): prior values were pre-official projections. All figures
     // below transcribed from IRS Notice 2025-67 (Nov 2025).
@@ -759,7 +759,19 @@ function calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   const netCapGain = Math.max(0, capitalGains || 0)
   const ceiling    = Math.max(0, taxableBeforeQBI - netCapGain) * QBI_DEDUCTION_RATE
   if (result.deduction > ceiling) {
-    return { ...result, deduction: Math.round(ceiling), limitApplied: 'income' }
+    const capped = { ...result, deduction: Math.round(ceiling), limitApplied: 'income' }
+    // FIFTH READ F-5 (external calc audit, 15 Sep 2026): §199A(i) makes "the deduction
+    // allowed under subsection (a)" — i.e. AFTER the (a)(2) 20%-of-taxable-income cap —
+    // "equal to the greater of" the computed amount or $400. The floor therefore survives
+    // the ceiling. caps.min400 is set by _applyMinQBI only when the filer is floor-eligible
+    // (≥ $1,000 of ACTIVE QBI, positive taxable income), so re-apply it here. The floor is
+    // still held to taxable income (a deduction cannot usefully exceed it). Only bites when
+    // 20% × (taxable income − net capital gain) < $400 — i.e. taxable income under ~$2,000.
+    const floor = result.caps?.min400
+    if (floor != null && capped.deduction < Math.min(floor, Math.max(0, taxableBeforeQBI))) {
+      return { ...capped, deduction: Math.min(floor, Math.max(0, taxableBeforeQBI)), limitApplied: 'min400' }
+    }
+    return capped
   }
   return result
 }
@@ -1622,7 +1634,7 @@ function calcTaxReturn(input) {
   const sehiMixedSourceFallback = sehiSplitEngaged
     ? false
     : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
-  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (['mfj','qss'].includes(status) ? 512000 : 256000)  // A4-3: fallback = official 2026
+  const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (status === 'mfj' ? 512000 : 256000)  // A4-3: fallback = official 2026; FIFTH READ F-4: joint only
   // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
   // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
   // NOT added to gross income here — its income effect is already carried by ltGain/unrecap1250
@@ -1664,6 +1676,32 @@ function calcTaxReturn(input) {
     - ytdScale(hsaDeduction)
     - ytdScale(selfEmpRetirement)
     - selfEmpHealthDed
+  // ── FIFTH READ (external calc audit, 15 Sep 2026) — PASSIVE K-1 POOL ─────────────────
+  // A limited partner / non-material-participation LLC member's Box 1 share (routed to
+  // 'Partnership / MMLLC — Passive' by the limitedPartner attestation above) is PASSIVE
+  // ACTIVITY income under §469(c)(1). Two consequences the engine previously ignored:
+  //   F-1  it is NET INVESTMENT INCOME — §1411(c)(1)(A)(ii) / §1411(c)(2)(A): income from a
+  //        trade or business that is a passive activity with respect to the taxpayer. The
+  //        NII base below (`nii`) omitted it entirely (verified live: $300k passive K-1,
+  //        single, AGI $592k → no NIIT line; correct $11,400).
+  //   F-2  it OFFSETS passive rental losses BEFORE the §469(i) $25k allowance is measured —
+  //        §469(d)(1) defines the passive activity loss as aggregate passive losses over
+  //        aggregate passive income (Form 8582 Part I). The allowance was applied to the
+  //        rental loss alone, so a loss that passive income fully absorbed was suspended
+  //        (verified live: $20k passive K-1 + $30k active-participation rental loss at
+  //        $115k MAGI → $12,705 wrongly suspended; correct $0).
+  // Only POSITIVE passive K-1 net is pooled. A passive K-1 LOSS is still deducted in full
+  // against AGI (§469 suspension of a limited-partner K-1 loss remains unmodeled — see
+  // KNOWN_LIMITATIONS PAL-K1), so letting it also shelter passive rental income or reduce
+  // NII would double-count it; flooring at $0 is the conservative (higher-tax) direction.
+  // Real-estate entities are excluded here (their passive treatment is the §469 rental
+  // section below); S-Corp K-1s have no passive attestation in the UI and stay nonpassive.
+  const passiveK1Net = entitiesLimited.reduce((sum, e) => {
+    if (!e || isRealEstateEntity(e.type)) return sum
+    if (!/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    return sum + (getEntityK1Share(e) - nf(e.box11_12))   // §179 (box11_12) reduces the share; charitable (box12_13) does not (F-13)
+  }, 0)
+  const passiveK1Income = Math.max(0, passiveK1Net)
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
@@ -1719,8 +1757,23 @@ function calcTaxReturn(input) {
   let rentalForEBL         = 0
   let rentalForNII         = 0
   let rentalQbiContribution = 0
+  // FIFTH READ F-2: the slice of a passive rental LOSS absorbed by passive K-1 income
+  // (§469(d)(1) netting — Form 8582 Part I, line 1b vs. line 1a/2a). Set inside whichever
+  // §469 branch runs; consumed by the NII base below so the same dollars are not counted
+  // as net investment income after they have been offset (§1411(c)(2), Reg. §1.1411-4(g)).
+  let passiveLossAbsorbedByK1 = 0
+  // Applies the §469(d)(1) netting, then the §469(i) allowance, to a passive rental loss.
+  // Returns the deductible (negative) figure: offset by passive income first, and only the
+  // remainder is tested against the $25k / MAGI-phased allowance.
+  const applyPassiveNetting = (passiveLoss, preRentalMagi) => {
+    const offset    = Math.min(passiveK1Income, -passiveLoss)
+    const remaining = passiveLoss + offset                       // ≤ 0
+    const specialAllowance = calc469iAllowance(preRentalMagi, status, effectiveIsActiveParticipant)
+    passiveLossAbsorbedByK1 = offset
+    return Math.max(remaining, -specialAllowance) - offset
+  }
   if (!perPropertyRegimeActive) {
-    // ── LEGACY branch (unchanged) ─────────────────────────────────────────────
+    // ── LEGACY branch ─────────────────────────────────────────────────────────
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
       // FOURTH READ R-1 (14 Sep 2026): §469(i)(3)(F) MAGI is AGI computed without regard to
       // passive losses, taxable Social Security, the §219 IRA deduction, the §221 education-
@@ -1735,8 +1788,10 @@ function calcTaxReturn(input) {
       const preRentalAGI = calc469iMagi({ nonpassiveRentalNet: 0 })
       // M1 (audit F-01): formula centralized in calc469iAllowance() — identical output
       // (MFS and non-active-participant both resolved to $0 under the prior inline form).
-      const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
-      palAdjustedRental  = Math.max(rentalNetAfterCF, -specialAllowance)
+      // FIFTH READ F-2: passive K-1 income offsets the loss first (§469(d)(1)); only the
+      // remainder is measured against the §469(i) allowance. With no passive K-1 income
+      // this is byte-for-byte the prior computation.
+      palAdjustedRental  = applyPassiveNetting(rentalNetAfterCF, preRentalAGI)
       palSuspendedRental = Math.round(palAdjustedRental - rentalNetAfterCF)
     }
     // Interface vars equivalent to prior inline expressions:
@@ -1796,8 +1851,8 @@ function calcTaxReturn(input) {
       // nonpassive rental portion is the only per-property difference. See calc469iMagi().
       const preRentalAGI = calc469iMagi({ nonpassiveRentalNet })
       // M1 (audit F-01): same centralization as the single-pool branch above.
-      const specialAllowance = calc469iAllowance(preRentalAGI, status, effectiveIsActiveParticipant)
-      passiveAllowed     = Math.max(passiveRentalNet, -specialAllowance)
+      // FIFTH READ F-2: same §469(d)(1) netting as the legacy branch.
+      passiveAllowed     = applyPassiveNetting(passiveRentalNet, preRentalAGI)
       palSuspendedRental = Math.round(passiveAllowed - passiveRentalNet)
     }
     palAdjustedRental     = nonpassiveRentalNet + passiveAllowed
@@ -1903,10 +1958,13 @@ function calcTaxReturn(input) {
   const effectivelyItemizing = useItemized && itemized > stdDed
   const deduction         = effectivelyItemizing ? itemized : stdDed
   // AUDIT N-9b (Jul 2026): §170(p) — permanent charitable deduction for NON-itemizers,
-  // tax years beginning after 12/31/2025: up to $1,000 ($2,000 MFJ/QSS). Taken in
-  // addition to the standard deduction; unavailable when itemizing.
+  // tax years beginning after 12/31/2025: up to $1,000 ($2,000 "in the case of a joint
+  // return"). Taken in addition to the standard deduction; unavailable when itemizing.
+  // FIFTH READ F-4 (15 Sep 2026): a qualifying surviving spouse files an INDIVIDUAL return
+  // that borrows the §1(a) joint RATE schedule — it is not "a joint return" — so QSS takes
+  // the $1,000 amount (same reading as the CTC threshold and the §461(l) table below).
   const nonItemizerCharitable = (taxYear >= 2026 && !effectivelyItemizing)
-    ? Math.min(charEntered, (status === 'mfj' || status === 'qss') ? 2000 : 1000)
+    ? Math.min(charEntered, status === 'mfj' ? 2000 : 1000)
     : 0
   const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable)
   const priorNOL         = Math.max(0, nf(nolCarryforward))
@@ -2282,11 +2340,25 @@ function calcTaxReturn(input) {
   // sum so a capital loss can reduce interest/dividend/rental NII the way the statute
   // requires -- this is the only line that changed; the inner capitalGainNetIncluded +
   // f4797 figure itself is unchanged.
-  const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain) + rentalNII)
+  // FIFTH READ F-1 (external calc audit, 15 Sep 2026): a passive partnership / LLC interest
+  // (limitedPartner attestation → 'Partnership / MMLLC — Passive') is income from a trade or
+  // business that is a passive activity with respect to the taxpayer, and therefore net
+  // investment income — IRC §1411(c)(1)(A)(ii), §1411(c)(2)(A); Form 8960 line 4a/4b. It
+  // was never in this base. The slice already absorbed by a passive rental loss under
+  // §469(d)(1) (passiveLossAbsorbedByK1, set in the §469 section) is excluded so the same
+  // dollars are not both offset and taxed (Reg. §1.1411-4(g)(8), Form 8960 line 4b).
+  // S-Corp K-1s stay out: the UI has no material-participation attestation for them, so
+  // every S-Corp share is treated as nonpassive — see KNOWN_LIMITATIONS NIIT-SCORP-PASSIVE.
+  const passiveK1NII = Math.max(0, passiveK1Income - passiveLossAbsorbedByK1)
+  const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain) + rentalNII + passiveK1NII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || CTC_CREDIT_PER_CHILD_FALLBACK
-  const ctcPhaseoutThreshold = (status === 'mfj' || status === 'qss') ? CTC_PHASEOUT_THRESHOLD_MFJ : CTC_PHASEOUT_THRESHOLD_OTHER
+  // FIFTH READ F-4 (15 Sep 2026): §24(h)(3) sets $400,000 "in the case of a joint return" and
+  // $200,000 otherwise. Schedule 8812 instructions (line 9): "$400,000 if married filing
+  // jointly; $200,000 for all other filing statuses" — a qualifying surviving spouse is an
+  // individual return on the joint rate schedule, not a joint return, so QSS is $200,000.
+  const ctcPhaseoutThreshold = status === 'mfj' ? CTC_PHASEOUT_THRESHOLD_MFJ : CTC_PHASEOUT_THRESHOLD_OTHER
   const ctcExcess            = Math.max(0, agi - ctcPhaseoutThreshold)
   const ctcReduction         = Math.ceil(ctcExcess / CTC_PHASEOUT_STEP) * CTC_PHASEOUT_REDUCTION_PER_STEP
   const ctcRaw               = Math.max(0, numDependents * ctcPerChild - ctcReduction)
@@ -2505,6 +2577,8 @@ function calcTaxReturn(input) {
     addlMedThreshold,
     additionalMedicare,
     rentalNII, nii,
+    // FIFTH READ F-1/F-2: passive K-1 pool surfaced for the UI / CPA export.
+    passiveK1Income, passiveK1NII, passiveLossAbsorbedByK1,
     niit: {
       applies:     niitAmount > 0,
       amount:      niitAmount,

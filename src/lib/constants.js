@@ -458,8 +458,8 @@ export const DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR = 100000
 // §24(b)(2)/(h)(3): the credit is reduced by $50 for each $1,000 (or fraction) of
 // modified AGI above these thresholds. Statutory under TCJA (P.L. 115-97); NOT
 // inflation-adjusted.
-export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // §24(h)(3) — joint return / surviving spouse
-export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // §24(h)(3) — single, HOH, MFS, all other filers
+export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // §24(h)(3) — joint return ONLY (FIFTH READ F-4: a qualifying surviving spouse uses the $200,000 amount — Sched. 8812 line 9)
+export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // §24(h)(3) — single, HOH, MFS, QSS, all other filers
 export const CTC_PHASEOUT_STEP = 1000              // §24(b)(2) — excess measured per $1,000
 export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reduction per $1,000 step
 // IRC §24(h)(2) base child tax credit. SAFETY FALLBACK ONLY — the authoritative
