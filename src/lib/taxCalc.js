@@ -2532,9 +2532,21 @@ function calcTaxReturn(input) {
     new Date(Date.UTC(_ty, 3, 15)), new Date(Date.UTC(_ty, 5, 15)),
     new Date(Date.UTC(_ty, 8, 15)), new Date(Date.UTC(_ty + 1, 0, 15)),
   ] : []
-  const _asOf = asOfDate ? new Date(asOfDate) : null
-  const _asOfValid = _tyOk && _asOf !== null && Number.isFinite(_asOf.getTime())
-  const _asOfUTC = _asOfValid ? Date.UTC(_asOf.getFullYear(), _asOf.getMonth(), _asOf.getDate()) : null
+  // Calendar-date parsing, deliberately timezone-free: a 'YYYY-MM-DD' string is read as
+  // that calendar day (new Date('2026-09-16') would be UTC midnight, which US-local getters
+  // shift back to the 15th — live on Sep 16 the card said "2 of 4 left" next to "next:
+  // Jan 15"); a Date object is read in the caller's LOCAL calendar (what the user sees).
+  const _asOfUTC = (() => {
+    if (!_tyOk || asOfDate == null || asOfDate === '') return null
+    if (asOfDate instanceof Date) {
+      return Number.isFinite(asOfDate.getTime()) ? Date.UTC(asOfDate.getFullYear(), asOfDate.getMonth(), asOfDate.getDate()) : null
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(asOfDate).trim())
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3])
+    const d = new Date(asOfDate)
+    return Number.isFinite(d.getTime()) ? Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) : null
+  })()
+  const _asOfValid = _asOfUTC !== null
   const installmentsRemaining = _asOfValid ? _dueDates.filter(d => d.getTime() >= _asOfUTC).length : 4
   const nextDueDate = _asOfValid
     ? (_dueDates.find(d => d.getTime() >= _asOfUTC)?.toISOString().slice(0, 10) ?? null)

@@ -72,3 +72,23 @@ describe('installment timing — with asOfDate', () => {
     expect(run({ asOfDate: new Date(2026, 5, 20) }).installmentsRemaining).toBe(2)
   })
 })
+
+describe('installment timing — calendar-date parsing is timezone-free (live bug, 16 Sep 2026)', () => {
+  // The app passed the date as 'YYYY-MM-DD'; new Date('2026-09-16') is UTC midnight, which
+  // US-local getters shift to Sep 15 — the card said "2 of 4 left" beside "next: Jan 15".
+  it('SPEC: "2026-09-16" is read as Sep 16 in EVERY timezone ⇒ 1 installment left', () => {
+    const r = run({ asOfDate: '2026-09-16' })
+    expect(r.installmentsRemaining).toBe(1)
+    expect(r.nextDueDate).toBe('2027-01-15')
+  })
+  it('SPEC: "2026-09-15" is read as Sep 15 in every timezone ⇒ 2 left', () => {
+    expect(run({ asOfDate: '2026-09-15' }).installmentsRemaining).toBe(2)
+  })
+  it('SPEC: a Date object is read in the caller\'s local calendar', () => {
+    expect(run({ asOfDate: new Date(2026, 8, 16, 1, 0, 0) }).installmentsRemaining).toBe(1)   // local 1 AM Sep 16
+    expect(run({ asOfDate: new Date(2026, 8, 15, 23, 30, 0) }).installmentsRemaining).toBe(2) // local 11:30 PM Sep 15
+  })
+  it('SPEC: an ISO timestamp with time keeps its calendar day', () => {
+    expect(run({ asOfDate: '2026-09-16T03:00:00Z' }).installmentsRemaining).toBe(1)
+  })
+})
