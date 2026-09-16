@@ -51,6 +51,7 @@ import { safeCalc } from './calcGuard.js'
 import { toEngineContext } from '../components/EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, readTaxYear, normalizeF1040 } from './sessionState.js'
 import { nf, localCalendarDate } from './money.js'
+import { ccorpLayerForReturn, mergeCcorpIntoResult } from './ccorpLayer.js'   // SEVENTH PASS H-4
 
 /** Fields the whole-return summary needs that the compare modal's translator
  *  deliberately doesn't carry (it models entity swaps, not full returns). */
@@ -89,6 +90,11 @@ const _SUMMARY_KEYS = [
   'capitalGainNetIncluded', 'capLossCarryoverST', 'capLossCarryoverLT',
   'capLossCarryoverTotal', 'ebl', 'ficaSavings', 'reasonableCompAlert',
   'totalSuspendedLoss', 'quarterlyRecommended',
+  // SEVENTH PASS H-4 (16 Sep 2026): the C-Corp corporate layer, merged the way Step 2 merges
+  // it (totalTax / balance include the owner-share 21%; quarterlyRecommended does not).
+  'ccorpCorpTax', 'ccorpDividends',
+  // SEVENTH PASS H-2: what the engine credited as estimated payments (lump or Σ boxes).
+  'estimatedPaymentsCredited',
   // Follow-up (15 Sep 2026): remaining-installment timing for the Dashboard card / Aria.
   'installmentsRemaining', 'installmentsPassed', 'nextDueDate', 'balancePerInstallment', 'safeHarborQuarterly',
 
@@ -123,10 +129,16 @@ function _summarize(engineInput) {
   // try/catch preserves this façade's contract: a selector consumer renders a
   // card, not an error boundary — it must receive a typed miss, never a throw.
   try {
-    const { result, error } = safeCalc(engineInput, calcTaxReturn, 'calcSelector')
+    const { result: raw, error } = safeCalc(engineInput, calcTaxReturn, 'calcSelector')
     if (error) return Object.freeze({ ok: false, error: error.message })
+    // SEVENTH PASS H-4: the dividends are already in the engine input (toEngineContext);
+    // the owner-share corporate tax is added to the headline exactly as Step 2 does.
+    const ccorp  = ccorpLayerForReturn(engineInput.entities, engineInput.taxYear, engineInput.ytdFactor)
+    const result = mergeCcorpIntoResult(raw, ccorp) || raw
     const out = { ok: true }
     for (const k of _SUMMARY_KEYS) out[k] = result[k]
+    if (out.ccorpCorpTax === undefined)   out.ccorpCorpTax   = 0
+    if (out.ccorpDividends === undefined) out.ccorpDividends = 0
     return Object.freeze(out)
   } catch (err) {
     return Object.freeze({ ok: false, error: String(err && err.message || err) })

@@ -59,6 +59,7 @@
 //          '!== false' for boolDefaultTrue, 'value || def' for string.
 
 import { DEFAULT_TAX_YEAR } from '../lib/constants.js'
+import { nf } from './money.js'
 
 // Mirrors sessionState's defaultTaxYear — duplicated here (one line, pure) to
 // keep the import graph acyclic: sessionState imports THIS module.
@@ -96,6 +97,13 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'hasISO',             kind: 'bool',   def: false },
   { key: 'isoBargainElement',  kind: 'float',  def: 0 },
   { key: 'estPaid',            kind: 'float',  def: 0, readFallbacks: ['estimatedPayments'], normFallbacks: ['estimatedPayments'] },
+  // SEVENTH PASS H-2 (16 Sep 2026): the per-installment boxes (2210-lite) were Step-2 state
+  // only — never in ts360_f1040 and never in a saved record, so they vanished on reload and
+  // on the Dashboard card. BALANCES (actual payments): not in YTD_SCALE_ENGINE_FIELDS.
+  { key: 'estQ1',              kind: 'float',  def: 0 },
+  { key: 'estQ2',              kind: 'float',  def: 0 },
+  { key: 'estQ3',              kind: 'float',  def: 0 },
+  { key: 'estQ4',              kind: 'float',  def: 0 },
   { key: 'priorYearQBILoss',   kind: 'float',  def: 0 },
   { key: 'socialSecurity',     kind: 'float',  def: 0 },
   { key: 'iraDistributions',   kind: 'float',  def: 0 },
@@ -195,7 +203,9 @@ export function normalizeF1040Fields(rec = {}) {
     switch (f.kind) {
       case 'string': out[f.key] = raw || def; break
       case 'int':    out[f.key] = parseInt(raw)   || def; break
-      case 'float':  out[f.key] = parseFloat(raw) || def; break
+      // SEVENTH PASS F-9 (16 Sep 2026): comma-safe — parseFloat("5,000") is 5. Same nf() every
+      // engine read uses; a bare parseFloat is what let a synced/hand-edited record load wrong.
+      case 'float':  out[f.key] = nf(raw, 0) || def; break
       case 'bool':
         out[f.key] = f.legacyInvert
           ? (rec[f.key] !== undefined ? !!rec[f.key]
