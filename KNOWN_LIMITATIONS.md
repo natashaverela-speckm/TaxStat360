@@ -773,17 +773,17 @@ requirements as of the fifth read (15 Sep 2026, external calc audit):
    `taxCalc-fifth-read-passive-k1.test.js`.
 4. Keep the SE-tax exemption and the §199A(i) floor exclusion — unchanged, in place.
 
-## LIMITATION NIIT-SCORP-PASSIVE — every S-Corp K-1 is treated as nonpassive
+## LIMITATION NIIT-SCORP-PASSIVE — RESOLVED for positive shares (15 Sep 2026, follow-up)
 
-**Added 15 Sep 2026 (fifth read).** Exposure direction: understates tax for a passive
-shareholder. The UI has no material-participation attestation for S-Corp entities, so an
-S-Corp shareholder who does not materially participate (whose Box 1 share is passive activity
-income and therefore NII under §1411(c)(2)(A), and whose losses are §469-suspended) is
-computed as active: no NIIT on the share, losses fully deductible. The limited-partner
-checkbox is partnership-only by design. A per-S-Corp "I do not materially participate"
-attestation routed to the same passive pool (`passiveK1Net` in `calcTaxReturn`) would close
-the NIIT half; the loss half needs item 2 under PASSIVE-PARTNER above. Should be listed in the
-FAQ's "What does TaxStat360 not calculate?".
+**Added 15 Sep 2026 (fifth read); narrowed the same day.** S-Corp cards now carry a
+"Passive shareholder — I do NOT materially participate" attestation (`passiveShareholder`),
+routed through the shared `isPassiveK1Entity()` predicate into the same passive pool as a
+limited partner: the Box 1 share is NII (§1411(c)(2)(A)), absorbs passive rental losses under
+§469(d)(1), and is excluded from the §199A(i) "active" floor gate. Carried into the saved
+record (`biz.passiveShareholder`), the Dashboard card and the What-If simulator. Default
+unchecked = nonpassive (an owner-employee drawing officer comp almost always materially
+participates). What remains: a passive shareholder's K-1 LOSS is still deducted in full rather
+than suspended (same boundary as PASSIVE-PARTNER item 2); the FAQ now says so.
 
 
 ## AUTH-SESSION — login succeeds but /auth/me returns 401 (independent review, Jul 31 2026)

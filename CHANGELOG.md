@@ -12,6 +12,48 @@ record of work that predates this changelog.
 
 ---
 
+## Sixth pass — open items from the fifth read (quarterly timing, passive S-Corp, citations) — September 15, 2026
+
+### Changed — estimated-payment recommendation now respects the calendar (`taxCalc.js`, `TaxReturn.jsx`, `Dashboard.jsx`, `calcSelector.js`)
+- New optional engine input `asOfDate`. When supplied (every live surface passes today), the
+  safe-harbor shortfall and the full balance are each spread over the §6654(c)(2) installment
+  dates still AHEAD for the selected tax year (Apr 15 / Jun 15 / Sep 15 / Jan 15); when every
+  date has passed the whole amount is shown as due now. Omitted ⇒ legacy ÷ 4, byte-for-byte
+  (all existing tests unchanged). New outputs: `installmentsRemaining`, `installmentsPassed`,
+  `nextDueDate`, `balancePerInstallment`; `safeHarborQuarterly` and `quarterlyRecommended` now
+  use the remaining count.
+- Step 2 "Quarterly Estimates" card: headline is "To cover the full estimated balance — per
+  remaining installment (n of 4 left)"; the **safe-harbor minimum** is its own line (per
+  remaining installment, or "already met"); passed due dates are struck through and the next
+  one is bolded. Dashboard card label reads "/each · n left" (or "due now").
+- Tests: `taxCalc-installment-timing.test.js` (+10).
+
+- **Hotfix (16 Sep 2026, seen live):** the date was passed as the UTC `YYYY-MM-DD`, and the
+  engine parsed it with `new Date(str)` (UTC midnight → US-local getters give the previous
+  day), so on Sep 16 the card said "2 of 4 left" beside "next: Jan 15, 2027". Engine now
+  parses `YYYY-MM-DD` as a timezone-free calendar day (Date objects in the caller's local
+  calendar); callers pass `localCalendarDate()` (new, `utils/money.js`); the card's "next"
+  label uses the same local-day, inclusive rule. Tests run green under UTC, New York,
+  Los Angeles and Auckland (+4 in `taxCalc-installment-timing.test.js`).
+
+### Added — S-Corp passive-shareholder attestation (NIIT-SCORP-PASSIVE)
+- Step 1 S-Corp cards gain "Passive shareholder — I do NOT materially participate (§469(h))".
+  New shared predicate `isPassiveK1Entity()` (`entityPredicates.js`) covers both a
+  limited-partner partnership and an attested passive S-Corp; used by the engine's passive
+  pool (NIIT §1411(c)(2)(A), §469(d)(1) netting, §199A(i) active-floor gate). Carried into the
+  saved record (`biz.passiveShareholder`, also `biz.limitedPartner`), the Dashboard card and
+  the What-If simulator. Default unchecked = nonpassive. FAQ / JSON-LD "What does TaxStat360
+  not calculate?" now states that a passive K-1 LOSS is still not suspended.
+  Tests: +4 in `taxCalc-fifth-read-passive-k1.test.js`.
+
+### Fixed — citation
+- "Treas. Reg. §1.199A-3(b)(1)(ii)(A)" for the §179-reduces-QBI rule was wrong ((b)(1)(ii) is
+  guaranteed payments for the use of capital; the regulation never names §179). Replaced in
+  all seven occurrences (Step 1 help ×2, §199A article, engine/AI comments, test header) with
+  "Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions".
+
+---
+
 ## Fifth read — external calculation audit (F-1 to F-5, copy) — September 15, 2026
 
 An independent reviewer (EA-led) read the deployed bundle's engine end to end, rebuilt a

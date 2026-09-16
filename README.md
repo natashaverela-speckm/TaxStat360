@@ -1,9 +1,19 @@
-# §199A per-business allocation fix (full pass, 15 Sep 2026)
+# Installment-timing hotfix (16 Sep 2026)
 
-Apply AFTER the simulator fix (SIMULATOR-FIX.patch) — the patch is generated against that state.
-Full replacement files: src/lib/taxCalc.js · src/lib/taxCalc-fifth-read-passive-k1.test.js ·
-src/lib/taxCalc-qbi-aggregation.test.js · CHANGELOG.md
+Live symptom: Step 2 card read "2 of 4 left" next to "next: Jan 15, 2027" on Sep 16.
+Cause: today was passed as the UTC YYYY-MM-DD and parsed with new Date(str) → UTC midnight,
+which US-local getters shift back one day. Fix: timezone-free calendar-date parsing in the
+engine; callers pass the LOCAL calendar date (new localCalendarDate() in utils/money.js);
+the "next" label uses the same inclusive local-day rule.
 
-Verified: 109 files / 1,631 tests passing · eslint 0 errors · build OK.
-Post-deploy check: Single 2026, S-Corp $400k receipts / $100k expenses / $100k officer comp + Sole Prop $150k / $50k
-→ §199A line **−$38,470** (was −$37,604), total **$97,846** (was $98,149).
+UPLOAD ALL of these in ONE commit (or `git apply TIMING-HOTFIX.patch` from the repo root):
+  src/lib/taxCalc.js
+  src/lib/taxCalc-installment-timing.test.js
+  src/utils/money.js            ← NEW export; TaxReturn/Dashboard/calcSelector import it,
+  src/utils/calcSelector.js        so a components-only upload will FAIL the build again
+  src/components/TaxReturn.jsx
+  src/components/Dashboard.jsx
+  CHANGELOG.md, KNOWN_LIMITATIONS.md   (docs — these two were still missing from master)
+
+Verified: 110 files / 1,649 tests passing under UTC, New York, Los Angeles and Auckland; lint 0 errors; build OK.
+Post-deploy (Sep 16): any 2026 record with a balance → "1 of 4 left", figure = full balance, "next: Jan 15, 2027".
