@@ -19,7 +19,7 @@ import { signOut } from '../utils/SignOut'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard — validated before every
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
-import { nf, fmt, effRateLabel, formatTimestamp } from '../utils/money.js'
+import { nf, fmt, effRateLabel, formatTimestamp, localCalendarDate } from '../utils/money.js'
 import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
@@ -378,7 +378,7 @@ export default function TaxReturn() {
       w2OwnForSE: resolveW2OwnForSE({ status: filingStatus, entered: w2OwnForSE, officerW2: officerW2Total }),
       // Follow-up (15 Sep 2026): spread the estimated-payment recommendation over the
       // §6654 installment dates still ahead of today (engine: installmentsRemaining).
-      asOfDate: new Date().toISOString().slice(0, 10),
+      asOfDate: localCalendarDate(),
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
@@ -762,9 +762,12 @@ export default function TaxReturn() {
   }
   const getNextDueDate = () => {
     const dates = NEXT_DUE_DATES[taxYear] || NEXT_DUE_DATES[CURRENT_TAX_YEAR]
-    const today = new Date()
+    // Compare on the LOCAL calendar day and include the due date itself (a payment made on
+    // Sep 15 is on time) — the same rule the engine's installmentsRemaining uses, so this
+    // label and "n of 4 left" can never disagree (live mismatch seen 16 Sep 2026).
+    const today = new Date(); today.setHours(0, 0, 0, 0)
     for (const d of dates) {
-      if (new Date(d) > today) return d
+      if (new Date(d) >= today) return d
     }
     return dates[dates.length - 1]
   }

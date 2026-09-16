@@ -54,7 +54,7 @@ import { calcTaxReturn, calcCCorpCorporateLayer, calcReasonableCompCore } from '
 // PHASE 3.2: record cards surface engine-verified levers + engine-true figures.
 import { topLeversForRecord } from '../utils/topLevers.js'
 import { writePersonalContext, writeTaxYear, writeStep1State, clearStep1State, loadUserRecordsFromServer, deleteUserRecord, normalizeF1040, writeActiveRecord, readActiveRecordId, writePresetEntityType, write2FANudge, read2FANudge, readGotoForm, clearGotoForm } from '../utils/sessionState.js'
-import { parseMoney, nf } from '../utils/money.js'
+import { parseMoney, nf, localCalendarDate } from '../utils/money.js'
 // M2 (audit F-05): ARCHITECTURE §5 calculation guard. NOTE: only named imports here —
 // this file already declares a local `safeCalc` fallback object, so calcGuard's
 // safeCalc() helper must not be imported into this scope.
@@ -135,7 +135,7 @@ export function calcDashboard(biz, f1040) {
     // FIFTH READ F-3 (15 Sep 2026): same default as Step 2 — blank ⇒ the owner's own
     // S-Corp / C-Corp officer salary is attributed to them (see utils/w2OwnForSE.js).
     w2OwnForSE: resolveW2OwnForSE({ status: fs, entered: f1040.w2OwnForSE, officerW2: (isSC || isCCorp) ? sal : 0 }),
-    asOfDate: new Date().toISOString().slice(0, 10),   // follow-up (15 Sep 2026): remaining-installment timing
+    asOfDate: localCalendarDate(),   // follow-up (15 Sep 2026): remaining-installment timing
   }
 
   // M2 (audit F-05): ARCHITECTURE §5 guard — both calcTaxReturn() calls below spread
