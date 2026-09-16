@@ -244,7 +244,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged
     // SE tax on a limited partner's K-1 (§1402(a)(13)) — diverging from the Tax
     // Tracker, SE-savings panel, and SEP-IRA card, which all treat it as SE-exempt.
-    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner, passiveShareholder: !!ctx.passiveShareholder }],
+    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner, passiveShareholder: !!ctx.passiveShareholder, priorPAL: ctx.priorPAL ?? '' }],
   }
   validateCalcInputs(engineInput, 'WhatIfSimulator')
 

@@ -1765,8 +1765,11 @@ function calcTaxReturn(input) {
   // instructions: passive losses count only to the extent allowed under §469).
   let passiveK1LossSuspended        = 0
   let passiveK1LossAbsorbedByRental = 0
+  // PAL-K1-CARRYFORWARD: the pool-2 net effect on AGI-type figures — see the §469 section.
+  // Assigned inside each §469 branch (before the MAGI / §461(l) reads) and finalized after.
+  let passiveK1AgiAdjustment        = 0
   const calc461l = (_rentalForEBL) => {
-    const eblBiz     = adjustedK1Total + passiveK1LossSuspended + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+    const eblBiz     = adjustedK1Total + passiveK1AgiAdjustment + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
     const eblNetLoss = Math.max(0, -eblBiz)
     const ebl        = Math.max(0, eblNetLoss - eblThreshold)
     return { eblBiz, eblNetLoss, ebl }
@@ -1783,7 +1786,7 @@ function calcTaxReturn(input) {
   // the §1372 wage gross-up is added like every other AGI inclusion, and the §461(l)
   // excess-business-loss addback is included because it, too, reaches AGI.
   const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
-    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + guaranteedPaymentsTotal + _npRental
+    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + guaranteedPaymentsTotal + _npRental
     + f4797OrdinaryPart + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
     + calc461l(_npRental).ebl
     - halfSE
@@ -1813,10 +1816,22 @@ function calcTaxReturn(input) {
   // attests non-material participation (`passiveShareholder`) joins the pool — its share is
   // passive activity income under §469(c)(1) and NII under §1411(c)(2)(A) exactly like a
   // limited partner's. Predicate shared with the UI: isPassiveK1Entity().
-  const passiveK1Net = entitiesLimited.reduce((sum, e) => {
+  const passiveK1CurrentNet = entitiesLimited.reduce((sum, e) => {
     if (!isPassiveK1Entity(e)) return sum
     return sum + (getEntityK1Share(e) - nf(e.box11_12))   // §179 (box11_12) reduces the share; charitable (box12_13) does not (F-13)
   }, 0)
+  // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed loss from each passive K-1
+  // activity (Form 8582 Part I line 2c / Worksheet 5), entered on the entity card as
+  // `priorPAL` — the same field the rental cards use for line 1c. It joins the "all other
+  // passive activities" pool (line 2d) so it is allowed against this year's passive K-1
+  // income and passive rental income first; whatever the pool cannot absorb is suspended
+  // again. It is NOT in k1Total (it is a carryforward, not this year's share), so the
+  // allowed slice is deducted below through passiveK1AgiAdjustment.
+  const priorK1PAL = entitiesLimited.reduce((sum, e) => {
+    if (!isPassiveK1Entity(e)) return sum
+    return sum + Math.max(0, nf(e.priorPAL))
+  }, 0)
+  const passiveK1Net    = passiveK1CurrentNet - priorK1PAL           // Form 8582 line 2d
   const passiveK1Income = Math.max(0, passiveK1Net)
   // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 LOSS is a passive activity loss (§469(a),
   // (d)(1)) — deductible only against passive income (here: net passive rental income after
@@ -1912,6 +1927,7 @@ function calcTaxReturn(input) {
     // legacy path treats every rental as nonpassive, so nothing absorbs it there).
     passiveK1LossAbsorbedByRental = effectiveIsREP ? 0 : Math.min(passiveK1Loss, Math.max(0, rentalNetAfterCF))
     passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
+    passiveK1AgiAdjustment        = passiveK1LossSuspended - priorK1PAL
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
       // FOURTH READ R-1 (14 Sep 2026): §469(i)(3)(F) MAGI is AGI computed without regard to
       // passive losses, taxable Social Security, the §219 IRA deduction, the §221 education-
@@ -1990,6 +2006,7 @@ function calcTaxReturn(input) {
     // SEVENTH PASS F-2: passive K-1 loss offsets passive rental income first.
     passiveK1LossAbsorbedByRental = Math.min(passiveK1Loss, Math.max(0, passiveRentalNet))
     passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
+    passiveK1AgiAdjustment        = passiveK1LossSuspended - priorK1PAL
     // Passive portion runs through the §469(i) $25k active-participation allowance when
     // it is a net loss; nonpassive portion flows in full.
     let passiveAllowed = passiveRentalNet
@@ -2013,6 +2030,17 @@ function calcTaxReturn(input) {
   // is the smaller of itself and the total unallowed amount.
   const palCarryforwardRemaining = Math.min(priorPAL, Math.max(0, palSuspendedRental))
   const palCarryforwardApplied   = priorPAL - palCarryforwardRemaining
+  // PAL-K1-CARRYFORWARD: passiveK1LossSuspended is the whole pool-2 unallowed figure (this
+  // year's passive K-1 loss + the prior carryforward the pool could not absorb). The
+  // current-year loss is deemed allowed first, so the carryforward "remaining" is the smaller
+  // of itself and the total; what was applied is the rest. The net AGI effect of pool 2,
+  // relative to the current-year share already inside k1Total, is (suspended − carryforward):
+  //   • carryforward fully absorbed by passive income → −priorK1PAL (deducted)
+  //   • nothing to absorb it → suspended = loss + carryforward → adds back only the loss
+  const priorK1PALRemaining = Math.min(priorK1PAL, passiveK1LossSuspended)
+  const priorK1PALApplied   = priorK1PAL - priorK1PALRemaining
+  const passiveK1LossSuspendedCurrent = passiveK1LossSuspended - priorK1PALRemaining
+  passiveK1AgiAdjustment = passiveK1LossSuspended - priorK1PAL
   // §461(l) — same helper the §469(i) MAGI used above, now with the final nonpassive rental.
   const { ebl } = calc461l(rentalForEBL)
   const unrec1250    = Math.max(0, nf(unrecap1250))
@@ -2065,7 +2093,7 @@ function calcTaxReturn(input) {
   // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).
   // grossIncomeBeforeNOL is defined a few lines below; the pieces are summed here so the
   // deduction can be settled before `adjustments` is fixed.
-  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
+  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
     - (halfSE + selfEmpHealthDed + hsaDed + selfEmpRetirementDed)
   const studentLoanDed       = calcStudentLoanDeduction(ytdScale(studentLoanInt), _magiForStudentLoan, taxYear, status)
@@ -2079,7 +2107,7 @@ function calcTaxReturn(input) {
   // see the definition above. Net AGI effect is zero only when the full premium is covered
   // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
   // FOLLOW-UP FIX comment above). Never touches totalW2ForFICA/additionalMedicare.
-  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2: suspended passive K-1 loss added back
+  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2 / PAL-K1-CARRYFORWARD: suspended passive K-1 loss added back, allowed prior-year K-1 loss deducted
     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
@@ -2301,7 +2329,9 @@ function calcTaxReturn(input) {
   const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
   // SEVENTH PASS F-2: a §469-suspended passive K-1 loss is not a QBI item until the year it
   // is allowed (Reg. §1.199A-3(b)(1)(iv)) — add the suspended slice back to the base.
-  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal + passiveK1LossSuspended
+  // PAL-K1-CARRYFORWARD: a prior-year suspended loss allowed this year is a QBI item in the
+  // year allowed (post-2017 losses, same reg.) — the net pool-2 adjustment carries both effects.
+  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal + passiveK1AgiAdjustment
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
   // ACTIVE qualified trade or business in which the taxpayer materially participates.
   // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
@@ -2800,6 +2830,7 @@ function calcTaxReturn(input) {
     // FIFTH READ F-1/F-2: passive K-1 pool surfaced for the UI / CPA export.
     passiveK1Income, passiveK1NII, passiveLossAbsorbedByK1,
     passiveK1LossSuspended, passiveK1LossAbsorbedByRental,   // SEVENTH PASS F-2
+    passiveK1CurrentNet, priorK1PAL, priorK1PALApplied, priorK1PALRemaining, passiveK1LossSuspendedCurrent, passiveK1AgiAdjustment,   // PAL-K1-CARRYFORWARD
     niit: {
       applies:     niitAmount > 0,
       amount:      niitAmount,
