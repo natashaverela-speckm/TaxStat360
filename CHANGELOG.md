@@ -139,6 +139,25 @@ reproduced against master before it was fixed; the reproductions became the SPEC
   under §469 except to the extent of passive rental income; a prior-year suspended K-1 loss is
   not yet an input.
 
+### Added — prior-year suspended passive K-1 loss (PAL-K1-CARRYFORWARD), same day
+- Step 1: a Partnership / LLC card with "Limited partner" checked, and an S-Corp card with
+  "Passive shareholder" checked, gain "Unallowed passive loss from prior years — this activity
+  (Form 8582)" (`entity.priorPAL`, the field the rental cards already use for line 1c).
+- Engine: the carryforward joins the Form 8582 line-2 pool (`priorK1PAL`; line 2d =
+  current share − carryforward) and is allowed against this year's passive K-1 income and
+  passive rental income before anything is suspended. Because it is not part of `k1Total`,
+  the allowed slice is DEDUCTED (`priorK1PALApplied`) and the unabsorbed slice suspended again
+  (`priorK1PALRemaining`, inside the total `passiveK1LossSuspended`; the current-year slice is
+  `passiveK1LossSuspendedCurrent`). One net figure, `passiveK1AgiAdjustment`
+  (= suspended − carryforward), replaces the F-2 add-back in AGI, the §469(i) MAGI, §461(l) and
+  the QBI base. NII reads the netted passive income (Reg. §1.1411-4(g)(8)).
+- Step 2: "Prior-Year Passive K-1 Loss Allowed (§469(b))" row; the suspended row now shows
+  this year's slice; the callout states the total carried to next year. Saved record
+  (`biz.priorPAL`), Dashboard card and simulator carry it. FAQ / JSON-LD updated.
+- Not modeled: the §469(g) full release on disposition of the entire interest.
+- Tests: `taxCalc-passive-k1-carryforward.test.js` (+10, hand-derived from Form 8582), +1 in
+  `seventh-pass-taxreturn.test.jsx`.
+
 ### Verified correct, no change
 - All TAX_TABLES parameters for 2024–2026 (brackets, standard deductions, LTCG breakpoints,
   AMT exemptions / phase-outs, §199A thresholds, SS wage base, retirement limits, §179, SALT,

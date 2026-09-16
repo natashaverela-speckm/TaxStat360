@@ -775,10 +775,10 @@ requirements as of the fifth read (15 Sep 2026, external calc audit):
    passive K-1 loss is allowed only against net passive rental income (Form 8582 line 2b vs.
    line 1a, after the prior-year carryforward) and the remainder is suspended and added back
    to AGI, excluded from the §469(i) MAGI, the §461(l) figure and the current-year QBI base,
-   and reported as `passiveK1LossSuspended` (Step 2 shows a row and a callout). **Still open:**
-   a PRIOR-YEAR suspended K-1 loss carryforward is not an input (the rental cards carry
-   `priorPAL` for Form 8582 line 1c only), and the §469(g) release on disposition is not
-   modeled. Tests: `taxCalc-seventh-pass.test.js` (F-2).
+   and reported as `passiveK1LossSuspended` (Step 2 shows a row and a callout). The prior-year
+   carryforward is now an input on the card (see PAL-K1-CARRYFORWARD under the seventh pass);
+   the §469(g) release on disposition is not modeled. Tests: `taxCalc-seventh-pass.test.js`
+   (F-2), `taxCalc-passive-k1-carryforward.test.js`.
 3. ~~Confirm NIIT treatment~~ — **fixed (F-1).** Positive passive K-1 net (share − §179) is
    net investment income (§1411(c)(1)(A)(ii), (c)(2)(A)); `passiveK1NII` in the engine output.
    Also **fixed (F-2)**: that income absorbs passive rental losses before the §469(i)
@@ -796,14 +796,21 @@ limited partner: the Box 1 share is NII (§1411(c)(2)(A)), absorbs passive renta
 record (`biz.passiveShareholder`), the Dashboard card and the What-If simulator. Default
 unchecked = nonpassive (an owner-employee drawing officer comp almost always materially
 participates). Seventh pass (16 Sep 2026): a passive shareholder's K-1 LOSS is now suspended
-under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2); the prior-year
-carryforward input remains open there.
+under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2), and the prior-year
+unallowed loss can be entered on the card (PAL-K1-CARRYFORWARD).
 
 
 ## SEVENTH PASS — items verified and deliberately left open (16 Sep 2026)
 
-- **PAL-K1-CARRYFORWARD:** no input for a prior-year suspended passive K-1 loss (Form 8582
-  Worksheet 5 / line 2c). The rental cards' `priorPAL` is line 1c (rental) only.
+- ~~**PAL-K1-CARRYFORWARD**~~ — **resolved (16 Sep 2026, same day).** A "Unallowed passive loss
+  from prior years — this activity (Form 8582)" box appears on a Partnership / LLC card once
+  "Limited partner" is checked and on an S-Corp card once "Passive shareholder" is checked
+  (`entity.priorPAL`, the same field the rental cards use for line 1c). The engine pools it on
+  Form 8582 line 2 (`priorK1PAL` → line 2d), allows it against this year's passive K-1 and
+  passive rental income, deducts the allowed slice (`priorK1PALApplied`, a Step-2 row) and
+  suspends the rest (`priorK1PALRemaining`, inside `passiveK1LossSuspended`). Still not
+  modeled: the §469(g) release of all suspended losses on a fully taxable disposition of the
+  interest. Tests: `taxCalc-passive-k1-carryforward.test.js` (+10).
 - **AMT-COLLECTIBLES:** Form 6251 has no 28% line — collectibles gain now sits in line 17 at
   the 26%/28% AMT rates (was a flat 28% layer). Matches the form; noted because it moved.
 - **EST-PAYMENTS-CREDIT-RULE:** when both the "Estimated Tax Payments Made" total and the

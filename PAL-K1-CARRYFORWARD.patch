@@ -1,0 +1,502 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 79d0eb3..f5ef3b6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -139,6 +139,25 @@ reproduced against master before it was fixed; the reproductions became the SPEC
+   under §469 except to the extent of passive rental income; a prior-year suspended K-1 loss is
+   not yet an input.
+ 
++### Added — prior-year suspended passive K-1 loss (PAL-K1-CARRYFORWARD), same day
++- Step 1: a Partnership / LLC card with "Limited partner" checked, and an S-Corp card with
++  "Passive shareholder" checked, gain "Unallowed passive loss from prior years — this activity
++  (Form 8582)" (`entity.priorPAL`, the field the rental cards already use for line 1c).
++- Engine: the carryforward joins the Form 8582 line-2 pool (`priorK1PAL`; line 2d =
++  current share − carryforward) and is allowed against this year's passive K-1 income and
++  passive rental income before anything is suspended. Because it is not part of `k1Total`,
++  the allowed slice is DEDUCTED (`priorK1PALApplied`) and the unabsorbed slice suspended again
++  (`priorK1PALRemaining`, inside the total `passiveK1LossSuspended`; the current-year slice is
++  `passiveK1LossSuspendedCurrent`). One net figure, `passiveK1AgiAdjustment`
++  (= suspended − carryforward), replaces the F-2 add-back in AGI, the §469(i) MAGI, §461(l) and
++  the QBI base. NII reads the netted passive income (Reg. §1.1411-4(g)(8)).
++- Step 2: "Prior-Year Passive K-1 Loss Allowed (§469(b))" row; the suspended row now shows
++  this year's slice; the callout states the total carried to next year. Saved record
++  (`biz.priorPAL`), Dashboard card and simulator carry it. FAQ / JSON-LD updated.
++- Not modeled: the §469(g) full release on disposition of the entire interest.
++- Tests: `taxCalc-passive-k1-carryforward.test.js` (+10, hand-derived from Form 8582), +1 in
++  `seventh-pass-taxreturn.test.jsx`.
++
+ ### Verified correct, no change
+ - All TAX_TABLES parameters for 2024–2026 (brackets, standard deductions, LTCG breakpoints,
+   AMT exemptions / phase-outs, §199A thresholds, SS wage base, retirement limits, §179, SALT,
+diff --git a/KNOWN_LIMITATIONS.md b/KNOWN_LIMITATIONS.md
+index e11b3bd..24da6f1 100644
+--- a/KNOWN_LIMITATIONS.md
++++ b/KNOWN_LIMITATIONS.md
+@@ -775,10 +775,10 @@ requirements as of the fifth read (15 Sep 2026, external calc audit):
+    passive K-1 loss is allowed only against net passive rental income (Form 8582 line 2b vs.
+    line 1a, after the prior-year carryforward) and the remainder is suspended and added back
+    to AGI, excluded from the §469(i) MAGI, the §461(l) figure and the current-year QBI base,
+-   and reported as `passiveK1LossSuspended` (Step 2 shows a row and a callout). **Still open:**
+-   a PRIOR-YEAR suspended K-1 loss carryforward is not an input (the rental cards carry
+-   `priorPAL` for Form 8582 line 1c only), and the §469(g) release on disposition is not
+-   modeled. Tests: `taxCalc-seventh-pass.test.js` (F-2).
++   and reported as `passiveK1LossSuspended` (Step 2 shows a row and a callout). The prior-year
++   carryforward is now an input on the card (see PAL-K1-CARRYFORWARD under the seventh pass);
++   the §469(g) release on disposition is not modeled. Tests: `taxCalc-seventh-pass.test.js`
++   (F-2), `taxCalc-passive-k1-carryforward.test.js`.
+ 3. ~~Confirm NIIT treatment~~ — **fixed (F-1).** Positive passive K-1 net (share − §179) is
+    net investment income (§1411(c)(1)(A)(ii), (c)(2)(A)); `passiveK1NII` in the engine output.
+    Also **fixed (F-2)**: that income absorbs passive rental losses before the §469(i)
+@@ -796,14 +796,21 @@ limited partner: the Box 1 share is NII (§1411(c)(2)(A)), absorbs passive renta
+ record (`biz.passiveShareholder`), the Dashboard card and the What-If simulator. Default
+ unchecked = nonpassive (an owner-employee drawing officer comp almost always materially
+ participates). Seventh pass (16 Sep 2026): a passive shareholder's K-1 LOSS is now suspended
+-under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2); the prior-year
+-carryforward input remains open there.
++under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2), and the prior-year
++unallowed loss can be entered on the card (PAL-K1-CARRYFORWARD).
+ 
+ 
+ ## SEVENTH PASS — items verified and deliberately left open (16 Sep 2026)
+ 
+-- **PAL-K1-CARRYFORWARD:** no input for a prior-year suspended passive K-1 loss (Form 8582
+-  Worksheet 5 / line 2c). The rental cards' `priorPAL` is line 1c (rental) only.
++- ~~**PAL-K1-CARRYFORWARD**~~ — **resolved (16 Sep 2026, same day).** A "Unallowed passive loss
++  from prior years — this activity (Form 8582)" box appears on a Partnership / LLC card once
++  "Limited partner" is checked and on an S-Corp card once "Passive shareholder" is checked
++  (`entity.priorPAL`, the same field the rental cards use for line 1c). The engine pools it on
++  Form 8582 line 2 (`priorK1PAL` → line 2d), allows it against this year's passive K-1 and
++  passive rental income, deducts the allowed slice (`priorK1PALApplied`, a Step-2 row) and
++  suspends the rest (`priorK1PALRemaining`, inside `passiveK1LossSuspended`). Still not
++  modeled: the §469(g) release of all suspended losses on a fully taxable disposition of the
++  interest. Tests: `taxCalc-passive-k1-carryforward.test.js` (+10).
+ - **AMT-COLLECTIBLES:** Form 6251 has no 28% line — collectibles gain now sits in line 17 at
+   the 26%/28% AMT rates (was a flat 28% layer). Matches the form; noted because it moved.
+ - **EST-PAYMENTS-CREDIT-RULE:** when both the "Estimated Tax Payments Made" total and the
+diff --git a/index.html b/index.html
+index b55e52e..af8836a 100644
+--- a/index.html
++++ b/index.html
+@@ -201,7 +201,7 @@
+           "name": "What does TaxStat360 not calculate?",
+           "acceptedAnswer": {
+             "@type": "Answer",
+-            "text": "TaxStat360 is a planning estimate, and some things are deliberately left to your preparer — each can make our figure differ from theirs. It does not calculate state, local, or foreign tax. It uses the depreciation figure you enter rather than building a depreciation schedule, so MACRS and §168(k) bonus depreciation are taken as you or your accountant computed them; a §179 amount you enter separately from a K-1 is checked against that year’s dollar cap, the investment phase-out, and the business-income limit, but the depreciation field itself is not. It does not apply the §163(j) business-interest limitation. It takes HSA and SEP or Solo 401(k) contributions as entered without capping them at the annual limits. It does not ask your age, so the senior deduction is not applied, and it does not model the deductions for tips, overtime, or car-loan interest. For C-Corporations it assumes the full annual profit is distributed, and it does not model the accumulated-earnings tax (§531) or the personal-holding-company tax (§541). A passive partner’s or passive S-Corp shareholder’s K-1 share is handled — a positive share for NIIT and passive-loss netting, and a passive K-1 LOSS is suspended under §469 except to the extent of your passive rental income, with the remainder carried forward — but a prior-year suspended K-1 loss carryforward is not yet an input. Several of these are flagged inside the app at the field they affect."
++            "text": "TaxStat360 is a planning estimate, and some things are deliberately left to your preparer — each can make our figure differ from theirs. It does not calculate state, local, or foreign tax. It uses the depreciation figure you enter rather than building a depreciation schedule, so MACRS and §168(k) bonus depreciation are taken as you or your accountant computed them; a §179 amount you enter separately from a K-1 is checked against that year’s dollar cap, the investment phase-out, and the business-income limit, but the depreciation field itself is not. It does not apply the §163(j) business-interest limitation. It takes HSA and SEP or Solo 401(k) contributions as entered without capping them at the annual limits. It does not ask your age, so the senior deduction is not applied, and it does not model the deductions for tips, overtime, or car-loan interest. For C-Corporations it assumes the full annual profit is distributed, and it does not model the accumulated-earnings tax (§531) or the personal-holding-company tax (§541). A passive partner’s or passive S-Corp shareholder’s K-1 share is handled — a positive share for NIIT and passive-loss netting, and a passive K-1 LOSS is suspended under §469 except to the extent of your passive income, with the remainder carried forward, and last year’s unallowed loss from that activity can be entered on its Step 1 card (Form 8582 line 2c). A full release on disposition of the interest (§469(g)) is not modeled. Several of these are flagged inside the app at the field they affect."
+           }
+         },
+         {
+diff --git a/src/components/AIAnalysis.jsx b/src/components/AIAnalysis.jsx
+index a9eae0a..12b1e8d 100644
+--- a/src/components/AIAnalysis.jsx
++++ b/src/components/AIAnalysis.jsx
+@@ -2214,6 +2214,9 @@ function SimulatorModal({ onClose, rec }) {
+     // Follow-up (15 Sep 2026, NIIT-SCORP-PASSIVE): carry the S-Corp passive-shareholder
+     // attestation so the simulator's NIIT / §469 netting match Step 2.
+     passiveShareholder: isSCorpEntity(entity) && (rec?.entities || []).some(e => e && isSCorpEntity(e?.type) && e.passiveShareholder === true),
++    // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed passive loss on the
++    // record's (single-entity) passive K-1 card, so the baseline matches Step 2.
++    priorPAL: rec?.entities?.[0]?.priorPAL ?? rec?.biz?.priorPAL ?? '',
+   }
+   // SIM-1 REPAIRED (Batch 7): scenarios run through the engine via the same
+   // translation the Dashboard Tracker uses (see aiAnalysisTaxMath.js). The guard
+diff --git a/src/components/CalculateTaxInner.jsx b/src/components/CalculateTaxInner.jsx
+index 9c3bf5a..07c14e7 100644
+--- a/src/components/CalculateTaxInner.jsx
++++ b/src/components/CalculateTaxInner.jsx
+@@ -1005,9 +1005,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
+             <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
+             <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
+               <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
+-              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
++              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
+             </label>
+           </div>
++
++          {entity.limitedPartner && (
++            <div style={{ marginTop: 8 }}>
++              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
++                Unallowed passive loss from prior years — this activity (Form 8582)
++                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
++              </label>
++              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
++            </div>
++          )}
+         </div>
+       )}
+ 
+@@ -1017,9 +1027,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
+             <input type="checkbox" id={'passivesh_' + idx} checked={!!entity.passiveShareholder} onChange={e => onUpdate(idx, { ...entity, passiveShareholder: e.target.checked })} style={{ marginTop: 2 }} />
+             <label htmlFor={'passivesh_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
+               <strong>Passive shareholder</strong> — I do NOT materially participate in this S-Corp (IRC §469(h))
+-              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
++              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
+             </label>
+           </div>
++
++          {entity.passiveShareholder && (
++            <div style={{ marginTop: 8 }}>
++              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
++                Unallowed passive loss from prior years — this activity (Form 8582)
++                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
++              </label>
++              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
++            </div>
++          )}
+         </div>
+       )}
+ 
+@@ -2660,6 +2680,7 @@ export default function CalculateTaxInner() {
+         passiveShareholder:  !!entities[0]?.passiveShareholder,
+         isActiveParticipant: !!entities[0]?.isActiveParticipant,
+         isREP:               !!entities[0]?.isREP,
++        priorPAL:            entities[0]?.priorPAL ?? '',   // PAL-K1-CARRYFORWARD / rental line 1c
+       },
+       // THIRD PASS (14 Sep 2026): stamp the selected year — readPersonalContext() carried
+       // the manifest default until Step 2 rendered (see calcSelector._recordPersonalContext).
+diff --git a/src/components/Dashboard.jsx b/src/components/Dashboard.jsx
+index c6f222d..af04032 100644
+--- a/src/components/Dashboard.jsx
++++ b/src/components/Dashboard.jsx
+@@ -180,7 +180,7 @@ export function calcDashboard(biz, f1040) {
+   // SEVENTH PASS H-1 (16 Sep 2026): the rental card's own active-participation attestation now
+   // governs the §469(i) allowance (the retired top-level flag no longer reaches a card), so the
+   // single-entity card carries it too — otherwise a rental loss here would always be suspended.
+-  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder, isActiveParticipant: !!biz.isActiveParticipant, isREP: !!biz.isREP }] : []
++  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder, isActiveParticipant: !!biz.isActiveParticipant, isREP: !!biz.isREP, priorPAL: biz.priorPAL ?? '' }] : []
+   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
+ 
+   // D-10 (dead-code audit): numeric rule now comes from the engine's
+@@ -445,6 +445,7 @@ export default function Dashboard() {
+         passiveShareholder: !!rec.biz.passiveShareholder,
+         isActiveParticipant: !!rec.biz.isActiveParticipant,   // SEVENTH PASS H-1
+         isREP: !!rec.biz.isREP,
++        priorPAL: rec.biz.priorPAL ?? '',   // PAL-K1-CARRYFORWARD
+       }))
+     }
+     const saved1040 = rec.biz ? (rec.f1040 || {}) : {
+diff --git a/src/components/Landing.jsx b/src/components/Landing.jsx
+index 5dd23f0..4025bbc 100644
+--- a/src/components/Landing.jsx
++++ b/src/components/Landing.jsx
+@@ -356,7 +356,7 @@ export default function Landing() {
+             // internal list. Keep this in sync with the FAQPage JSON-LD in
+             // index.html — complianceCopy.test.js asserts the two are byte-identical.
+             { q: 'What does TaxStat360 not calculate?',
+-              a: 'TaxStat360 is a planning estimate, and some things are deliberately left to your preparer — each can make our figure differ from theirs. It does not calculate state, local, or foreign tax. It uses the depreciation figure you enter rather than building a depreciation schedule, so MACRS and §168(k) bonus depreciation are taken as you or your accountant computed them; a §179 amount you enter separately from a K-1 is checked against that year’s dollar cap, the investment phase-out, and the business-income limit, but the depreciation field itself is not. It does not apply the §163(j) business-interest limitation. It takes HSA and SEP or Solo 401(k) contributions as entered without capping them at the annual limits. It does not ask your age, so the senior deduction is not applied, and it does not model the deductions for tips, overtime, or car-loan interest. For C-Corporations it assumes the full annual profit is distributed, and it does not model the accumulated-earnings tax (§531) or the personal-holding-company tax (§541). A passive partner’s or passive S-Corp shareholder’s K-1 share is handled — a positive share for NIIT and passive-loss netting, and a passive K-1 LOSS is suspended under §469 except to the extent of your passive rental income, with the remainder carried forward — but a prior-year suspended K-1 loss carryforward is not yet an input. Several of these are flagged inside the app at the field they affect.' },
++              a: 'TaxStat360 is a planning estimate, and some things are deliberately left to your preparer — each can make our figure differ from theirs. It does not calculate state, local, or foreign tax. It uses the depreciation figure you enter rather than building a depreciation schedule, so MACRS and §168(k) bonus depreciation are taken as you or your accountant computed them; a §179 amount you enter separately from a K-1 is checked against that year’s dollar cap, the investment phase-out, and the business-income limit, but the depreciation field itself is not. It does not apply the §163(j) business-interest limitation. It takes HSA and SEP or Solo 401(k) contributions as entered without capping them at the annual limits. It does not ask your age, so the senior deduction is not applied, and it does not model the deductions for tips, overtime, or car-loan interest. For C-Corporations it assumes the full annual profit is distributed, and it does not model the accumulated-earnings tax (§531) or the personal-holding-company tax (§541). A passive partner’s or passive S-Corp shareholder’s K-1 share is handled — a positive share for NIIT and passive-loss netting, and a passive K-1 LOSS is suspended under §469 except to the extent of your passive income, with the remainder carried forward, and last year’s unallowed loss from that activity can be entered on its Step 1 card (Form 8582 line 2c). A full release on disposition of the interest (§469(g)) is not modeled. Several of these are flagged inside the app at the field they affect.' },
+             { q: 'What accounting software does TaxStat360 connect to?',
+               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
+             { q: 'Can I use TaxStat360 if I have multiple businesses?',
+diff --git a/src/components/TaxReturn.jsx b/src/components/TaxReturn.jsx
+index 9304ead..203149e 100644
+--- a/src/components/TaxReturn.jsx
++++ b/src/components/TaxReturn.jsx
+@@ -521,6 +521,7 @@ export default function TaxReturn() {
+         passiveShareholder: !!entities?.[0]?.passiveShareholder,
+         isActiveParticipant: !!entities?.[0]?.isActiveParticipant,   // SEVENTH PASS H-1: rental-card attestation
+         isREP:             !!entities?.[0]?.isREP,
++        priorPAL:          entities?.[0]?.priorPAL ?? '',              // PAL-K1-CARRYFORWARD / rental line 1c
+       },
+       f1040: {
+         // SEVENTH PASS H-3 (16 Sep 2026): this shape is what Dashboard.loadRecord and the
+@@ -2116,8 +2117,12 @@ export default function TaxReturn() {
+                 // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 loss (limited partner / passive S-Corp
+                 // shareholder) is deducted only against passive rental income; the suspended remainder
+                 // is added back here so the K-1 rows above still foot to AGI (Form 8582 Worksheet 5).
+-                { label: '§469 Passive K-1 Loss Suspended', value: result.passiveK1LossSuspended || 0, sign: 1, hide: !(result.passiveK1LossSuspended > 0), accent: R,
+-                  note: `Passive-activity loss from a limited-partner / passive-shareholder K-1 — allowed only against passive income${(result.passiveK1LossAbsorbedByRental || 0) > 0 ? ` (${fmt(result.passiveK1LossAbsorbedByRental)} absorbed by passive rental income)` : ''}; the rest carries forward on Form 8582 (IRC §469(b))` },
++                // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed loss entered on the passive
++                // K-1 card (Form 8582 line 2c) is deducted to the extent the passive pool absorbs it.
++                { label: 'Prior-Year Passive K-1 Loss Allowed (§469(b))', value: result.priorK1PALApplied || 0, sign: -1, hide: !(result.priorK1PALApplied > 0), accent: '#059669',
++                  note: `Suspended loss carried into ${taxYear} from a passive K-1 activity, allowed against this year's passive income (Form 8582 line 2c)${(result.priorK1PALRemaining || 0) > 0 ? ` — ${fmt(result.priorK1PALRemaining)} still carries forward` : ''}` },
++                { label: '§469 Passive K-1 Loss Suspended', value: result.passiveK1LossSuspendedCurrent ?? result.passiveK1LossSuspended ?? 0, sign: 1, hide: !((result.passiveK1LossSuspendedCurrent ?? result.passiveK1LossSuspended) > 0), accent: R,
++                  note: `This year's passive-activity loss from a limited-partner / passive-shareholder K-1 — allowed only against passive income${(result.passiveK1LossAbsorbedByRental || 0) > 0 ? ` (${fmt(result.passiveK1LossAbsorbedByRental)} absorbed by passive rental income)` : ''}; the rest carries forward on Form 8582 (IRC §469(b))` },
+                 // ── AUDIT F-6 (Jul 2026): THE WATERFALL NOW FOOTS ────────────────────────────
+                 // These three are ABOVE-THE-LINE (Schedule 1) deductions — they are ALREADY
+                 // inside AGI. They used to be listed AFTER the AGI row, which made the column
+@@ -2330,7 +2335,7 @@ export default function TaxReturn() {
+ 
+               {result.passiveK1LossSuspended > 0 && (
+                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 13, color: '#78350F', lineHeight: 1.55 }}>
+-                  <strong>⚠ §469 Passive K-1 Loss Suspended:</strong> {fmt(result.passiveK1LossSuspended)} of your limited-partner / passive-shareholder K-1 loss is a passive activity loss and does not reduce your other income this year. It carries forward on Form 8582 and is allowed against future passive income (or in full when you dispose of the entire interest, IRC §469(g)). A prior-year suspended K-1 loss is not yet an input here — give it to your preparer.
++                  <strong>⚠ §469 Passive K-1 Loss Suspended:</strong> {fmt(result.passiveK1LossSuspended)} of passive K-1 loss{(result.priorK1PALRemaining || 0) > 0 ? <> ({fmt(result.passiveK1LossSuspendedCurrent || 0)} from this year plus {fmt(result.priorK1PALRemaining)} of prior-year carryforward)</> : null} is a passive activity loss and does not reduce your other income this year. It carries forward on Form 8582 — enter it next year as the prior-year unallowed loss on the entity's Step 1 card — and is allowed against future passive income (or in full when you dispose of the entire interest, IRC §469(g)).
+                 </div>
+               )}
+               {result.palSuspendedRental > 0 && (
+diff --git a/src/components/seventh-pass-taxreturn.test.jsx b/src/components/seventh-pass-taxreturn.test.jsx
+index 642aeec..8bfd5c3 100644
+--- a/src/components/seventh-pass-taxreturn.test.jsx
++++ b/src/components/seventh-pass-taxreturn.test.jsx
+@@ -137,3 +137,19 @@ describe('M-6 (modal) — "Net profit share" adds back officer salary AND the em
+     expect(header).toContain('$250,000')
+   })
+ })
++
++describe('PAL-K1-CARRYFORWARD (Step 2) — the prior-year unallowed passive K-1 loss reaches the return and the waterfall', () => {
++  it('SPEC: LP K-1 +40,000 with 15,000 carried ⇒ "Prior-Year Passive K-1 Loss Allowed" −$15,000; AGI foots', () => {
++    writeTaxYear(2025)
++    writePersonalContext({ filingStatus: 'single', w2Income: 150000 })
++    const lp = { type: 'Partnership / LLC', name: 'LP Fund', own: '100', k1: 40000, limitedPartner: true, stockBasis: 500000, priorPAL: '15000', pnl: { netProfit: 40000 } }
++    writeStep1State({ entities: [lp], entitiesRaw: [lp], k1Total: 40000 })
++    renderTR()
++    const r = lastResult()
++    expect(r.priorK1PALApplied).toBe(15000)
++    expect(rowValue('Prior-Year Passive K-1 Loss Allowed (§469(b))')).toBe('−$15,000')
++    expect(rowValue('AGI')).toBe('$175,000')
++    fireEvent.click(screen.getByText('Save This Record'))
++    return waitFor(() => expect(readUserRecords()[0].biz.priorPAL).toBe('15000'))
++  })
++})
+diff --git a/src/lib/aiAnalysisTaxMath.js b/src/lib/aiAnalysisTaxMath.js
+index 274ef61..d4d574b 100644
+--- a/src/lib/aiAnalysisTaxMath.js
++++ b/src/lib/aiAnalysisTaxMath.js
+@@ -244,7 +244,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
+     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged
+     // SE tax on a limited partner's K-1 (§1402(a)(13)) — diverging from the Tax
+     // Tracker, SE-savings panel, and SEP-IRA card, which all treat it as SE-exempt.
+-    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner, passiveShareholder: !!ctx.passiveShareholder }],
++    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner, passiveShareholder: !!ctx.passiveShareholder, priorPAL: ctx.priorPAL ?? '' }],
+   }
+   validateCalcInputs(engineInput, 'WhatIfSimulator')
+ 
+diff --git a/src/lib/taxCalc-passive-k1-carryforward.test.js b/src/lib/taxCalc-passive-k1-carryforward.test.js
+new file mode 100644
+index 0000000..bfc107b
+--- /dev/null
++++ b/src/lib/taxCalc-passive-k1-carryforward.test.js
+@@ -0,0 +1,112 @@
++// PAL-K1-CARRYFORWARD (16 Sep 2026) — prior-year unallowed passive loss from a limited-partner /
++// passive-shareholder K-1 activity (Form 8582 Part I line 2c / Worksheet 5), entered on the
++// entity card as `priorPAL`. SPEC figures derived by hand from Form 8582 before the code.
++//
++// Pool mechanics (Form 8582): line 2a/2b = this year's passive K-1 income/loss, line 2c = the
++// carryforward, line 2d = net; line 1d = passive rentals (after their own line 1c); line 3 =
++// 1d + 2d. A net loss on line 3 is allowed only through the §469(i) special allowance, and
++// only for the rental-with-active-participation share. The carryforward is not in k1Total
++// (it is not this year's share), so what the pool absorbs is DEDUCTED; the rest is suspended.
++
++import { describe, it, expect } from 'vitest'
++import { calcTaxReturn } from './taxCalc.js'
++
++const single = { taxYear: 2025, status: 'single', dependents: 0, w2Withheld: 0, estPaid: 0 }
++const lp = (k1, extra = {}) => ({ type: 'Partnership / LLC', name: 'LP', own: 100, k1, limitedPartner: true, stockBasis: 500000, pnl: { netProfit: k1 }, ...extra })
++const psh = (k1, extra = {}) => ({ type: 'S Corporation', name: 'PS', own: 100, k1, passiveShareholder: true, stockBasis: 500000, pnl: { netProfit: k1 }, ...extra })
++const rental = (k1, extra = {}) => ({ type: 'Real Estate (Schedule E)', own: 100, k1, ...extra })
++
++describe('carryforward absorbed by this year\'s passive K-1 income', () => {
++  it('SPEC: W-2 150,000 + LP K-1 +40,000 with 15,000 carried → 15,000 deducted; AGI 175,000; NII on 25,000', () => {
++    const r = calcTaxReturn({ ...single, w2: 150000, k1Total: 40000, entities: [lp(40000, { priorPAL: '15,000' })] })
++    expect(r.priorK1PAL).toBe(15000)
++    expect(r.priorK1PALApplied).toBe(15000)
++    expect(r.priorK1PALRemaining).toBe(0)
++    expect(r.passiveK1LossSuspended).toBe(0)
++    expect(r.agi).toBe(175000)
++    expect(r.passiveK1Income).toBe(25000)
++    expect(r.passiveK1NII).toBe(25000)   // Reg. §1.1411-4(g)(8): allowed prior losses reduce NII
++    expect(r.nii).toBe(25000)
++  })
++  it('SPEC: control — no carryforward → AGI 190,000; the difference is exactly the 15,000 allowed', () => {
++    const r = calcTaxReturn({ ...single, w2: 150000, k1Total: 40000, entities: [lp(40000)] })
++    expect(r.agi).toBe(190000)
++    expect(r.priorK1PAL).toBe(0)
++  })
++  it('SPEC: carryforward larger than the income — the excess is suspended again, nothing else changes', () => {
++    // +40,000 income, 60,000 carried: 40,000 allowed (AGI 150,000), 20,000 carries forward.
++    const r = calcTaxReturn({ ...single, w2: 150000, k1Total: 40000, entities: [lp(40000, { priorPAL: 60000 })] })
++    expect(r.agi).toBe(150000)
++    expect(r.priorK1PALApplied).toBe(40000)
++    expect(r.priorK1PALRemaining).toBe(20000)
++    expect(r.passiveK1LossSuspended).toBe(20000)
++    expect(r.passiveK1LossSuspendedCurrent).toBe(0)
++    expect(r.passiveK1NII).toBe(0)
++    expect(r.qbi).toBe(0)   // no net QBI once the allowed prior loss is netted (Reg. §1.199A-3(b)(1)(iv))
++  })
++})
++
++describe('carryforward against OTHER passive income (Form 8582 lines 1a / 2a)', () => {
++  it('SPEC: LP loss year (−10,000) + 20,000 carried, passive rental income +25,000 → 25,000 of the 30,000 pool loss allowed', () => {
++    // line 2d = −30,000; line 1d = +25,000; line 3 = −5,000 → 5,000 unallowed (no rental loss → no §469(i)).
++    // Current-year loss deemed allowed first: carryforward applied 15,000, remaining 5,000.
++    // AGI = 200,000 − 10,000 (in k1Total) + 25,000 − 15,000 = 200,000.
++    const r = calcTaxReturn({ ...single, w2: 200000, k1Total: 15000, entities: [lp(-10000, { priorPAL: 20000 }), rental(25000)] })
++    expect(r.passiveK1LossAbsorbedByRental).toBe(25000)
++    expect(r.passiveK1LossSuspended).toBe(5000)
++    expect(r.priorK1PALApplied).toBe(15000)
++    expect(r.priorK1PALRemaining).toBe(5000)
++    expect(r.passiveK1LossSuspendedCurrent).toBe(0)
++    expect(r.agi).toBe(200000)
++    expect(r.rentalNII).toBe(0)   // the rental income was consumed by passive losses
++  })
++  it('SPEC: two passive activities — a passive S-Corp\'s income absorbs the LP carryforward', () => {
++    const r = calcTaxReturn({ ...single, w2: 100000, k1Total: 30000, entities: [lp(0, { priorPAL: 12000 }), psh(30000)] })
++    expect(r.priorK1PALApplied).toBe(12000)
++    expect(r.agi).toBe(118000)
++    expect(r.passiveK1NII).toBe(18000)
++  })
++})
++
++describe('nothing to absorb it — the carryforward is suspended again and cannot touch other income', () => {
++  it('SPEC: W-2 200,000, LP K-1 0, 30,000 carried → AGI 200,000; carryforward unchanged', () => {
++    const r = calcTaxReturn({ ...single, w2: 200000, k1Total: 0, entities: [lp(0, { priorPAL: 30000 })] })
++    expect(r.agi).toBe(200000)
++    expect(r.priorK1PALApplied).toBe(0)
++    expect(r.priorK1PALRemaining).toBe(30000)
++    expect(r.passiveK1LossSuspended).toBe(30000)
++    expect(r.passiveK1LossSuspendedCurrent).toBe(0)
++    const control = calcTaxReturn({ ...single, w2: 200000 })
++    expect(r.totalTax).toBe(control.totalTax)
++  })
++  it('SPEC: with a current-year loss too — both suspended; only the current-year loss is added back to AGI', () => {
++    const r = calcTaxReturn({ ...single, w2: 200000, k1Total: -50000, entities: [lp(-50000, { priorPAL: 30000 })] })
++    expect(r.passiveK1LossSuspended).toBe(80000)
++    expect(r.passiveK1LossSuspendedCurrent).toBe(50000)
++    expect(r.priorK1PALRemaining).toBe(30000)
++    expect(r.passiveK1AgiAdjustment).toBe(50000)
++    expect(r.agi).toBe(200000)
++  })
++  it('SPEC: the §469(i) MAGI is measured without the passive pool — the carryforward cannot restore a phased-out allowance', () => {
++    // W-2 140,000 phases the allowance to 5,000 regardless of the passive K-1 items.
++    const r = calcTaxReturn({ ...single, w2: 140000, k1Total: -20000, entities: [lp(0, { priorPAL: 30000 }), rental(-20000, { isActiveParticipant: true })] })
++    expect(r.rentalAllowed).toBe(-5000)
++    expect(r.priorK1PALApplied).toBe(0)
++    expect(r.agi).toBe(135000)
++  })
++  it('SPEC: a non-passive (general partner) card ignores the field entirely', () => {
++    const r = calcTaxReturn({ ...single, w2: 200000, k1Total: 40000, entities: [{ type: 'Partnership / LLC', own: 100, k1: 40000, priorPAL: 15000, pnl: { netProfit: 40000 } }] })
++    expect(r.priorK1PAL).toBe(0)
++    expect(r.agi).toBe(240000 - r.halfSE)
++  })
++})
++
++describe('per-property regime (REP / election on the return) uses the same pool', () => {
++  it('SPEC: passive rental income +25,000 (REP, not materially participating) absorbs a 10,000 LP carryforward', () => {
++    const r = calcTaxReturn({ ...single, w2: 100000, k1Total: 25000, isREP: true,
++      entities: [lp(0, { priorPAL: 10000 }), rental(25000, { materiallyParticipates: false })] })
++    expect(r.priorK1PALApplied).toBe(10000)
++    expect(r.agi).toBe(115000)
++    expect(r.rentalNII).toBe(15000)
++  })
++})
+diff --git a/src/lib/taxCalc.js b/src/lib/taxCalc.js
+index 34a25f7..dcb3d4b 100644
+--- a/src/lib/taxCalc.js
++++ b/src/lib/taxCalc.js
+@@ -1765,8 +1765,11 @@ function calcTaxReturn(input) {
+   // instructions: passive losses count only to the extent allowed under §469).
+   let passiveK1LossSuspended        = 0
+   let passiveK1LossAbsorbedByRental = 0
++  // PAL-K1-CARRYFORWARD: the pool-2 net effect on AGI-type figures — see the §469 section.
++  // Assigned inside each §469 branch (before the MAGI / §461(l) reads) and finalized after.
++  let passiveK1AgiAdjustment        = 0
+   const calc461l = (_rentalForEBL) => {
+-    const eblBiz     = adjustedK1Total + passiveK1LossSuspended + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
++    const eblBiz     = adjustedK1Total + passiveK1AgiAdjustment + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+     const eblNetLoss = Math.max(0, -eblBiz)
+     const ebl        = Math.max(0, eblNetLoss - eblThreshold)
+     return { eblBiz, eblNetLoss, ebl }
+@@ -1783,7 +1786,7 @@ function calcTaxReturn(input) {
+   // the §1372 wage gross-up is added like every other AGI inclusion, and the §461(l)
+   // excess-business-loss addback is included because it, too, reaches AGI.
+   const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
+-    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + guaranteedPaymentsTotal + _npRental
++    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + guaranteedPaymentsTotal + _npRental
+     + f4797OrdinaryPart + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
+     + calc461l(_npRental).ebl
+     - halfSE
+@@ -1813,10 +1816,22 @@ function calcTaxReturn(input) {
+   // attests non-material participation (`passiveShareholder`) joins the pool — its share is
+   // passive activity income under §469(c)(1) and NII under §1411(c)(2)(A) exactly like a
+   // limited partner's. Predicate shared with the UI: isPassiveK1Entity().
+-  const passiveK1Net = entitiesLimited.reduce((sum, e) => {
++  const passiveK1CurrentNet = entitiesLimited.reduce((sum, e) => {
+     if (!isPassiveK1Entity(e)) return sum
+     return sum + (getEntityK1Share(e) - nf(e.box11_12))   // §179 (box11_12) reduces the share; charitable (box12_13) does not (F-13)
+   }, 0)
++  // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed loss from each passive K-1
++  // activity (Form 8582 Part I line 2c / Worksheet 5), entered on the entity card as
++  // `priorPAL` — the same field the rental cards use for line 1c. It joins the "all other
++  // passive activities" pool (line 2d) so it is allowed against this year's passive K-1
++  // income and passive rental income first; whatever the pool cannot absorb is suspended
++  // again. It is NOT in k1Total (it is a carryforward, not this year's share), so the
++  // allowed slice is deducted below through passiveK1AgiAdjustment.
++  const priorK1PAL = entitiesLimited.reduce((sum, e) => {
++    if (!isPassiveK1Entity(e)) return sum
++    return sum + Math.max(0, nf(e.priorPAL))
++  }, 0)
++  const passiveK1Net    = passiveK1CurrentNet - priorK1PAL           // Form 8582 line 2d
+   const passiveK1Income = Math.max(0, passiveK1Net)
+   // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 LOSS is a passive activity loss (§469(a),
+   // (d)(1)) — deductible only against passive income (here: net passive rental income after
+@@ -1912,6 +1927,7 @@ function calcTaxReturn(input) {
+     // legacy path treats every rental as nonpassive, so nothing absorbs it there).
+     passiveK1LossAbsorbedByRental = effectiveIsREP ? 0 : Math.min(passiveK1Loss, Math.max(0, rentalNetAfterCF))
+     passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
++    passiveK1AgiAdjustment        = passiveK1LossSuspended - priorK1PAL
+     if (!effectiveIsREP && rentalNetAfterCF < 0) {
+       // FOURTH READ R-1 (14 Sep 2026): §469(i)(3)(F) MAGI is AGI computed without regard to
+       // passive losses, taxable Social Security, the §219 IRA deduction, the §221 education-
+@@ -1990,6 +2006,7 @@ function calcTaxReturn(input) {
+     // SEVENTH PASS F-2: passive K-1 loss offsets passive rental income first.
+     passiveK1LossAbsorbedByRental = Math.min(passiveK1Loss, Math.max(0, passiveRentalNet))
+     passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
++    passiveK1AgiAdjustment        = passiveK1LossSuspended - priorK1PAL
+     // Passive portion runs through the §469(i) $25k active-participation allowance when
+     // it is a net loss; nonpassive portion flows in full.
+     let passiveAllowed = passiveRentalNet
+@@ -2013,6 +2030,17 @@ function calcTaxReturn(input) {
+   // is the smaller of itself and the total unallowed amount.
+   const palCarryforwardRemaining = Math.min(priorPAL, Math.max(0, palSuspendedRental))
+   const palCarryforwardApplied   = priorPAL - palCarryforwardRemaining
++  // PAL-K1-CARRYFORWARD: passiveK1LossSuspended is the whole pool-2 unallowed figure (this
++  // year's passive K-1 loss + the prior carryforward the pool could not absorb). The
++  // current-year loss is deemed allowed first, so the carryforward "remaining" is the smaller
++  // of itself and the total; what was applied is the rest. The net AGI effect of pool 2,
++  // relative to the current-year share already inside k1Total, is (suspended − carryforward):
++  //   • carryforward fully absorbed by passive income → −priorK1PAL (deducted)
++  //   • nothing to absorb it → suspended = loss + carryforward → adds back only the loss
++  const priorK1PALRemaining = Math.min(priorK1PAL, passiveK1LossSuspended)
++  const priorK1PALApplied   = priorK1PAL - priorK1PALRemaining
++  const passiveK1LossSuspendedCurrent = passiveK1LossSuspended - priorK1PALRemaining
++  passiveK1AgiAdjustment = passiveK1LossSuspended - priorK1PAL
+   // §461(l) — same helper the §469(i) MAGI used above, now with the final nonpassive rental.
+   const { ebl } = calc461l(rentalForEBL)
+   const unrec1250    = Math.max(0, nf(unrecap1250))
+@@ -2065,7 +2093,7 @@ function calcTaxReturn(input) {
+   // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).
+   // grossIncomeBeforeNOL is defined a few lines below; the pieces are summed here so the
+   // deduction can be settled before `adjustments` is fixed.
+-  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
++  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
+     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
+     - (halfSE + selfEmpHealthDed + hsaDed + selfEmpRetirementDed)
+   const studentLoanDed       = calcStudentLoanDeduction(ytdScale(studentLoanInt), _magiForStudentLoan, taxYear, status)
+@@ -2079,7 +2107,7 @@ function calcTaxReturn(input) {
+   // see the definition above. Net AGI effect is zero only when the full premium is covered
+   // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
+   // FOLLOW-UP FIX comment above). Never touches totalW2ForFICA/additionalMedicare.
+-  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2: suspended passive K-1 loss added back
++  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2 / PAL-K1-CARRYFORWARD: suspended passive K-1 loss added back, allowed prior-year K-1 loss deducted
+     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
+   const floorAGI          = grossIncomeBeforeNOL - adjustments
+   const rawMedical        = Math.max(0, nf(medicalExpenses))
+@@ -2301,7 +2329,9 @@ function calcTaxReturn(input) {
+   const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
+   // SEVENTH PASS F-2: a §469-suspended passive K-1 loss is not a QBI item until the year it
+   // is allowed (Reg. §1.199A-3(b)(1)(iv)) — add the suspended slice back to the base.
+-  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal + passiveK1LossSuspended
++  // PAL-K1-CARRYFORWARD: a prior-year suspended loss allowed this year is a QBI item in the
++  // year allowed (post-2017 losses, same reg.) — the net pool-2 adjustment carries both effects.
++  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal + passiveK1AgiAdjustment
+   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
+   // ACTIVE qualified trade or business in which the taxpayer materially participates.
+   // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
+@@ -2800,6 +2830,7 @@ function calcTaxReturn(input) {
+     // FIFTH READ F-1/F-2: passive K-1 pool surfaced for the UI / CPA export.
+     passiveK1Income, passiveK1NII, passiveLossAbsorbedByK1,
+     passiveK1LossSuspended, passiveK1LossAbsorbedByRental,   // SEVENTH PASS F-2
++    passiveK1CurrentNet, priorK1PAL, priorK1PALApplied, priorK1PALRemaining, passiveK1LossSuspendedCurrent, passiveK1AgiAdjustment,   // PAL-K1-CARRYFORWARD
+     niit: {
+       applies:     niitAmount > 0,
+       amount:      niitAmount,
