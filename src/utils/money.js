@@ -202,3 +202,14 @@ export function effRateLabel(totalTax, agi) {
   if (a <= 0) return 'n/a (loss year)'
   return pct(effectiveRate(nf(totalTax), a))
 }
+
+/**
+ * Today's date in the USER's local calendar as 'YYYY-MM-DD' — for the engine's `asOfDate`
+ * (§6654 installment timing). Deliberately NOT toISOString().slice(0,10), which is the UTC
+ * date: for a US user between 8 PM and midnight local time that is already "tomorrow",
+ * and the engine would count one installment fewer than the calendar on the wall.
+ */
+export function localCalendarDate(d = new Date()) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}

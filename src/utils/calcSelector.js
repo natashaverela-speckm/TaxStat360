@@ -50,7 +50,7 @@ import { calcTaxReturn, sumK1FlowThrough } from '../lib/taxCalc.js'
 import { safeCalc } from './calcGuard.js'
 import { toEngineContext } from '../components/EntityCompareModal.jsx'
 import { readPersonalContext, readStep1State, readTaxYear, normalizeF1040 } from './sessionState.js'
-import { nf } from './money.js'
+import { nf, localCalendarDate } from './money.js'
 
 /** Fields the whole-return summary needs that the compare modal's translator
  *  deliberately doesn't carry (it models entity swaps, not full returns). */
@@ -68,7 +68,7 @@ function _wholeReturnExtras(pc, entities) {
     k1Total: sumK1FlowThrough(entities),
     // Follow-up (15 Sep 2026): remaining-installment timing — same "today" every other
     // live surface passes, so the Dashboard record card's quarterly figure matches Step 2.
-    asOfDate: new Date().toISOString().slice(0, 10),
+    asOfDate: localCalendarDate(),
     charitableContr: nf(pc.charitableContr),                    // N-9 §170(p)/floor
     capLossCarryforwardST: nf(pc.capLossCarryforwardST),        // §1212(b) (Phase 2.1)
     capLossCarryforwardLT: nf(pc.capLossCarryforwardLT),
