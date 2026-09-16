@@ -2214,6 +2214,9 @@ function SimulatorModal({ onClose, rec }) {
     // Follow-up (15 Sep 2026, NIIT-SCORP-PASSIVE): carry the S-Corp passive-shareholder
     // attestation so the simulator's NIIT / §469 netting match Step 2.
     passiveShareholder: isSCorpEntity(entity) && (rec?.entities || []).some(e => e && isSCorpEntity(e?.type) && e.passiveShareholder === true),
+    // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed passive loss on the
+    // record's (single-entity) passive K-1 card, so the baseline matches Step 2.
+    priorPAL: rec?.entities?.[0]?.priorPAL ?? rec?.biz?.priorPAL ?? '',
   }
   // SIM-1 REPAIRED (Batch 7): scenarios run through the engine via the same
   // translation the Dashboard Tracker uses (see aiAnalysisTaxMath.js). The guard

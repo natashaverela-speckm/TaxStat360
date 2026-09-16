@@ -1005,9 +1005,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
             <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
               <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
-              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
+              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
             </label>
           </div>
+
+          {entity.limitedPartner && (
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
+                Unallowed passive loss from prior years — this activity (Form 8582)
+                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
+              </label>
+              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
+            </div>
+          )}
         </div>
       )}
 
@@ -1017,9 +1027,19 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             <input type="checkbox" id={'passivesh_' + idx} checked={!!entity.passiveShareholder} onChange={e => onUpdate(idx, { ...entity, passiveShareholder: e.target.checked })} style={{ marginTop: 2 }} />
             <label htmlFor={'passivesh_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
               <strong>Passive shareholder</strong> — I do NOT materially participate in this S-Corp (IRC §469(h))
-              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
+              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
             </label>
           </div>
+
+          {entity.passiveShareholder && (
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
+                Unallowed passive loss from prior years — this activity (Form 8582)
+                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
+              </label>
+              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
+            </div>
+          )}
         </div>
       )}
 
@@ -2660,6 +2680,7 @@ export default function CalculateTaxInner() {
         passiveShareholder:  !!entities[0]?.passiveShareholder,
         isActiveParticipant: !!entities[0]?.isActiveParticipant,
         isREP:               !!entities[0]?.isREP,
+        priorPAL:            entities[0]?.priorPAL ?? '',   // PAL-K1-CARRYFORWARD / rental line 1c
       },
       // THIRD PASS (14 Sep 2026): stamp the selected year — readPersonalContext() carried
       // the manifest default until Step 2 rendered (see calcSelector._recordPersonalContext).

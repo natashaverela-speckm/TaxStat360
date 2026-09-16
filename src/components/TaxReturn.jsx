@@ -521,6 +521,7 @@ export default function TaxReturn() {
         passiveShareholder: !!entities?.[0]?.passiveShareholder,
         isActiveParticipant: !!entities?.[0]?.isActiveParticipant,   // SEVENTH PASS H-1: rental-card attestation
         isREP:             !!entities?.[0]?.isREP,
+        priorPAL:          entities?.[0]?.priorPAL ?? '',              // PAL-K1-CARRYFORWARD / rental line 1c
       },
       f1040: {
         // SEVENTH PASS H-3 (16 Sep 2026): this shape is what Dashboard.loadRecord and the
@@ -2116,8 +2117,12 @@ export default function TaxReturn() {
                 // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 loss (limited partner / passive S-Corp
                 // shareholder) is deducted only against passive rental income; the suspended remainder
                 // is added back here so the K-1 rows above still foot to AGI (Form 8582 Worksheet 5).
-                { label: '§469 Passive K-1 Loss Suspended', value: result.passiveK1LossSuspended || 0, sign: 1, hide: !(result.passiveK1LossSuspended > 0), accent: R,
-                  note: `Passive-activity loss from a limited-partner / passive-shareholder K-1 — allowed only against passive income${(result.passiveK1LossAbsorbedByRental || 0) > 0 ? ` (${fmt(result.passiveK1LossAbsorbedByRental)} absorbed by passive rental income)` : ''}; the rest carries forward on Form 8582 (IRC §469(b))` },
+                // PAL-K1-CARRYFORWARD (16 Sep 2026): the prior-year unallowed loss entered on the passive
+                // K-1 card (Form 8582 line 2c) is deducted to the extent the passive pool absorbs it.
+                { label: 'Prior-Year Passive K-1 Loss Allowed (§469(b))', value: result.priorK1PALApplied || 0, sign: -1, hide: !(result.priorK1PALApplied > 0), accent: '#059669',
+                  note: `Suspended loss carried into ${taxYear} from a passive K-1 activity, allowed against this year's passive income (Form 8582 line 2c)${(result.priorK1PALRemaining || 0) > 0 ? ` — ${fmt(result.priorK1PALRemaining)} still carries forward` : ''}` },
+                { label: '§469 Passive K-1 Loss Suspended', value: result.passiveK1LossSuspendedCurrent ?? result.passiveK1LossSuspended ?? 0, sign: 1, hide: !((result.passiveK1LossSuspendedCurrent ?? result.passiveK1LossSuspended) > 0), accent: R,
+                  note: `This year's passive-activity loss from a limited-partner / passive-shareholder K-1 — allowed only against passive income${(result.passiveK1LossAbsorbedByRental || 0) > 0 ? ` (${fmt(result.passiveK1LossAbsorbedByRental)} absorbed by passive rental income)` : ''}; the rest carries forward on Form 8582 (IRC §469(b))` },
                 // ── AUDIT F-6 (Jul 2026): THE WATERFALL NOW FOOTS ────────────────────────────
                 // These three are ABOVE-THE-LINE (Schedule 1) deductions — they are ALREADY
                 // inside AGI. They used to be listed AFTER the AGI row, which made the column
@@ -2330,7 +2335,7 @@ export default function TaxReturn() {
 
               {result.passiveK1LossSuspended > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 13, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ §469 Passive K-1 Loss Suspended:</strong> {fmt(result.passiveK1LossSuspended)} of your limited-partner / passive-shareholder K-1 loss is a passive activity loss and does not reduce your other income this year. It carries forward on Form 8582 and is allowed against future passive income (or in full when you dispose of the entire interest, IRC §469(g)). A prior-year suspended K-1 loss is not yet an input here — give it to your preparer.
+                  <strong>⚠ §469 Passive K-1 Loss Suspended:</strong> {fmt(result.passiveK1LossSuspended)} of passive K-1 loss{(result.priorK1PALRemaining || 0) > 0 ? <> ({fmt(result.passiveK1LossSuspendedCurrent || 0)} from this year plus {fmt(result.priorK1PALRemaining)} of prior-year carryforward)</> : null} is a passive activity loss and does not reduce your other income this year. It carries forward on Form 8582 — enter it next year as the prior-year unallowed loss on the entity's Step 1 card — and is allowed against future passive income (or in full when you dispose of the entire interest, IRC §469(g)).
                 </div>
               )}
               {result.palSuspendedRental > 0 && (

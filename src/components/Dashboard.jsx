@@ -180,7 +180,7 @@ export function calcDashboard(biz, f1040) {
   // SEVENTH PASS H-1 (16 Sep 2026): the rental card's own active-participation attestation now
   // governs the §469(i) allowance (the retired top-level flag no longer reaches a card), so the
   // single-entity card carries it too — otherwise a rental loss here would always be suspended.
-  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder, isActiveParticipant: !!biz.isActiveParticipant, isREP: !!biz.isREP }] : []
+  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder, isActiveParticipant: !!biz.isActiveParticipant, isREP: !!biz.isREP, priorPAL: biz.priorPAL ?? '' }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
   // D-10 (dead-code audit): numeric rule now comes from the engine's
@@ -445,6 +445,7 @@ export default function Dashboard() {
         passiveShareholder: !!rec.biz.passiveShareholder,
         isActiveParticipant: !!rec.biz.isActiveParticipant,   // SEVENTH PASS H-1
         isREP: !!rec.biz.isREP,
+        priorPAL: rec.biz.priorPAL ?? '',   // PAL-K1-CARRYFORWARD
       }))
     }
     const saved1040 = rec.biz ? (rec.f1040 || {}) : {

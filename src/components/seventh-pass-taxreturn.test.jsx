@@ -137,3 +137,19 @@ describe('M-6 (modal) — "Net profit share" adds back officer salary AND the em
     expect(header).toContain('$250,000')
   })
 })
+
+describe('PAL-K1-CARRYFORWARD (Step 2) — the prior-year unallowed passive K-1 loss reaches the return and the waterfall', () => {
+  it('SPEC: LP K-1 +40,000 with 15,000 carried ⇒ "Prior-Year Passive K-1 Loss Allowed" −$15,000; AGI foots', () => {
+    writeTaxYear(2025)
+    writePersonalContext({ filingStatus: 'single', w2Income: 150000 })
+    const lp = { type: 'Partnership / LLC', name: 'LP Fund', own: '100', k1: 40000, limitedPartner: true, stockBasis: 500000, priorPAL: '15000', pnl: { netProfit: 40000 } }
+    writeStep1State({ entities: [lp], entitiesRaw: [lp], k1Total: 40000 })
+    renderTR()
+    const r = lastResult()
+    expect(r.priorK1PALApplied).toBe(15000)
+    expect(rowValue('Prior-Year Passive K-1 Loss Allowed (§469(b))')).toBe('−$15,000')
+    expect(rowValue('AGI')).toBe('$175,000')
+    fireEvent.click(screen.getByText('Save This Record'))
+    return waitFor(() => expect(readUserRecords()[0].biz.priorPAL).toBe('15000'))
+  })
+})
