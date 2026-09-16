@@ -140,7 +140,7 @@ The deduction is taken on Form 1040 and reduces taxable income without requiring
         heading: 'What Counts as Qualified Business Income',
         body: `QBI is the net amount of qualified items of income, gain, deduction, and loss from a qualified trade or business. For an S-Corp, this flows to you on Schedule K-1 as ordinary business income, adjusted for certain items.
 
-What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(ii)(A)) and prior-year QBI losses (§199A(c)(2)). Charitable contributions passed through on your K-1 do NOT reduce QBI or your Box 1 ordinary income — they go to Schedule A if you itemize (Form 8995 instructions). What does NOT count as QBI: capital gains, interest income, dividends, foreign income, and most importantly — the W-2 salary you pay yourself as an S-Corp officer.
+What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions) and prior-year QBI losses (§199A(c)(2)). Charitable contributions passed through on your K-1 do NOT reduce QBI or your Box 1 ordinary income — they go to Schedule A if you itemize (Form 8995 instructions). What does NOT count as QBI: capital gains, interest income, dividends, foreign income, and most importantly — the W-2 salary you pay yourself as an S-Corp officer.
 
 This last point is critical. If your S-Corp generates $300,000 of gross profit and you pay yourself a $70,000 officer salary, your K-1 ordinary income (and QBI basis) is $230,000 — not $300,000. The salary was already deducted at the entity level before the K-1 was issued.`,
       },

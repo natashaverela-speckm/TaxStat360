@@ -85,7 +85,7 @@ import {
   ACTC_EARNED_INCOME_FLOOR,
   ACTC_MAX_PER_CHILD_FALLBACK,
 } from './constants.js'
-import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
+import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share, isLimitedPartnerEligibleType, isPassiveK1Entity } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
 // field manifest — the single home for every persisted/scaled field list.
 import { YTD_SCALE_ENGINE_FIELDS, YTD_SCALE_ENTITY_FIELDS } from '../utils/fieldManifest.js'
@@ -1144,6 +1144,13 @@ function calcTaxReturn(input) {
     // general posture — an unmodeled fact defaults to the NII-inclusive, higher-tax
     // treatment rather than assuming the exclusion applies).
     f4797MateriallyParticipated = false,
+    // Follow-up (15 Sep 2026, quarterly timing): the "as of" date for the estimated-payment
+    // recommendation. When supplied (the live app passes today), the recommendation is spread
+    // over the §6654(c)(2) installment dates that have NOT yet passed for the selected tax
+    // year — a mid-year user is told what to send per REMAINING installment, not a stale
+    // "÷ 4". Omitted (engine unit tests, older callers) ⇒ the legacy four-way split,
+    // byte-for-byte. Accepts a Date or an ISO / parseable date string.
+    asOfDate = null,
   } = input
   const entities = _rawEntities.map(e => {
     if (!e) return e
@@ -1710,10 +1717,12 @@ function calcTaxReturn(input) {
   // KNOWN_LIMITATIONS PAL-K1), so letting it also shelter passive rental income or reduce
   // NII would double-count it; flooring at $0 is the conservative (higher-tax) direction.
   // Real-estate entities are excluded here (their passive treatment is the §469 rental
-  // section below); S-Corp K-1s have no passive attestation in the UI and stay nonpassive.
+  // section below). Follow-up (15 Sep 2026, NIIT-SCORP-PASSIVE): an S-Corp whose shareholder
+  // attests non-material participation (`passiveShareholder`) joins the pool — its share is
+  // passive activity income under §469(c)(1) and NII under §1411(c)(2)(A) exactly like a
+  // limited partner's. Predicate shared with the UI: isPassiveK1Entity().
   const passiveK1Net = entitiesLimited.reduce((sum, e) => {
-    if (!e || isRealEstateEntity(e.type)) return sum
-    if (!/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    if (!isPassiveK1Entity(e)) return sum
     return sum + (getEntityK1Share(e) - nf(e.box11_12))   // §179 (box11_12) reduces the share; charitable (box12_13) does not (F-13)
   }, 0)
   const passiveK1Income = Math.max(0, passiveK1Net)
@@ -2016,7 +2025,7 @@ function calcTaxReturn(input) {
     // had its §199A deduction computed on the pre-§179 amount — overstating the 20%
     // deduction and disagreeing with AGI (which already nets §179 via k1Total) and with
     // the AI Analysis tab (which reads the §179-netted k1Income). §179 reduces QBI per
-    // Treas. Reg. §1.199A-3(b)(1)(ii)(A).
+    // Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions.
     // F3 (§199A × §1366(d)): honor an explicitly-set k1 — including 0 from a fully
     // basis-suspended loss — instead of the || fallback, which treated k1===0 as
     // "missing" and fell back to gross netProfit, leaking a basis-suspended loss into
@@ -2026,7 +2035,7 @@ function calcTaxReturn(input) {
     const k1Gross = getEntityK1Share(e)
     // AUDIT F-13 FIX: charitable contributions do NOT reduce QBI (Form 8995
     // instructions, 2021-present); only the separately-stated §179 nets out
-    // (Treas. Reg. §1.199A-3(b)(1)(ii)(A)).
+    // (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions).
     const k1      = k1Gross - nf(e.box11_12)
     // AUDIT C1 (second launch audit, Sep 2026) — THE SSTB HAIRCUT WAS APPLIED TWICE.
     //
@@ -2181,8 +2190,7 @@ function calcTaxReturn(input) {
   // guard so the floor stays right if/when the type is exposed. Exposing it also requires
   // §469 loss suspension for passive K-1, which is rental-scoped today — see KNOWN_LIMITATIONS.
   const _passiveK1Qbi = entitiesLimited.reduce((sum, e) => {
-    if (!e || isRealEstateEntity(e?.type)) return sum
-    if (!/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    if (!isPassiveK1Entity(e)) return sum   // follow-up (15 Sep 2026): includes passive S-Corp shareholders
     const k1Gross = getEntityK1Share(e)
     const k1    = k1Gross - nf(e.box11_12)
     const scale = e.box17V_sstb ? sstbApplicablePct : 1
@@ -2202,7 +2210,7 @@ function calcTaxReturn(input) {
   const _sstbExcludedActiveQbi = entitiesLimited.reduce((sum, e) => {
     if (!e || !e.box17V_sstb) return sum
     if (isRealEstateEntity(e?.type)) return sum
-    if (/passive/i.test(normalizeEntityType(e.type) || '')) return sum
+    if (isPassiveK1Entity(e)) return sum
     const k1Gross = getEntityK1Share(e)
     const k1 = Math.max(0, k1Gross - nf(e.box11_12))
     return sum + k1 * (1 - sstbApplicablePct)
@@ -2372,8 +2380,8 @@ function calcTaxReturn(input) {
   // was never in this base. The slice already absorbed by a passive rental loss under
   // §469(d)(1) (passiveLossAbsorbedByK1, set in the §469 section) is excluded so the same
   // dollars are not both offset and taxed (Reg. §1.1411-4(g)(8), Form 8960 line 4b).
-  // S-Corp K-1s stay out: the UI has no material-participation attestation for them, so
-  // every S-Corp share is treated as nonpassive — see KNOWN_LIMITATIONS NIIT-SCORP-PASSIVE.
+  // Follow-up (15 Sep 2026): S-Corp shares join via the shareholder's `passiveShareholder`
+  // attestation (isPassiveK1Entity); without it every S-Corp share stays nonpassive.
   const passiveK1NII = Math.max(0, passiveK1Income - passiveLossAbsorbedByK1)
   const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain) + rentalNII + passiveK1NII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
@@ -2511,11 +2519,31 @@ function calcTaxReturn(input) {
       approximate: !_perQProvided,
     }
   })
-  const safeHarborQuarterly = safeHarborBalance > 0 ? Math.round(safeHarborBalance / 4) : 0
-  const quarterlyRecommended = Math.max(
-    balance > 0 ? Math.round(balance / 4) : 0,
-    safeHarborQuarterly
-  )
+  // ── Follow-up (15 Sep 2026): remaining-installment timing ──────────────────────────
+  // §6654(c)(2) due dates for calendar-year individuals: Apr 15, Jun 15, Sep 15 of the tax
+  // year and Jan 15 of the following year (weekend / holiday roll-forwards are ignored here
+  // — the UI shows the observed dates). With an asOfDate, count the installments still ahead
+  // and spread BOTH the safe-harbor shortfall and the full balance over them; when every
+  // date has passed, the whole amount is due now (shown as a single "pay now" figure).
+  // Without an asOfDate the legacy ÷ 4 is preserved so existing callers/tests are unchanged.
+  const _ty = parseInt(taxYear)
+  const _tyOk = Number.isFinite(_ty)
+  const _dueDates = _tyOk ? [
+    new Date(Date.UTC(_ty, 3, 15)), new Date(Date.UTC(_ty, 5, 15)),
+    new Date(Date.UTC(_ty, 8, 15)), new Date(Date.UTC(_ty + 1, 0, 15)),
+  ] : []
+  const _asOf = asOfDate ? new Date(asOfDate) : null
+  const _asOfValid = _tyOk && _asOf !== null && Number.isFinite(_asOf.getTime())
+  const _asOfUTC = _asOfValid ? Date.UTC(_asOf.getFullYear(), _asOf.getMonth(), _asOf.getDate()) : null
+  const installmentsRemaining = _asOfValid ? _dueDates.filter(d => d.getTime() >= _asOfUTC).length : 4
+  const nextDueDate = _asOfValid
+    ? (_dueDates.find(d => d.getTime() >= _asOfUTC)?.toISOString().slice(0, 10) ?? null)
+    : (_tyOk ? _dueDates[0].toISOString().slice(0, 10) : null)
+  const installmentsPassed = 4 - installmentsRemaining
+  const _spread = (amt) => amt > 0 ? Math.round(amt / Math.max(1, installmentsRemaining)) : 0
+  const safeHarborQuarterly = _spread(safeHarborBalance)
+  const balancePerInstallment = _spread(balance)
+  const quarterlyRecommended = Math.max(balancePerInstallment, safeHarborQuarterly)
   const scheduleEK1Income = nonSEk1
   const scheduleCSEIncome = seNetIncome
   const entityIncomeBreakdown = entities.map(e => {
@@ -2618,6 +2646,8 @@ function calcTaxReturn(input) {
     amt,
     totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
+    // Follow-up (15 Sep 2026): remaining-installment timing (see asOfDate).
+    installmentsRemaining, installmentsPassed, nextDueDate, balancePerInstallment,
     installmentSchedule,                     // 2210-lite §6654(d)(1)(A)/(g)(1)
     priorYearMultiplier,
     safeHarborCurrentYear,

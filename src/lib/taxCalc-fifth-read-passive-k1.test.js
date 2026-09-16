@@ -221,3 +221,29 @@ describe('FIFTH READ full pass — per-business §199A allocation uses SE-adjust
     expect(r.qbi).toBe(38470 + Math.round(0.2 * (100000 - r.halfSE)))
   })
 })
+
+describe('Follow-up — S-Corp passive-shareholder attestation (NIIT-SCORP-PASSIVE)', () => {
+  const passiveScorp = { type: 'S Corporation', k1: 300000, own: 100, officerW2: 0, passiveShareholder: true }
+  const run = (e, extra = {}) => calcTaxReturn({ taxYear: 2026, status: 'single', w2: 100000, entities: [e], k1Total: 300000, ...extra })
+  it('SPEC: attested passive S-Corp share is NII — $300k share, AGI $400k ⇒ NIIT 3.8% × min(300k, 200k) = $7,600', () => {
+    const r = run(passiveScorp)
+    expect(r.passiveK1Income).toBe(300000)
+    expect(r.niitAmount).toBe(7600)
+    expect(r.seTax).toBe(0)
+  })
+  it('CONTROL: same S-Corp without the attestation — no NIIT (unchanged default)', () => {
+    const r = run({ ...passiveScorp, passiveShareholder: false })
+    expect(r.passiveK1Income).toBe(0)
+    expect(r.niitAmount).toBe(0)
+  })
+  it('SPEC: passive S-Corp share absorbs a passive rental loss before the §469(i) allowance', () => {
+    const r = calcTaxReturn({ taxYear: 2026, status: 'single', w2: 200000,
+      entities: [{ ...passiveScorp, k1: 20000 }, rental(-60000)], k1Total: -40000 })
+    expect(r.passiveLossAbsorbedByK1).toBe(20000)
+    expect(r.palSuspendedRental).toBe(40000)
+  })
+  it('SPEC: attested passive share does not count toward the §199A(i) $400 floor (active QBI test)', () => {
+    const r = calcTaxReturn({ taxYear: 2026, status: 'single', w2: 30000, entities: [{ ...passiveScorp, k1: 1500 }], k1Total: 1500 })
+    expect(r.qbi).toBe(300)   // 20% × 1,500 — no $400 floor: nothing "active"
+  })
+})

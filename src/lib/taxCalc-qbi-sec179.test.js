@@ -10,7 +10,7 @@
 // the QBI basis from gross netProfit×ownership, so a filer who took §179 had QBI
 // computed on the pre-§179 amount — overstating the 20% deduction and disagreeing
 // with the Step-2 AGI and the Step-3 risk scan. §179 reduces QBI per
-// Treas. Reg. §1.199A-3(b)(1)(ii)(A).
+// Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions.
 
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'

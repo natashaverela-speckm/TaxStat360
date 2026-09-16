@@ -19,7 +19,7 @@ import {
   getTable,
   calc469iAllowance,
 } from './taxCalc.js'
-import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, isScheduleCType, getEntityK1Share, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates'
+import { isPassthroughEntity, isCCorpEntity, isSCorpEntity, isRealEstateEntity, getEntityK1Share, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates'
 import { nf } from '../utils/money.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import {
@@ -67,9 +67,9 @@ export function taxableIncomeBeforeQBI(totalIncome, taxYear, filing, opts = {}) 
  * Engine (calcQBI) is source of truth; passthrough + positive K-1 required.
  * Use this function. Do not use legacyQbi* variants in new code.
  *
- * §199A QBI deduction; Treas. Reg. §1.199A-3(b)(1)(ii)(A). For non-SE pass-throughs
+ * §199A QBI deduction; Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions. For non-SE pass-throughs
  * (S-Corp) the QBI basis is net of the separately-stated §179 deduction per
- * Treas. Reg. §1.199A-3(b)(1)(ii)(A) — handled upstream by the caller passing
+ * Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions — handled upstream by the caller passing
  * the net k1 value. Single production call site enforced by F-04 invariant. */
 export function resolveQbiDeduction({ k1, taxableBeforeQBI, entityType, filing, taxYear, entities, capitalGains = 0 }) {
   if (!isPassthroughEntity(entityType) || k1 <= 0 || taxableBeforeQBI <= 0) {
@@ -240,7 +240,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged
     // SE tax on a limited partner's K-1 (§1402(a)(13)) — diverging from the Tax
     // Tracker, SE-savings panel, and SEP-IRA card, which all treat it as SE-exempt.
-    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner }],
+    entities: isCC ? [] : [{ type: ctx.entityType, k1, own: 100, officerW2: sal, limitedPartner: !!ctx.limitedPartner, passiveShareholder: !!ctx.passiveShareholder }],
   }
   validateCalcInputs(engineInput, 'WhatIfSimulator')
 
