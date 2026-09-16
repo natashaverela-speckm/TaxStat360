@@ -320,10 +320,14 @@ describe('calcAMT', () => {
       taxableIncome: 100000, regularTax: 0, isoBargainElement: 50000
     })).toBe(20189)
   })
-  it('CHAR: LTCG carved out of ordinary AMT, taxed at preferential rates', () => {
+  it('SPEC: LTCG carved out of ordinary AMT, taxed at preferential rates (Form 6251 Part III)', () => {
+    // SEVENTH PASS F-1 (16 Sep 2026): AMTI 165,750 − exemption 88,100 = 77,650 (line 12);
+    // line 17 = 27,650 × 26% = 7,189. Lines 19/27 = REGULAR ordinary taxable income
+    // 100,000 — above the 48,350 0% breakpoint — so all 50,000 of gain is at 15% = 7,500.
+    // TMT 14,689. (Pinned 11,584 placed the 0% band against the AMT ordinary base.)
     expect(baseAMT({
       taxableIncome: 150000, regularTax: 0, ltGain: 50000
-    })).toBe(11584)
+    })).toBe(14689)
   })
   it('CHAR: QBI deduction allowed for AMT — NOT added back (§199A(f)(2))', () => {
     expect(baseAMT({

@@ -65,7 +65,7 @@ describe('calcReasonableCompCore — numeric rule', () => {
     expect(r.ratioPct).toBe(0)
   })
 
-  it('CHAR: the threshold is a heuristic, not a statutory figure (Treas. Reg. §1.162-7 facts-and-circumstances; Watson v. Commissioner, 668 F.3d 1008) — constants stay wired', () => {
+  it('CHAR: the threshold is a heuristic, not a statutory figure (Treas. Reg. §1.162-7 facts-and-circumstances; David E. Watson, P.C. v. United States, 668 F.3d 1008) — constants stay wired', () => {
     // Guards the constants relationship rather than a legal value: the floor and
     // threshold the core consumes are the exported constants, not re-inlined.
     expect(SCORP_REASONABLE_COMP_MIN_TOTAL).toBe(20000)

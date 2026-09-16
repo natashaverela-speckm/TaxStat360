@@ -52,6 +52,7 @@ import {
   FICA_SS_RATE,
   FICA_MEDICARE_RATE,
   SE_NET_EARNINGS_FACTOR,
+  SE_MIN_NET_EARNINGS,
   SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REASONABLE_COMP_MIN_TOTAL,
   UNRECAPTURED_1250_MAX_RATE,
   COLLECTIBLES_MAX_RATE,
@@ -426,7 +427,7 @@ function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0, taxY
 // divergence is documented as OBS-7 in KNOWN_LIMITATIONS.md, owner decision).
 //
 // Heuristic, not law: the IRS applies a facts-and-circumstances test under
-// Treas. Reg. §1.162-7 (see Watson v. Commissioner, 668 F.3d 1008 (8th Cir.
+// Treas. Reg. §1.162-7 (see David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir.
 // 2012)); the ratio threshold is a practitioner benchmark, and the $20k floor
 // is a noise gate so trivial scenarios don't alert.
 function calcReasonableCompCore(officerSalary, k1Distributions) {
@@ -448,7 +449,7 @@ function calcReasonableCompCore(officerSalary, k1Distributions) {
     // wording (an IRS-risk flag must read as information, not as a determination
     // or a recommendation). Dashboard previously carried a shorter variant.
     message: triggered
-      ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${ratioPct}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
+      ? `This is an informational flag, not a determination. Reasonable compensation is governed by the value of the services the shareholder-employee actually performs (Treas. Reg. §1.162-7), which the IRS evaluates under a facts-and-circumstances test — there is no published safe-harbor percentage. Here, the officer salary ($${Math.round(sal).toLocaleString()}) is ${ratioPct}% of total S-Corp compensation. A salary-to-total-compensation band of roughly 35–45% is a rough benchmark some practitioners cite (drawing on case law such as David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)); it is not a fixed ratio or a legal threshold. Treat a figure below it as a prompt to document how the salary reflects the services rendered, not as evidence the salary is wrong.`
       : '',
   }
 }
@@ -571,16 +572,14 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs, opts = {}) {
   // Returns the preferential-tax INCREMENT over calcFederalTax(ordinaryIncome), so the
   // caller's `ordFedTax + prefTax` equals worksheet line 47.
   //
-  // opts.amt: Form 6251 Part III mode. AMT has no rate below 26%, so its 25%/28% layers are
-  // taxed at flat 25%/28% (lines 33–36 of Part III), capped by the pre-existing backstop —
-  // the increment of REGULAR ordinary tax (calcFederalTax) that the same dollars would
-  // produce, i.e. "never more than if the gain were all ordinary income". (Third-pass
-  // review, 14 Sep 2026: an earlier comment called this an "all-AMT-rate backstop"; the
-  // arithmetic uses the regular schedule and is unchanged since AUDIT F-5.) calcAMT passes
-  // amt:true and its behavior is unchanged.
+  // SEVENTH PASS F-1 (16 Sep 2026): the former `opts.amt` mode (0%/15% bands positioned
+  // against the AMT ordinary base, flat 25%/28% layers, regular-bracket backstop) has been
+  // removed. calcAMT now implements Form 6251 Part III itself, line for line. `opts` is
+  // retained in the signature for call-compatibility and is not read.
   //
   // SEMANTICS (unchanged): unrecap1250 and collectibles are SLICES of the long-term gain
   // already included in `ltcg` — they re-rate a portion of it, they do not add income.
+  void opts
   const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
   const [threshold0, threshold15] = getLTCGThresholds(year, fs)
   const ordFloor = Math.max(0, ordinaryIncome)
@@ -591,24 +590,6 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs, opts = {}) {
   const adjNCG   = (_ltcgPos - _u1250 - _coll) + _qd                    // line 13: 0/15/20 bucket
   const totalPrefAll = adjNCG + _u1250 + _coll
   if (totalPrefAll <= 0) return 0
-
-  if (opts.amt) {
-    // Form 6251 Part III: 0/15/20 on the adjusted net capital gain stacked on the AMT
-    // ordinary base; 25% and 28% layers flat; never more than all-AMT-rate treatment.
-    let tax = 0
-    if (adjNCG > 0) {
-      const zeroRoom    = Math.max(0, threshold0  - ordFloor)
-      const atZero      = Math.min(adjNCG, zeroRoom)
-      const fifteenRoom = Math.max(0, threshold15 - Math.max(ordFloor, threshold0))
-      const atFifteen   = Math.min(adjNCG - atZero, fifteenRoom)
-      const atTwenty    = adjNCG - atZero - atFifteen
-      tax += atFifteen * LTCG_RATE_MID + atTwenty * LTCG_RATE_HIGH
-    }
-    tax += _u1250 * UNRECAPTURED_1250_MAX_RATE
-    tax += _coll  * COLLECTIBLES_MAX_RATE
-    const allOrdinary = calcFederalTax(ordFloor + totalPrefAll, year, fs) - calcFederalTax(ordFloor, year, fs)
-    return Math.round(Math.min(tax, allOrdinary))
-  }
 
   // ── Schedule D Tax Worksheet (Form 1040 instructions), line numbers as printed ──
   const L1  = ordFloor + totalPrefAll                                   // taxable income
@@ -663,6 +644,29 @@ function calcPreferentialTax(ordinaryIncome, prefItems, year, fs, opts = {}) {
   const L47 = Math.min(L45, L46)
   return Math.round(L47 - calcFederalTax(ordFloor, year, fs))
 }
+/** SEVENTH PASS F-1 (16 Sep 2026): Schedule D Tax Worksheet line 21 — the amount of REGULAR
+ *  taxable income taxed at ordinary rates (QDCGTW line 5 when there is no 25%/28% gain).
+ *  Form 6251 Part III lines 19 and 27 read this figure, "as refigured for the AMT, if
+ *  necessary", to place the 0% and 15% capital-gain bands; the AMT ordinary base (line 17)
+ *  is NOT what positions those bands. Same inputs and clamps as calcPreferentialTax. */
+function calcSchDOrdinaryLine21(ordinaryIncome, prefItems, year, fs) {
+  const { ltcg = 0, qualDiv = 0, unrecap1250 = 0, collectibles = 0 } = prefItems
+  const ordFloor = Math.max(0, ordinaryIncome)
+  const _ltcgPos = Math.max(0, ltcg)
+  const _u1250   = Math.min(Math.max(0, unrecap1250), _ltcgPos)
+  const _coll    = Math.min(Math.max(0, collectibles), _ltcgPos - _u1250)
+  const _qd      = Math.max(0, qualDiv)
+  const L1  = ordFloor + _ltcgPos + _qd
+  const L10 = _qd + _ltcgPos
+  const L13 = L10 - Math.min(_ltcgPos, _u1250 + _coll)
+  const L14 = Math.max(0, L1 - L13)
+  const L18 = Math.max(0, L1 - L10)
+  const _brackets = getBrackets(year, fs)
+  const _top24 = (_brackets.find(([, r]) => r === 0.24) || [Infinity])[0]
+  const L19 = Math.min(L1, _top24)
+  const L20 = Math.min(L14, L19)
+  return Math.max(L18, L20)
+}
 /** §1411 Net Investment Income Tax. Rate: 3.8% on the lesser of NII or (MAGI − threshold).
  *  Thresholds: $250K MFJ / $125K MFS / $200K single & HOH — statutory, not inflation-adjusted.
  *  No withholding mechanism; flows through Form 8960 and estimated payments. */
@@ -675,7 +679,7 @@ function calcNIIT(nii, agi, year, fs) {
 /** §55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
  *  Exemption and phase-out are inflation-adjusted annually — see TAX_TABLES[year].amt.
  *  §199A QBI deduction is NOT added back to AMTI per §199A(f)(2). */
-function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, unrecap1250 = 0, collectibles = 0, regularTax, status, taxYear, useItemized, itemized, stdDed }) {
+function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, unrecap1250 = 0, collectibles = 0, regularTax, status, taxYear, useItemized, itemized, stdDed, regularOrdinaryTaxable }) {
   // NOTE: the §199A QBI deduction is intentionally NOT added back to AMTI — it is allowed
   // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
   // (Callers may still pass a `qbi` field; it is intentionally not read here. Do not "fix"
@@ -687,51 +691,73 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const saltAddback  = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
   const isoAddback   = Math.max(0, isoBargainElement || 0)
   const stdDedAddback = isItemizing ? 0 : Math.max(0, stdDed || 0)
-  const amti         = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback
+  const _amtiBase    = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback
   const _phaseoutStart = amtTable.phaseoutStart[status] ?? amtTable.phaseoutStart.single
   const _exemptionAmt  = amtTable.exemption[status]     ?? amtTable.exemption.single
+  // SEVENTH PASS F-8 (16 Sep 2026): §55(d)(3), last sentence — a married-filing-separately
+  // filer whose AMTI is past the point where the exemption has fully phased out increases
+  // AMTI by the LESSER of (i) 25% of the excess over that point or (ii) the MFS exemption
+  // amount (Form 6251 exemption worksheet, MFS lines). The point is phaseoutStart +
+  // exemption ÷ phase-out rate (2024: $609,350 + $66,650 ÷ 0.25 = $875,950). Other
+  // statuses: no add-back, unchanged.
+  const _fullPhaseoutPoint = _phaseoutStart + _exemptionAmt / amtTable.phaseoutRate
+  const mfsAddback = (status === 'mfs' && _amtiBase > _fullPhaseoutPoint)
+    ? Math.min(amtTable.phaseoutRate * (_amtiBase - _fullPhaseoutPoint), _exemptionAmt)
+    : 0
+  const amti         = _amtiBase + mfsAddback
   const phaseoutOver = Math.max(0, amti - _phaseoutStart)
   const exemption    = Math.max(0, _exemptionAmt - phaseoutOver * amtTable.phaseoutRate)
   const amtTaxable   = Math.max(0, amti - exemption)
   if (amtTaxable === 0) return 0
-  // F-AMT FIX (audit re-review, Jul 2026): the preferential (LTCG / qualified-dividend)
-  // income taxed at capital-gains rates within AMT is limited to the AMT base AFTER the
-  // exemption — Form 6251 Part III line 38 is the SMALLER of the AMT base or the QD+LTCG
-  // amount. The prior code passed the FULL qualDiv/ltGain into calcPreferentialTax
-  // regardless of the exemption, so a taxpayer whose income is mostly QD/LTCG was charged
-  // a spurious AMT equal to the preferential rate times their added-back standard/SALT
-  // deduction (e.g. 15% × the $16,100 standard deduction = ~$2,415) even though the AMT
-  // exemption fully absorbs that addback and real AMT is $0. Cap the preferential income
-  // at amtTaxable so it can't exceed the base the exemption leaves behind.
-  const _ltPos = Math.max(0, ltGain)
-  const _qdPos = Math.max(0, qualDiv)
-  const prefInAMT = Math.min(_ltPos + _qdPos, amtTaxable)
-  const _ltAMT = Math.min(_ltPos, prefInAMT)
-  const _qdAMT = Math.max(0, prefInAMT - _ltAMT)
-  const ordinaryAMTI = Math.max(0, amtTaxable - prefInAMT)
-  const threshold   = amtTable.bracket26_28[status] ?? amtTable.bracket26_28.single
-  const ordinaryAMT = ordinaryAMTI <= threshold
-    ? ordinaryAMTI * AMT_RATE_LOW
-    : threshold * AMT_RATE_LOW + (ordinaryAMTI - threshold) * AMT_RATE_HIGH
-  // AUDIT FIX (fresh-eyes re-audit, Aug 2026): unrecap1250/collectibles were never
-  // passed into the AMT preferential-rate call, so calcPreferentialTax's own defaults
-  // (unrecap1250 = 0, collectibles = 0) silently zeroed them out here even though the
-  // exact same function correctly applies them a few hundred lines earlier for the
-  // REGULAR-tax computation. Form 6251 Part III mirrors the Schedule D Tax Worksheet
-  // rate structure for AMT purposes -- the §1(h)(1)(E) 25% unrecaptured-§1250 rate and
-  // §1(h)(4) 28% collectibles rate apply identically inside AMT, not just on the
-  // regular-tax side. Pass them straight through; calcPreferentialTax's own internal
-  // clamp (`Math.min(unrecap1250, ltcg)`) naturally re-scales them if _ltAMT was itself
-  // capped down by the AMT-base limitation above -- the same simplification already
-  // used for _ltAMT/_qdAMT (a hard cap, not a proportional split), consistent with how
-  // this function already treats the AMT preferential-income cap.
-  const preferentialAMT = calcPreferentialTax(
-    ordinaryAMTI,
-    { ltcg: _ltAMT, qualDiv: _qdAMT, unrecap1250, collectibles },
-    taxYear, status,
-    { amt: true }   // Form 6251 Part III: flat 25%/28% layers (no AMT rate below 26%)
-  )
-  const tentativeMinimumTax = Math.round(ordinaryAMT + preferentialAMT)
+  // ── SEVENTH PASS F-1 (16 Sep 2026): FORM 6251 PART III, LINE FOR LINE ──────────────
+  // The prior code handed the AMT base to calcPreferentialTax in an "amt" mode that
+  // positioned the 0% and 15% capital-gain bands against the AMT ORDINARY base (line 17).
+  // Part III does not do that: lines 19 and 27 take the amount taxed at ordinary rates on
+  // the REGULAR return (Schedule D Tax Worksheet line 21 / QDCGTW line 5), so the bands
+  // are placed exactly where the regular tax placed them, and the AMT exemption cannot
+  // manufacture 0%-band room that the regular return never had. Live repro (2025, single,
+  // W-2 $75,750 + LTCG $100,000 + ISO bargain element $50,000): engine AMT $70; Form 6251
+  // $1,675 — the engine gave $10,700 of the gain a 0% AMT rate because the exemption had
+  // pulled the AMT ordinary base below the 0% breakpoint. Two smaller corrections fall out
+  // of following the form: collectibles gain is not in line 13 (adjusted net capital gain)
+  // and so is taxed inside line 17 at 26%/28% (the form has no 28% line), and the
+  // "never more than all-AMT-rate" backstop is line 39 (26%/28% on the whole of line 12),
+  // not the regular-tax bracket increment the old mode used.
+  const _ltPos  = Math.max(0, ltGain)
+  const _qdPos  = Math.max(0, qualDiv)
+  const _u1250  = Math.min(Math.max(0, unrecap1250), _ltPos)
+  const _coll   = Math.min(Math.max(0, collectibles), _ltPos - _u1250)
+  const threshold = amtTable.bracket26_28[status] ?? amtTable.bracket26_28.single
+  const amtRate = (x) => x <= threshold
+    ? x * AMT_RATE_LOW
+    : threshold * AMT_RATE_LOW + (x - threshold) * AMT_RATE_HIGH
+  const [threshold0, threshold15] = getLTCGThresholds(taxYear, status)
+  const line12 = amtTaxable
+  const line13 = (_ltPos - _u1250 - _coll) + _qdPos            // Sch D TW line 13 / QDCGTW line 4
+  const line14 = _u1250                                          // Sch D TW line 19 (unrecaptured §1250)
+  const line15 = line13 + line14
+  const line16 = Math.min(line12, line15)
+  const line17 = line12 - line16                                 // AMT base taxed at 26%/28%
+  const line18 = amtRate(line17)
+  // Line 19: regular-tax ordinary taxable income (Sch D TW line 21 / QDCGTW line 5). Older
+  // direct callers that do not supply it get the QDCGTW figure derived from the same inputs.
+  const line19 = Math.max(0, regularOrdinaryTaxable ?? (Math.max(0, taxableIncome) - _ltPos - _qdPos))
+  const line21 = Math.max(0, threshold0 - line19)                // 0% room
+  const line22 = Math.min(line12, line13)
+  const line23 = Math.min(line21, line22)                        // taxed at 0%
+  const line24 = line22 - line23
+  const line29 = Math.max(0, threshold15 - (line21 + line19))   // 15% room (line 25 − line 28)
+  const line30 = Math.min(line24, line29)
+  const line31 = line30 * LTCG_RATE_MID                          // 15%
+  const line32 = line23 + line30
+  const line33 = line22 - line32
+  const line34 = line33 * LTCG_RATE_HIGH                         // 20%
+  const line35 = line17 + line32 + line33
+  const line36 = line12 - line35                                 // §1250 gain inside the AMT base
+  const line37 = line36 * UNRECAPTURED_1250_MAX_RATE             // 25%
+  const line38 = line18 + line31 + line34 + line37
+  const line39 = amtRate(line12)                                 // all-AMT-rate ceiling
+  const tentativeMinimumTax = Math.round(Math.min(line38, line39))
   return Math.max(0, tentativeMinimumTax - Math.max(0, regularTax))
 }
 // QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, QBI_MIN_DEDUCTION, QBI_MIN_THRESHOLD are derived
@@ -840,9 +866,19 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
   // have been ignored entirely (adjQBI 200,000, deduction 40,000 before the wage limit).
   // The carryforward path (qbiBasisAfterSstb in calcTaxReturn) already handled the sign
   // correctly; the deduction path did not.
+  // SEVENTH PASS F-4 (16 Sep 2026): the haircut base is the SSTB's QBI — the same figure
+  // that went into `qbiIncome` — not its GROSS distributive share. For an SE-subject business
+  // that is the share net of §179 and of the ½-SE / SEHI / retirement deductions attributable
+  // to it (`qbiShareAdjusted`, Reg. §1.199A-3(b)(1)(vi)); for every other entity the share net
+  // of §179. Using the gross share subtracted a haircut measured on income that was never in
+  // the base: 2025 HOH, SSTB Schedule C $260,000 (phase-in): engine $11,881, Form 8995-A
+  // $12,601. Same figure the per-business allocation below already uses.
   const sstbEntityQBI = entityQbiData.reduce((s, e) => {
     if (!e.box17V_sstb) return s
-    return s + getEntityK1Share(e)
+    const netQBI = (e.qbiShareAdjusted !== undefined && e.qbiShareAdjusted !== null)
+      ? nf(e.qbiShareAdjusted)
+      : getEntityK1Share(e) - nf(e.box11_12)
+    return s + netQBI
   }, 0)
   const adjQBI             = Math.max(0, qbiIncome - sstbEntityQBI * (1 - sstbApplicablePct))
   const scaledQbiComponent = adjQBI * QBI_DEDUCTION_RATE
@@ -1054,8 +1090,25 @@ function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = 
 // calculation. TaxReturn.jsx passes both via entitiesForCalc + sessionK1.
 // External callers (tests, scenarioCompare) must also set both.
 // ─────────────────────────────────────────────────────────────────────────────────
+// SEVENTH PASS F-9 (16 Sep 2026): the top-level income fields below were read RAW (`w2 +
+// ...`, `intInc + ...`) while their siblings went through nf(). A comma-formatted string
+// ("100,000") — reachable via accounting-integration sync or a hand-edited record, though
+// not via MoneyInput — concatenated instead of adding and produced NaN through the whole
+// return; a negative W-2 reduced AGI. Coerce once, up front, with the same comma-safe nf()
+// every other read uses; W-2 (Box 1 can never be negative) is floored at 0.
+const _RAW_NUMERIC_INPUTS = ['w2', 'k1Total', 'intInc', 'divInc', 'qualDiv', 'taxableSS', 'iraIncome']
+function _coerceNumericInputs(input) {
+  if (!input || typeof input !== 'object') return input
+  const out = { ...input }
+  for (const k of _RAW_NUMERIC_INPUTS) {
+    if (out[k] === undefined) continue
+    out[k] = nf(out[k])
+  }
+  if (out.w2 !== undefined) out.w2 = Math.max(0, out.w2)
+  return out
+}
 function calcTaxReturn(input) {
-  input = _annualizeIfYTD(input)
+  input = _coerceNumericInputs(_annualizeIfYTD(input))
   const {
     // AUDIT HARDENING (found during F-4 verification): `status` previously had no
     // default. Every consumer except calcAMT falls back to 'single' internally, so an
@@ -1441,14 +1494,32 @@ function calcTaxReturn(input) {
   // the surviving carryover keeps the correct character split.
   // §1368 excess-distribution gains are already folded into _stGain/_ltGain above,
   // so an investment loss correctly absorbs them here (they are capital gains).
-  // In-model boundary (register as 1211-1231-NETTING in KNOWN_LIMITATIONS): capital
-  // losses do NOT net against modeled §1231/f4797 gains (Schedule D line 11 would
-  // permit it). When both exist the tool taxes the §1231 gain in full while limiting
-  // the loss — OVERSTATES tax, never understates: conservative by design.
+  // SEVENTH PASS F-5 (16 Sep 2026): the former 1211-1231-NETTING boundary is closed —
+  // the long-term §1231 slice joins the LT pool below (Schedule D line 11).
   const _capCarryST = Math.max(0, nf(capLossCarryforwardST))
   const _capCarryLT = Math.max(0, nf(capLossCarryforwardLT))
+  // ── SEVENTH PASS F-5 (16 Sep 2026): §1231 GAIN JOINS THE SCHEDULE D LONG-TERM POOL ──
+  // Schedule D line 11 carries the net §1231 gain from Form 4797 into Part II, so a capital
+  // loss (current or carried) nets against it before the §1211(b) $3,000 limit is measured.
+  // The former in-model boundary (1211-1231-NETTING) taxed the §1231 gain in full while
+  // limiting the loss — 2026 single, W-2 $100,000, LT carryforward $20,000, STCG $5,000,
+  // §1231 gain $8,000: engine AGI $105,000 / LT carryover $12,000; Schedule D AGI $97,000 /
+  // carryover $4,000. The §1231(c) five-year-lookback slice (recharacterized as ORDINARY)
+  // stays out of the pool; only the long-term capital slice (f4797PrefGain) joins it. The
+  // gross f4797Inc entry keeps feeding the §461(l) business-gain figures unchanged; the
+  // AGI sums below add the ORDINARY remainder (f4797OrdinaryPart) and pick the capital
+  // slice up through capitalGainNetIncluded.
+  const f4797NetGain = Math.max(0, nf(f4797Inc))
+  // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
+  // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
+  // long-term capital-gain treatment. NII is unaffected — §1231(c) changes the RATE, not
+  // whether the gain is investment income.
+  const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
+  const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
+  const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
+  const f4797OrdinaryPart     = nf(f4797Inc) - f4797PrefGain     // §1231 loss (ordinary) or §1231(c) recapture
   let _netST = _stGain - _capCarryST
-  let _netLT = _ltGain - _capCarryLT
+  let _netLT = _ltGain + f4797PrefGain - _capCarryLT
   if (_netST < 0 && _netLT > 0)      { const abs = Math.min(-_netST, _netLT); _netST += abs; _netLT -= abs }
   else if (_netLT < 0 && _netST > 0) { const abs = Math.min(-_netLT, _netST); _netLT += abs; _netST -= abs }
   const _combinedNetCapGain = _netST + _netLT
@@ -1462,9 +1533,11 @@ function calcTaxReturn(input) {
   const _stLossPool       = Math.max(0, -_netST)
   const _ltLossPool       = Math.max(0, -_netLT)
   const _stLossUsed       = Math.min(_stLossPool, _allowedLossUsed)
-  const capLossCarryoverST    = _stLossPool - _stLossUsed
-  const capLossCarryoverLT    = Math.max(0, _ltLossPool - (_allowedLossUsed - _stLossUsed))
-  const capLossCarryoverTotal = capLossCarryoverST + capLossCarryoverLT
+  // SEVENTH PASS F-7 (16 Sep 2026): provisional — re-derived once taxable income is known
+  // (Capital Loss Carryover Worksheet, Schedule D instructions), see below.
+  let capLossCarryoverST    = _stLossPool - _stLossUsed
+  let capLossCarryoverLT    = Math.max(0, _ltLossPool - (_allowedLossUsed - _stLossUsed))
+  let capLossCarryoverTotal = capLossCarryoverST + capLossCarryoverLT
   // Long-term gain SURVIVING Schedule D netting — the only figure the preferential-
   // rate machinery may see. A net-loss year has zero preferential gain, and an LT
   // gain eroded by ST losses is preferential only to the surviving extent (the old
@@ -1559,7 +1632,12 @@ function calcTaxReturn(input) {
   const seEarningsSubject = seNetIncome * SE_NET_EARNINGS_FACTOR
   const ssPortion         = Math.min(seEarningsSubject, ssWageBaseRoom) * (FICA_SS_RATE * 2)
   const medicarePortion   = seEarningsSubject * (FICA_MEDICARE_RATE * 2)
-  const seTax             = Math.round(ssPortion + medicarePortion)
+  // SEVENTH PASS F-6 (16 Sep 2026): §1402(b)(2) — net earnings from self-employment under
+  // $400 are not "self-employment income"; Schedule SE line 4c: "If less than $400, you
+  // don't owe self-employment tax." The test is on the 92.35% figure (line 4a), and it is
+  // all-or-nothing. Previously $430 of Schedule C profit produced $61 of SE tax.
+  const seBelowFloor      = seEarningsSubject < SE_MIN_NET_EARNINGS
+  const seTax             = seBelowFloor ? 0 : Math.round(ssPortion + medicarePortion)
   const halfSE            = Math.round(seTax * SE_TAX_DEDUCTION_RATE)
   const empSS          = Math.min(totalW2ForFICA, ssWageBase) * FICA_SS_RATE
   const empMedicare    = totalW2ForFICA * FICA_MEDICARE_RATE
@@ -1578,9 +1656,15 @@ function calcTaxReturn(input) {
   // block existed and subtracted the raw premium entry. Since the second pass the §469
   // section runs below and reads the capped `selfEmpHealthDed` computed here — see
   // calc469iMagi — so there is no longer any residual from an entry above the cap.)
+  // SEVENTH PASS M-2 (16 Sep 2026): the §162(l)(5)(A) cap is the shareholder's OWN Medicare
+  // wages from the S-Corp (Notice 2008-1) — officerW2 / pnl.officerSalary. box17V_wages is
+  // the entity's TOTAL W-2 wages reported on the §199A statement (all employees), which is
+  // the right figure for the §199A(b)(2) wage limit and the wrong one here: read first, it
+  // let a $60,000-salary shareholder of a $300,000-payroll company deduct a $70,000 premium
+  // in full. Fall back to the §199A figure only when no officer salary was entered at all.
   const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
     if (!e || !isSCorpEntity(e.type)) return s
-    return s + (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0)
+    return s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || nf(e.box17V_wages) || 0)
   }, 0)
   const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
   const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
@@ -1673,8 +1757,16 @@ function calcTaxReturn(input) {
   // preliminary rental figure for the §469(i) MAGI and once with the final one for AGI —
   // the two coincide in every branch (legacy: REP is false whenever the allowance is
   // measured, so the rental leg is 0; per-property: nonpassiveRentalNet is known first).
+  // SEVENTH PASS F-2 (16 Sep 2026): the slice of a PASSIVE K-1 loss (limited partner /
+  // passive S-Corp shareholder) that §469 suspends this year, and the slice absorbed by
+  // passive rental income (Form 8582 line 2b against line 1a). Assigned inside the §469
+  // section below, BEFORE the §469(i) MAGI and the §461(l) figure are measured — both are
+  // determined without regard to the suspended passive loss (§469(i)(3)(F)(iv); Form 461
+  // instructions: passive losses count only to the extent allowed under §469).
+  let passiveK1LossSuspended        = 0
+  let passiveK1LossAbsorbedByRental = 0
   const calc461l = (_rentalForEBL) => {
-    const eblBiz     = adjustedK1Total + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+    const eblBiz     = adjustedK1Total + passiveK1LossSuspended + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
     const eblNetLoss = Math.max(0, -eblBiz)
     const ebl        = Math.max(0, eblNetLoss - eblThreshold)
     return { eblBiz, eblNetLoss, ebl }
@@ -1691,8 +1783,8 @@ function calcTaxReturn(input) {
   // the §1372 wage gross-up is added like every other AGI inclusion, and the §461(l)
   // excess-business-loss addback is included because it, too, reaches AGI.
   const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
-    w2 + sehiScorpWageGrossUp + adjustedK1Total + guaranteedPaymentsTotal + _npRental
-    + f4797Inc + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
+    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + guaranteedPaymentsTotal + _npRental
+    + f4797OrdinaryPart + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
     + calc461l(_npRental).ebl
     - halfSE
     - ytdScale(hsaDeduction)
@@ -1726,18 +1818,35 @@ function calcTaxReturn(input) {
     return sum + (getEntityK1Share(e) - nf(e.box11_12))   // §179 (box11_12) reduces the share; charitable (box12_13) does not (F-13)
   }, 0)
   const passiveK1Income = Math.max(0, passiveK1Net)
+  // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 LOSS is a passive activity loss (§469(a),
+  // (d)(1)) — deductible only against passive income (here: net passive rental income after
+  // the prior-year carryforward, Form 8582 line 1a vs. 2b); the remainder is suspended and
+  // added back to AGI below. Before this pass the loss was deducted in full: 2025 single,
+  // W-2 $200,000 + limited-partner K-1 −$50,000 gave AGI $150,000 where §469 says $200,000.
+  // The suspended figure is reported (passiveK1LossSuspended) so the taxpayer can carry it
+  // on Form 8582 / Worksheet 5; the engine does not yet carry a prior-year K-1 PAL input.
+  const passiveK1Loss   = Math.max(0, -passiveK1Net)
   const combinedRentalNet          = nf(rentalNet) + step1RentalNet
   const effectiveIsREP             = !!isREP || step1RentalREP
   // §469(i) active-participation applies to whatever rental pool exists. Rentals now
   // come from Step-1 Real Estate entities (the Step-2 lump is retired), so gate on the
   // combined rental net rather than the (legacy) Step-2 lump. A per-entity active flag,
   // if a caller still supplies one, also counts.
+  // SEVENTH PASS H-1 (16 Sep 2026): the top-level flag governs ONLY the (retired) Step-2
+  // lump `rentalNet`. Rentals entered as Step-1 Real Estate cards carry their own "Active
+  // participant" checkbox, and that checkbox is the attestation — the retired flag (which
+  // normalizeF1040 restores as TRUE on every record load) was overriding an UNCHECKED card
+  // and granting the §469(i) $25,000 allowance the taxpayer had declined to claim.
   const effectiveIsActiveParticipant =
-    (combinedRentalNet !== 0 ? isActiveParticipant : false) || step1RentalActive
+    (nf(rentalNet) !== 0 ? !!isActiveParticipant : false) || step1RentalActive
   const priorPAL = Math.max(0, nf(priorPassiveLossCarryforward))
-  const palCarryforwardApplied   = (combinedRentalNet > 0 && priorPAL > 0) ? Math.min(priorPAL, combinedRentalNet) : 0
-  const palCarryforwardRemaining = Math.max(0, priorPAL - palCarryforwardApplied)
-  const rentalNetAfterCF         = combinedRentalNet - palCarryforwardApplied
+  // SEVENTH PASS F-3 (16 Sep 2026): Form 8582 line 1c — the prior-year unallowed loss joins
+  // the current-year rental figure in line 1d BEFORE the §469(i) special allowance is
+  // measured. The carryforward was previously applied only against a PROFITABLE rental; a
+  // loss year ignored it, so 2025 MFJ, W-2 $90,000, rental −$10,000 with a $10,000 prior PAL
+  // (active participant) deducted $10,000 where Form 8582 allows $20,000 (AGI $70,000, not
+  // $80,000). palCarryforwardApplied / Remaining are derived after the §469 branches run.
+  const rentalNetAfterCF         = combinedRentalNet - priorPAL
   // ── C-12 (Finding 2): §469(c)(7)(B) quantitative gate on the aggregation election ──
   // The election only makes the portfolio nonpassive if the two-part hours test is met:
   //   (1) more than 750 hours in real-property trades/businesses, AND
@@ -1794,10 +1903,15 @@ function calcTaxReturn(input) {
     const remaining = passiveLoss + offset                       // ≤ 0
     const specialAllowance = calc469iAllowance(preRentalMagi, status, effectiveIsActiveParticipant)
     passiveLossAbsorbedByK1 = offset
-    return Math.max(remaining, -specialAllowance) - offset
+    const out = Math.max(remaining, -specialAllowance) - offset
+    return out === 0 ? 0 : out                                   // normalize −0 (display / Object.is)
   }
   if (!perPropertyRegimeActive) {
     // ── LEGACY branch ─────────────────────────────────────────────────────────
+    // SEVENTH PASS F-2: a passive K-1 loss offsets passive rental INCOME first (the REP
+    // legacy path treats every rental as nonpassive, so nothing absorbs it there).
+    passiveK1LossAbsorbedByRental = effectiveIsREP ? 0 : Math.min(passiveK1Loss, Math.max(0, rentalNetAfterCF))
+    passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
     if (!effectiveIsREP && rentalNetAfterCF < 0) {
       // FOURTH READ R-1 (14 Sep 2026): §469(i)(3)(F) MAGI is AGI computed without regard to
       // passive losses, taxable Social Security, the §219 IRA deduction, the §221 education-
@@ -1818,11 +1932,13 @@ function calcTaxReturn(input) {
       palAdjustedRental  = applyPassiveNetting(rentalNetAfterCF, preRentalAGI)
       palSuspendedRental = Math.round(palAdjustedRental - rentalNetAfterCF)
     }
-    // Interface vars equivalent to prior inline expressions:
-    nonpassiveRentalNet   = effectiveIsREP ? combinedRentalNet : 0
-    passiveRentalNet      = effectiveIsREP ? 0 : combinedRentalNet
-    rentalForEBL          = effectiveIsREP ? combinedRentalNet : 0
-    rentalForNII          = effectiveIsREP ? 0 : Math.max(0, combinedRentalNet)
+    // Interface vars equivalent to prior inline expressions (F-3: measured after the
+    // prior-year carryforward; F-2: rental NII is net of the passive K-1 loss it absorbed —
+    // Reg. §1.1411-4(g)(8), Form 8960 line 4b):
+    nonpassiveRentalNet   = effectiveIsREP ? rentalNetAfterCF : 0
+    passiveRentalNet      = effectiveIsREP ? 0 : rentalNetAfterCF
+    rentalForEBL          = effectiveIsREP ? rentalNetAfterCF : 0
+    rentalForNII          = effectiveIsREP ? 0 : Math.max(0, rentalNetAfterCF - passiveK1LossAbsorbedByRental)
     rentalQbiContribution = effectiveIsREP ? palAdjustedRental : Math.max(0, palAdjustedRental)
   } else {
     // ── NEW per-property branch ────────────────────────────────────────────────
@@ -1836,7 +1952,9 @@ function calcTaxReturn(input) {
     // than auto-freed against other income.
     const aggregateNonpassive = effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
     if (aggregateNonpassive) {
-      nonpassiveRentalNet = combinedRentalNet
+      // F-3: a prior-year unallowed loss from the (formerly passive) rental activity is
+      // allowed against that activity once it is nonpassive (§469(f)(1)(A)).
+      nonpassiveRentalNet = combinedRentalNet - priorPAL
       passiveRentalNet    = 0
     } else {
       // No election: each rental is independently classified. A property is nonpassive
@@ -1864,11 +1982,16 @@ function calcTaxReturn(input) {
         else pv += step2Net
       }
       nonpassiveRentalNet = np
-      passiveRentalNet    = pv
+      // F-3: Form 8582 line 1c — the prior-year unallowed loss joins the PASSIVE pool.
+      // (Before this pass the per-property branch never consumed the carryforward at all,
+      // while still reporting it as "applied".)
+      passiveRentalNet    = pv - priorPAL
     }
+    // SEVENTH PASS F-2: passive K-1 loss offsets passive rental income first.
+    passiveK1LossAbsorbedByRental = Math.min(passiveK1Loss, Math.max(0, passiveRentalNet))
+    passiveK1LossSuspended        = passiveK1Loss - passiveK1LossAbsorbedByRental
     // Passive portion runs through the §469(i) $25k active-participation allowance when
-    // it is a net loss; nonpassive portion flows in full. (priorPAL carryforward is left
-    // as computed against the combined pool — no per-property regime test exercises it.)
+    // it is a net loss; nonpassive portion flows in full.
     let passiveAllowed = passiveRentalNet
     if (passiveRentalNet < 0) {
       // FOURTH READ R-1 (14 Sep 2026): same MAGI definition as the legacy branch — the
@@ -1881,9 +2004,15 @@ function calcTaxReturn(input) {
     }
     palAdjustedRental     = nonpassiveRentalNet + passiveAllowed
     rentalForEBL          = nonpassiveRentalNet
-    rentalForNII          = Math.max(0, passiveAllowed)
+    rentalForNII          = Math.max(0, passiveAllowed - passiveK1LossAbsorbedByRental)
     rentalQbiContribution = nonpassiveRentalNet + Math.max(0, passiveAllowed)
   }
+  // F-3: attribution of the pooled unallowed loss for reporting. palSuspendedRental is the
+  // whole Form 8582 unallowed figure (current-year loss + prior carryforward not allowed);
+  // the current-year loss is deemed allowed first, so the prior carryforward "remaining"
+  // is the smaller of itself and the total unallowed amount.
+  const palCarryforwardRemaining = Math.min(priorPAL, Math.max(0, palSuspendedRental))
+  const palCarryforwardApplied   = priorPAL - palCarryforwardRemaining
   // §461(l) — same helper the §469(i) MAGI used above, now with the final nonpassive rental.
   const { ebl } = calc461l(rentalForEBL)
   const unrec1250    = Math.max(0, nf(unrecap1250))
@@ -1936,8 +2065,8 @@ function calcTaxReturn(input) {
   // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).
   // grossIncomeBeforeNOL is defined a few lines below; the pieces are summed here so the
   // deduction can be settled before `adjustments` is fixed.
-  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
-    + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
+  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
+    + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
     - (halfSE + selfEmpHealthDed + hsaDed + selfEmpRetirementDed)
   const studentLoanDed       = calcStudentLoanDeduction(ytdScale(studentLoanInt), _magiForStudentLoan, taxYear, status)
   const adjustments = halfSE + selfEmpHealthDed + hsaDed + studentLoanDed + selfEmpRetirementDed
@@ -1950,8 +2079,8 @@ function calcTaxReturn(input) {
   // see the definition above. Net AGI effect is zero only when the full premium is covered
   // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
   // FOLLOW-UP FIX comment above). Never touches totalW2ForFICA/additionalMedicare.
-  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
-    + intInc + _divIncEff + f4797Inc + taxableSS + iraIncome + ebl
+  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1LossSuspended + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2: suspended passive K-1 loss added back
+    + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
   const deductibleMedical = rawMedical > 0 ? Math.max(0, rawMedical - 0.075 * Math.max(0, floorAGI)) : 0
@@ -2170,7 +2299,9 @@ function calcTaxReturn(input) {
     ? (sehiSplitEngaged ? _sehiScorpLegDed : selfEmpHealthDed)
     : 0
   const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
-  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal
+  // SEVENTH PASS F-2: a §469-suspended passive K-1 loss is not a QBI item until the year it
+  // is allowed (Reg. §1.199A-3(b)(1)(iv)) — add the suspended slice back to the base.
+  const qbiBasis = nonSEk1ForQBI + seK1AfterAdjustments + rentalQbiContribution - effectiveQBILossCO + k1FallbackForQBI - guaranteedPaymentsTotal + passiveK1LossSuspended
   // AUDIT #3 (OBBBA §199A(i) $400 minimum): the floor applies only to income from an
   // ACTIVE qualified trade or business in which the taxpayer materially participates.
   // qbiBasis includes POSITIVE passive rental income (Math.max(0, passiveAllowed) above),
@@ -2216,17 +2347,9 @@ function calcTaxReturn(input) {
     return sum + k1 * (1 - sstbApplicablePct)
   }, 0)
   const activeQbiForFloor = Math.max(0, qbiBasis - _passiveRentalQbi - _passiveK1Qbi - _sstbExcludedActiveQbi)
-  const f4797NetGain = Math.max(0, nf(f4797Inc))
-  // F5 (§1231(c) lookback): recharacterize the net §1231 gain as ORDINARY up to the
-  // prior-5-year nonrecaptured §1231 losses (§1231(c)(1)); only the remainder keeps
-  // long-term capital-gain treatment. The recharacterized slice stays in gross/ordinary
-  // income (it is already in grossIncomeBeforeNOL via f4797Inc) and is simply withheld
-  // from the preferential-rate buckets below. NII is unaffected — §1231(c) changes the
-  // RATE, not whether the gain is investment income.
-  const _nonrecap1231Loss     = Math.max(0, nf(nonrecapturedNet1231Loss))
-  const ordinary1231Recapture = Math.min(f4797NetGain, _nonrecap1231Loss)
-  const f4797PrefGain         = Math.max(0, f4797NetGain - ordinary1231Recapture)
-  const prefIncome = _netLTForPref + _qualDivEff + f4797PrefGain  // F10/P6-1: netted LT  // F-9 hotfix: include §1368(c)(2) E&P dividends
+  // f4797NetGain / ordinary1231Recapture / f4797PrefGain are computed above the Schedule D
+  // netting block (SEVENTH PASS F-5) — the long-term slice now survives inside _netLTForPref.
+  const prefIncome = _netLTForPref + _qualDivEff  // F10/P6-1: netted LT  // F-9 hotfix: include §1368(c)(2) E&P dividends
   // Phase 4 housekeeping (Aug 2026): hasMultiEntityTypes REMOVED — Module E (Aug 2026)
   // already deleted the destructured binding from `_calcQBI`'s `opts` (see the
   // "Module E removed" comment on `electQbiAggregation` above), so computing this value
@@ -2306,8 +2429,23 @@ function calcTaxReturn(input) {
   // §1368(c)(2) E&P dividends were taxed at ordinary rates AND again at 15% by
   // calcPreferentialTax — double-taxing the dividend. Must use _qualDivEff, matching
   // every other consumer (_qualDivClamped, nii, grossIncome, calcAMT).
-  const totalPrefIncome       = _netLTForPref + Math.max(0, _qualDivEff) + f4797PrefGain
+  const totalPrefIncome       = _netLTForPref + Math.max(0, _qualDivEff)   // SEVENTH PASS F-5: §1231 slice already inside _netLTForPref
   const taxableAfterQBI       = Math.max(0, taxableBeforeQBI - qbi)
+  // ── SEVENTH PASS F-7 (16 Sep 2026): CAPITAL LOSS CARRYOVER WORKSHEET, lines 1–4 ──
+  // The §1211(b) allowance is "used" only to the extent it reduced POSITIVE taxable income.
+  // Line 1 is taxable income as a signed figure (a negative amount is entered in parentheses),
+  // line 2 the allowed loss, line 3 their sum (floored at 0), line 4 the smaller of lines 2
+  // and 3 — the loss actually absorbed. Everything else carries forward, short-term first.
+  // Repro: 2025 single, W-2 $10,000, STCL −$10,000: the engine carried $7,000; the
+  // worksheet carries the full $10,000 (taxable income was already $0 before the loss).
+  if (_allowedLossUsed > 0) {
+    const _signedTaxable = grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable - nolAllowed - qbi
+    const _lossAbsorbed  = Math.max(0, Math.min(_allowedLossUsed, _signedTaxable + _allowedLossUsed))
+    const _stAbsorbed    = Math.min(_stLossPool, _lossAbsorbed)
+    capLossCarryoverST    = _stLossPool - _stAbsorbed
+    capLossCarryoverLT    = Math.max(0, _ltLossPool - (_lossAbsorbed - _stAbsorbed))
+    capLossCarryoverTotal = capLossCarryoverST + capLossCarryoverLT
+  }
   // AUDIT N-8 FIX (Jul 2026): new IRC §68 (OBBBA §70111) — for tax years beginning
   // after 12/31/2025, itemized deductions are reduced by 2/37 of the LESSER of
   // (1) itemized deductions otherwise allowable (after all other floors/caps — the
@@ -2329,7 +2467,7 @@ function calcTaxReturn(input) {
   const taxableIncome         = taxableAfterQBI + itemizedLimitReduction
   const ordinaryTaxableIncome = Math.max(0, taxableAfterQBI + itemizedLimitReduction - totalPrefIncome)
   let _prefRoom = taxableAfterQBI + itemizedLimitReduction
-  const _ltcgClamped         = Math.min(_netLTForPref + f4797PrefGain, _prefRoom); _prefRoom -= _ltcgClamped
+  const _ltcgClamped         = Math.min(_netLTForPref, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, _qualDivEff), _prefRoom); _prefRoom -= _qualDivClamped
   const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
   const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
@@ -2383,7 +2521,14 @@ function calcTaxReturn(input) {
   // Follow-up (15 Sep 2026): S-Corp shares join via the shareholder's `passiveShareholder`
   // attestation (isPassiveK1Entity); without it every S-Corp share stays nonpassive.
   const passiveK1NII = Math.max(0, passiveK1Income - passiveLossAbsorbedByK1)
-  const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + (f4797MateriallyParticipated ? 0 : f4797NetGain) + rentalNII + passiveK1NII)
+  // SEVENTH PASS F-5: the long-term §1231 slice now reaches NII through capitalGainNetIncluded
+  // (Form 8960 line 5a); the §1231(c) ordinary slice is added separately. A material-
+  // participation attestation backs BOTH slices out (line 5b) — the capital slice by the
+  // amount that actually survived Schedule D netting, never more.
+  const _f4797InNII = f4797MateriallyParticipated
+    ? -Math.min(f4797PrefGain, Math.max(0, capitalGainNetIncluded))
+    : ordinary1231Recapture
+  const nii        = Math.max(0, intInc + _divIncEff + capitalGainNetIncluded + _f4797InNII + rentalNII + passiveK1NII)
   const niitAmount = calcNIIT(nii, agi, taxYear, status)
   const numDependents        = parseInt(dependents) || 0
   const ctcPerChild          = getTable(taxYear).ctc?.perChild || CTC_CREDIT_PER_CHILD_FALLBACK
@@ -2412,7 +2557,11 @@ function calcTaxReturn(input) {
   const amt = calcAMT({
     taxableIncome: taxableAfterQBI, qbi, saltAmount: saltAllowed,  // AUDIT N-1: addback = SALT actually deducted (post-cap)
     isoBargainElement: hasISO ? nf(isoBargainElement) : 0,
-    ltGain: _netLTForPref + f4797PrefGain, qualDiv: _qualDivEff,
+    ltGain: _netLTForPref, qualDiv: _qualDivEff,
+    // SEVENTH PASS F-1: Form 6251 Part III lines 19/27 — regular-tax ordinary taxable income.
+    regularOrdinaryTaxable: calcSchDOrdinaryLine21(ordinaryTaxableIncome, {
+      ltcg: _ltcgClamped, qualDiv: _qualDivClamped, unrecap1250: _unrecap1250Clamped, collectibles: _collectiblesClamped,
+    }, taxYear, status),
     // AUDIT FIX (fresh-eyes re-audit, Aug 2026): pass the same unrecap1250/collectibles
     // slices used on the regular-tax side (see _unrecap1250Clamped/_collectiblesClamped
     // above) so AMT taxes them at the correct flat 25%/28% rates instead of silently
@@ -2479,7 +2628,13 @@ function calcTaxReturn(input) {
   const actcEarnedIncomeLimit = Math.round(ACTC_RATE * Math.max(0, earnedIncomeForACTC - ACTC_EARNED_INCOME_FLOOR))
   const actc = Math.max(0, Math.min(unusedCTC, actcPerChildCap, actcEarnedIncomeLimit))
   const withheld      = nf(w2Withheld)
-  const estimated     = nf(estPaid)
+  // SEVENTH PASS H-2 (16 Sep 2026): the per-installment boxes (estQ1..4) fed only the §6654
+  // timing schedule — they were never CREDITED. A filer who typed Q1–Q4 and left the total
+  // blank saw a balance due equal to the whole liability. The boxes are the itemized form
+  // of the total: when their sum exceeds the lump entry (blank, or partial), the sum is the
+  // amount paid; when the lump is larger (boxes partially filled) the lump stands.
+  const _estQSum      = [estQ1, estQ2, estQ3, estQ4].reduce((s, q) => s + Math.max(0, nf(q)), 0)
+  const estimated     = Math.max(nf(estPaid), _estQSum)
   const totalPayments = withheld + estimated
   const balance       = totalTax - totalPayments - actc
   const priorYearTaxAmt     = Math.max(0, nf(priorYearTax))
@@ -2644,6 +2799,7 @@ function calcTaxReturn(input) {
     rentalNII, nii,
     // FIFTH READ F-1/F-2: passive K-1 pool surfaced for the UI / CPA export.
     passiveK1Income, passiveK1NII, passiveLossAbsorbedByK1,
+    passiveK1LossSuspended, passiveK1LossAbsorbedByRental,   // SEVENTH PASS F-2
     niit: {
       applies:     niitAmount > 0,
       amount:      niitAmount,
@@ -2709,6 +2865,7 @@ function calcTaxReturn(input) {
     capLossCarryoverST,
     capLossCarryoverLT,
     capLossCarryoverTotal,
+    estimatedPaymentsCredited: estimated,   // SEVENTH PASS H-2: lump or Σ installment boxes, whichever is larger
     priorSuspendedLossApplied,
     priorSuspendedLossRemaining,
   }
@@ -2851,6 +3008,7 @@ export {
   getMarginalRate,
   calcFederalTax,
   calcPreferentialTax,
+  calcSchDOrdinaryLine21,
   calcNIIT,
   calcAMT,
   calcQBI,

@@ -66,16 +66,19 @@ describe('Corporate layer — IRC §11 flat 21% on profit after salary and §311
     // Corp: FICA 13,818; profit before tax 786,182; 21% = 165,098; dividends 621,084.
     // Regular: ordinary 184,250 → 37,067; preferential 349,150 × 15% + 271,934 × 20% = 106,759; fedTax 143,826.
     // NIIT 3.8% × 621,084 = 23,601. AMT: AMTI 821,084; exemption 88,100 − 25% × (821,084 − 626,350) = 39,416.5;
-    // base 781,667.5 → ordinary 160,583.5 × 26% = 41,751.7 + preferential 105,576 = TMT 147,327.7; AMT 3,502.
+    // base 781,667.5 → line 17 160,583.5 × 26% = 41,751.7; Form 6251 line 27 = REGULAR ordinary
+    // taxable income 184,250, so the 15%/20% split is the regular one: 106,759 (SEVENTH PASS F-1,
+    // 16 Sep 2026 — the earlier 105,576 stacked the bands on the AMT ordinary base). TMT 148,510.7;
+    // AMT 4,685.
     const r = calcCCorpReturn({ netProfit: 1000000, officerSalary: 200000, personalContext: { taxYear: 2025, status: 'single' } })
     expect(r.corpTax).toBe(165098)
     expect(r.dividends).toBe(621084)
     expect(r.personal.fedTax).toBe(143826)
     expect(r.personal.prefTax).toBe(106759)
     expect(r.personal.niitAmount).toBe(23601)
-    expect(r.personal.amt).toBe(3502)
-    expect(r.personal.totalTax).toBe(170929)
-    expect(r.totalTax).toBe(363663)
+    expect(r.personal.amt).toBe(4685)
+    expect(r.personal.totalTax).toBe(172112)
+    expect(r.totalTax).toBe(364846)
   })
 
   it('SPEC: salary above profit — no corporate tax, no dividends, and no corporate NOL is modelled', () => {

@@ -315,6 +315,9 @@ export const SE_TAX_DEDUCTION_RATE = 0.50  // IRC §164(f)
 // to avoid overstating the S-Corp advantage.
 // See: taxCalc.js ficaSavings calculation (TC-10 fix).
 export const SE_NET_EARNINGS_FACTOR = 0.9235  // IRC §1402(a)(12)
+// IRC §1402(b)(2) / Schedule SE line 4c: no SE tax unless net earnings from self-employment
+// (the 92.35% figure) reach $400. Statutory — not inflation-adjusted. SEVENTH PASS F-6.
+export const SE_MIN_NET_EARNINGS = 400
 
 // ─── NET OPERATING LOSS — IRC §172(a)(2) (TCJA / OBBBA) ─────────────────────
 // Post-2017 NOL carryforwards are limited to 80% of taxable income before the
@@ -376,7 +379,7 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 //
 // IMPORTANT — this is a scrutiny signal, NOT a safe harbor or statutory floor:
 //   Rev. Rul. 74-44: IRS authority to recharacterize distributions as wages.
-//   Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012): affirmed recharacterization
+//   David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012): affirmed recharacterization
 //     where officer took $24K salary on ~$200K total compensation (12% ratio — extreme case).
 //   Spicer Accounting, Inc. v. United States, 918 F.2d 90 (9th Cir. 1990): established
 //     that reasonable compensation is based on services performed, supporting ratio analysis.
@@ -387,7 +390,7 @@ export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cent
 // This constant drives a planning alert only; users should confirm with their CPA.
 //
 // Formerly hardcoded in Dashboard.jsx. Centralized here per constants-centralization-03.
-export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / Watson (8th Cir. 2012)
+export const SCORP_REASONABLE_COMP_RATIO_THRESHOLD = 0.40  // Rev. Rul. 74-44 / David E. Watson, P.C. v. United States (8th Cir. 2012)
 // LABEL AUDIT 10.5: Dashboard.jsx and AIAnalysis.jsx quoted "35-45%" as the practitioner
 // guideline range built around the 40% threshold above; EntityCompareModal.jsx
 // independently quoted "35-60%" for the identical heuristic, giving users conflicting
@@ -399,9 +402,9 @@ export const SCORP_REASONABLE_COMP_GUIDELINE_RANGE = '35–45%'  // practitioner
 // taxCalc.js and Dashboard.jsx. Heuristic (noise floor), not a statutory figure.
 export const SCORP_REASONABLE_COMP_MIN_TOTAL = 20000
 
-// ─── S-CORP GROSS-RECEIPTS SALARY TEST — Rev. Rul. 74-44 / Watson (8th Cir. 2012) ──
+// ─── S-CORP GROSS-RECEIPTS SALARY TEST — Rev. Rul. 74-44 / David E. Watson, P.C. (8th Cir. 2012) ──
 // Flags when officer salary falls below 30% of gross receipts — the revenue-to-salary
-// ratio scrutinized in Watson v. Comm'r, 668 F.3d 1008 (8th Cir. 2012), where the
+// ratio scrutinized in David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the
 // shareholder's salary was roughly 12% of total receipts. This threshold is a planning
 // heuristic, not a statutory floor or safe harbor. It exists alongside
 // SCORP_REASONABLE_COMP_RATIO_THRESHOLD (the salary-to-total-compensation ratio test)
@@ -412,7 +415,7 @@ export const SCORP_REASONABLE_COMP_MIN_TOTAL = 20000
 // ⚠ This is a PLANNING HEURISTIC — not a statutory threshold. Advise clients to
 // document the basis for their compensation level (services rendered, comparable wages,
 // role, and hours) rather than targeting any specific percentage.
-export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / Watson (8th Cir. 2012) — revenue ratio signal
+export const SCORP_REVENUE_SALARY_THRESHOLD = 0.30  // Rev. Rul. 74-44 / David E. Watson, P.C. v. United States (8th Cir. 2012) — revenue ratio signal
 
 
 // ─── S-CORP DEFAULT OFFICER SALARY FRACTION — Rev. Rul. 74-44 / BLS p25 ─────
@@ -448,7 +451,15 @@ export const SALT_PHASE_DOWN_RATE = 0.30  // OBBBA §70120 — cap reduced 30% o
 // Applies to C-Corps only; S-Corps, partnerships, and sole props are pass-through.
 export const C_CORP_TAX_RATE = 0.21
 
-export const SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX = 29000000
+// IRC §448(c)(1) gross-receipts test (the §163(j)(3) small-business exemption keys off it):
+// $25,000,000 indexed for inflation under §448(c)(4). Rev. Proc. 2023-34 (TY2024 $30M),
+// Rev. Proc. 2024-40 (TY2025 $31M), Rev. Proc. 2025-32 (TY2026 $32M). SEVENTH PASS A-1
+// (16 Sep 2026): the single un-indexed $29M figure (the TY2023 amount) is replaced by a
+// per-year table; the legacy export now resolves to the current tax year's amount.
+export const SEC163J_GROSS_RECEIPTS_THRESHOLD_BY_YEAR = { 2024: 30000000, 2025: 31000000, 2026: 32000000 }
+export const getSec448cThreshold = (year) =>
+  SEC163J_GROSS_RECEIPTS_THRESHOLD_BY_YEAR[Number(year)] ?? SEC163J_GROSS_RECEIPTS_THRESHOLD_BY_YEAR[CURRENT_TAX_YEAR]
+export const SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX = SEC163J_GROSS_RECEIPTS_THRESHOLD_BY_YEAR[CURRENT_TAX_YEAR]
 export const SEC163J_DISCLOSURE_TRIGGER_RATIO = 0.75
 export const DEPRECIATION_WARNING_RATIO = 0.50
 export const DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR = 100000

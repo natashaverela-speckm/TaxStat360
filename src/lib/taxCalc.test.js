@@ -276,12 +276,16 @@ describe('calcQBI SSTB phase-in', () => {
     expect(r.limitApplied).toBe('qbi')
     expect(r.caps).toEqual({ qbi: 2730, wage: 4095, income: 44000 })
   })
-  it('CHAR: SSTB sec179 (box11_12) reduces k1 income for proration', () => {
+  it('SPEC: SSTB sec179 (box11_12) reduces the SSTB share the phase-in haircut is measured on', () => {
+    // SEVENTH PASS F-4 (16 Sep 2026): the haircut base is the SSTB's QBI net of §179
+    // (k1 40,000 − 10,000 = 30,000), not its gross share. Single 2025, TI 222,300 → 50% of
+    // the way through the phase-in → applicable percentage 50%: adjusted QBI = 50,000 −
+    // 30,000 × 50% = 35,000 → 7,000. (Pinned 6,000 = the gross-share haircut.)
     const entities = [{ box17V_sstb: true, netProfit: 50000, own: 100, k1: 40000, box11_12: 10000, box12_13: 0, box17V_wages: 30000, box17V_ubia: 0 }]
     const r = calcQBI(50000, 222300, 0, { status: 'single', taxYear: 2025, entityQbiData: entities })
-    expect(r.deduction).toBe(6000)
+    expect(r.deduction).toBe(7000)
     expect(r.limitApplied).toBe('qbi')
-    expect(r.caps.qbi).toBe(6000)
+    expect(r.caps.qbi).toBe(7000)
   })
 })
 
@@ -401,7 +405,7 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.triggered).toBe(true)
     expect(r.reasonableCompAlert.ratio).toBe(18)
-    expect(r.reasonableCompAlert.message).toContain('Watson v. Commissioner')
+    expect(r.reasonableCompAlert.message).toContain('David E. Watson, P.C. v. United States')
   })
   it('CHAR: does not trigger when salary meets the 40% threshold', () => {
     const r = calcTaxReturn({ ...BASE, w2: 80000, k1Total: 120000, entities: [scorp(80000, 120000)] })
@@ -432,7 +436,7 @@ describe('calcTaxReturn TAX-01 — reasonableCompAlert', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     expect(r.reasonableCompAlert.message).toContain('30,000')
     expect(r.reasonableCompAlert.message).toMatch(/35.{1,10}45%/)
-    expect(r.reasonableCompAlert.message).toContain('Watson v. Commissioner')
+    expect(r.reasonableCompAlert.message).toContain('David E. Watson, P.C. v. United States')
   })
 })
 
@@ -1105,18 +1109,27 @@ describe('calcTaxReturn F6 — per-property material participation + §1.469-9(g
     expect(r.palSuspendedRental).toBe(50000)
   })
 
-  it('CHAR: §469(i) allowance applies to a Step-1 rental entity even with NO Step-2 lump', () => {
-    // Rentals now live only in Step 1. A non-REP active participant must still get the
-    // $25k allowance (phased: AGI $120k → 25000 - (120000-100000)*0.5 = 15000 allowed).
-    // Guards the engine change that gates active-participation on combinedRentalNet
-    // rather than the retired Step-2 lump.
+  it('SPEC: §469(i) allowance follows the Step-1 rental card\'s own "Active participant" attestation', () => {
+    // Rentals now live only in Step 1, and the card carries the attestation. A non-REP active
+    // participant gets the $25k allowance (phased: AGI $120k → 25000 - (120000-100000)*0.5 =
+    // 15000 allowed). SEVENTH PASS H-1 (16 Sep 2026): the retired top-level Step-2 flag no
+    // longer reaches a Step-1 card — normalizeF1040 restores it as TRUE on every record load,
+    // and it was overriding an UNCHECKED card.
     const r = calcTaxReturn({
       ...BASE, w2: 120000, k1Total: -40000, isActiveParticipant: true,
-      entities: [{ type: 'Real Estate (Schedule E)', own: 100, k1: -40000 }],
+      entities: [{ type: 'Real Estate (Schedule E)', own: 100, k1: -40000, isActiveParticipant: true }],
     })
     expect(r.rentalPassiveNet).toBe(-40000)
     expect(r.rentalAllowed).toBe(-15000)
     expect(r.palSuspendedRental).toBe(25000)
+    // Card unchecked, stale top-level flag true ⇒ no allowance; the whole loss is suspended.
+    const u = calcTaxReturn({
+      ...BASE, w2: 120000, k1Total: -40000, isActiveParticipant: true,
+      entities: [{ type: 'Real Estate (Schedule E)', own: 100, k1: -40000, isActiveParticipant: false }],
+    })
+    expect(u.rentalAllowed).toBe(0)
+    expect(u.palSuspendedRental).toBe(40000)
+    expect(u.rentalIsActiveParticipant).toBe(false)
   })
 
   it('CHAR: Step-1 per-entity materiallyParticipates=true (REP): that property nonpassive', () => {
@@ -1168,11 +1181,11 @@ describe('calcTaxReturn F5 — reasonable-comp advisory framing', () => {
     expect(m).toContain('fixed ratio')   // "...not a fixed ratio..."
   })
 
-  it('CHAR: retains required substrings: 35–45%, Watson v. Commissioner, and the salary amount', () => {
+  it('CHAR: retains required substrings: 35–45%, David E. Watson, P.C. v. United States, and the salary amount', () => {
     const r = calcTaxReturn({ ...BASE, w2: 30000, k1Total: 140000, entities: [scorp(30000, 140000)] })
     const m = r.reasonableCompAlert.message
     expect(m).toMatch(/35.{1,10}45%/)
-    expect(m).toContain('Watson v. Commissioner')
+    expect(m).toContain('David E. Watson, P.C. v. United States')
     expect(m).toContain('30,000')
   })
 })

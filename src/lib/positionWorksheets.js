@@ -169,7 +169,7 @@ export function buildPositionWorksheets(rec) {
         `Rev. Rul. 74-44 and the case law applying it use a facts-and-circumstances test.`,
         `There is NO published safe-harbour percentage — any ratio you have read about,`,
         `including the 35-45% practitioners often cite, is a heuristic and not authority.`,
-        `Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case.`,
+        `David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012) is the leading case.`,
         ``,
         `WHAT YOU NEED TO BE ABLE TO SHOW`,
         `  · The duties actually performed, and roughly the hours spent:      ________`,

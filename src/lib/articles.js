@@ -36,7 +36,7 @@ const _ssWageBase2026 = getTable(2026).ssWageBase            // 184500
 const _qbiThresh2026  = QBI_THRESHOLDS[2026]                 // { single:201750, mfj:403500, hoh:201750, mfs:201775 }
 const _qbiPhaseIn2026 = QBI_PHASE_IN_RANGE[2026]             // { single:75000,  mfj:150000, ... }
 const _qbiCeil2026 = {                                       // full phase-out = threshold + phase-in range
-  single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276775
+  single: _qbiThresh2026.single + _qbiPhaseIn2026.single,    // 276750
   mfj:    _qbiThresh2026.mfj    + _qbiPhaseIn2026.mfj,        // 553500
 }
 const _qbiMin2026 = QBI_MIN_DEDUCTION[2026]                  // 400
@@ -100,8 +100,8 @@ The difference is $12,240 in FICA taxes — but read that carefully. The savings
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
       {
-        heading: 'What Gets You Audited',
-        body: `Zero officer compensation, or compensation dramatically below the S-Corp's gross receipts, is the fact pattern the IRS's published guidance addresses most directly. That guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
+        heading: 'The Fact Patterns That Are Hardest to Defend',
+        body: `Zero officer compensation, or compensation dramatically below the S-Corp's gross receipts, is the fact pattern the IRS's published guidance addresses most directly. These are commonly cited compliance risk factors — how the IRS actually selects returns for examination is not published, and nothing here is a prediction that it will. That guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
 
 Three fact patterns that are hard to defend under that standard: (1) officer salary of zero with substantial distributions, (2) officer salary declining as profits grow (the opposite of what a real employee would experience), and (3) officer compensation below minimum wage for the hours worked.
 
@@ -343,13 +343,15 @@ Active participation is a lower bar than material participation — you do not n
         heading: 'Real Estate Professional Status: Unlimited Deductions',
         body: `IRC §469(c)(7) creates a far more powerful exception: Real Estate Professional (REP) status. If you qualify, your rental activities are reclassified from passive to non-passive, and rental losses can offset any income — wages, business income, anything.
 
-To qualify, two tests must both be satisfied:
-1. More than 750 hours in real property trades or businesses in which you materially participate.
-2. More than 50% of all your personal services during the year are in real property trades or businesses.
+To qualify, both tests in §469(c)(7)(B) must be satisfied:
+1. More than half of the personal services you perform in all trades or businesses during the year are performed in real property trades or businesses in which you materially participate (§469(c)(7)(B)(i)).
+2. More than 750 hours of service during the year in those same real property trades or businesses (§469(c)(7)(B)(ii)).
+
+Qualifying as a REP only reclassifies the activity for §469 purposes if you also materially participate in each rental — or make the election under Treas. Reg. §1.469-9(g) to treat all of your rental real estate interests as one activity, which is how most REPs meet material participation across a portfolio.
 
 The second test is the killer for most W-2 employees. If you work a 40-hour-per-week job, you spend approximately 2,080 hours annually at that job. To pass the 50% test, you would need to spend more time in real estate than at your job — essentially making real estate your primary occupation. Spending 800 hours on real estate while working 2,080 hours at a W-2 job fails the 50% test even though it clears the 750-hour hurdle.
 
-Spouses can aggregate hours in one of their names, but not split hours between them. A married couple where one spouse works part-time (say, 1,000 hours/year at a W-2 job) and spends 1,200 hours on real estate could qualify: the real estate hours (1,200) exceed both the 750-hour threshold and 50% of all services (1,200 of 2,200 total = 54.5%).`,
+On a joint return, hours cannot be combined: §469(c)(7)(B) (flush language) says the requirements are met only if EITHER SPOUSE SEPARATELY satisfies both tests. A married couple where one spouse works part-time (say, 1,000 hours/year at a W-2 job) and spends 1,200 hours on real estate could qualify on that spouse's own hours: 1,200 exceeds the 750-hour threshold and is more than half of that spouse's 2,200 total trade-or-business hours (54.5%). (Once the REP test is met by one spouse, material participation in the underlying activities is still measured counting BOTH spouses' participation under §469(h)(5).)`,
       },
       {
         heading: 'Documenting REP Status',

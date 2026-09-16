@@ -170,7 +170,11 @@ export function buildSimulatorBase(rec) {
   return {
     grossRevenue:      nf(b.grossRevenue) || 0,
     cogs:              nf(b.cogs) || 0,
-    operatingExpenses: Math.max(0, nf(b.operatingExpenses) - nf(b.officerSalary) - nf(b.depreciation) - (nf(pnl.advertising) || 0) - (nf(pnl.otherDeductions) || 0)),
+    // SEVENTH PASS M-5 (16 Sep 2026): biz.operatingExpenses is pnl.totalExpenses, which for an
+    // S-Corp INCLUDES the employer payroll tax (AUDIT H1). computeSimulatorScenario re-derives
+    // that tax from the salary, so it must be backed out here too — otherwise the baseline
+    // deducted it twice (Tracker K-1 $192,350 vs. simulator baseline $184,700 on the same record).
+    operatingExpenses: Math.max(0, nf(b.operatingExpenses) - nf(b.officerSalary) - nf(pnl.employerPayrollTax) - nf(b.depreciation) - (nf(pnl.advertising) || 0) - (nf(pnl.otherDeductions) || 0)),
     officerSalary:     nf(b.officerSalary) || 0,
     depreciation:      nf(b.depreciation) || 0,
     advertising:       nf(pnl.advertising) || 0,

@@ -50,9 +50,13 @@ describe('Phase 5 — AMT §1250/collectibles preferential-rate pass-through', (
     expect(withUnrecap - noUnrecap).toBe(20000)
   })
 
-  // SPEC: same mechanics, collectibles (§1(h)(4), flat 28%) instead of §1250 (flat
-  // 25%). Same base scenario, so the delta should be 200,000 x (0.28 - 0.15) = $26,000.
-  it('SPEC: §1(h)(4) — a $200k collectibles slice raises tentative minimum tax by exactly the 28%-vs-15% rate delta', () => {
+  // SPEC (SEVENTH PASS F-1, 16 Sep 2026): Form 6251 Part III has NO 28% line. Line 13 is
+  // Schedule D Tax Worksheet line 13 — net long-term gain LESS the 28%-rate and §1250 gain —
+  // so collectibles gain never leaves line 17 and is taxed at the AMT 26%/28% rates. Here
+  // line 12 = 434,050 and line 17 rises from 184,050 to 384,050: 60,450 more at 26% and
+  // 139,550 at 28% (the 244,500 breakpoint), less the 15% the 200,000 was paying:
+  // 15,717 + 39,074 − 30,000 = 24,791. (The pinned 26,000 assumed a flat 28% layer.)
+  it('SPEC: §1(h)(4) — a $200k collectibles slice is taxed inside line 17 at the AMT 26%/28% rates', () => {
     const args = {
       taxableIncome: 300000, saltAmount: 0, isoBargainElement: 200000,
       ltGain: 250000, qualDiv: 0,
@@ -61,7 +65,7 @@ describe('Phase 5 — AMT §1250/collectibles preferential-rate pass-through', (
     }
     const withColl = calcAMT({ ...args, collectibles: 200000 })
     const noColl    = calcAMT({ ...args, collectibles: 0 })
-    expect(withColl - noColl).toBe(26000)
+    expect(withColl - noColl).toBe(24791)
   })
 
   // SPEC: with the pass-through in place but no unrecap1250/collectibles supplied, the
@@ -110,12 +114,15 @@ describe('Phase 5 — AMT §1250/collectibles preferential-rate pass-through', (
     // §1250 layer is taxed at ORDINARY rates up to the top of the 24% bracket (L21 201,775)
     // and at 25% only above it: r1 L47 = 15,000 (L31) + 10,531.25 (L40 on L39 42,125) +
     // 41,024 (L44) = 66,555; r0 L47 = 44,167.5 + 5,020 = 49,188; delta 17,367 — not the
-    // flat-rate 20,000. The AMT side (Form 6251 Part III, flat 25% layer) is byte-for-byte
-    // unchanged: TMT moves by the same 10,000 it always did here, so the reported
-    // amt (= TMT − regular tax) is 130,447 → 123,080 and totalTax moves by 10,000.
+    // flat-rate 20,000.
+    // SEVENTH PASS F-1 (16 Sep 2026): Form 6251 Part III, line for line. r0: line 12 760,000
+    // (exemption fully phased out), line 17 460,000 → 123,910; lines 19/27 = regular ordinary
+    // 43,900 → 5,550 at 0%, 294,450 at 15% = 44,167.5; TMT 168,077.5 → amt 118,890. r1: line
+    // 13 100,000 + line 14 200,000; line 27 = Sch D TW line 21 = 201,775 → all 100,000 at 15%
+    // = 15,000; line 36 200,000 × 25% = 50,000; TMT 188,910 → amt 122,355.
     expect(r1.fedTax - r0.fedTax).toBe(17367)
-    expect(r0.amt).toBe(130447)
-    expect(r1.amt).toBe(123080)
-    expect(r1.totalTax).toBe(r0.totalTax + 10000)
+    expect(r0.amt).toBe(118890)
+    expect(r1.amt).toBe(122355)
+    expect(r1.totalTax).toBe(r0.totalTax + 20832)
   })
 })

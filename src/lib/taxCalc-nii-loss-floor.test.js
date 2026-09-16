@@ -64,9 +64,13 @@ describe('Phase 5 — NII: capital-loss floor moved to wrap the full sum, not ju
 
   // CHAR (regression guard): without material participation, the same 4797 gain still
   // flows into nii and combines correctly with the capped loss.
-  it('CHAR: composes correctly with an INCLUDED (non-materially-participated) Form 4797 gain', () => {
+  it('SPEC: composes correctly with an INCLUDED (non-materially-participated) Form 4797 gain', () => {
     const r = run({ w2: 250000, intInc: 20000, ltGain: -80000, f4797Inc: 50000, f4797MateriallyParticipated: false })
-    // nii = 20,000 (interest) + (-3,000 capped loss) + 50,000 (included 4797 gain) = 67,000
-    expect(r.nii).toBe(67000)
+    // SEVENTH PASS F-5 (16 Sep 2026): the §1231 gain is Schedule D line 11 — it nets against the
+    // −80,000 loss first (net −30,000 → −3,000 allowed, 27,000 carried), and Form 8960 line 5a
+    // is that Schedule D result. nii = 20,000 + (−3,000) = 17,000. (Pinned 67,000 taxed the
+    // §1231 gain in full while limiting the loss — the former 1211-1231-NETTING boundary.)
+    expect(r.nii).toBe(17000)
+    expect(r.capLossCarryoverLT).toBe(27000)
   })
 })

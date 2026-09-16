@@ -126,7 +126,7 @@ describe('C2 — the substance is right', () => {
     expect(rep.text).toMatch(/§469\(c\)\(7\)\(B\)/)
     expect(rep.text).toMatch(/§1\.469-9\(g\)/)
     expect(comp.text).toMatch(/Rev\. Rul\. 74-44/)
-    expect(comp.text).toMatch(/Watson v\. Commissioner, 668 F\.3d 1008/)
+    expect(comp.text).toMatch(/David E\. Watson, P\.C\. v\. United States, 668 F\.3d 1008/)
     expect(k1.text).toMatch(/§1366\(d\)\(1\)/)
     expect(k1.text).toMatch(/§465/)
     expect(k1.text).toMatch(/§1\.469-5T\(a\)/)
