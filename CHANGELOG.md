@@ -12,6 +12,140 @@ record of work that predates this changelog.
 
 ---
 
+## Seventh pass — independent fresh-eyes audit (engine F-1–F-9, wiring H-1–H-4 / M-1–M-8, copy A/B) — September 16, 2026
+
+Three reviewers who had not seen the prior passes each took one surface — the engine (with
+a hand-built reference calculator), the UI wiring (Step 1 → Step 2 → saved record → Dashboard
+→ simulator → compare modal), and the copy / parameters / citations. Every finding below was
+reproduced against master before it was fixed; the reproductions became the SPEC tests.
+
+### Fixed — engine (`src/lib/taxCalc.js`; tests in `taxCalc-seventh-pass.test.js`, +29)
+- **F-1 (HIGH) — Form 6251 Part III, line for line.** `calcAMT` positioned the 0% / 15%
+  capital-gain bands against the AMT ordinary base (line 17). The form takes lines 19 / 27 —
+  the amount taxed at ordinary rates on the REGULAR return (Schedule D Tax Worksheet line 21 /
+  QDCGTW line 5) — so the AMT exemption can never manufacture 0%-band room the regular return
+  never had. 2025 single, W-2 $75,750 + LTCG $100,000 + ISO bargain element $50,000: engine AMT
+  $70; Form 6251 $1,675. Two smaller corrections fall out of following the form: collectibles
+  gain is not in line 13 and is taxed inside line 17 at 26%/28% (no 28% line exists), and the
+  ceiling is line 39 (all-AMT-rate on line 12), not the regular-bracket increment. New helper
+  `calcSchDOrdinaryLine21()`; `calcAMT` accepts `regularOrdinaryTaxable`; the old
+  `calcPreferentialTax(..., { amt: true })` mode is removed. Four pinned CHAR/SPEC values that
+  encoded the old stacking were re-derived from the form (`taxCalc-engine`, `taxCalc-ccorp-audit`,
+  `taxCalc-amt-1250-collectibles`).
+- **F-2 (HIGH) — passive K-1 LOSS suspended under §469.** A limited partner's / passive
+  shareholder's K-1 loss was deducted in full (2025 single, W-2 $200,000 + LP K-1 −$50,000:
+  AGI $150,000, §469 says $200,000). It is now allowed only against net passive rental income
+  (Form 8582 line 2b vs. 1a) and the remainder is suspended: added back to AGI, excluded from
+  the §469(i) MAGI, the §461(l) figure and the current-year QBI base, backed out of rental NII
+  (Reg. §1.1411-4(g)(8)). New outputs `passiveK1LossSuspended`, `passiveK1LossAbsorbedByRental`;
+  Step 2 shows a "§469 Passive K-1 Loss Suspended" row and callout. Still open: a prior-year
+  suspended K-1 loss input (KNOWN_LIMITATIONS → PAL-K1-CARRYFORWARD).
+- **F-3 (MED) — Form 8582 line 1c.** The prior-year unallowed rental loss was applied only
+  against a PROFITABLE rental; in a loss year it was ignored. It now joins line 1d before the
+  §469(i) allowance is measured (2025 MFJ, W-2 $90,000, rental −$10,000 + prior PAL $10,000:
+  $20,000 allowed, AGI $70,000 — was $80,000). The per-property branch had never consumed the
+  carryforward at all while reporting it "applied"; both branches now do (nonpassive REP
+  portfolio: §469(f)(1)(A)). `palCarryforwardApplied` / `Remaining` are derived after the
+  branches (current-year loss deemed allowed first).
+- **F-4 (MED) — §199A SSTB haircut base.** `_calcQBI` measured the phase-in haircut on the
+  SSTB's GROSS share; it is the SSTB's QBI — net of §179 and (for an SE business) of the
+  ½-SE / SEHI / retirement deductions attributable to it (the same `qbiShareAdjusted` the
+  per-business allocation already used). 2025 HOH, SSTB Schedule C $260,000: $11,881 → $12,601.
+- **F-5 (MED) — Schedule D line 11.** The long-term slice of a net §1231 gain now joins the LT
+  pool before the §1211(b) limit (2026 single, W-2 $100,000, LT carryforward $20,000, STCG
+  $5,000, §1231 $8,000: AGI $105,000 → $97,000; LT carryover $12,000 → $4,000). The §1231(c)
+  ordinary slice stays ordinary; `f4797Inc` still feeds §461(l) unchanged; NII reads the netted
+  result. Closes LIMITATION 1211-1231-NETTING.
+- **F-6 (LOW) — §1402(b)(2).** No SE tax when net earnings from self-employment (the 92.35%
+  figure) are under $400 (Schedule SE line 4c). New constant `SE_MIN_NET_EARNINGS`.
+- **F-7 (LOW) — Capital Loss Carryover Worksheet.** The §1211(b) allowance counts as used only
+  to the extent it reduced POSITIVE taxable income (2025 single, W-2 $10,000, STCL −$10,000:
+  carryover $7,000 → $10,000).
+- **F-8 (LOW) — §55(d)(3) MFS add-back.** AMTI increased by the lesser of 25% of the excess over
+  the full-phase-out point or the MFS exemption (2024 MFS, AMTI $1,000,000: TMT $286,358).
+- **F-9 (LOW) — input hardening.** `w2`, `k1Total`, `intInc`, `divInc`, `qualDiv`, `taxableSS`,
+  `iraIncome` are coerced with the comma-safe `nf()` up front (a "100,000" string produced NaN
+  through the whole return); W-2 floored at 0. The field manifest's `float` normalization is
+  now comma-safe too (`parseFloat("5,000")` was 5).
+- **M-2 — §162(l)(5)(A).** The SEHI cap read the entity's §199A W-2 total (`box17V_wages`, all
+  employees) before the shareholder's OWN salary; a $60,000-salary shareholder of a $300,000-
+  payroll company deducted a $70,000 premium in full. Own salary first; the §199A figure only
+  as a last fallback.
+- **H-1 — §469(i) active participation.** The retired top-level Step-2 flag (restored as TRUE
+  by `normalizeF1040` on every record load) was overriding an UNCHECKED rental card and granting
+  the $25,000 allowance. The top-level flag now governs only the retired Step-2 lump; Step-1
+  rental cards carry their own attestation. `Dashboard` single-entity card and both save paths
+  carry `biz.isActiveParticipant` / `biz.isREP`.
+
+### Fixed — wiring (tests in `seventh-pass-surfaces.test.js`, +14; `seventh-pass-taxreturn.test.jsx`, +7)
+- **H-2 — installment boxes credited and persisted.** Q1–Q4 fed only the §6654 timing schedule;
+  a filer who typed them and left the total blank saw a balance due equal to the whole
+  liability. The engine now credits the LARGER of the lump and the box sum
+  (`estimatedPaymentsCredited`); the boxes are in the field manifest, the auto-save payload, the
+  saved record and `toEngineContext`. Caption under the boxes says so.
+- **H-3 — saved record shape.** `TaxReturn.buildRecord.f1040` dropped `mortgageInt` /
+  `charitableContr` / `medicalAmt`, `f4797MateriallyParticipated`, the installment boxes and
+  the year, and stored the RAW itemized lump (blank whenever the sub-fields are used) — an
+  itemizer reloaded onto the standard deduction. It now mirrors the auto-save payload
+  field-for-field and stores the engine-ready itemized figure.
+- **H-4 — C-Corp layer on every surface.** The shared selector (Dashboard record cards,
+  Step-1 provisional card, Aria grounding, AIAnalysis gating) had no corporate layer — it taxed
+  the officer salary only. New `utils/ccorpLayer.js` (`ccorpLayerForReturn`,
+  `mergeCcorpIntoResult`) is used by `TaxReturn`, `toEngineContext` and `calcSelector`;
+  summary keys `ccorpCorpTax`, `ccorpDividends`.
+- **M-1 — sticky REP.** `TaxReturn` seeded `isREP` once from the saved flag it had itself
+  written, so unchecking REP on the card never reached the engine. REP status (and the
+  election, §469(c)(7)(B) hours, at-risk override and prior PAL — **M-3 / M-4**) are now derived
+  from the rental cards on every render by the new `utils/rentalPortfolio.js`, on every surface
+  (`toEngineContext` previously never carried the hours and read prior PAL / election only from
+  the Step-2 copy).
+- **M-5 — simulator base** backs the S-Corp employer payroll tax out of `operatingExpenses`
+  (it was re-derived from the salary and deducted twice: baseline K-1 $184,700 vs. Tracker
+  $192,350).
+- **M-6 — compare modal base** adds the employer payroll tax back with the salary, so the
+  S-Corp scenario at the same salary reproduces the Tracker K-1.
+- **M-7 — YTD mode.** The C-Corp layer is computed on ANNUALIZED profit / salary (the 21% was
+  computed on raw YTD profit under an annualized headline); the Step-2 waterfall's income rows
+  (capital gains, §1231, interest & dividends) show the annualized entries so the column foots.
+- **M-8 — S-Corp ⇄ C-Corp type change** with the P&L panel closed re-derives the employer
+  payroll tax for the new type (0 for a C-Corp, whose layer deducts it itself) and moves the
+  difference through `totalExpenses` / `netProfit`; `passiveShareholder` is cleared when the
+  type leaves S-Corp.
+
+### Fixed — copy, parameters, citations
+- **A-1** §448(c) gross-receipts threshold indexed per year (`SEC163J_GROSS_RECEIPTS_THRESHOLD_BY_YEAR`:
+  $30M / $31M / $32M; Rev. Proc. 2023-34 / 2024-40 / 2025-32) — was a single $29M (TY2023).
+- **A-2–A-8** §199A thresholds / phase-in ranges, SEP / Solo 401(k) maxima and §1211(b) figures
+  in tips bound to the year tables instead of literals.
+- **B-8** "Watson v. Commissioner" → *David E. Watson, P.C. v. United States*, 668 F.3d 1008
+  (8th Cir. 2012), everywhere (engine message, compare modal, position worksheet, AI cards,
+  constants comments, guard tests).
+- **B-1** QBI loss carryforward is a single pooled amount apportioned next year (Reg.
+  §1.199A-1(d)(2)(iii)(B)), not per-entity. **B-2** Form 7203 / Reg. §1.1367-1(f) ordering.
+  **B-3** 100% bonus depreciation keys off property ACQUIRED after Jan 19, 2025. **B-4**
+  Schedule C line references. **B-5** Form 8582 line 1c / 2c. **B-6** ISO adjustment is Form
+  6251 line 2i. **B-7** collectibles field: net GAIN only. **B-9/B-10** audit-selection framing
+  replaced with "commonly cited compliance risk factors" (AIAnalysis, articles). **B-11/B-12**
+  §469(c)(7)(B) tests (both prongs, "in which you materially participate", either spouse alone;
+  §1.469-9(g) election). **B-17** REP status alone does not exclude rental income from NIIT
+  (§1411(c)(1)(A)(i); Reg. §1.1411-4(g)(7)). **B-18** Solo 401(k) adoption vs. deferral-election
+  timing. **B-21** reasonable-comp banner softened to "a ratio screen, not a determination".
+  **B-22** Form 7203 Part III column (b). **B-23** SALT cap shown halved for MFS. **B-24**
+  §1368(c)(2) E&P dividends are qualified dividends that do not reduce basis. **B-26** Form 8582
+  is required only with a passive loss, a prior-year unallowed loss or a §469(i) claim.
+  **B-20 / B-25** FAQ ("What does TaxStat360 not calculate?", `Landing.jsx` + `index.html`
+  JSON-LD, byte-identical): a K-1 §179 entry IS checked against the dollar cap, phase-out and
+  business-income limit (the depreciation field is not); a passive K-1 LOSS is now suspended
+  under §469 except to the extent of passive rental income; a prior-year suspended K-1 loss is
+  not yet an input.
+
+### Verified correct, no change
+- All TAX_TABLES parameters for 2024–2026 (brackets, standard deductions, LTCG breakpoints,
+  AMT exemptions / phase-outs, §199A thresholds, SS wage base, retirement limits, §179, SALT,
+  §461(l), CTC) against Rev. Proc. 2023-34 / 2024-40 / 2025-32, Notice 2025-67 and P.L. 119-21.
+
+---
+
 ## Sixth pass — open items from the fifth read (quarterly timing, passive S-Corp, citations) — September 15, 2026
 
 ### Changed — estimated-payment recommendation now respects the calendar (`taxCalc.js`, `TaxReturn.jsx`, `Dashboard.jsx`, `calcSelector.js`)

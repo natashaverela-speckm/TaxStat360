@@ -138,7 +138,17 @@ carryforwards as a conservative planning default. A confirmed pre-2018 NOL is
 not subject to the cap; such a filer's actual deductible amount may be
 slightly higher than shown. (See `NOL_CARRYFORWARD_CAP_RATE` in constants.js.)
 
-## LIMITATION 1211-1231-NETTING — capital losses do not net against §1231/f4797 gains
+## LIMITATION 1211-1231-NETTING — RESOLVED (seventh pass, 16 Sep 2026)
+
+**Closed by the seventh pass (F-5).** The long-term slice of a net §1231 gain (`f4797PrefGain`,
+i.e. the gain after the §1231(c) five-year-lookback recharacterization) now joins the
+Schedule D long-term pool before the §1211(b) limit is measured, exactly as Schedule D line 11
+carries it. The §1231(c) ordinary slice and any §1231 loss stay in ordinary income; the raw
+`f4797Inc` still feeds the §461(l) business-gain figures; the NII base reads the netted
+Schedule D result (Form 8960 line 5a). Tests: `taxCalc-seventh-pass.test.js` (F-5).
+Historical text retained below.
+
+### [historical] LIMITATION 1211-1231-NETTING — capital losses do not net against §1231/f4797 gains
 
 Added Jul 7, 2026 with the §1211(b) capital-loss limitation fix (audit F10 /
 Pass-6 P6-1). The engine now nets short- and long-term capital pools per
@@ -761,11 +771,14 @@ routes the entity to the passive variant, so the type IS selectable. Status of t
 requirements as of the fifth read (15 Sep 2026, external calc audit):
 
 1. ~~Make the passive variant selectable~~ — done (limitedPartner attestation).
-2. **Suspend passive K-1 LOSSES under §469 — still NOT modeled.** A passive partnership *loss*
-   flows through as fully deductible against non-passive income instead of being suspended on
-   Form 8582. Understates tax in that fact pattern; disclosed in the checkbox InfoTip. The
-   fifth read deliberately floors the passive K-1 pool at $0 so a K-1 loss is not ALSO used to
-   shelter passive rental income or reduce NII (which would double-count it).
+2. ~~Suspend passive K-1 LOSSES under §469~~ — **fixed (seventh pass, 16 Sep 2026, F-2).** A
+   passive K-1 loss is allowed only against net passive rental income (Form 8582 line 2b vs.
+   line 1a, after the prior-year carryforward) and the remainder is suspended and added back
+   to AGI, excluded from the §469(i) MAGI, the §461(l) figure and the current-year QBI base,
+   and reported as `passiveK1LossSuspended` (Step 2 shows a row and a callout). **Still open:**
+   a PRIOR-YEAR suspended K-1 loss carryforward is not an input (the rental cards carry
+   `priorPAL` for Form 8582 line 1c only), and the §469(g) release on disposition is not
+   modeled. Tests: `taxCalc-seventh-pass.test.js` (F-2).
 3. ~~Confirm NIIT treatment~~ — **fixed (F-1).** Positive passive K-1 net (share − §179) is
    net investment income (§1411(c)(1)(A)(ii), (c)(2)(A)); `passiveK1NII` in the engine output.
    Also **fixed (F-2)**: that income absorbs passive rental losses before the §469(i)
@@ -782,9 +795,23 @@ limited partner: the Box 1 share is NII (§1411(c)(2)(A)), absorbs passive renta
 §469(d)(1), and is excluded from the §199A(i) "active" floor gate. Carried into the saved
 record (`biz.passiveShareholder`), the Dashboard card and the What-If simulator. Default
 unchecked = nonpassive (an owner-employee drawing officer comp almost always materially
-participates). What remains: a passive shareholder's K-1 LOSS is still deducted in full rather
-than suspended (same boundary as PASSIVE-PARTNER item 2); the FAQ now says so.
+participates). Seventh pass (16 Sep 2026): a passive shareholder's K-1 LOSS is now suspended
+under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2); the prior-year
+carryforward input remains open there.
 
+
+## SEVENTH PASS — items verified and deliberately left open (16 Sep 2026)
+
+- **PAL-K1-CARRYFORWARD:** no input for a prior-year suspended passive K-1 loss (Form 8582
+  Worksheet 5 / line 2c). The rental cards' `priorPAL` is line 1c (rental) only.
+- **AMT-COLLECTIBLES:** Form 6251 has no 28% line — collectibles gain now sits in line 17 at
+  the 26%/28% AMT rates (was a flat 28% layer). Matches the form; noted because it moved.
+- **EST-PAYMENTS-CREDIT-RULE:** when both the "Estimated Tax Payments Made" total and the
+  Q1–Q4 boxes are filled, the LARGER of the total and the box sum is credited (the boxes are
+  the itemized form of the total). Disclosed under the boxes.
+- **CAP-LOSS-WORKSHEET-QBI:** the Capital Loss Carryover Worksheet line 1 is taken as taxable
+  income after the §199A deduction; the deduction is $0 whenever the worksheet binds, so no
+  divergence is expected.
 
 ## AUTH-SESSION — login succeeds but /auth/me returns 401 (independent review, Jul 31 2026)
 
