@@ -135,6 +135,7 @@ export function calcDashboard(biz, f1040) {
     // FIFTH READ F-3 (15 Sep 2026): same default as Step 2 — blank ⇒ the owner's own
     // S-Corp / C-Corp officer salary is attributed to them (see utils/w2OwnForSE.js).
     w2OwnForSE: resolveW2OwnForSE({ status: fs, entered: f1040.w2OwnForSE, officerW2: (isSC || isCCorp) ? sal : 0 }),
+    asOfDate: new Date().toISOString().slice(0, 10),   // follow-up (15 Sep 2026): remaining-installment timing
   }
 
   // M2 (audit F-05): ARCHITECTURE §5 guard — both calcTaxReturn() calls below spread
@@ -174,7 +175,9 @@ export function calcDashboard(biz, f1040) {
     }
   }
 
-  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal }] : []
+  // Follow-up (15 Sep 2026): thread the passive attestations (limited partner / passive S-Corp
+  // shareholder) so this card's SE tax and NIIT agree with Step 2 for the same record.
+  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
   // D-10 (dead-code audit): numeric rule now comes from the engine's
@@ -435,6 +438,8 @@ export default function Dashboard() {
         grossRevenue: pnl.grossRevenue != null ? String(pnl.grossRevenue) : rec.biz.grossRevenue != null ? String(rec.biz.grossRevenue) : '',
         operatingExpenses: pnl.totalExpenses != null ? String(pnl.totalExpenses) : rec.biz.operatingExpenses != null ? String(rec.biz.operatingExpenses) : '',
         officerSalary: pnl.officerSalary != null ? String(pnl.officerSalary) : rec.biz.officerSalary != null ? String(rec.biz.officerSalary) : '',
+        limitedPartner: !!rec.biz.limitedPartner,        // follow-up (15 Sep 2026)
+        passiveShareholder: !!rec.biz.passiveShareholder,
       }))
     }
     const saved1040 = rec.biz ? (rec.f1040 || {}) : {
@@ -925,7 +930,7 @@ export default function Dashboard() {
                     <div style={{ padding: '10px 18px', minWidth: 130 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.5px', marginBottom: 3 }}>QUARTERLY EST.</div>
                       {quarterlyFinal > 0 ? (
-                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterlyFinal))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>/qtr</span></div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: N }}>{fmt(Math.round(quarterlyFinal))}<span style={{ fontSize: 11, fontWeight: 500, color: SL }}>{engOk && eng.installmentsRemaining === 0 ? " due now" : engOk && eng.installmentsRemaining > 0 ? `/each · ${eng.installmentsRemaining} left` : "/qtr"}</span></div>
                       ) : (
                         <div style={{ fontSize: 12, color: '#64748B' }}>—</div>
                       )}

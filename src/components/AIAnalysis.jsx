@@ -2211,6 +2211,9 @@ function SimulatorModal({ onClose, rec }) {
     taxYear,
     entities: rec?.entities || [],
     limitedPartner: simLimitedPartner,   // §1402(a)(13) — see note above
+    // Follow-up (15 Sep 2026, NIIT-SCORP-PASSIVE): carry the S-Corp passive-shareholder
+    // attestation so the simulator's NIIT / §469 netting match Step 2.
+    passiveShareholder: isSCorpEntity(entity) && (rec?.entities || []).some(e => e && isSCorpEntity(e?.type) && e.passiveShareholder === true),
   }
   // SIM-1 REPAIRED (Batch 7): scenarios run through the engine via the same
   // translation the Dashboard Tracker uses (see aiAnalysisTaxMath.js). The guard

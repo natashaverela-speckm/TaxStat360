@@ -376,6 +376,9 @@ export default function TaxReturn() {
       // attributed (it is "your W-2 wages from this entity" by the Step-1 data model);
       // a typed amount always wins. See utils/w2OwnForSE.js.
       w2OwnForSE: resolveW2OwnForSE({ status: filingStatus, entered: w2OwnForSE, officerW2: officerW2Total }),
+      // Follow-up (15 Sep 2026): spread the estimated-payment recommendation over the
+      // §6654 installment dates still ahead of today (engine: installmentsRemaining).
+      asOfDate: new Date().toISOString().slice(0, 10),
       // rentalNet (the old Step-2 lump) is gone — rentals flow from Step-1 Real Estate
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
@@ -554,6 +557,10 @@ export default function TaxReturn() {
         officerSalary:     String(nf(entities?.[0]?.pnl?.officerSalary) || 0),
         depreciation:      String(nf(entities?.[0]?.pnl?.depreciation) || 0),
         pnl:               entities?.[0]?.pnl || {},
+        // Follow-up (15 Sep 2026): carry the passive attestations so the Dashboard card
+        // (single-entity summary) computes SE tax / NIIT the way Step 2 does.
+        limitedPartner:    !!entities?.[0]?.limitedPartner,
+        passiveShareholder: !!entities?.[0]?.passiveShareholder,
       },
       f1040: {
         filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
@@ -763,11 +770,6 @@ export default function TaxReturn() {
   }
 
   const YEARS = SUPPORTED_TAX_YEARS
-  const ESTIMATE_DUE_DATES = {
-    2024: 'Apr 15, 2024 · Jun 17, 2024 · Sep 16, 2024 · Jan 15, 2025',
-    2025: 'Apr 15, 2025 · Jun 16, 2025 · Sep 15, 2025 · Jan 15, 2026',
-    2026: 'Apr 15, 2026 · Jun 15, 2026 · Sep 15, 2026 · Jan 15, 2027',
-  }
   const FS_OPTIONS = [
     { value: 'single', label: 'Single' },
     { value: 'mfj',    label: 'Married Filing Jointly' },
@@ -2476,13 +2478,28 @@ export default function TaxReturn() {
           {hasResult && result.quarterlyRecommended > 0 && (
             <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
               <div style={{ fontWeight: 700, color: N, fontSize: 14, marginBottom: 10 }}>Quarterly Estimates</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: SL }}>Recommended per quarter</span>
+              {/* Follow-up (15 Sep 2026): the recommendation is spread over the installment dates
+                  still ahead (engine installmentsRemaining), and the safe-harbor MINIMUM is shown
+                  as its own line so a filer relying on the 100%/110% prior-year harbor is not told
+                  to send the full balance. */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: SL }}>
+                  {result.installmentsRemaining > 0
+                    ? `To cover the full estimated balance — per remaining installment (${result.installmentsRemaining} of 4 left)`
+                    : 'To cover the full estimated balance — all installment dates have passed, pay now'}
+                </span>
                 <span style={{ fontSize: 20, fontWeight: 800, color: N }}>{fmt(result.quarterlyRecommended)}</span>
               </div>
+              {result.installmentsPassed > 0 && result.installmentsRemaining > 0 && (
+                <div style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+                  {result.installmentsPassed} installment date{result.installmentsPassed > 1 ? 's' : ''} for {taxYear} already passed — the shortfall is spread over the {result.installmentsRemaining} remaining. Earlier-quarter exposure is shown in the schedule below.
+                </div>
+              )}
               {result.safeHarborPriorYear != null && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
-                  <strong>Safe harbor:</strong> Pay {fmt(result.safeHarborQuarterly)}/qtr (min of 90% current-year or {isHighIncome ? '110%' : '100%'} prior-year tax = {fmt(result.safeHarborMinimum)}) to avoid IRC §6654 penalties.
+                  <strong>Safe-harbor minimum:</strong> {result.safeHarborQuarterly > 0
+                    ? <>pay {fmt(result.safeHarborQuarterly)} per remaining installment ({result.installmentsRemaining > 0 ? `${result.installmentsRemaining} left` : 'due now'}) to reach {fmt(result.safeHarborMinimum)} — the lesser of 90% of this year&apos;s tax or {isHighIncome ? '110%' : '100%'} of last year&apos;s — and avoid IRC §6654 penalties. Anything above that toward the full balance is optional until April 15.</>
+                    : <>already met — {fmt(result.totalPayments)} paid against a {fmt(result.safeHarborMinimum)} requirement. No further estimated payments are needed to avoid §6654 penalties; the remaining balance is due with the return.</>}
                   {Array.isArray(result.installmentSchedule) && (
                     <div style={{ marginTop: 8 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
@@ -2517,7 +2534,12 @@ export default function TaxReturn() {
                 </div>
               )}
               <div style={{ fontSize: 13, color: SL, marginTop: 8, lineHeight: 1.5 }}>
-                Due: {ESTIMATE_DUE_DATES[taxYear] || 'Apr 15 · Jun 15 · Sep 15 · Jan 15'}
+                Due: {(NEXT_DUE_DATES[taxYear] || ['Apr 15', 'Jun 15', 'Sep 15', 'Jan 15']).map((d, i) => (
+                  <span key={i} style={i < (result.installmentsPassed || 0) ? { textDecoration: 'line-through', opacity: 0.6 } : { fontWeight: i === (result.installmentsPassed || 0) ? 700 : 400 }}>
+                    {d}{i < 3 ? ' · ' : ''}
+                  </span>
+                ))}
+                {result.installmentsRemaining > 0 && result.nextDueDate && <> — next: <strong>{getNextDueDate()}</strong></>}
               </div>
             </div>
           )}
