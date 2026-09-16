@@ -177,7 +177,10 @@ export function calcDashboard(biz, f1040) {
 
   // Follow-up (15 Sep 2026): thread the passive attestations (limited partner / passive S-Corp
   // shareholder) so this card's SE tax and NIIT agree with Step 2 for the same record.
-  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder }] : []
+  // SEVENTH PASS H-1 (16 Sep 2026): the rental card's own active-participation attestation now
+  // governs the §469(i) allowance (the retired top-level flag no longer reaches a card), so the
+  // single-entity card carries it too — otherwise a rental loss here would always be suspended.
+  const entities = isPassthru ? [{ type: entityType, k1, own: 100, officerW2: sal, limitedPartner: !!biz.limitedPartner, passiveShareholder: !!biz.passiveShareholder, isActiveParticipant: !!biz.isActiveParticipant, isREP: !!biz.isREP }] : []
   const r = calcTaxReturn({ ...baseInput, entities, w2: w2 + sal, k1Total: k1, divInc: 0, iraIncome: otherInc })
 
   // D-10 (dead-code audit): numeric rule now comes from the engine's
@@ -440,6 +443,8 @@ export default function Dashboard() {
         officerSalary: pnl.officerSalary != null ? String(pnl.officerSalary) : rec.biz.officerSalary != null ? String(rec.biz.officerSalary) : '',
         limitedPartner: !!rec.biz.limitedPartner,        // follow-up (15 Sep 2026)
         passiveShareholder: !!rec.biz.passiveShareholder,
+        isActiveParticipant: !!rec.biz.isActiveParticipant,   // SEVENTH PASS H-1
+        isREP: !!rec.biz.isREP,
       }))
     }
     const saved1040 = rec.biz ? (rec.f1040 || {}) : {

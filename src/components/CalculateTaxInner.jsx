@@ -31,7 +31,7 @@ import { calcEmployerFICA } from '../lib/taxCalc.js'
 // AUDIT (Sep 2026): provider P&L responses are interpreted by a pure, tested
 // function — a failed sync used to be written into the record as a successful one.
 import { interpretProviderPnL } from '../lib/integrationPnL.js'
-import { INTEGRATIONS, API_BASE_URL, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
+import { INTEGRATIONS, API_BASE_URL, DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, STEP3_LABEL, FINANCIAL_LABELS, SCORP_REASONABLE_COMP_RATIO_THRESHOLD, SCORP_REVENUE_SALARY_THRESHOLD, C_CORP_TAX_RATE, getSec448cThreshold, SEC163J_DISCLOSURE_TRIGGER_RATIO, DEPRECIATION_WARNING_RATIO, DEPRECIATION_WARNING_MIN_RECEIPTS_FLOOR } from '../lib/constants.js'
 // M4 (audit F-06): all integration storage access routes through these helpers —
 // no raw localStorage/sessionStorage with integrationKey() remains in this file.
 import { readIntegrationField, writeIntegrationField, removeIntegrationField, purgeLegacyIntegrationTokens, INTEGRATION_PROVIDERS } from '../utils/integrations.js'
@@ -43,7 +43,7 @@ import { selectTaxSummary } from '../utils/calcSelector.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, entityLossNeedsBasisEntry, getEntityPnlNet, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
-import { sumK1FlowThrough, QBI_THRESHOLDS, calcReasonableCompCore } from '../lib/taxCalc.js'
+import { sumK1FlowThrough, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, calcReasonableCompCore } from '../lib/taxCalc.js'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
 // AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
@@ -193,8 +193,8 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
         </div>
         <CompSources color="#78350F">
           The IRS can recharacterize distributions as wages (with back FICA and penalties) when an
-          owner-employee's salary is unreasonably low. Key authority: Watson v. Commissioner,
-          668 F.3d 1008 (8th Cir. 2012); Treas. Reg. §1.162-7; Rev. Rul. 74-44. The 35–45% range is a
+          owner-employee's salary is unreasonably low. Key authority: David E. Watson, P.C. v.
+          United States, 668 F.3d 1008 (8th Cir. 2012); Treas. Reg. §1.162-7; Rev. Rul. 74-44. The 35–45% range is a
           practitioner heuristic, not a safe harbor — reasonable compensation depends on the value of services
           you provide.
         </CompSources>
@@ -204,7 +204,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
 
   return (
     <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, padding: '12px 14px', marginTop: 10, fontSize: 13 }}>
-      <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Officer Compensation Looks Reasonable</div>
+      <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✅ Salary Ratio Is Within the Range We Screen For</div>
       <div style={{ color: '#166534', lineHeight: 1.6 }}>
         {/* EXT-9 (Round 4, pre-launch fresh-eyes audit — Finding 7): "% of total officer
             compensation" was self-referential (salary IS the officer compensation figure).
@@ -216,8 +216,11 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
             Say which side of the band the salary is on. */}
         Your salary is {reasonableComp.ratioPct}% of your total S-Corp compensation (salary + K-1
         income) — {reasonableComp.ratioPct > 45
-          ? 'above the 35–45% range practitioners commonly cite, so the reasonable-compensation question does not arise (the trade-off is FICA on the higher salary)'
-          : 'within the 35–45% range practitioners commonly cite'}. Make sure FICA payroll taxes are
+          ? 'above the 35–45% range practitioners commonly cite (the trade-off is FICA on the higher salary)'
+          : 'within the 35–45% range practitioners commonly cite'}. This is a ratio screen only, not a
+        determination that the salary is reasonable: under Treas. Reg. §1.162-7 that turns on the value
+        of the services you actually performed, and there is no published safe-harbor percentage. Keep
+        documentation supporting the figure, and make sure FICA payroll taxes are
         withheld and remitted (quarterly Form 941).
         {watsonWarning && (
           <> One thing to watch: your salary is <strong>{(revRatio * 100).toFixed(0)}%</strong> of gross
@@ -227,7 +230,7 @@ function ReasonableCompIndicator({ officerSal, netProfit, grossRevenue, isSCorp 
       </div>
       {watsonWarning && (
         <CompSources color="#166534">
-          Treas. Reg. §1.162-7; Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). Salary-to-receipts
+          Treas. Reg. §1.162-7; David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012). Salary-to-receipts
           is one factor the IRS weighs alongside the total-compensation ratio.
         </CompSources>
       )}
@@ -807,7 +810,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
         <div>
           <label style={lbl}>
             {isRE ? FINANCIAL_LABELS.grossRentsReceivedField : FINANCIAL_LABELS.grossReceiptsField}
-            <InfoTip label={isRE ? 'Gross rents received' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts, not Line 3 gross profit. Do NOT net out officer compensation — enter that separately below.'} />
+            <InfoTip label={isRE ? 'Gross rents received' : 'Gross receipts'} text={isRE ? 'Total gross rents received from this rental property before any expenses (Schedule E, line 3).' : 'Total gross receipts before any deductions — everything the business took in, before any expenses. For S-Corps and partnerships, enter the entity\'s gross receipts (your taxable share flows via K-1, not the full gross receipts amount). For Schedule C filers, enter Line 1 gross receipts — not Line 5 gross profit and not Line 31 net profit. Do NOT net out officer compensation — enter that separately below.'} />
           </label>
           <Step1MoneyInput value={manRev} onChange={setManRev} placeholder="0" style={inp} allowNegative={false} ariaLabel={isRE ? FINANCIAL_LABELS.grossRentsReceivedField : 'Gross receipts'} />
         </div>
@@ -841,7 +844,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
                 category as the pre-existing hardcoded 21% C-corp rate at ~line 712 and ~2891,
                 which this pass also did not touch. */}
             Depreciation — total deduction this year
-            <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. Bonus depreciation is 100% (permanent) for property placed in service after Jan 19, 2025 — this applies to 2025, 2026, and all later years, not just 2025. Property placed in service on or before Jan 19, 2025 used the TCJA phase-down rate for its year: 40% for 2025 (through Jan 19), 60% for 2024, 80% for 2023 (IRC §168(k)(6) as amended by OBBBA §70301).'} wide />
+            <InfoTip label="Depreciation" text={'Covers §179 first-year expensing, MACRS (Modified Accelerated Cost Recovery System) regular depreciation, and §168(k) bonus depreciation on qualified business assets.\n\nEnter the total deductible depreciation for this entity this year.\n\nDo NOT include depreciation on personal-use assets.\n\nFor vehicles: use either the standard mileage rate OR actual expenses (including depreciation) — you cannot use both methods for the same vehicle.\n\nEnter the depreciation you (or your accountant) already computed — TaxStat360 uses this figure as entered and does not calculate bonus depreciation for you. Bonus depreciation is 100% (permanent) for qualified property ACQUIRED after Jan 19, 2025 and placed in service after that date — this applies to 2025, 2026, and all later years, not just 2025. The test is the acquisition date, not the placed-in-service year alone: property acquired on or before Jan 19, 2025 (including under a pre-existing binding contract) stays on the TCJA phase-down rate for its placed-in-service year — 40% for 2025, 60% for 2024, 80% for 2023 (IRC §168(k)(6), (k)(10) as amended by OBBBA §70301).'} wide />
           </label>
           <Step1MoneyInput value={manDep} onChange={setManDep} placeholder="0" style={inp} allowNegative={false} ariaLabel="Depreciation — total deduction this year" />
         </div>
@@ -867,13 +870,16 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             exists anywhere in this engine, so the §163(j) 30%-of-ATI limitation is never
             applied to any entity, regardless of size. Disclosure only, mirrors the
             existing §1374 (EXT-2) / §1031 hand-off pattern elsewhere in this file. The
-            threshold below is approximate and used only to decide when to show this
-            banner — see the constant's own comment in constants.js. */}
-        {nf(manRev) > SEC163J_GROSS_RECEIPTS_THRESHOLD_APPROX * SEC163J_DISCLOSURE_TRIGGER_RATIO && (
+            threshold is the §448(c) gross-receipts amount for the SELECTED tax year
+            (SEVENTH PASS A-1: was the year-agnostic legacy constant), used only to decide
+            when to show this banner and to state the figure the user is measured against. */}
+        {nf(manRev) > getSec448cThreshold(taxYear) * SEC163J_DISCLOSURE_TRIGGER_RATIO && (
           <div role="alert" style={{ padding: '6px 9px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
             ⚠ §163(j) Business Interest Limitation — Not Calculated: this entity's gross receipts
-            ({fmt(nf(manRev))}) are approaching or above the indexed threshold at which the §163(j)
-            30%-of-adjusted-taxable-income limit on business interest expense can apply. TaxStat360
+            ({fmt(nf(manRev))}) are approaching or above the {fmt(getSec448cThreshold(taxYear))} gross-receipts
+            threshold for {taxYear} (IRC §448(c), indexed) — the small-business exemption in §163(j)(3) —
+            above which the §163(j) 30%-of-adjusted-taxable-income limit on business interest expense
+            can apply. TaxStat360
             does not model this limitation — any interest expense included in your expense figures
             flows through fully deducted, with no cap or carryforward. If this entity has meaningful
             business interest expense, confirm §163(j) exposure with your CPA before relying on this
@@ -999,7 +1005,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
             <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
               <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
-              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nNote: §469 passive-loss suspension for a limited-partner K-1 LOSS is not modeled here — a positive distributive share is handled correctly.'} wide />
+              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
             </label>
           </div>
         </div>
@@ -1011,7 +1017,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             <input type="checkbox" id={'passivesh_' + idx} checked={!!entity.passiveShareholder} onChange={e => onUpdate(idx, { ...entity, passiveShareholder: e.target.checked })} style={{ marginTop: 2 }} />
             <label htmlFor={'passivesh_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
               <strong>Passive shareholder</strong> — I do NOT materially participate in this S-Corp (IRC §469(h))
-              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nNote: §469 passive-loss suspension for a passive shareholder\'s K-1 LOSS is not modeled — a positive share is handled correctly.'} wide />
+              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive rental income; the remainder carries forward. A prior-year suspended K-1 loss carryforward is not yet an input.'} wide />
             </label>
           </div>
         </div>
@@ -1069,7 +1075,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
               How the rental loss rules work
             </summary>
             <div style={{ color: '#334155', lineHeight: 1.5, fontSize: 13, marginTop: 6 }}>
-              Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than 750 hours in real-property trades or businesses AND more than half of all your personal-service hours — plus material participation in each rental (or the §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Officer compensation doesn't apply to rentals.
+              Real Estate Professional status requires BOTH §469(c)(7)(B) tests — more than half of the personal services you perform in ALL trades or businesses during the year must be in real property trades or businesses in which you materially participate, AND you must perform more than 750 hours of service in those same real property trades or businesses — plus material participation in each rental (or the Reg. §1.469-9(g) aggregation election covering the portfolio). Short-term rentals with average stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)) and can be nonpassive with material participation alone. If neither applies, the $25,000 §469(i) active-participation allowance (phasing out $100K–$150K MAGI) is the only relief. Officer compensation doesn't apply to rentals.
             </div>
           </details>
           {/* EXT-5 (external accuracy audit, Aug 2026 — Finding 5): §1031 like-kind exchanges
@@ -1168,6 +1174,14 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
   const isRE   = isRealEstateEntity(entity.type)
   // UX AUDIT PASS5-F5 (Jul 2026): drives the collapsed-card badge above.
   const nameMissing = !((entity.name ?? '').trim())
+
+  // SEVENTH PASS A-2 (16 Sep 2026): the §199A threshold / phase-in figures quoted in this
+  // card's helper text were hardcoded 2025 (and 2025-only) literals. They are indexed
+  // annually, and this card already knows the selected tax year — bind them to the engine's
+  // tables (ARCHITECTURE.md §1) so the prose can never state a different year's number than
+  // the one the engine applies.
+  const _qbiThreshYr  = QBI_THRESHOLDS[taxYear]     || QBI_THRESHOLDS[DEFAULT_TAX_YEAR]
+  const _qbiPhaseInYr = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[DEFAULT_TAX_YEAR]
 
   // ── Findings 1 + 3 FIX — single source of truth for S-Corp basis math ────────
   // Mirrors taxCalc.js exactly so every badge and panel on this card agrees with the
@@ -1435,6 +1449,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     // partnership / MMLLC — drop it when the type changes to anything else so
                     // it cannot linger on a sole prop / corporation record.
                     limitedPartner: isLimitedPartnerEligibleType(newType) ? !!entity.limitedPartner : false,
+                    passiveShareholder: isSCorpEntity(newType) ? !!entity.passiveShareholder : false,   // SEVENTH PASS: S-Corp-only attestation
                     officerW2: 0,
                     pnl: {
                       ...entity.pnl,
@@ -1445,10 +1460,29 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     },
                   })
                 } else {
+                  // SEVENTH PASS M-8 (16 Sep 2026): S-Corp ⇄ C-Corp with the P&L panel closed.
+                  // Employer FICA is an S-Corp P&L expense (AUDIT H1) but is deducted inside the
+                  // C-Corp corporate layer (calcCCorpCorporateLayer) — so an S→C change left it
+                  // stranded in totalExpenses and the 21% was computed on profit that had
+                  // deducted it twice; a C→S change lacked it until the panel was reopened.
+                  // Re-derive it for the NEW type (0 for a C-Corp; §3111 on the salary for an
+                  // S-Corp) and move the difference through totalExpenses / netProfit.
+                  const wantFICA = (isSCorpEntity(newType) && !entity.k1DirectMode) ? calcEmployerFICA(prevOfficer, taxYear) : 0
+                  const ficaDelta = wantFICA - prevEmployerFICA
+                  const pnlPatch = (entity.pnl && ficaDelta !== 0)
+                    ? { pnl: {
+                        ...entity.pnl,
+                        employerPayrollTax: wantFICA,
+                        totalExpenses: Math.max(0, nf(entity.pnl.totalExpenses) + ficaDelta),
+                        netProfit: nf(entity.pnl.netProfit) - ficaDelta,
+                      } }
+                    : {}
                   onUpdate(idx, {
                     ...entity,
                     type: newType,
                     limitedPartner: isLimitedPartnerEligibleType(newType) ? !!entity.limitedPartner : false,   // FIFTH READ: see above
+                    passiveShareholder: isSCorpEntity(newType) ? !!entity.passiveShareholder : false,   // SEVENTH PASS: S-Corp-only attestation
+                    ...pnlPatch,
                   })
                 }
               }}
@@ -1537,7 +1571,8 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         <strong>⚠ Possible Specified Service Trade or Business (SSTB) — review below.</strong>{' '}
                         Businesses involving teaching, tutoring, instruction, consulting, coaching, and similar services
                         commonly qualify as SSTBs under IRC §199A(d)(1)(B). If this is an SSTB, the QBI deduction
-                        phases out above $197,300 AGI (single 2025) and is eliminated above $247,300.
+                        phases out above {fmt(_qbiThreshYr.single)} of taxable income (single/HOH, {taxYear}) and is
+                        eliminated above {fmt(_qbiThreshYr.single + _qbiPhaseInYr.single)}.
                         Check the SSTB box at the bottom of this section if applicable. Confirm with your CPA.
                       </div>
                     )
@@ -1558,11 +1593,11 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     </div>
                   )}
                   {[
-                    { label: issuesK1Entity(entity.type) ? 'W-2 Wages (K-1 §199A statement)' : isRE ? 'W-2 Wages paid by the rental activity (usually $0)' : 'W-2 Wages paid by this business (Form W-3, Box 1)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: 'Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025 (~$201,750 / $403,500 for 2026). Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).' },
-                    { label: issuesK1Entity(entity.type) ? 'UBIA of Qualified Property (K-1 §199A statement)' : isRE ? 'UBIA — unadjusted cost basis of the building (exclude land)' : 'UBIA of Qualified Property (your depreciation schedule)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: 'Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ~$197,300 (single) or $394,600 (MFJ) for 2025. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)). This helps capital-intensive businesses with low W-2 wages.' },
+                    { label: issuesK1Entity(entity.type) ? 'W-2 Wages (K-1 §199A statement)' : isRE ? 'W-2 Wages paid by the rental activity (usually $0)' : 'W-2 Wages paid by this business (Form W-3, Box 1)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: `Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ${fmt(_qbiThreshYr.single)} (single/HOH) or ${fmt(_qbiThreshYr.mfj)} (MFJ) for ${taxYear}. Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).` },
+                    { label: issuesK1Entity(entity.type) ? 'UBIA of Qualified Property (K-1 §199A statement)' : isRE ? 'UBIA — unadjusted cost basis of the building (exclude land)' : 'UBIA of Qualified Property (your depreciation schedule)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: `Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ${fmt(_qbiThreshYr.single)} (single/HOH) or ${fmt(_qbiThreshYr.mfj)} (MFJ) for ${taxYear}. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)(ii)). This helps capital-intensive businesses with low W-2 wages.` },
                     { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A (if you itemize) and reduce your stock basis under §1367(a)(2)(B) — they do NOT reduce your K-1 ordinary income or QBI.' },
-                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nTracking this per-entity (not pooled) is required by Treas. Reg. §1.199A-1(d)(2)(iii).' },
+                    { label: 'Prior-Year QBI Loss Carryforward (Form 8995, Line 3)', key: 'qbiLossCarryforward', tip: 'If this entity generated a net QBI loss in the prior year, that loss must reduce this entity\'s QBI in the CURRENT year before computing the 20% deduction (IRC §199A(c)(2)).\n\nEnter the absolute value of last year\'s net QBI loss from this entity (as a positive number). From Form 8995 line 3 or Form 8995-A.\n\nHow the rule actually works: under Treas. Reg. §1.199A-1(d)(2)(iii)(B) a NET negative combined QBI is carried forward as a single pooled amount and treated as a loss from a separate qualified business in the following year, apportioned among that year\'s businesses in proportion to their QBI — it is not tracked separately by entity. TaxStat360 collects it per entity only because that is how most users hold the figure; if you had more than one business last year, split the pooled carryforward across these fields (or use the single pooled field in Step 2).' },
                   ].map(({ label, key, tip }) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', display: 'block', marginBottom: 3 }}>
@@ -1581,7 +1616,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     <input type="checkbox" id={'sstb_' + idx} checked={!!entity.box17V_sstb} onChange={e => onUpdate(idx, { ...entity, box17V_sstb: e.target.checked })} />
                     <label htmlFor={'sstb_' + idx} style={{ fontSize: 12, color: '#1D4ED8', cursor: 'pointer' }}>
                       This is a Specified Service Trade or Business (SSTB) — limits QBI deduction at high income
-                      <InfoTip text={'SSTBs (Specified Service Trades or Businesses) per IRC §199A(d)(1)(B) include:\nlaw, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage, investing/trading, and any business where the principal asset is the reputation or skill of an employee or owner.\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, and retail. (Health REMAINS an SSTB \u2014 IRC \u00a7199A(d)(2)(A); Reg. \u00a71.199A-5(b)(1)(ii). OBBBA (2025) only widened the phase-in ranges below; it did NOT reclassify health, or any field, out of SSTB status.)\n\n2025 SSTB phase-out range:\n• Single/HOH: $197,300 – $247,300\n• MFJ: $394,600 – $494,600\n\n2026 SSTB phase-out range (Rev. Proc. 2025-32):\n• Single/HOH: $201,750 – $276,750\n• MFJ: $403,500 – $553,500\n\nAbove the ceiling your §199A deduction is $0 on SSTB income. Below the floor there is no limitation.'} wide />
+                      <InfoTip text={`SSTBs (Specified Service Trades or Businesses) per IRC §199A(d)(1)(B) include:\nlaw, accounting, actuarial science, performing arts, consulting, athletics, financial services, brokerage, investing/trading, and any business where the principal asset is the reputation or skill of an employee or owner.\n\nNOT SSTBs: engineering, architecture, real estate, insurance, banking, manufacturing, and retail. (Health REMAINS an SSTB \u2014 IRC \u00a7199A(d)(2)(A); Reg. \u00a71.199A-5(b)(1)(ii). OBBBA (2025) only widened the phase-in ranges below; it did NOT reclassify health, or any field, out of SSTB status.)\n\n${taxYear} SSTB phase-out range (taxable income):\n• Single/HOH: ${fmt(_qbiThreshYr.single)} – ${fmt(_qbiThreshYr.single + _qbiPhaseInYr.single)}\n• MFJ: ${fmt(_qbiThreshYr.mfj)} – ${fmt(_qbiThreshYr.mfj + _qbiPhaseInYr.mfj)}\n• MFS: ${fmt(_qbiThreshYr.mfs)} – ${fmt(_qbiThreshYr.mfs + _qbiPhaseInYr.mfs)}\n\nAbove the ceiling your §199A deduction is $0 on SSTB income. Below the floor there is no limitation.`} wide />
                     </label>
                   </div>
                 </div>
@@ -1693,7 +1728,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                   <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Stock Basis at Beginning of Year (Form 7203, Line 1)
-                      <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year it increases for income and tax-exempt items allocated to you, and decreases for losses, deductions, and distributions.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
+                      <InfoTip text={'Your adjusted stock basis at the start of the tax year (Form 7203, Line 1).\n\nStock basis starts with your original cash or property contribution when you acquired the shares. Each year the adjustments are applied in a set order (Treas. Reg. §1.1367-1(f); the order Form 7203 Part I follows): (1) INCREASES for income and tax-exempt items allocated to you and for any contributions; then (2) DISTRIBUTIONS; then (3) nondeductible, noncapital expenses and depletion; and only then (4) LOSSES and deductions. That ordering is why a distribution can create a capital gain in the same year a loss is suspended.\n\nWhy it matters — IRC §1366(d)(1):\nYour deductible S-Corp loss cannot exceed your combined stock basis + debt basis. Losses in excess of basis are SUSPENDED and carried forward to future years when basis is restored (§1366(d)(2)).\n\nYour CPA tracks this figure on Form 7203 each year. Leave blank if you are unsure.'} wide />
                     </label>
                     <Step1MoneyInput
                       value={entity.stockBasis || ''}
@@ -1796,7 +1831,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                   <div style={{ marginBottom: 6 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                       Distributions Received This Year (Form 7203, Line 6)
-                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nAAA note: If your S-Corp has accumulated earnings and profits (E&P) from a prior C-Corp period, AAA ordering rules (§1368(c)) apply — distributions reduce AAA first, then E&P (taxable as an ordinary dividend). Consult your CPA if prior C-Corp E&P exists.'} wide />
+                      <InfoTip text={'Total cash or property distributions you received from the S-Corp this year.\n\nDistributions reduce your stock basis. If distributions exceed your remaining stock basis (after the current year\'s income/loss allocation), the excess is taxable as a long-term capital gain (IRC §1368(b)(2)) — NOT ordinary income.\n\nThis capital gain does not appear on your K-1. It is computed at the shareholder level and belongs on Schedule D.\n\nAAA note: If your S-Corp has accumulated earnings and profits (E&P) from a prior C-Corp period, the §1368(c) ordering applies — distributions come out of AAA first (tax-free to the extent of basis, §1368(c)(1)), then out of accumulated E&P as a TAXABLE DIVIDEND to the extent of that E&P (§1368(c)(2)). That dividend does not reduce stock basis, and it is a qualified dividend taxed at 0/15/20% if the §1(h)(11)(B)(iii) holding-period requirement is met. Any remainder returns to basis recovery under §1368(c)(3). Consult your CPA if prior C-Corp E&P exists.'} wide />
                     </label>
                     <Step1MoneyInput
                       value={entity.distributions || ''}
@@ -2032,7 +2067,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     <input type="checkbox" id={'agg_' + idx} checked={portfolioAggregationElected === true} onChange={e => (onAggregationElection ? onAggregationElection(e.target.checked) : onUpdate(idx, { ...entity, rentalAggregationElection: e.target.checked ? true : false }))} style={{ marginTop: 2 }} />
                     <label htmlFor={'agg_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                       Apply the aggregate-hours rule across all rental properties (§1.469-9(g) election)
-                      <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive — losses offset other income with no §469(i) cap, and rental income is excluded from the 3.8% net investment income tax.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
+                      <InfoTip text={'Elect to treat ALL your rental real estate as a single activity, counting your participation HOURS across every property together. Meeting material participation on the combined activity makes the whole rental portfolio nonpassive for §469, so losses offset other income with no §469(i) cap.\n\nNIIT is a separate question: REP status by itself does not take rental income out of the 3.8% net investment income tax. Rental income escapes NII only if the rental is a §162 trade or business in which you materially participate (IRC §1411(c)(1)(A)(i), §1411(c)(2)(A)); Reg. §1.1411-4(g)(7) gives a safe harbor for a real estate professional who participates more than 500 hours a year in the rental activities.\n\nThis is a deliberate, generally irrevocable election made on the return; it is never assumed. Leave it unchecked and your rentals stay passive (the default).\n\nNote: this is the §469 aggregation ELECTION, not the §199A 250-hour rental "safe harbor" (Rev. Proc. 2019-38), which only affects the QBI deduction.\n\nTreas. Reg. §1.469-9(g) · IRC §469(c)(7).'} wide />
                     </label>
                   </div>
                 )}
@@ -2059,7 +2094,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                 <div style={{ marginTop: 8, marginBottom: 4 }}>
                   <label htmlFor={'pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', display: 'block', marginBottom: 3 }}>
                     Unused rental losses from prior years (Form 8582)
-                    <InfoTip text={'Suspended passive losses from prior years on this rental (Form 8582, Line 3). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
+                    <InfoTip text={'Suspended passive losses from prior years on this rental — the prior-year unallowed loss reported on Form 8582, Part I, Line 1c (Line 2c for a non-rental passive activity). Released when the rental generates passive income or the property is disposed of. Enter the total carryforward, NOT the current-year loss.'} wide />
                   </label>
                   <Step1MoneyInput
                     value={entity.priorPAL || ''}
@@ -2104,7 +2139,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
                           <div role="alert" style={{ fontWeight: 700, color: R, marginBottom: 4 }}>⚠ REP Hours Test Failed — Loss Suspended (§469(c)(7)(B))</div>
                           <div style={{ color: '#7F1D1D', lineHeight: 1.5, marginBottom: 8 }}>
-                            Your entered hours don't meet the §469(c)(7)(B) test ({reHrs.toLocaleString()} real-property hours{totHrs > 0 ? `, ${pctRE}% of your ${totHrs.toLocaleString()} total` : ''} — the statute requires more than 750 hours <strong>and</strong> more than 50%). Because the test fails, the §1.469-9(g) election does not make this {fmt(Math.abs(reNet))} loss currently deductible — it is treated as passive and suspended on Form 8582. This is the single largest audit-exposure item on a return with significant non-real-estate W-2 income.
+                            Your entered hours don't meet the §469(c)(7)(B) test ({reHrs.toLocaleString()} real-property hours{totHrs > 0 ? `, ${pctRE}% of your ${totHrs.toLocaleString()} total` : ''} — §469(c)(7)(B) requires more than 750 hours in real property trades or businesses in which you materially participate <strong>and</strong> more than half of all the personal services you perform in trades or businesses to be in those same businesses). Because the test fails, the Reg. §1.469-9(g) election does not make this {fmt(Math.abs(reNet))} loss currently deductible — it is treated as passive and suspended on Form 8582. On a return with significant non-real-estate W-2 income this position carries a heavy substantiation burden: contemporaneous daily time logs are what support it if it is examined.
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                             <input type="checkbox" id={'repovr_' + idx} checked={false} onChange={e => onUpdate(idx, { ...entity, repAggregationOverride: e.target.checked })} style={{ marginTop: 2 }} />
@@ -2619,6 +2654,12 @@ export default function CalculateTaxInner() {
         officerSalary: String(nf(entities[0]?.pnl?.officerSalary)   || ''),
         depreciation:  String(nf(entities[0]?.pnl?.depreciation)    || ''),
         pnl:           entities[0]?.pnl || {},
+        // SEVENTH PASS (16 Sep 2026): same attestations the Step-2 save writes (TaxReturn.buildRecord)
+        // so the single-entity Dashboard card computes on them for a Step-1-only save too.
+        limitedPartner:      !!entities[0]?.limitedPartner,
+        passiveShareholder:  !!entities[0]?.passiveShareholder,
+        isActiveParticipant: !!entities[0]?.isActiveParticipant,
+        isREP:               !!entities[0]?.isREP,
       },
       // THIRD PASS (14 Sep 2026): stamp the selected year — readPersonalContext() carried
       // the manifest default until Step 2 rendered (see calcSelector._recordPersonalContext).

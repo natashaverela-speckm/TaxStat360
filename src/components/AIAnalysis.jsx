@@ -604,11 +604,11 @@ function RiskScan({ rec }) {
       const eComp = calcReasonableCompCore(eOfficerSal, eK1)
       if (eOfficerSal === 0 && eComp.applicable) {
         findings.push({ key: 'scorp-no-salary-' + ei, level: 'high', icon: '📋', title: `No Officer Compensation — ${entityName} (Needs Documentation)`,
-          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (Watson v. Commissioner, 668 F.3d 1008) treat zero salary as the least defensible S-Corp position. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+          detail: `${entityName} shows ${fmt(eK1)} in K-1 income but no officer compensation recorded. Tax practitioners and case law (David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)) treat zero salary as the least defensible S-Corp position. The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Set ${entityName}'s officer compensation on Step 1. A common practitioner starting point is 35–45% of total S-Corp compensation. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0 && eComp.triggered) {
         findings.push({ key: 'scorp-low-salary-' + ei, level: 'medium', icon: '⚠️', title: `Officer Compensation May Be Too Low — ${entityName}`,
-          detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${eComp.ratioPct}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
+          detail: `${entityName} shows ${fmt(eOfficerSal)} in officer compensation versus ${fmt(eK1)} in K-1 income (${eComp.ratioPct}% of total S-Corp compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor percentage.`,
           action: `Consider increasing ${entityName}'s officer compensation to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
       } else if (eOfficerSal > 0) {
         findings.push({ key: 'scorp-salary-ok-' + ei, level: 'good', icon: '✅', title: `Officer Compensation Recorded — ${entityName}`,
@@ -622,7 +622,7 @@ function RiskScan({ rec }) {
         if (eComp.applicable) {
           findings.push({ key: 'scorp-comp-doc-' + ei, level: 'info', icon: '📋',
             title: `Reasonable Compensation — Document the Basis (${entityName})`,
-            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+            detail: `Officer salary (${fmt(eOfficerSal)}) is ${eComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012) is the leading case, but its fact pattern (12% ratio) is extreme; any salary below fair market value for the services rendered is at risk. S-Corp officer compensation is one of the most commonly cited compliance risk factors for pass-through entities — the IRS publishes guidance on it (Fact Sheet FS-2008-25; "S Corporation Compensation and Medical Insurance Issues") but does not publish how it selects returns, and this is not a prediction of examination.`,
             action: `Maintain a contemporaneous record showing: (1) a description of the services you personally performed; (2) hours spent; (3) comparable industry salaries for those services (BLS Occupational Employment Stats or a compensation survey); and (4) years of experience and qualifications. If your salary changed from prior years, document why. Your CPA should review the reasonableness determination annually.`,
           })
         }
@@ -638,7 +638,7 @@ function RiskScan({ rec }) {
         action: 'Set reasonable W-2 officer compensation for the services you perform. There is no IRS safe-harbor percentage — reasonable compensation is a facts-and-circumstances determination — but a common practitioner starting point is 35–45% of your total S-Corp compensation (salary + K-1 income). The salary is deductible to the S-Corp and reduces self-employment tax exposure.' })
     } else if (ownerComp > 0 && legacyComp.triggered) {
       findings.push({ level: 'medium', icon: '⚠️', title: 'Officer Compensation May Be Too Low',
-        detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${legacyComp.ratioPct}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including Watson v. Commissioner. The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
+        detail: `Reported owner compensation is ${fmt(ownerComp)} versus K-1 income of ${fmt(k1)} (${legacyComp.ratioPct}% of total compensation). Tax practitioners commonly recommend a salary-to-total-compensation ratio of 35–45%, based on case law including David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012). The IRS applies a facts-and-circumstances test — there is no published safe harbor.`,
         action: `Consider increasing your salary to bring it within the 35–45% practitioner-recommended range. The correct amount depends on your role, hours, industry, and comparable pay — discuss with your CPA.` })
     } else if (ownerComp > 0) {
       findings.push({ level: 'good', icon: '✅', title: 'Officer Compensation Recorded',
@@ -648,7 +648,7 @@ function RiskScan({ rec }) {
       if (legacyComp.applicable) {
         findings.push({ level: 'info', icon: '📋',
           title: 'Reasonable Compensation — Document the Basis',
-          detail: `Officer compensation (${fmt(ownerComp)}) is ${legacyComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp reasonable compensation is one of the most common examination triggers in IRS campaigns targeting pass-through entities.`,
+          detail: `Officer compensation (${fmt(ownerComp)}) is ${legacyComp.ratioPct}% of total S-Corp compensation. The IRS applies a facts-and-circumstances test under Rev. Rul. 74-44 — there is no published safe-harbor ratio. S-Corp officer compensation is one of the most commonly cited compliance risk factors for pass-through entities — the IRS publishes guidance on it (Fact Sheet FS-2008-25; "S Corporation Compensation and Medical Insurance Issues") but does not publish how it selects returns, and this is not a prediction of examination.`,
           action: `Maintain records showing: services performed, hours spent, comparable industry salaries (BLS OES or compensation surveys), and your qualifications. Discuss the reasonableness determination with your CPA annually.`,
         })
       }
@@ -735,12 +735,12 @@ function RiskScan({ rec }) {
   if (rentalIncome > 0 || isREP) {
     if (isREP) {
       findings.push({ level: 'info', icon: '🏠', title: 'Real Estate Professional — Criteria Checklist',
-        detail: 'You have REP status selected. Under IRC §469(c)(7), you must meet ALL three tests each tax year to deduct rental losses without limitation:',
-        action: `① MORE THAN 750 HOURS in real property trades or businesses — of which MORE THAN 500 hours must be in activities where you materially participate.\n\n② MORE THAN 50% of your total personal service time across all work must be in real estate activities.\n\n③ ⚠️ IMPORTANT: If you have a full-time W-2 job, qualifying as a REP is extremely difficult. The IRS scrutinizes this heavily. Document your time with contemporaneous daily logs. Without proper documentation, REP status will likely be disallowed on audit.` })
+        detail: 'You have REP status selected. IRC §469(c)(7)(B) sets TWO tests, and you must meet BOTH every tax year — and then still materially participate in the rentals (or make the Reg. §1.469-9(g) aggregation election) — to deduct rental losses without limitation:',
+        action: `① MORE THAN HALF of the personal services you perform in ALL trades or businesses during the year must be performed in real property trades or businesses in which you MATERIALLY PARTICIPATE (§469(c)(7)(B)(i)).\n\n② MORE THAN 750 HOURS of service during the year in those same real property trades or businesses (§469(c)(7)(B)(ii)). There is no separate "500 of the 750" requirement — the 500-hour figure is one of the Reg. §1.469-5T(a) material-participation tests, not a subset of the 750.\n\n③ On a joint return, ONE spouse must satisfy both tests alone — hours cannot be combined between spouses (§469(c)(7)(B), flush language).\n\n⚠️ If you have a full-time W-2 job the 50% test is hard to meet, and this position stands or falls on documentation. Keep contemporaneous daily time logs showing date, property, activity and hours; reconstructed records routinely fail in Tax Court.` })
     } else {
       findings.push({ level: 'info', icon: '🏠', title: 'Rental Income Detected — REP Status Could Unlock Full Deductions',
         detail: 'Rental losses are normally "passive" and can only offset other passive income. Qualifying as a Real Estate Professional makes your rental losses fully deductible against all income — including W-2 wages and business income.',
-        action: `To qualify as a REP you must meet ALL of these each year:\n\n① More than 750 hours in real property trades or businesses — of which 500+ must be in activities where you materially participate.\n\n② More than 50% of your total working hours across ALL jobs must be in real estate.\n\n⚠️ If you have a full-time W-2 job, qualifying is very difficult. Most full-time W-2 earners cannot meet the 50% test. If you believe you qualify, check the REP box on the Tax Return page and maintain detailed daily time logs.` })
+        action: `To qualify as a REP you must meet BOTH §469(c)(7)(B) tests each year:\n\n① More than half of the personal services you perform in ALL trades or businesses must be in real property trades or businesses in which you materially participate.\n\n② More than 750 hours of service in those same real property trades or businesses.\n\nREP status by itself only changes the §469 classification — you must also materially participate in each rental, or make the Reg. §1.469-9(g) election to treat them as one activity.\n\n⚠️ If you have a full-time W-2 job, qualifying is very difficult. Most full-time W-2 earners cannot meet the 50% test. If you believe you qualify, check the REP box on the Tax Return page and maintain detailed daily time logs.` })
     }
   }
 
@@ -809,8 +809,8 @@ function RiskScan({ rec }) {
         level: 'high',
         icon: '🚨',
         title: `REP Status With ${fmt(_nonREW2)} in Outside Employment — Hard to Substantiate`,
-        detail: `You have Real Estate Professional status selected alongside ${fmt(_nonREW2)} in W-2 income from non-real-estate employment. IRC §469(c)(7)(B) requires MORE THAN 50% of ALL personal services during the year to be in real property trades or businesses where you materially participate. With significant outside employment, you would need to document more real estate hours than all other work combined. The IRS actively targets this combination — it is one of the most frequently challenged positions in the pass-through entity / real estate space.`,
-        action: `If you qualify: (1) Maintain contemporaneous daily time logs for ALL activities — not a year-end reconstruction. Logs must show date, property, activity, and hours. (2) You must exceed 750 hours in real property trades/businesses AND >50% of total working time must be in real estate. (3) A §1.469-9(g) aggregation election can simplify material participation tracking across multiple properties. If you cannot document the 50% test, uncheck REP — rental losses become passive and offset only passive income. Discuss documentation requirements with your CPA.`,
+        detail: `You have Real Estate Professional status selected alongside ${fmt(_nonREW2)} in W-2 income from non-real-estate employment. IRC §469(c)(7)(B)(i) requires MORE THAN HALF of the personal services you perform in all trades or businesses during the year to be in real property trades or businesses in which you materially participate. With significant outside employment, you would need to document more real estate hours than all other work combined. This is one of the most frequently litigated positions in this area, and the taxpayer carries the burden of proof.`,
+        action: `If you qualify: (1) Maintain contemporaneous daily time logs for ALL activities — not a year-end reconstruction. Logs must show date, property, activity, and hours. (2) You must exceed 750 hours in real property trades or businesses in which you materially participate, AND more than half of all your trade-or-business personal services must be in those same businesses. (3) A §1.469-9(g) aggregation election can simplify material participation tracking across multiple properties. If you cannot document the 50% test, uncheck REP — rental losses become passive and offset only passive income. Discuss documentation requirements with your CPA.`,
       })
     }
   }
@@ -1089,7 +1089,7 @@ function TaxOptimization({ rec }) {
           priority: 'high',
           saving: solo401kTaxSaved,
           detail: `Unlike a SEP-IRA (employer contributions only), a Solo 401(k) has two components that stack:\n• Employee elective deferral: up to ${fmt(solo401kDeferral)} (${year} limit, pre-tax or Roth — IRC §401(k))\n• Employer profit-sharing: 25% of your officer W-2 compensation = ${fmt(maxSolo401kEmployer)}\n• Combined total: ${fmt(maxSolo401k)} — vs. ${fmt(maxSEP)} under a SEP-IRA alone.\nBoth contributions flow from your S-Corp but are made separately.`,
-          howTo: `At your ${pct(marginalRate * 100)} marginal rate, the max Solo 401(k) saves approx. ${fmt(solo401kTaxSaved)} — roughly ${fmt(solo401kTaxSaved - Math.round(maxSEP * marginalRate))} more than a SEP-IRA alone. Requires a plan document established before December 31 of the plan year. Employee deferral comes from your W-2 payroll (must be elected before December 31); employer contribution due by September 15 (S-Corp extension deadline). Available at Fidelity, Schwab, or Vanguard.`
+          howTo: `At your ${pct(marginalRate * 100)} marginal rate, the max Solo 401(k) saves approx. ${fmt(solo401kTaxSaved)} — roughly ${fmt(solo401kTaxSaved - Math.round(maxSEP * marginalRate))} more than a SEP-IRA alone. Deadlines: to make the EMPLOYEE deferral you need the plan document in place and a written deferral election on file by December 31 of the plan year, and the deferral has to run through your W-2 payroll. The EMPLOYER profit-sharing side is more forgiving — under SECURE Act §201 (IRC §401(b)(2)) a plan adopted after year-end, up to the S-Corp's return due date including extensions (September 15), is treated as adopted on the last day of the tax year for that contribution. Available at Fidelity, Schwab, or Vanguard.`
         })
       }
     } else if (hasLimitedPartnerK1 && k1 > 0) {
@@ -1120,7 +1120,7 @@ function TaxOptimization({ rec }) {
       // rendered even when the user had selected 2026 — while the ENGINE
       // (calc179Limitation) was correctly using the 2026 table. The card and the
       // math disagreed. Read the same year-keyed table the engine reads.
-      detail: `§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to ${_sec179Cap} for ${year} under the One Big Beautiful Bill Act; the deduction phases out dollar-for-dollar once qualifying purchases exceed ${_sec179PhaseOut}). Bonus depreciation is 100% for property placed in service after January 19, 2025.`,
+      detail: `§179 lets you deduct the full cost of qualifying equipment, vehicles, and business property in the year of purchase (up to ${_sec179Cap} for ${year} under the One Big Beautiful Bill Act; the deduction phases out dollar-for-dollar once qualifying purchases exceed ${_sec179PhaseOut}). Separately, §168(k) bonus depreciation is 100% for qualified property ACQUIRED after January 19, 2025 and placed in service after that date (OBBBA §70301); property acquired on or before that date stays on the TCJA phase-down for its placed-in-service year.`,
       howTo: 'If you purchased any computers, phones, furniture, vehicles, or equipment for the business this year — even partially — enter the cost under Depreciation. The deduction can be substantial.'
     })
   }
@@ -1139,7 +1139,7 @@ function TaxOptimization({ rec }) {
   const _hoHasSchedC = _hoTypes.some(isScheduleCType)
   const _hoHasPship  = _hoTypes.some(t => /partner|mmllc/i.test(t || '')) || /partnership|mmllc/i.test(b.entityType || '')
   const _hoParts = [
-    _hoHasSCorp  ? 'For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (TCJA §67(g)).' : null,
+    _hoHasSCorp  ? 'For S-Corp owners, the correct method is an accountable plan reimbursement — the S-Corp pays you back for the business-use portion of home expenses, deducts the payment as a business expense, and the reimbursement is excluded from your W-2 income (IRC §62(a)(2)(A); Treas. Reg. §1.62-2). S-Corp shareholders who are also W-2 employees cannot deduct unreimbursed employee business expenses under current law (IRC §67(g), added by the TCJA and made permanent by OBBBA §70110).' : null,
     _hoHasPship  ? "Partners may deduct unreimbursed partnership expenses (UPE) directly on Schedule E Part II, or the partnership can reimburse through an accountable plan — which is deductible at the entity level and excluded from the partner\\'s income." : null,
     _hoHasSchedC ? 'Sole proprietors and single-member LLCs claim it on Schedule C using Form 8829 (actual expense method) or the simplified method ($5/sq ft, up to 300 sq ft).' : null,
   ].filter(Boolean)
@@ -1253,7 +1253,7 @@ function TaxOptimization({ rec }) {
       saving: null,
       // AUDIT F-12 FIX: hour-tracking alone unlocks nothing. State the actual tests
       // (same framing as the REP audit-response letter template in this file).
-      detail: 'In plain terms: rental losses don\u2019t automatically offset your other income \u2014 the IRS only allows that if you can prove, with real contemporaneous records, that real estate is close to a full-time job for you (or your rentals qualify as short-term rentals). ' + 'Rental losses can offset your other income only if you qualify as a Real Estate Professional — BOTH §469(c)(7)(B) tests: (1) more than 750 hours in real-property trades or businesses during the year, AND (2) more than half of ALL your personal-service hours in those businesses — plus material participation in each rental (or the §1.469-9(g) aggregation election covering your whole portfolio). Alternative path: short-term rentals with average guest stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)), so material participation alone (e.g., the 100-hour-and-most-participation or 500-hour tests, Reg. §1.469-5T) makes those losses nonpassive without REPS. Contemporaneous hour logs are what survive exam — reconstruct-after-the-fact records routinely fail in Tax Court. Coupled with 100% bonus depreciation, either path can be a powerful planning tool.',
+      detail: 'In plain terms: rental losses don\u2019t automatically offset your other income \u2014 the IRS only allows that if you can prove, with real contemporaneous records, that real estate is close to a full-time job for you (or your rentals qualify as short-term rentals). ' + 'Rental losses can offset your other income only if you qualify as a Real Estate Professional — BOTH §469(c)(7)(B) tests: (1) more than 750 hours of service during the year in real property trades or businesses in which you materially participate, AND (2) more than half of all the personal services you perform in trades or businesses in those same real property trades or businesses — plus material participation in each rental (or the §1.469-9(g) aggregation election covering your whole portfolio). Alternative path: short-term rentals with average guest stays of 7 days or less are not §469(c)(2) rental activities (Reg. §1.469-1T(e)(3)(ii)(A)), so material participation alone (e.g., the 100-hour-and-most-participation or 500-hour tests, Reg. §1.469-5T) makes those losses nonpassive without REPS. Contemporaneous hour logs are what survive exam — reconstruct-after-the-fact records routinely fail in Tax Court. Coupled with 100% bonus depreciation, either path can be a powerful planning tool.',
       howTo: 'Keep a contemporaneous log (date, property, activity, hours). Set REP status and material participation / the aggregation election on each rental card in Step 1 — the engine only treats losses as nonpassive when those flags are set and the hours tests are met.'
     })
   }
@@ -1466,7 +1466,7 @@ function IRSCompliance({ rec }) {
       status: 'required',
       covered: hasK1Data || hasW2Data,
       detail: isSCorpEntity(entity)
-        ? 'Carries Additional Medicare Tax (0.9%, Form 8959) and Net Investment Income Tax (3.8%, Form 8960) to Form 1040 Line 17. Note: SE tax does NOT apply to S-Corp K-1 income — IRC §1402(a)(2).'
+        ? 'Carries Additional Medicare Tax (0.9%, Form 8959) and Net Investment Income Tax (3.8%, Form 8960) to Form 1040 Line 17. Note: SE tax does NOT apply to an S-Corp shareholder\'s K-1 pro rata share — Rev. Rul. 59-221 (the share is not net earnings from self-employment under IRC §1402(a)).'
         : 'Carries SE tax, Additional Medicare Tax, and Net Investment Income Tax to Form 1040 Line 17.',
       deadline: 'Filed with Form 1040',
     })
@@ -1496,9 +1496,9 @@ function IRSCompliance({ rec }) {
   const _rentalIncomeSch = nf(b.rentalIncome || f.rentalIncome ) || 0
   const _isREP = b.isREP || f.isREP || rec?.isREP
   if (_rentalIncomeSch > 0) {
-    schedules.push({ form: 'Schedule E (Part I)', title: 'Rental Real Estate', status: 'required', covered: hasRentalInc, detail: 'Reports rental property income and expenses. ' + (_isREP ? 'REP status under IRC 469(c)(7) allows full loss deduction.' : 'Non-REP filers limited to passive loss rules under IRC 469.'), deadline: 'Filed with Form 1040' })
+    schedules.push({ form: 'Schedule E (Part I)', title: 'Rental Real Estate', status: 'required', covered: hasRentalInc, detail: 'Reports rental property income and expenses. ' + (_isREP ? 'With REP status under IRC §469(c)(7), rentals are nonpassive only where you also materially participate in each one (or make the Reg. §1.469-9(g) aggregation election); those losses are then fully deductible.' : 'Non-REP filers limited to passive loss rules under IRC §469.'), deadline: 'Filed with Form 1040' })
     if (!_isREP) {
-      schedules.push({ form: 'Form 8582', title: 'Passive Activity Loss Limitations', status: 'required', covered: hasRentalInc, detail: 'Required for non-REP filers with rental activities.', deadline: 'Filed with Form 1040' })
+      schedules.push({ form: 'Form 8582', title: 'Passive Activity Loss Limitations', status: 'required', covered: hasRentalInc, detail: 'Required when you have a passive activity loss this year, prior-year unallowed passive losses to carry, or you are claiming the §469(i) special allowance. Not required if every passive activity shows net income and there are no prior-year unallowed losses.', deadline: 'Filed with Form 1040' })
     }
   }
 
@@ -1801,7 +1801,7 @@ export function BriefingModal({ onClose, rec }) {  // exported for the T-2 pin (
     // M1 (audit F-1, Aug 2026): ratio/triggered now come from calcReasonableCompCore
     // (taxCalc.js) instead of a fifth independent inline copy of the same formula.
     const _posComp = calcReasonableCompCore(officerSal, k1)
-    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 ordinary business income — a ${pct(_posComp.ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${_posComp.triggered ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
+    points.push(`Officer compensation is ${fmt(officerSal)} against ${fmt(k1)} of K-1 ordinary business income — a ${pct(_posComp.ratio * 100)} salary-to-total-compensation ratio. Practitioners commonly target 35–45% (David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)); the IRS applies a facts-and-circumstances test with no published safe harbor. ${_posComp.triggered ? 'Review whether the salary adequately reflects the services rendered.' : 'Document the basis for the salary level — role, hours, and comparable pay.'}`)
   } else if (isSCorpEntity(b.entityType) && officerSal === 0 && k1 > 0) {
     points.push(`This S-Corp shows ${fmt(k1)} of K-1 income but no officer W-2 compensation on file. Shareholder-employees performing services must take reasonable W-2 compensation (Rev. Rul. 74-44) — determine an appropriate salary and ensure FICA is withheld.`)
   }

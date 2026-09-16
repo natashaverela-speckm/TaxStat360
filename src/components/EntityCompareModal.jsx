@@ -36,6 +36,8 @@ import { CURRENT_TAX_YEAR, SCORP_REASONABLE_COMP_GUIDELINE_RANGE } from '../lib/
 // AUDIT F2 FIX (second root cause): entity-type predicates for the vocabulary translator below.
 import { isSCorpEntity, isCCorpEntity, getEntityK1Share } from '../utils/entityPredicates'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
+import { deriveRentalPortfolioInputs } from '../utils/rentalPortfolio.js'   // SEVENTH PASS M-1/M-3/M-4
+import { ccorpLayerForReturn } from '../utils/ccorpLayer.js'   // SEVENTH PASS H-4
 
 // ─── AUDIT F2 FIX (second root cause) ────────────────────────────────────────
 // COMPARE-PC fixed personalContext arriving as a lazy getter, but a second gap
@@ -58,6 +60,16 @@ import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 export function toEngineContext(pc, entities = [], entityIdx = 0) {
   const p = pc || {}
   const others = entities.filter((_, i) => i !== entityIdx)
+  const _taxYear = parseInt(p.taxYear) || CURRENT_TAX_YEAR
+  // SEVENTH PASS H-4 (16 Sep 2026): the OTHER entities' C-Corp layer — owner-share dividends
+  // fold into qualified dividends exactly as TaxReturn does (the focal entity, if a C-Corp, is
+  // modeled per scenario by scenarioCompare; entityIdx = -1 ⇒ every C-Corp on the return).
+  const _ytdFactor = p.ytdMode && nf(p.ytdMonth) > 0 ? 12 / nf(p.ytdMonth) : 1
+  const ccorpOthers = ccorpLayerForReturn(others, _taxYear, _ytdFactor)
+  // SEVENTH PASS M-1 / M-3 / M-4: portfolio §469 inputs come from the Step-1 rental cards
+  // (REP status, aggregation election, §469(c)(7)(B) hours, at-risk override, prior-year
+  // unallowed loss) — the f1040 copy is only the fallback when the return has no rental cards.
+  const rp = deriveRentalPortfolioInputs(entities, p.priorPassiveLossCarryforward)
   const _this = entities[entityIdx]
   const officerW2ThisEntity = (_this && (isSCorpEntity(_this.type) || isCCorpEntity(_this.type)))
     ? (nf(_this.officerW2) || nf(_this.pnl?.officerSalary) || 0) : 0
@@ -67,14 +79,14 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
   }, 0)
   const box17KOthers = others.reduce((s, e) => s + (e ? nf(e.box17K) : 0), 0)
-  const ytdFactor = p.ytdMode && nf(p.ytdMonth) > 0 ? 12 / nf(p.ytdMonth) : 1
+  const ytdFactor = _ytdFactor
   return {
     // M2 (audit F-05): coerce to a canonical number for the strict calculation guard.
     // Session state can hold taxYear as a numeric string; the engine previously
     // tolerated that via object-key lookup (and fell back to CURRENT_TAX_YEAR for
     // unresolvable years). This makes that same fallback explicit, so behavior is
     // unchanged while the guard's finite-number contract is satisfied.
-    taxYear: parseInt(p.taxYear) || CURRENT_TAX_YEAR,
+    taxYear: _taxYear,
     status: p.filingStatus || 'single',
     dependents: nf(p.dependents),
     w2: nf(p.w2Income) + officerW2Others,
@@ -89,27 +101,31 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     stGain: nf(p.stGain),
     ltGain: nf(p.ltGain ?? p.capitalGains),
     intInc: nf(p.interest),
-    divInc: nf(p.dividends),
-    qualDiv: nf(p.qualDividends ?? p.qualifiedDividends),
+    divInc: nf(p.dividends) + ccorpOthers.dividendsForEngineInput,
+    qualDiv: nf(p.qualDividends ?? p.qualifiedDividends) + ccorpOthers.dividendsForEngineInput,
     f4797Inc: nf(p.form4797) + box17KOthers,
+    f4797MateriallyParticipated: !!p.f4797MateriallyParticipated,   // SEVENTH PASS (was dropped)
     taxableSS: 0, iraIncome: 0,
     selfEmpHealthIns: nf(p.selfEmpHealthIns), hsaDeduction: nf(p.hsaDeduction),
+    selfEmpHealthInsScorp: nf(p.selfEmpHealthInsScorp), selfEmpHealthInsOther: nf(p.selfEmpHealthInsOther),   // B4 split fields (were dropped)
     studentLoanInt: nf(p.studentLoanInt), selfEmpRetirement: nf(p.selfEmpRetirement),
     nolCarryforward: nf(p.nolCarryforward), priorYearQBILoss: nf(p.priorYearLosses),
     saltAmount: nf(p.saltAmount), hasISO: !!p.hasISO, isoBargainElement: nf(p.isoBargainElement),
-    isREP: !!p.isREP,
-    isActiveParticipant: p.isActiveParticipant !== false,
-    rentalAggregationElection: !!p.rentalAggregationElection,
+    isREP: rp.hasRentalCards ? rp.isREP : !!p.isREP,
+    isActiveParticipant: p.isActiveParticipant !== false,   // H-1: the engine scopes this to the retired Step-2 lump; the cards govern
+    rentalAggregationElection: rp.hasRentalCards ? rp.rentalAggregationElection : !!p.rentalAggregationElection,
+    repHoursRE: rp.repHoursRE, repHoursTotal: rp.repHoursTotal, repAggregationOverride: rp.repAggregationOverride,   // M-3
     unrecap1250: nf(p.unrecap1250), collectiblesGain: nf(p.collectiblesGain),
     nonrecapturedNet1231Loss: nf(p.nonrecap1231),
     w2Withheld: nf(p.w2Withheld), estPaid: nf(p.estPaid),
+    estQ1: nf(p.estQ1), estQ2: nf(p.estQ2), estQ3: nf(p.estQ3), estQ4: nf(p.estQ4),   // H-2
     ytdFactor,
     priorYearTax: nf(p.priorYearTax), priorYearAGI: nf(p.priorYearAGI),
-    priorPassiveLossCarryforward: nf(p.priorPassiveLossCarryforward),
+    priorPassiveLossCarryforward: rp.priorPAL,   // M-4: card sum, personal value only as migration fallback
     priorSuspendedLoss: nf(p.priorSuspendedLoss),
     assumeZeroBasisOnLoss: true,
     useItemized: !!p.useItemized, itemizedAmt: nf(p.itemizedAmt),
-    medicalExpenses: nf(p.medicalAmt ?? p.medicalExpenses),
+    medicalExpenses: p.useItemized ? nf(p.medicalAmt ?? p.medicalExpenses) : 0,
   }
 }
 
@@ -232,8 +248,13 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
   // taxCalc.js sum it directly, never re-scaled by ownership%), so it's added back as-is here
   // to reconstruct the pre-officer-salary comparison base.
   const officerSalaryShare = parseFloat(entity?.officerW2 ?? entity?.pnl?.officerSalary) || 0
+  // SEVENTH PASS M-6 (16 Sep 2026): the comparison base is profit BEFORE officer salary AND
+  // before the employer payroll tax on that salary (AUDIT H1 put §3111 FICA into an S-Corp's
+  // totalExpenses). Adding back only the salary left the base short by the employer FICA, so
+  // the S-Corp scenario's K-1 at the SAME salary came out $7,650 below the Tracker's K-1.
+  const employerFICAShare = nf(entity?.pnl?.employerPayrollTax) || 0
   const netProfitShare = entity && entity.pnl
-    ? Math.round(getEntityK1Share(entity) + officerSalaryShare)
+    ? Math.round(getEntityK1Share(entity) + officerSalaryShare + employerFICAShare)
     : 0
 
   const [salary, setSalary] = useState(null)
@@ -518,7 +539,7 @@ function EntityCompareModal({ isOpen, onClose, entity, personalContext, entities
                   payroll tax + penalties + interest.
                   {rcRisk.severity === 'high'
                     ? ' Zero W-2 wages with a profitable S-Corp is the highest-risk pattern.'
-                    : ` There is no statutory safe harbor; common practitioner heuristics fall around ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of profit, and ratios below roughly 40% tend to draw scrutiny (Watson v. Commissioner, 668 F.3d 1008 (8th Cir. 2012)).`}
+                    : ` There is no statutory safe harbor; common practitioner heuristics fall around ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of profit, and ratios below roughly 40% tend to draw scrutiny (David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)).`}
                 </div>
               </div>
             </div>

@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, calcCCorpCorporateLayer, SALT_CAPS, getTable, getSaltPhaseDownParams } from '../lib/taxCalc.js'
+import { calcTaxReturn, getStdDed, SALT_CAPS, getTable, getSaltPhaseDownParams } from '../lib/taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -20,8 +20,10 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp, localCalendarDate } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, ccorpOwnerShare, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
+import { deriveRentalPortfolioInputs } from '../utils/rentalPortfolio.js'   // SEVENTH PASS M-1/M-3/M-4
+import { ccorpLayerForReturn, mergeCcorpIntoResult } from '../utils/ccorpLayer.js'   // SEVENTH PASS H-4
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
@@ -207,9 +209,15 @@ export default function TaxReturn() {
   // Rentals are entered in Step 1 as Real Estate (Schedule E) entities. REP status is
   // established there (per-entity) and flows through the engine; we seed the Step-2
   // value from the Step-1 entities so the §1.469-9(g) election control is reachable.
-  const step1IsREP = (entities || []).some(e => e && isRealEstateEntity(e.type) && e.isREP)
-  const [isREP]               = useState(!!savedCtx.isREP || step1IsREP)   // D-09: setter unused
-  const [isActiveParticipant] = useState(savedCtx.isActiveParticipant === true)   // D-09: setter unused
+  // SEVENTH PASS M-1 (16 Sep 2026): REP status is DERIVED from the Step-1 rental cards on
+  // every render, not seeded once into state. The old `useState(!!savedCtx.isREP || step1IsREP)`
+  // was self-perpetuating: this component writes isREP back to ts360_f1040, so once true it
+  // came back true on the next visit even after the card was unchecked — and the engine then
+  // deducted the loss in full. When no rental cards exist the saved flag still applies
+  // (legacy Step-2 lump).
+  const _rentalPortfolio = deriveRentalPortfolioInputs(entities, savedCtx.priorPassiveLossCarryforward)
+  const isREP = _rentalPortfolio.hasRentalCards ? _rentalPortfolio.isREP : !!savedCtx.isREP
+  const [isActiveParticipant] = useState(savedCtx.isActiveParticipant === true)   // D-09: setter unused; H-1: the engine scopes this to the retired Step-2 lump — the rental cards govern
   // F-01: §1366(d) suspended loss carryforward
   const [priorSuspendedLoss, setPriorSuspendedLoss] = useState(savedCtx.priorSuspendedLoss || '')
 
@@ -219,34 +227,12 @@ export default function TaxReturn() {
   //     "any elected" treats the aggregated portfolio as nonpassive (a single taxpayer-
   //     level election — checking it on a card is the affirmative attestation).
   //   • priorPAL — prior-year suspended passive loss (Form 8582) summed across the cards.
-  const step1REList = (entities || []).filter(e => e && isRealEstateEntity(e.type))
-  const rentalAggregationElection = step1REList.some(e => e.rentalAggregationElection === true)
-  // Finding 2 FIX: surface the §469(c)(7)(B) hours the taxpayer entered on the Step-1
-  // rental cards so the engine can apply the quantitative test to the FILED return (not
-  // just the Step-1 preview). The hours are a taxpayer-level figure entered per card; we
-  // take the max across cards (whichever card the user filled in). repAggregationOverride
-  // is the explicit "deduct despite a failed hours test" acknowledgment made on the card.
-  const repHoursRE = step1REList.reduce((m, e) => {
-    const v = parseFloat(e.repHoursRE)
-    if (Number.isNaN(v)) return m
-    return Number.isNaN(m) ? v : Math.max(m, v)
-  }, NaN)
-  const repHoursTotal = step1REList.reduce((m, e) => {
-    const v = parseFloat(e.repHoursTotal)
-    if (Number.isNaN(v)) return m
-    return Number.isNaN(m) ? v : Math.max(m, v)
-  }, NaN)
-  const repAggregationOverride = step1REList.some(e => e.repAggregationOverride === true)
-  const cardPriorPAL = step1REList.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
-  // Migration: returns saved BEFORE rental consolidation stored a single portfolio prior-PAL
-  // in personal context (savedCtx.priorPassiveLossCarryforward); it now lives on the Step-1
-  // rental cards. If the cards carry none but a saved personal value exists, fall back to it
-  // so the carryforward is NOT lost from the calc — and (critically) so the save-path write
-  // of priorPassiveLossCarryforward doesn't clobber the orphan to 0. Once the user enters it
-  // on a card, cardPriorPAL takes over and the fallback stops (no double counting). We flag it
-  // because we can't know which property it belonged to — the user must re-attribute it.
-  const orphanedPriorPAL = cardPriorPAL === 0 ? Math.max(0, nf(savedCtx.priorPassiveLossCarryforward) || 0) : 0
-  const priorPAL = cardPriorPAL > 0 ? cardPriorPAL : orphanedPriorPAL
+  // SEVENTH PASS M-3 / M-4 (16 Sep 2026): the election, the §469(c)(7)(B) hours (max across
+  // cards), the at-risk override and the prior-year unallowed loss (Form 8582 line 1c; the
+  // personal-context value is only the migration fallback for returns saved before the
+  // carryforward moved onto the cards) all come from utils/rentalPortfolio.js — the same
+  // helper the record-card / Step-1 / Aria selector now reads, so no surface can disagree.
+  const { rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride, orphanedPriorPAL, priorPAL } = _rentalPortfolio
   // F6 migration: a saved return that had REP set before the election existed gets a
   // one-time prompt so the user re-confirms (passive is the safe default).
   const [showRepMigration, setShowRepMigration] = useState(
@@ -336,27 +322,9 @@ export default function TaxReturn() {
   //   • corpTax is added on top of the personal total (it is paid by the corporation,
   //     separately from the owner's 1040 — so it is NOT part of the quarterly estimate).
   // Planning model: single owner-employee, full annual distribution. See calcCCorpReturn.
-  const ccorp = useMemo(() => {
-    const list = Array.isArray(entities) ? entities : []
-    return list.reduce((acc, e) => {
-      if (!e || !isCCorpEntity(e.type)) return acc
-      const salary = nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0
-      // Persisted netProfit is AFTER officer salary; the corporate layer needs profit
-      // BEFORE salary (it deducts salary + employer FICA itself).
-      const netBeforeSalary = nf(e.pnl?.netProfit) + salary
-      const layer = calcCCorpCorporateLayer({ netProfit: netBeforeSalary, officerSalary: salary, taxYear })
-      // C-CORP AUDIT (11 Sep 2026): only the owner's share of the dividends and of the
-      // corporate tax reaches this return — see ccorpOwnerShare(). Previously 100% of both
-      // were folded in whatever the entity's Ownership % said.
-      const mine = ccorpOwnerShare(layer, e.own)
-      acc.corpTax        += mine.corpTax
-      acc.dividends      += mine.dividends
-      acc.corpTaxEntity  += layer.corpTax
-      acc.partial         = acc.partial || mine.share < 1
-      acc.count          += 1
-      return acc
-    }, { corpTax: 0, dividends: 0, corpTaxEntity: 0, partial: false, count: 0 })
-  }, [entities, taxYear])
+  // SEVENTH PASS H-4 (16 Sep 2026): shared with the record-card / Step-1 / Aria selector
+  // (utils/ccorpLayer.js) so every surface carries the same corporate layer.
+  const ccorp = useMemo(() => ccorpLayerForReturn(entities, taxYear, ytdFactor), [entities, taxYear, ytdFactor])   // M-7: annualized in YTD mode
 
   const calcInput = useMemo(() => {
     const entityList = Array.isArray(entities) ? entities : []
@@ -383,7 +351,7 @@ export default function TaxReturn() {
       // entities via the engine's step1RentalNet. The engine defaults rentalNet to 0.
       stGain: nf(stGain), ltGain: nf(ltGain), intInc: nf(interest),
       capLossCarryforwardST: nf(capLossCarryST), capLossCarryforwardLT: nf(capLossCarryLT),  // §1212(b)
-      divInc: nf(dividends) + ccorp.dividends, qualDiv: nf(qualDividends) + ccorp.dividends, f4797Inc: form4797Total,
+      divInc: nf(dividends) + ccorp.dividendsForEngineInput, qualDiv: nf(qualDividends) + ccorp.dividendsForEngineInput, f4797Inc: form4797Total,   // M-7: YTD slice; the engine annualizes
       taxableSS: 0, iraIncome: 0,
       selfEmpHealthIns: nf(selfEmpHealthIns),
       // B4 (Aug 2026): only meaningful when sehiMixedSourceUI's fields were actually
@@ -403,8 +371,8 @@ export default function TaxReturn() {
       // The engine suspends a REP aggregation loss when entered hours fail the test unless
       // repAggregationOverride is true. NaN (no hours entered) passes through as not-provided,
       // preserving backward-compatible treatment.
-      repHoursRE: Number.isNaN(repHoursRE) ? '' : repHoursRE,
-      repHoursTotal: Number.isNaN(repHoursTotal) ? '' : repHoursTotal,
+      repHoursRE,
+      repHoursTotal,
       repAggregationOverride,
       unrecap1250: nf(unrecap1250), collectiblesGain: nf(collectibles),
       nonrecapturedNet1231Loss: nf(nonrecap1231),   // F5 (§1231(c) lookback)
@@ -454,24 +422,12 @@ export default function TaxReturn() {
       validateCalcInputs(deferredCalcInput, 'TaxReturn')
       const r = calcTaxReturn(deferredCalcInput)
       if (!r) return { result: r, calcError: null }
-      if (deferredCcorp.corpTax > 0 || deferredCcorp.dividends > 0) {
-        // The engine has already (a) taxed the dividends (folded into qualDiv above) and
-        // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
-        // Adding the corporate tax here keeps the headline total, effective rate, waterfall
-        // and saved summary in sync, without inflating the owner's quarterly estimate (the
-        // 21% is paid by the corporation on Form 1120, separately from the 1040).
-        return {
-          result: {
-            ...r,
-            ccorpCorpTax:   deferredCcorp.corpTax,
-            ccorpDividends: deferredCcorp.dividends,
-            totalTax: (r.totalTax || 0) + deferredCcorp.corpTax,
-            balance:  (r.balance  || 0) + deferredCcorp.corpTax,
-          },
-          calcError: null,
-        }
-      }
-      return { result: r, calcError: null }
+      // The engine has already (a) taxed the dividends (folded into qualDiv above) and
+      // (b) computed quarterlyRecommended on the PERSONAL total — both before this point.
+      // Adding the corporate tax keeps the headline total, effective rate, waterfall and
+      // saved summary in sync, without inflating the owner's quarterly estimate (the 21% is
+      // paid by the corporation on Form 1120, separately from the 1040). H-4: shared merge.
+      return { result: mergeCcorpIntoResult(r, deferredCcorp), calcError: null }
     } catch (e) {
       if (e instanceof CalcInputError) return { result: null, calcError: e.message }
       throw e   // real engine bugs must be visible, never a silent blank result
@@ -492,6 +448,7 @@ export default function TaxReturn() {
       // computed on the wrong year's tables.
       taxYear,
       filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+      estQ1, estQ2, estQ3, estQ4,   // SEVENTH PASS H-2: per-installment boxes persist (manifest)
       stGain, capitalGains: ltGain, ltGain, interest, dividends, qualDividends,
       qualifiedDividends: qualDividends, unrecap1250, collectiblesGain: collectibles, form4797, f4797MateriallyParticipated, nonrecap1231,
       capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
@@ -509,6 +466,7 @@ export default function TaxReturn() {
   }, [
     taxYear,
     filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+    estQ1, estQ2, estQ3, estQ4,
     stGain, ltGain, interest, dividends, qualDividends, unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
@@ -561,19 +519,30 @@ export default function TaxReturn() {
         // (single-entity summary) computes SE tax / NIIT the way Step 2 does.
         limitedPartner:    !!entities?.[0]?.limitedPartner,
         passiveShareholder: !!entities?.[0]?.passiveShareholder,
+        isActiveParticipant: !!entities?.[0]?.isActiveParticipant,   // SEVENTH PASS H-1: rental-card attestation
+        isREP:             !!entities?.[0]?.isREP,
       },
       f1040: {
+        // SEVENTH PASS H-3 (16 Sep 2026): this shape is what Dashboard.loadRecord and the
+        // record-card selector read back. It dropped the itemized SUB-FIELDS (mortgage /
+        // charitable / medical), the Form 4797 material-participation attestation and the
+        // per-installment boxes — a saved itemizer reloaded onto the standard deduction
+        // (itemizedAmt is blank whenever the sub-fields are used). Mirror the auto-save
+        // payload above field-for-field.
+        taxYear,
         filingStatus, w2Income, w2OwnForSE, w2Withheld, estPaid, dependents, ytdMode, ytdMonth,
+        estQ1, estQ2, estQ3, estQ4,
         stGain, capitalGains: ltGain, ltGain,
         interest, dividends, qualDividends, qualifiedDividends: qualDividends,
-        unrecap1250, collectiblesGain: collectibles, form4797, nonrecap1231,
+        unrecap1250, collectiblesGain: collectibles, form4797, f4797MateriallyParticipated, nonrecap1231,
         capLossCarryforwardST: capLossCarryST, capLossCarryforwardLT: capLossCarryLT,  // §1212(b) — via manifest
         isREP, isActiveParticipant,
         priorPassiveLossCarryforward: priorPAL,
         rentalAggregationElection,   // F6 (§1.469-9(g) election)
         selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
         nolCarryforward, priorYearLosses: priorYearQBILoss,
-        useItemized, itemizedAmt, saltAmount, hasISO, isoBargainElement,
+        useItemized, itemizedAmt: itemizedAmtForEngine, saltAmount, hasISO, isoBargainElement,
+        mortgageInt, charitableContr, medicalAmt,
         priorYearTax, priorYearAGI,
         // SAVE-2 FIX: persist §1366(d) prior-year suspended loss so it round-trips
         // through saved records. Previously only written to sessionStorage (ts360_f1040)
@@ -596,12 +565,14 @@ export default function TaxReturn() {
   }, [
     taxYear, entities, sessionK1, filingStatus, dependents,
     w2Income, w2OwnForSE, w2Withheld, estPaid, ytdMode, ytdMonth,
+    estQ1, estQ2, estQ3, estQ4,
     stGain, ltGain, interest, dividends, qualDividends,
     unrecap1250, collectibles, form4797, f4797MateriallyParticipated, nonrecap1231, capLossCarryST, capLossCarryLT,
     isREP, isActiveParticipant, priorPAL,
     rentalAggregationElection,
     selfEmpHealthIns, selfEmpHealthInsScorp, selfEmpHealthInsOther, hsaDeduction, studentLoanInt, selfEmpRetirement,
-    nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
+    nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, itemizedAmtForEngine, saltAmount,
+    mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
   ])
 
@@ -686,9 +657,14 @@ export default function TaxReturn() {
     if (parts.length === 2) return `${parts[0]} and ${parts[1]}`
     return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
   }
+  // SEVENTH PASS B-23 (16 Sep 2026): the summary quoted the JOINT cap for every filer.
+  // §164(b)(6) halves the cap for a married individual filing separately (the engine's
+  // getSaltCap does exactly that), so an MFS filer was shown twice the cap actually
+  // applied to them. Halve the displayed figures for MFS, and say so.
+  const _saltMfsHalf = filingStatus === 'mfs' ? 0.5 : 1
   const saltCapsSummary = joinWithAnd(
-    SUPPORTED_TAX_YEARS.map(y => `$${(SALT_CAPS[y] ?? SALT_CAPS[CURRENT_TAX_YEAR]).toLocaleString()} for ${y}`)
-  )
+    SUPPORTED_TAX_YEARS.map(y => `$${((SALT_CAPS[y] ?? SALT_CAPS[CURRENT_TAX_YEAR]) * _saltMfsHalf).toLocaleString()} for ${y}`)
+  ) + (filingStatus === 'mfs' ? ' (married filing separately — half the joint cap, §164(b)(6))' : '')
   const hasResult   = !!result && result.totalTax >= 0
   const entityList  = Array.isArray(entities) ? entities : []
 
@@ -749,7 +725,9 @@ export default function TaxReturn() {
   const priorYearAGINum = nf(priorYearAGI)
   const isHighIncome = (result?.priorYearMultiplier ?? 1) > 1
   const safeHarborMinimumLocal = result?.safeHarborMinimum ?? 0
-  const totalPaymentsLocal = nf(w2Withheld) + nf(estPaid)
+  const totalPaymentsLocal = result?.totalPayments ?? (nf(w2Withheld) + nf(estPaid))   // SEVENTH PASS H-2: engine credits the installment boxes
+  // SEVENTH PASS M-7: display-side mirror of the engine's YTD annualization for income flows.
+  const annualized = (v) => Math.round(nf(v) * (ytdFactor || 1))
   const safeHarborGap = priorYearTaxNum > 0
     ? safeHarborMinimumLocal - totalPaymentsLocal
     : null
@@ -1432,7 +1410,7 @@ export default function TaxReturn() {
                 {/* 2210-lite (Jul 2026): optional per-installment timing, §6654(d)(1)(A).
                     When supplied, these OVERRIDE the total above for schedule purposes. */}
                 <div style={{ marginTop: 6, fontSize: 11, color: '#64748B' }}>
-                  Optional — payment by installment (overrides the total for the penalty schedule):
+                  Optional — payment by installment. Leave the total blank and the four boxes are summed as your payments (the larger of the two figures is credited); the boxes also set the timing for the penalty schedule.
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginTop: 4 }}>
                   <Step2MoneyInput ariaLabel="Q1 paid (Apr 15)" value={estQ1} onChange={setEstQ1} placeholder="Q1" nonNegative style={{ fontSize: 12 }} />
@@ -1454,7 +1432,7 @@ export default function TaxReturn() {
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
                     Prior-Year S-Corp Suspended Loss Carryforward (Form 7203 Part III)
-                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nReported on Form 7203, Part III, column (e).\n\nLeave blank if first year or no prior suspended loss exists.\n\n§199A: the portion released this year is QBI in this year if the loss arose in 2018 or later (Treas. Reg. §1.199A-3(b)(1)(iv)). This estimate does not net it automatically — enter the released amount in "Prior-Year QBI Loss Carryforward" below so the 20% deduction is reduced.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (e)'} wide />
+                    <InfoTip text={'If S-Corp losses were suspended in a prior year due to insufficient stock + debt basis (§1366(d)), enter the total carried forward here.\n\nOn Form 7203 this is a Part III amount: it is the carryover INTO this year, shown in column (b) of this year\'s Part III — the same figure your preparer carried out in column (e) of last year\'s Form 7203. (Part I is stock basis; Part II is debt basis.)\n\nLeave blank if first year or no prior suspended loss exists.\n\n§199A: the portion released this year is QBI in this year if the loss arose in 2018 or later (Treas. Reg. §1.199A-3(b)(1)(iv)). This estimate does not net it automatically — enter the released amount in "Prior-Year QBI Loss Carryforward" below so the 20% deduction is reduced.\n\nIRC §1366(d)(1)–(2) · Treas. Reg. §1.1366-2 · Form 7203 Part III col. (b)'} wide />
                   </label>
                   <Step2MoneyInput id="tr-prior-suspended-loss" value={priorSuspendedLoss} onChange={setPriorSuspendedLoss} placeholder="0" nonNegative />
                 </div>
@@ -1484,14 +1462,14 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-caploss-st" style={inputLbl}>
                   Capital Loss Carryforward — Short-Term
-                  <InfoTip text="Unused short-term capital loss carried from last year's Schedule D. Nets against this year's gains; up to $3,000 of any remaining net loss ($1,500 married filing separately) offsets other income, and the rest carries forward again (IRC §1211(b), §1212(b))." />
+                  <InfoTip text={`Unused short-term capital loss carried from last year's Schedule D. Nets against this year's gains; up to $${CAP_LOSS_ORDINARY_LIMIT.toLocaleString()} of any remaining net loss ($${CAP_LOSS_ORDINARY_LIMIT_MFS.toLocaleString()} married filing separately) offsets other income, and the rest carries forward again (IRC §1211(b), §1212(b)).`} />
                 </label>
                 <Step2MoneyInput id="tr-caploss-st" value={capLossCarryST} onChange={setCapLossCarryST} placeholder="0" nonNegative />
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-caploss-lt" style={inputLbl}>
                   Capital Loss Carryforward — Long-Term
-                  <InfoTip text="Unused long-term capital loss carried from last year's Schedule D. Enter as a positive number — it reduces this year's gains before the §1211(b) $3,000 limit applies." />
+                  <InfoTip text={`Unused long-term capital loss carried from last year's Schedule D. Enter as a positive number — it reduces this year's gains before the §1211(b) $${(filingStatus === 'mfs' ? CAP_LOSS_ORDINARY_LIMIT_MFS : CAP_LOSS_ORDINARY_LIMIT).toLocaleString()} limit applies.`} />
                 </label>
                 <Step2MoneyInput id="tr-caploss-lt" value={capLossCarryLT} onChange={setCapLossCarryLT} placeholder="0" nonNegative />
               </div>
@@ -1581,7 +1559,7 @@ export default function TaxReturn() {
                       in label for precision. Tooltip now covers the full statutory definition. */}
                   {/* UX-H3 FIX: label shortened — IRC cite moved to tooltip */}
                   Collectibles Gain
-                  <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter your net gain from Schedule D (or net gain/loss line if a loss year — losses are entered as negative numbers)." />
+                  <InfoTip text="Gain from the sale of collectibles held more than 1 year, taxed at a maximum 28% rate (IRC §1(h)(4)). Includes: coins, art, antiques, gems, precious metals, rugs, and stamps. Enter a net collectibles GAIN only, as a positive number, from your Schedule D 28% Rate Gain Worksheet. A net collectibles LOSS does not belong here — it nets through Schedule D with your other capital losses like any other loss, and a negative entry in this field is ignored." />
                 </label>
                 <Step2MoneyInput id="tr-collectibles" value={collectibles} onChange={setCollectibles} placeholder="0" nonNegative />
               </div>
@@ -1693,7 +1671,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
                   Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={'Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max $70,000 (2025)\n• Solo 401(k) employer: up to 25% of W-2 salary\n\nFor sole proprietors: enter approx. 20% of net self-employment income, max $70,000.'} wide />
+                  <InfoTip text={`Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} for ${taxYear}\n• Solo 401(k) employer: up to 25% of W-2 salary (combined employee + employer cap ${fmt(getTable(taxYear)?.retirement?.solo401kMax ?? 0)} for ${taxYear})\n\nFor sole proprietors: enter approx. 20% of net self-employment income, same ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} ceiling.`} wide />
                 </label>
                 <Step2MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
               </div>
@@ -1710,7 +1688,7 @@ export default function TaxReturn() {
                       multi-entity") inside a parenthetical, and used unexplained "pooled" jargon.
                       Form 8995 citation added. The tooltip already explains the per-entity distinction. */}
                   Prior-Year QBI Loss Carryforward (Form 8995, Line 3)
-                  <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: enter the per-entity carryforward in each entity's §199A panel in Step 1 (Form 8995 line 3). Per-entity tracking is required by Treas. Reg. §1.199A-1(d)(2)(iii). When per-entity values are entered, this pooled field is ignored." />
+                  <InfoTip text="If your business generated a net QBI loss last year, that loss reduces your §199A QBI deduction in the CURRENT year (IRC §199A(c)(2)).\n\nFor a single entity: enter the absolute value of last year's QBI loss here.\n\nFor multiple entities: you may instead enter a split in each entity's §199A panel in Step 1 (Form 8995 line 3); when per-entity values are entered, this pooled field is ignored.\n\nThe statutory rule is pooled, not per-entity: under Treas. Reg. §1.199A-1(d)(2)(iii)(B) a net negative combined QBI carries forward as a single amount, treated the next year as a loss from a separate qualified business and apportioned among that year's businesses in proportion to their QBI." />
                 </label>
                 <Step2MoneyInput id="tr-qbi-loss" value={priorYearQBILoss} onChange={setPriorYearQBILoss} placeholder="0" nonNegative />
               </div>
@@ -1825,7 +1803,7 @@ export default function TaxReturn() {
                 <input type="checkbox" id="iso" checked={hasISO} onChange={e => setHasISO(e.target.checked)} />
                 <label htmlFor="iso" style={{ fontSize: 13, color: N, cursor: 'pointer' }}>
                   Exercised ISO stock options this year
-                  <InfoTip text="Incentive Stock Option exercise bargain element — the spread between FMV and exercise price at exercise date. This is an AMT preference item (Form 6251, Line 2a). It does NOT appear in ordinary income if you hold the stock, but IS added to your AMT tax base." />
+                  <InfoTip text="Incentive Stock Option exercise bargain element — the spread between FMV and exercise price at exercise date. This is an AMT adjustment reported on Form 6251, Part I, Line 2i (IRC §56(b)(3)). It does NOT appear in ordinary income if you hold the stock, but IS added to your AMT tax base." />
                 </label>
               </div>
               {hasISO && (
@@ -1955,7 +1933,7 @@ export default function TaxReturn() {
                       or not payments were entered; only the non-negative case depends on that. */}
                   {result.balance < 0
                     ? 'Estimated Refund'
-                    : (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability'
+                    : (totalPaymentsLocal > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability'
                   }
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: result.balance >= 0 ? '#FCA5A5' : '#86EFAC' }}>
@@ -2086,8 +2064,12 @@ export default function TaxReturn() {
                   hide: !(result.sehiScorpWageGrossUp > 0),
                   note: 'Included in Box 1 W-2 wages (Notice 2008-1) — not shown in the W-2 Wages row above; offset by the Health Insurance Ded. row below' },
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
-                { label: 'Capital Gains (LT)',          value: nf(ltGain),                                sign: 1, hide: nf(ltGain) === 0 },
-                { label: 'Capital Gains (ST)',          value: nf(stGain),                                sign: 1, hide: nf(stGain) === 0 },
+                // SEVENTH PASS M-7 (16 Sep 2026): in YTD mode the engine annualizes every income FLOW
+                // (ytdFactor); these rows printed the raw year-to-date entries under an annualized AGI,
+                // so the column did not foot by (factor − 1) × the entries. annualized() mirrors the
+                // engine's scaling for display only; balances (carryforwards) are not scaled.
+                { label: 'Capital Gains (LT)',          value: annualized(ltGain),                        sign: 1, hide: nf(ltGain) === 0 },
+                { label: 'Capital Gains (ST)',          value: annualized(stGain),                        sign: 1, hide: nf(stGain) === 0 },
                 // THIRD PASS (14 Sep 2026, live T10): the §1212(b) carryforward inputs DO have a UI
                 // now (tr-caploss-st / tr-caploss-lt, Phase 2 manifest) but the waterfall never
                 // showed them — W-2 60,000 + ST 10,000 − LT 4,000 printed above an AGI of 64,000,
@@ -2109,13 +2091,13 @@ export default function TaxReturn() {
                 // FOURTH READ R-7 (14 Sep 2026): the caption said "taxed at long-term capital-gains
                 // rates" even when §1231(c) had recharacterized part of the gain as ordinary
                 // (the field-level note was right; the waterfall was not). Name the split.
-                { label: '§1231 Gain (Form 4797)',      value: nf(form4797),                              sign: 1, hide: nf(form4797) === 0,
+                { label: '§1231 Gain (Form 4797)',      value: annualized(form4797),                      sign: 1, hide: nf(form4797) === 0,
                   note: nf(form4797) > 0
                     ? ((result.ordinary1231Recapture || 0) > 0
-                        ? `${fmt(result.ordinary1231Recapture)} recharacterized as ORDINARY income under §1231(c) (nonrecaptured §1231 losses from the prior five years)${nf(form4797) - result.ordinary1231Recapture > 0 ? `; the remaining ${fmt(nf(form4797) - result.ordinary1231Recapture)} is long-term capital gain` : ''}`
+                        ? `${fmt(result.ordinary1231Recapture)} recharacterized as ORDINARY income under §1231(c) (nonrecaptured §1231 losses from the prior five years)${annualized(form4797) - result.ordinary1231Recapture > 0 ? `; the remaining ${fmt(annualized(form4797) - result.ordinary1231Recapture)} is long-term capital gain` : ''}`
                         : 'Net §1231 gain — taxed at long-term capital-gains rates')
                     : 'Net §1231 loss — ordinary, reduces ordinary income' },
-                { label: 'Interest & Dividends',        value: nf(interest) + nf(dividends),             sign: 1, hide: nf(interest) + nf(dividends) === 0 },
+                { label: 'Interest & Dividends',        value: annualized(interest) + annualized(dividends), sign: 1, hide: nf(interest) + nf(dividends) === 0 },
                 { label: 'Dividends (C-Corp distribution)', value: result.ccorpDividends || 0,            sign: 1, hide: !(result.ccorpDividends > 0), accent: '#2563EB', note: 'After-tax C-Corp profit, distributed and taxed again at qualified-dividend rates' },
                 // FOURTH READ, second pass (14 Sep 2026): an S-Corp distribution in excess of stock
                 // basis is §1368(b)(2) capital gain that the engine puts in AGI, but it had no row —
@@ -2131,6 +2113,11 @@ export default function TaxReturn() {
                 // income this year (and carries forward as an NOL); previously it only appeared
                 // in a callout below, so the listed rows did not appear to sum to AGI.
                 { label: '§461(l) Excess Business Loss Disallowed', value: result.ebl || 0,          sign: 1, hide: !(result.ebl > 0), accent: R, note: 'Disallowed business loss added back this year — carries forward as an NOL (IRC §461(l), §172)' },
+                // SEVENTH PASS F-2 (16 Sep 2026): a passive K-1 loss (limited partner / passive S-Corp
+                // shareholder) is deducted only against passive rental income; the suspended remainder
+                // is added back here so the K-1 rows above still foot to AGI (Form 8582 Worksheet 5).
+                { label: '§469 Passive K-1 Loss Suspended', value: result.passiveK1LossSuspended || 0, sign: 1, hide: !(result.passiveK1LossSuspended > 0), accent: R,
+                  note: `Passive-activity loss from a limited-partner / passive-shareholder K-1 — allowed only against passive income${(result.passiveK1LossAbsorbedByRental || 0) > 0 ? ` (${fmt(result.passiveK1LossAbsorbedByRental)} absorbed by passive rental income)` : ''}; the rest carries forward on Form 8582 (IRC §469(b))` },
                 // ── AUDIT F-6 (Jul 2026): THE WATERFALL NOW FOOTS ────────────────────────────
                 // These three are ABOVE-THE-LINE (Schedule 1) deductions — they are ALREADY
                 // inside AGI. They used to be listed AFTER the AGI row, which made the column
@@ -2262,7 +2249,7 @@ export default function TaxReturn() {
                 // still distinguishes balance due from refund.
                 // THIRD PASS (14 Sep 2026): same rule as the summary card — a negative balance is
                 // a refund even when no payments were entered (refundable ACTC, live T4).
-                { label: result.balance < 0 ? 'Estimated Refund' : (nf(w2Withheld) > 0 || nf(estPaid) > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability', value: Math.abs(result.balance), sign: 1, bold: true, accent: result.balance >= 0 ? R : G },
+                { label: result.balance < 0 ? 'Estimated Refund' : (totalPaymentsLocal > 0) ? 'Estimated Balance Due' : 'Est. Tax Liability', value: Math.abs(result.balance), sign: 1, bold: true, accent: result.balance >= 0 ? R : G },
               ].filter(r => !r.hide).map((row, i) => {
                 if (row.divider) return <div key={i} style={{ borderTop: '1px solid #F1F5F9', margin: '6px 0' }} />
                 const isSubtraction = row.sign < 0
@@ -2341,6 +2328,11 @@ export default function TaxReturn() {
                 </div>
               )}
 
+              {result.passiveK1LossSuspended > 0 && (
+                <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 13, color: '#78350F', lineHeight: 1.55 }}>
+                  <strong>⚠ §469 Passive K-1 Loss Suspended:</strong> {fmt(result.passiveK1LossSuspended)} of your limited-partner / passive-shareholder K-1 loss is a passive activity loss and does not reduce your other income this year. It carries forward on Form 8582 and is allowed against future passive income (or in full when you dispose of the entire interest, IRC §469(g)). A prior-year suspended K-1 loss is not yet an input here — give it to your preparer.
+                </div>
+              )}
               {result.palSuspendedRental > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 13, color: '#78350F', lineHeight: 1.55 }}>
                   <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
