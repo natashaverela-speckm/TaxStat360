@@ -109,6 +109,13 @@ const _SUMMARY_KEYS = [
   'charFloorDisallowed', 'itemizedLimitReduction',
   'halfSE', 'selfEmpHealthDed', 'hsaDed', 'studentLoanDed', 'selfEmpRetirementDed', 'adjustments',
   'priorSuspendedLossApplied', 'priorSuspendedLossRemaining',
+  // EIGHTH PASS (18 Sep 2026): the S-Corp entity-level deductions (F-1/F-2), the retirement and
+  // HSA caps (F-10) and the auto-credited Additional Medicare withholding (F-5), so the Dashboard
+  // card, Aria and the AI Analysis narrate the same adjustments Step 2 shows.
+  'sehiScorpEntityDeduction', 'scorpRetirementEntityDeduction', 'scorpEntityLevelDeductions',
+  'selfEmpRetirementEntered', 'selfEmpRetirementDisallowed', 'selfEmpRetirementClamped',
+  'hsaEntered', 'hsaLimit', 'hsaClamped',
+  'withheldEntered', 'addlMedicareWithheld',
 
   // AUDIT BLOCKER 2 (Jul 2026): the §199A REASON CODES, not just the number.
   // AIAnalysis needs these to render its "why is my deduction reduced" copy. Before

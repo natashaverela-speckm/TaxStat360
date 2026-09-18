@@ -35,7 +35,19 @@ export function deriveRentalPortfolioInputs(entities, savedPriorPAL = 0) {
   const _re  = _maxHours(list, 'repHoursRE')
   const _tot = _maxHours(list, 'repHoursTotal')
   const cardPriorPAL     = list.reduce((s, e) => s + (nf(e.priorPAL) || 0), 0)
-  const orphanedPriorPAL = cardPriorPAL === 0 ? Math.max(0, nf(savedPriorPAL) || 0) : 0
+  // EIGHTH PASS F-3 (18 Sep 2026, independent fresh-eyes audit): the migration fallback fired
+  // for ANY return whose cards carried no prior PAL, including the case where the user had just
+  // REMOVED the card that carried it — TaxReturn mirrors the card total into the personal
+  // context every render, so the deleted card's amount survived there, silently offset the
+  // next rental's income ($10,000 stale carryforward absorbed a new rental's +$5,000, shown as
+  // "$5,000 of rental loss is passive and suspended"), and the migration banner told the user
+  // the amount "used to be entered here". The fallback is now reserved for what it was written
+  // for — a pre-consolidation save whose rental cards never had the field at all. A card
+  // created since the field moved onto the cards carries `priorPAL` (blank or not), so its
+  // presence means the cards ARE the source of truth and a blank means zero. removeEntity also
+  // releases a deleted card's amount from the context (releaseCardPriorPAL below).
+  const cardsCarryField  = list.some(e => Object.prototype.hasOwnProperty.call(e, 'priorPAL'))
+  const orphanedPriorPAL = (cardPriorPAL === 0 && !cardsCarryField) ? Math.max(0, nf(savedPriorPAL) || 0) : 0
   return {
     hasRentalCards,
     isREP,
@@ -49,4 +61,20 @@ export function deriveRentalPortfolioInputs(entities, savedPriorPAL = 0) {
     orphanedPriorPAL,
     priorPAL: cardPriorPAL > 0 ? cardPriorPAL : orphanedPriorPAL,
   }
+}
+
+/**
+ * EIGHTH PASS F-3 (18 Sep 2026): when a Step-1 card that carried a prior-year unallowed
+ * passive loss (Form 8582 line 1c / 2c) is removed, take its amount back out of the mirrored
+ * personal-context carryforward so it cannot survive the card as an orphan. Pure: returns the
+ * updated context (or the same object when nothing changes).
+ * @param {object} ctx     personal context (readPersonalContext())
+ * @param {object} entity  the entity being removed
+ */
+export function releaseCardPriorPAL(ctx, entity) {
+  const cardPAL = Math.max(0, nf(entity?.priorPAL) || 0)
+  if (!ctx || cardPAL === 0) return ctx
+  const current = Math.max(0, nf(ctx.priorPassiveLossCarryforward) || 0)
+  if (current === 0) return ctx
+  return { ...ctx, priorPassiveLossCarryforward: Math.max(0, current - cardPAL) }
 }
