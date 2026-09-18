@@ -565,9 +565,13 @@ describe('§6654 per-installment schedule (2210-lite)', () => {
     const r = _ctr3({ taxYear: 2026, status: 'single', w2: 400000,
       priorYearTax: 40000, priorYearAGI: 200000, estQ1: 5000 })
     // required annual = 110% × 40,000 = 44,000 → 11k/22k/33k/44k cumulative
+    // EIGHTH PASS F-5 (18 Sep 2026): the employer's mandatory 0.9% Additional Medicare
+    // withholding on the $200,000 of wages above the §3102(f) threshold ($1,800) is credited
+    // as withholding and spread evenly (§6654(g)(1)): +$450 per installment.
     const sch = r.installmentSchedule
-    expect(sch[0]).toMatchObject({ requiredCumulative: 11000, paidCumulative: 5000, shortfall: 6000, approximate: false })
-    expect(sch[3].shortfall).toBe(39000)
+    expect(r.addlMedicareWithheld).toBe(1800)
+    expect(sch[0]).toMatchObject({ requiredCumulative: 11000, paidCumulative: 5450, shortfall: 5550, approximate: false })
+    expect(sch[3].shortfall).toBe(44000 - 5000 - 1800)
   })
   it('CHAR: lump-sum total is spread evenly and flagged approximate', () => {
     const r = _ctr3({ taxYear: 2026, status: 'single', w2: 400000,

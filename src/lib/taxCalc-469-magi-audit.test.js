@@ -170,17 +170,22 @@ describe('R-1 second pass — the §469(i) MAGI uses the engine\'s final SEHI de
     expect(r.palSuspendedRental).toBe(15000)
   })
 
-  it('SPEC: an S-Corp-paid premium is grossed into wages (§1372 / Notice 2008-1) and that gross-up is in the §469(i) MAGI', () => {
-    // Officer W-2 100,000 (entered net of premium), K-1 30,000, SEHI 25,000 paid by the S-Corp.
-    // AGI = 100,000 + 25,000 gross-up + 30,000 − 25,000 SEHI = 130,000 before the rental → allowance 10,000.
+  it('SPEC: an S-Corp-paid premium is grossed into wages (§1372 / Notice 2008-1), deducted by the S-Corp, and both legs are in the §469(i) MAGI', () => {
+    // Officer W-2 100,000 (entered net of premium), K-1 30,000 (entered pre-premium, per the
+    // Step 2 caption), SEHI 25,000 paid by the S-Corp.
+    // EIGHTH PASS F-1 (18 Sep 2026): MAGI = 100,000 + 25,000 gross-up + (30,000 − 25,000 the
+    // S-Corp deducts) − 25,000 §162(l) = 105,000 before the rental → allowance 22,500 →
+    // suspended 7,500 → AGI 105,000 − 22,500 = 82,500. (Pre-F-1 the K-1 leg was never reduced:
+    // MAGI 130,000, allowance 10,000, AGI 120,000 — the premium had a net AGI effect of $0.)
     const r = calcTaxReturn({
       ...base, w2: 100000, k1Total: 30000 - 30000,
       entities: [{ type: 'S Corporation', own: 100, k1: 30000, officerW2: 100000 }, rental(-30000)],
       selfEmpHealthIns: 25000,
     })
     expect(r.sehiScorpWageGrossUp).toBe(25000)
+    expect(r.sehiScorpEntityDeduction).toBe(25000)
     expect(r.selfEmpHealthDed).toBe(25000)
-    expect(r.palSuspendedRental).toBe(20000)
-    expect(r.agi).toBe(120000)
+    expect(r.palSuspendedRental).toBe(7500)
+    expect(r.agi).toBe(82500)
   })
 })

@@ -36,10 +36,15 @@ describe('EXT-7 — SEHI attribution reaches the QBI base and the QBI wage cap',
     const without  = run([scorp({ officerW2: '1000000', k1: '400000' })], { w2: 1000000, k1Total: 400000, selfEmpHealthIns: 0 })
     expect(withSehi.scorpSEHIQbiReduction).toBe(30000)
     expect(withSehi.nonSEk1).toBe(400000)             // display figure (scheduleEK1Income) unaffected
-    expect(withSehi.nonSEk1ForQBI).toBe(370000)        // QBI-specific figure IS reduced
-    expect(withSehi.qbiBasis).toBe(370000)
+    // EIGHTH PASS F-1 (18 Sep 2026): the S-Corp deducts the $30,000 premium on its own return
+    // (Form 1120-S — the Step 2 caption says the premium is entered here only when Step 1 net
+    // income does NOT already include it), so the K-1 share is $370,000 before the shareholder's
+    // own §162(l) reduction (Reg. §1.199A-3(b)(1)(vi); IRS §199A FAQ Q33) takes it to $340,000.
+    expect(withSehi.sehiScorpEntityDeduction).toBe(30000)
+    expect(withSehi.nonSEk1ForQBI).toBe(340000)        // QBI-specific figure IS reduced — twice, per the IRS position
+    expect(withSehi.qbiBasis).toBe(340000)
     expect(without.qbi).toBe(80000)                    // 400,000 * 20%, no SEHI
-    expect(withSehi.qbi).toBe(74000)                   // 370,000 * 20%, SEHI-reduced
+    expect(withSehi.qbi).toBe(68000)                   // 340,000 * 20%
   })
 
   it('SPEC: IRS Notice 2018-64/2008-1 — S-corp SEHI increases the §199A(b)(4) W-2 wage cap (isolated: modest wages, huge K1, wage cap binds)', () => {
@@ -80,7 +85,12 @@ describe('EXT-7 — SEHI attribution reaches the QBI base and the QBI wage cap',
     const withSehi = run(entities, { w2: 50000, k1Total: 500000, selfEmpHealthIns: 12000 })
     expect(withSehi.sehiUnambiguousForQBI).toBe(false)
     expect(withSehi.scorpSEHIQbiReduction).toBe(0)
-    expect(withSehi.nonSEk1ForQBI).toBe(withSehi.nonSEk1)
+    // EIGHTH PASS F-1: the shareholder-level §162(l) QBI reduction still falls back to $0 in the
+    // mixed-source case, but the S-Corp's OWN deduction of the premium is not an attribution
+    // question — it is whatever EXT-1 grossed into wages (min(deduction, officer W-2) = $12,000
+    // here, the officer wage base being $50,000), and it leaves the S-Corp's QBI base with it.
+    expect(withSehi.sehiScorpEntityDeduction).toBe(12000)
+    expect(withSehi.nonSEk1ForQBI).toBe(withSehi.nonSEk1 - 12000)
   })
 
   it('SPEC: no S-corp at all (sole proprietor only) — QBI fields are completely unaffected by this pass', () => {

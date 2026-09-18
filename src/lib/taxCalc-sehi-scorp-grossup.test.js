@@ -20,6 +20,16 @@
 // This file is the SPEC test suite for `sehiScorpWageGrossUp` (taxCalc.js,
 // search "EXT-1"). Values are hand-computed from the statute; NOT taken from
 // the app's own (buggy, pre-fix) output.
+//
+// EIGHTH PASS F-1 (18 Sep 2026, independent fresh-eyes audit): the third leg. EXT-1 grossed
+// the premium INTO Box 1 wages and §162(l) took the deductible part back out below the line,
+// but the S-CORP's deduction of the premium it paid (Rev. Rul. 91-26; Notice 2008-1 — it is
+// compensation on Form 1120-S) never reduced the K-1 share. The Step 2 field's own caption
+// tells the user to enter the premium here ONLY when Step 1 net income does not already
+// include it, so under the app's contract the K-1 entered is PRE-premium and the entity-level
+// deduction was simply missing: the net AGI effect of a premium was $0 (or +excess) where it
+// must be minus the deductible premium. Every AGI expectation below was re-derived on that
+// convention:   wages + premium (Box 1)   K-1 − premium (1120-S)   Sch 1 − deduction (§162(l)).
 
 import { describe, it, expect } from 'vitest'
 import { calcTaxReturn } from './taxCalc.js'
@@ -46,10 +56,12 @@ describe('EXT-1 — §1372 SEHI wage grossup (sehiScorpWageGrossUp)', () => {
 
     expect(withSehi.selfEmpHealthDed).toBe(12000)
     expect(withSehi.sehiScorpWageGrossUp).toBe(12000)      // fully covered by the $40,000 officer wage base
-    // AGI is UNCHANGED vs. the no-SEHI baseline — the wage grossup and the
-    // deduction net to zero, matching the real §1372 mechanic.
-    expect(withSehi.agi).toBe(withoutSehi.agi)
-    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome + 12000)
+    // EIGHTH PASS F-1: the wage gross-up (+12,000) and the S-Corp's own deduction of the
+    // premium (−12,000, sehiScorpEntityDeduction) net to zero in gross income; the §162(l)
+    // deduction then lowers AGI by the full deductible premium — the real §1372 mechanic.
+    expect(withSehi.sehiScorpEntityDeduction).toBe(12000)
+    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome)
+    expect(withSehi.agi).toBe(withoutSehi.agi - 12000)
   })
 
   it('SPEC: §1372 — grossup does not increase FICA wages or Additional Medicare Tax (Notice 2008-1 FICA exemption)', () => {
@@ -62,38 +74,46 @@ describe('EXT-1 — §1372 SEHI wage grossup (sehiScorpWageGrossUp)', () => {
     // computed `sehiScorpWageGrossUp` correctly but never wired it into `grossIncomeBeforeNOL`.)
     expect(withSehi.totalW2ForFICA).toBe(withoutSehi.totalW2ForFICA)
     expect(withSehi.additionalMedicare).toBe(withoutSehi.additionalMedicare)
-    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome + 12000)
-    expect(withSehi.agi).toBe(withoutSehi.agi)
+    expect(withSehi.sehiScorpWageGrossUp).toBe(12000)
+    expect(withSehi.sehiScorpEntityDeduction).toBe(12000)   // EIGHTH PASS F-1
+    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome)
+    expect(withSehi.agi).toBe(withoutSehi.agi - 12000)
   })
 
-  it('SPEC: §162(l)(5)(A)/§1372 — SEHI exceeding the officer wage base grosses up wages by the FULL premium; only the DEDUCTION is capped, so the excess increases AGI', () => {
+  it('SPEC: §162(l)(5)(A)/§1372 — SEHI exceeding the officer wage base grosses up wages by the FULL premium; only the DEDUCTION is capped, so the excess stays in AGI', () => {
     // Officer wage base only $10,000; SEHI entered $12,000; no other SE income (SE-earned
     // leg of sehiLimit is 0, so the S-corp leg is unambiguous). The deduction itself is
     // still correctly capped at $10,000 (§162(l)(5)(A)) — that part was always right.
     // But the FULL $12,000 premium must hit Box 1 wages (Notice 2008-1 / Rev. Rul. 91-26),
-    // regardless of the deduction cap. Net AGI effect: +$12,000 wages - $10,000 deduction
-    // = +$2,000 (the un-deducted excess), NOT zero.
+    // regardless of the deduction cap, and the S-Corp deducts the full $12,000 it paid
+    // (EIGHTH PASS F-1). Net AGI effect: +$12,000 wages − $12,000 K-1 − $10,000 deduction
+    // = −$10,000; the $2,000 un-deductible excess is taxed as wages (it never comes out).
     const withSehi    = run([scorp({ officerW2: '10000', k1: '340000' })], { w2: 10000, k1Total: 340000, selfEmpHealthIns: 12000 })
     const withoutSehi = run([scorp({ officerW2: '10000', k1: '340000' })], { w2: 10000, k1Total: 340000, selfEmpHealthIns: 0 })
     expect(withSehi.selfEmpHealthDed).toBe(10000)
     expect(withSehi.sehiClamped).toBe(true)
     expect(withSehi.sehiScorpWageGrossUp).toBe(12000)
-    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome + 12000)
-    // The $2,000 excess premium (entered but not deductible) correctly raises AGI —
-    // this is the exact case the original EXT-1 fix got wrong (it asserted `agi` unchanged).
-    expect(withSehi.agi).toBe(withoutSehi.agi + 2000)
+    expect(withSehi.sehiScorpEntityDeduction).toBe(12000)
+    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome)
+    expect(withSehi.agi).toBe(withoutSehi.agi - 10000)
   })
 
-  it('SPEC: fresh-eyes re-audit reproduction — $80,000 officer wages / $120,000 premium must raise AGI by the $40,000 excess, not net to zero', () => {
-    // This is the exact scenario the independent re-audit tested live against production
-    // and found AGI unchanged ($320,000) across $0/$50,000/$120,000 SEHI entries — proving
-    // the excess was silently dropped. Correct AGI delta for the $120,000 case: +$40,000.
+  it('SPEC: fresh-eyes re-audit reproduction — $80,000 officer wages / $120,000 premium: wages up $120,000, K-1 down $120,000, deduction $80,000 — AGI falls by the deductible $80,000', () => {
+    // The Aug 2026 re-audit found AGI unchanged ($320,000) across $0/$50,000/$120,000 SEHI
+    // entries and fixed the wage inclusion. EIGHTH PASS F-1 (18 Sep 2026) completes the
+    // mechanic: the S-Corp paid the $120,000, so its ordinary income — the K-1 the user
+    // entered pre-premium, per the field caption — is $120,000 smaller. Box 1 wages
+    // $200,000 + K-1 $120,000 − §162(l) $80,000 = AGI $240,000, i.e. baseline − $80,000; the
+    // $40,000 above the officer wage base is taxed as wages with no deduction (it is in AGI,
+    // it is just no longer double-counted through an undiminished K-1).
     const withSehi    = run([scorp({ officerW2: '80000', k1: '240000' })], { w2: 80000, k1Total: 240000, selfEmpHealthIns: 120000 })
     const withoutSehi = run([scorp({ officerW2: '80000', k1: '240000' })], { w2: 80000, k1Total: 240000, selfEmpHealthIns: 0 })
     expect(withSehi.selfEmpHealthDed).toBe(80000)
     expect(withSehi.sehiScorpWageGrossUp).toBe(120000)
-    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome + 120000)
-    expect(withSehi.agi).toBe(withoutSehi.agi + 40000)
+    expect(withSehi.sehiScorpEntityDeduction).toBe(120000)
+    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome)
+    expect(withSehi.agi).toBe(withoutSehi.agi - 80000)
+    expect(withSehi.agi).toBe(240000)
   })
 
   it('SPEC: sole proprietor SEHI (no S-corp entity) — grossUp is zero; behaves as a pure above-the-line deduction, unchanged from pre-fix', () => {
@@ -128,8 +148,12 @@ describe('EXT-1 — §1372 SEHI wage grossup (sehiScorpWageGrossUp)', () => {
     // officer wage base, $10,000) rather than the full $12,000, because the engine cannot
     // safely attribute the combined entry between the S-corp and sole-prop legs.
     expect(withSehi.sehiScorpWageGrossUp).toBe(10000)
-    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome + 10000)
-    expect(withSehi.agi).toBe(withoutSehi.agi - 2000)
+    // EIGHTH PASS F-1: the S-Corp deducts the same attributed $10,000 (sehiScorpEntityDeduction
+    // mirrors the gross-up in every branch), so the two S-Corp legs net out and AGI falls by
+    // the full $12,000 deduction.
+    expect(withSehi.sehiScorpEntityDeduction).toBe(10000)
+    expect(withSehi.grossIncome).toBe(withoutSehi.grossIncome)
+    expect(withSehi.agi).toBe(withoutSehi.agi - 12000)
     // Independent review, Aug 2026: sehiMixedSourceFallback must be true here so the UI can
     // warn even though sehiClamped is false (the deduction itself wasn't capped, only the
     // wage-attribution is approximate).

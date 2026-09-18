@@ -85,6 +85,12 @@ import {
   ACTC_RATE,
   ACTC_EARNED_INCOME_FLOOR,
   ACTC_MAX_PER_CHILD_FALLBACK,
+  // EIGHTH PASS F-2 / F-10 (18 Sep 2026): self-employed retirement caps — 25% of officer W-2
+  // (S-Corp, §402(h)(2)(A)) and the 20% net-of-SE effective rate (sole proprietor, Pub. 560).
+  SEP_IRA_RATE,
+  SEP_IRA_SOLE_PROP_EFFECTIVE_RATE,
+  // EIGHTH PASS F-10: HSA catch-up (§223(b)(3)) for the annual-limit ceiling.
+  HSA_CATCH_UP_CONTRIBUTION,
 } from './constants.js'
 import { normalizeEntityType, isRealEstateEntity, isSCorpEntity, isCCorpEntity, isBasisLimitableEntityType, ownPct, getEntityK1Share, isLimitedPartnerEligibleType, isPassiveK1Entity } from '../utils/entityPredicates.js'
 // PHASE 2.1 (audit V2/P6-2): YTD annualization field lists moved to the shared
@@ -1040,6 +1046,10 @@ function _annualizeIfYTD(input) {
     })
   }
   out.ytdFactor = 1
+  // EIGHTH PASS F-5 (18 Sep 2026): remember the factor that was applied, so the Additional
+  // Medicare withholding credit can be measured on the wages paid TO DATE (payments are never
+  // annualized — §6654 semantics) while every income flow above is annualized.
+  out._ytdFactorApplied = yf
   return out
 }
 /**
@@ -1179,6 +1189,7 @@ function calcTaxReturn(input) {
     nonrecapturedNet1231Loss = 0,
     w2Withheld, estPaid,
     ytdFactor = 1,
+    _ytdFactorApplied = 1,   // EIGHTH PASS F-5: set by _annualizeIfYTD (ytdFactor itself is reset to 1 there)
     priorYearTax,
     priorYearAGI,
     priorPassiveLossCarryforward = 0,
@@ -1666,7 +1677,54 @@ function calcTaxReturn(input) {
     if (!e || !isSCorpEntity(e.type)) return s
     return s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || nf(e.box17V_wages) || 0)
   }, 0)
-  const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - ytdScale(selfEmpRetirement))
+  // ── EIGHTH PASS F-2 / F-10 (18 Sep 2026, independent fresh-eyes audit) — SELF-EMPLOYED
+  // RETIREMENT: TWO LEGS, TWO CAPS ─────────────────────────────────────────────────────
+  // `selfEmpRetirement` was deducted as entered on Schedule 1 line 16, whatever the return
+  // looked like: a W-2-only filer with no SE income deducted $40,000; a sole proprietor with
+  // $300,000 of Schedule C deducted $100,000 (limit $56,909); and a >2% S-Corp shareholder's
+  // employer contribution — which the S-CORP deducts on Form 1120-S (§404(a), §402(h)), so it
+  // reduces the K-1 and the §199A base — was taken below the line with no QBI reduction
+  // (S-Corp K-1 $192,350, $40,000 contribution: §199A $38,470 shown, $30,470 correct).
+  //   SE leg  (sole proprietor / active partner) — Schedule 1 line 16, capped at the lesser of
+  //           earned income (§401(c)(2): net SE earnings less ½ SE tax), the §415(c) dollar
+  //           limit, and 20% of earned income + the §402(g) elective deferral (Solo 401(k)).
+  //           Pub. 560 rate worksheet: 25% / 1.25 = 20% (SEP_IRA_SOLE_PROP_EFFECTIVE_RATE).
+  //   S-Corp leg — the entity's employer contribution, capped at 25% of the shareholder's own
+  //           officer W-2 (§402(h)(2)(A) / §404(a)(3)) and the §415(c) limit; deducted at the
+  //           ENTITY level (reduces the K-1 / AGI and the §199A base, Reg. §1.199A-3(b)(1)(vi)),
+  //           never on Schedule 1.
+  // A single entry is attributed SE leg first, then S-Corp leg; anything above both caps is
+  // disallowed and surfaced (`selfEmpRetirementDisallowed`) so the UI can say so. Age-based
+  // catch-ups (§414(v)) are not modelled — the app does not ask age (KNOWN_LIMITATIONS →
+  // RETIREMENT-CATCHUP). A filer with neither SE earnings nor S-Corp wages gets $0.
+  const _retTable                = getTable(taxYear).retirement || {}
+  const _retLimit415c            = nf(_retTable.solo401kMax) || nf(_retTable.sepIraMax) || 70000
+  const _retDeferralLimit        = nf(_retTable.solo401kDeferral) || 23500
+  const selfEmpRetirementEntered = ytdScale(selfEmpRetirement)
+  const _seEarnedForRetirement   = Math.max(0, seNetIncome - halfSE)
+  const retirementSeLegCap       = Math.max(0, Math.min(
+    _seEarnedForRetirement,
+    _retLimit415c,
+    Math.round(_seEarnedForRetirement * SEP_IRA_SOLE_PROP_EFFECTIVE_RATE) + _retDeferralLimit,
+  ))
+  const retirementScorpLegCap    = Math.max(0, Math.min(Math.round(_scorpOfficerW2ForSEHI * SEP_IRA_RATE), _retLimit415c))
+  const selfEmpRetirementDed     = Math.min(selfEmpRetirementEntered, retirementSeLegCap)                           // Schedule 1, line 16
+  const scorpRetirementEntityDeduction = Math.min(selfEmpRetirementEntered - selfEmpRetirementDed, retirementScorpLegCap)  // Form 1120-S
+  const selfEmpRetirementDisallowed = Math.max(0, selfEmpRetirementEntered - selfEmpRetirementDed - scorpRetirementEntityDeduction)
+  const selfEmpRetirementClamped = selfEmpRetirementDisallowed > 0
+  // EIGHTH PASS F-10 (18 Sep 2026): the HSA deduction was taken as entered ($10,000 deducted
+  // against a $8,750 family limit). The app does not ask coverage type or age, so the
+  // ceiling is the widest legal figure — the family limit plus the §223(b)(3) catch-up (one
+  // per spouse on a joint return) — rather than no ceiling at all. Year figures live in
+  // TAX_TABLES[year].hsa (Rev. Proc. 2024-25 / 2025-19).
+  const _hsaTable   = getTable(taxYear).hsa || {}
+  const hsaEntered  = ytdScale(hsaDeduction)
+  const hsaLimit    = (nf(_hsaTable.family) || 0) > 0
+    ? nf(_hsaTable.family) + HSA_CATCH_UP_CONTRIBUTION * (status === 'mfj' ? 2 : 1)
+    : Infinity
+  const hsaDed      = Math.max(0, Math.min(hsaEntered, hsaLimit))
+  const hsaClamped  = hsaEntered > hsaDed
+  const _seEarnedForSEHI     = Math.max(0, seNetIncome - halfSE - selfEmpRetirementDed)
   const sehiLimit            = _scorpOfficerW2ForSEHI + _seEarnedForSEHI
   // B4 FIX (Aug 2026, schema batch): the split fields below let a taxpayer with BOTH an
   // S-corp and independent SE income (sole prop / active partnership) tell TaxStat360
@@ -1740,6 +1798,31 @@ function calcTaxReturn(input) {
   const sehiMixedSourceFallback = sehiSplitEngaged
     ? false
     : (_scorpOfficerW2ForSEHI > 0 && _seEarnedForSEHI > 0 && sehiEntered > 0)
+  // ── EIGHTH PASS F-1 (18 Sep 2026, independent fresh-eyes audit) — THE S-CORP PAYS THE
+  // PREMIUM, SO THE S-CORP DEDUCTS IT ──────────────────────────────────────────────────
+  // EXT-1 put the premium INTO the shareholder's Box 1 wages (right) and §162(l) took it back
+  // out below the line (right), but nothing ever took it out of the S-Corp's ordinary income.
+  // The premium is deductible compensation to the corporation (Rev. Rul. 91-26; Notice
+  // 2008-1, Q&A 1-3): Form 1120-S line 7/8, so the K-1 Box 1 share is smaller by the premium.
+  // The Step 2 field's caption tells the user to enter the premium here ONLY when Step 1 net
+  // income does not already include it, so under the app's own contract the entity-level
+  // deduction was simply missing — the net AGI effect of a premium was $0 where it must be
+  // minus the deductible premium. Verified live (2026 single, S-Corp gross $400,000, expenses
+  // $100,000, officer W-2 $100,000, SEHI $20,000): AGI $292,350 shown, $272,350 correct.
+  // The deduction is the grossed-up amount (the figure EXT-1 attributed to the S-Corp), so the
+  // three legs stay consistent in every branch, including the mixed-source fallback:
+  //   wages  + premium   (EXT-1 gross-up)
+  //   K-1    − premium   (this line — Form 1120-S)
+  //   Sch 1  − deduction (§162(l), capped at the officer W-2 base)
+  // FICA wages are untouched (Notice 2008-1); §199A W-2 wages keep the EXT-7 bump. QBI is
+  // reduced by BOTH the entity deduction (it is simply not ordinary income any more) and the
+  // shareholder's §162(l) deduction (Reg. §1.199A-3(b)(1)(vi); IRS §199A FAQ Q33) — see
+  // nonSEk1ForQBI below.
+  const sehiScorpEntityDeduction = sehiScorpWageGrossUp
+  // F-1 + F-2 together: everything the S-Corp deducts on its own return that the Step 1 card
+  // does not know about. Subtracted from every income-side figure built on adjustedK1Total —
+  // §469(i) MAGI, §461(l) business loss, §221 MAGI, gross income — and from the S-Corp QBI base.
+  const scorpEntityLevelDeductions = sehiScorpEntityDeduction + scorpRetirementEntityDeduction
   const eblThreshold = (getTable(taxYear).ebl?.[status]) ?? (status === 'mfj' ? 512000 : 256000)  // A4-3: fallback = official 2026; FIFTH READ F-4: joint only
   // Business capital gain for §461(l): f4797Inc (ordinary/§1231 entered as business income)
   // PLUS any §1231 gain entered separately for rate purposes (bizCapGain1231). The latter is
@@ -1769,7 +1852,8 @@ function calcTaxReturn(input) {
   // Assigned inside each §469 branch (before the MAGI / §461(l) reads) and finalized after.
   let passiveK1AgiAdjustment        = 0
   const calc461l = (_rentalForEBL) => {
-    const eblBiz     = adjustedK1Total + passiveK1AgiAdjustment + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+    // EIGHTH PASS F-1/F-2: the S-Corp's own premium / retirement deductions are business deductions.
+    const eblBiz     = adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
     const eblNetLoss = Math.max(0, -eblBiz)
     const ebl        = Math.max(0, eblNetLoss - eblThreshold)
     return { eblBiz, eblNetLoss, ebl }
@@ -1785,13 +1869,15 @@ function calcTaxReturn(input) {
   // the engine's FINAL §162(l) deduction (split fields and the earned-income cap honored),
   // the §1372 wage gross-up is added like every other AGI inclusion, and the §461(l)
   // excess-business-loss addback is included because it, too, reaches AGI.
+  // EIGHTH PASS F-1/F-2/F-10: the S-Corp entity-level deductions come off the K-1 leg; the
+  // Schedule 1 retirement figure is the capped SE leg; the HSA figure is the capped deduction.
   const calc469iMagi = ({ nonpassiveRentalNet: _npRental = 0 } = {}) =>
-    w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + guaranteedPaymentsTotal + _npRental
+    w2 + sehiScorpWageGrossUp + adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + guaranteedPaymentsTotal + _npRental
     + f4797OrdinaryPart + capitalGainNetIncluded + intInc + _divIncEff + iraIncome
     + calc461l(_npRental).ebl
     - halfSE
-    - ytdScale(hsaDeduction)
-    - ytdScale(selfEmpRetirement)
+    - hsaDed
+    - selfEmpRetirementDed
     - selfEmpHealthDed
   // ── FIFTH READ (external calc audit, 15 Sep 2026) — PASSIVE K-1 POOL ─────────────────
   // A limited partner / non-material-participation LLC member's Box 1 share (routed to
@@ -2088,12 +2174,12 @@ function calcTaxReturn(input) {
     ficaSubjectWages: seWageBaseW2,   // R-2 second pass: same wage-base attribution as seTax above
     ssWageBase,
   })
-  const hsaDed               = ytdScale(hsaDeduction)
-  const selfEmpRetirementDed = ytdScale(selfEmpRetirement)
+  // EIGHTH PASS F-2 / F-10 (18 Sep 2026): hsaDed and selfEmpRetirementDed are now the CAPPED
+  // figures computed in the retirement / HSA block above (before the §469(i) MAGI reads them).
   // §221 MAGI: AGI computed without the education-loan deduction itself (pre-NOL proxy).
   // grossIncomeBeforeNOL is defined a few lines below; the pieces are summed here so the
   // deduction can be settled before `adjustments` is fixed.
-  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
+  const _magiForStudentLoan  = w2 + sehiScorpWageGrossUp + adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal
     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
     - (halfSE + selfEmpHealthDed + hsaDed + selfEmpRetirementDed)
   const studentLoanDed       = calcStudentLoanDeduction(ytdScale(studentLoanInt), _magiForStudentLoan, taxYear, status)
@@ -2107,7 +2193,10 @@ function calcTaxReturn(input) {
   // see the definition above. Net AGI effect is zero only when the full premium is covered
   // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
   // FOLLOW-UP FIX comment above). Never touches totalW2ForFICA/additionalMedicare.
-  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2 / PAL-K1-CARRYFORWARD: suspended passive K-1 loss added back, allowed prior-year K-1 loss deducted
+  // EIGHTH PASS F-1/F-2 (18 Sep 2026): `- scorpEntityLevelDeductions` — the S-Corp's own Form
+  // 1120-S deductions for the shareholder's health premium and employer retirement
+  // contribution, which the Step 1 card does not carry. See the definition above.
+  const grossIncomeBeforeNOL = w2 + sehiScorpWageGrossUp + adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + palAdjustedRental + capitalGainNetIncluded + guaranteedPaymentsTotal   // SEVENTH PASS F-2 / PAL-K1-CARRYFORWARD: suspended passive K-1 loss added back, allowed prior-year K-1 loss deducted
     + intInc + _divIncEff + f4797OrdinaryPart + taxableSS + iraIncome + ebl
   const floorAGI          = grossIncomeBeforeNOL - adjustments
   const rawMedical        = Math.max(0, nf(medicalExpenses))
@@ -2326,7 +2415,10 @@ function calcTaxReturn(input) {
   const scorpSEHIQbiReduction = sehiUnambiguousForQBI
     ? (sehiSplitEngaged ? _sehiScorpLegDed : selfEmpHealthDed)
     : 0
-  const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction
+  // EIGHTH PASS F-1/F-2 (18 Sep 2026): the S-Corp's entity-level premium and employer
+  // retirement deductions are not ordinary income (Form 1120-S), so they leave the QBI base
+  // too — in addition to the shareholder-level §162(l) reduction above.
+  const nonSEk1ForQBI = nonSEk1 - scorpSEHIQbiReduction - scorpEntityLevelDeductions
   // SEVENTH PASS F-2: a §469-suspended passive K-1 loss is not a QBI item until the year it
   // is allowed (Reg. §1.199A-3(b)(1)(iv)) — add the suspended slice back to the base.
   // PAL-K1-CARRYFORWARD: a prior-year suspended loss allowed this year is a QBI item in the
@@ -2430,8 +2522,19 @@ function calcTaxReturn(input) {
   // §199A(b)(2) allocation inside _calcQBI splits `qbiBasis` on the same adjusted figures the
   // aggregate is built from. Non-SE entities are untouched. See the perBiz note in _calcQBI.
   const _seAdjRatio = (seNetIncome > 0 && seK1AfterAdjustments >= 0) ? seK1AfterAdjustments / seNetIncome : 1
+  // EIGHTH PASS F-1/F-2 (18 Sep 2026): give each S-Corp its share of the S-Corp-level QBI
+  // haircuts (the §162(l) reduction and the entity-level premium / retirement deductions),
+  // apportioned by officer W-2 like the EXT-7 wage bump, so the per-business allocation and
+  // the SSTB haircut inside _calcQBI see the same net figure the aggregate `qbiBasis` carries.
+  const _scorpQbiHaircutTotal = scorpSEHIQbiReduction + scorpEntityLevelDeductions
   const qbiEligibleEntitiesForCalcAdj = qbiEligibleEntitiesForCalc.map(e => {
-    if (!e || !SE_SUBJECT_TYPES.includes(e.type)) return e
+    if (!e) return e
+    if (isSCorpEntity(e.type) && _scorpQbiHaircutTotal > 0 && _scorpOfficerW2ForSEHI > 0) {
+      const ownWage = nf(e.officerW2) || nf(e.pnl?.officerSalary) || nf(e.box17V_wages) || 0
+      const haircut = _scorpQbiHaircutTotal * (ownWage / _scorpOfficerW2ForSEHI)
+      return { ...e, qbiShareAdjusted: (getEntityK1Share(e) - nf(e.box11_12)) - haircut }
+    }
+    if (!SE_SUBJECT_TYPES.includes(e.type)) return e
     const share = getEntityK1Share(e) - nf(e.box11_12)
     return share > 0 ? { ...e, qbiShareAdjusted: share * _seAdjRatio } : e
   })
@@ -2657,7 +2760,37 @@ function calcTaxReturn(input) {
   const actcPerChildCap    = numDependents * actcMaxPerChild
   const actcEarnedIncomeLimit = Math.round(ACTC_RATE * Math.max(0, earnedIncomeForACTC - ACTC_EARNED_INCOME_FLOOR))
   const actc = Math.max(0, Math.min(unusedCTC, actcPerChildCap, actcEarnedIncomeLimit))
-  const withheld      = nf(w2Withheld)
+  // ── EIGHTH PASS F-5 (18 Sep 2026, independent fresh-eyes audit) — ADDITIONAL MEDICARE TAX
+  // WITHHELD IS A PAYMENT ─────────────────────────────────────────────────────────────
+  // Form 8959 Part V: an employer MUST withhold the 0.9% on the wages it pays an employee
+  // above $200,000 in the calendar year (§3102(f)(1)), whatever the filing status, and the
+  // amount withheld is credited on Form 1040 line 25c. The Box 2 field's caption tells the
+  // user to keep Box 6 out of it, so nothing ever credited that withholding and the balance
+  // due was overstated by 0.9% of every dollar over $200,000 per W-2 (single, W-2 $500,000:
+  // $2,700). The credit is computed PER PAYING EMPLOYER — each S-Corp / C-Corp officer salary
+  // on its own, and the other-employer W-2 (household `w2` less the officer salaries) as one
+  // W-2 — never on the household total, because a spouse's or a second employer's wages do
+  // not raise this employer's withholding. Form 2210 line 6 counts it as withholding, so it
+  // joins `withheld` for the §6654(g)(1) even-spread and the safe-harbor payments.
+  const _perEmployerAddlMedThreshold = 200000   // §3102(f)(1): fixed per employer, not indexed, not status-based
+  const _officerSalariesForWithholding = entities.reduce((s, e) => {
+    if (!e || !(isSCorpEntity(e.type) || isCCorpEntity(e.type))) return s
+    return s + Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0)
+  }, 0)
+  // YTD mode: wages here are ANNUALIZED (ytdFactor), but payments are the amounts actually
+  // made to date (F-6 convention), so the credit is measured on the wages paid so far —
+  // an employer that has not yet crossed $200,000 this year has withheld nothing yet.
+  const _ytdDivisor = (Number.isFinite(_ytdFactorApplied) && _ytdFactorApplied > 0) ? _ytdFactorApplied : 1
+  const _addlMedPerSource = (wages) => Math.round(Math.max(0, wages / _ytdDivisor - _perEmployerAddlMedThreshold) * ADDITIONAL_MEDICARE_TAX_RATE * 100) / 100
+  const addlMedicareWithheld = Math.round(
+    entities.reduce((s, e) => {
+      if (!e || !(isSCorpEntity(e.type) || isCCorpEntity(e.type))) return s
+      return s + _addlMedPerSource(Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0))
+    }, 0)
+    + _addlMedPerSource(Math.max(0, nf(w2) - _officerSalariesForWithholding))
+  )
+  const withheldEntered = nf(w2Withheld)
+  const withheld      = withheldEntered + addlMedicareWithheld
   // SEVENTH PASS H-2 (16 Sep 2026): the per-installment boxes (estQ1..4) fed only the §6654
   // timing schedule — they were never CREDITED. A filer who typed Q1–Q4 and left the total
   // blank saw a balance due equal to the whole liability. The boxes are the itemized form
@@ -2803,6 +2936,12 @@ function calcTaxReturn(input) {
     employeeFICA, totalW2ForFICA,
     ficaSavings, ssWageBase, ssWageBaseRoom, seWageBaseW2, w2OwnForSE: w2OwnForSEClamped, k1Distributions,   // R-2: W-2 actually netted against SE room
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
+    // EIGHTH PASS F-1/F-2/F-10 (18 Sep 2026): S-Corp entity-level deductions and the caps.
+    sehiScorpEntityDeduction,                 // F-1: premium deducted on Form 1120-S (reduces K-1 / QBI)
+    scorpRetirementEntityDeduction,           // F-2: employer SEP/401(k) deducted on Form 1120-S (reduces K-1 / QBI)
+    scorpEntityLevelDeductions,               // F-1 + F-2 total
+    selfEmpRetirementEntered, retirementSeLegCap, retirementScorpLegCap, selfEmpRetirementDisallowed, selfEmpRetirementClamped,
+    hsaEntered, hsaLimit: Number.isFinite(hsaLimit) ? hsaLimit : null, hsaClamped,
     // AUDIT FIX result fields (Jul 2026):
     sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp, sehiMixedSourceFallback,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
     // B4 (Aug 2026): split-leg detail, for the UI when the split fields were used.
@@ -2845,6 +2984,7 @@ function calcTaxReturn(input) {
     amt,
     totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
+    withheldEntered, addlMedicareWithheld,    // EIGHTH PASS F-5: Box 2 as entered + the auto-credited §3102(f) Additional Medicare withholding
     // Follow-up (15 Sep 2026): remaining-installment timing (see asOfDate).
     installmentsRemaining, installmentsPassed, nextDueDate, balancePerInstallment,
     installmentSchedule,                     // 2210-lite §6654(d)(1)(A)/(g)(1)

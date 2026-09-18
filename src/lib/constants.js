@@ -599,6 +599,13 @@ export const SOLO_401K_EMPLOYER_RATE = 0.25  // 25% of W-2 compensation — IRC 
 //   window is ONLY ages 60, 61, 62, 63 (inclusive). This is a common planning error.
 // Dollar amounts are year-specific → TAX_TABLES[year].retirement.catchUp401k/catchUp401kSuper.
 
+// ── HSA catch-up — IRC §223(b)(3) ────────────────────────────────────────────
+// EIGHTH PASS F-10 (18 Sep 2026): a statutory (unindexed) $1,000 additional contribution
+// for an account beneficiary who has attained age 55. The engine does not ask age or
+// coverage type, so the HSA deduction is ceilinged at the FAMILY limit plus one catch-up
+// (two on a joint return — each spouse's own HSA, §223(b)(3)) rather than left uncapped.
+export const HSA_CATCH_UP_CONTRIBUTION = 1000  // IRC §223(b)(3)(B)
+
 // ─── ENTITY TYPES ─────────────────────────────────────────────────────────────
 // UI / input vocabulary (Vocabulary A — "layer 1" in the representation note above).
 // These are the exact <select> options in the Tax Tracker (CalculateTaxInner.jsx) and

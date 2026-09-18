@@ -138,7 +138,10 @@ describe('H-2 / H-3 — the record f1040 shape round-trips everything Step 2 com
     expect(eng).toMatchObject({ itemizedAmt: 57000, f4797MateriallyParticipated: true, estQ1: 5000, estQ2: 5000, medicalExpenses: 5000 })
     const r = calcTaxReturn({ ...base, ...eng, w2: 250000, charitableContr: 12000 })
     expect(r.deduction).toBe(57000 - 1250)   // itemized, less the 2026 0.5%-of-AGI charitable floor
-    expect(r.totalPayments).toBe(10000)
+    // EIGHTH PASS F-5 (18 Sep 2026): + the $450 of Additional Medicare Tax the employer had to
+    // withhold on the $50,000 of wages above $200,000 (§3102(f)), credited like Box 2 withholding.
+    expect(r.addlMedicareWithheld).toBe(450)
+    expect(r.totalPayments).toBe(10000 + 450)
   })
 })
 

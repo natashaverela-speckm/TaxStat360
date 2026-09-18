@@ -43,7 +43,7 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'prior-unallowed-passive-loss',
     label: 'Prior-year unallowed passive loss carryforward',
     helperText:
-      "Find it in the 'Unallowed Loss' column of last year's Form 8582 worksheets (Worksheet 5 or 6, or Part VII on newer forms). This is the suspended passive loss that carries onto Form 8582 lines 1c/2c (rental real estate) or 3c (other passive activities).",
+      "Find it in the 'Unallowed Loss' column of last year's Form 8582 worksheets (Worksheet 5 or 6, or Part VII on newer forms). This is the suspended passive loss that carries onto Form 8582 line 1c (rental real estate with active participation) or line 2c (all other passive activities, including a limited-partner or passive S-Corp K-1).",
     explainer:
       'Passive activity losses from rental real estate or other passive activities may be suspended under IRC §469 until you have passive income or meet an exception (for example, Real Estate Professional status under §469(c)(7)). The suspended amount carries forward and affects how much prior loss can offset current-year income in your planning estimate.',
     fieldKey: 'priorPassiveLossCarryforward',

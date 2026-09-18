@@ -316,10 +316,24 @@ describe('calcQBI filing status & tax year', () => {
 })
 
 describe('Schedule 1 line 16 - Self-Employed Retirement', () => {
-  it('CHAR: reduces AGI dollar-for-dollar', () => {
-    const baseline      = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 0 })
-    const withRetirement = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 10000 })
+  // EIGHTH PASS F-2 / F-10 (18 Sep 2026): the deduction is capped at the SE leg (20% of net SE
+  // earnings + the §402(g) deferral, ≤ §415(c)) plus the S-Corp employer leg (25% of officer
+  // W-2, ≤ §415(c)); a W-2-only filer with no SE income has no room at all. The CHAR pins below
+  // therefore run on a sole proprietorship with ample room instead of a bare W-2.
+  const SP = { name: 'SP', type: 'Sole Proprietor / SMLLC', own: '100', k1: '150000' }
+  it('SPEC: reduces AGI dollar-for-dollar within the SE-leg cap', () => {
+    const baseline      = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 0, k1Total: 150000, entities: [SP], selfEmpRetirement: 0 })
+    const withRetirement = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 0, k1Total: 150000, entities: [SP], selfEmpRetirement: 10000 })
+    expect(withRetirement.selfEmpRetirementDed).toBe(10000)
     expect(withRetirement.agi).toBe(baseline.agi - 10000)
+  })
+  it('SPEC: no self-employment earnings and no S-Corp wages → nothing is deductible (Schedule 1 line 16 needs SE earned income)', () => {
+    const r = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 10000 })
+    expect(r.selfEmpRetirementDed).toBe(0)
+    expect(r.scorpRetirementEntityDeduction).toBe(0)
+    expect(r.selfEmpRetirementDisallowed).toBe(10000)
+    expect(r.selfEmpRetirementClamped).toBe(true)
+    expect(r.agi).toBe(100000)
   })
   it('CHAR: handles missing/null/undefined values without throwing', () => {
     expect(() => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 50000 })).not.toThrow()
@@ -327,7 +341,7 @@ describe('Schedule 1 line 16 - Self-Employed Retirement', () => {
     expect(() => calcTaxReturn({ taxYear: 2025, status: 'single', w2: 50000, selfEmpRetirement: undefined })).not.toThrow()
   })
   it('CHAR: exposes selfEmpRetirementDed in the return shape', () => {
-    const r = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 100000, selfEmpRetirement: 7500 })
+    const r = calcTaxReturn({ taxYear: 2025, status: 'single', w2: 0, k1Total: 150000, entities: [SP], selfEmpRetirement: 7500 })
     expect(r.selfEmpRetirementDed).toBe(7500)
     expect(r.adjustments).toBeGreaterThanOrEqual(7500)
   })
@@ -508,17 +522,21 @@ describe('calcTaxReturn ISO bargain element → AMT (IRC §56(b)(3))', () => {
 })
 
 describe('calcTaxReturn ytdFactor scaling', () => {
+  // EIGHTH PASS F-2 / F-10 (18 Sep 2026): a retirement deduction needs SE earnings (or S-Corp
+  // wages) to be allowable, so these pins carry a sole proprietorship (its profit is a YTD
+  // flow and scales with the deduction, keeping the cap comfortably above every figure).
+  const SP_YTD = (k1) => ({ name: 'SP', type: 'Sole Proprietor / SMLLC', own: '100', pnl: { netProfit: k1 } })
   it('CHAR: ytdFactor=1 is the identity — no scaling applied', () => {
-    const r = calcTaxReturn({ ...BASE, selfEmpRetirement: 10000, ytdFactor: 1 })
+    const r = calcTaxReturn({ ...BASE, w2: 0, k1Total: 200000, entities: [SP_YTD(200000)], selfEmpRetirement: 10000, ytdFactor: 1 })
     expect(r.selfEmpRetirementDed).toBe(10000)
   })
   it('CHAR: ytdFactor=2 doubles scaled deductions', () => {
-    const r = calcTaxReturn({ ...BASE, selfEmpRetirement: 5000, ytdFactor: 2 })
+    const r = calcTaxReturn({ ...BASE, w2: 0, k1Total: 100000, entities: [SP_YTD(100000)], selfEmpRetirement: 5000, ytdFactor: 2 })
     expect(r.selfEmpRetirementDed).toBe(10000)
   })
   it('CHAR: ytdFactor=4 produces same annualized result as ytdFactor=1 with 4x inputs', () => {
-    const q1   = calcTaxReturn({ ...BASE, w2: 25000,  selfEmpRetirement: 5000,  ytdFactor: 4 })
-    const full = calcTaxReturn({ ...BASE, w2: 100000, selfEmpRetirement: 20000, ytdFactor: 1 })
+    const q1   = calcTaxReturn({ ...BASE, w2: 0, k1Total: 50000,  entities: [SP_YTD(50000)],  selfEmpRetirement: 5000,  ytdFactor: 4 })
+    const full = calcTaxReturn({ ...BASE, w2: 0, k1Total: 200000, entities: [SP_YTD(200000)], selfEmpRetirement: 20000, ytdFactor: 1 })
     expect(q1.selfEmpRetirementDed).toBe(full.selfEmpRetirementDed)
   })
   it('CHAR: studentLoanInt is ytdScaled and then capped at $2,500', () => {
