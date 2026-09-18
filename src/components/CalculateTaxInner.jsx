@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { writeDirtyFlag } from '../utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
-import { readPersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft, readEmail } from '../utils/sessionState.js'
+import { readPersonalContext, writePersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft, readEmail } from '../utils/sessionState.js'
 import { canAccessCarryforwardWizard } from '../lib/carryforwardWizardAccess.js'
 import {
   needsCarryforwardWizard,
@@ -41,6 +41,7 @@ import { fmt, formatTimestamp, formatRelativeTime } from '../utils/money.js'
 // the engine's own code path, so Step 1's number cannot disagree with Step 2.
 import { selectTaxSummary } from '../utils/calcSelector.js'
 import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstateEntity, issuesK1Entity, isScheduleCType, entityLossNeedsBasisEntry, getEntityPnlNet, getEntityK1Share, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
+import { releaseCardPriorPAL } from '../utils/rentalPortfolio.js'   // EIGHTH PASS F-3
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
 import { sumK1FlowThrough, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, calcReasonableCompCore } from '../lib/taxCalc.js'
@@ -547,6 +548,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
     - nf(entity.depreciation || pnl.depreciation)
     - nf(pnl.officerSalary || entity.officerW2)
     - nf(pnl.employerPayrollTax)
+    - nf(pnl.guaranteedPayments)   // EIGHTH PASS F-4: partnership GP is inside totalExpenses in the P&L path
     - nf(pnl.advertising)
     - nf(pnl.otherDeductions))
   const [manExp,        setManExp]        = useState(String(_reloadOpex || ''))
@@ -590,8 +592,15 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
   // subtracts employerFICA at the corporate layer, so including it in totalExpenses
   // as well would deduct it twice.
   const employerPayrollTax = isSCorp ? calcEmployerFICA(effectiveSal, taxYear) : 0
+  // EIGHTH PASS F-4 (18 Sep 2026, independent fresh-eyes audit): §707(c) guaranteed payments
+  // are deductible by the partnership (§162 via §707(c)) — Box 1 is the share of income AFTER
+  // them. The P&L path added the GP field on top of net profit instead (gross $400,000 /
+  // expenses $100,000 / GP $50,000 → K-1 income $350,000 shown; $300,000 correct), leaving
+  // the user to net it out of operating expenses by hand. Deduct it here, the way the S-Corp
+  // path deducts officer compensation; K-1 direct mode is untouched (Box 1 is already net).
+  const gpExpense = (isPartnership && !useK1Direct) ? Math.max(0, nf(entity.guaranteedPayments)) : 0
 
-  const totalExpenses = ex + dep + effectiveSal + employerPayrollTax + adv + oth
+  const totalExpenses = ex + dep + effectiveSal + employerPayrollTax + gpExpense + adv + oth
   const manNetProfit  = rv - totalExpenses
 
   const officerExceedsRevenue   = effectiveSal > rv && effectiveSal > 0 && rv > 0
@@ -645,6 +654,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
           // AUDIT H1: persisted so the decompose above is exact and the figure is
           // auditable in the saved record, rather than re-derived on each reload.
           employerPayrollTax,
+          guaranteedPayments: gpExpense,   // EIGHTH PASS F-4: persisted so the opex reload decomposes exactly
           depreciation:    dep,
           advertising:     adv,
           otherDeductions: oth,
@@ -729,6 +739,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
         totalExpenses,
         officerSalary:   effectiveSal,
         employerPayrollTax,   // AUDIT H1 — see calcEmployerFICA() in taxCalc.js
+        guaranteedPayments: gpExpense,   // EIGHTH PASS F-4
         depreciation:    dep,
         advertising:     adv,
         otherDeductions: oth,
@@ -739,7 +750,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
       isManual: true,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rv, ex, dep, sal, adv, oth, effectiveSal, employerPayrollTax, totalExpenses, useK1Direct, manK1Direct])
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, employerPayrollTax, gpExpense, totalExpenses, useK1Direct, manK1Direct])
 
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
@@ -792,7 +803,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             <div>
               <label style={lbl}>
                 Guaranteed Payments (K-1 Box 4) — §707(c)
-                <InfoTip text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the Box 1 figure above, or they will be counted twice.'} wide />
+                <InfoTip text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here. In gross-receipts mode the partnership deducts them automatically (Box 1 = your share of net income after guaranteed payments) — do NOT also put them in Operating Expenses. In K-1 direct mode, Box 1 is already net of them — do NOT include them in the Box 1 figure.'} wide />
               </label>
               <Step1MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
             </div>
@@ -977,6 +988,12 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
               <span style={{ color: '#64748B' }}>{fmt(employerPayrollTax)}</span>
             </div>
           )}
+          {gpExpense > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, paddingLeft: 12, fontSize: 12 }}>
+              <span style={{ color: '#64748B' }}>incl. Guaranteed Payments (§707(c) — deducted by the partnership; Box 4 to you)</span>
+              <span style={{ color: '#64748B' }}>{fmt(gpExpense)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: 6, fontWeight: 700 }}>
             <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}{isRE ? ' → Schedule E' : isPartnership ? ' → K-1 Box 1' : ''}</span>
             <span style={{ color: manNetProfit >= 0 ? G : R }}>{fmt(manNetProfit)}</span>
@@ -1050,7 +1067,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
         <div style={{ marginTop: 10 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: N, marginBottom: 4 }}>
             Guaranteed Payments (K-1 Box 4) — §707(c)
-            <InfoTip label="Guaranteed payments" text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here — do NOT also include them in the net-profit / Box 1 figure above, or they will be counted twice.'} wide />
+            <InfoTip label="Guaranteed payments" text={'Guaranteed payments to a partner for services or the use of capital (Form 1065 Schedule K-1, Box 4; §707(c)).\n\nThey are ORDINARY income and self-employment earnings — SE tax applies even to a limited partner when the payment is for services rendered (§1402(a)(13) excludes only the distributive share).\n\nThey are EXCLUDED from the §199A QBI deduction (Treas. Reg. §1.199A-3(b)(2)(ii)(A)).\n\nEnter guaranteed payments SEPARATELY here. In gross-receipts mode the partnership deducts them automatically (Box 1 = your share of net income after guaranteed payments) — do NOT also put them in Operating Expenses. In K-1 direct mode, Box 1 is already net of them — do NOT include them in the Box 1 figure.'} wide />
           </label>
           <Step1MoneyInput value={entity.guaranteedPayments || ''} onChange={v => onUpdate(idx, { ...entity, guaranteedPayments: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Guaranteed payments (K-1 Box 4)" />
         </div>
@@ -1402,6 +1419,29 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                   <span style={{ color: '#64748B' }}>incl. Employer Payroll Tax (auto)</span>
                   <span style={{ color: '#64748B' }}>{fmt(nf(pnl.employerPayrollTax))}</span>
                 </div>
+              )}
+              {nf(pnl.guaranteedPayments) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
+                  <span style={{ color: '#64748B' }}>incl. Guaranteed Payments (§707(c), K-1 Box 4)</span>
+                  <span style={{ color: '#64748B' }}>{fmt(nf(pnl.guaranteedPayments))}</span>
+                </div>
+              )}
+              {/* EIGHTH PASS F-9 (18 Sep 2026): the C-Corp card showed Net Profit $200,000 while the
+                  engine (calcCCorpCorporateLayer) correctly taxed $192,350 — the employer payroll tax
+                  on the officer salary is deducted at the corporate layer, not inside totalExpenses
+                  (AUDIT H1 keeps it out of the P&L for C-Corps to avoid a double deduction). Show the
+                  corporate-level deduction and the resulting taxable income so the card foots. */}
+              {isCCorpEntity(entity.type) && sal > 0 && calcEmployerFICA(sal, taxYear) > 0 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
+                    <span style={{ color: '#64748B' }}>less Employer Payroll Tax on officer salary (auto, deducted at the corporate level)</span>
+                    <span style={{ color: '#64748B' }}>− {fmt(calcEmployerFICA(sal, taxYear))}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, paddingLeft: 12, fontSize: 12 }}>
+                    <span style={{ color: '#64748B' }}>Corporate taxable income (21% applies to this figure)</span>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>{fmt(netProfit - calcEmployerFICA(sal, taxYear))}</span>
+                  </div>
+                </>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #E2E8F0', paddingTop: 6, marginTop: 2 }}>
                 <span style={{ color: N }}>{isRE ? FINANCIAL_LABELS.netRentalIncome : FINANCIAL_LABELS.netBusinessIncome}</span>
@@ -2023,7 +2063,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                   <input type="checkbox" id={'rep_' + idx} checked={!!entity.isREP} onChange={e => onUpdate(idx, { ...entity, isREP: e.target.checked, ...(e.target.checked ? {} : { rentalAggregationElection: undefined }) })} style={{ marginTop: 2 }} />
                   <label htmlFor={'rep_' + idx} style={{ fontSize: 13, color: '#5B21B6', cursor: 'pointer', lineHeight: 1.4 }}>
                     Real Estate Professional status
-                    <InfoTip label="Real Estate Professional status" text={'The IRS test is IRC §469(c)(7). Check this ONLY if you meet both parts:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must also make the §1.469-9(g) aggregation election below.'} wide />
+                    <InfoTip label="Real Estate Professional status" text={'The IRS test is IRC §469(c)(7). Check this ONLY if you meet both parts:\n(1) more than half of the personal services you perform in all trades or businesses during the year are in real property trades or businesses in which you materially participate, AND\n(2) you perform more than 750 hours of service in those real property trades or businesses.\n\nREP status alone does NOT make your rentals nonpassive — you must ALSO materially participate in the rental activity (Reg. §1.469-9(e)(1)), tested property by property unless you elect under Reg. §1.469-9(g) to treat all of your rentals as one activity. TaxStat360 records material participation through that election below; without it, each rental is treated as passive here (the conservative default).'} wide />
                   </label>
                 </div>
 
@@ -2207,7 +2247,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                       <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 12 }}>
                         <div role="alert" style={{ fontWeight: 700, color: '#78350F', marginBottom: 4 }}>⚠ Passive Until You Elect (§1.469-9(g))</div>
                         <div style={{ color: '#78350F', lineHeight: 1.5 }}>
-                          REP status alone does not make this {fmt(Math.abs(reNet))} loss deductible. Check the §1.469-9(g) aggregation election above to treat your portfolio as nonpassive; otherwise it is limited by the §469(i) $25,000 allowance and otherwise suspended on Form 8582.
+                          REP status alone does not make this {fmt(Math.abs(reNet))} loss deductible — a real estate professional&apos;s rental is nonpassive only if you also materially participate in it (Reg. §1.469-9(e)(1)). Check the §1.469-9(g) aggregation election above to treat your rentals as one activity in which you materially participate; otherwise the loss is limited by the §469(i) $25,000 allowance and otherwise suspended on Form 8582.
                         </div>
                       </div>
                     )
@@ -2484,6 +2524,7 @@ export default function CalculateTaxInner() {
       box17V_sstb: false,
       stockBasis: '', debtBasis: '', distributions: '',
       isREP: false, isActiveParticipant: false,
+      priorPAL: '',   // EIGHTH PASS F-3: the card carries the Form 8582 carryforward field from birth (blank = none)
     }
     setEntities(prev => {
       // F-FUNC-07: a newly added rental inherits the portfolio-wide §1.469-9(g)
@@ -2572,10 +2613,17 @@ export default function CalculateTaxInner() {
   // persistStep1() is deliberately not reused here: it closes over the PREVIOUS
   // `entities` value, which is exactly the stale array we are removing from.
   const removeEntity = useCallback((idx) => {
+    const removed = entities[idx]
     const next = entities.filter((_, i) => i !== idx)
     setEntities(next)
     persistCanonicalStep1(next)
     writeTaxYear(taxYear)
+    // EIGHTH PASS F-3 (18 Sep 2026): a rental / passive K-1 card's prior-year unallowed loss is
+    // mirrored into the personal context by Step 2; take it back out here or it outlives the
+    // card and silently offsets the next rental's income (see rentalPortfolio.js).
+    const ctxBefore = readPersonalContext()
+    const ctxAfter  = releaseCardPriorPAL(ctxBefore, removed)
+    if (ctxAfter !== ctxBefore) writePersonalContext(ctxAfter)
     // Mirror the removal into the device-local draft as well, or the entity returns
     // after a browser restart even though session storage is correct.
     writeStep1Draft(next, taxYear)

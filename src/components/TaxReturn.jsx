@@ -232,7 +232,11 @@ export default function TaxReturn() {
   // personal-context value is only the migration fallback for returns saved before the
   // carryforward moved onto the cards) all come from utils/rentalPortfolio.js — the same
   // helper the record-card / Step-1 / Aria selector now reads, so no surface can disagree.
-  const { rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride, orphanedPriorPAL, priorPAL } = _rentalPortfolio
+  const { rentalAggregationElection, repHoursRE, repHoursTotal, repAggregationOverride, orphanedPriorPAL } = _rentalPortfolio
+  // EIGHTH PASS F-3 (18 Sep 2026): a stranded (card-less) carryforward can now be discarded from
+  // the banner below; until then the migration fallback keeps applying it, as before.
+  const [orphanPALDiscarded, setOrphanPALDiscarded] = useState(false)
+  const priorPAL = orphanPALDiscarded ? _rentalPortfolio.cardPriorPAL : _rentalPortfolio.priorPAL
   // F6 migration: a saved return that had REP set before the election existed gets a
   // one-time prompt so the user re-confirms (passive is the safe default).
   const [showRepMigration, setShowRepMigration] = useState(
@@ -1139,13 +1143,26 @@ export default function TaxReturn() {
               specific rental card so it isn't stranded in personal context. */}
           {showPriorPALMigration && (
             <div role="alert" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#5B21B6', lineHeight: 1.55 }}>
-              <strong>Prior passive-loss carryforward moved.</strong> Your saved return has a
-              prior-year passive-loss carryforward (Form 8582) of {fmt(orphanedPriorPAL)} that
-              used to be entered here. It now belongs on the specific rental property it came from,
-              on the rental card in Step&nbsp;1. We&apos;re still applying it for now, but please
-              re-enter it on the right property so it stays attributed correctly.
-              <div style={{ marginTop: 8 }}>
-                <button onClick={() => setShowPriorPALMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Got it</button>
+              <strong>Prior passive-loss carryforward not attached to a property.</strong> Your saved
+              return carries a prior-year unallowed passive loss (Form 8582) of {fmt(orphanedPriorPAL)} that
+              is not on any rental card in Step&nbsp;1 — either it was entered here before the field moved
+              onto the cards, or the card it belonged to was removed. We are still applying it against your
+              passive income. Re-enter it on the right property in Step&nbsp;1 so it stays attributed, or
+              discard it if the activity is gone.
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => setShowPriorPALMigration(false)} style={{ background: PURPLE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Keep applying it for now</button>
+                {/* EIGHTH PASS F-3 (18 Sep 2026): a way out — clear the stranded amount from the saved context. */}
+                <button
+                  onClick={() => {
+                    writePersonalContext({ ...readPersonalContext(), priorPassiveLossCarryforward: 0 })
+                    writeDirtyFlag(true)
+                    setOrphanPALDiscarded(true)
+                    setShowPriorPALMigration(false)
+                  }}
+                  style={{ background: '#fff', color: '#5B21B6', border: '1px solid #DDD6FE', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Discard it — no longer applies
+                </button>
               </div>
             </div>
           )}
@@ -1203,7 +1220,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <label htmlFor="tr-w2-withheld" style={inputLbl}>
                   Federal Tax Withheld (W-2 Box 2)
-                  <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable." />
+                  <InfoTip text="Federal income tax withheld from your W-2 Box 2. This reduces your balance due. Also include withholding from pension / annuity income (Form 1099-R Box 4) if applicable. Do not add Box 6: the Additional Medicare Tax your employer withheld on wages above $200,000 (IRC §3102(f)) is credited automatically, per paying employer." />
                 </label>
                 <Step2MoneyInput
                   id="tr-w2-withheld"
@@ -1252,7 +1269,7 @@ export default function TaxReturn() {
                 see the blue breakdown box above which covers the same point more completely. */}
             {!entityList.some(e => /s.?corp/i.test(e?.type || '')) && (
               <div style={{ marginTop: 10, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400E' }}>
-                💡 Enter the federal income tax withheld (W-2 Box 2) in the field above. FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here.
+                💡 Enter the federal income tax withheld (W-2 Box 2) in the field above. FICA taxes (Boxes 4 and 6) are separate — don&apos;t include those here. Additional Medicare Tax withheld on wages above $200,000 (part of Box 6) is credited automatically.
               </div>
             )}
           </CollapsibleSection>
@@ -1316,6 +1333,12 @@ export default function TaxReturn() {
                 <div style={{ fontSize: 12, color: SL, marginBottom: 4 }}>
                   Your figures will be multiplied by <strong style={{ color: N }}>{ytdFactor.toFixed(2)}×</strong> to project a full 12-month year
                   ({ytdMonth} month{ytdMonth !== 1 ? 's' : ''} → 12 months).
+                </div>
+                {/* EIGHTH PASS F-6 (18 Sep 2026): income flows are annualized; payments are not, and
+                    nothing on the page said so — a W-2 earner whose withholding continues to
+                    year-end saw an overstated balance due. State the convention where it applies. */}
+                <div style={{ fontSize: 11, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 8px', marginTop: 4, lineHeight: 1.5 }}>
+                  <strong>Payments are not annualized.</strong> Income and expenses are projected to a full year, but federal withholding (Box 2) and estimated payments are taken as the amounts actually paid so far (§6654 measures what has been paid). If your paycheck withholding will continue through December, enter your <em>expected full-year</em> Box 2 withholding to see the year-end balance; enter withholding to date to see where you stand today. Carryforwards and prior-year figures are never scaled.
                 </div>
                 {projectedAnnualIncome > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE' }}>
@@ -1661,6 +1684,14 @@ export default function TaxReturn() {
                   <InfoTip text={`Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. ${taxYear} limits: ${fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / ${fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family). Grows tax-free; withdrawals for medical expenses are always tax-free.`} />
                 </label>
                 <Step2MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
+                {/* EIGHTH PASS F-10 (18 Sep 2026): the engine now ceilings the HSA deduction at the
+                    family limit plus the §223(b)(3) catch-up (one per spouse on a joint return) —
+                    the widest legal figure, since coverage type and age are not asked. */}
+                {result?.hsaClamped && (
+                  <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    ⚠ Deduction limited to {fmt(result.hsaDed)} — the {taxYear} HSA contribution limit is {fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / {fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family), plus a $1,000 catch-up at age 55 or older (IRC §223(b)). You entered {fmt(result.hsaEntered)}. If your coverage is self-only, or you are under 55, your own limit is lower than the ceiling applied here.
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-student-loan" style={inputLbl}>
@@ -1671,10 +1702,27 @@ export default function TaxReturn() {
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-retirement" style={inputLbl}>
-                  Self-Employed Retirement Plan Contributions (Schedule 1, Line 16)
-                  <InfoTip text={`Enter employer contributions made to a SEP-IRA or Solo 401(k) for this tax year.\n\nFor S-Corp owners: contributions must be based on your officer W-2 salary — NOT K-1 distributions (IRC §402(h); §415(c); IRS Pub. 560).\n• SEP-IRA: up to 25% of W-2 salary, max ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} for ${taxYear}\n• Solo 401(k) employer: up to 25% of W-2 salary (combined employee + employer cap ${fmt(getTable(taxYear)?.retirement?.solo401kMax ?? 0)} for ${taxYear})\n\nFor sole proprietors: enter approx. 20% of net self-employment income, same ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} ceiling.`} wide />
+                  Self-Employed Retirement Plan Contributions (SEP-IRA / Solo 401(k))
+                  {/* EIGHTH PASS F-2 / F-10 (18 Sep 2026): the label no longer says "Schedule 1, Line 16" —
+                      an S-Corp owner's employer contribution is deducted by the S-Corp on Form 1120-S
+                      (reducing the K-1 and the §199A base), not on Schedule 1. The caption now states
+                      the caps the engine applies. */}
+                  <InfoTip text={`Enter the contributions made to a SEP-IRA or Solo 401(k) for this tax year. TaxStat360 applies the legal limits automatically and tells you if your entry exceeds them.\n\nSole proprietors and partners (Schedule 1, line 16): limited to 20% of your net self-employment earnings (net profit less ½ SE tax — the 25% rate net of the contribution itself, IRS Pub. 560) plus, for a Solo 401(k), the ${fmt(getTable(taxYear)?.retirement?.solo401kDeferral ?? 0)} employee deferral, never more than your earned income and never more than ${fmt(getTable(taxYear)?.retirement?.solo401kMax ?? 0)} for ${taxYear} (IRC §415(c)).\n\nS-Corp owners: the employer contribution is based on your officer W-2 salary only — NOT K-1 distributions (IRC §402(h)(2)(A); §404(a)(3)) — up to 25% of that salary and ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} for ${taxYear}. The S-Corp deducts it on Form 1120-S, so TaxStat360 reduces your K-1 share (and your §199A base) by it rather than taking it on Schedule 1. Employee 401(k) deferrals from an S-Corp salary are already out of Box 1 wages — do not enter them here.\n\nAge-50+ catch-up contributions are not modelled. If you have both an S-Corp salary and other self-employment income, the entry is applied to the self-employment leg first.`} wide />
                 </label>
                 <Step2MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
+                {result?.selfEmpRetirementClamped && (
+                  <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    ⚠ {fmt(result.selfEmpRetirementDisallowed)} of the {fmt(result.selfEmpRetirementEntered)} you entered is above the contribution limit and was not deducted.
+                    {(result.retirementSeLegCap || 0) + (result.retirementScorpLegCap || 0) === 0
+                      ? ' A SEP-IRA or Solo 401(k) contribution needs self-employment earnings or an S-Corp officer salary on this return — with neither, nothing is deductible (IRC §401(c)(2), §402(h)).'
+                      : ` Room on this return: ${fmt(result.retirementSeLegCap || 0)} on self-employment earnings (Schedule 1, line 16)${(result.retirementScorpLegCap || 0) > 0 ? ` and ${fmt(result.retirementScorpLegCap)} as an S-Corp employer contribution (25% of officer W-2, Form 1120-S)` : ''} — IRC §415(c), §402(h), Pub. 560.`}
+                  </div>
+                )}
+                {(result?.scorpRetirementEntityDeduction || 0) > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 13, color: '#1E3A8A', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                    {fmt(result.scorpRetirementEntityDeduction)} is treated as the S-Corp's employer contribution — deducted on Form 1120-S, so it reduces your K-1 share and your §199A base (Reg. §1.199A-3(b)(1)(vi)) instead of appearing on Schedule 1.
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-nol" style={inputLbl}>
@@ -2063,7 +2111,18 @@ export default function TaxReturn() {
                 // sums correctly again, same principle as the F-6 fix above.
                 { label: 'SEHI Wage Grossup (S-Corp, IRC §1372)', value: result.sehiScorpWageGrossUp || 0, sign: 1,
                   hide: !(result.sehiScorpWageGrossUp > 0),
-                  note: 'Included in Box 1 W-2 wages (Notice 2008-1) — not shown in the W-2 Wages row above; offset by the Health Insurance Ded. row below' },
+                  note: 'Included in Box 1 W-2 wages (Notice 2008-1) — not shown in the W-2 Wages row above; the S-Corp deducts the same premium (next row) and the Health Insurance Ded. row below takes the §162(l) deduction' },
+                // EIGHTH PASS F-1 / F-2 (18 Sep 2026): the S-Corp's own Form 1120-S deductions for the
+                // shareholder's health premium and employer retirement contribution. The Step 1 card
+                // carries neither (the premium is entered in Step 2, per its caption, only when Step 1
+                // net income does not already include it), so the K-1 row above is pre-deduction and
+                // these rows bring the column back to the true K-1 share.
+                { label: 'S-Corp health premium (deducted on Form 1120-S)', value: result.sehiScorpEntityDeduction || 0, sign: -1,
+                  hide: !(result.sehiScorpEntityDeduction > 0),
+                  note: 'The S-Corp paid the premium and deducts it as compensation (Rev. Rul. 91-26; Notice 2008-1) — your K-1 share is smaller by this amount, and so is your §199A base' },
+                { label: 'S-Corp employer retirement contribution (Form 1120-S)', value: result.scorpRetirementEntityDeduction || 0, sign: -1,
+                  hide: !(result.scorpRetirementEntityDeduction > 0),
+                  note: 'SEP-IRA / Solo 401(k) employer contribution on your officer W-2 (25% cap, IRC §402(h)(2)(A), §404(a)(3)) — deducted by the S-Corp, reducing your K-1 share and §199A base' },
                 { label: 'Rental Income (allowed)',      value: result.rentalAllowed ?? step1RentalNetUI, sign: 1, hide: (result.rentalNetCombined ?? step1RentalNetUI) === 0 },
                 // SEVENTH PASS M-7 (16 Sep 2026): in YTD mode the engine annualizes every income FLOW
                 // (ytdFactor); these rows printed the raw year-to-date entries under an annualized AGI,
@@ -2147,11 +2206,13 @@ export default function TaxReturn() {
                   // $10,000 §199A deduction where $6,000 applies if the loss arose after 2017.
                   note: `§1366(d)(2) carryover deducted against basis restored this year (Form 7203 Part III)${result.priorSuspendedLossRemaining > 0 ? ` — ${fmt(result.priorSuspendedLossRemaining)} still carries forward` : ''}${nf(priorYearQBILoss) === 0 ? ' — not netted out of QBI: if the loss arose in 2018 or later, enter the released amount as a Prior-Year QBI Loss Carryforward (Reg. §1.199A-3(b)(1)(iv))' : ''}` },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
-                { label: 'Retirement Contributions',    value: result.selfEmpRetirementDed,              sign: -1, hide: result.selfEmpRetirementDed === 0 },
+                { label: 'Retirement Contributions (Schedule 1, line 16)', value: result.selfEmpRetirementDed, sign: -1, hide: result.selfEmpRetirementDed === 0,
+                  note: (result.selfEmpRetirementClamped && (result.selfEmpRetirementDisallowed || 0) > 0) ? `Limited — ${fmt(result.selfEmpRetirementDisallowed)} of the entry is above the SEP / Solo 401(k) contribution limit (IRC §415(c), §402(h); Pub. 560)` : undefined },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 // LAUNCH CHECK N-4 (Sep 2026): HSA and student-loan interest were deducted by
                 // the engine (hsaDed, studentLoanDed) but had no row, so AGI dropped silently.
-                { label: 'HSA Deduction (Form 8889)',   value: result.hsaDed || 0,                       sign: -1, hide: !(result.hsaDed > 0) },
+                { label: 'HSA Deduction (Form 8889)',   value: result.hsaDed || 0,                       sign: -1, hide: !(result.hsaDed > 0),
+                  note: result.hsaClamped ? `Limited — you entered ${fmt(result.hsaEntered)}; the ${taxYear} ceiling applied is the family limit plus the age-55 catch-up (IRC §223(b))` : undefined },
                 { label: 'Student Loan Interest (§221)', value: result.studentLoanDed || 0,              sign: -1, hide: !(result.studentLoanDed > 0),
                   note: (result.studentLoanDed > 0 && result.studentLoanDed < nf(studentLoanInt)) ? 'Less than the interest entered — the $2,500 cap and the §221(b)(2) MAGI phase-out applied' : undefined },
                 // FOURTH READ R-6 (14 Sep 2026): the §172 NOL deduction is an above-the-line item
@@ -2241,7 +2302,11 @@ export default function TaxReturn() {
                 { label: '—', value: 0, divider: true },
                 { label: 'Corporate Tax (C-Corp, 21%)', value: result.ccorpCorpTax || 0,                 sign: 1, hide: !(result.ccorpCorpTax > 0), accent: R, note: 'Entity-level tax (Form 1120) — paid by the corporation, separate from your 1040 estimates' },
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
-                { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0 },
+                { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0,
+                  // EIGHTH PASS F-5 (18 Sep 2026): the auto-credited §3102(f) Additional Medicare withholding is inside this figure.
+                  note: (result.addlMedicareWithheld || 0) > 0
+                    ? `Includes ${fmt(result.addlMedicareWithheld)} of Additional Medicare Tax your employer was required to withhold on wages above $200,000 (W-2 Box 6 excess; IRC §3102(f)) — credited on Form 1040 line 25c, so it is not part of the Box 2 figure you entered`
+                    : undefined },
                 // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: refundable, so it's placed
                 // alongside payments (both reduce balance the same way), not with the
                 // nonrefundable Child Tax Credit above (which reduces Total Tax itself).
@@ -2340,7 +2405,15 @@ export default function TaxReturn() {
               )}
               {result.palSuspendedRental > 0 && (
                 <div role="alert" aria-live="polite" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginTop: 8, fontSize: 13, color: '#78350F', lineHeight: 1.55 }}>
-                  <strong>⚠ §469 Passive Loss Suspended:</strong> {fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.
+                  {/* EIGHTH PASS F-3 (18 Sep 2026): say which part is a prior-year carryforward still
+                      waiting for passive income and which part is THIS year's loss — the old wording
+                      called a stale carryforward "rental loss … suspended this year". */}
+                  <strong>⚠ §469 Passive Loss Suspended:</strong>{' '}
+                  {(result.palCarryforwardRemaining || 0) > 0 && (result.palSuspendedRental - (result.palCarryforwardRemaining || 0)) <= 0
+                    ? <>{fmt(result.palCarryforwardRemaining)} of prior-year unallowed passive loss (Form 8582 line 1c) is still suspended — there was no passive income this year to absorb it, so it carries forward again.</>
+                    : (result.palCarryforwardRemaining || 0) > 0
+                      ? <>{fmt(result.palSuspendedRental)} is passive and suspended this year ({fmt(result.palSuspendedRental - result.palCarryforwardRemaining)} of this year&apos;s rental loss plus {fmt(result.palCarryforwardRemaining)} of prior-year carryforward) — it does not reduce your other income. It carries forward on Form 8582.</>
+                      : <>{fmt(result.palSuspendedRental)} of rental loss is passive and suspended this year — it does not reduce your other income. It carries forward on Form 8582.</>}
                   {/* F6: distinguish "unconfirmed" suspension from a confirmed passive result */}
                   {result.rentalIsREP && rentalAggregationElection !== true && step1RentalNetUI < 0 && ' This is suspended because you have not made the §1.469-9(g) aggregation election — check that box on your rental card in Step 1 if you aggregate your hours across all properties and materially participate, to deduct it currently.'}
                   {!result.rentalIsREP && !result.rentalIsActiveParticipant && ' If you materially participate as a real estate professional (§469(c)(7)), set REP status on the rental to deduct it currently.'}

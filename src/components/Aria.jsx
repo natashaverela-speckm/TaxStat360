@@ -201,6 +201,13 @@ function buildComputedBlock(summary) {
     ['Self-employed retirement (SEP / Solo 401(k))',  summary.selfEmpRetirementDed],
   ].filter(([, v]) => n(v) > 0).map(([l, v]) => `${l} ${fmtUSD(n(v))}`)
   if (adj.length) lines.push(`Above-the-line adjustments applied: ${adj.join('; ')}`)
+  // EIGHTH PASS (18 Sep 2026): S-Corp entity-level deductions, the retirement / HSA caps and
+  // the auto-credited Additional Medicare withholding, so Aria explains them the way Step 2 does.
+  if (n(summary.sehiScorpEntityDeduction) > 0) lines.push(`S-Corp health premium deducted by the S-Corp on Form 1120-S (Rev. Rul. 91-26; Notice 2008-1), reducing the K-1 share and the §199A base: ${fmtUSD(n(summary.sehiScorpEntityDeduction))}`)
+  if (n(summary.scorpRetirementEntityDeduction) > 0) lines.push(`S-Corp employer retirement contribution deducted on Form 1120-S (25% of officer W-2 cap, §402(h)(2)(A)), reducing the K-1 share and the §199A base: ${fmtUSD(n(summary.scorpRetirementEntityDeduction))}`)
+  if (n(summary.selfEmpRetirementDisallowed) > 0) lines.push(`Retirement contribution entered ${fmtUSD(n(summary.selfEmpRetirementEntered))}; ${fmtUSD(n(summary.selfEmpRetirementDisallowed))} exceeds the SEP / Solo 401(k) limits (§415(c), §402(h); Pub. 560) and was not deducted`)
+  if (summary.hsaClamped) lines.push(`HSA deduction limited to ${fmtUSD(n(summary.hsaDed))} (entered ${fmtUSD(n(summary.hsaEntered))}; ceiling = family limit + age-55 catch-up, §223(b))`)
+  if (n(summary.addlMedicareWithheld) > 0) lines.push(`Additional Medicare Tax withheld by the employer on wages above $200,000 (§3102(f)), credited as a payment on Form 1040 line 25c: ${fmtUSD(n(summary.addlMedicareWithheld))}`)
   if (n(summary.priorSuspendedLossApplied) > 0) {
     lines.push(`Prior-year S-Corp suspended loss released this year (§1366(d)(2), limited to basis restored): ${fmtUSD(n(summary.priorSuspendedLossApplied))}${n(summary.priorSuspendedLossRemaining) > 0 ? `; ${fmtUSD(n(summary.priorSuspendedLossRemaining))} still carries forward` : ''}`)
   }
