@@ -12,6 +12,101 @@ record of work that predates this changelog.
 
 ---
 
+## Eighth pass — independent fresh-eyes audit (engine F-1 / F-2 / F-5 / F-10, wiring F-3 / F-4, copy F-6 – F-9) — September 18, 2026
+
+Black-box audit of production by a reviewer with no access to this repository: 45 live
+scenarios (42 for 2026 under P.L. 119-21, 3 for 2025) compared against an independent
+form-by-form reference calculator built before any live figure was read. 37 matched to the
+dollar; the discrepancies became the fixes below. Every fix carries SPEC tests derived by hand
+before the code was written (`taxCalc-eighth-pass.test.js`, +14; `eighth-pass-step1.test.jsx`,
++8). Suite: 116 files / 1,733 tests, all green; lint 0 errors (28 pre-existing warnings,
+unchanged); production build clean.
+
+### Fixed — engine (`src/lib/taxCalc.js`, `constants.js`)
+- **F-1 (MED) — S-Corp SEHI: the S-Corp deducts the premium it paid.** EXT-1 put the premium
+  into Box 1 wages and §162(l) took the deductible part back out, but nothing ever reduced the
+  S-Corp's ordinary income for the premium the corporation paid (Rev. Rul. 91-26; Notice 2008-1
+  — it is compensation on Form 1120-S). The Step 2 caption tells the user to enter the premium
+  only when Step 1 net income does NOT already include it, so under the app's own contract the
+  entity-level deduction was missing: the net AGI effect of a premium was $0 where it must be
+  minus the deductible premium. Live: 2026 single, S-Corp gross $400,000 / expenses $100,000 /
+  officer W-2 $100,000, SEHI $20,000 → AGI $292,350 shown, $272,350 correct. New
+  `sehiScorpEntityDeduction` (= the EXT-1 gross-up in every branch, mixed-source fallback
+  included) is subtracted from gross income, the §469(i) and §221 MAGIs, the §461(l) business
+  figure and the S-Corp QBI base (in addition to the shareholder-level §162(l) reduction, Reg.
+  §1.199A-3(b)(1)(vi); IRS §199A FAQ Q33). Step 2 shows it as its own row. **Convention now
+  stated in the tests:** the K-1 entered in Step 1 is PRE-premium. The EXT-1 / EXT-7 / R-1 SPEC
+  values that assumed a K-1 already net of the premium were re-derived on that convention
+  (`taxCalc-sehi-scorp-grossup`, `taxCalc-sehi-qbi-attribution`, `taxCalc-469-magi-audit`).
+- **F-2 (MED) — S-Corp employer retirement contribution is a Form 1120-S deduction.** The
+  single `selfEmpRetirement` entry was taken on Schedule 1 line 16 whatever the return looked
+  like. For a >2% shareholder the employer SEP / 401(k) contribution is deducted by the S-Corp
+  (§404(a), §402(h)) — it reduces the K-1 and the §199A base and is capped at 25% of the
+  shareholder's own officer W-2 and the §415(c) limit. Live: $40,000 against a $100,000 officer
+  W-2 → §199A $38,470 shown; now $25,000 allowed (25%), K-1 $167,350, §199A $33,470, $15,000
+  disallowed and surfaced. The entry is split into an SE leg (Schedule 1) and an S-Corp leg
+  (entity level), SE leg first. New outputs `scorpRetirementEntityDeduction`,
+  `retirementSeLegCap`, `retirementScorpLegCap`, `selfEmpRetirementEntered`,
+  `selfEmpRetirementDisallowed`, `selfEmpRetirementClamped`, `scorpEntityLevelDeductions`.
+- **F-10 (LOW) — the caps the FAQ said were missing.** SE leg: the lesser of earned income
+  (net SE earnings less ½ SE tax, §401(c)(2)), the §415(c) limit, and 20% of earned income +
+  the §402(g) elective deferral (Pub. 560; Solo 401(k)). A W-2-only filer with no SE earnings
+  or S-Corp wages now deducts $0 (was: $40,000 deducted). HSA: ceilinged at the family limit
+  plus the §223(b)(3) catch-up (two on a joint return) — new constant `HSA_CATCH_UP_CONTRIBUTION`;
+  outputs `hsaEntered`, `hsaLimit`, `hsaClamped`. Age-based 401(k) catch-ups are not modeled
+  (KNOWN_LIMITATIONS → RETIREMENT-CATCHUP). Live: Schedule C $300,000 with $100,000 entered →
+  $72,000; HSA $10,000 (single) → $9,750.
+- **F-5 (LOW) — Additional Medicare Tax withheld is a payment.** An employer must withhold the
+  0.9% on the wages it pays above $200,000 (§3102(f)), and the Box 2 caption told the user to
+  leave Box 6 out — so the credit (Form 1040 line 25c; Form 2210 line 6) never existed and the
+  balance due was overstated by 0.9% of every dollar over $200,000 per W-2 (single, W-2
+  $500,000: $2,700). Auto-credited PER PAYING EMPLOYER (each S-Corp / C-Corp officer salary,
+  and the other-employer W-2 as one source), added to `withheld` (so it joins the §6654(g)(1)
+  even-spread and the safe-harbor payments); in YTD mode measured on wages paid to date. New
+  outputs `withheldEntered`, `addlMedicareWithheld`; two CHAR pins that summed payments on a
+  $400,000 / $250,000 W-2 were updated (`taxCalc-engine`, `seventh-pass-surfaces`).
+
+### Fixed — wiring (`CalculateTaxInner.jsx`, `rentalPortfolio.js`, `TaxReturn.jsx`)
+- **F-3 (MED) — a removed rental card left its prior-year PAL behind.** TaxReturn mirrors the
+  card total into the personal context; removing the card left the amount there, where the
+  migration fallback resurrected it as an "orphaned" carryforward that silently offset the next
+  rental's income (live: prior PAL $10,000 card removed, new rental +$5,000 → "allowed $0",
+  "$5,000 of rental loss is passive and suspended"). `removeEntity` now releases the card's
+  amount from the context (`releaseCardPriorPAL`); new cards carry `priorPAL: ''` from birth and
+  the fallback fires only for legacy cards that never had the field; the Step 2 banner can now
+  **discard** a stranded amount; the §469 message distinguishes a prior-year carryforward still
+  waiting for passive income from this year's suspended loss.
+- **F-4 (LOW) — guaranteed payments in the gross-receipts path.** §707(c) payments are
+  deductible by the partnership; Box 1 is the share of income AFTER them. The P&L path added
+  the GP field on top of net profit (gross $400,000 / expenses $100,000 / GP $50,000 → K-1
+  income $350,000; $300,000 correct). The panel now deducts them inside totalExpenses (persisted
+  as `pnl.guaranteedPayments`, shown on the panel and the card), the way officer compensation
+  is deducted for an S-Corp; K-1 direct mode is untouched. Captions rewritten.
+- **F-9 (LOW) — C-Corp card.** Showed Net Profit $200,000 while the engine taxed $192,350 (the
+  employer payroll tax is deducted at the corporate layer, kept out of the P&L to avoid AUDIT
+  H1's double deduction). The card now shows the corporate-level deduction and the taxable figure.
+
+### Copy
+- **F-6** — YTD panel states the payments convention (income annualized; withholding and
+  estimates taken as paid to date) and how to see a year-end balance.
+- **F-7** — carryforward guide step 1 cited "Form 8582 lines 1c/2c (rental real estate) or 3c
+  (other passive)" (pre-2020 layout); now line 1c / line 2c.
+- **F-8** — REP caption said the §1.469-9(g) election is what makes rentals nonpassive; it is
+  material participation (Reg. §1.469-9(e)(1)) — the election is how TaxStat360 records it.
+- Retirement field relabeled (no longer "Schedule 1, Line 16") and its caption, the HSA and
+  Box 2 tips, Aria's grounding lines, the record-card selector keys and the public FAQ /
+  JSON-LD (byte-identical) updated for the new caps and credits.
+
+### Verified and deliberately unchanged
+45 live scenarios — brackets, standard deduction, Schedule SE with wage-base coordination and
+MFJ attribution, Forms 8959 / 8960 (QSS $250,000), the Schedule D Tax Worksheet (25% / 28%),
+§1211 / §1212 / §1231(c), Form 6251 with the 2026 50% phase-out, Forms 8995 / 8995-A with the
+75k / 150k phase-in and the §199A(i) $400 minimum, §469(i) / Form 8582 pooling, §461(l), the
+80% NOL cap, the 2026 SALT phase-down, the 0.5% charitable floor, §170(p), the 2/37 limitation,
+CTC phase-out granularity, §221, and the §6654 installment schedule — all matched.
+
+---
+
 ## Seventh pass — independent fresh-eyes audit (engine F-1–F-9, wiring H-1–H-4 / M-1–M-8, copy A/B) — September 16, 2026
 
 Three reviewers who had not seen the prior passes each took one surface — the engine (with

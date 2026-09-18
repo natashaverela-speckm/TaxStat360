@@ -800,6 +800,47 @@ under §469 the same way as a limited partner's (PASSIVE-PARTNER item 2), and th
 unallowed loss can be entered on the card (PAL-K1-CARRYFORWARD).
 
 
+## EIGHTH PASS — conventions and boundaries (18 Sep 2026)
+
+- **SEHI-SCORP-CONVENTION (stated, not a limitation):** the K-1 / net income entered in Step 1
+  for an S-Corp is taken as PRE-premium. When a >2% shareholder's health premium is entered in
+  Step 2 (per the field caption: only when Step 1 net income does not already include it), the
+  engine now (a) grosses the premium into Box 1 wages (EXT-1), (b) deducts it from the S-Corp's
+  ordinary income — `sehiScorpEntityDeduction`, the corporation's Form 1120-S deduction (Rev.
+  Rul. 91-26; Notice 2008-1) — and (c) takes the §162(l) deduction on Schedule 1, capped at the
+  officer W-2 base. Net AGI effect: minus the deductible premium (plus any non-deductible
+  excess, which stays in wages). A user who puts the premium in Operating Expenses AND enters
+  it here now double-deducts — that is what the caption's double-count warning guards.
+- **RETIREMENT-CATCHUP:** SEP / Solo 401(k) entries are capped (SE leg: 20% of net SE earnings
+  + the §402(g) deferral, within earned income and §415(c); S-Corp leg: 25% of officer W-2,
+  within §415(c)). The app does not ask age, so the §414(v) age-50 / age-60-63 catch-ups are
+  never added — a 50+ filer at the ceiling is under-allowed by the catch-up (tax overstated,
+  conservative). Plan type is not asked either: the SE cap includes the Solo 401(k) deferral, so
+  a SEP-only sole proprietor can enter more than a SEP alone allows (up to the deferral) —
+  disclosed in the field caption.
+- **RETIREMENT-LEG-ATTRIBUTION:** a single entry on a return with BOTH SE earnings and an
+  S-Corp officer salary is attributed SE leg first, then S-Corp leg. A user whose contribution
+  was actually made by the S-Corp gets the same AGI but a slightly different QBI split; the
+  field caption says so. A split field (like the SEHI B4 fields) would remove the ambiguity.
+- **HSA-CEILING:** the HSA deduction is ceilinged at the family limit plus one §223(b)(3)
+  catch-up (two on a joint return). Coverage type and age are not asked, so a self-only or
+  under-55 filer can still enter more than their own limit — the banner says so.
+- **ADDL-MEDICARE-WITHHOLDING (assumption):** the §3102(f) withholding credit assumes each
+  officer salary and the other-employer W-2 were each paid by ONE employer for the whole year.
+  Two outside employers (each under $200,000) would not have withheld; a job change mid-year
+  can over- or under-state the credit. The Step 2 row names the credited amount so the user
+  can reconcile it to Box 6.
+- **PAL-ORPHAN (resolved F-3):** a removed rental card now releases its prior-year unallowed
+  loss from the personal context; the migration fallback in `rentalPortfolio.js` fires only for
+  legacy cards that never carried `priorPAL`; a stranded amount can be discarded from the Step
+  2 banner. Records saved before 18 Sep 2026 that already carry a stranded amount will show the
+  banner once and can be cleaned there.
+- **GP-PNL-PATH (resolved F-4):** in gross-receipts mode the partnership deducts guaranteed
+  payments inside totalExpenses (`pnl.guaranteedPayments`). Records saved before 18 Sep 2026
+  whose users netted GP out of Operating Expenses by hand (as the old caption asked) will
+  double-deduct until the Operating Expenses figure is corrected — the panel now shows the GP
+  line so the reconciliation is visible.
+
 ## SEVENTH PASS — items verified and deliberately left open (16 Sep 2026)
 
 - ~~**PAL-K1-CARRYFORWARD**~~ — **resolved (16 Sep 2026, same day).** A "Unallowed passive loss
