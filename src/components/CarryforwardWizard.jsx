@@ -292,7 +292,7 @@ function CarryforwardWizardFlow() {
             <p style={{ margin: '0 0 10px', fontSize: 12, color: SL, lineHeight: 1.55 }}>
               Upload a <strong>text PDF</strong> of last year’s Form 1040 / schedules (selectable
               text, not a scan). We draft carryforward amounts for you to review — nothing is saved
-              until you click Finish. Tax PDFs are not kept in RepsRecord Evidence. Scanned or
+              until you click Finish. The PDF is read once and discarded — it is not stored. Scanned or
               image-only PDFs are not supported yet.
             </p>
             <input

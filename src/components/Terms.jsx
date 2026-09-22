@@ -104,7 +104,7 @@ export default function Terms() {
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
         <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 11, 2026</p>
+          <p style={{ fontSize: 13, color: SL, marginBottom: 8 }}>Last updated: September 22, 2026</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: N, marginBottom: 12 }}>Terms of Service</h1>
           <p style={{ color: SL, fontSize: 15, lineHeight: 1.7 }}>These Terms of Service govern your use of TaxStat360. By creating an account or using our platform, you agree to these terms. Please read them carefully.</p>
           <p style={{ color: '#B91C1C', fontSize: 14, lineHeight: 1.7, marginTop: 12, fontWeight: 600 }}>
@@ -186,6 +186,10 @@ export default function Terms() {
         </Section>
 
         <Section title="5. Acceptable Use">
+          {/* LEGAL REVIEW L-8 (18 Sep 2026, shipped 22 Sep 2026): territorial scope. The
+              product models U.S. federal income tax only; an EU/UK subscriber would carry
+              statutory withdrawal rights and GDPR obligations the Terms do not contemplate. */}
+          <p style={{ marginBottom: 10 }}>TaxStat360 is offered only to persons located in the United States, for U.S. federal income-tax planning. We do not knowingly offer, market, or provide the service outside the United States, and you represent that you are located in the United States when you subscribe.</p>
           <p style={{ marginBottom: 10 }}>You must be at least 18 years old and able to form a binding contract to use TaxStat360. You agree not to:</p>
           <p style={{ marginBottom: 8 }}>• Use TaxStat360 for any unlawful purpose or to facilitate tax fraud</p>
           <p style={{ marginBottom: 8 }}>• Attempt to reverse engineer, copy, or resell our platform</p>

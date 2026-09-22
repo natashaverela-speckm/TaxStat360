@@ -208,6 +208,11 @@ function buildComputedBlock(summary) {
   if (n(summary.selfEmpRetirementDisallowed) > 0) lines.push(`Retirement contribution entered ${fmtUSD(n(summary.selfEmpRetirementEntered))}; ${fmtUSD(n(summary.selfEmpRetirementDisallowed))} exceeds the SEP / Solo 401(k) limits (§415(c), §402(h); Pub. 560) and was not deducted`)
   if (summary.hsaClamped) lines.push(`HSA deduction limited to ${fmtUSD(n(summary.hsaDed))} (entered ${fmtUSD(n(summary.hsaEntered))}; ceiling = family limit + age-55 catch-up, §223(b))`)
   if (n(summary.addlMedicareWithheld) > 0) lines.push(`Additional Medicare Tax withheld by the employer on wages above $200,000 (§3102(f)), credited as a payment on Form 1040 line 25c: ${fmtUSD(n(summary.addlMedicareWithheld))}`)
+  // NINTH PASS N-1 (22 Sep 2026)
+  if (n(summary.excessSSWithheld) > 0) lines.push(`Excess Social Security tax withheld (W-2 wages from two or more employers exceed the wage base; §6413(c)), credited as a refundable payment on Form 1040 Schedule 3 line 11: ${fmtUSD(n(summary.excessSSWithheld))}`)
+  // NINTH PASS N-7 (22 Sep 2026)
+  if (summary.underpaymentPenaltyExempt === 'priorYearZero') lines.push('No §6654 estimated-tax penalty applies: the prior-year federal tax was $0 (IRC §6654(e)(2); 12-month prior year, U.S. citizen or resident).')
+  else if (summary.underpaymentPenaltyExempt === 'deMinimis') lines.push('No §6654 estimated-tax penalty applies: the tax remaining after withholding is under $1,000 (IRC §6654(e)(1)).')
   if (n(summary.priorSuspendedLossApplied) > 0) {
     lines.push(`Prior-year S-Corp suspended loss released this year (§1366(d)(2), limited to basis restored): ${fmtUSD(n(summary.priorSuspendedLossApplied))}${n(summary.priorSuspendedLossRemaining) > 0 ? `; ${fmtUSD(n(summary.priorSuspendedLossRemaining))} still carries forward` : ''}`)
   }

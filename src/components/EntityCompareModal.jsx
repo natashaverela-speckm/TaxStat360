@@ -121,6 +121,10 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     estQ1: nf(p.estQ1), estQ2: nf(p.estQ2), estQ3: nf(p.estQ3), estQ4: nf(p.estQ4),   // H-2
     ytdFactor,
     priorYearTax: nf(p.priorYearTax), priorYearAGI: nf(p.priorYearAGI),
+    priorYearTaxEntered: !!p.priorYearTaxEntered,                                   // NINTH PASS N-7
+    retirementPlanType: p.retirementPlanType === 'sep' ? 'sep' : 'solo401k',        // NINTH PASS N-5
+    hsaCoverage: p.hsaCoverage === 'self' ? 'self' : 'family',
+    hsaCatchUp55: p.hsaCatchUp55 !== false,
     priorPassiveLossCarryforward: rp.priorPAL,   // M-4: card sum, personal value only as migration fallback
     priorSuspendedLoss: nf(p.priorSuspendedLoss),
     assumeZeroBasisOnLoss: true,

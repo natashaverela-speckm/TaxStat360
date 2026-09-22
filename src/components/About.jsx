@@ -61,7 +61,7 @@ const FOUNDER_EXPERTISE = [
   {
     icon: 'chartBar',
     title: 'Tax Compliance',
-    desc: 'Built around tax reporting requirements across S-Corps, partnerships, LLCs, sole proprietorships, and real estate — the exact structures TaxStat360 serves — so every calculation reflects how the IRS actually reads these returns.',
+    desc: 'Built around tax reporting requirements across S-Corps, partnerships, LLCs, sole proprietorships, and real estate — the exact structures TaxStat360 serves — so the calculations are built around how these returns are reported and examined.',
   },
   {
     icon: 'scales',

@@ -63,6 +63,12 @@ export default function Footer() {
           {COMPANY_LEGAL_NAME} &middot; {COMPANY_ADDRESS} &middot; {SUPPORT_EMAIL}
         </p>
 
+        {/* LEGAL REVIEW L-7 (18 Sep 2026, shipped 22 Sep 2026): nominative-use attribution
+            for the accounting platforms named on the landing page (Intuit's developer/brand
+            terms expect it; the other partner programs are similar). */}
+        <p style={{ color: '#475569', fontSize: 11, margin: '0 0 8px', lineHeight: 1.5 }}>
+          QuickBooks is a trademark of Intuit Inc. Xero, Wave, and FreshBooks are trademarks of their respective owners. TaxStat360 is not affiliated with, sponsored by, or endorsed by any of them.
+        </p>
         <p style={{ color: '#475569', fontSize: 12, margin: 0 }}>
           © {new Date().getFullYear()} TaxStat360. All rights reserved.
         </p>

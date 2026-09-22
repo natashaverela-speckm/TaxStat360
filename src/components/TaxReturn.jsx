@@ -20,7 +20,7 @@ import { signOut } from '../utils/SignOut'
 // calcTaxReturn() call below; CalcInputError surfaces as a visible banner.
 import { validateCalcInputs, CalcInputError } from '../utils/calcGuard'
 import { nf, fmt, effRateLabel, formatTimestamp, localCalendarDate } from '../utils/money.js'
-import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, isLimitedPartnerEligibleType } from '../utils/entityPredicates.js'
+import { isRealEstateEntity, isSCorpEntity, isCCorpEntity, isScheduleCType, getEntityPnlNet, getEntityK1Share, normalizeEntityType, isLimitedPartnerEligibleType, isBasisLimitableEntityType } from '../utils/entityPredicates.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { deriveRentalPortfolioInputs } from '../utils/rentalPortfolio.js'   // SEVENTH PASS M-1/M-3/M-4
 import { ccorpLayerForReturn, mergeCcorpIntoResult } from '../utils/ccorpLayer.js'   // SEVENTH PASS H-4
@@ -264,8 +264,19 @@ export default function TaxReturn() {
   const [priorYearQBILoss,  setPriorYearQBILoss] = useState(savedCtx.priorYearQBILoss || savedCtx.priorYearLosses || '')
   const [hasISO,            setHasISO]           = useState(!!(savedCtx.hasISO))
   const [isoBargainElement, setIsoBargainElement]= useState(savedCtx.isoBargainElement   || '')
-  const [priorYearTax,      setPriorYearTax]     = useState(savedCtx.priorYearTax        || '')
+  // NINTH PASS N-7 (22 Sep 2026): a typed $0 prior-year tax is a real figure (§6654(e)(2): no
+  // penalty at all), not a blank. The manifest stores the amount as a number, so the "was it
+  // entered" fact travels in its own flag and re-seeds the field as '0' on reload.
+  const [priorYearTax,      setPriorYearTax]     = useState(
+    savedCtx.priorYearTax || (savedCtx.priorYearTaxEntered ? '0' : '')
+  )
   const [priorYearAGI,      setPriorYearAGI]     = useState(savedCtx.priorYearAGI        || '')
+  // NINTH PASS N-5 (22 Sep 2026): plan-type / HSA-coverage attestations that narrow the
+  // retirement and HSA ceilings the engine applies. Defaults reproduce the prior (widest)
+  // ceilings, so existing records are unchanged until the user picks the narrower option.
+  const [retirementPlanType, setRetirementPlanType] = useState(savedCtx.retirementPlanType === 'sep' ? 'sep' : 'solo401k')
+  const [hsaCoverage,        setHsaCoverage]        = useState(savedCtx.hsaCoverage === 'self' ? 'self' : 'family')
+  const [hsaCatchUp55,       setHsaCatchUp55]       = useState(savedCtx.hsaCatchUp55 !== false)
 
   const [saveStatus,    setSaveStatus]    = useState('idle')
   const [saveError,     setSaveError]     = useState(null)
@@ -385,6 +396,8 @@ export default function TaxReturn() {
       charitableContr: nf(charitableContr),                       // N-9 / N-9b / N-8 wiring
       estQ1: nf(estQ1), estQ2: nf(estQ2), estQ3: nf(estQ3), estQ4: nf(estQ4),  // 2210-lite
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
+      priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7: a typed $0 is a figure, not a blank
+      retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
       priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
       // C-10 FIX: opt into the conservative §1366(d) default. An S-Corp/partnership loss
@@ -403,6 +416,7 @@ export default function TaxReturn() {
     nolCarryforward, priorYearQBILoss, saltAmount, useItemized, itemizedAmt,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
+    retirementPlanType, hsaCoverage, hsaCatchUp55,
     ccorp,
   ])
 
@@ -465,6 +479,8 @@ export default function TaxReturn() {
       mortgageInt, charitableContr, medicalAmt,
       hasISO, isoBargainElement,
       priorYearTax, priorYearAGI,
+      priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7
+      retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
       priorSuspendedLoss,           // F-01
     })
   }, [
@@ -478,6 +494,7 @@ export default function TaxReturn() {
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
+    retirementPlanType, hsaCoverage, hsaCatchUp55,
     priorSuspendedLoss,
   ])
 
@@ -549,6 +566,8 @@ export default function TaxReturn() {
         useItemized, itemizedAmt: itemizedAmtForEngine, saltAmount, hasISO, isoBargainElement,
         mortgageInt, charitableContr, medicalAmt,
         priorYearTax, priorYearAGI,
+        priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7
+        retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
         // SAVE-2 FIX: persist §1366(d) prior-year suspended loss so it round-trips
         // through saved records. Previously only written to sessionStorage (ts360_f1040)
         // and lost on reload from server. savedCtx.priorSuspendedLoss initializes the
@@ -579,6 +598,7 @@ export default function TaxReturn() {
     nolCarryforward, priorYearQBILoss, useItemized, itemizedAmt, itemizedAmtForEngine, saltAmount,
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
+    retirementPlanType, hsaCoverage, hsaCatchUp55,
   ])
 
   // D-3 (A): the actual save, parameterized by the user's explicit choice.
@@ -1066,7 +1086,12 @@ export default function TaxReturn() {
                 // below; this label just keeps the two from looking contradictory.
                 const stockEntered = e.stockBasis !== '' && e.stockBasis !== undefined && e.stockBasis !== null
                 const enteredBasis = stockEntered ? Math.max(0, nf(e.stockBasis)) + Math.max(0, nf(e.debtBasis)) : 0
-                const k1Status = k1 >= 0
+                // NINTH PASS N-6 (22 Sep 2026): the basis cue applies only to entities that HAVE
+                // a §1366(d) / §704(d) basis limit (S-Corps and partnerships). A Schedule C loss
+                // has no basis — it was labelled "Basis not entered · likely limited" whenever an
+                // S-Corp loss sat on the same return (the engine never limited it; only the label
+                // was wrong). §465 at-risk is the analogous sole-prop rule and is not modelled.
+                const k1Status = (k1 >= 0 || !isBasisLimitableEntityType(e.type))
                   ? null
                   : !stockEntered ? 'Basis not entered · likely limited'
                   : enteredBasis >= Math.abs(k1) ? null
@@ -1684,12 +1709,27 @@ export default function TaxReturn() {
                   <InfoTip text={`Health Savings Account contributions — deductible if you have a qualifying High-Deductible Health Plan. ${taxYear} limits: ${fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / ${fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family). Grows tax-free; withdrawals for medical expenses are always tax-free.`} />
                 </label>
                 <Step2MoneyInput id="tr-hsa" value={hsaDeduction} onChange={setHsaDeduction} placeholder="0" nonNegative />
-                {/* EIGHTH PASS F-10 (18 Sep 2026): the engine now ceilings the HSA deduction at the
-                    family limit plus the §223(b)(3) catch-up (one per spouse on a joint return) —
-                    the widest legal figure, since coverage type and age are not asked. */}
+                {/* NINTH PASS N-5 (22 Sep 2026): coverage type and age narrow the §223(b) ceiling the
+                    engine applies. Shown only once an amount is entered. */}
+                {nf(hsaDeduction) > 0 && (
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: SL, alignItems: 'center' }}>
+                    <label htmlFor="tr-hsa-coverage" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      HDHP coverage:
+                      <select id="tr-hsa-coverage" value={hsaCoverage} onChange={e => setHsaCoverage(e.target.value === 'self' ? 'self' : 'family')}
+                        style={{ padding: '4px 8px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', background: '#fff', color: N }}>
+                        <option value="family">Family ({fmt(getTable(taxYear)?.hsa?.family ?? 0)})</option>
+                        <option value="self">Self-only ({fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)})</option>
+                      </select>
+                    </label>
+                    <label htmlFor="tr-hsa-catchup" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                      <input type="checkbox" id="tr-hsa-catchup" checked={hsaCatchUp55} onChange={e => setHsaCatchUp55(e.target.checked)} />
+                      Age 55+ at year-end (+$1,000 catch-up{filingStatus === 'mfj' ? ' per spouse' : ''}, IRC §223(b)(3))
+                    </label>
+                  </div>
+                )}
                 {result?.hsaClamped && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
-                    ⚠ Deduction limited to {fmt(result.hsaDed)} — the {taxYear} HSA contribution limit is {fmt(getTable(taxYear)?.hsa?.selfOnly ?? 0)} (self-only) / {fmt(getTable(taxYear)?.hsa?.family ?? 0)} (family), plus a $1,000 catch-up at age 55 or older (IRC §223(b)). You entered {fmt(result.hsaEntered)}. If your coverage is self-only, or you are under 55, your own limit is lower than the ceiling applied here.
+                    ⚠ Deduction limited to {fmt(result.hsaDed)} — the {taxYear} HSA contribution limit for {result.hsaCoverageApplied === 'self' ? 'self-only' : 'family'} coverage is {fmt(result.hsaCoverageApplied === 'self' ? (getTable(taxYear)?.hsa?.selfOnly ?? 0) : (getTable(taxYear)?.hsa?.family ?? 0))}{result.hsaCatchUpApplied ? `, plus the $1,000 age-55 catch-up${filingStatus === 'mfj' ? ' per spouse' : ''}` : ''} (IRC §223(b)). You entered {fmt(result.hsaEntered)}. Adjust the coverage type and age above if they do not match your plan.
                   </div>
                 )}
               </div>
@@ -1710,6 +1750,21 @@ export default function TaxReturn() {
                   <InfoTip text={`Enter the contributions made to a SEP-IRA or Solo 401(k) for this tax year. TaxStat360 applies the legal limits automatically and tells you if your entry exceeds them.\n\nSole proprietors and partners (Schedule 1, line 16): limited to 20% of your net self-employment earnings (net profit less ½ SE tax — the 25% rate net of the contribution itself, IRS Pub. 560) plus, for a Solo 401(k), the ${fmt(getTable(taxYear)?.retirement?.solo401kDeferral ?? 0)} employee deferral, never more than your earned income and never more than ${fmt(getTable(taxYear)?.retirement?.solo401kMax ?? 0)} for ${taxYear} (IRC §415(c)).\n\nS-Corp owners: the employer contribution is based on your officer W-2 salary only — NOT K-1 distributions (IRC §402(h)(2)(A); §404(a)(3)) — up to 25% of that salary and ${fmt(getTable(taxYear)?.retirement?.sepIraMax ?? 0)} for ${taxYear}. The S-Corp deducts it on Form 1120-S, so TaxStat360 reduces your K-1 share (and your §199A base) by it rather than taking it on Schedule 1. Employee 401(k) deferrals from an S-Corp salary are already out of Box 1 wages — do not enter them here.\n\nAge-50+ catch-up contributions are not modelled. If you have both an S-Corp salary and other self-employment income, the entry is applied to the self-employment leg first.`} wide />
                 </label>
                 <Step2MoneyInput id="tr-retirement" value={selfEmpRetirement} onChange={setSelfEmpRetirement} placeholder="0" nonNegative />
+                {/* NINTH PASS N-5 (22 Sep 2026): a SEP-IRA has no employee deferral (§408(k)(6)), so
+                    its self-employment ceiling is the 20% figure alone; only a Solo 401(k) adds the
+                    §402(g) deferral. The plan type was assumed to be a Solo 401(k) for every entry. */}
+                {nf(selfEmpRetirement) > 0 && (
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: SL, alignItems: 'center' }}>
+                    <label htmlFor="tr-retirement-plan" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Plan type:
+                      <select id="tr-retirement-plan" value={retirementPlanType} onChange={e => setRetirementPlanType(e.target.value === 'sep' ? 'sep' : 'solo401k')}
+                        style={{ padding: '4px 8px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', background: '#fff', color: N }}>
+                        <option value="solo401k">Solo 401(k) — 20% of net SE earnings + {fmt(getTable(taxYear)?.retirement?.solo401kDeferral ?? 0)} deferral</option>
+                        <option value="sep">SEP-IRA — 20% of net SE earnings (no employee deferral)</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
                 {result?.selfEmpRetirementClamped && (
                   <div style={{ marginTop: 4, fontSize: 13, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
                     ⚠ {fmt(result.selfEmpRetirementDisallowed)} of the {fmt(result.selfEmpRetirementEntered)} you entered is above the contribution limit and was not deducted.
@@ -2075,7 +2130,11 @@ export default function TaxReturn() {
                     if (hasPartner) return 'Partnership / LLC Loss (K-1, allowed)'
                     return 'Schedule C Loss'
                   })(),                                 value: result.seNetLossAllowed || 0,               sign: 1, hide: !(result.seNetLossAllowed < 0),
-                  note: (result.totalSuspendedLoss || 0) > 0
+                  // NINTH PASS N-6 (22 Sep 2026): the basis note belongs to this line only when a
+                  // PARTNERSHIP loss (§704(d)) is inside the SE figure. An S-Corp's §1366(d)
+                  // suspension has its own K-1 line and its own warning below; a Schedule C loss
+                  // has no basis limit at all, so the note misattributed the suspended amount.
+                  note: ((result.totalSuspendedLoss || 0) > 0 && (Array.isArray(entities) ? entities : []).some(e => e && isLimitedPartnerEligibleType(e.type) && (getEntityK1Share(e) - nf(e.box11_12)) < 0))
                     ? `Net loss after the basis limitation — ${fmt(result.totalSuspendedLoss)} is suspended (§704(d) / §1366(d)) and carries forward`
                     : 'Net self-employment loss — no SE tax this year (§1402(a))' },
                 // AI-5 FIX: split W-2 into officer salary (Step 1) + other W-2 (Step 2) so
@@ -2207,12 +2266,12 @@ export default function TaxReturn() {
                   note: `§1366(d)(2) carryover deducted against basis restored this year (Form 7203 Part III)${result.priorSuspendedLossRemaining > 0 ? ` — ${fmt(result.priorSuspendedLossRemaining)} still carries forward` : ''}${nf(priorYearQBILoss) === 0 ? ' — not netted out of QBI: if the loss arose in 2018 or later, enter the released amount as a Prior-Year QBI Loss Carryforward (Reg. §1.199A-3(b)(1)(iv))' : ''}` },
                 { label: 'SE Tax Deduction (½)',         value: result.halfSE,                            sign: -1, hide: result.halfSE === 0 },
                 { label: 'Retirement Contributions (Schedule 1, line 16)', value: result.selfEmpRetirementDed, sign: -1, hide: result.selfEmpRetirementDed === 0,
-                  note: (result.selfEmpRetirementClamped && (result.selfEmpRetirementDisallowed || 0) > 0) ? `Limited — ${fmt(result.selfEmpRetirementDisallowed)} of the entry is above the SEP / Solo 401(k) contribution limit (IRC §415(c), §402(h); Pub. 560)` : undefined },
+                  note: (result.selfEmpRetirementClamped && (result.selfEmpRetirementDisallowed || 0) > 0) ? `Limited — ${fmt(result.selfEmpRetirementDisallowed)} of the entry is above the ${result.retirementPlanTypeApplied === 'sep' ? 'SEP-IRA' : 'Solo 401(k)'} contribution limit (IRC §415(c), §402(h); Pub. 560)` : undefined },
                 { label: 'Health Insurance Ded.',       value: result.selfEmpHealthDed,                  sign: -1, hide: result.selfEmpHealthDed === 0 },
                 // LAUNCH CHECK N-4 (Sep 2026): HSA and student-loan interest were deducted by
                 // the engine (hsaDed, studentLoanDed) but had no row, so AGI dropped silently.
                 { label: 'HSA Deduction (Form 8889)',   value: result.hsaDed || 0,                       sign: -1, hide: !(result.hsaDed > 0),
-                  note: result.hsaClamped ? `Limited — you entered ${fmt(result.hsaEntered)}; the ${taxYear} ceiling applied is the family limit plus the age-55 catch-up (IRC §223(b))` : undefined },
+                  note: result.hsaClamped ? `Limited — you entered ${fmt(result.hsaEntered)}; the ${taxYear} ceiling applied is the ${result.hsaCoverageApplied === 'self' ? 'self-only' : 'family'} limit${result.hsaCatchUpApplied ? ' plus the age-55 catch-up' : ''} (IRC §223(b))` : undefined },
                 { label: 'Student Loan Interest (§221)', value: result.studentLoanDed || 0,              sign: -1, hide: !(result.studentLoanDed > 0),
                   note: (result.studentLoanDed > 0 && result.studentLoanDed < nf(studentLoanInt)) ? 'Less than the interest entered — the $2,500 cap and the §221(b)(2) MAGI phase-out applied' : undefined },
                 // FOURTH READ R-6 (14 Sep 2026): the §172 NOL deduction is an above-the-line item
@@ -2304,9 +2363,15 @@ export default function TaxReturn() {
                 { label: 'Total Tax',                   value: result.totalTax,                          sign: 1, bold: true },
                 { label: 'Withholding & Estimated Tax Payments', value: result.totalPayments,                     sign: -1, hide: result.totalPayments === 0,
                   // EIGHTH PASS F-5 (18 Sep 2026): the auto-credited §3102(f) Additional Medicare withholding is inside this figure.
-                  note: (result.addlMedicareWithheld || 0) > 0
-                    ? `Includes ${fmt(result.addlMedicareWithheld)} of Additional Medicare Tax your employer was required to withhold on wages above $200,000 (W-2 Box 6 excess; IRC §3102(f)) — credited on Form 1040 line 25c, so it is not part of the Box 2 figure you entered`
-                    : undefined },
+                  // NINTH PASS N-1 (22 Sep 2026): so is the §6413(c) excess Social Security withholding (Schedule 3 line 11).
+                  note: [
+                    (result.addlMedicareWithheld || 0) > 0
+                      ? `Includes ${fmt(result.addlMedicareWithheld)} of Additional Medicare Tax your employer was required to withhold on wages above $200,000 (W-2 Box 6 excess; IRC §3102(f)) — credited on Form 1040 line 25c, so it is not part of the Box 2 figure you entered${calcInput.status === 'mfj' && nf(w2Income) > 200000 ? '. The other-employer W-2 is treated as one W-2; if it combines both spouses\' wages, each employer withheld only on its own wages above $200,000, so the credit actually withheld may be smaller than shown' : ''}`
+                      : null,
+                    (result.excessSSWithheld || 0) > 0
+                      ? `Includes ${fmt(result.excessSSWithheld)} of excess Social Security tax withheld — your W-2 wages from two or more employers together exceed the ${fmt(result.ssWageBase || 0)} wage base, and each employer withheld 6.2% on its own; the excess is a refundable credit on Form 1040 Schedule 3, line 11 (IRC §31(b), §6413(c)). It is not part of the Box 2 figure you entered`
+                      : null,
+                  ].filter(Boolean).join(' · ') || undefined },
                 // Phase 4 (Aug 2026) — LIMITATION CTC-ACTC: refundable, so it's placed
                 // alongside payments (both reduce balance the same way), not with the
                 // nonrefundable Child Tax Credit above (which reduces Total Tax itself).
@@ -2531,7 +2596,18 @@ export default function TaxReturn() {
           )}
 
           {/* Underpayment penalty warning */}
-          {hasResult && result.balance > 0 && !nf(priorYearTax) && (
+          {/* NINTH PASS N-7 (22 Sep 2026): §6654(e)(2) — a typed $0 prior-year tax means no
+              underpayment penalty at all (12-month year, U.S. citizen/resident); §6654(e)(1) —
+              none when the tax after withholding is under $1,000. The engine reports both. */}
+          {hasResult && result.balance > 0 && result.underpaymentPenaltyExempt && (
+            <div role="status" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#166534' }}>
+              <strong>✅ No estimated-tax penalty applies:</strong>{' '}
+              {result.underpaymentPenaltyExempt === 'priorYearZero'
+                ? <>your prior-year federal tax was $0, so no §6654 addition to tax applies for {taxYear} (IRC §6654(e)(2) — requires a 12-month prior year and U.S. citizenship or residency). The balance is still due with the return by April 15.</>
+                : <>the tax remaining after withholding is under $1,000, so no §6654 addition to tax applies (IRC §6654(e)(1)). The balance is due with the return by April 15.</>}
+            </div>
+          )}
+          {hasResult && result.balance > 0 && !nf(priorYearTax) && !result.underpaymentPenaltyExempt && (
             <div role="alert" aria-live="polite" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 14px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
               <strong>⚠ You may owe an IRS underpayment penalty:</strong> you have a balance due but haven&apos;t entered prior year tax (the penalty rule is IRC §6654). Enter your prior year total tax in{' '}
               <button
@@ -2568,10 +2644,10 @@ export default function TaxReturn() {
                   {result.installmentsPassed} installment date{result.installmentsPassed > 1 ? 's' : ''} for {taxYear} already passed — the shortfall is spread over the {result.installmentsRemaining} remaining. Earlier-quarter exposure is shown in the schedule below.
                 </div>
               )}
-              {result.safeHarborPriorYear != null && (
+              {result.safeHarborPriorYear != null && result.underpaymentPenaltyExempt !== 'priorYearZero' && (
                 <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
                   <strong>Safe-harbor minimum:</strong> {result.safeHarborQuarterly > 0
-                    ? <>pay {fmt(result.safeHarborQuarterly)} per remaining installment ({result.installmentsRemaining > 0 ? `${result.installmentsRemaining} left` : 'due now'}) to reach {fmt(result.safeHarborMinimum)} — the lesser of 90% of this year&apos;s tax or {isHighIncome ? '110%' : '100%'} of last year&apos;s — and avoid IRC §6654 penalties. Anything above that toward the full balance is optional until April 15.</>
+                    ? <>pay {fmt(result.safeHarborQuarterly)} per remaining installment ({result.installmentsRemaining > 0 ? `${result.installmentsRemaining} left` : 'due now'}) to reach {fmt(result.safeHarborMinimum)} — the lesser of 90% of this year&apos;s tax or {isHighIncome ? '110%' : '100%'} of last year&apos;s — and {result.installmentsPassed > 0 ? <>stop further IRC §6654 penalties from accruing (the earlier-quarter shortfalls in the schedule below are already running; a late catch-up payment stops them but does not erase them)</> : <>avoid IRC §6654 penalties</>}. Anything above that toward the full balance is optional until April 15.</>
                     : <>already met — {fmt(result.totalPayments)} paid against a {fmt(result.safeHarborMinimum)} requirement. No further estimated payments are needed to avoid §6654 penalties; the remaining balance is due with the return.</>}
                   {Array.isArray(result.installmentSchedule) && (
                     <div style={{ marginTop: 8 }}>

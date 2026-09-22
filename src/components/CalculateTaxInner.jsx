@@ -582,6 +582,16 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
   const isPartnership = /partner|mmllc/i.test(entity.type || '')
   const isRE = isRealEstateEntity(entity.type)
   const effectiveSal = (isSCorp || isCCorp) ? sal : 0
+  // NINTH PASS N-3 (22 Sep 2026, pre-launch final review): K-1 direct entry exists only for the
+  // two entity types that issue a K-1. The toggle was already hidden for every other type, but
+  // the STATE (`useK1Direct`, seeded from entity.k1DirectMode) was not gated the same way — so
+  // an S-Corp card entered in K-1 mode and then changed to Sole Proprietor kept writing the
+  // stale Box 1 figure as the Schedule C net on every render, and the P&L fields the user then
+  // typed into changed nothing (live 22 Sep: Box 1 $20,000 → sole prop, gross receipts $420,
+  // card still $20,000). One predicate now gates the mode everywhere the panel reads it; the
+  // entity-type change handler below also clears the flag for a type that has no K-1 path.
+  const k1DirectAllowed = (isSCorp || isPartnership) && !isRE
+  const k1Active        = useK1Direct && k1DirectAllowed
 
   // AUDIT H1 (Sep 2026): the entity's EMPLOYER-side payroll tax on officer salary
   // (6.2% SS to the wage base + 1.45% Medicare, IRC §3111) is a deductible expense of
@@ -598,7 +608,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
   // expenses $100,000 / GP $50,000 → K-1 income $350,000 shown; $300,000 correct), leaving
   // the user to net it out of operating expenses by hand. Deduct it here, the way the S-Corp
   // path deducts officer compensation; K-1 direct mode is untouched (Box 1 is already net).
-  const gpExpense = (isPartnership && !useK1Direct) ? Math.max(0, nf(entity.guaranteedPayments)) : 0
+  const gpExpense = (isPartnership && !k1Active) ? Math.max(0, nf(entity.guaranteedPayments)) : 0
 
   const totalExpenses = ex + dep + effectiveSal + employerPayrollTax + gpExpense + adv + oth
   const manNetProfit  = rv - totalExpenses
@@ -617,7 +627,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
     // correctly (that's why the live preview always looked right) — this
     // branch makes the Done button match it exactly, using manK1Direct as
     // the source of truth for netProfit whenever K-1 direct mode is active.
-    if (useK1Direct) {
+    if (k1Active) {
       const k1Net = nf(manK1Direct)
       onUpdate(idx, {
         ...entityRef.current,
@@ -686,7 +696,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
     // FINDING-1 FIX: K-1 direct mode bypasses the P&L decomposition entirely.
     // netProfit is set directly from the K-1 Box 1 value (may be negative).
     // The entity is flagged with k1DirectMode so the panel restores correctly on re-open.
-    if (useK1Direct) {
+    if (k1Active) {
       const k1Net = nf(manK1Direct)
       onUpdate(idx, {
         ...entityRef.current,
@@ -750,10 +760,63 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
       isManual: true,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rv, ex, dep, sal, adv, oth, effectiveSal, employerPayrollTax, gpExpense, totalExpenses, useK1Direct, manK1Direct])
+  }, [rv, ex, dep, sal, adv, oth, effectiveSal, employerPayrollTax, gpExpense, totalExpenses, k1Active, manK1Direct])
 
   const lbl = { fontSize: 11, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }
   const inp = { fontSize: 14 }
+
+  // NINTH PASS N-4 (22 Sep 2026, pre-launch final review): the "Limited partner" (§1402(a)(13))
+  // and "Passive shareholder" (§469(h)) attestations lived inside the P&L branch only, so a
+  // user who entered Box 1 directly — the passive investor with nothing BUT a K-1 — never saw
+  // them. Rendered once here and placed in both branches.
+  const passiveAttestations = (
+    <>
+      {isPartnership && (
+        <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
+            <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
+              <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
+              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
+            </label>
+          </div>
+
+          {entity.limitedPartner && (
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
+                Unallowed passive loss from prior years — this activity (Form 8582)
+                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
+              </label>
+              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {isSCorp && (
+        <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <input type="checkbox" id={'passivesh_' + idx} checked={!!entity.passiveShareholder} onChange={e => onUpdate(idx, { ...entity, passiveShareholder: e.target.checked })} style={{ marginTop: 2 }} />
+            <label htmlFor={'passivesh_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
+              <strong>Passive shareholder</strong> — I do NOT materially participate in this S-Corp (IRC §469(h))
+              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
+            </label>
+          </div>
+
+          {entity.passiveShareholder && (
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
+                Unallowed passive loss from prior years — this activity (Form 8582)
+                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
+              </label>
+              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
+            </div>
+          )}
+        </div>
+      )}
+
+    </>
+  )
 
   return (
     <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 18px', marginTop: 10, border: '1px solid #E2E8F0' }}>
@@ -763,7 +826,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
             Users with a filed K-1 can enter Box 1 directly instead of reconstructing
             the full P&L from gross receipts/expenses — which is impossible from a K-1 alone.
             Toggle resets the mode; the live-bind effect handles both paths. */}
-        {(isSCorp || isPartnership) && !isRE && (
+        {k1DirectAllowed && (
           <button
             onClick={() => { setUseK1Direct(v => !v); setManK1Direct('') }}
             style={{ fontSize: 11, fontWeight: 600, color: useK1Direct ? B : SL, background: 'none', border: '1px solid ' + (useK1Direct ? B : '#CBD5E1'), borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
@@ -772,7 +835,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
           </button>
         )}
       </div>
-      {useK1Direct && (isSCorp || isPartnership) && !isRE ? (
+      {k1Active ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ padding: '10px 14px', background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE', fontSize: 12, color: '#1E40AF', marginBottom: 4 }}>
             <strong>K-1 Box 1 — Ordinary Business Income (Loss).</strong> Enter your share of net ordinary business income from the K-1 exactly as shown. Losses are negative — enter a minus sign (e.g. −343,443). This bypasses the gross receipts / expense breakdown.
@@ -814,6 +877,7 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
               <span style={{ color: nf(manK1Direct) >= 0 ? G : R }}>{fmt(nf(manK1Direct))}</span>
             </div>
           )}
+          {passiveAttestations}
         </div>
       ) : (
       <>
@@ -1016,49 +1080,8 @@ export function ManualEntryPanel({ entity, onUpdate, onCancel, idx, taxYear = DE
         </div>
       )}
 
-      {isPartnership && (
-        <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <input type="checkbox" id={'limpartner_' + idx} checked={!!entity.limitedPartner} onChange={e => onUpdate(idx, { ...entity, limitedPartner: e.target.checked })} style={{ marginTop: 2 }} />
-            <label htmlFor={'limpartner_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
-              <strong>Limited partner</strong> — my Box 1 distributive share is not subject to self-employment tax (IRC §1402(a)(13))
-              <InfoTip label="Limited partner" text={'Check this only if you are a LIMITED partner, or an LLC member who does NOT materially participate in the business. A limited partner\'s distributive share of ordinary business income is excluded from self-employment tax under IRC §1402(a)(13).\n\nA GENERAL partner — or any member who materially participates — IS subject to SE tax on Box 1, so leave this unchecked (the default). Your K-1 income still qualifies for the §199A QBI deduction either way.\n\nBecause this share is passive activity income, TaxStat360 also (1) includes it in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — income from a trade or business that is a passive activity under §1411(c)(2)(A)) and (2) uses it to absorb passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582).\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
-            </label>
-          </div>
-
-          {entity.limitedPartner && (
-            <div style={{ marginTop: 8 }}>
-              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
-                Unallowed passive loss from prior years — this activity (Form 8582)
-                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
-              </label>
-              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
-            </div>
-          )}
-        </div>
-      )}
-
-      {isSCorp && (
-        <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <input type="checkbox" id={'passivesh_' + idx} checked={!!entity.passiveShareholder} onChange={e => onUpdate(idx, { ...entity, passiveShareholder: e.target.checked })} style={{ marginTop: 2 }} />
-            <label htmlFor={'passivesh_' + idx} style={{ color: '#78350F', cursor: 'pointer', lineHeight: 1.5 }}>
-              <strong>Passive shareholder</strong> — I do NOT materially participate in this S-Corp (IRC §469(h))
-              <InfoTip label="Passive shareholder" text={'Check this only if you are an investor in this S-Corp and do NOT materially participate — none of the seven §469(h) / Reg. §1.469-5T(a) tests is met (for example, you did not work 500+ hours in the business this year, your participation was not substantially all of the participation, and you are not an officer drawing a salary for services).\n\nLeave it unchecked (the default) if you run the business or draw officer compensation from it — an owner-employee almost always materially participates.\n\nWhen checked, TaxStat360 treats your Box 1 share as passive activity income: (1) it is included in net investment income for the 3.8% NIIT (IRC §1411(c)(1)(A)(ii) — a trade or business that is a passive activity under §1411(c)(2)(A); Form 8960 line 4a), (2) it absorbs passive rental losses before the §469(i) $25,000 allowance is measured (Form 8582), and (3) it does not count as an active trade or business for the §199A(i) $400 minimum deduction. Your share still qualifies for the regular §199A QBI deduction, and it is never subject to self-employment tax either way.\n\nA negative Box 1 share is suspended under §469 except to the extent of your passive income (this and other passive K-1s, passive rentals); the remainder carries forward. Enter last year\'s unallowed loss from this activity in the carryforward box that appears below.'} wide />
-            </label>
-          </div>
-
-          {entity.passiveShareholder && (
-            <div style={{ marginTop: 8 }}>
-              <label htmlFor={'k1pal_' + idx} style={{ fontSize: 11, fontWeight: 700, color: '#78350F', display: 'block', marginBottom: 3 }}>
-                Unallowed passive loss from prior years — this activity (Form 8582)
-                <InfoTip text={'The suspended passive loss carried INTO this year from this passive K-1 activity — the prior-year unallowed loss on Form 8582, Part I, Line 2c (Worksheet 5). It is allowed this year against your passive income (this K-1, other passive K-1s, passive rental income); anything it cannot absorb is suspended again and carried forward. Enter the carryforward total, NOT this year\'s loss (that is your Box 1 figure). Released in full when you dispose of the entire interest (IRC §469(g)) — not modeled here.'} wide />
-              </label>
-              <Step1MoneyInput value={entity.priorPAL || ''} onChange={v => onUpdate(idx, { ...entity, priorPAL: v })} placeholder="0" style={inp} allowNegative={false} ariaLabel="Prior-year unallowed passive K-1 loss" />
-            </div>
-          )}
-        </div>
-      )}
+      {/* NINTH PASS N-4: the §469 attestations render in BOTH entry modes — see passiveAttestations above. */}
+      {passiveAttestations}
 
       {/* F4 (audit, Jul 2026): guaranteed payments (§707(c)) — SE income + ordinary
           income, but EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)). Entered separately
@@ -1500,10 +1523,21 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                 // not pay, understating income with nothing on screen to explain it.
                 // Employer FICA follows the salary out; only S/C-Corps have either.
                 const prevEmployerFICA = nf(entity.pnl?.employerPayrollTax)
+                // NINTH PASS N-3 (22 Sep 2026): K-1 direct mode ("Have a K-1? Enter Box 1 directly")
+                // exists only for S-Corps and partnerships. Changing the type to a sole prop,
+                // C-Corp or rental left `k1DirectMode: true` on the card, so the stale Box 1 kept
+                // flowing as the new entity's net income and the P&L fields were ignored. Clear
+                // the flag and drop the K-1 figure — the P&L is the only entry path for the new
+                // type, and its (empty) fields determine the net from here.
+                const dropK1Mode = !!entity.k1DirectMode && !(isSCorpEntity(newType) || isLimitedPartnerEligibleType(newType))
+                const k1ResetPatch = dropK1Mode
+                  ? { k1DirectMode: false, pnl: { ...(entity.pnl || {}), netProfit: nf(entity.pnl?.grossRevenue) - nf(entity.pnl?.totalExpenses) } }
+                  : {}
                 if (!keepsOfficer && (prevOfficer > 0 || prevEmployerFICA > 0) && entity.pnl) {
                   const newTotalExpenses = Math.max(0, nf(entity.pnl.totalExpenses) - prevOfficer - prevEmployerFICA)
                   onUpdate(idx, {
                     ...entity,
+                    ...k1ResetPatch,
                     type: newType,
                     // FIFTH READ (15 Sep 2026): a §1402(a)(13) attestation only exists for a
                     // partnership / MMLLC — drop it when the type changes to anything else so
@@ -1539,6 +1573,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     : {}
                   onUpdate(idx, {
                     ...entity,
+                    ...k1ResetPatch,
                     type: newType,
                     limitedPartner: isLimitedPartnerEligibleType(newType) ? !!entity.limitedPartner : false,   // FIFTH READ: see above
                     passiveShareholder: isSCorpEntity(newType) ? !!entity.passiveShareholder : false,   // SEVENTH PASS: S-Corp-only attestation
@@ -2355,6 +2390,18 @@ export default function CalculateTaxInner() {
     }, 100)
   }
   const [showCompare,      setShowCompare]      = useState(false)
+  // NINTH PASS N-9 (22 Sep 2026, pre-launch final review): the modal always compared
+  // entities[0] — a Schedule E rental when the rental card happened to be first, which it
+  // then modelled as a sole prop / S-Corp / C-Corp with a "no revenue entered" banner. A
+  // rental is not a candidate for the officer-salary comparison; the modal now targets the
+  // first BUSINESS entity, and a return with several offers a picker.
+  const [compareIdxChoice, setCompareIdxChoice] = useState(null)
+  const compareCandidates = entities
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => e && !isRealEstateEntity(e.type))
+  const compareIdx = compareCandidates.some(c => c.i === compareIdxChoice)
+    ? compareIdxChoice
+    : (compareCandidates[0]?.i ?? -1)
   const [showNameModal,    setShowNameModal]    = useState(false)
   const [showBasisHelpModal, setShowBasisHelpModal] = useState(false)  // C-10-BASIS (Phase 1, Audit Synthesis)
   const [showEntityPicker, setShowEntityPicker] = useState(false)
@@ -3265,13 +3312,26 @@ export default function CalculateTaxInner() {
             says exactly that, in an informational tone instead of a warning. */}
         {hasUnsavedChanges && (<div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10, padding: '10px 14px', color: '#0C4A6E', fontSize: 13, fontWeight: 500, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 16 }}>{'✓'}</span><span>{'Your entries are kept on this device — they survive a tab close or timeout so you can pick up where you left off. Click Save Progress to sync them to your account (and across devices); an explicit sign-out clears the local draft, and connecting accounting software replaces these figures.'}</span></div>)}
 
-        {/* Compare button */}
-        {entities.length > 0 && isPro() && (
-          <button
-            onClick={() => setShowCompare(true)}
-            style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
-            ⚖ Compare Entity Structures
-          </button>
+        {/* Compare button — NINTH PASS N-9: business entities only; picker when there are several */}
+        {compareCandidates.length > 0 && isPro() && (
+          <div style={{ marginBottom: 8 }}>
+            {compareCandidates.length > 1 && (
+              <label htmlFor="compare-entity-pick" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: SL, marginBottom: 6 }}>
+                Compare structures for:
+                <select id="compare-entity-pick" value={compareIdx} onChange={e => setCompareIdxChoice(parseInt(e.target.value))}
+                  style={{ flex: 1, padding: '6px 10px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 12, fontFamily: 'inherit', background: '#fff', color: N }}>
+                  {compareCandidates.map(({ e, i }) => (
+                    <option key={i} value={i}>{e.name || e.type || `Entity ${i + 1}`} — {e.type}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              onClick={() => setShowCompare(true)}
+              style={{ width: '100%', padding: '11px', border: '1.5px solid ' + B, borderRadius: 12, background: '#EFF6FF', color: B, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              ⚖ Compare Entity Structures
+            </button>
+          </div>
         )}
       </main>
 
@@ -3408,9 +3468,9 @@ export default function CalculateTaxInner() {
       <EntityCompareModal
         isOpen={showCompare}
         onClose={() => setShowCompare(false)}
-        entity={entities[0]}
+        entity={compareIdx >= 0 ? entities[compareIdx] : undefined}
         entities={entities}
-        entityIdx={0}
+        entityIdx={compareIdx}
         // THIRD PASS (14 Sep 2026, live check): the Step 2 writer never persisted `taxYear`
         // into ts360_f1040, so readPersonalContext() always carried the manifest DEFAULT
         // year (2026) and the comparison ran on next year's tables — a 2025 Schedule C
