@@ -848,7 +848,9 @@ export const STRIPE_PORTAL_URL = 'https://billing.stripe.com/p/login/aFa14n9hlfe
 // literals, so the guard was enforcing the staleness. The test now derives the expected
 // value from the rendered 'Last updated' line, so the two cannot drift apart again.
 // App.jsx compares /auth/me's stored terms_version to this and re-prompts on mismatch.
-export const TERMS_VERSION = '2026-09-11'
+// NINTH PASS / LEGAL REVIEW L-8 (22 Sep 2026): Terms §5 gained the U.S.-only territorial-scope
+// sentence, so the version (and the re-acceptance prompt it drives) moves with it.
+export const TERMS_VERSION = '2026-09-22'
 export const PRIVACY_VERSION = '2026-09-12'
 
 // Clickwrap label text. Kept here, next to renewalDisclosure(), because this is

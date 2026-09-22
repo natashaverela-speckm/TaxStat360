@@ -49,7 +49,7 @@ export const ARTICLES = [
     metaDescription:
       // AUDIT B4 (Sep 2026): '...and what triggers audits' removed. Audit-selection
       // framing under an EA's byline is the §10.30(a)(1) problem flagged site-wide.
-      'Learn how S-Corp owners can legally reduce self-employment tax by splitting pay between officer salary and K-1 distributions — with real numbers, the governing IRS rules, and what makes a salary defensible.',
+      'Learn how S-Corp owners can legally reduce employment (FICA) tax by splitting pay between officer salary and K-1 distributions — with real numbers, the governing IRS rules, and what makes a salary defensible.',
     category: 'S-Corporation',
     readMinutes: 8,
     publishedDate: '2026-04-10',
@@ -60,21 +60,21 @@ export const ARTICLES = [
         heading: 'Why the Split Matters',
         body: `For S-Corporation owners, how you pay yourself is one of the most consequential tax decisions you make each year. Every dollar you pay yourself as a W-2 salary is subject to FICA taxes — 15.3% total, split evenly between employer and employee: 12.4% for Social Security on the first ${usd(_ssWageBase2026)} (2026), plus 2.9% for Medicare on all wages with no cap (and the employee-only 0.9% Additional Medicare Tax once wages plus self-employment income exceed $200,000 — $250,000 on a joint return, $125,000 married filing separately; employers start withholding it at $200,000 regardless of filing status). Every dollar you take as a K-1 distribution is not subject to FICA.
 
-On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in FICA taxes — the same amount a W-2 employee pays in a year just on Social Security and Medicare.
+On $200,000 of S-Corp profit, the difference between paying yourself $50,000 in salary versus $100,000 in salary is roughly $7,650 in combined FICA taxes (15.3% of the extra $50,000) — before the deduction the S-Corp gets for its employer half, which trims the after-tax difference.
 
 The IRS knows this. They have been scrutinizing S-Corp salary practices since at least Rev. Rul. 74-44, which established that amounts paid to shareholder-employees must represent reasonable compensation for services rendered. The strategy is legal — but only when the salary is genuinely reasonable.`,
       },
       {
         heading: 'The IRS Reasonable Compensation Requirement',
-        body: `IRC §3121(d) defines who is an employee subject to FICA, and S-Corp shareholder-employees fall squarely within it. The IRS's position, codified in Rev. Rul. 74-44, is that an S-Corp cannot reclassify wages as distributions to avoid employment taxes.
+        body: `IRC §3121(d) defines who is an employee subject to FICA, and S-Corp shareholder-employees fall squarely within it. The IRS's position, stated in Rev. Rul. 74-44 (1974-1 C.B. 287), is that an S-Corp cannot reclassify wages as distributions to avoid employment taxes.
 
-The landmark case is David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the courts upheld the reclassification of a CPA's $24,000 salary — set against more than $200,000 of annual distributions from his firm — to reasonable compensation of $91,044 per year, with the additional wages subject to back FICA plus penalties and interest. The message was clear: the IRS will look through artificially low salaries.
+The landmark case is David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012), where the courts upheld the reclassification of a CPA's $24,000 salary — set against roughly $175,000 to $204,000 of distributions in each of the two years at issue — to reasonable compensation of $91,044 per year, with the additional wages subject to back FICA plus penalties and interest. The message was clear: the IRS will look through artificially low salaries.
 
 Reasonable compensation is the amount a comparable employee would receive for the same services in an arm's-length transaction. Factors the IRS considers include your industry, hours worked, the company's gross receipts, your training and experience, and what similar businesses pay for comparable roles.`,
       },
       {
         heading: 'The 35/65 Rule of Thumb — and Its Limits',
-        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of your total S-Corp compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule — it's a practitioner heuristic that has survived scrutiny when supported by documentation.
+        body: `Many CPAs use a 35/65 or 40/60 split as a starting benchmark: pay yourself ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} of your total S-Corp compensation (salary + distributions) as salary, and take the rest as distributions. This is not an IRS rule and no court has adopted it — it is a practitioner screening heuristic. Examiners and courts apply the comparable-wage standard of Treas. Reg. §1.162-7(b)(3) and the factors in IRS Fact Sheet FS-2008-25; every published reclassification case was decided on what comparable employees earn, not on a ratio.
 
 The split only holds up if your business generates enough profit to make the salary plausible. A first-year S-Corp generating $40,000 of net profit paying the owner $14,000 in salary is far more defensible than a $400,000 S-Corp paying $14,000. The absolute dollar amount matters as much as the ratio.
 
@@ -95,17 +95,17 @@ Employee FICA on Medicare: $150,000 × 1.45% = $2,175
 Total employee: $11,475 | Employer match: $11,475
 Total FICA cost: ~$22,950
 
-The difference is $12,240 in FICA taxes — but read that carefully. The savings come from the S-Corp structure legally exempting your K-1 distributions from FICA, NOT from driving your salary as low as possible. Scenario A’s $70,000 salary is just 23% of total compensation — below the ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} range practitioners commonly defend, and exactly the kind of split TaxStat360’s Substantiation Check flags. A salary that low is what invited the reclassification the IRS won in Watson. The goal is not the lowest salary; it is a reasonable salary, documented against market data, with the remainder taken as distributions. Treat Scenario A as the aggressive ceiling of the FICA advantage, not the target: a defensible figure for this owner sits higher, and TaxStat360 shows you the FICA impact at every salary level so you can pick one you can stand behind.
+The difference is $12,240 in FICA taxes — but read that carefully. The savings come from the S-Corp structure legally exempting your K-1 distributions from FICA, NOT from driving your salary as low as possible. Scenario A’s $70,000 salary is 23% of total compensation — below the ${SCORP_REASONABLE_COMP_GUIDELINE_RANGE} screening range, which is why TaxStat360’s Substantiation Check would ask you to document it. That does not make $70,000 unreasonable: reasonableness is measured against what the owner’s services would command in the market, not against a ratio (Watson involved a $24,000 salary for an experienced CPA — about 11% — decided on comparable-wage evidence). The goal is not the lowest salary; it is a salary that approximates market pay for what you actually do, documented against BLS or industry data, with the remainder taken as distributions. TaxStat360 shows you the FICA impact at every salary level so you can pick one you can stand behind. Two further effects the table above leaves out: the employer half of FICA is deductible by the S-Corp, and a higher salary reduces your §199A qualified business income while raising the W-2 wage limit on that deduction.
 
 The S-Corp structure itself doesn't create the savings. The savings come from having any net profit beyond your salary. If your salary equals your profit, the S-Corp provides no FICA advantage over a sole proprietorship.`,
       },
       {
         heading: 'The Fact Patterns That Are Hardest to Defend',
-        body: `Zero officer compensation, or compensation dramatically below the S-Corp's gross receipts, is the fact pattern the IRS's published guidance addresses most directly. These are commonly cited compliance risk factors — how the IRS actually selects returns for examination is not published, and nothing here is a prediction that it will. That guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
+        body: `Zero officer compensation, or compensation far below the value of the services the owner performs while substantial distributions are taken, is the fact pattern the IRS's published guidance addresses most directly. These are commonly cited compliance risk factors — how the IRS actually selects returns for examination is not published, and nothing here is a prediction that it will. That guidance — its "S Corporation Compensation and Medical Insurance Issues" page and Fact Sheet FS-2008-25 ("Wage Compensation for S Corporation Officers") — directs that shareholder-employees who perform services be paid reasonable compensation before taking distributions, and identifies the factors weighed in that determination, such as training and experience, duties and responsibilities, time and effort devoted to the business, and what comparable businesses pay for similar services.
 
 Three fact patterns that are hard to defend under that standard: (1) officer salary of zero with substantial distributions, (2) officer salary declining as profits grow (the opposite of what a real employee would experience), and (3) officer compensation below minimum wage for the hours worked.
 
-The single best defense is contemporaneous documentation: a board resolution setting your salary, an employment agreement, and a written compensation analysis referencing industry data. A $50 BLS lookup today is worth thousands in avoided penalties later.`,
+The single best defense is contemporaneous documentation: a board resolution setting your salary, an employment agreement, and a written compensation analysis referencing industry data. A free BLS Occupational Employment and Wage Statistics lookup today is worth thousands in avoided penalties later.`,
       },
       {
         heading: 'Running the Numbers Year-Round',
@@ -132,23 +132,23 @@ TaxStat360 flags when your officer salary falls below about 40% of total compens
         heading: 'What the §199A Deduction Is',
         body: `The Tax Cuts and Jobs Act of 2017 created IRC §199A, which allows eligible taxpayers to deduct up to 20% of their Qualified Business Income (QBI) from a pass-through entity — an S-Corporation, partnership, LLC, or sole proprietorship. The One Big Beautiful Bill Act of 2025 (P.L. 119-21) made this deduction permanent and added a ${usd(_qbiMin2026)} minimum deduction for 2026 onward.
 
-For an S-Corp owner with $200,000 of QBI taxed at the 24% marginal rate, a full QBI deduction is worth $200,000 × 20% × 24% = $9,600 in federal income tax savings. For a taxpayer in the 32% bracket, the same deduction saves $12,800.
+For an S-Corp owner with $200,000 of QBI taxed at the 24% marginal rate, a full QBI deduction is worth $200,000 × 20% × 24% = $9,600 in federal income tax savings (assuming other income keeps taxable income above $200,000 — the deduction can never exceed 20% of taxable income net of capital gains, §199A(a)(2)). For a taxpayer in the 32% bracket, the same deduction saves $12,800.
 
-The deduction is taken on Form 1040 and reduces taxable income without requiring itemization. It is an above-the-line-style benefit that applies even to taxpayers taking the standard deduction.`,
+The deduction is taken on Form 1040 (line 13) and reduces taxable income without requiring itemization, so it is available whether you itemize or take the standard deduction. It is a deduction from taxable income, not an adjustment to income: it does not reduce your AGI or the modified AGI used for other phase-outs.`,
       },
       {
         heading: 'What Counts as Qualified Business Income',
         body: `QBI is the net amount of qualified items of income, gain, deduction, and loss from a qualified trade or business. For an S-Corp, this flows to you on Schedule K-1 as ordinary business income, adjusted for certain items.
 
-What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions) and prior-year QBI losses (§199A(c)(2)). Charitable contributions passed through on your K-1 do NOT reduce QBI or your Box 1 ordinary income — they go to Schedule A if you itemize (Form 8995 instructions). What does NOT count as QBI: capital gains, interest income, dividends, foreign income, and most importantly — the W-2 salary you pay yourself as an S-Corp officer.
+What reduces QBI: Section 179 deductions passed through from the entity (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions) and prior-year QBI losses (§199A(c)(2)). Charitable contributions passed through on your K-1 do NOT reduce QBI or your Box 1 ordinary income — they go to Schedule A if you itemize (Form 8995 instructions). What does NOT count as QBI: capital gains, interest income, dividends, foreign income, guaranteed payments a partnership pays you for services (§199A(c)(4)(B)), and most importantly — the W-2 salary you pay yourself as an S-Corp officer (§199A(c)(4)(A)).
 
-This last point is critical. If your S-Corp generates $300,000 of gross profit and you pay yourself a $70,000 officer salary, your K-1 ordinary income (and QBI basis) is $230,000 — not $300,000. The salary was already deducted at the entity level before the K-1 was issued.`,
+This last point is critical. If your S-Corp generates $300,000 of profit before your pay and you pay yourself a $70,000 officer salary, your K-1 ordinary income (and your QBI) is about $224,600 — the $300,000 less the salary and less the roughly $5,400 of employer payroll tax on it — not $300,000. Both were deducted at the entity level before the K-1 was issued.`,
       },
       {
         heading: 'The W-2 Wage and UBIA Limitation',
         body: `Above certain income thresholds, the §199A deduction is limited by either (a) 50% of W-2 wages paid by the business, or (b) 25% of W-2 wages plus 2.5% of the unadjusted basis in qualified property (UBIA).
 
-For 2026, the phase-in range begins at ${usd(_qbiThresh2026.single)} (Single) / ${usd(_qbiThresh2026.mfj)} (MFJ) of taxable income. Between those thresholds and the ceilings (${usd(_qbiCeil2026.single)} Single / ${usd(_qbiCeil2026.mfj)} MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
+For 2026, the phase-in range begins at ${usd(_qbiThresh2026.single)} (Single, HOH) / ${usd(_qbiThresh2026.mfj)} (MFJ) / ${usd(_qbiThresh2026.mfs)} (MFS) of taxable income. Between those thresholds and the ceilings (${usd(_qbiCeil2026.single)} Single / ${usd(_qbiCeil2026.mfj)} MFJ), the limitation phases in gradually. Above the ceiling, it applies in full.
 
 Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (including your salary). The 50% W-2 limitation = $60,000. If your tentative QBI deduction is $80,000 (20% of $400K), it is capped at $60,000 — a $20,000 reduction. The fix: pay higher officer wages, which both increases the W-2 wage limitation and (for an S-Corp) reduces distributions but maintains the FICA advantage.`,
       },
@@ -158,13 +158,13 @@ Example: Your S-Corp has $400,000 of QBI and pays $120,000 in W-2 wages (includi
 
 Above ${usd(_qbiCeil2026.single)} (Single) / ${usd(_qbiCeil2026.mfj)} (MFJ) of taxable income in 2026, an SSTB owner's QBI deduction is $0, regardless of W-2 wages or UBIA. Inside the range the exclusion phases in ratably — at the midpoint, half of the SSTB's income, wages and UBIA still count — and only above the ceiling does the deduction reach $0 (§199A(d)(3)).
 
-Businesses that are NOT SSTB: engineering, architecture, retail, real estate (rental), manufacturing, and most trades. Mixed businesses: under the de minimis rule (Treas. Reg. §1.199A-5(c)(1)) a business with $25 million or less of gross receipts is NOT treated as an SSTB at all if less than 10% of its receipts come from specified services (5% above $25 million). Cross that line and the entire trade or business is an SSTB — there is no partial allocation unless the service line is a genuinely separate trade or business with its own books. If your revenue mix is near the threshold, a CPA review before year-end is worth doing.`,
+Businesses that are NOT SSTB: engineering, architecture, retail, real estate (a rental qualifies for §199A at all only if it rises to a §162 trade or business or meets the Rev. Proc. 2019-38 250-hour safe harbor), manufacturing, and most trades. Mixed businesses: under the de minimis rule (Treas. Reg. §1.199A-5(c)(1)) a business with $25 million or less of gross receipts is NOT treated as an SSTB at all if less than 10% of its receipts come from specified services (5% above $25 million). Cross that line and the entire trade or business is an SSTB — there is no partial allocation unless the service line is a genuinely separate trade or business with its own books. If your revenue mix is near the threshold, a CPA review before year-end is worth doing.`,
       },
       {
         heading: 'Planning Strategies',
         body: `Several legitimate strategies affect the QBI deduction amount. First, income management: the QBI deduction is worth more in lower-income years when W-2 wage and SSTB limitations may not apply. Deferring income or accelerating deductions to stay below the phase-in threshold can preserve a full 20% deduction.
 
-Second, W-2 wage optimization: for taxpayers above the phase-in threshold, paying more in wages increases the W-2 wage limitation. The calculus: paying $10,000 more in wages costs roughly $1,530 in FICA (employee + employer) but increases the limitation by $5,000 (50% of $10K) — worthwhile if the QBI deduction was previously capped below $5,000 of the tentative deduction.
+Second, W-2 wage optimization: for taxpayers above the phase-in threshold, paying more in wages increases the W-2 wage limitation. The calculus: paying $10,000 more in wages raises the 50%-of-wages cap by $5,000, but it also costs about $1,530 in FICA (employee plus employer; the employer half is deductible) and reduces QBI by the $10,765 of wages and payroll tax, which lowers the tentative 20% deduction by about $2,150. It is worthwhile only when the wage cap was binding by more than the tentative deduction you give up — run both numbers before changing payroll.
 
 Third, entity structuring: a C-Corp generates no QBI and cannot pass through the §199A deduction. S-Corps, partnerships, and sole props do. If you are considering converting entity type, the §199A treatment is a meaningful factor.`,
       },
@@ -191,7 +191,7 @@ The §199A ${usd(_qbiMin2026)} minimum deduction (new for 2026) is also applied 
     sections: [
       {
         heading: 'Why Business Owners Pay Quarterly',
-        body: `W-2 employees have taxes withheld from every paycheck. Business owners — S-Corp shareholders, partners, and sole proprietors — generally do not. The IRS expects taxes on business income to be paid throughout the year, not in a lump sum on April 15.
+        body: `W-2 employees have taxes withheld from every paycheck. Partners and sole proprietors have no withholding at all, and an S-Corp shareholder has it only on the officer salary — never on the K-1 share of profit. The IRS expects taxes on business income to be paid throughout the year, not in a lump sum on April 15.
 
 IRC §6654 imposes an underpayment penalty when a taxpayer does not pay enough tax through withholding and estimated payments during the year. The penalty is calculated as the federal short-term rate plus 3 percentage points, applied to the underpaid amount for the period of underpayment. Because the IRS resets that rate every quarter to track prevailing interest rates, the exact figure shifts through the year — it has run in the mid-to-high single digits in recent years — but the penalty is entirely avoidable.
 
@@ -203,9 +203,11 @@ The four standard due dates: April 15 (Q1), June 15 (Q2), September 15 (Q3), and
 
 Safe Harbor 1 — 90% of current-year tax: Pay at least 90% of your actual tax liability for the current year, spread across the four quarters. This method requires you to estimate your income accurately throughout the year.
 
-Safe Harbor 2 — 100% (or 110%) of prior-year tax: Pay an amount equal to last year's total tax (Form 1040, Line 24). If your prior-year AGI exceeded $150,000 ($75,000 if married filing separately), the threshold rises to 110% of prior-year tax. This is the most common method for business owners because it requires no current-year estimation — you know exactly what last year's tax was.
+Safe Harbor 2 — 100% (or 110%) of prior-year tax: Pay an amount equal to last year's total tax (Form 1040, line 24, reduced by any refundable credits — the figure Form 2210 line 8 uses). If your prior-year AGI exceeded $150,000 ($75,000 if married filing separately), the threshold rises to 110% of prior-year tax. This is the most common method for business owners because it requires no current-year estimation — you know exactly what last year's tax was.
 
-Most practitioners use Safe Harbor 2 as the floor and adjust upward if they know this year will be significantly higher. TaxStat360 displays both the safe harbor quarterly amount and the 90%-of-current-year amount so you can choose the lower one.`,
+Most practitioners use Safe Harbor 2 as the floor and adjust upward if they know this year will be significantly higher. TaxStat360 displays both the safe harbor quarterly amount and the 90%-of-current-year amount so you can choose the lower one.
+
+Two further exceptions in §6654(e): there is no penalty at all if the tax remaining after withholding and refundable credits is under $1,000, and none if your prior-year tax was $0 (for a full 12-month year as a U.S. citizen or resident). A first-year business owner whose prior return showed no tax is in the second group.`,
       },
       {
         heading: 'The Math: A Worked Example',
@@ -221,9 +223,9 @@ Now assume the same taxpayer's S-Corp has a big Q3 — an unexpected $60,000 con
       },
       {
         heading: 'What If Your Income Is Lumpy?',
-        body: `The standard approach divides your estimated payment into four equal quarters. But if your income is heavily skewed — a big Q1 from a bonus, or a Q4 from a business sale — the annualized income installment method (Form 2210 Schedule AI) lets you compute each quarter's required payment based on actual income earned through that date. This method prevents overpayment in early quarters and eliminates the penalty even if later quarters are underpaid.
+        body: `The standard approach divides your estimated payment into four equal quarters. But if your income is heavily skewed — a big Q1 from a bonus, or a Q4 from a business sale — the annualized income installment method (Form 2210 Schedule AI) lets you compute each quarter's required payment based on actual income earned through that date. This method reduces the required installment for the early quarters when the income had not yet been earned; it does not excuse a shortfall in a later period — each period still has to be paid.
 
-S-Corp owners who take large distributions only in Q4 (for example, after year-end profit is known) often trigger a Q4 underpayment even if the full-year safe harbor is met. This is because the penalty is computed quarter by quarter, not annually. Making consistent quarterly payments — even if the business income is not yet determined — is the safest approach.`,
+One common misconception: an S-Corp owner's profit is taxed as it is earned through the year (§1366), whether or not it is distributed, so the timing of distributions has no effect on the penalty. What matters is the timing of payments. Four equal, timely installments that meet the required annual payment produce no penalty however the income arrives; making no estimates until the fourth quarter produces a penalty on the first three installments even if the annual total ends up right. Making consistent quarterly payments — even if the business income is not yet determined — is the safest approach.`,
       },
       {
         heading: 'S-Corp Officers: A Special Consideration',
@@ -254,27 +256,27 @@ TaxStat360 calculates your recommended quarterly payment based on both safe harb
     sections: [
       {
         heading: 'The Legal Foundation',
-        body: `IRC §3121(d)(1) classifies corporate officers as employees subject to FICA taxes. For an S-Corporation, this means any shareholder who performs services — however minimal — must receive a reasonable salary before taking distributions. This rule is not optional and not negotiable.
+        body: `IRC §3121(d)(1) classifies corporate officers as employees subject to FICA taxes. For an S-Corporation, this means a shareholder who performs more than minor services for the corporation must receive reasonable compensation for them before taking distributions (an officer who performs no or only minor services and receives no pay is not an employee for this purpose — Treas. Reg. §31.3121(d)-1(b)). Where it applies, the rule is not optional.
 
-Rev. Rul. 74-44 established that payments by a corporation to a shareholder-employee for services rendered cannot be recharacterized as dividends (or in the S-Corp context, distributions) to avoid FICA. The ruling predates S-Corps but applies with equal force.
+Rev. Rul. 74-44 (1974-1 C.B. 287) addressed exactly this situation: an electing small business corporation — an S corporation — whose shareholders drew "dividends" in place of salary for the services they performed. The ruling holds that those payments are wages subject to FICA and FUTA.
 
-The penalty for getting this wrong: the IRS can reclassify distributions as wages, assess the employer and employee FICA taxes that should have been withheld, add interest from the date those taxes were due, and impose a 100% Trust Fund Recovery Penalty on the responsible person — personally, not just on the entity.`,
+The cost of getting this wrong: the IRS can reclassify distributions as wages and assess the employer and employee FICA on them (both halves fall on the corporation once the wages were not withheld), with failure-to-deposit and failure-to-file penalties (§6656, §6651), accuracy-related penalties (§6662) and interest from the dates the employment-tax deposits were due. Watson carried §6651 and §6656 penalties. The §6672 trust-fund recovery penalty, which reaches responsible persons personally, applies to a willful failure to pay over taxes actually withheld — it is not the routine consequence of a reasonable-compensation adjustment.`,
       },
       {
         heading: 'What "Reasonable" Actually Means',
-        body: `The IRS defines reasonable compensation as the amount that would ordinarily be paid for like services by like enterprises under like circumstances — an arm's-length standard. In practice, this means: what would you pay an unrelated employee to do what you do?
+        body: `Treas. Reg. §1.162-7(b)(3) defines reasonable compensation as the amount that would ordinarily be paid for like services by like enterprises under like circumstances — an arm's-length standard. In practice, this means: what would you pay an unrelated employee to do what you do?
 
 Courts and the IRS have identified the following factors as most relevant: the employee's role in the company, the character and condition of the company, the alleged compensation compared to distributions, the compensation paid to non-shareholder employees for similar services, and comparison to industry norms.
 
-There is no bright-line dollar amount or percentage. A dentist generating $800,000 of revenue who pays herself $60,000 in salary will face far greater scrutiny than one generating $150,000 who pays $60,000. The ratio of compensation to distributions matters, but so does the absolute amount relative to the market rate.`,
+There is no bright-line dollar amount or percentage. A dentist generating $800,000 of revenue who pays herself $60,000 in salary has a much harder position to defend than one generating $150,000 who pays $60,000. The ratio of compensation to distributions matters, but so does the absolute amount relative to the market rate.`,
       },
       {
         heading: 'Landmark Cases You Should Know',
-        body: `David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012) is the most cited reasonable compensation case. Watson, a CPA, routed his interest in an accounting firm through an S-corp that received roughly $200,000 a year in distributions, yet paid himself only $24,000 in salary. A federal district court — affirmed by the Eighth Circuit — found that $91,044 was reasonable compensation for each year, with the difference treated as wages subject to back employment taxes, penalties, and interest.
+        body: `David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012) is the most cited reasonable compensation case. Watson, a CPA, routed his interest in an accounting firm through an S-corp that received roughly $175,000 to $204,000 a year in distributions, yet paid himself only $24,000 in salary. A federal district court — affirmed by the Eighth Circuit — found that $91,044 was reasonable compensation for each year, with the difference treated as wages subject to back employment taxes, penalties, and interest.
 
-The case established that courts will look at what comparable employees earn, not at what the shareholder-employee finds advantageous. The court explicitly noted that Watson's attempts to justify the low salary (arguing it reflected his contribution as a non-technical worker) were undermined by the size of his distributions.
+The case established that courts will look at what comparable employees earn, not at what the shareholder-employee finds advantageous. Watson argued that the corporation's stated intent to pay him $24,000 should control; the courts rejected that, applied an economic-realities test, and looked at what comparably qualified CPAs earn.
 
-Glass Blocks Unlimited v. Commissioner, T.C. Memo. 2013-180 similarly recharacterized the sole shareholder-officer's distributions as wages — over $30,000 for each of 2007 and 2008 — even though the company's net income was far lower, adding employment taxes and penalties.`,
+Glass Blocks Unlimited v. Commissioner, T.C. Memo. 2013-180 similarly recharacterized transfers the sole shareholder-officer had labelled loan repayments as wages — over $30,000 for each of 2007 and 2008 — even though the company's net income was far lower, adding employment taxes and penalties.`,
       },
       {
         heading: 'Industry Benchmarks You Can Use',
@@ -288,13 +290,13 @@ Medical Group Management Association (MGMA): Standard reference for physician an
 
 LinkedIn Salary and Glassdoor: Useful for technology and professional services roles.
 
-The analysis should document: (1) the specific comparable role(s) used, (2) the source and date of the data, (3) your geographic market, (4) any adjustments for years of experience or company size, and (5) the conclusion reached. A one-page memo attached to a board resolution is sufficient. It does not need to be a formal report unless you are in a high-risk industry or a high-compensation situation.`,
+The analysis should document: (1) the specific comparable role(s) used, (2) the source and date of the data, (3) your geographic market, (4) any adjustments for years of experience or company size, and (5) the conclusion reached. A one-page memo attached to a board resolution is a reasonable starting point — no authority prescribes a form, and the burden of showing the figure is reasonable stays with the taxpayer. A fuller report makes sense in a high-compensation situation or a specialised industry.`,
       },
       {
         heading: 'What to Do If You Have Already Underpaid',
         body: `If you recognize that your S-Corp has been paying you an unreasonably low salary in prior years, you have two options: prospectively correct it (adjust your salary going forward) or file amended payroll tax returns for prior periods.
 
-Voluntary correction is generally preferable to waiting for an IRS examination. The IRS's Voluntary Correction Program (VCP) under EPCRS does not cover payroll tax issues, but proactively amending prior Forms 941 and paying the back taxes — before an audit is opened — typically results in interest but avoids the full suite of penalties available to examiners.
+Voluntary correction is generally preferable to waiting for an IRS examination. Prior periods are corrected on Form 941-X (with Forms W-2c / W-3c, and amended Forms 1120-S and 1040s), and paying the back taxes before an examination is opened puts you in a far better position for reasonable-cause or first-time penalty abatement — but late deposits still carry §6656 and §6651 penalties and interest unless abated; correction reduces the exposure, it does not erase it.
 
 If the amount is material and covers multiple years, a tax attorney review is warranted. Amended payroll returns trigger a paper trail that could draw attention; structuring the correction carefully matters.`,
       },
@@ -327,17 +329,17 @@ TaxStat360 flags when officer salary falls below about 40% of total compensation
 
 Rental activities are presumed passive by default, regardless of your level of involvement, with two exceptions that we'll examine. This means a real estate investor who earns $150,000 from her job and generates $30,000 of rental losses (after depreciation) cannot simply subtract the $30,000 from her W-2 income. The losses are "suspended" and carried forward to future years, where they can be applied against passive income or released in full when the property is sold.
 
-Suspended losses accumulate on Form 8582 (Passive Activity Loss Limitations). When you sell the property, all suspended losses from that property are released and deductible in the year of sale.`,
+Suspended losses accumulate on Form 8582 (Passive Activity Loss Limitations). When you dispose of your entire interest in the property in a fully taxable transaction to an unrelated party (§469(g)), all suspended losses from that property are released and deductible in the year of sale.`,
       },
       {
         heading: 'The $25,000 Special Allowance (Active Participation)',
         body: `IRC §469(i) creates a limited exception for "active participants" in rental real estate. If you actively participated — meaning you made management decisions about the property in a bona fide sense (approving tenants, setting rents, authorizing repairs) — you can deduct up to $25,000 of rental losses against non-passive income.
 
-The $25,000 allowance phases out at 50 cents per dollar of AGI above $100,000, reaching zero at $150,000 AGI. At $125,000 AGI, for example, the allowance is: $25,000 − (($125,000 − $100,000) × 0.50) = $12,500. At $150,000 and above, no allowance is available.
+The $25,000 allowance phases out at 50 cents per dollar of modified AGI above $100,000, reaching zero at $150,000 (§469(i)(3); modified AGI is computed without the passive losses themselves, the IRA deduction, taxable Social Security and a few other items). At $125,000 of modified AGI, for example, the allowance is: $25,000 − (($125,000 − $100,000) × 0.50) = $12,500. At $150,000 and above, no allowance is available.
 
 Note: if you file Married Filing Separately and you lived with your spouse at any point during the year, your allowance is zero regardless of AGI. MFS filers who lived apart the entire year have a $12,500 allowance (half the $25,000), with its own phase-out schedule.
 
-Active participation is a lower bar than material participation — you do not need to spend 500 hours managing the property. But you cannot be a completely passive investor (for example, owning through a limited partnership where a general partner manages everything) and still claim active participation.`,
+Active participation is a lower bar than material participation — you do not need to spend 500 hours managing the property. But you cannot be a completely passive investor (for example, owning through a limited partnership where a general partner manages everything) and still claim active participation, and you must own at least 10% of the property (§469(i)(6)(A)).`,
       },
       {
         heading: 'Real Estate Professional Status: Unlimited Deductions',
@@ -349,17 +351,17 @@ To qualify, both tests in §469(c)(7)(B) must be satisfied:
 
 Qualifying as a REP only reclassifies the activity for §469 purposes if you also materially participate in each rental — or make the election under Treas. Reg. §1.469-9(g) to treat all of your rental real estate interests as one activity, which is how most REPs meet material participation across a portfolio.
 
-The second test is the killer for most W-2 employees. If you work a 40-hour-per-week job, you spend approximately 2,080 hours annually at that job. To pass the 50% test, you would need to spend more time in real estate than at your job — essentially making real estate your primary occupation. Spending 800 hours on real estate while working 2,080 hours at a W-2 job fails the 50% test even though it clears the 750-hour hurdle.
+The first test is the killer for most W-2 employees. If you work a 40-hour-per-week job, you spend approximately 2,080 hours annually at that job. To pass the more-than-half test, you would need to spend more time in real estate than at your job — essentially making real estate your primary occupation. Spending 800 hours on real estate while working 2,080 hours at a W-2 job fails the 50% test even though it clears the 750-hour hurdle.
 
-On a joint return, hours cannot be combined: §469(c)(7)(B) (flush language) says the requirements are met only if EITHER SPOUSE SEPARATELY satisfies both tests. A married couple where one spouse works part-time (say, 1,000 hours/year at a W-2 job) and spends 1,200 hours on real estate could qualify on that spouse's own hours: 1,200 exceeds the 750-hour threshold and is more than half of that spouse's 2,200 total trade-or-business hours (54.5%). (Once the REP test is met by one spouse, material participation in the underlying activities is still measured counting BOTH spouses' participation under §469(h)(5).)`,
+On a joint return, hours cannot be combined: §469(c)(7)(B) (flush language) says the requirements are met only if EITHER SPOUSE SEPARATELY satisfies both tests. A married couple where one spouse works part-time (say, 1,000 hours/year at a W-2 job) and spends 1,200 hours on real estate could qualify on that spouse's own hours: 1,200 exceeds the 750-hour threshold and is more than half of that spouse's 2,200 total trade-or-business hours (54.5%). (Once the REP test is met by one spouse, material participation in the underlying activities is still measured counting BOTH spouses' participation under §469(h)(5).) Hours you work as an EMPLOYEE in someone else's real estate business count only if you own more than 5% of that employer (§469(c)(7)(D)(ii)).`,
       },
       {
         heading: 'Documenting REP Status',
-        body: `The IRS scrutinizes REP claims heavily, and courts have rejected them where contemporaneous records were absent. A taxpayer claiming 800 real estate hours who cannot produce logs, calendars, or other contemporaneous evidence will almost certainly lose the deduction on examination.
+        body: `REP claims are examined closely. Participation may be proved "by any reasonable means" (Treas. Reg. §1.469-5T(f)(4)), but the Tax Court rejects after-the-fact "ballpark guesstimates" (Moss v. Commissioner, 135 T.C. 365 (2010)), and a taxpayer claiming 800 real estate hours who cannot produce logs, calendars, or other evidence made near the time is in a weak position on examination.
 
 Contemporaneous means recorded at or near the time the activity occurred — not reconstructed from memory when you receive an audit notice. A simple spreadsheet or calendar entry noting date, property, activity, and hours is sufficient. It does not need to be elaborate, but it must be consistent.
 
-Qualifying real estate activities include: real property development, construction, acquisition, conversion, rental, operation, management, leasing, and brokerage. Time spent as a passive investor (reviewing statements, attending investor meetings) does not count. Time commuting to properties generally does not count unless travel itself is the business activity.`,
+Qualifying real estate activities include: real property development, construction, acquisition, conversion, rental, operation, management, leasing, and brokerage. Time spent as a passive investor (reviewing statements, attending investor meetings) does not count. Travel time between properties is contested — some Tax Court decisions have counted documented travel between rental activities and others have not — so record it separately from the work performed on site.`,
       },
       {
         heading: 'Passive Loss Carryforwards: The Hidden Asset',
@@ -377,11 +379,11 @@ Tracking your suspended losses by property on Form 8582 is essential. Many inves
       },
       {
         heading: 'Planning Around §469',
-        body: `Several strategies work within §469 to maximize deductible losses. First, passive income grouping: §469 allows taxpayers to group multiple rental properties as a single activity for material participation and passive income purposes. Grouping profitable and loss rentals can make the combined activity passive-income-positive, releasing losses from the profitable properties.
+        body: `Several strategies work within §469 to maximize deductible losses. First, know what nets automatically: income and losses from ALL of your passive activities are already netted against each other on Form 8582 every year, without any election — a profitable rental absorbs a loss rental's loss on its own. Grouping (Treas. Reg. §1.469-4) is a different tool: it treats several activities as one for the material-participation tests and for what counts as a complete disposition, and it is generally binding once made.
 
-Second, real estate syndications: limited partnership interests in real estate funds generate passive income that can absorb suspended losses from your direct rental properties. This is why some high-income investors in real estate funds — who cannot use the losses from the fund directly — can pair them with passive income from their own properties.
+Second, passive income generators: because passive losses need passive income, an investment that throws off net passive income — a profitable limited-partnership interest, a triple-net lease, a rental with positive net income — lets you use suspended losses currently. Be careful with real estate syndications: most produce passive LOSSES (depreciation) in their early years, not income, so they add to the pile rather than releasing it.
 
-Third, short-term rentals: rentals where the average customer stay is 7 days or less are not subject to §469's passive presumption — they're treated like a business. If you materially participate (which requires meeting one of seven IRS tests, typically 500+ hours or more than any other person), losses are active and deductible against any income. This is the tax treatment behind many high-income investors' interest in vacation rental platforms.
+Third, short-term rentals: rentals where the average customer stay is 7 days or less are not subject to §469's passive presumption — they're treated like a business. If you materially participate (one of the seven tests in Treas. Reg. §1.469-5T(a) — most often 500+ hours, or at least 100 hours and not less than anyone else), losses are nonpassive and deductible against any income, subject to the basis, at-risk (§465) and excess-business-loss (§461(l), now permanent) limits that apply to any business loss. This is the tax treatment behind many high-income investors' interest in vacation rental platforms.
 
 TaxStat360 models the §469(i) phase-out and REP status as you enter your figures. Enter your AGI, rental income, and expenses, and check the appropriate box — the tool shows exactly how much of the loss is deductible under the special allowance, how much is suspended, and how REP status changes the picture.`,
       },

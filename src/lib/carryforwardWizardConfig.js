@@ -73,7 +73,7 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'nol-carryforward',
     label: 'NOL carryforward',
     helperText:
-      "Look at the NOL Carryover Schedule (an informal statement/worksheet at the back of last year's return, often titled 'NOL Carryover Schedule' or 'Statement of Net Operating Loss Carryforward'). Any NOL used last year appears on Schedule 1, Part II, Line 22 (labeled 'NOL'); the remaining unused balance is what you carry forward.",
+      "Look at the NOL Carryover Schedule (an informal statement/worksheet at the back of last year's return, often titled 'NOL Carryover Schedule' or 'Statement of Net Operating Loss Carryforward'). Any NOL used last year appears on Schedule 1, Part I, line 8a ('Net operating loss', entered as a negative amount); the remaining unused balance is what you carry forward.",
     explainer:
       "Post-2017 NOL carryforwards are limited to 80% of taxable income per IRC §172(a)(2) (TCJA; retained by OBBBA). Enter your total available NOL carryforward — TaxStat360 applies the 80% cap automatically.",
     fieldKey: 'nolCarryforward',
@@ -83,12 +83,12 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'at-risk-carryforward',
     label: 'At-risk carryforwards',
     helperText:
-      "Review Form 6198 from last year's return for amounts still at risk or suspended due to the at-risk rules. For each activity on last year's Form 6198, subtract Line 21 (deductible loss) from Line 11 (current-year loss) — the leftover is that activity's at-risk carryforward.",
+      "Review Form 6198 from last year's return for amounts still at risk or suspended due to the at-risk rules. For each activity on last year's Form 6198, subtract line 21 (the deductible loss, Part IV) from line 5 (the current-year loss, Part I) — the leftover is that activity's at-risk carryforward.",
     explainer:
       'The at-risk rules under IRC §465 limit deductible losses to the amount you have at risk in the activity. Amounts disallowed under these rules carry forward. TaxStat360 does not yet store a dedicated at-risk balance on the personal return — enter per-activity amounts on each entity screen after confirming with your preparer.',
     informational: true,
     guidanceNote:
-      'Guidance only — there is no amount field on this step. For each activity on last year\'s Form 6198, subtract Line 21 (deductible loss) from Line 11 (current-year loss). Enter that carryforward on that activity\'s business, rental, or K-1 input screen in Step 1 (Entities).',
+      'Guidance only — there is no amount field on this step. For each activity on last year\'s Form 6198, subtract line 21 (the deductible loss, Part IV) from line 5 (the current-year loss, Part I). Enter that carryforward on that activity\'s business, rental, or K-1 input screen in Step 1 (Entities).',
   },
   {
     id: 'qbi-carryforward',
@@ -115,7 +115,7 @@ export const CARRYFORWARD_WIZARD_STEPS = [
     id: 'prior-year-tax',
     label: 'Prior-year federal tax (safe harbor)',
     helperText:
-      "Enter the total federal income tax from line 24 of last year's Form 1040 (used for estimated-tax safe harbor).",
+      "Enter the total tax from line 24 of last year's Form 1040, reduced by any refundable credits on that return (lines 27–29 and 31 — Form 2210 line 8 uses this net figure). If last year's tax was $0, enter 0 — no estimated-tax penalty applies this year (IRC §6654(e)(2)).",
     explainer:
       'Prior-year federal income tax is used to compute the 100% / 110% safe harbor for current-year estimated payments under IRC §6654. Enter the federal income tax from line 24 of your prior-year Form 1040 — not state or local tax.',
     fieldKey: 'priorYearTax',

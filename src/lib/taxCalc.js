@@ -1192,6 +1192,22 @@ function calcTaxReturn(input) {
     _ytdFactorApplied = 1,   // EIGHTH PASS F-5: set by _annualizeIfYTD (ytdFactor itself is reset to 1 there)
     priorYearTax,
     priorYearAGI,
+    // NINTH PASS N-7 (22 Sep 2026, pre-launch final review): `priorYearTax` is stored as a
+    // number, so "the user typed $0" and "the user left it blank" both arrive as 0. §6654(e)(2)
+    // turns on the first (no penalty at all when the prior-year tax was zero, 12-month year,
+    // U.S. citizen/resident); the UI sets this flag when a figure — including 0 — was entered.
+    priorYearTaxEntered = false,
+    // NINTH PASS N-5 (22 Sep 2026): the self-employed retirement ceiling assumed a Solo 401(k)
+    // (20% of net SE earnings PLUS the §402(g) employee deferral) for every entry, and the HSA
+    // ceiling assumed family coverage plus the age-55 catch-up. A SEP-IRA has no employee
+    // deferral (§408(k)(6) — SEP contributions are employer contributions only), so a SEP
+    // filer could over-deduct by up to the deferral amount; a self-only HSA holder by up to
+    // $5,350. Three optional attestations narrow the ceiling to the plan the taxpayer actually
+    // has. Defaults reproduce the prior (widest) ceilings byte-for-byte, so every existing
+    // record and test is unchanged until the user picks a narrower plan.
+    retirementPlanType = 'solo401k',   // 'solo401k' | 'sep'
+    hsaCoverage = 'family',            // 'family' | 'self'
+    hsaCatchUp55 = true,               // §223(b)(3): age 55+ at year-end
     priorPassiveLossCarryforward = 0,
     priorSuspendedLoss = 0,
     // C-10 FIX (§1366(d)/§704(d) conservative default): opt-in flag. When true, a
@@ -1699,7 +1715,11 @@ function calcTaxReturn(input) {
   // RETIREMENT-CATCHUP). A filer with neither SE earnings nor S-Corp wages gets $0.
   const _retTable                = getTable(taxYear).retirement || {}
   const _retLimit415c            = nf(_retTable.solo401kMax) || nf(_retTable.sepIraMax) || 70000
-  const _retDeferralLimit        = nf(_retTable.solo401kDeferral) || 23500
+  // NINTH PASS N-5 (22 Sep 2026): the §402(g) employee deferral exists only in a 401(k). A
+  // SEP-IRA is employer contributions only (§408(k)(6)), so its ceiling is the 20% figure
+  // alone (Pub. 560 rate worksheet), never 20% + the deferral.
+  const retirementPlanIsSep      = String(retirementPlanType || '').toLowerCase() === 'sep'
+  const _retDeferralLimit        = retirementPlanIsSep ? 0 : (nf(_retTable.solo401kDeferral) || 23500)
   const selfEmpRetirementEntered = ytdScale(selfEmpRetirement)
   const _seEarnedForRetirement   = Math.max(0, seNetIncome - halfSE)
   const retirementSeLegCap       = Math.max(0, Math.min(
@@ -1719,8 +1739,14 @@ function calcTaxReturn(input) {
   // TAX_TABLES[year].hsa (Rev. Proc. 2024-25 / 2025-19).
   const _hsaTable   = getTable(taxYear).hsa || {}
   const hsaEntered  = ytdScale(hsaDeduction)
-  const hsaLimit    = (nf(_hsaTable.family) || 0) > 0
-    ? nf(_hsaTable.family) + HSA_CATCH_UP_CONTRIBUTION * (status === 'mfj' ? 2 : 1)
+  // NINTH PASS N-5 (22 Sep 2026): honor the coverage-type / age attestations when given.
+  // Defaults ('family', catch-up on) reproduce the prior widest ceiling. A self-only HDHP
+  // (§223(b)(2)(A)) gets the self-only figure; the §223(b)(3) catch-up (one per spouse on a
+  // joint return) applies only when the taxpayer says they are 55+ at year-end.
+  const hsaIsSelfOnly = String(hsaCoverage || '').toLowerCase() === 'self'
+  const _hsaBase      = hsaIsSelfOnly ? nf(_hsaTable.selfOnly) : nf(_hsaTable.family)
+  const hsaLimit    = (_hsaBase || 0) > 0
+    ? _hsaBase + (hsaCatchUp55 === false ? 0 : HSA_CATCH_UP_CONTRIBUTION * (status === 'mfj' ? 2 : 1))
     : Infinity
   const hsaDed      = Math.max(0, Math.min(hsaEntered, hsaLimit))
   const hsaClamped  = hsaEntered > hsaDed
@@ -2167,7 +2193,11 @@ function calcTaxReturn(input) {
     if (isCCorpEntity(e.type)) return sum
     return sum + getEntityK1Share(e)
   }, 0)
-  const k1Distributions  = Math.max(0, entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total))
+  // NINTH PASS N-11 (22 Sep 2026): the S-Corp's entity-level premium / employer-retirement
+  // deductions (EIGHTH PASS F-1/F-2) reduce the K-1 the shareholder actually receives, so the
+  // "SE tax savings" card must not keep quoting the pre-deduction share ($192,350 shown while
+  // the waterfall carried $172,350).
+  const k1Distributions  = Math.max(0, (entitiesLimited.length > 0 ? nonSEDistributions : nf(adjustedK1Total)) - scorpEntityLevelDeductions)
   // Single source of truth (shared with the AI strategy finder) — see scorpSeTaxSavings.
   const ficaSavings = scorpSeTaxSavings({
     k1Income: k1Distributions,
@@ -2555,7 +2585,28 @@ function calcTaxReturn(input) {
   // partially-phased-out one carries forward only its applicable-percentage share. Before
   // C1 that came for free because qbiBasis was pre-scaled — which was also the bug. Now
   // it is stated explicitly.
-  const qbiBasisAfterSstb        = qbiBasis - sstbQbiReduction
+  // NINTH PASS N-2 (22 Sep 2026, pre-launch final review): `sstbQbiReduction` measures the
+  // haircut on each SSTB's GROSS share, but `qbiBasis` carries the SSTB NET of the ½-SE /
+  // SEHI / retirement deductions attributable to it (and, for an S-Corp, the entity-level
+  // premium / retirement haircuts). Subtracting a gross haircut from a net base left a
+  // phantom NEGATIVE equal to those deductions once the SSTB was fully phased out — the live
+  // site told a single filer with a $300,000 SSTB Schedule C and $20,000 of W-2 that a
+  // "$14,216 QBI loss carries to next year" (the ½-SE deduction). Above the phase-in range an
+  // SSTB is not a qualified trade or business at all (§199A(d)(1)(A)); neither its income
+  // nor the deductions attributable to it are QBI items, so there is nothing to carry.
+  // The deduction path already measures the haircut on the ADJUSTED share (SEVENTH PASS F-4,
+  // `qbiShareAdjusted` in _calcQBI); the carryforward now does the same, from the same
+  // per-entity figures (qbiEligibleEntitiesForCalcAdj). A loss-year SSTB (share ≤ 0, no
+  // qbiShareAdjusted) keeps the prior gross treatment, which is the sign-correct one.
+  const sstbQbiReductionAdjusted = qbiEligibleEntitiesForCalcAdj.reduce((sum, e) => {
+    if (!e || !e.box17V_sstb) return sum
+    if (isRealEstateEntity(e?.type) || isCCorpEntity(e?.type)) return sum
+    const share = (e.qbiShareAdjusted !== undefined && e.qbiShareAdjusted !== null)
+      ? nf(e.qbiShareAdjusted)
+      : (SE_SUBJECT_TYPES.includes(e?.type) ? getEntityK1Share(e) : getEntityK1Share(e) - nf(e.box11_12))
+    return sum + share * (1 - sstbApplicablePct)
+  }, 0)
+  const qbiBasisAfterSstb        = qbiBasis - sstbQbiReductionAdjusted
   const qbiCarryforward          = qbiBasisAfterSstb < 0 ? Math.abs(qbiBasisAfterSstb) : 0
   // F-9 HOTFIX (post-deploy regression, Jul 2026): totalPrefIncome carves preferential
   // income out of the ordinary base. It was still built from the RAW qualDiv input, so
@@ -2789,8 +2840,40 @@ function calcTaxReturn(input) {
     }, 0)
     + _addlMedPerSource(Math.max(0, nf(w2) - _officerSalariesForWithholding))
   )
+  // ── NINTH PASS N-1 (22 Sep 2026, pre-launch final review) — EXCESS SOCIAL SECURITY TAX
+  // WITHHELD IS A REFUNDABLE CREDIT ──────────────────────────────────────────────────────
+  // Each employer withholds 6.2% OASDI on the wages IT pays, up to the wage base, with no
+  // knowledge of the employee's other jobs (§3102(a), §3121(a)(1)). When one person's W-2
+  // wages from two or more employers together exceed the base, the excess withheld is a
+  // refundable credit — Form 1040 Schedule 3 line 11 (§31(b), §6413(c)(1)). The engine's
+  // informational `employeeFICA` line already coordinates the base across all wages; the
+  // BALANCE DUE never credited the excess, so the app's core "S-Corp officer salary plus a
+  // day-job W-2" customer was overcharged (live 22 Sep: officer W-2 $100,000 + other W-2
+  // $500,000 → $6,200 missing; $40,000 + $150,000 → $341).
+  //   Sources, per TAXPAYER (the credit is per individual, never per household —
+  //   §6413(c)(1); a spouse's wages are that spouse's own single-employer figure):
+  //     • each S-Corp / C-Corp officer salary on the return (its own employer), and
+  //     • the taxpayer's OTHER-employer W-2: the household `w2` less the officer salaries
+  //       for a one-person return; for MFJ only the slice the caller ATTRIBUTES to the
+  //       owner (w2OwnForSE, the same attribution Schedule SE uses) — the default
+  //       attribution is the officer salary itself, so an unattributed other-employer W-2
+  //       is treated as the spouse's (one employer ⇒ no excess), the conservative reading.
+  //   YTD mode: wages are annualized, withholding is what has been withheld to date (F-6),
+  //   so the credit is measured on the wages paid so far — same divisor as the §3102(f)
+  //   credit above. Form 2210 line 6 counts the excess as withholding, so it joins
+  //   `withheld` for the §6654(g)(1) even-spread and the safe-harbor payments.
+  const _ssWithheldOn = (wages) => Math.min(Math.max(0, wages / _ytdDivisor), ssWageBase) * FICA_SS_RATE
+  const _ownerOtherW2ForSS = String(status).toLowerCase() === 'mfj'
+    ? Math.max(0, w2OwnForSEClamped - _officerSalariesForWithholding)
+    : Math.max(0, nf(w2) - _officerSalariesForWithholding)
+  const _ssWithheldBySource = entities.reduce((s, e) => {
+    if (!e || !(isSCorpEntity(e.type) || isCCorpEntity(e.type))) return s
+    return s + _ssWithheldOn(Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0))
+  }, 0) + _ssWithheldOn(_ownerOtherW2ForSS)
+  const _ssMaxForYear      = ssWageBase * FICA_SS_RATE
+  const excessSSWithheld   = Math.round(Math.max(0, _ssWithheldBySource - _ssMaxForYear))
   const withheldEntered = nf(w2Withheld)
-  const withheld      = withheldEntered + addlMedicareWithheld
+  const withheld      = withheldEntered + addlMedicareWithheld + excessSSWithheld
   // SEVENTH PASS H-2 (16 Sep 2026): the per-installment boxes (estQ1..4) fed only the §6654
   // timing schedule — they were never CREDITED. A filer who typed Q1–Q4 and left the total
   // blank saw a balance due equal to the whole liability. The boxes are the itemized form
@@ -2805,13 +2888,24 @@ function calcTaxReturn(input) {
   const agiBoundary         = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
   const safeHarborCurrentYear = Math.round(totalTax * 0.90)
+  // NINTH PASS N-7 (22 Sep 2026): §6654(e)(2) — no addition to tax for a year when the
+  // preceding year's tax was ZERO (12-month year, U.S. citizen or resident). A typed $0 is
+  // a prior-year figure of $0 (required annual payment $0), not a missing entry; the UI
+  // distinguishes the two through priorYearTaxEntered. §6654(e)(1) — likewise no penalty
+  // when the tax after withholding and refundable credits is under $1,000 (estimated
+  // payments do not count toward that test: they are not "credits" under §6654(e)(1)).
+  const priorYearTaxWasZero   = !!priorYearTaxEntered && priorYearTaxAmt === 0
   const safeHarborPriorYear   = priorYearTaxAmt > 0
     ? Math.round(priorYearTaxAmt * priorYearMultiplier)
-    : null
+    : (priorYearTaxWasZero ? 0 : null)
   const safeHarborMinimum = safeHarborPriorYear !== null
     ? Math.min(safeHarborCurrentYear, safeHarborPriorYear)
     : safeHarborCurrentYear
   const safeHarborBalance   = Math.max(0, safeHarborMinimum - totalPayments)
+  const _taxAfterWithholding = totalTax - withheld - actc
+  const underpaymentPenaltyExempt = priorYearTaxWasZero
+    ? 'priorYearZero'
+    : (_taxAfterWithholding < 1000 ? 'deMinimis' : null)
   // AUDIT (2210-lite, Jul 2026): per-installment required amounts under §6654(d)(1)(A)
   // — each installment is 25% of the required annual payment. Withholding is deemed
   // paid evenly across installments (§6654(g)(1)). If per-quarter estimated payments
@@ -2942,6 +3036,9 @@ function calcTaxReturn(input) {
     scorpEntityLevelDeductions,               // F-1 + F-2 total
     selfEmpRetirementEntered, retirementSeLegCap, retirementScorpLegCap, selfEmpRetirementDisallowed, selfEmpRetirementClamped,
     hsaEntered, hsaLimit: Number.isFinite(hsaLimit) ? hsaLimit : null, hsaClamped,
+    // NINTH PASS N-5: which ceiling was applied (so captions describe the plan the user chose).
+    hsaCoverageApplied: hsaIsSelfOnly ? 'self' : 'family', hsaCatchUpApplied: hsaCatchUp55 !== false,
+    retirementPlanTypeApplied: retirementPlanIsSep ? 'sep' : 'solo401k', retirementDeferralLimit: _retDeferralLimit,
     // AUDIT FIX result fields (Jul 2026):
     sehiEntered, sehiLimit, sehiClamped, sehiScorpWageGrossUp, sehiMixedSourceFallback,  // F-7 §162(l)(5)(A) cap; EXT-1 §1372 wage grossup
     // B4 (Aug 2026): split-leg detail, for the UI when the split fields were used.
@@ -2985,6 +3082,8 @@ function calcTaxReturn(input) {
     totalTax, taxToEarnedRatio,
     withheld, estimated, totalPayments, balance, quarterlyRecommended,
     withheldEntered, addlMedicareWithheld,    // EIGHTH PASS F-5: Box 2 as entered + the auto-credited §3102(f) Additional Medicare withholding
+    excessSSWithheld,                         // NINTH PASS N-1: §6413(c) excess Social Security withholding (Schedule 3 line 11), credited as withholding
+    underpaymentPenaltyExempt, priorYearTaxWasZero,   // NINTH PASS N-7: §6654(e)(1)/(e)(2) — 'deMinimis' | 'priorYearZero' | null
     // Follow-up (15 Sep 2026): remaining-installment timing (see asOfDate).
     installmentsRemaining, installmentsPassed, nextDueDate, balancePerInstallment,
     installmentSchedule,                     // 2210-lite §6654(d)(1)(A)/(g)(1)
@@ -2998,6 +3097,7 @@ function calcTaxReturn(input) {
     effectiveQBILossCO,
     perEntityQBILossCO,
     qbiCarryforward,
+    sstbQbiReductionGross: sstbQbiReduction, sstbQbiReductionAdjusted,   // NINTH PASS N-2: diagnostics
     nolAllowed,
     nolSurplus,
     ebl,
