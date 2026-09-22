@@ -140,7 +140,15 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'rentalAggregationElection', kind: 'bool', def: false },  // F6 §1.469-9(g)
   { key: 'priorPassiveLossCarryforward', kind: 'float', def: 0 },
   { key: 'priorYearTax',       kind: 'float',  def: 0 },
+  // NINTH PASS N-7 (22 Sep 2026): whether a prior-year tax figure was ENTERED (a typed $0 is a
+  // figure — §6654(e)(2) — but stores as the same 0 as a blank). BOOL, never scaled.
+  { key: 'priorYearTaxEntered', kind: 'bool',  def: false },
   { key: 'priorYearAGI',       kind: 'float',  def: 0 },
+  // NINTH PASS N-5 (22 Sep 2026): plan-type / HSA-coverage attestations that narrow the
+  // retirement and HSA ceilings (defaults = the prior widest ceilings). Never scaled.
+  { key: 'retirementPlanType', kind: 'string', def: 'solo401k' },   // 'solo401k' | 'sep'
+  { key: 'hsaCoverage',        kind: 'string', def: 'family' },     // 'family' | 'self'
+  { key: 'hsaCatchUp55',       kind: 'boolDefaultTrue', def: true },
   { key: 'priorYearLosses',    kind: 'float',  def: 0 },
   { key: 'mortgageInt',        kind: 'float',  def: 0 },
   { key: 'charitableContr',    kind: 'float',  def: 0 },

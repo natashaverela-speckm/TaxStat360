@@ -116,6 +116,10 @@ const _SUMMARY_KEYS = [
   'selfEmpRetirementEntered', 'selfEmpRetirementDisallowed', 'selfEmpRetirementClamped',
   'hsaEntered', 'hsaLimit', 'hsaClamped',
   'withheldEntered', 'addlMedicareWithheld',
+  // NINTH PASS (22 Sep 2026): the §6413(c) excess Social Security credit (N-1), the §6654(e)
+  // penalty exemptions (N-7) and the plan/coverage ceilings actually applied (N-5).
+  'excessSSWithheld', 'ssWageBase', 'underpaymentPenaltyExempt', 'priorYearTaxWasZero',
+  'hsaCoverageApplied', 'hsaCatchUpApplied', 'retirementPlanTypeApplied',
 
   // AUDIT BLOCKER 2 (Jul 2026): the §199A REASON CODES, not just the number.
   // AIAnalysis needs these to render its "why is my deduction reduced" copy. Before
