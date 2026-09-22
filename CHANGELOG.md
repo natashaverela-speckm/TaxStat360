@@ -12,6 +12,87 @@ record of work that predates this changelog.
 
 ---
 
+## Ninth pass — pre-launch final review (engine N-1 / N-2 / N-5 / N-7 / N-11, wiring N-3 / N-4 / N-9, copy N-6 / N-8 / N-10 / N-12, legal L-7 / L-8, Resources articles) — September 22, 2026
+
+Black-box review of production after the eighth-pass fixes were deployed: all ten September 18
+findings re-tested and holding; 42 new scenarios (2024–2026; single, MFJ, MFS, HOH) against an
+independent reference calculator, 38 to the dollar. The discrepancies became the fixes below.
+SPEC tests written from the live repros before the code (`taxCalc-ninth-pass.test.js`, +15;
+`ninth-pass-step1.test.jsx`, +8). Suite: 118 files / 1,756 tests, all green; lint 0 errors
+(28 pre-existing warnings, unchanged); production build clean.
+
+### Fixed — engine (`src/lib/taxCalc.js`)
+- **N-1 (MED) — excess Social Security withholding is credited.** W-2 wages from two or more
+  payers (an S-Corp officer salary plus a day-job W-2 — the product's core customer) that together
+  exceed the wage base leave excess 6.2% withheld that is a refundable credit (Schedule 3 line 11;
+  §31(b), §6413(c)). The balance due never credited it (live: $100k officer + $500k other →
+  $6,200 missing). Computed per taxpayer from the same per-source wages as the §3102(f) credit;
+  for MFJ only the slice attributed to the owner (`w2OwnForSE`) counts, so a spouse's W-2 is
+  never combined with the owner's (§6413(c) is per individual). Counted as withholding for the
+  §6654 schedule (Form 2210 line 6). New result: `excessSSWithheld`.
+- **N-2 (MED) — a fully phased-out SSTB no longer leaves a phantom §199A loss carryforward.**
+  The carryforward subtracted the SSTB haircut measured on the GROSS share from a base that
+  carried the share NET of the ½-SE / SEHI / retirement deductions, so above the phase-in range
+  the difference (the deductions) surfaced as a "loss" to carry (live: $14,216). The haircut is
+  now measured on the same adjusted per-entity figure the deduction path uses (SEVENTH PASS F-4).
+- **N-5 — retirement plan type and HSA coverage narrow the ceilings.** New optional inputs
+  `retirementPlanType` ('solo401k' | 'sep'), `hsaCoverage` ('family' | 'self'), `hsaCatchUp55`.
+  A SEP-IRA has no §402(g) employee deferral (§408(k)(6)); a self-only HDHP has the self-only
+  limit. Defaults reproduce the eighth-pass (widest) ceilings byte-for-byte.
+- **N-7 — §6654(e) exceptions.** A typed prior-year tax of $0 (`priorYearTaxEntered`) exempts
+  the year (§6654(e)(2)) — required annual payment $0, schedule zeroed; tax after withholding
+  under $1,000 exempts it too (§6654(e)(1)). New result: `underpaymentPenaltyExempt`.
+- **N-11 — the "SE tax savings" K-1 figure is net of the S-Corp's entity-level SEHI /
+  retirement deductions** (it kept quoting the pre-deduction share).
+
+### Fixed — wiring (`CalculateTaxInner.jsx`, `TaxReturn.jsx`, `EntityCompareModal.jsx`, `fieldManifest.js`, `calcSelector.js`, `Aria.jsx`)
+- **N-3 (MED) — K-1 direct mode is gated on the entity type.** An S-Corp card entered in K-1
+  mode and changed to Sole Proprietor kept writing the stale Box 1 as the Schedule C net; the
+  P&L fields did nothing. One predicate (`k1Active`) now gates the mode everywhere the panel
+  reads it, and the type-change handler clears `k1DirectMode` for types without a K-1 path.
+- **N-4 — the "Passive shareholder" and "Limited partner" attestations render in K-1 direct
+  mode** (they lived in the P&L branch only).
+- **N-9 — "Compare Entity Structures" targets the first business entity, never a Schedule E
+  rental, with a picker when the return has several.**
+- Step 2: plan-type / HDHP-coverage / age-55 selectors under the retirement and HSA fields;
+  the excess-SS credit in the payments note; a green "no estimated-tax penalty applies" notice
+  for the §6654(e) cases; the safe-harbor line no longer says a late catch-up payment "avoids"
+  penalties once installments have passed (N-7); the MFJ single-employer assumption behind the
+  automatic Additional Medicare credit is captioned (N-10). New fields persist through the
+  manifest (`priorYearTaxEntered`, `retirementPlanType`, `hsaCoverage`, `hsaCatchUp55`).
+
+### Fixed — copy
+- **N-6** — the "Basis not entered · likely limited" cue and the §1366(d) waterfall note no
+  longer attach to a Schedule C loss (no basis limit exists for a sole proprietorship).
+- **N-8** — carryforward guide: NOL used last year is Schedule 1, Part I, line 8a (not Part II
+  line 22); the Form 6198 at-risk carryforward is line 5 minus line 21 (not line 11); the
+  safe-harbor step notes the Form 2210 line 8 refundable-credit reduction and the $0 case.
+- **N-12** — "RepsRecord Evidence" removed from the PDF-prefill note; the About page's "how the
+  IRS actually reads these returns" softened to the site-wide "designed for planning estimates"
+  standard.
+- **L-7 / L-8 (legal review, 18 Sep)** — footer trademark attribution for QuickBooks / Xero /
+  Wave / FreshBooks; Terms §5 U.S.-only territorial scope. `TERMS_VERSION` → 2026-09-22 (the
+  re-acceptance prompt follows it; note §13's 30-day notice for material changes if any
+  subscriber has already accepted the 11 Sep Terms).
+- **Resources articles** — legal misstatements corrected: Rev. Rul. 74-44 addressed an
+  electing S corporation (it does not "predate S-Corps"); the trust-fund recovery penalty is not
+  the routine consequence of a reasonable-compensation adjustment (§6672 requires wilful failure
+  to pay over withheld tax); Watson's argument and distribution figures; §199A is a deduction
+  from taxable income, not "above-the-line-style", and the headline example notes the 20%-of-
+  taxable-income cap; guaranteed payments excluded from QBI; distribution timing does not
+  affect §6654 (S-Corp income is taxed as earned); the annualized method does not excuse later
+  shortfalls; §6654(e) exceptions added; the §469 grouping and syndication paragraphs rewritten
+  (passive netting is automatic; syndications usually produce losses); "second test" → first
+  test; AGI → modified AGI; §469(i)(6)(A) 10% ownership; §469(g) disposition conditions; the
+  §469(c)(7)(D)(ii) 5%-owner employee rule; Reg. §1.469-5T(f)(4) / Moss on substantiation.
+
+### Not changed (documented)
+- The OBBBA senior deduction (§70103) is still not modelled — no age input exists. The
+  new `hsaCatchUp55` attestation is the first age-related input; an "age 65+" checkbox per
+  spouse is the natural next step (2025–2028).
+
+---
+
 ## Eighth pass — independent fresh-eyes audit (engine F-1 / F-2 / F-5 / F-10, wiring F-3 / F-4, copy F-6 – F-9) — September 18, 2026
 
 Black-box audit of production by a reviewer with no access to this repository: 45 live
