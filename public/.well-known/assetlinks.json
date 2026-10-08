@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.taxstat360.www.twa",
+    "sha256_cert_fingerprints": ["E9:A8:30:DC:C2:6A:B1:5B:AD:FC:22:25:44:71:F3:FF:FE:AE:40:C5:39:54:0E:04:51:77:33:73:98:70:3D:EC"]
+  }
+}]
